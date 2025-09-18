@@ -1,6 +1,4 @@
 "use server";
-
-import { cookies, headers } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 
 const getSupabaseUrl = (): string => {
@@ -25,9 +23,6 @@ export const createServerSupabaseClient = () => {
       persistSession: false,
       autoRefreshToken: true,
       detectSessionInUrl: false,
-    },
-    global: {
-      headers: Object.fromEntries(headers()),
     },
   });
 

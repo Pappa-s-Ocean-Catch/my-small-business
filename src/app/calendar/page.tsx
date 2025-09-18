@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { supabaseClient } from "@/src/lib/supabase/client";
+import { useCallback, useEffect, useState } from "react";
+import { getSupabaseClient } from "@/lib/supabase/client";
 import { addDays, startOfWeek, endOfWeek, format, setHours, setMinutes } from "date-fns";
 
 type Staff = { id: string; name: string };
@@ -20,18 +20,18 @@ export default function CalendarPage() {
 
   useEffect(() => { setDays(weekDays(anchor)); }, [anchor]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async (): Promise<void> => {
     const [{ data: staffData }, { data: shiftData }] = await Promise.all([
-      supabaseClient.from("staff").select("id,name").order("name"),
-      supabaseClient.from("shifts").select("*")
+      getSupabaseClient().from("staff").select("id,name").order("name"),
+      getSupabaseClient().from("shifts").select("*")
         .gte("start_time", startOfWeek(anchor, { weekStartsOn: 1 }).toISOString())
         .lte("end_time", endOfWeek(anchor, { weekStartsOn: 1 }).toISOString()),
     ]);
-    setStaff((staffData as any) ?? []);
-    setShifts((shiftData as any) ?? []);
-  };
+    setStaff((staffData as Staff[]) ?? []);
+    setShifts((shiftData as Shift[]) ?? []);
+  }, [anchor]);
 
-  useEffect(() => { fetchData(); }, [anchor]);
+  useEffect(() => { void fetchData(); }, [anchor, fetchData]);
 
   const dayShifts = (day: Date) => {
     const y = day.toISOString().slice(0, 10);
@@ -41,17 +41,17 @@ export default function CalendarPage() {
   const createShift = async (day: Date) => {
     const start = setMinutes(setHours(day, 9), 0);
     const end = setMinutes(setHours(day, 17), 0);
-    await supabaseClient.from("shifts").insert({ start_time: start.toISOString(), end_time: end.toISOString(), staff_id: null });
+    await getSupabaseClient().from("shifts").insert({ start_time: start.toISOString(), end_time: end.toISOString(), staff_id: null });
     await fetchData();
   };
 
   const updateShiftStaff = async (shiftId: string, staffId: string | null) => {
-    await supabaseClient.from("shifts").update({ staff_id: staffId }).eq("id", shiftId);
+    await getSupabaseClient().from("shifts").update({ staff_id: staffId }).eq("id", shiftId);
     await fetchData();
   };
 
   const removeShift = async (shiftId: string) => {
-    await supabaseClient.from("shifts").delete().eq("id", shiftId);
+    await getSupabaseClient().from("shifts").delete().eq("id", shiftId);
     await fetchData();
   };
 

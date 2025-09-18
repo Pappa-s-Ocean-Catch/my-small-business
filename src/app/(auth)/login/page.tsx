@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { supabaseClient } from "@/src/lib/supabase/client";
+import { getSupabaseClient } from "@/lib/supabase/client";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
 
@@ -15,11 +15,12 @@ export default function LoginPage() {
     setLoading(true);
     setMessage(null);
     try {
-      const { error } = await supabaseClient.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } });
+      const { error } = await getSupabaseClient().auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } });
       if (error) throw error;
       setMessage("Check your email for a magic link to sign in.");
-    } catch (err: any) {
-      setMessage(err.message ?? "Failed to send magic link");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to send magic link";
+      setMessage(message);
     } finally {
       setLoading(false);
     }

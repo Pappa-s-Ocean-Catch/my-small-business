@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { supabaseClient } from "@/src/lib/supabase/client";
+import { useEffect, useState } from "react";
+import { getSupabaseClient } from "@/lib/supabase/client";
 import { Loader2, Plus, Pencil, Trash2, Check, X } from "lucide-react";
 
 type Staff = {
@@ -29,8 +29,8 @@ export default function StaffPage() {
 
   const fetchStaff = async () => {
     setLoading(true);
-    const { data, error } = await supabaseClient.from("staff").select("*").order("created_at", { ascending: false });
-    if (!error && data) setStaff(data as any);
+    const { data, error } = await getSupabaseClient().from("staff").select("*").order("created_at", { ascending: false });
+    if (!error && data) setStaff(data as Staff[]);
     setLoading(false);
   };
 
@@ -46,9 +46,9 @@ export default function StaffPage() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (editing) {
-      await supabaseClient.from("staff").update(form).eq("id", editing.id);
+      await getSupabaseClient().from("staff").update(form).eq("id", editing.id);
     } else {
-      await supabaseClient.from("staff").insert({ ...form, phone: form.phone || null, email: form.email || null });
+      await getSupabaseClient().from("staff").insert({ ...form, phone: form.phone || null, email: form.email || null });
     }
     await fetchStaff();
     setFormOpen(false);
@@ -68,7 +68,7 @@ export default function StaffPage() {
   };
 
   const remove = async (id: string) => {
-    await supabaseClient.from("staff").delete().eq("id", id);
+    await getSupabaseClient().from("staff").delete().eq("id", id);
     await fetchStaff();
   };
 
