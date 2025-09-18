@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
+import { AdminGuard } from "@/components/AdminGuard";
 import { Loader2, Plus, Pencil, Trash2, Check, X } from "lucide-react";
 
 type Staff = {
@@ -73,6 +74,7 @@ export default function StaffPage() {
   };
 
   return (
+    <AdminGuard>
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between gap-4">
         <div>
@@ -163,6 +165,7 @@ export default function StaffPage() {
         </div>
       )}
     </div>
+    </AdminGuard>
   );
 }
 

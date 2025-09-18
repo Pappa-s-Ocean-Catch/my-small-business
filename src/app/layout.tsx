@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { HeaderAuth } from "@/components/HeaderAuth";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -32,7 +33,7 @@ export default function RootLayout({
             <nav className="flex items-center gap-3 text-sm">
               <Link className="hover:underline" href="/staff" aria-label="Staff">Staff</Link>
               <Link className="hover:underline" href="/calendar" aria-label="Calendar">Calendar</Link>
-              <Link className="rounded-lg border px-3 py-1" href="/login" aria-label="Login">Login</Link>
+              <HeaderAuth />
             </nav>
           </div>
         </header>

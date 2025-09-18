@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { addDays, startOfWeek, endOfWeek, format, setHours, setMinutes } from "date-fns";
+import { AdminGuard } from "@/components/AdminGuard";
 
 type Staff = { id: string; name: string };
 type Shift = { id: string; staff_id: string | null; start_time: string; end_time: string; notes: string | null };
@@ -45,6 +46,12 @@ export default function CalendarPage() {
     await fetchData();
   };
 
+  const [edit, setEdit] = useState<Shift | null>(null);
+  const updateShiftTime = async (s: Shift) => {
+    await getSupabaseClient().from("shifts").update({ start_time: s.start_time, end_time: s.end_time, notes: s.notes }).eq("id", s.id);
+    await fetchData();
+  };
+
   const updateShiftStaff = async (shiftId: string, staffId: string | null) => {
     await getSupabaseClient().from("shifts").update({ staff_id: staffId }).eq("id", shiftId);
     await fetchData();
@@ -56,6 +63,7 @@ export default function CalendarPage() {
   };
 
   return (
+    <AdminGuard>
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between">
         <div>
@@ -86,7 +94,10 @@ export default function CalendarPage() {
                       <div className="text-sm font-medium">
                         {format(new Date(s.start_time), "HH:mm")}–{format(new Date(s.end_time), "HH:mm")}
                       </div>
-                      <button className="text-xs text-red-600" onClick={() => removeShift(s.id)}>Delete</button>
+                      <div className="flex items-center gap-2">
+                        <button className="text-xs" onClick={() => setEdit(s)}>Edit</button>
+                        <button className="text-xs text-red-600" onClick={() => removeShift(s.id)}>Delete</button>
+                      </div>
                     </div>
                     <div className="mt-2">
                       <select className="w-full h-9 rounded-lg border bg-white/80 dark:bg-neutral-900" value={s.staff_id ?? ""} onChange={(e) => updateShiftStaff(s.id, e.target.value || null)}>
@@ -103,7 +114,34 @@ export default function CalendarPage() {
           </div>
         ))}
       </div>
+
+      {edit && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm grid place-items-center p-4 z-50" onClick={() => setEdit(null)}>
+          <div className="w-full max-w-md bg-white dark:bg-neutral-950 rounded-2xl border shadow-xl p-6" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold">Edit shift</h2>
+            <form className="mt-4 grid gap-4" onSubmit={async (e) => { e.preventDefault(); await updateShiftTime(edit); setEdit(null); }}>
+              <label className="grid gap-2">
+                <span className="text-sm text-gray-600">Start</span>
+                <input type="datetime-local" className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={edit.start_time.slice(0,16)} onChange={(e) => setEdit({ ...edit, start_time: new Date(e.target.value).toISOString() })} />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm text-gray-600">End</span>
+                <input type="datetime-local" className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={edit.end_time.slice(0,16)} onChange={(e) => setEdit({ ...edit, end_time: new Date(e.target.value).toISOString() })} />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm text-gray-600">Notes</span>
+                <textarea className="min-h-24 rounded-xl border px-3 py-2 bg-white/80 dark:bg-neutral-900" value={edit.notes ?? ""} onChange={(e) => setEdit({ ...edit, notes: e.target.value })} />
+              </label>
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setEdit(null)} className="h-10 px-4 rounded-xl border">Cancel</button>
+                <button className="h-10 px-4 rounded-xl bg-black text-white dark:bg-white dark:text-black">Save</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
+    </AdminGuard>
   );
 }
 

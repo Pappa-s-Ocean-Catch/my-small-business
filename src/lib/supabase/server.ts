@@ -17,7 +17,7 @@ const getServiceRoleKey = (): string | undefined => {
   return process.env.SUPABASE_SERVICE_ROLE_KEY;
 };
 
-export const createServerSupabaseClient = () => {
+export const createServerSupabaseClient = async () => {
   const supabase = createClient(getSupabaseUrl(), getAnonKey(), {
     auth: {
       persistSession: false,
@@ -29,7 +29,7 @@ export const createServerSupabaseClient = () => {
   return supabase;
 };
 
-export const createServiceRoleClient = () => {
+export const createServiceRoleClient = async () => {
   const serviceKey = getServiceRoleKey();
   if (!serviceKey) throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY for server actions");
   return createClient(getSupabaseUrl(), serviceKey, {

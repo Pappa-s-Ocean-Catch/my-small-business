@@ -1,6 +1,9 @@
 -- Enable RLS
 -- Tables: profiles (users), roles, staff, shifts
 
+-- Ensure required extensions
+create extension if not exists pgcrypto;
+
 create table if not exists public.roles (
   id uuid primary key default gen_random_uuid(),
   slug text unique not null check (slug in ('admin','staff')),
@@ -42,31 +45,40 @@ alter table public.staff enable row level security;
 alter table public.shifts enable row level security;
 
 -- Policies: profiles are readable by self and admins
-create policy if not exists profiles_self_read on public.profiles for select using (
+drop policy if exists profiles_self_read on public.profiles;
+create policy profiles_self_read on public.profiles for select using (
   auth.uid() = id or exists(select 1 from public.profiles p where p.id = auth.uid() and p.role_slug = 'admin')
 );
 
 -- Staff policies: admin full access, others read-only
-create policy if not exists staff_read_all on public.staff for select using (true);
-create policy if not exists staff_admin_ins on public.staff for insert with check (
+drop policy if exists staff_read_all on public.staff;
+drop policy if exists staff_admin_ins on public.staff;
+drop policy if exists staff_admin_upd on public.staff;
+drop policy if exists staff_admin_del on public.staff;
+create policy staff_read_all on public.staff for select using (true);
+create policy staff_admin_ins on public.staff for insert with check (
   exists(select 1 from public.profiles p where p.id = auth.uid() and p.role_slug = 'admin')
 );
-create policy if not exists staff_admin_upd on public.staff for update using (
+create policy staff_admin_upd on public.staff for update using (
   exists(select 1 from public.profiles p where p.id = auth.uid() and p.role_slug = 'admin')
 );
-create policy if not exists staff_admin_del on public.staff for delete using (
+create policy staff_admin_del on public.staff for delete using (
   exists(select 1 from public.profiles p where p.id = auth.uid() and p.role_slug = 'admin')
 );
 
 -- Shifts policies: read all, admin write
-create policy if not exists shifts_read_all on public.shifts for select using (true);
-create policy if not exists shifts_admin_ins on public.shifts for insert with check (
+drop policy if exists shifts_read_all on public.shifts;
+drop policy if exists shifts_admin_ins on public.shifts;
+drop policy if exists shifts_admin_upd on public.shifts;
+drop policy if exists shifts_admin_del on public.shifts;
+create policy shifts_read_all on public.shifts for select using (true);
+create policy shifts_admin_ins on public.shifts for insert with check (
   exists(select 1 from public.profiles p where p.id = auth.uid() and p.role_slug = 'admin')
 );
-create policy if not exists shifts_admin_upd on public.shifts for update using (
+create policy shifts_admin_upd on public.shifts for update using (
   exists(select 1 from public.profiles p where p.id = auth.uid() and p.role_slug = 'admin')
 );
-create policy if not exists shifts_admin_del on public.shifts for delete using (
+create policy shifts_admin_del on public.shifts for delete using (
   exists(select 1 from public.profiles p where p.id = auth.uid() and p.role_slug = 'admin')
 );
 
