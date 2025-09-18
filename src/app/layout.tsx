@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { HeaderAuth } from "@/components/HeaderAuth";
+import { Logo } from "@/components/Logo";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -28,12 +29,15 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <header className="sticky top-0 z-40 backdrop-blur border-b bg-white/50 dark:bg-black/30">
-          <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
-            <Link href="/" className="font-semibold tracking-tight" aria-label="Home">ShiftFlow</Link>
-            <nav className="flex items-center gap-3 text-sm">
-              <Link className="hover:underline" href="/staff" aria-label="Staff">Staff</Link>
-              <Link className="hover:underline" href="/calendar" aria-label="Calendar">Calendar</Link>
-              <HeaderAuth />
+          <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+            <Link href="/" aria-label="Home">
+              <Logo />
+            </Link>
+            <nav className="flex items-center gap-1 text-sm">
+              <Link className="px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-900" href="/staff" aria-label="Staff">Staff</Link>
+              <Link className="px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-900" href="/calendar" aria-label="Calendar">Calendar</Link>
+              <Link className="px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-900" href="/settings" aria-label="Settings">Settings</Link>
+              <div className="ml-2"><HeaderAuth /></div>
             </nav>
           </div>
         </header>

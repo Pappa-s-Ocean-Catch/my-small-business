@@ -10,10 +10,12 @@ export function HeaderAuth() {
   useEffect(() => {
     const supa = getSupabaseClient();
     void supa.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null));
-    const { data: sub } = supa.auth.onAuthStateChange(async () => {
-      const { data } = await supa.auth.getUser();
-      setEmail(data.user?.email ?? null);
-    });
+    const { data: sub } = supa.auth.onAuthStateChange(
+      () =>  {
+        setTimeout(async() => {
+          const { data } = await supa.auth.getUser();
+          setEmail(data.user?.email ?? null);
+      }, 0)});
     return () => { sub.subscription.unsubscribe(); };
   }, []);
 

@@ -1,0 +1,4 @@
+---
+alwaysApply: true
+---
+- run build:agent to verify the build is green without any error after some change or before report big task done

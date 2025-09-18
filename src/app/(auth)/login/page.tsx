@@ -4,7 +4,6 @@ import { useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
-import { promoteIfNoAdmin } from "@/app/actions/admin";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -27,18 +26,6 @@ export default function LoginPage() {
     }
   };
 
-  const becomeAdmin = async () => {
-    try {
-      setLoading(true);
-      const { data } = await getSupabaseClient().auth.getUser();
-      const user = data.user;
-      if (!user) { setMessage("Sign in first."); return; }
-      const res = await promoteIfNoAdmin(user.id, user.email ?? undefined);
-      setMessage(res.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="min-h-[80vh] grid place-items-center p-6">
@@ -62,7 +49,6 @@ export default function LoginPage() {
           </button>
         </form>
         {message && <p className="mt-4 text-sm text-gray-600">{message}</p>}
-        <button onClick={becomeAdmin} className="mt-3 text-xs underline">Become admin (if none exists)</button>
         <div className="mt-6 text-xs text-gray-500">
           <Link href="/">Back to home</Link>
         </div>
