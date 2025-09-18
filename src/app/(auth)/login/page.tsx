@@ -15,7 +15,12 @@ export default function LoginPage() {
     setLoading(true);
     setMessage(null);
     try {
-      const { error } = await getSupabaseClient().auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } });
+      const { error } = await getSupabaseClient().auth.signInWithOtp({ 
+        email, 
+        options: { 
+          emailRedirectTo: process.env.NEXT_PUBLIC_SITE_URL || window.location.origin 
+        } 
+      });
       if (error) throw error;
       setMessage("Check your email for a magic link to sign in.");
     } catch (err: unknown) {
