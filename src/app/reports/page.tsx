@@ -10,6 +10,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
+import { toast } from 'react-toastify';
 
 type Staff = { id: string; name: string; pay_rate: number; email: string | null };
 type Shift = { id: string; staff_id: string | null; start_time: string; end_time: string; notes: string | null };
@@ -177,6 +178,7 @@ export default function ReportsPage() {
     doc.text(`Generated on ${format(new Date(), "MMM dd, yyyy 'at' HH:mm")}`, 14, finalY + 10);
     
     doc.save(`financial-report-${format(dateRange.start, "yyyy-MM-dd")}-to-${format(dateRange.end, "yyyy-MM-dd")}.pdf`);
+    toast.success('PDF downloaded');
   };
 
   const exportToExcel = () => {
@@ -210,6 +212,7 @@ export default function ReportsPage() {
     const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     
     saveAs(data, `financial-report-${format(dateRange.start, "yyyy-MM-dd")}-to-${format(dateRange.end, "yyyy-MM-dd")}.xlsx`);
+    toast.success('Excel downloaded');
   };
 
   if (loading || isAdmin === null) {

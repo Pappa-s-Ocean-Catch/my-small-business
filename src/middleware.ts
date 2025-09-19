@@ -35,6 +35,15 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
+  // Link staff.profile_id to current profile by matching email
+  try {
+    if (user?.id) {
+      await supabase.rpc('link_staff_profile', { p_profile_id: user.id })
+    }
+  } catch (e) {
+    // best-effort; ignore
+  }
+
   // IMPORTANT: You *must* return the supabaseResponse object as it is. If you're
   // creating a new response object with NextResponse.next() make sure to:
   // 1. Pass the request in it, like so:

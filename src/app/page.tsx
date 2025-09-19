@@ -182,9 +182,9 @@ export default function Home() {
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
             Welcome back, {user.email.split('@')[0]}!
           </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">
-            {user.role_slug === 'admin' ? 'Here&apos;s your business overview' : 'Here are your upcoming shifts'}
-          </p>
+              <p className="text-gray-600 dark:text-gray-400 mt-2">
+                {user.role_slug === 'admin' ? "Here's your business overview" : 'Here are your upcoming shifts'}
+              </p>
         </div>
 
         {user.role_slug === 'staff' ? (
@@ -360,11 +360,24 @@ export default function Home() {
               </Link>
 
               <Link 
-                href="/reports" 
+                href="/analytics" 
                 className="bg-white dark:bg-neutral-800 rounded-xl p-6 border border-gray-200 dark:border-neutral-700 hover:shadow-lg transition-shadow group"
               >
                 <div className="flex items-center gap-4">
                   <FaChartLine className="w-8 h-8 text-orange-600 group-hover:scale-110 transition-transform" />
+                  <div>
+                    <h3 className="font-semibold text-gray-900 dark:text-white">Analytics</h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Business insights</p>
+                  </div>
+                </div>
+              </Link>
+
+              <Link 
+                href="/reports" 
+                className="bg-white dark:bg-neutral-800 rounded-xl p-6 border border-gray-200 dark:border-neutral-700 hover:shadow-lg transition-shadow group"
+              >
+                <div className="flex items-center gap-4">
+                  <FaChartLine className="w-8 h-8 text-indigo-600 group-hover:scale-110 transition-transform" />
                   <div>
                     <h3 className="font-semibold text-gray-900 dark:text-white">Reports</h3>
                     <p className="text-sm text-gray-600 dark:text-gray-400">Financial reports</p>

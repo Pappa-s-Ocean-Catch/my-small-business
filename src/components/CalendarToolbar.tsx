@@ -5,6 +5,7 @@ import { FaEnvelope } from "react-icons/fa";
 import { sendShiftReminder } from "@/app/actions/email";
 import { LoadingSpinner } from "./Loading";
 import { format } from "date-fns";
+import { toast } from 'react-toastify';
 
 interface CalendarToolbarProps {
   day: Date;
@@ -52,16 +53,15 @@ export function CalendarToolbar({ day, shifts, isAdmin }: CalendarToolbarProps) 
           endTime
         );
 
-        if (result.success) {
-          console.log(`Reminder sent to ${shift.staff.name}`);
-        } else {
-          console.error(`Failed to send reminder to ${shift.staff.name}:`, result.error);
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to send');
         }
       });
 
       await Promise.all(emailPromises);
+      toast.success('Reminders sent');
     } catch (error) {
-      console.error('Error sending reminders:', error);
+      toast.error('Failed to send some reminders');
     } finally {
       setSendingEmails(new Set());
     }

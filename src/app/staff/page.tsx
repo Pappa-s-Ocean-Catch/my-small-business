@@ -5,7 +5,8 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 import { AdminGuard } from "@/components/AdminGuard";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
 import { Loading } from "@/components/Loading";
-import { Plus, Pencil, Trash2, X, Clock } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Clock, Send } from "lucide-react";
+import { toast } from 'react-toastify';
 
 type Staff = {
   id: string;
@@ -203,6 +204,23 @@ export default function StaffPage() {
                   <button onClick={() => setAvailabilityOpen(s.id)} className="h-9 px-3 rounded-lg border inline-flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-neutral-900">
                     <Clock className="size-4" /> Schedule
                   </button>
+                  {s.email && (
+                    <button
+                      onClick={async () => {
+                        const res = await fetch('/api/invitations/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: s.email }) });
+                        const json = await res.json();
+                        if (!json.success) {
+                          toast.error(json.error || 'Failed to send invitation');
+                        } else {
+                          toast.success('Invitation email sent');
+                        }
+                      }}
+                      className="h-9 px-3 rounded-lg border inline-flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-neutral-900 text-blue-600"
+                      title="Send Invitation"
+                    >
+                      <Send className="size-4" /> Invite
+                    </button>
+                  )}
                   <button onClick={() => startEdit(s)} className="h-9 w-9 rounded-lg border inline-grid place-items-center hover:bg-gray-50 dark:hover:bg-neutral-900">
                     <Pencil className="size-4" />
                   </button>

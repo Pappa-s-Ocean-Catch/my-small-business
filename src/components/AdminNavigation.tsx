@@ -57,12 +57,19 @@ export function AdminNavigation() {
         <Link className={getLinkClasses("/staff")} href="/staff" aria-label="Staff">Staff</Link>
       )}
       
-      {/* Calendar - visible to all authenticated users */}
-      <Link className={getLinkClasses("/calendar")} href="/calendar" aria-label="Calendar">Calendar</Link>
+      {/* Calendar - visible to authenticated users only */}
+      {userRole !== null && (
+        <Link className={getLinkClasses("/calendar")} href="/calendar" aria-label="Calendar">Calendar</Link>
+      )}
       
       {/* Shop Management - Admin only */}
       {userRole === 'admin' && (
         <Link className={getLinkClasses("/shop")} href="/shop" aria-label="Shop">Shop</Link>
+      )}
+      
+      {/* Analytics - Admin only */}
+      {userRole === 'admin' && (
+        <Link className={getLinkClasses("/analytics")} href="/analytics" aria-label="Analytics">Analytics</Link>
       )}
       
       {/* Reports - Admin only */}
@@ -75,8 +82,10 @@ export function AdminNavigation() {
         <Link className={getLinkClasses("/users")} href="/users" aria-label="Users">Users</Link>
       )}
       
-      {/* Settings - visible to all authenticated users */}
-      <Link className={getLinkClasses("/settings")} href="/settings" aria-label="Settings">Settings</Link>
+      {/* Settings - visible to authenticated users only */}
+      {userRole !== null && (
+        <Link className={getLinkClasses("/settings")} href="/settings" aria-label="Settings">Settings</Link>
+      )}
     </nav>
   );
 }

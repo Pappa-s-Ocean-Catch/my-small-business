@@ -6,6 +6,7 @@ import { ensureProfile } from "@/app/actions/profile";
 import { AdminGuard } from "@/components/AdminGuard";
 import { FaWarehouse, FaArrowUp, FaArrowDown, FaHistory, FaSearch, FaFilter, FaFileExcel } from "react-icons/fa";
 import * as XLSX from "xlsx";
+import { toast } from 'react-toastify';
 import { saveAs } from "file-saver";
 import { format } from "date-fns";
 
@@ -224,6 +225,7 @@ export default function InventoryPage() {
     const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     
     saveAs(data, `current-stock-export-${new Date().toISOString().split('T')[0]}.xlsx`);
+    toast.success('Current stock Excel downloaded');
   };
 
   const exportStockMovementsToExcel = () => {
@@ -249,6 +251,7 @@ export default function InventoryPage() {
     const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     
     saveAs(data, `stock-movements-export-${new Date().toISOString().split('T')[0]}.xlsx`);
+    toast.success('Stock movements Excel downloaded');
   };
 
   if (loading || isAdmin === null) {

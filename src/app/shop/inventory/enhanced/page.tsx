@@ -6,6 +6,7 @@ import { ensureProfile } from "@/app/actions/profile";
 import { AdminGuard } from "@/components/AdminGuard";
 import { FaWarehouse, FaArrowUp, FaArrowDown, FaHistory, FaSearch, FaFilter, FaFileExcel, FaChartLine, FaShoppingCart, FaBoxOpen, FaDollarSign } from "react-icons/fa";
 import * as XLSX from "xlsx";
+import { toast } from 'react-toastify';
 import { saveAs } from "file-saver";
 import { format } from "date-fns";
 import { 
@@ -368,6 +369,7 @@ export default function EnhancedInventoryPage() {
     const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     
     saveAs(data, `current-stock-export-${new Date().toISOString().split('T')[0]}.xlsx`);
+    toast.success('Enhanced current stock Excel downloaded');
   };
 
   const exportMovementsToExcel = () => {
@@ -395,6 +397,7 @@ export default function EnhancedInventoryPage() {
     const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     
     saveAs(data, `inventory-movements-export-${new Date().toISOString().split('T')[0]}.xlsx`);
+    toast.success('Enhanced movements Excel downloaded');
   };
 
   const exportFinancialToExcel = () => {
@@ -421,6 +424,7 @@ export default function EnhancedInventoryPage() {
     const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     
     saveAs(data, `financial-summary-export-${new Date().toISOString().split('T')[0]}.xlsx`);
+    toast.success('Enhanced financial Excel downloaded');
   };
 
   // Chart data preparation

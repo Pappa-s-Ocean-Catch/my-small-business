@@ -7,6 +7,7 @@ import { AdminGuard } from "@/components/AdminGuard";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
 import { FaPlus, FaEdit, FaTrash, FaBox, FaExclamationTriangle, FaSearch, FaFilter, FaFileExcel, FaTh, FaThLarge } from "react-icons/fa";
 import * as XLSX from "xlsx";
+import { toast } from 'react-toastify';
 import { saveAs } from "file-saver";
 import Link from "next/link";
 
@@ -255,6 +256,7 @@ export default function ProductsPage() {
     const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     
     saveAs(data, `products-export-${new Date().toISOString().split('T')[0]}.xlsx`);
+    toast.success('Products Excel downloaded');
   };
 
   const toggleViewMode = (mode: 'card' | 'table') => {

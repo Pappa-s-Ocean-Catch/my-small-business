@@ -3,6 +3,9 @@ import Link from "next/link";
 import { HeaderAuth } from "@/components/HeaderAuth";
 import { AdminNavigation } from "@/components/AdminNavigation";
 import { Logo } from "@/components/Logo";
+import { SnackbarProvider } from "@/components/Snackbar";
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -42,7 +45,10 @@ export default function RootLayout({
             </nav>
           </div>
         </header>
-        <main>{children}</main>
+        <SnackbarProvider>
+          <main>{children}</main>
+          <ToastContainer position="top-right" autoClose={3500} hideProgressBar theme="colored"/>
+        </SnackbarProvider>
       </body>
     </html>
   );

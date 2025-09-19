@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { LoadingSpinner } from "@/components/Loading";
+import { canSendMagicLink } from "@/app/actions/auth";
+import { sendMagicLinkInvite } from "@/app/actions/email";
 import Link from "next/link";
 
 export default function LoginPage() {
@@ -15,14 +17,17 @@ export default function LoginPage() {
     setLoading(true);
     setMessage(null);
     try {
-      const { error } = await getSupabaseClient().auth.signInWithOtp({ 
-        email, 
-        options: { 
-          emailRedirectTo: process.env.NEXT_PUBLIC_SITE_URL || window.location.origin 
-        } 
-      });
-      if (error) throw error;
-      setMessage("Check your email for a magic link to sign in.");
+      // Only allow if email exists in profiles OR has a pending invitation
+      const supabase = getSupabaseClient();
+      const check = await canSendMagicLink(email);
+      if (!check.allowed) {
+        throw new Error(check.reason);
+      }
+
+      // Generate a magic link server-side and send via Resend (custom template)
+      const result = await sendMagicLinkInvite(email);
+      if (!result.success) throw new Error(result.error || 'Failed to send magic link');
+      setMessage("Magic link sent from OperateFlow. Please check your inbox.");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to send magic link";
       setMessage(message);
