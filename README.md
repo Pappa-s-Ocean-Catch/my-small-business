@@ -1,4 +1,25 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# OperateFlow
+
+A comprehensive small business management platform built with Next.js, Supabase, and Tailwind CSS. OperateFlow helps you manage staff, shifts, inventory, and business operations all in one place.
+
+## Features
+
+- **Staff Management**: Register and manage staff with roles, availability, and pay rates
+- **Shift Scheduling**: Weekly calendar view with drag-and-drop shift assignment
+- **Inventory Management**: Track products, categories, suppliers, and stock levels
+- **Business Analytics**: Financial reports, cost tracking, and business insights
+- **User Management**: Role-based access control (Admin/Staff)
+- **Email Notifications**: Automated shift reminders and low stock alerts
+- **Modern UI**: Responsive design with dark mode support
+
+## Tech Stack
+
+- **Frontend**: Next.js 15, React 19, TypeScript
+- **Backend**: Supabase (PostgreSQL, Auth, RLS)
+- **Styling**: Tailwind CSS
+- **Email**: Resend with React Email
+- **Charts**: Recharts
+- **Icons**: React Icons
 
 ## Getting Started
 

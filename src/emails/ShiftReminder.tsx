@@ -21,7 +21,7 @@ export const ShiftReminderEmail = ({
   staffName = 'John Doe',
   shiftDate = 'Monday, September 18, 2024',
   shiftTime = '9:00 AM - 5:00 PM',
-  businessName = 'ShiftFlow',
+  businessName = 'OperateFlow',
 }: ShiftReminderEmailProps) => (
   <Html>
     <Head />
