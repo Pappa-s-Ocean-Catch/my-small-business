@@ -324,12 +324,12 @@ export default function AnalyticsPage() {
       <div className="min-h-screen bg-gray-50 dark:bg-neutral-900 p-4">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
-          <div className="flex justify-between items-center mb-8">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-8 gap-4">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Analytics Dashboard</h1>
               <p className="text-gray-600 dark:text-gray-400 mt-2">Business insights and performance metrics</p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               {(['7d', '30d', '90d'] as const).map((range) => (
                 <button
                   key={range}

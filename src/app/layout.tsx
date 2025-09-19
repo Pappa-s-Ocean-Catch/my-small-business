@@ -4,6 +4,7 @@ import { HeaderAuth } from "@/components/HeaderAuth";
 import { AdminNavigation } from "@/components/AdminNavigation";
 import { Logo } from "@/components/Logo";
 import { SnackbarProvider } from "@/components/Snackbar";
+import { MobileNav } from "@/components/MobileNav";
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { Geist, Geist_Mono } from "next/font/google";
@@ -37,12 +38,13 @@ export default function RootLayout({
             <Link href="/" aria-label="Home">
               <Logo />
             </Link>
-            <nav className="flex items-center h-16 text-sm">
-              <AdminNavigation />
-              <div className="ml-2">
-                <HeaderAuth />
-              </div>
-            </nav>
+            <div className="flex items-center gap-2">
+              <nav className="hidden md:flex items-center h-16 text-sm">
+                <AdminNavigation />
+              </nav>
+              <HeaderAuth />
+              <MobileNav />
+            </div>
           </div>
         </header>
         <SnackbarProvider>

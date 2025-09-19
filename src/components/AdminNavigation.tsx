@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
-export function AdminNavigation() {
+export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 'horizontal' | 'vertical' }) {
   const [userRole, setUserRole] = useState<'admin' | 'staff' | null>(null);
   const pathname = usePathname();
 
@@ -40,7 +40,9 @@ export function AdminNavigation() {
   };
 
   const getLinkClasses = (path: string) => {
-    const baseClasses = "flex items-center h-full px-4 transition-colors";
+    const baseClasses = orientation === 'vertical'
+      ? "block w-full px-4 py-3 transition-colors"
+      : "flex items-center h-full px-4 transition-colors";
     const activeClasses = "bg-blue-100 dark:bg-blue-900 border-b-2 border-blue-600 text-blue-700 dark:text-blue-300";
     const inactiveClasses = "hover:bg-gray-100 dark:hover:bg-neutral-900";
     
@@ -48,7 +50,7 @@ export function AdminNavigation() {
   };
 
   return (
-    <nav className="flex items-center h-full">
+    <nav className={orientation === 'vertical' ? "flex flex-col items-stretch h-auto bg-white dark:bg-neutral-950 rounded-lg shadow divide-y divide-gray-200 dark:divide-neutral-800" : "flex items-center h-full"}>
       {/* Home - visible to all authenticated users */}
       <Link className={getLinkClasses("/")} href="/" aria-label="Home">Home</Link>
       
@@ -82,8 +84,8 @@ export function AdminNavigation() {
         <Link className={getLinkClasses("/users")} href="/users" aria-label="Users">Users</Link>
       )}
       
-      {/* Settings - visible to authenticated users only */}
-      {userRole !== null && (
+      {/* Settings - Admin only */}
+      {userRole === 'admin' && (
         <Link className={getLinkClasses("/settings")} href="/settings" aria-label="Settings">Settings</Link>
       )}
     </nav>

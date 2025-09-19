@@ -178,7 +178,7 @@ export default function CategoriesPage() {
 
   return (
     <AdminGuard>
-      <div className="p-6 max-w-7xl mx-auto">
+      <div className="p-3 sm:p-6 max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>

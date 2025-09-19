@@ -233,9 +233,9 @@ export default function ReportsPage() {
 
   return (
     <AdminGuard>
-      <div className="p-6 max-w-7xl mx-auto">
+      <div className="p-3 sm:p-6 max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Financial Reports</h1>
             <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -243,7 +243,7 @@ export default function ReportsPage() {
             </p>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <button
               onClick={exportToPDF}
               className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
@@ -263,21 +263,23 @@ export default function ReportsPage() {
 
         {/* Date Range Selector */}
         <div className="mb-6 p-4 bg-white dark:bg-neutral-900 rounded-lg border">
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
             <label className="text-sm font-medium text-gray-800 dark:text-gray-200">Date Range:</label>
-            <input
-              type="date"
-              value={format(dateRange.start, "yyyy-MM-dd")}
-              onChange={(e) => setDateRange(prev => ({ ...prev, start: new Date(e.target.value) }))}
-              className="px-3 py-2 border rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100"
-            />
-            <span className="text-gray-600 dark:text-gray-300">to</span>
-            <input
-              type="date"
-              value={format(dateRange.end, "yyyy-MM-dd")}
-              onChange={(e) => setDateRange(prev => ({ ...prev, end: new Date(e.target.value) }))}
-              className="px-3 py-2 border rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100"
-            />
+            <div className="flex items-center gap-3 flex-wrap">
+              <input
+                type="date"
+                value={format(dateRange.start, "yyyy-MM-dd")}
+                onChange={(e) => setDateRange(prev => ({ ...prev, start: new Date(e.target.value) }))}
+                className="px-3 py-2 border rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100 min-w-0 flex-1"
+              />
+              <span className="text-gray-600 dark:text-gray-300">to</span>
+              <input
+                type="date"
+                value={format(dateRange.end, "yyyy-MM-dd")}
+                onChange={(e) => setDateRange(prev => ({ ...prev, end: new Date(e.target.value) }))}
+                className="px-3 py-2 border rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100 min-w-0 flex-1"
+              />
+            </div>
           </div>
         </div>
 

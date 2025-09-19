@@ -45,6 +45,7 @@ export default function StaffPage() {
   const [editing, setEditing] = useState<Staff | null>(null);
   const [availabilityOpen, setAvailabilityOpen] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ staff: Staff | null; isOpen: boolean }>({ staff: null, isOpen: false });
+  const [availabilityDeleteConfirm, setAvailabilityDeleteConfirm] = useState<{ availabilityId: string | null; isOpen: boolean }>({ availabilityId: null, isOpen: false });
 
   const [form, setForm] = useState({
     name: "",
@@ -177,10 +178,10 @@ export default function StaffPage() {
         ) : (
           staff.map((s) => (
             <div key={s.id} className="rounded-2xl border p-6 bg-white/60 dark:bg-black/20">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-start sm:items-center gap-4">
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-semibold">{s.name}</h3>
                       {s.role_slug && (
                         <span className="text-xs px-2 py-1 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
@@ -188,7 +189,7 @@ export default function StaffPage() {
                         </span>
                       )}
                     </div>
-                    <div className="text-sm text-gray-700 dark:text-gray-300">
+                    <div className="text-sm text-gray-700 dark:text-gray-300 break-words">
                       {s.phone && <span>{s.phone}</span>}
                       {s.email && <span className="ml-2">{s.email}</span>}
                     </div>
@@ -196,11 +197,12 @@ export default function StaffPage() {
                       ${s.pay_rate.toFixed(2)}/hr • {s.is_available ? <span className="text-green-600">Available</span> : <span className="text-red-600">Unavailable</span>}
                     </div>
                     {s.description && (
-                      <div className="text-sm text-gray-500 mt-1">{s.description}</div>
+                      <div className="text-sm text-gray-500 mt-1 break-words">{s.description}</div>
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                {/* Desktop actions */}
+                <div className="hidden md:flex flex-wrap items-center gap-2">
                   <button onClick={() => setAvailabilityOpen(s.id)} className="h-9 px-3 rounded-lg border inline-flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-neutral-900">
                     <Clock className="size-4" /> Schedule
                   </button>
@@ -229,6 +231,44 @@ export default function StaffPage() {
                   </button>
                 </div>
               </div>
+
+              {/* Mobile actions at bottom */}
+              <div className="mt-4 grid grid-cols-2 gap-2 md:hidden">
+                <button onClick={() => setAvailabilityOpen(s.id)} className="h-10 px-3 rounded-lg border inline-flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-neutral-900">
+                  <Clock className="size-4" />
+                  <span className="text-sm">Schedule</span>
+                </button>
+                {s.email ? (
+                  <button
+                    onClick={async () => {
+                      const res = await fetch('/api/invitations/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: s.email }) });
+                      const json = await res.json();
+                      if (!json.success) {
+                        toast.error(json.error || 'Failed to send invitation');
+                      } else {
+                        toast.success('Invitation email sent');
+                      }
+                    }}
+                    className="h-10 px-3 rounded-lg border inline-flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-neutral-900 text-blue-600"
+                  >
+                    <Send className="size-4" />
+                    <span className="text-sm">Invite</span>
+                  </button>
+                ) : (
+                  <div className="h-10 px-3 rounded-lg border inline-flex items-center justify-center gap-2 opacity-50 cursor-not-allowed">
+                    <Send className="size-4" />
+                    <span className="text-sm">Invite</span>
+                  </div>
+                )}
+                <button onClick={() => startEdit(s)} className="h-10 px-3 rounded-lg border inline-flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-neutral-900">
+                  <Pencil className="size-4" />
+                  <span className="text-sm">Edit</span>
+                </button>
+                <button onClick={() => handleDeleteStaff(s)} className="h-10 px-3 rounded-lg border inline-flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-neutral-900 text-red-600">
+                  <Trash2 className="size-4" />
+                  <span className="text-sm">Delete</span>
+                </button>
+              </div>
               
               {getStaffAvailability(s.id).length > 0 && (
                 <div className="mt-4 pt-4 border-t">
@@ -237,7 +277,7 @@ export default function StaffPage() {
                     {getStaffAvailability(s.id).map((a) => (
                       <div key={a.id} className="flex items-center justify-between bg-white dark:bg-neutral-900 rounded-lg p-2 text-sm">
                         <span>{DAYS[a.day_of_week]} {a.start_time}-{a.end_time}</span>
-                        <button onClick={() => removeAvailability(a.id)} className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded p-1">
+                        <button onClick={() => setAvailabilityDeleteConfirm({ availabilityId: a.id, isOpen: true })} className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded p-1">
                           <X className="size-3" />
                         </button>
                       </div>
@@ -259,30 +299,26 @@ export default function StaffPage() {
                 <span className="text-sm text-gray-700 dark:text-gray-300">Name</span>
                 <input className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
               </label>
-              <div className="grid grid-cols-2 gap-4">
-                <label className="grid gap-2">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">Phone</span>
-                  <input className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
-                </label>
-                <label className="grid gap-2">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">Email</span>
-                  <input type="email" className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
-                </label>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <label className="grid gap-2">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">Pay rate</span>
-                  <input type="number" step="0.01" className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.pay_rate} onChange={(e) => setForm((f) => ({ ...f, pay_rate: parseFloat(e.target.value) }))} />
-                </label>
-                <label className="grid gap-2">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">Role</span>
-                  <select className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.role_slug} onChange={(e) => setForm((f) => ({ ...f, role_slug: e.target.value }))}>
-                    {staffRoles.map((role) => (
-                      <option key={role.slug} value={role.slug}>{role.name}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
+              <label className="grid gap-2">
+                <span className="text-sm text-gray-700 dark:text-gray-300">Phone</span>
+                <input className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm text-gray-700 dark:text-gray-300">Email</span>
+                <input type="email" className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm text-gray-700 dark:text-gray-300">Pay rate</span>
+                <input type="number" step="0.01" className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.pay_rate} onChange={(e) => setForm((f) => ({ ...f, pay_rate: parseFloat(e.target.value) }))} />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm text-gray-700 dark:text-gray-300">Role</span>
+                <select className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.role_slug} onChange={(e) => setForm((f) => ({ ...f, role_slug: e.target.value }))}>
+                  {staffRoles.map((role) => (
+                    <option key={role.slug} value={role.slug}>{role.name}</option>
+                  ))}
+                </select>
+              </label>
               <label className="grid gap-2">
                 <span className="text-sm text-gray-700 dark:text-gray-300">Available</span>
                 <select className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.is_available ? "yes" : "no"} onChange={(e) => setForm((f) => ({ ...f, is_available: e.target.value === "yes" }))}>
@@ -369,6 +405,23 @@ export default function StaffPage() {
         title="Delete Staff Member"
         message={`Are you sure you want to delete ${deleteConfirm.staff?.name}? This action cannot be undone and will remove all their availability settings and shift assignments.`}
         confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+      />
+
+      {/* Availability Delete Confirmation */}
+      <ConfirmationDialog
+        isOpen={availabilityDeleteConfirm.isOpen}
+        onClose={() => setAvailabilityDeleteConfirm({ availabilityId: null, isOpen: false })}
+        onConfirm={async () => {
+          if (availabilityDeleteConfirm.availabilityId) {
+            await removeAvailability(availabilityDeleteConfirm.availabilityId);
+            setAvailabilityDeleteConfirm({ availabilityId: null, isOpen: false });
+          }
+        }}
+        title="Remove Availability"
+        message="Are you sure you want to remove this availability slot?"
+        confirmText="Remove"
         cancelText="Cancel"
         variant="danger"
       />

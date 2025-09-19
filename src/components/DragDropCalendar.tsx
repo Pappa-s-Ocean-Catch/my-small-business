@@ -151,7 +151,7 @@ function DayColumn({ day, shifts, staff, isAdmin, onShiftCreate, onShiftEdit, on
   const today = isToday(day);
 
   return (
-    <div className={`flex-1 min-h-64 p-3 rounded-lg border relative pb-10 ${
+    <div className={`flex-1 min-h-64 p-3 rounded-lg border relative pb-12 ${
       today 
         ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' 
         : 'bg-white dark:bg-neutral-800 border-gray-200 dark:border-neutral-700'
@@ -344,7 +344,7 @@ export function DragDropCalendar({
   return (
     <div className="p-4 w-full">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3">
         <div>
           <h1 className="text-xl font-bold text-gray-900 dark:text-white">
             Weekly Schedule ({format(startOfThisWeek, 'dd-MM-yyyy')} - {format(endOfWeek(startOfThisWeek, { weekStartsOn: 1 }), 'dd-MM-yyyy')})
@@ -353,7 +353,7 @@ export function DragDropCalendar({
             Drag shifts to reorganize • Click + to add shifts
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => onWeekChange(addDays(currentWeek, -7))}
             className="flex items-center gap-1 px-3 py-1 text-sm bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 rounded-lg transition-colors"
@@ -413,7 +413,7 @@ export function DragDropCalendar({
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="grid grid-cols-7 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-2">
           {weekDays.map((day) => (
             <DayColumn
               key={day.toISOString()}
