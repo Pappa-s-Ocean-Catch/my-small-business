@@ -18,3 +18,4 @@ alwaysApply: true
 - - run build:agent to verify the build is green without any error after some change or before report big task done
 - Do not using emoji icon on the react component, using icon from react-icons instead
 - All delete action need to be guard by ConfirmationDialog (share component)
+ - Prefer React Icons over custom SVGs. Do not add inline <svg> icons in components; use icons from react-icons (consistent styling, a11y, theming). If an asset must be used, place it in public/ and render with Next Image or as background, not inline SVG.

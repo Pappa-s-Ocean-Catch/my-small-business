@@ -12,7 +12,7 @@ import { saveAs } from "file-saver";
 import { toast } from "react-toastify";
 
 type Staff = { id: string; name: string; pay_rate: number };
-type Shift = { id: string; staff_id: string | null; start_time: string; end_time: string };
+type Shift = { id: string; staff_id: string | null; start_time: string; end_time: string; non_billable_hours?: number };
 
 type DayCell = { hours: number; amount: number };
 
@@ -40,7 +40,7 @@ export default function WagesReportPage() {
         supabase.from("staff").select("id, name, pay_rate"),
         supabase
           .from("shifts")
-          .select("id, staff_id, start_time, end_time")
+          .select("id, staff_id, start_time, end_time, non_billable_hours")
           .gte("start_time", format(weekStart, "yyyy-MM-dd"))
           .lte("start_time", format(weekEnd, "yyyy-MM-dd")),
       ]);
@@ -86,7 +86,9 @@ export default function WagesReportPage() {
       if (!staffRow) continue;
       const start = new Date(shift.start_time);
       const end = new Date(shift.end_time);
-      const hours = Math.max(0, (end.getTime() - start.getTime()) / (1000 * 60 * 60));
+      const rawHours = Math.max(0, (end.getTime() - start.getTime()) / (1000 * 60 * 60));
+      const nonbill = Number(shift.non_billable_hours || 0);
+      const hours = Math.max(0, rawHours - nonbill);
       const amount = hours * staffRow.staff.pay_rate;
 
       const dayIndex = daysOfWeek.findIndex((d) => isSameDay(d, start));

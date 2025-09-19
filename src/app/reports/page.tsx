@@ -13,7 +13,7 @@ import { saveAs } from "file-saver";
 import { toast } from 'react-toastify';
 
 type Staff = { id: string; name: string; pay_rate: number; email: string | null };
-type Shift = { id: string; staff_id: string | null; start_time: string; end_time: string; notes: string | null };
+type Shift = { id: string; staff_id: string | null; start_time: string; end_time: string; notes: string | null; non_billable_hours?: number };
 
 interface FinancialReportRow {
   date: string;
@@ -21,6 +21,7 @@ interface FinancialReportRow {
   startTime: string;
   endTime: string;
   hours: number;
+  nonBillableHours: number;
   payRate: number;
   totalWage: number;
   shiftId: string;
@@ -72,7 +73,7 @@ export default function ReportsPage() {
   const fetchData = useCallback(async (): Promise<void> => {
     const [{ data: staffData }, { data: shiftData }] = await Promise.all([
       getSupabaseClient().from("staff").select("id, name, pay_rate, email"),
-      getSupabaseClient().from("shifts").select("id, staff_id, start_time, end_time, notes")
+      getSupabaseClient().from("shifts").select("id, staff_id, start_time, end_time, notes, non_billable_hours")
     ]);
 
     setStaff(staffData || []);
@@ -97,7 +98,9 @@ export default function ReportsPage() {
         if (staffMember) {
           const start = new Date(shift.start_time);
           const end = new Date(shift.end_time);
-          const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+          const rawHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+          const nonbill = Number(shift.non_billable_hours || 0);
+          const hours = Math.max(0, rawHours - nonbill);
           const totalWage = hours * staffMember.pay_rate;
           
           reportRows.push({
@@ -106,6 +109,7 @@ export default function ReportsPage() {
             startTime: format(start, "HH:mm"),
             endTime: format(end, "HH:mm"),
             hours: Math.round(hours * 100) / 100, // Round to 2 decimal places
+            nonBillableHours: nonbill,
             payRate: staffMember.pay_rate,
             totalWage: Math.round(totalWage * 100) / 100,
             shiftId: shift.id
@@ -158,12 +162,13 @@ export default function ReportsPage() {
       row.staffName,
       `${row.startTime} - ${row.endTime}`,
       row.hours.toString(),
+      row.nonBillableHours > 0 ? row.nonBillableHours.toString() : '-',
       `$${row.payRate.toFixed(2)}`,
       `$${row.totalWage.toFixed(2)}`
     ]);
     
     autoTable(doc, {
-      head: [['Date', 'Staff', 'Time', 'Hours', 'Rate', 'Total']],
+      head: [['Date', 'Staff', 'Time', 'Billable Hours', 'Non-Billable', 'Rate', 'Total']],
       body: tableData,
       startY: 54,
       styles: { fontSize: 8 },
@@ -187,7 +192,8 @@ export default function ReportsPage() {
       'Staff Name': row.staffName,
       'Start Time': row.startTime,
       'End Time': row.endTime,
-      Hours: row.hours,
+      'Billable Hours': row.hours,
+      'Non-Billable Hours': row.nonBillableHours,
       'Pay Rate': row.payRate,
       'Total Wage': row.totalWage
     })));
@@ -198,7 +204,8 @@ export default function ReportsPage() {
       'Staff Name': 'TOTAL',
       'Start Time': '',
       'End Time': '',
-      Hours: getTotalHours(),
+      'Billable Hours': getTotalHours(),
+      'Non-Billable Hours': '',
       'Pay Rate': '',
       'Total Wage': getTotalWages()
     };
@@ -308,7 +315,8 @@ export default function ReportsPage() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Staff</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Time</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Hours</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Billable Hours</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Non-Billable</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Rate</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total</th>
                 </tr>
@@ -316,7 +324,7 @@ export default function ReportsPage() {
               <tbody className="divide-y divide-gray-200 dark:divide-neutral-700">
                 {reportData.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                    <td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                       No shifts found for the selected date range
                     </td>
                   </tr>
@@ -327,6 +335,7 @@ export default function ReportsPage() {
                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{row.staffName}</td>
                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{row.startTime} - {row.endTime}</td>
                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{row.hours}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{row.nonBillableHours > 0 ? row.nonBillableHours : '-'}</td>
                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">${row.payRate.toFixed(2)}</td>
                       <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">${row.totalWage.toFixed(2)}</td>
                     </tr>
@@ -338,6 +347,7 @@ export default function ReportsPage() {
                   <tr>
                     <td colSpan={3} className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">TOTAL</td>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{getTotalHours().toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">-</td>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">-</td>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">${getTotalWages().toFixed(2)}</td>
                   </tr>

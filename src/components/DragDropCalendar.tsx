@@ -27,7 +27,7 @@ import { ConfirmationDialog } from "@/components/ConfirmationDialog";
 import Link from "next/link";
 
 type Staff = { id: string; name: string; pay_rate: number; email: string | null };
-type Shift = { id: string; staff_id: string | null; start_time: string; end_time: string; notes: string | null };
+type Shift = { id: string; staff_id: string | null; start_time: string; end_time: string; notes: string | null; non_billable_hours?: number };
 type Availability = { id: string; staff_id: string; day_of_week: number; start_time: string; end_time: string };
 
 interface DragDropCalendarProps {
@@ -89,6 +89,9 @@ function DraggableShift({ shift, staff, isAdmin, onEdit, onDelete, onAssign }: D
           <div className="text-orange-600 dark:text-orange-400">
             Unassigned
           </div>
+        )}
+        {typeof shift.non_billable_hours === 'number' && shift.non_billable_hours > 0 && (
+          <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">Non-bill: {shift.non_billable_hours}h</div>
         )}
         {shift.notes && (
           <div className="text-gray-500 dark:text-gray-500 text-xs mt-1">
@@ -238,6 +241,7 @@ export function DragDropCalendar({
   onWeekChange
 }: DragDropCalendarProps) {
   const [editingShift, setEditingShift] = useState<Shift | null>(null);
+  const [editForm, setEditForm] = useState<{ start: string; end: string; notes: string; nonbill: string }>({ start: "", end: "", notes: "", nonbill: "0" });
   const [deleteConfirm, setDeleteConfirm] = useState<{ shift: Shift | null; isOpen: boolean }>({ shift: null, isOpen: false });
   const [assignmentModal, setAssignmentModal] = useState<{ shift: Shift | null; isOpen: boolean }>({ shift: null, isOpen: false });
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -260,7 +264,9 @@ export function DragDropCalendar({
     if (!s) return 0;
     const start = new Date(shift.start_time);
     const end = new Date(shift.end_time);
-    const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+    const rawHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+    const nonbill = Number(shift.non_billable_hours || 0);
+    const hours = Math.max(0, rawHours - nonbill);
     return Math.max(0, hours) * (s.pay_rate || 0);
   }, [staff]);
 
@@ -316,6 +322,10 @@ export function DragDropCalendar({
   }, [onShiftCreate]);
 
   const handleShiftEdit = useCallback((shift: Shift) => {
+    // Initialize form with existing times and notes
+    const startTime = shift.start_time.slice(11, 16);
+    const endTime = shift.end_time.slice(11, 16);
+    setEditForm({ start: startTime, end: endTime, notes: shift.notes ?? "", nonbill: String(shift.non_billable_hours ?? 0) });
     setEditingShift(shift);
   }, []);
 
@@ -340,6 +350,16 @@ export function DragDropCalendar({
       setAssignmentModal({ shift: null, isOpen: false });
     }
   }, [assignmentModal.shift, onShiftStaffUpdate]);
+
+  const saveEdit = useCallback(async () => {
+    if (!editingShift) return;
+    const datePart = editingShift.start_time.slice(0, 10);
+    const newStartIso = `${datePart}T${editForm.start}`;
+    const newEndIso = `${datePart}T${editForm.end}`;
+    const nb = Number(editForm.nonbill || 0);
+    await onShiftUpdate(editingShift.id, { start_time: newStartIso, end_time: newEndIso, notes: editForm.notes, non_billable_hours: isNaN(nb) ? 0 : nb });
+    setEditingShift(null);
+  }, [editingShift, editForm.start, editForm.end, editForm.notes, editForm.nonbill, onShiftUpdate]);
 
   return (
     <div className="p-4 w-full">
@@ -442,6 +462,40 @@ export function DragDropCalendar({
         </DragOverlay>
       </DndContext>
       </div>
+
+      {/* Edit Shift Modal */}
+      {editingShift && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-700 shadow-2xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Edit Shift</h3>
+              <button aria-label="Close" onClick={() => setEditingShift(null)} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-neutral-800 text-gray-600 dark:text-gray-300">×</button>
+            </div>
+            <div className="grid gap-3">
+              <label className="block">
+                <span className="block text-sm text-gray-700 dark:text-gray-300 mb-1">Start</span>
+                <input type="time" value={editForm.start} onChange={(e) => setEditForm(s => ({ ...s, start: e.target.value }))} className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white" />
+              </label>
+              <label className="block">
+                <span className="block text-sm text-gray-700 dark:text-gray-300 mb-1">End</span>
+                <input type="time" value={editForm.end} onChange={(e) => setEditForm(s => ({ ...s, end: e.target.value }))} className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white" />
+              </label>
+            <label className="block">
+              <span className="block text-sm text-gray-700 dark:text-gray-300 mb-1">Non-billable hours</span>
+              <input type="number" step="0.25" min="0" value={editForm.nonbill} onChange={(e) => setEditForm(s => ({ ...s, nonbill: e.target.value }))} placeholder="e.g., 0.5 for 30m, 0.75 for 45m" className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white" />
+            </label>
+              <label className="block">
+                <span className="block text-sm text-gray-700 dark:text-gray-300 mb-1">Notes</span>
+                <textarea value={editForm.notes} onChange={(e) => setEditForm(s => ({ ...s, notes: e.target.value }))} rows={3} className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white" />
+              </label>
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setEditingShift(null)} className="px-4 py-2 border rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800">Cancel</button>
+              <button onClick={() => { void saveEdit(); }} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Assignment Modal */}
       {assignmentModal.isOpen && assignmentModal.shift && (

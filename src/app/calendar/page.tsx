@@ -8,7 +8,7 @@ import { DragDropCalendar } from "@/components/DragDropCalendar";
 import { Loading } from "@/components/Loading";
 
 type Staff = { id: string; name: string; pay_rate: number; email: string | null };
-type Shift = { id: string; staff_id: string | null; start_time: string; end_time: string; notes: string | null };
+type Shift = { id: string; staff_id: string | null; start_time: string; end_time: string; notes: string | null; non_billable_hours?: number };
 type Availability = { id: string; staff_id: string; day_of_week: number; start_time: string; end_time: string };
 
 export default function CalendarPage() {
@@ -49,7 +49,8 @@ export default function CalendarPage() {
            staff_id,
            start_time,
            end_time,
-           notes
+           notes,
+           non_billable_hours
          `)
          .gte("start_time", startOfThisWeek.toISOString())
          .lte("start_time", endOfThisWeek.toISOString())

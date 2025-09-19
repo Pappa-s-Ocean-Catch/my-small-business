@@ -1,13 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase/client";
+import { FaUsers, FaStore, FaUserShield, FaChartPie, FaFileAlt, FaMoneyBillWave } from "react-icons/fa";
 
 export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 'horizontal' | 'vertical' }) {
   const [userRole, setUserRole] = useState<'admin' | 'staff' | null>(null);
   const [isMgmtOpen, setIsMgmtOpen] = useState<boolean>(false);
+  const [isReportOpen, setIsReportOpen] = useState<boolean>(false);
+  const [mgmtOffset, setMgmtOffset] = useState<number>(0);
+  const [reportOffset, setReportOffset] = useState<number>(0);
+  const mgmtRef = useRef<HTMLDivElement | null>(null);
+  const reportRef = useRef<HTMLDivElement | null>(null);
   const pathname = usePathname();
 
   useEffect(() => {
@@ -36,6 +42,42 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
     void checkUserRole();
   }, []);
 
+  // Close on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      const target = e.target as Node;
+      if (isMgmtOpen && mgmtRef.current && !mgmtRef.current.contains(target)) {
+        setIsMgmtOpen(false);
+      }
+      if (isReportOpen && reportRef.current && !reportRef.current.contains(target)) {
+        setIsReportOpen(false);
+      }
+    }
+    window.addEventListener('mousedown', handleClickOutside);
+    return () => window.removeEventListener('mousedown', handleClickOutside);
+  }, [isMgmtOpen, isReportOpen]);
+
+  // Prevent mega menu overflow by shifting left when needed
+  useEffect(() => {
+    function computeOffsets() {
+      const desiredWidth = 640; // px
+      const margin = 8; // px
+      if (isMgmtOpen && mgmtRef.current) {
+        const rect = mgmtRef.current.getBoundingClientRect();
+        const overflow = rect.left + desiredWidth + margin - window.innerWidth;
+        setMgmtOffset(overflow > 0 ? -overflow : 0);
+      }
+      if (isReportOpen && reportRef.current) {
+        const rect = reportRef.current.getBoundingClientRect();
+        const overflow = rect.left + desiredWidth + margin - window.innerWidth;
+        setReportOffset(overflow > 0 ? -overflow : 0);
+      }
+    }
+    computeOffsets();
+    window.addEventListener('resize', computeOffsets);
+    return () => window.removeEventListener('resize', computeOffsets);
+  }, [isMgmtOpen, isReportOpen]);
+
   const isActive = (path: string) => {
     return pathname === path;
   };
@@ -52,9 +94,14 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
 
   return (
     <nav className={orientation === 'vertical' ? "flex flex-col items-stretch h-auto bg-white dark:bg-neutral-950 rounded-lg shadow divide-y divide-gray-200 dark:divide-neutral-800" : "flex items-center h-full"}>
-      {/* Home - visible to all authenticated users */}
-      <Link className={getLinkClasses("/")} href="/" aria-label="Home">Home</Link>
+      {/* Home/Dashboard - visible to all authenticated users */}
+      <Link className={getLinkClasses("/")} href="/" aria-label="Dashboard">Dashboard</Link>
       
+      {/* Work shift (Calendar) - visible to authenticated users only, second item */}
+      {userRole !== null && (
+        <Link className={getLinkClasses("/calendar")} href="/calendar" aria-label="Work shift">Work shift</Link>
+      )}
+
       {/* Management group - Admin only */}
       {userRole === 'admin' && (
         orientation === 'vertical' ? (
@@ -67,7 +114,12 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
             </div>
           </div>
         ) : (
-          <div className="relative h-full">
+          <div
+            className="relative h-full"
+            ref={mgmtRef}
+            onMouseEnter={() => setIsMgmtOpen(true)}
+            onMouseLeave={() => setIsMgmtOpen(false)}
+          >
             <button
               type="button"
               className="flex items-center h-full px-4 transition-colors hover:bg-gray-100 dark:hover:bg-neutral-900"
@@ -78,11 +130,42 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
               Management
             </button>
             {isMgmtOpen && (
-              <div className="absolute top-full left-0 mt-1 min-w-[200px] rounded-lg border bg-white dark:bg-neutral-950 shadow-lg z-50">
-                <div className="py-1">
-                  <Link className="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-neutral-900" href="/staff">Staff</Link>
-                  <Link className="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-neutral-900" href="/shop">Shop</Link>
-                  <Link className="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-neutral-900" href="/users">Users</Link>
+              <div className="absolute top-full mt-0.5 w-screen max-w-[640px] sm:w-[640px] rounded-xl bg-white/95 dark:bg-neutral-950/95 backdrop-blur shadow-lg z-50 p-3 overflow-hidden"
+                   style={{ left: mgmtOffset }}>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <Link href="/staff" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 text-blue-600 dark:text-blue-400">
+                        <FaUsers className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white">Staff</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">Manage team members, roles, availability</div>
+                      </div>
+                    </div>
+                  </Link>
+                  <Link href="/shop" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 text-emerald-600 dark:text-emerald-400">
+                        <FaStore className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white">Shop</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">Products, inventory, suppliers and categories</div>
+                      </div>
+                    </div>
+                  </Link>
+                  <Link href="/users" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 text-purple-600 dark:text-purple-400">
+                        <FaUserShield className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white">Users</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">Admin user roles and access control</div>
+                      </div>
+                    </div>
+                  </Link>
                 </div>
               </div>
             )}
@@ -90,14 +173,77 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
         )
       )}
 
-      {/* Calendar - visible to authenticated users only */}
-      {userRole !== null && (
-        <Link className={getLinkClasses("/calendar")} href="/calendar" aria-label="Calendar">Calendar</Link>
-      )}
+      {/* removed old Calendar position - now labeled Work shift above */}
       
-      {/* Analysis & Report - Admin only (group) */}
+      {/* Analysis & Report - Admin only (mega) */}
       {userRole === 'admin' && (
-        <Link className={getLinkClasses("/analysis-report")} href="/analysis-report" aria-label="Analysis & Report">Analysis & Report</Link>
+        orientation === 'vertical' ? (
+          <div className="w-full">
+            <Link className={getLinkClasses("/analysis-report")} href="/analysis-report" aria-label="Analysis & Report">Analysis & Report</Link>
+            <div className="pl-2">
+              <Link className={getLinkClasses("/reports")} href="/reports" aria-label="Weekly Reports">Weekly Reports</Link>
+              <Link className={getLinkClasses("/analytics")} href="/analytics" aria-label="Analysis">Analysis</Link>
+              <Link className={getLinkClasses("/wages-report")} href="/wages-report" aria-label="Wages Report">Wages Report</Link>
+            </div>
+          </div>
+        ) : (
+          <div
+            className="relative h-full"
+            ref={reportRef}
+            onMouseEnter={() => setIsReportOpen(true)}
+            onMouseLeave={() => setIsReportOpen(false)}
+          >
+            <button
+              type="button"
+              className="flex items-center h-full px-4 transition-colors hover:bg-gray-100 dark:hover:bg-neutral-900"
+              onClick={() => setIsReportOpen((v) => !v)}
+              aria-haspopup="menu"
+              aria-expanded={isReportOpen}
+            >
+              Analysis & Report
+            </button>
+            {isReportOpen && (
+              <div className="absolute top-full mt-0.5 w-screen max-w-[640px] sm:w-[640px] rounded-xl bg-white/95 dark:bg-neutral-950/95 backdrop-blur shadow-lg z-50 p-3 overflow-hidden"
+                   style={{ left: reportOffset }}>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <Link href="/reports" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 text-blue-600 dark:text-blue-400">
+                        <FaFileAlt className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white">Weekly Reports</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">Exportable weekly performance and wages</div>
+                      </div>
+                    </div>
+                  </Link>
+                  <Link href="/analytics" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 text-emerald-600 dark:text-emerald-400">
+                        <FaChartPie className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white">Analysis</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">Dashboards and business insights</div>
+                      </div>
+                    </div>
+                  </Link>
+                  <Link href="/wages-report" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 text-purple-600 dark:text-purple-400">
+                        <FaMoneyBillWave className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white">Wages Report</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">Weekly wages by staff with exports</div>
+                      </div>
+                    </div>
+                  </Link>
+                </div>
+              </div>
+            )}
+          </div>
+        )
       )}
       
       {/* Automation - Admin only */}
