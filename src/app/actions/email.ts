@@ -22,7 +22,7 @@ export async function sendShiftReminder(
     const formattedTime = `${startTime} - ${endTime}`;
 
     const { data, error } = await resend.emails.send({
-      from: 'ShiftFlow <noreply@yourdomain.com>', // Replace with your verified domain
+      from: process.env.EMAIL_FROM || 'ShiftFlow <noreply@yourdomain.com>', // Replace with your verified domain
       to: [staffEmail],
       subject: `Shift Reminder - ${formattedDate}`,
       react: ShiftReminderEmail({

@@ -37,6 +37,7 @@ export default function RootLayout({
             <nav className="flex items-center h-16 text-sm">
               <Link className="flex items-center h-full px-4 hover:bg-gray-100 dark:hover:bg-neutral-900 transition-colors" href="/staff" aria-label="Staff">Staff</Link>
               <Link className="flex items-center h-full px-4 hover:bg-gray-100 dark:hover:bg-neutral-900 transition-colors" href="/calendar" aria-label="Calendar">Calendar</Link>
+              <Link className="flex items-center h-full px-4 hover:bg-gray-100 dark:hover:bg-neutral-900 transition-colors" href="/shop" aria-label="Shop">Shop</Link>
               <Link className="flex items-center h-full px-4 hover:bg-gray-100 dark:hover:bg-neutral-900 transition-colors" href="/reports" aria-label="Reports">Reports</Link>
               <Link className="flex items-center h-full px-4 hover:bg-gray-100 dark:hover:bg-neutral-900 transition-colors" href="/settings" aria-label="Settings">Settings</Link>
               <div className="ml-2">

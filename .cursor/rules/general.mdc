@@ -1,0 +1,17 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+- do not using any in typescript code, all type need to be well defined to avoid lint and build error
+- CRITICAL: In Supabase RLS policies, always use `profiles.id = auth.uid()` NOT `profiles.user_id = auth.uid()`. The profiles table uses `id` as the primary key that references `auth.users(id)`, not a separate `user_id` column.
+- When creating RLS policies that check admin roles, use: `exists (select 1 from public.profiles where profiles.id = auth.uid() and profiles.role_slug = 'admin')`
+- CRITICAL: When querying profiles table in client code, always use `.eq("id", user.id)` NOT `.eq("user_id", user.id)`. The profiles table uses `id` as the primary key that references `auth.users(id)`.
+- CRITICAL: When creating foreign key references to user data, always reference `public.profiles(id)` NOT `auth.users(id)` for consistency with RLS policies and data relationships.
+- CRITICAL: Never silently fail database queries. Always display errors to users with clear error messages and suggested solutions (e.g., "Run database migration").
+- CRITICAL: Always handle database errors gracefully with proper error states, user feedback, and debugging information.
+- CRITICAL: When creating new database migrations, ALWAYS use the current timestamp format YYYYMMDDHHMMSS to ensure migrations are applied in the correct order. Use `date +"%Y%m%d%H%M%S"` to get the current timestamp.
+- CRITICAL: Migration file names must be incremental and newer than existing migrations to avoid "Found local migration files to be inserted before the last migration on remote database" errors.
+- - run build:agent to verify the build is green without any error after some change or before report big task done
+- Do not using emoji icon on the react component, using icon from react-icons instead
+- All delete action need to be guard by ConfirmationDialog (share component)
