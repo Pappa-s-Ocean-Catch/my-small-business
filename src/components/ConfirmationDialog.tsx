@@ -1,6 +1,6 @@
 "use client";
 
-import { FaExclamationTriangle } from "react-icons/fa";
+import { FaExclamationTriangle, FaCheckCircle, FaInfoCircle, FaTimes } from "react-icons/fa";
 
 interface ConfirmationDialogProps {
   isOpen: boolean;
@@ -12,6 +12,7 @@ interface ConfirmationDialogProps {
   cancelText?: string;
   variant?: "danger" | "warning" | "info";
   isLoading?: boolean;
+  error?: string | null;
 }
 
 export function ConfirmationDialog({
@@ -24,6 +25,7 @@ export function ConfirmationDialog({
   cancelText = "Cancel",
   variant = "danger",
   isLoading = false,
+  error = null,
 }: ConfirmationDialogProps) {
   if (!isOpen) return null;
 
@@ -31,27 +33,39 @@ export function ConfirmationDialog({
     switch (variant) {
       case "danger":
         return {
-          iconColor: "text-red-600 dark:text-red-400",
-          confirmButton: "bg-red-600 hover:bg-red-700 text-white",
-          iconBg: "bg-red-100 dark:bg-red-900/20",
+          icon: FaExclamationTriangle,
+          iconColor: "text-red-500",
+          confirmButton: "bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-lg shadow-red-500/25",
+          iconBg: "bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20",
+          borderColor: "border-red-200 dark:border-red-800",
+          glowColor: "shadow-red-500/20",
         };
       case "warning":
         return {
-          iconColor: "text-yellow-600 dark:text-yellow-400",
-          confirmButton: "bg-yellow-600 hover:bg-yellow-700 text-white",
-          iconBg: "bg-yellow-100 dark:bg-yellow-900/20",
+          icon: FaExclamationTriangle,
+          iconColor: "text-amber-500",
+          confirmButton: "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg shadow-amber-500/25",
+          iconBg: "bg-gradient-to-br from-amber-50 to-orange-100 dark:from-amber-900/20 dark:to-orange-800/20",
+          borderColor: "border-amber-200 dark:border-amber-800",
+          glowColor: "shadow-amber-500/20",
         };
       case "info":
         return {
-          iconColor: "text-blue-600 dark:text-blue-400",
-          confirmButton: "bg-blue-600 hover:bg-blue-700 text-white",
-          iconBg: "bg-blue-100 dark:bg-blue-900/20",
+          icon: FaInfoCircle,
+          iconColor: "text-blue-500",
+          confirmButton: "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg shadow-blue-500/25",
+          iconBg: "bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20",
+          borderColor: "border-blue-200 dark:border-blue-800",
+          glowColor: "shadow-blue-500/20",
         };
       default:
         return {
-          iconColor: "text-red-600 dark:text-red-400",
-          confirmButton: "bg-red-600 hover:bg-red-700 text-white",
-          iconBg: "bg-red-100 dark:bg-red-900/20",
+          icon: FaExclamationTriangle,
+          iconColor: "text-red-500",
+          confirmButton: "bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-lg shadow-red-500/25",
+          iconBg: "bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20",
+          borderColor: "border-red-200 dark:border-red-800",
+          glowColor: "shadow-red-500/20",
         };
     }
   };
@@ -68,53 +82,93 @@ export function ConfirmationDialog({
     }
   };
 
+  const IconComponent = styles.icon;
+
   return (
     <div 
-      className="fixed inset-0 bg-black/40 backdrop-blur-sm grid place-items-center p-4 z-50"
+      className="fixed inset-0 bg-black/50 backdrop-blur-md grid place-items-center p-4 z-50 animate-in fade-in duration-200"
       onClick={handleBackdropClick}
     >
       <div 
-        className="w-full max-w-md bg-white dark:bg-neutral-950 rounded-2xl border shadow-xl p-6"
+        className={`w-full max-w-lg bg-white dark:bg-neutral-900 rounded-3xl border ${styles.borderColor} shadow-2xl ${styles.glowColor} p-0 overflow-hidden animate-in zoom-in-95 duration-200`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start gap-4">
-          <div className={`flex-shrink-0 w-10 h-10 rounded-full ${styles.iconBg} flex items-center justify-center`}>
-            <FaExclamationTriangle className={`w-5 h-5 ${styles.iconColor}`} />
-          </div>
-          
-          <div className="flex-1 min-w-0">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-              {title}
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">
-              {message}
-            </p>
-            
-            <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={isLoading}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-neutral-800 border border-gray-300 dark:border-neutral-600 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {cancelText}
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirm}
-                disabled={isLoading}
-                className={`px-4 py-2 text-sm font-medium rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${styles.confirmButton}`}
-              >
-                {isLoading ? (
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Loading...
-                  </div>
-                ) : (
-                  confirmText
-                )}
-              </button>
+        {/* Header with gradient background */}
+        <div className={`${styles.iconBg} p-6 border-b ${styles.borderColor}`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className={`w-12 h-12 rounded-2xl ${styles.iconBg} flex items-center justify-center shadow-lg`}>
+                <IconComponent className={`w-6 h-6 ${styles.iconColor}`} />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                  {title}
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  Please confirm your action
+                </p>
+              </div>
             </div>
+            <button
+              onClick={onClose}
+              disabled={isLoading}
+              className="w-8 h-8 rounded-full bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 flex items-center justify-center transition-colors disabled:opacity-50"
+            >
+              <FaTimes className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="p-6">
+          <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-6">
+            {message}
+          </p>
+          
+          {/* Error Message */}
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 w-5 h-5 rounded-full bg-red-100 dark:bg-red-900/40 flex items-center justify-center mt-0.5">
+                  <FaExclamationTriangle className="w-3 h-3 text-red-600 dark:text-red-400" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-semibold text-red-800 dark:text-red-200 mb-1">
+                    Error
+                  </h4>
+                  <p className="text-sm text-red-700 dark:text-red-300">
+                    {error}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Action buttons */}
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isLoading}
+              className="px-6 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {cancelText}
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirm}
+              disabled={isLoading}
+              className={`px-6 py-3 text-sm font-semibold rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 active:scale-95 ${styles.confirmButton}`}
+            >
+              {isLoading ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Processing...
+                </div>
+              ) : (
+                confirmText
+              )}
+            </button>
           </div>
         </div>
       </div>

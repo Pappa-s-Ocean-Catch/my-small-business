@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { HeaderAuth } from "@/components/HeaderAuth";
-import { Navigation } from "@/components/Navigation";
+import { AdminNavigation } from "@/components/AdminNavigation";
 import { Logo } from "@/components/Logo";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -35,11 +35,7 @@ export default function RootLayout({
               <Logo />
             </Link>
             <nav className="flex items-center h-16 text-sm">
-              <Link className="flex items-center h-full px-4 hover:bg-gray-100 dark:hover:bg-neutral-900 transition-colors" href="/staff" aria-label="Staff">Staff</Link>
-              <Link className="flex items-center h-full px-4 hover:bg-gray-100 dark:hover:bg-neutral-900 transition-colors" href="/calendar" aria-label="Calendar">Calendar</Link>
-              <Link className="flex items-center h-full px-4 hover:bg-gray-100 dark:hover:bg-neutral-900 transition-colors" href="/shop" aria-label="Shop">Shop</Link>
-              <Link className="flex items-center h-full px-4 hover:bg-gray-100 dark:hover:bg-neutral-900 transition-colors" href="/reports" aria-label="Reports">Reports</Link>
-              <Link className="flex items-center h-full px-4 hover:bg-gray-100 dark:hover:bg-neutral-900 transition-colors" href="/settings" aria-label="Settings">Settings</Link>
+              <AdminNavigation />
               <div className="ml-2">
                 <HeaderAuth />
               </div>
