@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { FaEnvelope, FaSpinner } from "react-icons/fa";
+import { FaEnvelope } from "react-icons/fa";
 import { sendShiftReminder } from "@/app/actions/email";
+import { LoadingSpinner } from "./Loading";
 import { format } from "date-fns";
 
 interface CalendarToolbarProps {
@@ -82,7 +83,7 @@ export function CalendarToolbar({ day, shifts, isAdmin }: CalendarToolbarProps) 
           className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {isLoading ? (
-            <FaSpinner className="w-3 h-3 animate-spin" />
+            <LoadingSpinner size="sm" />
           ) : (
             <FaEnvelope className="w-3 h-3" />
           )}

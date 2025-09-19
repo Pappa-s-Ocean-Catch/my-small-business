@@ -6,6 +6,7 @@ import { ensureProfile } from "@/app/actions/profile";
 import { AdminGuard } from "@/components/AdminGuard";
 import { FaBox, FaTags, FaTruck, FaWarehouse, FaExclamationTriangle, FaPlus, FaChartLine } from "react-icons/fa";
 import Link from "next/link";
+import { LoadingPage } from "@/components/Loading";
 
 interface ShopStats {
   totalProducts: number;
@@ -106,11 +107,7 @@ export default function ShopPage() {
   }, [isAdmin]);
 
   if (loading || isAdmin === null) {
-    return (
-      <div className="p-6 text-center text-gray-500">
-        Loading shop management...
-      </div>
-    );
+    return <LoadingPage message="Loading shop management..." />;
   }
 
   if (!isAdmin) {

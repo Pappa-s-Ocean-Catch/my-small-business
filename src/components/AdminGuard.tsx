@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import { ensureProfile } from "@/app/actions/profile";
+import { Loading } from "@/components/Loading";
 
 export function AdminGuard({ children }: { children: React.ReactNode }) {
   const [allowed, setAllowed] = useState<boolean | null>(null);
@@ -43,7 +44,7 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
   }, []);
 
   if (allowed === null) {
-    return <div className="p-6 text-sm text-gray-500">Checking permissions…</div>;
+    return <Loading message="Checking permissions..." size="sm" />;
   }
   if (!allowed) {
     return (

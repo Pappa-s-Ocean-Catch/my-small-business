@@ -5,6 +5,7 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 import { FaCalendarAlt, FaUsers, FaBox, FaExclamationTriangle, FaDollarSign, FaChartLine, FaClock, FaUser, FaShoppingCart } from "react-icons/fa";
 import Link from "next/link";
 import { format, startOfWeek, endOfWeek, isToday, isFuture } from "date-fns";
+import { LoadingPage } from "@/components/Loading";
 
 type User = {
   id: string;
@@ -153,14 +154,7 @@ export default function Home() {
   }, []);
 
   if (loading) {
-  return (
-      <div className="min-h-screen bg-gray-50 dark:bg-neutral-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Loading dashboard...</p>
-        </div>
-      </div>
-    );
+    return <LoadingPage message="Loading dashboard..." />;
   }
 
   if (!user) {

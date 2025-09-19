@@ -1,6 +1,7 @@
 "use client";
 
 import { FaExclamationTriangle, FaCheckCircle, FaInfoCircle, FaTimes } from "react-icons/fa";
+import { LoadingSpinner } from "./Loading";
 
 interface ConfirmationDialogProps {
   isOpen: boolean;
@@ -160,14 +161,14 @@ export function ConfirmationDialog({
               disabled={isLoading}
               className={`px-6 py-3 text-sm font-semibold rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 active:scale-95 ${styles.confirmButton}`}
             >
-              {isLoading ? (
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Processing...
-                </div>
-              ) : (
-                confirmText
-              )}
+                  {isLoading ? (
+                    <div className="flex items-center gap-2">
+                      <LoadingSpinner size="sm" className="text-white" />
+                      Processing...
+                    </div>
+                  ) : (
+                    confirmText
+                  )}
             </button>
           </div>
         </div>

@@ -7,6 +7,7 @@ import { ensureProfile } from "@/app/actions/profile";
 import { FaEdit, FaTrash, FaRedo, FaChevronLeft, FaChevronRight, FaHome, FaChartBar } from "react-icons/fa";
 import { CalendarToolbar } from "@/components/CalendarToolbar";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
+import { Loading } from "@/components/Loading";
 import Link from "next/link";
 
 type Staff = { id: string; name: string; pay_rate: number; email: string | null };
@@ -159,7 +160,7 @@ export default function CalendarPage() {
   };
 
   if (isAdmin === null) {
-    return <div className="p-6 text-center text-gray-500">Loading...</div>;
+    return <Loading message="Loading calendar..." size="sm" />;
   }
 
   return (

@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { AdminGuard } from "@/components/AdminGuard";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
-import { Loader2, Plus, Pencil, Trash2, Check, X, Clock } from "lucide-react";
+import { Loading } from "@/components/Loading";
+import { Plus, Pencil, Trash2, X, Clock } from "lucide-react";
 
 type Staff = {
   id: string;
@@ -169,7 +170,7 @@ export default function StaffPage() {
 
       <div className="mt-6 space-y-4">
         {loading ? (
-          <div className="text-center text-gray-500 py-8"><Loader2 className="size-4 animate-spin inline" /> Loading...</div>
+          <Loading message="Loading staff..." size="sm" />
         ) : staff.length === 0 ? (
           <div className="text-center text-gray-500 py-8">No staff yet</div>
         ) : (

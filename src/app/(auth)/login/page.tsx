@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
-import { Loader2 } from "lucide-react";
+import { LoadingSpinner } from "@/components/Loading";
 import Link from "next/link";
 
 export default function LoginPage() {
@@ -50,7 +50,7 @@ export default function LoginPage() {
             />
           </label>
           <button disabled={loading} className="h-11 rounded-xl bg-black text-white dark:bg-white dark:text-black flex items-center justify-center gap-2 hover:opacity-90 transition">
-            {loading && <Loader2 className="size-4 animate-spin" />} Send magic link
+            {loading && <LoadingSpinner size="sm" />} Send magic link
           </button>
         </form>
         {message && <p className="mt-4 text-sm text-gray-600">{message}</p>}
