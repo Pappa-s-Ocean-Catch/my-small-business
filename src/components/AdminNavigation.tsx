@@ -7,6 +7,7 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 
 export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 'horizontal' | 'vertical' }) {
   const [userRole, setUserRole] = useState<'admin' | 'staff' | null>(null);
+  const [isMgmtOpen, setIsMgmtOpen] = useState<boolean>(false);
   const pathname = usePathname();
 
   useEffect(() => {
@@ -54,34 +55,54 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
       {/* Home - visible to all authenticated users */}
       <Link className={getLinkClasses("/")} href="/" aria-label="Home">Home</Link>
       
-      {/* Staff Management - Admin only */}
+      {/* Management group - Admin only */}
       {userRole === 'admin' && (
-        <Link className={getLinkClasses("/staff")} href="/staff" aria-label="Staff">Staff</Link>
+        orientation === 'vertical' ? (
+          <div className="w-full">
+            <div className="px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-200">Management</div>
+            <div className="pl-2">
+              <Link className={getLinkClasses("/staff")} href="/staff" aria-label="Staff">Staff</Link>
+              <Link className={getLinkClasses("/shop")} href="/shop" aria-label="Shop">Shop</Link>
+              <Link className={getLinkClasses("/users")} href="/users" aria-label="Users">Users</Link>
+            </div>
+          </div>
+        ) : (
+          <div className="relative h-full">
+            <button
+              type="button"
+              className="flex items-center h-full px-4 transition-colors hover:bg-gray-100 dark:hover:bg-neutral-900"
+              onClick={() => setIsMgmtOpen((v) => !v)}
+              aria-haspopup="menu"
+              aria-expanded={isMgmtOpen}
+            >
+              Management
+            </button>
+            {isMgmtOpen && (
+              <div className="absolute top-full left-0 mt-1 min-w-[200px] rounded-lg border bg-white dark:bg-neutral-950 shadow-lg z-50">
+                <div className="py-1">
+                  <Link className="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-neutral-900" href="/staff">Staff</Link>
+                  <Link className="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-neutral-900" href="/shop">Shop</Link>
+                  <Link className="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-neutral-900" href="/users">Users</Link>
+                </div>
+              </div>
+            )}
+          </div>
+        )
       )}
-      
+
       {/* Calendar - visible to authenticated users only */}
       {userRole !== null && (
         <Link className={getLinkClasses("/calendar")} href="/calendar" aria-label="Calendar">Calendar</Link>
       )}
       
-      {/* Shop Management - Admin only */}
+      {/* Analysis & Report - Admin only (group) */}
       {userRole === 'admin' && (
-        <Link className={getLinkClasses("/shop")} href="/shop" aria-label="Shop">Shop</Link>
+        <Link className={getLinkClasses("/analysis-report")} href="/analysis-report" aria-label="Analysis & Report">Analysis & Report</Link>
       )}
       
-      {/* Analytics - Admin only */}
+      {/* Automation - Admin only */}
       {userRole === 'admin' && (
-        <Link className={getLinkClasses("/analytics")} href="/analytics" aria-label="Analytics">Analytics</Link>
-      )}
-      
-      {/* Reports - Admin only */}
-      {userRole === 'admin' && (
-        <Link className={getLinkClasses("/reports")} href="/reports" aria-label="Reports">Reports</Link>
-      )}
-      
-      {/* User Management - Admin only */}
-      {userRole === 'admin' && (
-        <Link className={getLinkClasses("/users")} href="/users" aria-label="Users">Users</Link>
+        <Link className={getLinkClasses("/automation")} href="/automation" aria-label="Automation">Automation</Link>
       )}
       
       {/* Settings - Admin only */}

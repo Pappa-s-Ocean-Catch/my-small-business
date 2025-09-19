@@ -12,6 +12,9 @@ alwaysApply: true
 - CRITICAL: Always handle database errors gracefully with proper error states, user feedback, and debugging information.
 - CRITICAL: When creating new database migrations, ALWAYS use the current timestamp format YYYYMMDDHHMMSS to ensure migrations are applied in the correct order. Use `date +"%Y%m%d%H%M%S"` to get the current timestamp.
 - CRITICAL: Migration file names must be incremental and newer than existing migrations to avoid "Found local migration files to be inserted before the last migration on remote database" errors.
+- CRITICAL: In SQL functions/migrations, avoid reserved keywords and ambiguous identifiers for parameter names (e.g., use `current_ts` instead of `current_time`). Prefer snake_case and explicit types.
+- CRITICAL: In SQL functions, do not shadow built-ins or use names that can clash with functions (e.g., `time`, `user`, `current_time`).
+- CRITICAL: Validate SQL function parameters and return types; test functions with `select` before using in triggers/policies.
 - - run build:agent to verify the build is green without any error after some change or before report big task done
 - Do not using emoji icon on the react component, using icon from react-icons instead
 - All delete action need to be guard by ConfirmationDialog (share component)
