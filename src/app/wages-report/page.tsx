@@ -11,8 +11,30 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { toast } from "react-toastify";
 
-type Staff = { id: string; name: string; pay_rate: number };
+type Staff = {
+  id: string;
+  name: string;
+  pay_rate: number; // legacy fallback
+  default_rate: number | null;
+  mon_rate: number | null;
+  tue_rate: number | null;
+  wed_rate: number | null;
+  thu_rate: number | null;
+  fri_rate: number | null;
+  sat_rate: number | null;
+  sun_rate: number | null;
+};
 type Shift = { id: string; staff_id: string | null; start_time: string; end_time: string; non_billable_hours?: number };
+type StaffPaymentInstruction = {
+  id: string;
+  staff_id: string;
+  label: string;
+  adjustment_per_hour: number;
+  weekly_hours_cap: number | null;
+  payment_method: string | null;
+  priority: number;
+  active: boolean;
+};
 
 type DayCell = { hours: number; amount: number };
 
@@ -21,6 +43,7 @@ export default function WagesReportPage() {
   const [weekEnd, setWeekEnd] = useState<Date>(endOfWeek(new Date(), { weekStartsOn: 1 }));
   const [staff, setStaff] = useState<Staff[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
+  const [instructions, setInstructions] = useState<StaffPaymentInstruction[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
   const reloadWeek = useCallback((base: Date) => {
@@ -37,7 +60,7 @@ export default function WagesReportPage() {
     try {
       const supabase = getSupabaseClient();
       const [{ data: staffData, error: staffErr }, { data: shiftData, error: shiftErr }] = await Promise.all([
-        supabase.from("staff").select("id, name, pay_rate"),
+        supabase.from("staff").select("id, name, pay_rate, default_rate, mon_rate, tue_rate, wed_rate, thu_rate, fri_rate, sat_rate, sun_rate"),
         supabase
           .from("shifts")
           .select("id, staff_id, start_time, end_time, non_billable_hours")
@@ -50,6 +73,17 @@ export default function WagesReportPage() {
 
       setStaff((staffData as Staff[]) || []);
       setShifts((shiftData as Shift[]) || []);
+      if (staffData && staffData.length > 0) {
+        const { data: instr } = await supabase
+          .from("staff_payment_instructions")
+          .select("*")
+          .in("staff_id", (staffData as Staff[]).map(s => s.id))
+          .eq("active", true)
+          .order("priority", { ascending: true });
+        setInstructions((instr as StaffPaymentInstruction[]) || []);
+      } else {
+        setInstructions([]);
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to load wages report data");
     } finally {
@@ -69,6 +103,21 @@ export default function WagesReportPage() {
     return days;
   }, [weekStart]);
 
+  function getBaseRateForDate(staffMember: Staff, date: Date): number {
+    const dow = date.getDay();
+    const lookup: Array<number | null | undefined> = [
+      staffMember.sun_rate,
+      staffMember.mon_rate,
+      staffMember.tue_rate,
+      staffMember.wed_rate,
+      staffMember.thu_rate,
+      staffMember.fri_rate,
+      staffMember.sat_rate,
+    ];
+    const dayRate = lookup[dow];
+    return Number(dayRate ?? staffMember.default_rate ?? staffMember.pay_rate);
+  }
+
   const grid = useMemo(() => {
     const staffMap: Record<string, { staff: Staff; cells: DayCell[]; totalHours: number; totalAmount: number }> = {};
     for (const s of staff) {
@@ -80,7 +129,20 @@ export default function WagesReportPage() {
       };
     }
 
-    for (const shift of shifts) {
+    // Prepare weekly caps per staff
+    const byStaff = new Map<string, StaffPaymentInstruction[]>();
+    for (const ins of instructions) {
+      if (!byStaff.has(ins.staff_id)) byStaff.set(ins.staff_id, []);
+      byStaff.get(ins.staff_id)!.push(ins);
+    }
+    const capsByStaff: Record<string, { list: StaffPaymentInstruction[]; remaining: number[] }> = {};
+    for (const s of staff) {
+      const list = (byStaff.get(s.id) || []).slice().sort((a,b) => a.priority - b.priority);
+      capsByStaff[s.id] = { list, remaining: list.map(i => i.weekly_hours_cap ?? Number.POSITIVE_INFINITY) };
+    }
+
+    const sortedShifts = [...shifts].sort((a,b) => a.start_time.localeCompare(b.start_time));
+    for (const shift of sortedShifts) {
       if (!shift.staff_id) continue;
       const staffRow = staffMap[shift.staff_id];
       if (!staffRow) continue;
@@ -89,7 +151,22 @@ export default function WagesReportPage() {
       const rawHours = Math.max(0, (end.getTime() - start.getTime()) / (1000 * 60 * 60));
       const nonbill = Number(shift.non_billable_hours || 0);
       const hours = Math.max(0, rawHours - nonbill);
-      const amount = hours * staffRow.staff.pay_rate;
+      const baseRate = getBaseRateForDate(staffRow.staff, start);
+      let remaining = hours;
+      let amount = 0;
+      const caps = capsByStaff[staffRow.staff.id];
+      if (caps && caps.list.length > 0) {
+        for (let idx = 0; idx < caps.list.length && remaining > 0; idx++) {
+          const ins = caps.list[idx];
+          const capLeft = caps.remaining[idx];
+          if (capLeft <= 0) continue;
+          const take = Math.min(remaining, capLeft);
+          amount += take * (baseRate + ins.adjustment_per_hour);
+          caps.remaining[idx] = capLeft - take;
+          remaining -= take;
+        }
+      }
+      if (remaining > 0) amount += remaining * baseRate;
 
       const dayIndex = daysOfWeek.findIndex((d) => isSameDay(d, start));
       if (dayIndex >= 0) {

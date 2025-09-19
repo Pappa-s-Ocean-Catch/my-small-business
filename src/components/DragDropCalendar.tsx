@@ -26,7 +26,20 @@ import { CalendarToolbar } from "@/components/CalendarToolbar";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
 import Link from "next/link";
 
-type Staff = { id: string; name: string; pay_rate: number; email: string | null };
+type Staff = {
+  id: string;
+  name: string;
+  pay_rate: number; // legacy fallback
+  email: string | null;
+  default_rate?: number | null;
+  mon_rate?: number | null;
+  tue_rate?: number | null;
+  wed_rate?: number | null;
+  thu_rate?: number | null;
+  fri_rate?: number | null;
+  sat_rate?: number | null;
+  sun_rate?: number | null;
+};
 type Shift = { id: string; staff_id: string | null; start_time: string; end_time: string; notes: string | null; non_billable_hours?: number };
 type Availability = { id: string; staff_id: string; day_of_week: number; start_time: string; end_time: string };
 
@@ -267,7 +280,10 @@ export function DragDropCalendar({
     const rawHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
     const nonbill = Number(shift.non_billable_hours || 0);
     const hours = Math.max(0, rawHours - nonbill);
-    return Math.max(0, hours) * (s.pay_rate || 0);
+    const dow = start.getDay();
+    const lookup: Array<number | null | undefined> = [s.sun_rate, s.mon_rate, s.tue_rate, s.wed_rate, s.thu_rate, s.fri_rate, s.sat_rate];
+    const baseRate = Number(lookup[dow] ?? s.default_rate ?? s.pay_rate);
+    return Math.max(0, hours) * baseRate;
   }, [staff]);
 
   const getDailyTotal = useCallback((day: Date): number => {

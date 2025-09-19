@@ -12,8 +12,31 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { toast } from 'react-toastify';
 
-type Staff = { id: string; name: string; pay_rate: number; email: string | null };
+type Staff = {
+  id: string;
+  name: string;
+  pay_rate: number; // legacy
+  email: string | null;
+  default_rate: number | null;
+  mon_rate: number | null;
+  tue_rate: number | null;
+  wed_rate: number | null;
+  thu_rate: number | null;
+  fri_rate: number | null;
+  sat_rate: number | null;
+  sun_rate: number | null;
+};
 type Shift = { id: string; staff_id: string | null; start_time: string; end_time: string; notes: string | null; non_billable_hours?: number };
+type StaffPaymentInstruction = {
+  id: string;
+  staff_id: string;
+  label: string;
+  adjustment_per_hour: number;
+  weekly_hours_cap: number | null;
+  payment_method: string | null;
+  priority: number;
+  active: boolean;
+};
 
 interface FinancialReportRow {
   date: string;
@@ -37,6 +60,7 @@ export default function ReportsPage() {
     end: endOfWeek(new Date(), { weekStartsOn: 1 }) // Sunday
   });
   const [reportData, setReportData] = useState<FinancialReportRow[]>([]);
+  const [instructions, setInstructions] = useState<StaffPaymentInstruction[]>([]);
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -71,13 +95,26 @@ export default function ReportsPage() {
   }, []);
 
   const fetchData = useCallback(async (): Promise<void> => {
+    const supabase = getSupabaseClient();
     const [{ data: staffData }, { data: shiftData }] = await Promise.all([
-      getSupabaseClient().from("staff").select("id, name, pay_rate, email"),
-      getSupabaseClient().from("shifts").select("id, staff_id, start_time, end_time, notes, non_billable_hours")
+      supabase.from("staff").select("id, name, pay_rate, email, default_rate, mon_rate, tue_rate, wed_rate, thu_rate, fri_rate, sat_rate, sun_rate"),
+      supabase.from("shifts").select("id, staff_id, start_time, end_time, notes, non_billable_hours")
     ]);
 
     setStaff(staffData || []);
     setShifts(shiftData || []);
+    if (staffData && staffData.length > 0) {
+      const staffIds = staffData.map(s => s.id);
+      const { data: instr } = await supabase
+        .from("staff_payment_instructions")
+        .select("*")
+        .in("staff_id", staffIds)
+        .eq("active", true)
+        .order("priority", { ascending: true });
+      setInstructions(instr || []);
+    } else {
+      setInstructions([]);
+    }
     setLoading(false);
   }, []);
 
@@ -85,10 +122,38 @@ export default function ReportsPage() {
     void fetchData();
   }, [fetchData]);
 
+  function getBaseRateForDate(staffMember: Staff, date: Date): number {
+    const dow = date.getDay(); // 0 Sun - 6 Sat
+    const lookup: Array<number | null | undefined> = [
+      staffMember.sun_rate,
+      staffMember.mon_rate,
+      staffMember.tue_rate,
+      staffMember.wed_rate,
+      staffMember.thu_rate,
+      staffMember.fri_rate,
+      staffMember.sat_rate,
+    ];
+    const dayRate = lookup[dow];
+    return Number(dayRate ?? staffMember.default_rate ?? staffMember.pay_rate);
+  }
+
   const generateReportData = useCallback(() => {
     const reportRows: FinancialReportRow[] = [];
+    // Build per-staff instruction caps map for this week
+    const capsByStaff: Record<string, { list: StaffPaymentInstruction[]; remaining: number[] }> = {};
+    const byStaff = new Map<string, StaffPaymentInstruction[]>();
+    instructions.forEach(i => {
+      if (!byStaff.has(i.staff_id)) byStaff.set(i.staff_id, []);
+      byStaff.get(i.staff_id)!.push(i);
+    });
+    staff.forEach(s => {
+      const list = (byStaff.get(s.id) || []).slice().sort((a, b) => a.priority - b.priority);
+      capsByStaff[s.id] = { list, remaining: list.map(i => i.weekly_hours_cap ?? Number.POSITIVE_INFINITY) };
+    });
+    // Sort shifts by start time for deterministic allocation
+    const sortedShifts = [...shifts].sort((a, b) => a.start_time.localeCompare(b.start_time));
     
-    shifts.forEach(shift => {
+    sortedShifts.forEach(shift => {
       const shiftDate = new Date(shift.start_time);
       
       // Only include shifts within the selected date range
@@ -101,7 +166,25 @@ export default function ReportsPage() {
           const rawHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
           const nonbill = Number(shift.non_billable_hours || 0);
           const hours = Math.max(0, rawHours - nonbill);
-          const totalWage = hours * staffMember.pay_rate;
+          const baseRate = getBaseRateForDate(staffMember, shiftDate);
+          // Allocate hours across instructions
+          let remaining = hours;
+          let amount = 0;
+          const caps = capsByStaff[staffMember.id];
+          if (caps && caps.list.length > 0) {
+            for (let idx = 0; idx < caps.list.length && remaining > 0; idx++) {
+              const ins = caps.list[idx];
+              const capLeft = caps.remaining[idx];
+              if (capLeft <= 0) continue;
+              const take = Math.min(remaining, capLeft);
+              amount += take * (baseRate + ins.adjustment_per_hour);
+              caps.remaining[idx] = capLeft - take;
+              remaining -= take;
+            }
+          }
+          if (remaining > 0) {
+            amount += remaining * baseRate;
+          }
           
           reportRows.push({
             date: format(shiftDate, "yyyy-MM-dd"),
@@ -110,8 +193,8 @@ export default function ReportsPage() {
             endTime: format(end, "HH:mm"),
             hours: Math.round(hours * 100) / 100, // Round to 2 decimal places
             nonBillableHours: nonbill,
-            payRate: staffMember.pay_rate,
-            totalWage: Math.round(totalWage * 100) / 100,
+            payRate: baseRate,
+            totalWage: Math.round(amount * 100) / 100,
             shiftId: shift.id
           });
         }
@@ -125,7 +208,7 @@ export default function ReportsPage() {
     });
     
     setReportData(reportRows);
-  }, [shifts, staff, dateRange]);
+  }, [shifts, staff, dateRange, instructions]);
 
   useEffect(() => {
     generateReportData();

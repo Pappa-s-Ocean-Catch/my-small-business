@@ -14,9 +14,28 @@ type Staff = {
   phone: string | null;
   email: string | null;
   pay_rate: number;
+  default_rate: number | null;
+  mon_rate: number | null;
+  tue_rate: number | null;
+  wed_rate: number | null;
+  thu_rate: number | null;
+  fri_rate: number | null;
+  sat_rate: number | null;
+  sun_rate: number | null;
   is_available: boolean;
   role_slug: string | null;
   description: string | null;
+};
+
+type StaffPaymentInstruction = {
+  id: string;
+  staff_id: string;
+  label: string;
+  adjustment_per_hour: number;
+  weekly_hours_cap: number | null;
+  payment_method: string | null;
+  priority: number;
+  active: boolean;
 };
 
 type StaffRole = {
@@ -52,9 +71,27 @@ export default function StaffPage() {
     phone: "",
     email: "",
     pay_rate: 0,
+    default_rate: 0,
+    mon_rate: "" as string | number,
+    tue_rate: "" as string | number,
+    wed_rate: "" as string | number,
+    thu_rate: "" as string | number,
+    fri_rate: "" as string | number,
+    sat_rate: "" as string | number,
+    sun_rate: "" as string | number,
     is_available: true,
     role_slug: "member",
     description: "",
+  });
+
+  const [instructions, setInstructions] = useState<StaffPaymentInstruction[]>([]);
+  const [instrDraft, setInstrDraft] = useState<Omit<StaffPaymentInstruction, 'id' | 'staff_id'>>({
+    label: "",
+    adjustment_per_hour: 0,
+    weekly_hours_cap: null,
+    payment_method: "",
+    priority: 1,
+    active: true,
   });
 
   const [availabilityForm, setAvailabilityForm] = useState({
@@ -81,16 +118,63 @@ export default function StaffPage() {
   }, []);
 
   const resetForm = () => {
-    setForm({ name: "", phone: "", email: "", pay_rate: 0, is_available: true, role_slug: "member", description: "" });
+    setForm({ name: "", phone: "", email: "", pay_rate: 0, default_rate: 0, mon_rate: "", tue_rate: "", wed_rate: "", thu_rate: "", fri_rate: "", sat_rate: "", sun_rate: "", is_available: true, role_slug: "member", description: "" });
     setEditing(null);
+    setInstructions([]);
   };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const supabase = getSupabaseClient();
     if (editing) {
-      await getSupabaseClient().from("staff").update(form).eq("id", editing.id);
+      await supabase.from("staff").update({
+        name: form.name,
+        phone: form.phone || null,
+        email: form.email || null,
+        pay_rate: form.pay_rate,
+        default_rate: form.default_rate,
+        mon_rate: form.mon_rate === "" ? null : Number(form.mon_rate),
+        tue_rate: form.tue_rate === "" ? null : Number(form.tue_rate),
+        wed_rate: form.wed_rate === "" ? null : Number(form.wed_rate),
+        thu_rate: form.thu_rate === "" ? null : Number(form.thu_rate),
+        fri_rate: form.fri_rate === "" ? null : Number(form.fri_rate),
+        sat_rate: form.sat_rate === "" ? null : Number(form.sat_rate),
+        sun_rate: form.sun_rate === "" ? null : Number(form.sun_rate),
+        is_available: form.is_available,
+        role_slug: form.role_slug,
+        description: form.description || null,
+      }).eq("id", editing.id);
     } else {
-      await getSupabaseClient().from("staff").insert({ ...form, phone: form.phone || null, email: form.email || null });
+      const { data: inserted } = await supabase.from("staff").insert({
+        name: form.name,
+        phone: form.phone || null,
+        email: form.email || null,
+        pay_rate: form.pay_rate,
+        default_rate: form.default_rate,
+        mon_rate: form.mon_rate === "" ? null : Number(form.mon_rate),
+        tue_rate: form.tue_rate === "" ? null : Number(form.tue_rate),
+        wed_rate: form.wed_rate === "" ? null : Number(form.wed_rate),
+        thu_rate: form.thu_rate === "" ? null : Number(form.thu_rate),
+        fri_rate: form.fri_rate === "" ? null : Number(form.fri_rate),
+        sat_rate: form.sat_rate === "" ? null : Number(form.sat_rate),
+        sun_rate: form.sun_rate === "" ? null : Number(form.sun_rate),
+        is_available: form.is_available,
+        role_slug: form.role_slug,
+        description: form.description || null,
+      }).select().single();
+      if (inserted?.id && instructions.length > 0) {
+        await supabase.from("staff_payment_instructions").insert(
+          instructions.map(i => ({
+            staff_id: inserted.id,
+            label: i.label,
+            adjustment_per_hour: i.adjustment_per_hour,
+            weekly_hours_cap: i.weekly_hours_cap,
+            payment_method: i.payment_method,
+            priority: i.priority,
+            active: i.active,
+          }))
+        );
+      }
     }
     await fetchStaff();
     setFormOpen(false);
@@ -104,10 +188,23 @@ export default function StaffPage() {
       phone: s.phone ?? "",
       email: s.email ?? "",
       pay_rate: s.pay_rate,
+      default_rate: s.default_rate ?? s.pay_rate,
+      mon_rate: s.mon_rate ?? "",
+      tue_rate: s.tue_rate ?? "",
+      wed_rate: s.wed_rate ?? "",
+      thu_rate: s.thu_rate ?? "",
+      fri_rate: s.fri_rate ?? "",
+      sat_rate: s.sat_rate ?? "",
+      sun_rate: s.sun_rate ?? "",
       is_available: s.is_available,
       role_slug: s.role_slug ?? "member",
       description: s.description ?? "",
     });
+    // Load payment instructions for this staff
+    void (async () => {
+      const { data } = await getSupabaseClient().from("staff_payment_instructions").select("*").eq("staff_id", s.id).order("priority");
+      setInstructions((data as StaffPaymentInstruction[]) || []);
+    })();
     setFormOpen(true);
   };
 
@@ -292,9 +389,14 @@ export default function StaffPage() {
 
       {formOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm grid place-items-center p-4 z-50" onClick={() => setFormOpen(false)}>
-          <div className="w-full max-w-2xl bg-white dark:bg-neutral-950 rounded-2xl border shadow-xl p-6" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-semibold">{editing ? "Edit staff" : "Add staff"}</h2>
-            <form onSubmit={submit} className="mt-4 grid gap-4">
+          <div className="w-full max-w-4xl bg-white dark:bg-neutral-950 rounded-2xl border shadow-xl p-6 sm:p-8 max-h-[85vh] overflow-y-auto overflow-x-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold">{editing ? "Edit staff" : "Add staff"}</h2>
+              <button type="button" onClick={() => setFormOpen(false)} className="h-8 w-8 rounded-lg border inline-grid place-items-center hover:bg-gray-50 dark:hover:bg-neutral-900">
+                <X className="size-4" />
+              </button>
+            </div>
+            <form onSubmit={submit} className="mt-4 grid gap-5">
               <label className="grid gap-2">
                 <span className="text-sm text-gray-700 dark:text-gray-300">Name</span>
                 <input className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
@@ -311,6 +413,100 @@ export default function StaffPage() {
                 <span className="text-sm text-gray-700 dark:text-gray-300">Pay rate</span>
                 <input type="number" step="0.01" className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.pay_rate} onChange={(e) => setForm((f) => ({ ...f, pay_rate: parseFloat(e.target.value) }))} />
               </label>
+              <div className="grid gap-3">
+                <span className="text-sm font-medium text-gray-800 dark:text-gray-200">Weekday rates (optional overrides)</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                  <label className="grid gap-1 text-xs sm:text-sm">
+                    <span>Default</span>
+                    <input type="number" step="0.01" className="h-9 rounded-xl border px-2 bg-white/80 dark:bg-neutral-900 min-w-0" value={form.default_rate} onChange={(e) => setForm((f) => ({ ...f, default_rate: parseFloat(e.target.value || '0') }))} />
+                  </label>
+                  <label className="grid gap-1 text-xs sm:text-sm">
+                    <span>Mon</span>
+                    <input type="number" step="0.01" className="h-9 rounded-xl border px-2 bg-white/80 dark:bg-neutral-900 min-w-0" value={form.mon_rate} onChange={(e) => setForm((f) => ({ ...f, mon_rate: e.target.value }))} placeholder="" />
+                  </label>
+                  <label className="grid gap-1 text-xs sm:text-sm">
+                    <span>Tue</span>
+                    <input type="number" step="0.01" className="h-9 rounded-xl border px-2 bg-white/80 dark:bg-neutral-900 min-w-0" value={form.tue_rate} onChange={(e) => setForm((f) => ({ ...f, tue_rate: e.target.value }))} />
+                  </label>
+                  <label className="grid gap-1 text-xs sm:text-sm">
+                    <span>Wed</span>
+                    <input type="number" step="0.01" className="h-9 rounded-xl border px-2 bg-white/80 dark:bg-neutral-900 min-w-0" value={form.wed_rate} onChange={(e) => setForm((f) => ({ ...f, wed_rate: e.target.value }))} />
+                  </label>
+                  <label className="grid gap-1 text-xs sm:text-sm">
+                    <span>Thu</span>
+                    <input type="number" step="0.01" className="h-9 rounded-xl border px-2 bg-white/80 dark:bg-neutral-900 min-w-0" value={form.thu_rate} onChange={(e) => setForm((f) => ({ ...f, thu_rate: e.target.value }))} />
+                  </label>
+                  <label className="grid gap-1 text-xs sm:text-sm">
+                    <span>Fri</span>
+                    <input type="number" step="0.01" className="h-9 rounded-xl border px-2 bg-white/80 dark:bg-neutral-900 min-w-0" value={form.fri_rate} onChange={(e) => setForm((f) => ({ ...f, fri_rate: e.target.value }))} />
+                  </label>
+                  <label className="grid gap-1 text-xs sm:text-sm">
+                    <span>Sat</span>
+                    <input type="number" step="0.01" className="h-9 rounded-xl border px-2 bg-white/80 dark:bg-neutral-900 min-w-0" value={form.sat_rate} onChange={(e) => setForm((f) => ({ ...f, sat_rate: e.target.value }))} />
+                  </label>
+                  <label className="grid gap-1 text-xs sm:text-sm">
+                    <span>Sun</span>
+                    <input type="number" step="0.01" className="h-9 rounded-xl border px-2 bg-white/80 dark:bg-neutral-900 min-w-0" value={form.sun_rate} onChange={(e) => setForm((f) => ({ ...f, sun_rate: e.target.value }))} />
+                  </label>
+                </div>
+                <p className="text-xs text-gray-500">Leave weekday fields empty to use the default rate.</p>
+              </div>
+              <div className="grid gap-3">
+                <span className="text-sm font-medium text-gray-800 dark:text-gray-200">Payment instructions</span>
+                <div className="rounded-xl border p-4 bg-white/60 dark:bg-neutral-900 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                    <label className="grid gap-1 text-xs sm:text-sm md:col-span-3">
+                      <span>Label</span>
+                      <input className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900 min-w-0" value={instrDraft.label} onChange={(e) => setInstrDraft(d => ({ ...d, label: e.target.value }))} />
+                    </label>
+                    <label className="grid gap-1 text-xs sm:text-sm md:col-span-2">
+                      <span>Adj/hr</span>
+                      <input type="number" step="0.01" className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900 min-w-0" value={instrDraft.adjustment_per_hour} onChange={(e) => setInstrDraft(d => ({ ...d, adjustment_per_hour: parseFloat(e.target.value || '0') }))} />
+                    </label>
+                    <label className="grid gap-1 text-xs sm:text-sm md:col-span-2">
+                      <span>Cap (hrs)</span>
+                      <input type="number" step="0.1" className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900 min-w-0" value={instrDraft.weekly_hours_cap ?? ''} onChange={(e) => setInstrDraft(d => ({ ...d, weekly_hours_cap: e.target.value === '' ? null : parseFloat(e.target.value) }))} />
+                    </label>
+                    <label className="grid gap-1 text-xs sm:text-sm md:col-span-3">
+                      <span>Payment method</span>
+                      <input className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900 min-w-0" value={instrDraft.payment_method ?? ''} onChange={(e) => setInstrDraft(d => ({ ...d, payment_method: e.target.value }))} />
+                    </label>
+                    <label className="grid gap-1 text-xs sm:text-sm md:col-span-2">
+                      <span>Priority</span>
+                      <input type="number" className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900 min-w-0" value={instrDraft.priority} onChange={(e) => setInstrDraft(d => ({ ...d, priority: parseInt(e.target.value || '1') }))} />
+                    </label>
+                    <div className="flex items-center gap-3 md:col-span-2">
+                      <label className="text-xs sm:text-sm inline-flex items-center gap-2">
+                        <input type="checkbox" className="accent-blue-600" checked={instrDraft.active} onChange={(e) => setInstrDraft(d => ({ ...d, active: e.target.checked }))} /> Active
+                      </label>
+                    </div>
+                    <div className="md:col-span-12">
+                      <button type="button" onClick={() => setInstructions(list => [...list, { id: crypto.randomUUID(), staff_id: editing?.id || 'new', ...instrDraft } as StaffPaymentInstruction])} className="h-10 px-4 rounded-lg bg-blue-600 text-white">Add instruction</button>
+                    </div>
+                  </div>
+                  {instructions.length === 0 ? (
+                    <div className="text-xs text-gray-500">No instructions added.</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {instructions.sort((a,b) => a.priority - b.priority).map((ins, idx) => (
+                        <div key={ins.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center bg-gray-50 dark:bg-neutral-800 rounded-lg p-3 text-sm">
+                          <div className="md:col-span-3 font-medium">{ins.label}</div>
+                          <div className="md:col-span-2">Adj/hr: {ins.adjustment_per_hour}</div>
+                          <div className="md:col-span-2">Cap: {ins.weekly_hours_cap ?? '∞'}</div>
+                          <div className="md:col-span-3">Method: {ins.payment_method ?? '-'}</div>
+                          <div className="md:col-span-1">Prio: {ins.priority}</div>
+                          <div className="md:col-span-1">{ins.active ? 'Active' : 'Inactive'}</div>
+                          <div className="md:col-span-12 md:justify-self-end">
+                            <button type="button" onClick={() => setInstructions(list => list.filter((_, i) => i !== idx))} className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded px-2 py-1">
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
               <label className="grid gap-2">
                 <span className="text-sm text-gray-700 dark:text-gray-300">Role</span>
                 <select className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.role_slug} onChange={(e) => setForm((f) => ({ ...f, role_slug: e.target.value }))}>
@@ -336,7 +532,7 @@ export default function StaffPage() {
                   rows={4}
                 />
               </label>
-              <div className="flex justify-end gap-2">
+      <div className="flex justify-end gap-2">
                 <button type="button" onClick={() => setFormOpen(false)} className="h-10 px-4 rounded-xl border">Cancel</button>
                 <button className="h-10 px-4 rounded-xl bg-black text-white dark:bg-white dark:text-black">Save</button>
               </div>
