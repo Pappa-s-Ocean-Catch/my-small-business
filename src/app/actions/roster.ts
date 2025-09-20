@@ -137,16 +137,23 @@ export async function sendWeeklyRoster(request: SendRosterRequest): Promise<{
             success: false,
             error: result.error.message || 'Resend API error'
           });
-        } else {
+        } else if (result && result.data) {
           console.log(`✅ Roster sent successfully to ${roster.staffEmail}:`, {
-            messageId: result.data?.id,
+            messageId: result.data.id,
             shifts: roster.shifts.length,
             totalHours: roster.totalHours
           });
           emailResults.push({
             email: roster.staffEmail,
             success: true,
-            messageId: result.data?.id
+            messageId: result.data.id
+          });
+        } else {
+          console.error(`❌ Unexpected result for ${roster.staffEmail}:`, result);
+          emailResults.push({
+            email: roster.staffEmail,
+            success: false,
+            error: 'Unexpected result from email service'
           });
         }
       } catch (error) {
