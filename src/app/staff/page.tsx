@@ -564,7 +564,7 @@ export default function StaffPage() {
 
   return (
     <AdminGuard>
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Team</h1>

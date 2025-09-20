@@ -48,11 +48,18 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
   }
   if (!allowed) {
     return (
-      <div className="p-6">
-        <div className="rounded-xl border p-6 max-w-md bg-white/60 dark:bg-black/20">
-          <div className="font-medium">Access restricted</div>
-          <p className="text-sm text-gray-600 mt-1">Sign in as an admin to view this page.</p>
-          <div className="mt-3"><Link href="/login" className="text-sm underline">Go to login</Link></div>
+      <div className="min-h-[80vh] flex items-center justify-center p-6">
+        <div className="w-full max-w-lg rounded-lg bg-white dark:bg-neutral-900 p-8 shadow-lg">
+          <div className="text-center">
+            <div className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Access Restricted</div>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">Sign in as an admin to view this page.</p>
+            <Link 
+              href="/login" 
+              className="inline-flex items-center px-6 py-3 bg-black text-white dark:bg-white dark:text-black rounded-lg hover:opacity-90 transition"
+            >
+              Go to Login
+            </Link>
+          </div>
         </div>
       </div>
     );

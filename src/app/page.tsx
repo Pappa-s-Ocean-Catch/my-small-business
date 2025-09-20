@@ -6,6 +6,7 @@ import { FaCalendarAlt, FaUsers, FaBox, FaExclamationTriangle, FaDollarSign, FaC
 import Link from "next/link";
 import { format, startOfWeek, endOfWeek, isToday, isFuture } from "date-fns";
 import { LoadingPage } from "@/components/Loading";
+import { useRouter } from "next/navigation";
 
 type User = {
   id: string;
@@ -37,6 +38,7 @@ type BusinessStats = {
 };
 
 export default function Home() {
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [staffShifts, setStaffShifts] = useState<Shift[]>([]);
@@ -142,36 +144,30 @@ export default function Home() {
               weeklyCost
             });
           }
+        } else {
+          // No authenticated user, redirect to login
+          router.push('/login');
+          return;
         }
       } catch (error) {
         console.error("Error fetching user data:", error);
+        // On error, redirect to login
+        router.push('/login');
       } finally {
         setLoading(false);
       }
     };
 
     void fetchUserAndData();
-  }, []);
+  }, [router]);
 
   if (loading) {
     return <LoadingPage message="Loading dashboard..." />;
   }
 
+  // If no user, we're redirecting, so don't render anything
   if (!user) {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-neutral-900 flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Welcome to OperateFlow</h1>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">Please sign in to access your dashboard</p>
-          <Link 
-            href="/login" 
-            className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Sign In
-          </Link>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   return (

@@ -192,7 +192,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
           <div className="w-full">
             <Link className={getLinkClasses("/analysis-report")} href="/analysis-report" aria-label="Analysis & Report">Analysis & Report</Link>
             <div className="pl-2">
-              <Link className={getLinkClasses("/reports")} href="/reports" aria-label="Weekly shift allocation report">Weekly shift allocation report</Link>
+              <Link className={getLinkClasses("/reports")} href="/reports" aria-label="Weekly shift report">Weekly shift report</Link>
               <Link className={getLinkClasses("/analytics")} href="/analytics" aria-label="Analysis">Analysis</Link>
               <Link className={getLinkClasses("/wages-report")} href="/wages-report" aria-label="Wages Report">Wages Report</Link>
               <Link className={getLinkClasses("/payment-report")} href="/payment-report" aria-label="Payment Report">Payment Report</Link>

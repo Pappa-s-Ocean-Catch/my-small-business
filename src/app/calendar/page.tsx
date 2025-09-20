@@ -6,6 +6,7 @@ import { addDays, startOfWeek, endOfWeek, format, setHours, setMinutes } from "d
 import { ensureProfile } from "@/app/actions/profile";
 import { DragDropCalendar } from "@/components/DragDropCalendar";
 import { Loading } from "@/components/Loading";
+import { useRouter } from "next/navigation";
 
 type Staff = { id: string; name: string; email: string | null; is_available: boolean };
 type StaffRate = { id: string; staff_id: string; rate: number; rate_type: string; effective_date: string; end_date: string; is_current: boolean; created_at: string };
@@ -15,6 +16,7 @@ type Availability = { id: string; staff_id: string; day_of_week: number; start_t
 type StaffHoliday = { id: string; staff_id: string; start_date: string; end_date: string; notes: string | null };
 
 export default function CalendarPage() {
+  const router = useRouter();
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [staffRates, setStaffRates] = useState<StaffRate[]>([]);
@@ -29,7 +31,10 @@ export default function CalendarPage() {
       const supabase = getSupabaseClient();
       const { data: { user } } = await supabase.auth.getUser();
       
-      if (!user) return;
+      if (!user) {
+        router.push('/login');
+        return;
+      }
 
       // Check admin status
       const profileResult = await ensureProfile(user.id, user.email || undefined);
@@ -130,7 +135,7 @@ export default function CalendarPage() {
     } catch (error) {
       console.error("Error fetching calendar data:", error);
     }
-  }, [anchor]);
+  }, [anchor, router]);
 
   useEffect(() => {
     void fetchData();

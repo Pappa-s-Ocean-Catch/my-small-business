@@ -151,7 +151,7 @@ export default function SectionsPage() {
   if (loading) {
     return (
       <AdminGuard>
-        <div className="p-3 sm:p-6">
+        <div className="p-3 sm:p-6 max-w-7xl mx-auto">
           <div className="animate-pulse">
             <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/4 mb-6"></div>
             <div className="grid gap-4">
@@ -167,7 +167,7 @@ export default function SectionsPage() {
 
   return (
     <AdminGuard>
-      <div className="p-3 sm:p-6">
+      <div className="p-3 sm:p-6 max-w-7xl mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Shop Sections</h1>
           <button
