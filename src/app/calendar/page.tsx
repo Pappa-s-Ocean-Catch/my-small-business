@@ -7,14 +7,18 @@ import { ensureProfile } from "@/app/actions/profile";
 import { DragDropCalendar } from "@/components/DragDropCalendar";
 import { Loading } from "@/components/Loading";
 
-type Staff = { id: string; name: string; pay_rate: number; email: string | null };
-type Shift = { id: string; staff_id: string | null; start_time: string; end_time: string; notes: string | null; non_billable_hours?: number };
+type Staff = { id: string; name: string; pay_rate: number; email: string | null; is_available: boolean };
+type Section = { id: string; name: string; description: string | null; color: string; active: boolean; sort_order: number };
+type Shift = { id: string; staff_id: string | null; start_time: string; end_time: string; notes: string | null; non_billable_hours?: number; section_id?: string | null };
 type Availability = { id: string; staff_id: string; day_of_week: number; start_time: string; end_time: string };
+type StaffHoliday = { id: string; staff_id: string; start_date: string; end_date: string; notes: string | null };
 
 export default function CalendarPage() {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
+  const [sections, setSections] = useState<Section[]>([]);
   const [availability, setAvailability] = useState<Availability[]>([]);
+  const [holidays, setHolidays] = useState<StaffHoliday[]>([]);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [anchor, setAnchor] = useState(new Date());
 
@@ -50,7 +54,8 @@ export default function CalendarPage() {
            start_time,
            end_time,
            notes,
-           non_billable_hours
+           non_billable_hours,
+           section_id
          `)
          .gte("start_time", startOfThisWeek.toISOString())
          .lte("start_time", endOfThisWeek.toISOString())
@@ -61,8 +66,8 @@ export default function CalendarPage() {
          shiftsQuery = shiftsQuery.eq("staff_id", user.id);
        }
 
-       const [shiftsResult, staffResult, availabilityResult] = await Promise.all([
-         shiftsQuery,
+      const [shiftsResult, staffResult, sectionsResult, availabilityResult, holidaysResult] = await Promise.all([
+        shiftsQuery,
         
         supabase
           .from("staff")
@@ -70,9 +75,23 @@ export default function CalendarPage() {
             id,
             name,
             pay_rate,
-            email
+            email,
+            is_available
           `)
           .order("name", { ascending: true }),
+        
+        supabase
+          .from("sections")
+          .select(`
+            id,
+            name,
+            description,
+            color,
+            active,
+            sort_order
+          `)
+          .eq("active", true)
+          .order("sort_order", { ascending: true }),
         
         supabase
           .from("staff_availability")
@@ -82,12 +101,25 @@ export default function CalendarPage() {
             day_of_week,
             start_time,
             end_time
+          `),
+        
+        supabase
+          .from("staff_holidays")
+          .select(`
+            id,
+            staff_id,
+            start_date,
+            end_date,
+            notes
           `)
+          .order("start_date", { ascending: false })
       ]);
 
       if (shiftsResult.data) setShifts(shiftsResult.data);
       if (staffResult.data) setStaff(staffResult.data);
+      if (sectionsResult.data) setSections(sectionsResult.data);
       if (availabilityResult.data) setAvailability(availabilityResult.data);
+      if (holidaysResult.data) setHolidays(holidaysResult.data);
 
     } catch (error) {
       console.error("Error fetching calendar data:", error);
@@ -177,7 +209,9 @@ export default function CalendarPage() {
     <DragDropCalendar
       shifts={shifts}
       staff={staff}
+      sections={sections}
       availability={availability}
+      holidays={holidays}
       isAdmin={isAdmin}
       onShiftCreate={createShift}
       onShiftUpdate={updateShift}

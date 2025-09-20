@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase/client";
-import { FaUsers, FaStore, FaUserShield, FaChartPie, FaFileAlt, FaMoneyBillWave } from "react-icons/fa";
+import { FaUsers, FaStore, FaUserShield, FaChartPie, FaFileAlt, FaMoneyBillWave, FaPalette } from "react-icons/fa";
 
 export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 'horizontal' | 'vertical' }) {
   const [userRole, setUserRole] = useState<'admin' | 'staff' | null>(null);
@@ -109,6 +109,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
             <div className="px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-200">Management</div>
             <div className="pl-2">
               <Link className={getLinkClasses("/staff")} href="/staff" aria-label="Staff">Staff</Link>
+              <Link className={getLinkClasses("/sections")} href="/sections" aria-label="Sections">Sections</Link>
               <Link className={getLinkClasses("/shop")} href="/shop" aria-label="Shop">Shop</Link>
               <Link className={getLinkClasses("/users")} href="/users" aria-label="Users">Users</Link>
             </div>
@@ -132,7 +133,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
             {isMgmtOpen && (
               <div className="absolute top-full mt-0.5 w-screen max-w-[640px] sm:w-[640px] rounded-xl bg-white/95 dark:bg-neutral-950/95 backdrop-blur shadow-lg z-50 p-3 overflow-hidden"
                    style={{ left: mgmtOffset }}>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <Link href="/staff" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-blue-600 dark:text-blue-400">
@@ -141,6 +142,17 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                       <div>
                         <div className="font-medium text-gray-900 dark:text-white">Staff</div>
                         <div className="text-xs text-gray-600 dark:text-gray-400">Manage team members, roles, availability</div>
+                      </div>
+                    </div>
+                  </Link>
+                  <Link href="/sections" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 text-orange-600 dark:text-orange-400">
+                        <FaPalette className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white">Sections</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">Shop areas like Fry, Cashier, Grill</div>
                       </div>
                     </div>
                   </Link>

@@ -1,0 +1,370 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import { AdminGuard } from '@/components/AdminGuard';
+import { ConfirmationDialog } from '@/components/ConfirmationDialog';
+import { FaPlus, FaEdit, FaTrash, FaPalette } from 'react-icons/fa';
+import { getSupabaseClient } from '@/lib/supabase/client';
+
+interface Section {
+  id: string;
+  name: string;
+  description: string | null;
+  color: string;
+  active: boolean;
+  sort_order: number;
+}
+
+export default function SectionsPage() {
+  const [sections, setSections] = useState<Section[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editingSection, setEditingSection] = useState<Section | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState<Section | null>(null);
+  const [form, setForm] = useState({
+    name: '',
+    description: '',
+    color: '#3B82F6',
+    sort_order: 0
+  });
+
+  const supabase = getSupabaseClient();
+
+  const fetchSections = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('sections')
+        .select('*')
+        .order('sort_order', { ascending: true });
+
+      if (error) throw error;
+      setSections(data || []);
+    } catch (error) {
+      console.error('Error fetching sections:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [supabase]);
+
+  useEffect(() => {
+    void fetchSections();
+  }, [fetchSections]);
+
+  const resetForm = () => {
+    setForm({
+      name: '',
+      description: '',
+      color: '#3B82F6',
+      sort_order: 0
+    });
+    setEditingSection(null);
+  };
+
+  const startEdit = (section: Section) => {
+    setForm({
+      name: section.name,
+      description: section.description || '',
+      color: section.color,
+      sort_order: section.sort_order
+    });
+    setEditingSection(section);
+    setShowForm(true);
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+
+    try {
+      if (editingSection) {
+        const { error } = await supabase
+          .from('sections')
+          .update({
+            name: form.name.trim(),
+            description: form.description.trim() || null,
+            color: form.color,
+            sort_order: form.sort_order
+          })
+          .eq('id', editingSection.id);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('sections')
+          .insert({
+            name: form.name.trim(),
+            description: form.description.trim() || null,
+            color: form.color,
+            sort_order: form.sort_order
+          });
+
+        if (error) throw error;
+      }
+
+      await fetchSections();
+      setShowForm(false);
+      resetForm();
+    } catch (error) {
+      console.error('Error saving section:', error);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!showDeleteDialog) return;
+
+    try {
+      const { error } = await supabase
+        .from('sections')
+        .update({ active: false })
+        .eq('id', showDeleteDialog.id);
+
+      if (error) throw error;
+
+      await fetchSections();
+      setShowDeleteDialog(null);
+    } catch (error) {
+      console.error('Error deleting section:', error);
+    }
+  };
+
+  const toggleActive = async (section: Section) => {
+    try {
+      const { error } = await supabase
+        .from('sections')
+        .update({ active: !section.active })
+        .eq('id', section.id);
+
+      if (error) throw error;
+
+      await fetchSections();
+    } catch (error) {
+      console.error('Error toggling section:', error);
+    }
+  };
+
+  if (loading) {
+    return (
+      <AdminGuard>
+        <div className="p-3 sm:p-6">
+          <div className="animate-pulse">
+            <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/4 mb-6"></div>
+            <div className="grid gap-4">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="h-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </AdminGuard>
+    );
+  }
+
+  return (
+    <AdminGuard>
+      <div className="p-3 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Shop Sections</h1>
+          <button
+            onClick={() => {
+              resetForm();
+              setShowForm(true);
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <FaPlus className="w-4 h-4" />
+            Add Section
+          </button>
+        </div>
+
+        <div className="grid gap-4">
+          {sections.map((section) => (
+            <div
+              key={section.id}
+              className={`p-4 rounded-lg border transition-all ${
+                section.active
+                  ? 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+                  : 'bg-gray-50 dark:bg-gray-900 border-gray-100 dark:border-gray-800 opacity-60'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-4 h-4 rounded-full"
+                    style={{ backgroundColor: section.color }}
+                  />
+                  <div>
+                    <h3 className="font-semibold text-gray-900 dark:text-white">
+                      {section.name}
+                    </h3>
+                    {section.description && (
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        {section.description}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-4 mt-1">
+                      <span className="text-xs text-gray-500 dark:text-gray-500">
+                        Order: {section.sort_order}
+                      </span>
+                      <span className={`text-xs px-2 py-1 rounded-full ${
+                        section.active
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                          : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                      }`}>
+                        {section.active ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => toggleActive(section)}
+                    className={`px-3 py-1 text-sm rounded transition-colors ${
+                      section.active
+                        ? 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                        : 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900 dark:text-green-300 dark:hover:bg-green-800'
+                    }`}
+                  >
+                    {section.active ? 'Deactivate' : 'Activate'}
+                  </button>
+                  <button
+                    onClick={() => startEdit(section)}
+                    className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 dark:text-gray-400 dark:hover:text-blue-400 dark:hover:bg-blue-900/20 rounded transition-colors"
+                  >
+                    <FaEdit className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setShowDeleteDialog(section)}
+                    className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 dark:text-gray-400 dark:hover:text-red-400 dark:hover:bg-red-900/20 rounded transition-colors"
+                  >
+                    <FaTrash className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {sections.length === 0 && (
+          <div className="text-center py-12">
+            <FaPalette className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+              No sections found
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              Create your first shop section to organize shifts by work areas.
+            </p>
+            <button
+              onClick={() => {
+                resetForm();
+                setShowForm(true);
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <FaPlus className="w-4 h-4" />
+              Add Section
+            </button>
+          </div>
+        )}
+
+        {/* Add/Edit Form Modal */}
+        {showForm && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-2xl max-w-md w-full p-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                {editingSection ? 'Edit Section' : 'Add Section'}
+              </h3>
+              <form onSubmit={submit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Section Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={form.name}
+                    onChange={(e) => setForm(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="e.g., Fry, Cashier, Grill"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    value={form.description}
+                    onChange={(e) => setForm(prev => ({ ...prev, description: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Brief description of this section's responsibilities"
+                    rows={3}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Color
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      value={form.color}
+                      onChange={(e) => setForm(prev => ({ ...prev, color: e.target.value }))}
+                      className="w-12 h-10 border border-gray-300 dark:border-gray-600 rounded cursor-pointer"
+                    />
+                    <input
+                      type="text"
+                      value={form.color}
+                      onChange={(e) => setForm(prev => ({ ...prev, color: e.target.value }))}
+                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="#3B82F6"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Sort Order
+                  </label>
+                  <input
+                    type="number"
+                    value={form.sort_order}
+                    onChange={(e) => setForm(prev => ({ ...prev, sort_order: parseInt(e.target.value) || 0 }))}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="0"
+                  />
+                </div>
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="submit"
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    {editingSection ? 'Update' : 'Create'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowForm(false);
+                      resetForm();
+                    }}
+                    className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Dialog */}
+        <ConfirmationDialog
+          isOpen={!!showDeleteDialog}
+          onClose={() => setShowDeleteDialog(null)}
+          onConfirm={handleDelete}
+          title="Deactivate Section"
+          message={`Are you sure you want to deactivate "${showDeleteDialog?.name}"? This will hide it from the calendar but preserve existing shifts.`}
+          confirmText="Deactivate"
+          variant="danger"
+        />
+      </div>
+    </AdminGuard>
+  );
+}

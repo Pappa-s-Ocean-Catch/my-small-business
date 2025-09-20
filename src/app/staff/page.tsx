@@ -5,7 +5,7 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 import { AdminGuard } from "@/components/AdminGuard";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
 import { Loading } from "@/components/Loading";
-import { Plus, Pencil, Trash2, X, Clock, Send } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Clock, Send, Calendar } from "lucide-react";
 import { toast } from 'react-toastify';
 
 type Staff = {
@@ -53,18 +53,27 @@ type Availability = {
   end_time: string;
 };
 
+type StaffHoliday = {
+  id: string;
+  staff_id: string;
+  start_date: string;
+  end_date: string;
+  notes: string | null;
+};
+
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export default function StaffPage() {
   const [staff, setStaff] = useState<Staff[]>([]);
   const [staffRoles, setStaffRoles] = useState<StaffRole[]>([]);
   const [availability, setAvailability] = useState<Availability[]>([]);
+  const [holidays, setHolidays] = useState<StaffHoliday[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Staff | null>(null);
-  const [availabilityOpen, setAvailabilityOpen] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ staff: Staff | null; isOpen: boolean }>({ staff: null, isOpen: false });
   const [availabilityDeleteConfirm, setAvailabilityDeleteConfirm] = useState<{ availabilityId: string | null; isOpen: boolean }>({ availabilityId: null, isOpen: false });
+  const [holidayDeleteConfirm, setHolidayDeleteConfirm] = useState<{ holidayId: string | null; isOpen: boolean }>({ holidayId: null, isOpen: false });
 
   const [form, setForm] = useState({
     name: "",
@@ -93,23 +102,33 @@ export default function StaffPage() {
     priority: 1,
     active: true,
   });
+  const [activeTab, setActiveTab] = useState<'general' | 'rates' | 'instructions' | 'availability' | 'holidays'>("general");
+  const [dayFilter, setDayFilter] = useState<number | null>(null); // null = show all, 1-7 = specific day
 
   const [availabilityForm, setAvailabilityForm] = useState({
-    day_of_week: 1,
+    selected_days: [] as number[],
     start_time: "09:00",
     end_time: "17:00",
   });
 
+  const [holidayForm, setHolidayForm] = useState({
+    start_date: "",
+    end_date: "",
+    notes: "",
+  });
+
   const fetchStaff = async () => {
     setLoading(true);
-    const [{ data: staffData }, { data: availabilityData }, { data: rolesData }] = await Promise.all([
+    const [{ data: staffData }, { data: availabilityData }, { data: rolesData }, { data: holidaysData }] = await Promise.all([
       getSupabaseClient().from("staff").select("*").order("created_at", { ascending: false }),
       getSupabaseClient().from("staff_availability").select("*"),
-      getSupabaseClient().from("staff_roles").select("*").order("name")
+      getSupabaseClient().from("staff_roles").select("*").order("name"),
+      getSupabaseClient().from("staff_holidays").select("*").order("start_date", { ascending: false })
     ]);
     if (staffData) setStaff(staffData as Staff[]);
     if (availabilityData) setAvailability(availabilityData as Availability[]);
     if (rolesData) setStaffRoles(rolesData as StaffRole[]);
+    if (holidaysData) setHolidays(holidaysData as StaffHoliday[]);
     setLoading(false);
   };
 
@@ -235,14 +254,22 @@ export default function StaffPage() {
       return;
     }
 
-    await getSupabaseClient().from("staff_availability").insert({
+    if (availabilityForm.selected_days.length === 0) {
+      alert("Please select at least one day");
+      return;
+    }
+
+    // Insert availability for each selected day
+    const availabilityData = availabilityForm.selected_days.map(day => ({
       staff_id: staffId,
-      day_of_week: availabilityForm.day_of_week,
+      day_of_week: day,
       start_time: availabilityForm.start_time,
-      end_time: availabilityForm.end_time,
-    });
+      end_time: availabilityForm.end_time
+    }));
+
+    await getSupabaseClient().from("staff_availability").insert(availabilityData);
     await fetchStaff();
-    setAvailabilityForm({ day_of_week: 1, start_time: "09:00", end_time: "17:00" });
+    setAvailabilityForm({ selected_days: [], start_time: "09:00", end_time: "17:00" });
   };
 
   const removeAvailability = async (id: string) => {
@@ -250,8 +277,81 @@ export default function StaffPage() {
     await fetchStaff();
   };
 
+  const addHoliday = async (staffId: string) => {
+    if (!holidayForm.start_date || !holidayForm.end_date) {
+      alert("Please select start and end dates");
+      return;
+    }
+
+    const startDate = new Date(holidayForm.start_date);
+    const endDate = new Date(holidayForm.end_date);
+    
+    if (endDate < startDate) {
+      alert("End date must be after start date");
+      return;
+    }
+
+    await getSupabaseClient().from("staff_holidays").insert({
+      staff_id: staffId,
+      start_date: holidayForm.start_date,
+      end_date: holidayForm.end_date,
+      notes: holidayForm.notes || null
+    });
+    
+    setHolidayForm({ start_date: "", end_date: "", notes: "" });
+    await fetchStaff();
+  };
+
+  const removeHoliday = async (id: string) => {
+    await getSupabaseClient().from("staff_holidays").delete().eq("id", id);
+    await fetchStaff();
+  };
+
   const getStaffAvailability = (staffId: string) => {
     return availability.filter(a => a.staff_id === staffId);
+  };
+
+  const getStaffHolidays = (staffId: string) => {
+    return holidays.filter(h => h.staff_id === staffId);
+  };
+
+  const getFilteredStaff = () => {
+    if (dayFilter === null) {
+      return staff;
+    }
+    
+    return staff.filter(s => {
+      // Check if staff has availability for the selected day
+      const dayAvailability = availability.filter(a => 
+        a.staff_id === s.id && a.day_of_week === dayFilter
+      );
+      
+      // Check if staff is on holiday today (we'll use a sample date for the day filter)
+      const today = new Date();
+      const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+      const isOnHoliday = holidays.some(h => {
+        const startDate = new Date(h.start_date);
+        const endDate = new Date(h.end_date);
+        // For simplicity, we'll check if today falls within any holiday period
+        // In a real implementation, you might want to check against a specific date
+        return today >= startDate && today <= endDate && h.staff_id === s.id;
+      });
+      
+      return dayAvailability.length > 0 && !isOnHoliday;
+    });
+  };
+
+  const getDayName = (dayNumber: number) => {
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    return days[dayNumber];
+  };
+
+  const formatTime = (time24: string) => {
+    const [hours, minutes] = time24.split(':');
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+    return `${hour12}:${minutes} ${ampm}`;
   };
 
   return (
@@ -267,13 +367,50 @@ export default function StaffPage() {
         </button>
       </div>
 
+      {/* Day Filter */}
+      <div className="mt-6">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Filter by day:</span>
+          <button
+            onClick={() => setDayFilter(null)}
+            className={`px-3 py-1 text-sm rounded-lg transition-colors ${
+              dayFilter === null
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+            }`}
+          >
+            All Days
+          </button>
+          {[1, 2, 3, 4, 5, 6, 0].map(dayNum => (
+            <button
+              key={dayNum}
+              onClick={() => setDayFilter(dayNum)}
+              className={`px-3 py-1 text-sm rounded-lg transition-colors ${
+                dayFilter === dayNum
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+            >
+              {getDayName(dayNum)}
+            </button>
+          ))}
+        </div>
+        {dayFilter !== null && (
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+            Showing staff available on {getDayName(dayFilter)} ({getFilteredStaff().length} staff)
+          </p>
+        )}
+      </div>
+
       <div className="mt-6 space-y-4">
         {loading ? (
           <Loading message="Loading staff..." size="sm" />
-        ) : staff.length === 0 ? (
-          <div className="text-center text-gray-500 py-8">No staff yet</div>
+        ) : getFilteredStaff().length === 0 ? (
+          <div className="text-center text-gray-500 py-8">
+            {dayFilter === null ? "No staff yet" : `No staff available on ${getDayName(dayFilter)}`}
+          </div>
         ) : (
-          staff.map((s) => (
+          getFilteredStaff().map((s) => (
             <div key={s.id} className="rounded-2xl border p-6 bg-white/60 dark:bg-black/20">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="flex items-start sm:items-center gap-4">
@@ -300,9 +437,6 @@ export default function StaffPage() {
                 </div>
                 {/* Desktop actions */}
                 <div className="hidden md:flex flex-wrap items-center gap-2">
-                  <button onClick={() => setAvailabilityOpen(s.id)} className="h-9 px-3 rounded-lg border inline-flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-neutral-900">
-                    <Clock className="size-4" /> Schedule
-                  </button>
                   {s.email && (
                     <button
                       onClick={async () => {
@@ -331,10 +465,6 @@ export default function StaffPage() {
 
               {/* Mobile actions at bottom */}
               <div className="mt-4 grid grid-cols-2 gap-2 md:hidden">
-                <button onClick={() => setAvailabilityOpen(s.id)} className="h-10 px-3 rounded-lg border inline-flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-neutral-900">
-                  <Clock className="size-4" />
-                  <span className="text-sm">Schedule</span>
-                </button>
                 {s.email ? (
                   <button
                     onClick={async () => {
@@ -367,21 +497,20 @@ export default function StaffPage() {
                 </button>
               </div>
               
+              {/* Display availability for quick overview */}
               {getStaffAvailability(s.id).length > 0 && (
                 <div className="mt-4 pt-4 border-t">
                   <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Availability</div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                     {getStaffAvailability(s.id).map((a) => (
-                      <div key={a.id} className="flex items-center justify-between bg-white dark:bg-neutral-900 rounded-lg p-2 text-sm">
-                        <span>{DAYS[a.day_of_week]} {a.start_time}-{a.end_time}</span>
-                        <button onClick={() => setAvailabilityDeleteConfirm({ availabilityId: a.id, isOpen: true })} className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded p-1">
-                          <X className="size-3" />
-                        </button>
+                      <div key={a.id} className="bg-white dark:bg-neutral-900 rounded-lg p-2 text-sm">
+                        <span>{DAYS[a.day_of_week]} {formatTime(a.start_time)} - {formatTime(a.end_time)}</span>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
+
             </div>
           ))
         )}
@@ -396,202 +525,307 @@ export default function StaffPage() {
                 <X className="size-4" />
               </button>
             </div>
-            <form onSubmit={submit} className="mt-4 grid gap-5">
-              <label className="grid gap-2">
-                <span className="text-sm text-gray-700 dark:text-gray-300">Name</span>
-                <input className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
-              </label>
-              <label className="grid gap-2">
-                <span className="text-sm text-gray-700 dark:text-gray-300">Phone</span>
-                <input className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
-              </label>
-              <label className="grid gap-2">
-                <span className="text-sm text-gray-700 dark:text-gray-300">Email</span>
-                <input type="email" className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
-              </label>
-              <label className="grid gap-2">
-                <span className="text-sm text-gray-700 dark:text-gray-300">Pay rate</span>
-                <input type="number" step="0.01" className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.pay_rate} onChange={(e) => setForm((f) => ({ ...f, pay_rate: parseFloat(e.target.value) }))} />
-              </label>
-              <div className="grid gap-3">
-                <span className="text-sm font-medium text-gray-800 dark:text-gray-200">Weekday rates (optional overrides)</span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                  <label className="grid gap-1 text-xs sm:text-sm">
-                    <span>Default</span>
-                    <input type="number" step="0.01" className="h-9 rounded-xl border px-2 bg-white/80 dark:bg-neutral-900 min-w-0" value={form.default_rate} onChange={(e) => setForm((f) => ({ ...f, default_rate: parseFloat(e.target.value || '0') }))} />
-                  </label>
-                  <label className="grid gap-1 text-xs sm:text-sm">
-                    <span>Mon</span>
-                    <input type="number" step="0.01" className="h-9 rounded-xl border px-2 bg-white/80 dark:bg-neutral-900 min-w-0" value={form.mon_rate} onChange={(e) => setForm((f) => ({ ...f, mon_rate: e.target.value }))} placeholder="" />
-                  </label>
-                  <label className="grid gap-1 text-xs sm:text-sm">
-                    <span>Tue</span>
-                    <input type="number" step="0.01" className="h-9 rounded-xl border px-2 bg-white/80 dark:bg-neutral-900 min-w-0" value={form.tue_rate} onChange={(e) => setForm((f) => ({ ...f, tue_rate: e.target.value }))} />
-                  </label>
-                  <label className="grid gap-1 text-xs sm:text-sm">
-                    <span>Wed</span>
-                    <input type="number" step="0.01" className="h-9 rounded-xl border px-2 bg-white/80 dark:bg-neutral-900 min-w-0" value={form.wed_rate} onChange={(e) => setForm((f) => ({ ...f, wed_rate: e.target.value }))} />
-                  </label>
-                  <label className="grid gap-1 text-xs sm:text-sm">
-                    <span>Thu</span>
-                    <input type="number" step="0.01" className="h-9 rounded-xl border px-2 bg-white/80 dark:bg-neutral-900 min-w-0" value={form.thu_rate} onChange={(e) => setForm((f) => ({ ...f, thu_rate: e.target.value }))} />
-                  </label>
-                  <label className="grid gap-1 text-xs sm:text-sm">
-                    <span>Fri</span>
-                    <input type="number" step="0.01" className="h-9 rounded-xl border px-2 bg-white/80 dark:bg-neutral-900 min-w-0" value={form.fri_rate} onChange={(e) => setForm((f) => ({ ...f, fri_rate: e.target.value }))} />
-                  </label>
-                  <label className="grid gap-1 text-xs sm:text-sm">
-                    <span>Sat</span>
-                    <input type="number" step="0.01" className="h-9 rounded-xl border px-2 bg-white/80 dark:bg-neutral-900 min-w-0" value={form.sat_rate} onChange={(e) => setForm((f) => ({ ...f, sat_rate: e.target.value }))} />
-                  </label>
-                  <label className="grid gap-1 text-xs sm:text-sm">
-                    <span>Sun</span>
-                    <input type="number" step="0.01" className="h-9 rounded-xl border px-2 bg-white/80 dark:bg-neutral-900 min-w-0" value={form.sun_rate} onChange={(e) => setForm((f) => ({ ...f, sun_rate: e.target.value }))} />
-                  </label>
-                </div>
-                <p className="text-xs text-gray-500">Leave weekday fields empty to use the default rate.</p>
+            <div className="mt-4">
+              <div className="flex flex-wrap gap-2 border-b">
+                <button type="button" className={`px-3 py-2 text-sm border-b-2 ${activeTab==='general' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 dark:text-gray-300'}`} onClick={() => setActiveTab('general')}>General</button>
+                <button type="button" className={`px-3 py-2 text-sm border-b-2 ${activeTab==='rates' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 dark:text-gray-300'}`} onClick={() => setActiveTab('rates')}>Rates</button>
+                <button type="button" className={`px-3 py-2 text-sm border-b-2 ${activeTab==='instructions' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 dark:text-gray-300'}`} onClick={() => setActiveTab('instructions')}>Payment Instructions</button>
+                <button type="button" className={`px-3 py-2 text-sm border-b-2 ${activeTab==='availability' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 dark:text-gray-300'}`} onClick={() => setActiveTab('availability')}>Availability</button>
+                <button type="button" className={`px-3 py-2 text-sm border-b-2 ${activeTab==='holidays' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 dark:text-gray-300'}`} onClick={() => setActiveTab('holidays')}>Holidays</button>
               </div>
-              <div className="grid gap-3">
-                <span className="text-sm font-medium text-gray-800 dark:text-gray-200">Payment instructions</span>
-                <div className="rounded-xl border p-4 bg-white/60 dark:bg-neutral-900 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-                    <label className="grid gap-1 text-xs sm:text-sm md:col-span-3">
-                      <span>Label</span>
-                      <input className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900 min-w-0" value={instrDraft.label} onChange={(e) => setInstrDraft(d => ({ ...d, label: e.target.value }))} />
+            </div>
+            <form onSubmit={submit} className="mt-4">
+              <div className="grid gap-5">
+                {activeTab === 'general' && (
+                  <>
+                    <label className="grid gap-2">
+                      <span className="text-sm text-gray-700 dark:text-gray-300">Name</span>
+                      <input className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
                     </label>
-                    <label className="grid gap-1 text-xs sm:text-sm md:col-span-2">
-                      <span>Adj/hr</span>
-                      <input type="number" step="0.01" className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900 min-w-0" value={instrDraft.adjustment_per_hour} onChange={(e) => setInstrDraft(d => ({ ...d, adjustment_per_hour: parseFloat(e.target.value || '0') }))} />
+                    <label className="grid gap-2">
+                      <span className="text-sm text-gray-700 dark:text-gray-300">Phone</span>
+                      <input className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
                     </label>
-                    <label className="grid gap-1 text-xs sm:text-sm md:col-span-2">
-                      <span>Cap (hrs)</span>
-                      <input type="number" step="0.1" className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900 min-w-0" value={instrDraft.weekly_hours_cap ?? ''} onChange={(e) => setInstrDraft(d => ({ ...d, weekly_hours_cap: e.target.value === '' ? null : parseFloat(e.target.value) }))} />
+                    <label className="grid gap-2">
+                      <span className="text-sm text-gray-700 dark:text-gray-300">Email</span>
+                      <input type="email" className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
                     </label>
-                    <label className="grid gap-1 text-xs sm:text-sm md:col-span-3">
-                      <span>Payment method</span>
-                      <input className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900 min-w-0" value={instrDraft.payment_method ?? ''} onChange={(e) => setInstrDraft(d => ({ ...d, payment_method: e.target.value }))} />
+                    <label className="grid gap-2">
+                      <span className="text-sm text-gray-700 dark:text-gray-300">Role</span>
+                      <select className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.role_slug} onChange={(e) => setForm((f) => ({ ...f, role_slug: e.target.value }))}>
+                        {staffRoles.map((role) => (
+                          <option key={role.slug} value={role.slug}>{role.name}</option>
+                        ))}
+                      </select>
                     </label>
-                    <label className="grid gap-1 text-xs sm:text-sm md:col-span-2">
-                      <span>Priority</span>
-                      <input type="number" className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900 min-w-0" value={instrDraft.priority} onChange={(e) => setInstrDraft(d => ({ ...d, priority: parseInt(e.target.value || '1') }))} />
+                    <label className="grid gap-2">
+                      <span className="text-sm text-gray-700 dark:text-gray-300">Available</span>
+                      <select className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.is_available ? 'yes' : 'no'} onChange={(e) => setForm((f) => ({ ...f, is_available: e.target.value === 'yes' }))}>
+                        <option value="yes">Yes</option>
+                        <option value="no">No</option>
+                      </select>
                     </label>
-                    <div className="flex items-center gap-3 md:col-span-2">
-                      <label className="text-xs sm:text-sm inline-flex items-center gap-2">
-                        <input type="checkbox" className="accent-blue-600" checked={instrDraft.active} onChange={(e) => setInstrDraft(d => ({ ...d, active: e.target.checked }))} /> Active
-                      </label>
+                    <label className="grid gap-2">
+                      <span className="text-sm text-gray-700 dark:text-gray-300">Description</span>
+                      <textarea 
+                        className="min-h-24 rounded-xl border px-3 py-2 bg-white/80 dark:bg-neutral-900 resize-y" 
+                        value={form.description} 
+                        onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} 
+                        placeholder="Optional description about the staff member, their skills, responsibilities, etc."
+                        rows={4}
+                      />
+                    </label>
+                  </>
+                )}
+                {activeTab === 'rates' && (
+                  <>
+                    <label className="grid gap-2">
+                      <span className="text-sm text-gray-700 dark:text-gray-300">Default Pay Rate</span>
+                      <input type="number" step="0.01" className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.default_rate} onChange={(e) => setForm((f) => ({ ...f, default_rate: parseFloat(e.target.value || '0') }))} />
+                    </label>
+                    <div className="grid gap-3">
+                      <span className="text-sm font-medium text-gray-800 dark:text-gray-200">Weekday rates (optional overrides)</span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                        <label className="grid gap-1 text-xs sm:text-sm">
+                          <span>Mon</span>
+                          <input type="number" step="0.01" className="h-9 rounded-xl border px-2 bg-white/80 dark:bg-neutral-900 min-w-0" value={form.mon_rate} onChange={(e) => setForm((f) => ({ ...f, mon_rate: e.target.value }))} placeholder="" />
+                        </label>
+                        <label className="grid gap-1 text-xs sm:text-sm">
+                          <span>Tue</span>
+                          <input type="number" step="0.01" className="h-9 rounded-xl border px-2 bg-white/80 dark:bg-neutral-900 min-w-0" value={form.tue_rate} onChange={(e) => setForm((f) => ({ ...f, tue_rate: e.target.value }))} />
+                        </label>
+                        <label className="grid gap-1 text-xs sm:text-sm">
+                          <span>Wed</span>
+                          <input type="number" step="0.01" className="h-9 rounded-xl border px-2 bg-white/80 dark:bg-neutral-900 min-w-0" value={form.wed_rate} onChange={(e) => setForm((f) => ({ ...f, wed_rate: e.target.value }))} />
+                        </label>
+                        <label className="grid gap-1 text-xs sm:text-sm">
+                          <span>Thu</span>
+                          <input type="number" step="0.01" className="h-9 rounded-xl border px-2 bg-white/80 dark:bg-neutral-900 min-w-0" value={form.thu_rate} onChange={(e) => setForm((f) => ({ ...f, thu_rate: e.target.value }))} />
+                        </label>
+                        <label className="grid gap-1 text-xs sm:text-sm">
+                          <span>Fri</span>
+                          <input type="number" step="0.01" className="h-9 rounded-xl border px-2 bg-white/80 dark:bg-neutral-900 min-w-0" value={form.fri_rate} onChange={(e) => setForm((f) => ({ ...f, fri_rate: e.target.value }))} />
+                        </label>
+                        <label className="grid gap-1 text-xs sm:text-sm">
+                          <span>Sat</span>
+                          <input type="number" step="0.01" className="h-9 rounded-xl border px-2 bg-white/80 dark:bg-neutral-900 min-w-0" value={form.sat_rate} onChange={(e) => setForm((f) => ({ ...f, sat_rate: e.target.value }))} />
+                        </label>
+                        <label className="grid gap-1 text-xs sm:text-sm">
+                          <span>Sun</span>
+                          <input type="number" step="0.01" className="h-9 rounded-xl border px-2 bg-white/80 dark:bg-neutral-900 min-w-0" value={form.sun_rate} onChange={(e) => setForm((f) => ({ ...f, sun_rate: e.target.value }))} />
+                        </label>
+                      </div>
+                      <p className="text-xs text-gray-500">Leave weekday fields empty to use the default rate.</p>
                     </div>
-                    <div className="md:col-span-12">
-                      <button type="button" onClick={() => setInstructions(list => [...list, { id: crypto.randomUUID(), staff_id: editing?.id || 'new', ...instrDraft } as StaffPaymentInstruction])} className="h-10 px-4 rounded-lg bg-blue-600 text-white">Add instruction</button>
-                    </div>
-                  </div>
-                  {instructions.length === 0 ? (
-                    <div className="text-xs text-gray-500">No instructions added.</div>
-                  ) : (
-                    <div className="space-y-2">
-                      {instructions.sort((a,b) => a.priority - b.priority).map((ins, idx) => (
-                        <div key={ins.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center bg-gray-50 dark:bg-neutral-800 rounded-lg p-3 text-sm">
-                          <div className="md:col-span-3 font-medium">{ins.label}</div>
-                          <div className="md:col-span-2">Adj/hr: {ins.adjustment_per_hour}</div>
-                          <div className="md:col-span-2">Cap: {ins.weekly_hours_cap ?? '∞'}</div>
-                          <div className="md:col-span-3">Method: {ins.payment_method ?? '-'}</div>
-                          <div className="md:col-span-1">Prio: {ins.priority}</div>
-                          <div className="md:col-span-1">{ins.active ? 'Active' : 'Inactive'}</div>
-                          <div className="md:col-span-12 md:justify-self-end">
-                            <button type="button" onClick={() => setInstructions(list => list.filter((_, i) => i !== idx))} className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded px-2 py-1">
-                              Remove
-                            </button>
+                  </>
+                )}
+                {activeTab === 'instructions' && (
+                  <>
+                    <div className="grid gap-3">
+                      <span className="text-sm font-medium text-gray-800 dark:text-gray-200">Payment instructions</span>
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                          <label className="grid gap-1 text-xs sm:text-sm md:col-span-3">
+                            <span>Label</span>
+                            <input className="h-10 rounded-lg border px-3 bg-white dark:bg-neutral-900 min-w-0" value={instrDraft.label} onChange={(e) => setInstrDraft(d => ({ ...d, label: e.target.value }))} />
+                          </label>
+                          <label className="grid gap-1 text-xs sm:text-sm md:col-span-2">
+                            <span>Adj/hr</span>
+                            <input type="number" step="0.01" className="h-10 rounded-lg border px-3 bg-white dark:bg-neutral-900 min-w-0" value={instrDraft.adjustment_per_hour} onChange={(e) => setInstrDraft(d => ({ ...d, adjustment_per_hour: parseFloat(e.target.value || '0') }))} />
+                          </label>
+                          <label className="grid gap-1 text-xs sm:text-sm md:col-span-2">
+                            <span>Cap (hrs)</span>
+                            <input type="number" step="0.1" className="h-10 rounded-lg border px-3 bg-white dark:bg-neutral-900 min-w-0" value={instrDraft.weekly_hours_cap ?? ''} onChange={(e) => setInstrDraft(d => ({ ...d, weekly_hours_cap: e.target.value === '' ? null : parseFloat(e.target.value) }))} />
+                          </label>
+                          <label className="grid gap-1 text-xs sm:text-sm md:col-span-3">
+                            <span>Payment method</span>
+                            <input className="h-10 rounded-lg border px-3 bg-white dark:bg-neutral-900 min-w-0" value={instrDraft.payment_method ?? ''} onChange={(e) => setInstrDraft(d => ({ ...d, payment_method: e.target.value }))} />
+                          </label>
+                          <label className="grid gap-1 text-xs sm:text-sm md:col-span-2">
+                            <span>Priority</span>
+                            <input type="number" className="h-10 rounded-lg border px-3 bg-white dark:bg-neutral-900 min-w-0" value={instrDraft.priority} onChange={(e) => setInstrDraft(d => ({ ...d, priority: parseInt(e.target.value || '1') }))} />
+                          </label>
+                          <div className="flex items-center gap-3 md:col-span-2">
+                            <label className="text-xs sm:text-sm inline-flex items-center gap-2">
+                              <input type="checkbox" className="accent-blue-600" checked={instrDraft.active} onChange={(e) => setInstrDraft(d => ({ ...d, active: e.target.checked }))} /> Active
+                            </label>
+                          </div>
+                          <div className="md:col-span-12">
+                            <button type="button" onClick={() => setInstructions(list => [...list, { id: crypto.randomUUID(), staff_id: editing?.id || 'new', ...instrDraft } as StaffPaymentInstruction])} className="h-10 px-4 rounded-lg bg-blue-600 text-white">Add instruction</button>
                           </div>
                         </div>
-                      ))}
+                        {instructions.length === 0 ? (
+                          <div className="text-xs text-gray-500">No instructions added.</div>
+                        ) : (
+                          <div className="p-4 bg-gray-50/30 dark:bg-neutral-800/20 rounded-lg">
+                            <div className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-3">Current Payment Instructions</div>
+                            <div className="space-y-2">
+                              {instructions.sort((a,b) => a.priority - b.priority).map((ins, idx) => (
+                                <div key={ins.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center bg-white dark:bg-neutral-900 rounded-lg p-3 text-sm border">
+                                <div className="md:col-span-3 font-medium">{ins.label}</div>
+                                <div className="md:col-span-2">Adj/hr: {ins.adjustment_per_hour}</div>
+                                <div className="md:col-span-2">Cap: {ins.weekly_hours_cap ?? '∞'}</div>
+                                <div className="md:col-span-3">Method: {ins.payment_method ?? '-'}</div>
+                                <div className="md:col-span-1">Prio: {ins.priority}</div>
+                                <div className="md:col-span-1">{ins.active ? 'Active' : 'Inactive'}</div>
+                                <div className="md:col-span-12 md:justify-self-end">
+                                  <button type="button" onClick={() => setInstructions(list => list.filter((_, i) => i !== idx))} className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded px-2 py-1">
+                                    Remove
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
+                  </>
+                )}
+
+                {activeTab === 'availability' && (
+                  <>
+                    <div className="grid gap-3">
+                      <span className="text-sm font-medium text-gray-800 dark:text-gray-200">Availability Management</span>
+                      <p className="text-xs text-gray-500">Select multiple days and add the same time slot to all selected days. Minimum 2 hours per slot.</p>
+                      
+                      <div className="space-y-6">
+                        {/* Days row */}
+                        <div className="grid gap-3">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Select Days</span>
+                          <div className="flex gap-4 p-4 bg-gray-50/50 dark:bg-neutral-800/30 rounded-lg">
+                            {DAYS.map((day, i) => (
+                              <label key={i} className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={availabilityForm.selected_days.includes(i)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setAvailabilityForm((f) => ({ 
+                                        ...f, 
+                                        selected_days: [...f.selected_days, i] 
+                                      }));
+                                    } else {
+                                      setAvailabilityForm((f) => ({ 
+                                        ...f, 
+                                        selected_days: f.selected_days.filter(d => d !== i) 
+                                      }));
+                                    }
+                                  }}
+                                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                                />
+                                <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">{day.substring(0, 3).toUpperCase()}</span>
+                              </label>
+                            ))}
+                          </div>
+                          <p className="text-xs text-gray-500">Check the days you want to add this availability to</p>
+                        </div>
+
+                        {/* Time inputs row */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <label className="grid gap-2">
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Start time</span>
+                            <input type="time" className="h-10 rounded-lg border px-3 bg-white dark:bg-neutral-900" value={availabilityForm.start_time} onChange={(e) => setAvailabilityForm((f) => ({ ...f, start_time: e.target.value }))} />
+                          </label>
+                          <label className="grid gap-2">
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">End time</span>
+                            <input type="time" className="h-10 rounded-lg border px-3 bg-white dark:bg-neutral-900" value={availabilityForm.end_time} onChange={(e) => setAvailabilityForm((f) => ({ ...f, end_time: e.target.value }))} />
+                          </label>
+                        </div>
+                        
+                        <button type="button" onClick={() => editing && addAvailability(editing.id)} className="h-10 px-4 rounded-lg bg-blue-600 text-white">
+                          Add to {availabilityForm.selected_days.length} Selected Day{availabilityForm.selected_days.length !== 1 ? 's' : ''}
+                        </button>
+                      </div>
+
+                      {/* Show existing availability */}
+                      <div className="p-4 bg-gray-50/30 dark:bg-neutral-800/20 rounded-lg">
+                        <div className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-3">Current Availability</div>
+                        {editing && getStaffAvailability(editing.id).length === 0 ? (
+                          <div className="text-xs text-gray-500">No availability set</div>
+                        ) : (
+                          <div className="space-y-2">
+                            {editing && getStaffAvailability(editing.id).map((a) => (
+                              <div key={a.id} className="flex items-center justify-between bg-gray-50 dark:bg-neutral-800 rounded-lg p-3 text-sm">
+                                <div>
+                                  <span className="font-medium">{DAYS[a.day_of_week]}</span>
+                                  <span className="ml-2">{formatTime(a.start_time)} - {formatTime(a.end_time)}</span>
+                                </div>
+                                <button type="button" onClick={() => setAvailabilityDeleteConfirm({ availabilityId: a.id, isOpen: true })} className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded px-2 py-1">
+                                  Remove
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {activeTab === 'holidays' && (
+                  <>
+                    <div className="grid gap-3">
+                      <span className="text-sm font-medium text-gray-800 dark:text-gray-200">Holiday Management</span>
+                      <p className="text-xs text-gray-500">Add holiday periods when this staff member is unavailable for shifts.</p>
+                      
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <label className="grid gap-2">
+                            <span className="text-sm text-gray-700 dark:text-gray-300">Start date</span>
+                            <input type="date" className="h-10 rounded-lg border px-3 bg-white dark:bg-neutral-900" value={holidayForm.start_date} onChange={(e) => setHolidayForm((f) => ({ ...f, start_date: e.target.value }))} />
+                          </label>
+                          <label className="grid gap-2">
+                            <span className="text-sm text-gray-700 dark:text-gray-300">End date</span>
+                            <input type="date" className="h-10 rounded-lg border px-3 bg-white dark:bg-neutral-900" value={holidayForm.end_date} onChange={(e) => setHolidayForm((f) => ({ ...f, end_date: e.target.value }))} />
+                          </label>
+                        </div>
+                        <label className="grid gap-2">
+                          <span className="text-sm text-gray-700 dark:text-gray-300">Notes (optional)</span>
+                          <input type="text" placeholder="e.g., Vacation, Sick leave" className="h-10 rounded-lg border px-3 bg-white dark:bg-neutral-900" value={holidayForm.notes} onChange={(e) => setHolidayForm((f) => ({ ...f, notes: e.target.value }))} />
+                        </label>
+                        <button type="button" onClick={() => editing && addHoliday(editing.id)} className="h-10 px-4 rounded-lg bg-blue-600 text-white">Add Holiday</button>
+                      </div>
+
+                      {/* Show existing holidays */}
+                      <div className="p-4 bg-gray-50/30 dark:bg-neutral-800/20 rounded-lg">
+                        <div className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-3">Current Holidays</div>
+                        {editing && getStaffHolidays(editing.id).length === 0 ? (
+                          <div className="text-xs text-gray-500">No holidays set</div>
+                        ) : (
+                          <div className="space-y-2">
+                            {editing && getStaffHolidays(editing.id).map((h) => (
+                              <div key={h.id} className="flex items-center justify-between bg-gray-50 dark:bg-neutral-800 rounded-lg p-3 text-sm">
+                                <div>
+                                  <span className="font-medium">{new Date(h.start_date).toLocaleDateString()}</span>
+                                  {h.start_date !== h.end_date && (
+                                    <span> - {new Date(h.end_date).toLocaleDateString()}</span>
+                                  )}
+                                  {h.notes && <div className="text-xs text-gray-500 mt-1">{h.notes}</div>}
+                                </div>
+                                <button type="button" onClick={() => setHolidayDeleteConfirm({ holidayId: h.id, isOpen: true })} className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded px-2 py-1">
+                                  Remove
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
-              <label className="grid gap-2">
-                <span className="text-sm text-gray-700 dark:text-gray-300">Role</span>
-                <select className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.role_slug} onChange={(e) => setForm((f) => ({ ...f, role_slug: e.target.value }))}>
-                  {staffRoles.map((role) => (
-                    <option key={role.slug} value={role.slug}>{role.name}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="grid gap-2">
-                <span className="text-sm text-gray-700 dark:text-gray-300">Available</span>
-                <select className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.is_available ? "yes" : "no"} onChange={(e) => setForm((f) => ({ ...f, is_available: e.target.value === "yes" }))}>
-                  <option value="yes">Yes</option>
-                  <option value="no">No</option>
-                </select>
-              </label>
-              <label className="grid gap-2">
-                <span className="text-sm text-gray-700 dark:text-gray-300">Description</span>
-                <textarea 
-                  className="min-h-24 rounded-xl border px-3 py-2 bg-white/80 dark:bg-neutral-900 resize-y" 
-                  value={form.description} 
-                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} 
-                  placeholder="Optional description about the staff member, their skills, responsibilities, etc."
-                  rows={4}
-                />
-              </label>
-      <div className="flex justify-end gap-2">
+              
+              {/* Save/Cancel buttons - always visible */}
+              <div className="flex justify-end gap-2 mt-6 pt-4 border-t">
                 <button type="button" onClick={() => setFormOpen(false)} className="h-10 px-4 rounded-xl border">Cancel</button>
-                <button className="h-10 px-4 rounded-xl bg-black text-white dark:bg-white dark:text-black">Save</button>
+                <button type="submit" className="h-10 px-4 rounded-xl bg-black text-white dark:bg-white dark:text-black">Save</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {availabilityOpen && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm grid place-items-center p-4 z-50" onClick={() => setAvailabilityOpen(null)}>
-          <div className="w-full max-w-lg bg-white dark:bg-neutral-950 rounded-2xl border shadow-xl p-6" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-semibold">Add Availability</h2>
-            <p className="text-sm text-gray-500 mt-1">Add multiple time slots for the same day. Minimum 2 hours per slot.</p>
-            
-            <form onSubmit={(e) => { e.preventDefault(); addAvailability(availabilityOpen); }} className="mt-4 grid gap-4">
-              <label className="grid gap-2">
-                <span className="text-sm text-gray-700 dark:text-gray-300">Day</span>
-                <select className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={availabilityForm.day_of_week} onChange={(e) => setAvailabilityForm((f) => ({ ...f, day_of_week: parseInt(e.target.value) }))}>
-                  {DAYS.map((day, i) => (
-                    <option key={i} value={i}>{day}</option>
-                  ))}
-                </select>
-              </label>
-              <div className="grid grid-cols-2 gap-4">
-                <label className="grid gap-2">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">Start time</span>
-                  <input type="time" className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={availabilityForm.start_time} onChange={(e) => setAvailabilityForm((f) => ({ ...f, start_time: e.target.value }))} />
-                </label>
-                <label className="grid gap-2">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">End time</span>
-                  <input type="time" className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={availabilityForm.end_time} onChange={(e) => setAvailabilityForm((f) => ({ ...f, end_time: e.target.value }))} />
-                </label>
-              </div>
-              <div className="flex justify-between gap-2">
-                <button type="button" onClick={() => setAvailabilityOpen(null)} className="h-10 px-4 rounded-xl border">Close</button>
-                <button type="button" onClick={() => addAvailability(availabilityOpen)} className="h-10 px-4 rounded-xl bg-blue-600 text-white">Add This Slot</button>
-              </div>
-            </form>
-            
-            {/* Show existing availability for this staff member */}
-            <div className="mt-6 pt-4 border-t">
-              <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Current availability for {DAYS[availabilityForm.day_of_week]}</div>
-              <div className="space-y-2">
-                {getStaffAvailability(availabilityOpen).filter(a => a.day_of_week === availabilityForm.day_of_week).map((a) => (
-                  <div key={a.id} className="flex items-center justify-between bg-gray-50 dark:bg-neutral-800 rounded-lg p-2 text-sm">
-                    <span>{a.start_time} - {a.end_time}</span>
-                    <button onClick={() => removeAvailability(a.id)} className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded p-1">
-                      <X className="size-3" />
-                    </button>
-                  </div>
-                ))}
-                {getStaffAvailability(availabilityOpen).filter(a => a.day_of_week === availabilityForm.day_of_week).length === 0 && (
-                  <div className="text-sm text-gray-500">No availability set for this day</div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Delete Confirmation Dialog */}
       <ConfirmationDialog
@@ -617,6 +851,24 @@ export default function StaffPage() {
         }}
         title="Remove Availability"
         message="Are you sure you want to remove this availability slot?"
+        confirmText="Remove"
+        cancelText="Cancel"
+        variant="danger"
+      />
+
+
+      {/* Holiday Delete Confirmation */}
+      <ConfirmationDialog
+        isOpen={holidayDeleteConfirm.isOpen}
+        onClose={() => setHolidayDeleteConfirm({ holidayId: null, isOpen: false })}
+        onConfirm={async () => {
+          if (holidayDeleteConfirm.holidayId) {
+            await removeHoliday(holidayDeleteConfirm.holidayId);
+            setHolidayDeleteConfirm({ holidayId: null, isOpen: false });
+          }
+        }}
+        title="Remove Holiday"
+        message="Are you sure you want to remove this holiday period?"
         confirmText="Remove"
         cancelText="Cancel"
         variant="danger"
