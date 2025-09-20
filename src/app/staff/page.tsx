@@ -518,23 +518,27 @@ export default function StaffPage() {
 
       {formOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm grid place-items-center p-4 z-50" onClick={() => setFormOpen(false)}>
-          <div className="w-full max-w-4xl bg-white dark:bg-neutral-950 rounded-2xl border shadow-xl p-6 sm:p-8 max-h-[85vh] overflow-y-auto overflow-x-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">{editing ? "Edit staff" : "Add staff"}</h2>
-              <button type="button" onClick={() => setFormOpen(false)} className="h-8 w-8 rounded-lg border inline-grid place-items-center hover:bg-gray-50 dark:hover:bg-neutral-900">
-                <X className="size-4" />
+          <div className="w-full max-w-4xl bg-white dark:bg-neutral-950 rounded-2xl shadow-2xl p-0 max-h-[85vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-neutral-800">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{editing ? "Edit staff" : "Add staff"}</h2>
+              <button type="button" onClick={() => setFormOpen(false)} className="h-8 w-8 rounded-lg inline-grid place-items-center hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors">
+                <X className="size-4 text-gray-500 dark:text-gray-400" />
               </button>
             </div>
-            <div className="mt-4">
-              <div className="flex flex-wrap gap-2 border-b">
+            
+        {/* Modal Body */}
+        <div className="max-h-[calc(85vh-80px)] overflow-y-auto overflow-x-hidden pb-5">
+              <div className="px-6 sm:px-8 pt-6 sm:pt-8">
+                <div className="flex flex-wrap gap-2 border-b border-gray-200 dark:border-neutral-800 pb-4 mb-6">
                 <button type="button" className={`px-3 py-2 text-sm border-b-2 ${activeTab==='general' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 dark:text-gray-300'}`} onClick={() => setActiveTab('general')}>General</button>
                 <button type="button" className={`px-3 py-2 text-sm border-b-2 ${activeTab==='rates' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 dark:text-gray-300'}`} onClick={() => setActiveTab('rates')}>Rates</button>
                 <button type="button" className={`px-3 py-2 text-sm border-b-2 ${activeTab==='instructions' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 dark:text-gray-300'}`} onClick={() => setActiveTab('instructions')}>Payment Instructions</button>
                 <button type="button" className={`px-3 py-2 text-sm border-b-2 ${activeTab==='availability' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 dark:text-gray-300'}`} onClick={() => setActiveTab('availability')}>Availability</button>
                 <button type="button" className={`px-3 py-2 text-sm border-b-2 ${activeTab==='holidays' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 dark:text-gray-300'}`} onClick={() => setActiveTab('holidays')}>Holidays</button>
+                </div>
               </div>
-            </div>
-            <form onSubmit={submit} className="mt-4">
+            <form id="staff-form" onSubmit={submit} className="px-6 sm:px-8">
               <div className="grid gap-5">
                 {activeTab === 'general' && (
                   <>
@@ -815,13 +819,14 @@ export default function StaffPage() {
                   </>
                 )}
               </div>
-              
-              {/* Save/Cancel buttons - always visible */}
-              <div className="flex justify-end gap-2 mt-6 pt-4 border-t">
-                <button type="button" onClick={() => setFormOpen(false)} className="h-10 px-4 rounded-xl border">Cancel</button>
-                <button type="submit" className="h-10 px-4 rounded-xl bg-black text-white dark:bg-white dark:text-black">Save</button>
-              </div>
             </form>
+            </div>
+            
+            {/* Modal Footer */}
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-neutral-800 bg-gray-50/50 dark:bg-neutral-900/50">
+              <button type="button" onClick={() => setFormOpen(false)} className="h-10 px-4 rounded-lg border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors">Cancel</button>
+              <button type="submit" form="staff-form" className="h-10 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors">Save</button>
+            </div>
           </div>
         </div>
       )}
