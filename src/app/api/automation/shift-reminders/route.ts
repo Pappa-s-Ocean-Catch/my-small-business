@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createServiceRoleClient } from '@/lib/supabase/server';
 import { sendShiftReminder } from '@/app/actions/email';
+import { verifyAutomationWebhook } from '@/lib/webhook-verification';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { schedule_id, job_type } = body;
+    // Verify webhook signature and get parsed body
+    const verification = await verifyAutomationWebhook(request);
+    if (!verification.isValid) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { schedule_id, job_type } = verification.body as { schedule_id: string; job_type: string };
 
     if (job_type !== 'shift_reminder') {
       return NextResponse.json({ error: 'Invalid job type' }, { status: 400 });
@@ -17,7 +23,7 @@ export async function POST(request: NextRequest) {
     const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
     // Get shifts for tomorrow
-    const supabase = await createServerSupabaseClient();
+    const supabase = await createServiceRoleClient();
     const { data: shifts, error: shiftsError } = await supabase
       .from('shifts')
       .select(`
@@ -91,7 +97,7 @@ export async function POST(request: NextRequest) {
     
     // Log the error
     try {
-      const supabase = await createServerSupabaseClient();
+      const supabase = await createServiceRoleClient();
       await supabase.from('automation_logs').insert({
         schedule_id: 'unknown',
         job_type: 'shift_reminder',

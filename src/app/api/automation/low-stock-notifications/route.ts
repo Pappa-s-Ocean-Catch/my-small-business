@@ -1,19 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createServiceRoleClient } from '@/lib/supabase/server';
 import { Resend } from 'resend';
+import { verifyAutomationWebhook } from '@/lib/webhook-verification';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { schedule_id, job_type } = body;
+    // Verify webhook signature and get parsed body
+    const verification = await verifyAutomationWebhook(request);
+    if (!verification.isValid) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { schedule_id, job_type } = verification.body as { schedule_id: string; job_type: string };
 
     if (job_type !== 'low_stock_notification') {
       return NextResponse.json({ error: 'Invalid job type' }, { status: 400 });
     }
 
-    const supabase = await createServerSupabaseClient();
+    const supabase = await createServiceRoleClient();
 
     // Get low stock products
     const { data: lowStockProducts, error: productsError } = await supabase
@@ -203,7 +209,7 @@ export async function POST(request: NextRequest) {
     
     // Log the error
     try {
-      const supabase = await createServerSupabaseClient();
+      const supabase = await createServiceRoleClient();
       await supabase.from('automation_logs').insert({
         schedule_id: 'unknown',
         job_type: 'low_stock_notification',

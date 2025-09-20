@@ -80,15 +80,23 @@ export async function createAutomationSchedule(scheduleData: CreateScheduleReque
         const qstashJobId = await qstashAutomation.createScheduledJob(schedule);
         
         // Update schedule with QStash job ID
-        await supabase
+        const { error: updateError } = await supabase
           .from('automation_schedules')
           .update({ qstash_job_id: qstashJobId })
           .eq('id', schedule.id);
         
+        if (updateError) {
+          console.error('Error updating schedule with QStash job ID:', updateError);
+          return { success: false, error: `Failed to update schedule: ${updateError.message}` };
+        }
+        
         schedule.qstash_job_id = qstashJobId;
       } catch (qstashError) {
         console.error('Error creating QStash job:', qstashError);
-        // Don't fail the entire operation, just log the error
+        return { 
+          success: false, 
+          error: `Failed to create scheduled job: ${qstashError instanceof Error ? qstashError.message : 'Unknown QStash error'}` 
+        };
       }
     }
 
@@ -167,16 +175,24 @@ export async function updateAutomationSchedule(
         const qstashJobId = await qstashAutomation.createScheduledJob(schedule);
         
         // Update schedule with new QStash job ID
-        await supabase
+        const { error: updateError } = await supabase
           .from('automation_schedules')
           .update({ qstash_job_id: qstashJobId })
           .eq('id', schedule.id);
+        
+        if (updateError) {
+          console.error('Error updating schedule with QStash job ID:', updateError);
+          return { success: false, error: `Failed to update schedule: ${updateError.message}` };
+        }
         
         schedule.qstash_job_id = qstashJobId;
       }
     } catch (qstashError) {
       console.error('Error managing QStash job:', qstashError);
-      // Don't fail the entire operation, just log the error
+      return { 
+        success: false, 
+        error: `Failed to manage scheduled job: ${qstashError instanceof Error ? qstashError.message : 'Unknown QStash error'}` 
+      };
     }
 
     return { success: true, data: schedule };
@@ -218,7 +234,10 @@ export async function deleteAutomationSchedule(id: string, currentUserId: string
         await qstashAutomation.deleteScheduledJob(schedule.qstash_job_id);
       } catch (qstashError) {
         console.error('Error deleting QStash job:', qstashError);
-        // Continue with database deletion even if QStash fails
+        return { 
+          success: false, 
+          error: `Failed to delete scheduled job: ${qstashError instanceof Error ? qstashError.message : 'Unknown QStash error'}` 
+        };
       }
     }
 
@@ -291,16 +310,24 @@ export async function toggleAutomationSchedule(id: string, enabled: boolean, cur
         // Create new job if enabling and no job exists
         const qstashJobId = await qstashAutomation.createScheduledJob(schedule);
         
-        await supabase
+        const { error: updateError } = await supabase
           .from('automation_schedules')
           .update({ qstash_job_id: qstashJobId })
           .eq('id', schedule.id);
+        
+        if (updateError) {
+          console.error('Error updating schedule with QStash job ID:', updateError);
+          return { success: false, error: `Failed to update schedule: ${updateError.message}` };
+        }
         
         schedule.qstash_job_id = qstashJobId;
       }
     } catch (qstashError) {
       console.error('Error managing QStash job:', qstashError);
-      // Don't fail the entire operation, just log the error
+      return { 
+        success: false, 
+        error: `Failed to manage scheduled job: ${qstashError instanceof Error ? qstashError.message : 'Unknown QStash error'}` 
+      };
     }
 
     return { success: true, data: schedule };
@@ -353,7 +380,7 @@ export async function getAutomationLogs(currentUserId: string, scheduleId?: stri
   }
 }
 
-export async function triggerAutomationNow(scheduleId: string, currentUserId: string): Promise<{ success: boolean; error?: string }> {
+export async function triggerAutomationNow(scheduleId: string, currentUserId: string): Promise<{ success: boolean; error?: string; data?: { scheduleId: string; jobType: string; scheduleName: string } }> {
   try {
     const supabase = await createServiceRoleClient();
     
@@ -383,52 +410,15 @@ export async function triggerAutomationNow(scheduleId: string, currentUserId: st
       return { success: false, error: 'Schedule not found' };
     }
 
-    // Trigger the appropriate API endpoint based on job type
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-    let apiUrl: string;
-    
-    switch (schedule.job_type) {
-      case 'shift_reminder':
-        apiUrl = `${baseUrl}/api/automation/shift-reminders`;
-        break;
-      case 'low_stock_notification':
-        apiUrl = `${baseUrl}/api/automation/low-stock-notifications`;
-        break;
-      default:
-        return { success: false, error: 'Unknown job type' };
-    }
-
-    // Make the API call to trigger the automation
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    // Return the schedule details so the frontend can make the API call
+    return { 
+      success: true, 
+      data: {
         scheduleId: schedule.id,
         jobType: schedule.job_type,
-        manualTrigger: true, // Flag to indicate this is a manual trigger
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      return { success: false, error: `API call failed: ${errorText}` };
-    }
-
-    const result = await response.json();
-    
-    if (!result.success) {
-      return { success: false, error: result.error || 'Automation execution failed' };
-    }
-
-    // Update the last_run_at timestamp
-    await supabase
-      .from('automation_schedules')
-      .update({ last_run_at: new Date().toISOString() })
-      .eq('id', scheduleId);
-
-    return { success: true };
+        scheduleName: schedule.name
+      }
+    };
   } catch (error) {
     console.error('Error in triggerAutomationNow:', error);
     return { success: false, error: 'Internal server error' };

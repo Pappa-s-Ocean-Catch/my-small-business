@@ -5,8 +5,26 @@ import { AdminGuard } from '@/components/AdminGuard';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 import Modal from '@/components/Modal';
 import Card from '@/components/Card';
-import { FaPlus, FaEdit, FaTrash, FaPalette, FaTimes, FaSave, FaToggleOn, FaToggleOff } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaPalette, FaTimes, FaSave, FaToggleOn, FaToggleOff, FaGripVertical } from 'react-icons/fa';
 import { getSupabaseClient } from '@/lib/supabase/client';
+import { 
+  DndContext, 
+  DragEndEvent, 
+  DragOverlay, 
+  DragStartEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCenter
+} from '@dnd-kit/core';
+import { 
+  SortableContext, 
+  verticalListSortingStrategy,
+  arrayMove,
+  useSortable
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { updateSectionOrder } from '@/app/actions/sections';
 
 interface Section {
   id: string;
@@ -24,6 +42,7 @@ export default function SectionsPage() {
   const [editingSection, setEditingSection] = useState<Section | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState<Section | null>(null);
   const [showToggleDialog, setShowToggleDialog] = useState<Section | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: '',
     description: '',
@@ -32,6 +51,15 @@ export default function SectionsPage() {
   });
 
   const supabase = getSupabaseClient();
+
+  // Drag & drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
 
   const fetchSections = useCallback(async () => {
     try {
@@ -58,7 +86,7 @@ export default function SectionsPage() {
       name: '',
       description: '',
       color: '#3B82F6',
-      sort_order: 0
+      sort_order: sections.length + 1 // Auto-set to next available order
     });
     setEditingSection(null);
   };
@@ -148,6 +176,165 @@ export default function SectionsPage() {
     }
   };
 
+  // Drag & drop handlers
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (!over || active.id === over.id) {
+      setActiveId(null);
+      return;
+    }
+
+    const oldIndex = sections.findIndex(section => section.id === active.id);
+    const newIndex = sections.findIndex(section => section.id === over.id);
+
+    if (oldIndex === -1 || newIndex === -1) {
+      setActiveId(null);
+      return;
+    }
+
+    // Update local state immediately for better UX
+    const newSections = arrayMove(sections, oldIndex, newIndex);
+    setSections(newSections);
+    setActiveId(null);
+
+    // Update sort orders in the database
+    try {
+      const updatedSections = newSections.map((section, index) => ({
+        id: section.id,
+        sort_order: index + 1
+      }));
+
+      const result = await updateSectionOrder({ sections: updatedSections });
+      
+      if (!result.success) {
+        console.error('Failed to update section order:', result.error);
+        // Revert local state on error
+        await fetchSections();
+      }
+    } catch (error) {
+      console.error('Error updating section order:', error);
+      // Revert local state on error
+      await fetchSections();
+    }
+  };
+
+  // Sortable Section Component
+  function SortableSection({ section }: { section: Section }) {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging,
+    } = useSortable({ id: section.id });
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+    };
+
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        className={`transition-all ${isDragging ? 'opacity-50 z-50' : ''}`}
+      >
+        <Card
+          variant={section.active ? "elevated" : "outlined"}
+          padding="md"
+          className={`transition-all ${
+            section.active
+              ? ''
+              : 'opacity-60'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {/* Drag Handle */}
+              <div
+                {...attributes}
+                {...listeners}
+                className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                title="Drag to reorder"
+              >
+                <FaGripVertical className="w-4 h-4 text-gray-400" />
+              </div>
+              
+              <div
+                className="w-4 h-4 rounded-full"
+                style={{ backgroundColor: section.color }}
+              />
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white">
+                  {section.name}
+                </h3>
+                {section.description && (
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {section.description}
+                  </p>
+                )}
+                <div className="flex items-center gap-4 mt-1">
+                  <span className="text-xs text-gray-500 dark:text-gray-500">
+                    Order: {section.sort_order}
+                  </span>
+                  <span className={`text-xs px-2 py-1 rounded-full ${
+                    section.active
+                      ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                      : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                  }`}>
+                    {section.active ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowToggleDialog(section)}
+                className={`flex items-center gap-2 px-3 py-1 text-sm rounded transition-colors ${
+                  section.active
+                    ? 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                    : 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900 dark:text-green-300 dark:hover:bg-green-800'
+                }`}
+              >
+                {section.active ? (
+                  <>
+                    <FaToggleOff className="w-3 h-3" />
+                    <span>Deactivate</span>
+                  </>
+                ) : (
+                  <>
+                    <FaToggleOn className="w-3 h-3" />
+                    <span>Activate</span>
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => startEdit(section)}
+                className="flex items-center gap-2 px-3 py-1 text-sm bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/40 rounded transition-colors"
+              >
+                <FaEdit className="w-3 h-3" />
+                <span>Edit</span>
+              </button>
+              <button
+                onClick={() => setShowDeleteDialog(section)}
+                className="flex items-center gap-2 px-3 py-1 text-sm bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40 rounded transition-colors"
+              >
+                <FaTrash className="w-3 h-3" />
+                <span>Delete</span>
+              </button>
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <AdminGuard>
@@ -169,7 +356,12 @@ export default function SectionsPage() {
     <AdminGuard>
       <div className="p-3 sm:p-6 max-w-7xl mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Shop Sections</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Shop Sections</h1>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              Drag sections by the grip handle to reorder them
+            </p>
+          </div>
           <button
             onClick={() => {
               resetForm();
@@ -182,87 +374,28 @@ export default function SectionsPage() {
           </button>
         </div>
 
-        <div className="grid gap-4">
-          {sections.map((section) => (
-            <Card
-              key={section.id}
-              variant={section.active ? "elevated" : "outlined"}
-              padding="md"
-              className={`transition-all ${
-                section.active
-                  ? ''
-                  : 'opacity-60'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-4 h-4 rounded-full"
-                    style={{ backgroundColor: section.color }}
-                  />
-                  <div>
-                    <h3 className="font-semibold text-gray-900 dark:text-white">
-                      {section.name}
-                    </h3>
-                    {section.description && (
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        {section.description}
-                      </p>
-                    )}
-                    <div className="flex items-center gap-4 mt-1">
-                      <span className="text-xs text-gray-500 dark:text-gray-500">
-                        Order: {section.sort_order}
-                      </span>
-                      <span className={`text-xs px-2 py-1 rounded-full ${
-                        section.active
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                          : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                      }`}>
-                        {section.active ? 'Active' : 'Inactive'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setShowToggleDialog(section)}
-                    className={`flex items-center gap-2 px-3 py-1 text-sm rounded transition-colors ${
-                      section.active
-                        ? 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
-                        : 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900 dark:text-green-300 dark:hover:bg-green-800'
-                    }`}
-                  >
-                    {section.active ? (
-                      <>
-                        <FaToggleOff className="w-3 h-3" />
-                        <span>Deactivate</span>
-                      </>
-                    ) : (
-                      <>
-                        <FaToggleOn className="w-3 h-3" />
-                        <span>Activate</span>
-                      </>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => startEdit(section)}
-                    className="flex items-center gap-2 px-3 py-1 text-sm bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/40 rounded transition-colors"
-                  >
-                    <FaEdit className="w-3 h-3" />
-                    <span>Edit</span>
-                  </button>
-                  <button
-                    onClick={() => setShowDeleteDialog(section)}
-                    className="flex items-center gap-2 px-3 py-1 text-sm bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40 rounded transition-colors"
-                  >
-                    <FaTrash className="w-3 h-3" />
-                    <span>Delete</span>
-                  </button>
-                </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext items={sections.map(s => s.id)} strategy={verticalListSortingStrategy}>
+            <div className="grid gap-4">
+              {sections.map((section) => (
+                <SortableSection key={section.id} section={section} />
+              ))}
+            </div>
+          </SortableContext>
+          
+          <DragOverlay>
+            {activeId ? (
+              <div className="opacity-50">
+                <SortableSection section={sections.find(s => s.id === activeId)!} />
               </div>
-            </Card>
-          ))}
-        </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
 
         {sections.length === 0 && (
           <div className="text-center py-12">

@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import { AdminGuard } from "@/components/AdminGuard";
 import { LoadingPage } from "@/components/Loading";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
+import Modal from "@/components/Modal";
+import { ActionButton } from "@/components/ActionButton";
 import { 
   getAutomationSchedules, 
   createAutomationSchedule, 
@@ -24,7 +26,9 @@ import {
   FaHistory,
   FaCalendarAlt,
   FaExclamationTriangle,
-  FaPlay
+  FaPlay,
+  FaTimes,
+  FaSave
 } from "react-icons/fa";
 import { toast } from 'react-toastify';
 import type { AutomationSchedule, CreateScheduleRequest } from "@/lib/qstash";
@@ -52,6 +56,11 @@ export default function AutomationPage() {
     schedule_config: {
       time: '09:00',
       days: [1, 2, 3, 4, 5],
+    },
+    custom_config: {
+      recipient_emails: [],
+      days_to_check: 7,
+      check_all_days: true,
     },
   });
 
@@ -115,9 +124,7 @@ export default function AutomationPage() {
     }
   }, [currentUserId, fetchData]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const handleSubmit = async () => {
     if (!currentUserId) {
       toast.error('User not authenticated');
       return;
@@ -192,12 +199,74 @@ export default function AutomationPage() {
     
     try {
       toast.info(`Triggering ${schedule.name}...`);
+      
+      // First, get the schedule details from the server action
       const result = await triggerAutomationNow(schedule.id, currentUserId);
-      if (result.success) {
+      if (!result.success) {
+        toast.error(result.error || 'Failed to get schedule details');
+        return;
+      }
+
+      // Now make the API call directly from the frontend (with user cookies)
+      const baseUrl = window.location.origin;
+      let apiUrl: string;
+      
+      switch (schedule.job_type) {
+        case 'shift_reminder':
+          apiUrl = `${baseUrl}/api/automation/shift-reminders`;
+          break;
+        case 'low_stock_notification':
+          apiUrl = `${baseUrl}/api/automation/low-stock-notifications`;
+          break;
+        case 'missing_shift_allocation':
+          apiUrl = `${baseUrl}/api/automation/missing-shift-allocation`;
+          break;
+        default:
+          toast.error('Unknown job type');
+          return;
+      }
+
+      // Debug: Check if we have Supabase cookies in the browser
+      console.log('🍪 Browser cookies:', document.cookie);
+      
+      // Get the user's access token for authentication
+      const { getSupabaseClient } = await import("@/lib/supabase/client");
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        toast.error('No valid session found. Please log in again.');
+        return;
+      }
+      
+      console.log('🔑 Access token found:', session.access_token.substring(0, 20) + '...');
+      
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`, // Include access token
+        },
+        body: JSON.stringify({
+          schedule_id: schedule.id,
+          job_type: schedule.job_type,
+        }),
+        credentials: 'include', // Include cookies for authentication
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        toast.error(`API call failed (${response.status}): ${errorText}`);
+        return;
+      }
+
+      const apiResult = await response.json();
+      
+      if (apiResult.success) {
         toast.success(`${schedule.name} triggered successfully!`);
         await fetchData(); // Refresh to show updated last_run_at
       } else {
-        toast.error(result.error || 'Failed to trigger automation');
+        toast.error(apiResult.error || 'Automation execution failed');
       }
     } catch (error) {
       console.error('Error triggering automation:', error);
@@ -213,6 +282,11 @@ export default function AutomationPage() {
       job_type: schedule.job_type,
       schedule_type: schedule.schedule_type,
       schedule_config: schedule.schedule_config,
+      custom_config: schedule.custom_config || {
+        recipient_emails: [],
+        days_to_check: 7,
+        check_all_days: true,
+      },
     });
     setFormOpen(true);
   };
@@ -227,6 +301,11 @@ export default function AutomationPage() {
         time: '09:00',
         days: [1, 2, 3, 4, 5],
       },
+      custom_config: {
+        recipient_emails: [],
+        days_to_check: 7,
+        check_all_days: true,
+      },
     });
   };
 
@@ -236,6 +315,8 @@ export default function AutomationPage() {
         return <FaBell className="w-5 h-5 text-blue-600" />;
       case 'low_stock_notification':
         return <FaExclamationTriangle className="w-5 h-5 text-orange-600" />;
+      case 'missing_shift_allocation':
+        return <FaCalendarAlt className="w-5 h-5 text-red-600" />;
       default:
         return <FaClock className="w-5 h-5 text-gray-600" />;
     }
@@ -247,6 +328,8 @@ export default function AutomationPage() {
         return 'Shift Reminders';
       case 'low_stock_notification':
         return 'Low Stock Notifications';
+      case 'missing_shift_allocation':
+        return 'Missing Shift Allocation';
       default:
         return jobType;
     }
@@ -289,24 +372,25 @@ export default function AutomationPage() {
               <FaHistory className="w-4 h-4" />
               {showLogs ? 'Hide' : 'Show'} Logs
             </button>
-            <button
-              onClick={() => {
+            <ActionButton
+              onClick={async () => {
                 setEditing(null);
                 resetForm();
                 setFormOpen(true);
               }}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              variant="primary"
+              size="md"
+              icon={<FaPlus className="w-4 h-4" />}
             >
-              <FaPlus className="w-4 h-4" />
               Add Schedule
-            </button>
+            </ActionButton>
           </div>
         </div>
 
         {/* Schedules Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           {schedules.map((schedule) => (
-            <div key={schedule.id} className="bg-white dark:bg-neutral-800 rounded-xl border border-gray-200 dark:border-neutral-700 p-6">
+            <div key={schedule.id} className="bg-white dark:bg-neutral-900 shadow-lg rounded-lg p-6">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
                   {getJobTypeIcon(schedule.job_type)}
@@ -317,21 +401,21 @@ export default function AutomationPage() {
                     </p>
                   </div>
                 </div>
-                <button
-                  onClick={() => handleToggle(schedule)}
-                  className={`p-2 rounded-lg transition-colors ${
+                <ActionButton
+                  onClick={async () => handleToggle(schedule)}
+                  variant="secondary"
+                  size="sm"
+                  icon={schedule.is_enabled ? <FaToggleOn className="w-4 h-4" /> : <FaToggleOff className="w-4 h-4" />}
+                  loadingText={schedule.is_enabled ? 'Disabling...' : 'Enabling...'}
+                  title={schedule.is_enabled ? 'Disable' : 'Enable'}
+                  className={`${
                     schedule.is_enabled
                       ? 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
                       : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
-                  title={schedule.is_enabled ? 'Disable' : 'Enable'}
                 >
-                  {schedule.is_enabled ? (
-                    <FaToggleOn className="w-5 h-5" />
-                  ) : (
-                    <FaToggleOff className="w-5 h-5" />
-                  )}
-                </button>
+                  <span className="sr-only">{schedule.is_enabled ? 'Disable' : 'Enable'}</span>
+                </ActionButton>
               </div>
 
               {schedule.description && (
@@ -355,13 +439,17 @@ export default function AutomationPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleTriggerNow(schedule)}
-                    className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                  <ActionButton
+                    onClick={async () => handleTriggerNow(schedule)}
+                    variant="secondary"
+                    size="sm"
+                    icon={<FaPlay className="w-4 h-4" />}
+                    loadingText="Triggering..."
                     title="Trigger Now"
+                    className="text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
                   >
-                    <FaPlay className="w-4 h-4" />
-                  </button>
+                    <span className="sr-only">Trigger Now</span>
+                  </ActionButton>
                   <button
                     onClick={() => startEdit(schedule)}
                     className="p-2 text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
@@ -384,7 +472,7 @@ export default function AutomationPage() {
 
         {/* Logs Section */}
         {showLogs && (
-          <div className="bg-white dark:bg-neutral-800 rounded-xl border border-gray-200 dark:border-neutral-700 p-6">
+          <div className="bg-white dark:bg-neutral-900 shadow-lg rounded-lg p-6">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Recent Activity</h2>
             <div className="space-y-3">
               {logs.slice(0, 10).map((log) => (
@@ -413,13 +501,43 @@ export default function AutomationPage() {
         )}
 
         {/* Form Modal */}
-        {formOpen && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm grid place-items-center p-4 z-50" onClick={() => setFormOpen(false)}>
-            <div className="w-full max-w-2xl bg-white dark:bg-neutral-950 rounded-2xl border shadow-xl p-6" onClick={(e) => e.stopPropagation()}>
-              <h2 className="text-lg font-semibold mb-4">
-                {editing ? 'Edit Schedule' : 'Add Schedule'}
-              </h2>
-              <form onSubmit={handleSubmit} className="space-y-4">
+        <Modal
+          isOpen={formOpen}
+          onClose={() => {
+            setFormOpen(false);
+            setEditing(null);
+            resetForm();
+          }}
+          title={editing ? 'Edit Schedule' : 'Add Schedule'}
+          size="lg"
+          bodyClassName="px-6 sm:px-8 pt-6 sm:pt-8"
+          footer={
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setFormOpen(false);
+                  setEditing(null);
+                  resetForm();
+                }}
+                className="flex items-center gap-2 h-10 px-4 rounded-lg border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+              >
+                <FaTimes className="w-4 h-4" />
+                <span>Cancel</span>
+              </button>
+              <ActionButton
+                onClick={handleSubmit}
+                variant="primary"
+                size="md"
+                icon={<FaSave className="w-4 h-4" />}
+                loadingText={editing ? 'Updating...' : 'Creating...'}
+              >
+                {editing ? 'Update' : 'Create'}
+              </ActionButton>
+            </div>
+          }
+        >
+          <form id="automation-form" className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Name
@@ -451,11 +569,12 @@ export default function AutomationPage() {
                   </label>
                   <select
                     value={form.job_type}
-                    onChange={(e) => setForm({ ...form, job_type: e.target.value as 'shift_reminder' | 'low_stock_notification' })}
+                    onChange={(e) => setForm({ ...form, job_type: e.target.value as 'shift_reminder' | 'low_stock_notification' | 'missing_shift_allocation' })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
                   >
                     <option value="shift_reminder">Shift Reminders</option>
                     <option value="low_stock_notification">Low Stock Notifications</option>
+                    <option value="missing_shift_allocation">Missing Shift Allocation</option>
                   </select>
                 </div>
 
@@ -529,25 +648,97 @@ export default function AutomationPage() {
                   </div>
                 )}
 
-                <div className="flex justify-end gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setFormOpen(false)}
-                    className="px-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    {editing ? 'Update' : 'Create'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+                {/* Custom Configuration Fields */}
+                {form.job_type === 'missing_shift_allocation' && (
+                  <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-neutral-700">
+                    <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Custom Configuration
+                    </h3>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Days to Check
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="30"
+                        value={form.custom_config?.days_to_check || 7}
+                        onChange={(e) => setForm({
+                          ...form,
+                          custom_config: {
+                            ...form.custom_config,
+                            days_to_check: parseInt(e.target.value) || 7
+                          }
+                        })}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
+                      />
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Number of days ahead to check for missing shift allocations
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Recipient Emails (Optional)
+                      </label>
+                      <textarea
+                        value={form.custom_config?.recipient_emails?.join(', ') || ''}
+                        onChange={(e) => {
+                          const emails = e.target.value.split(',').map(email => email.trim()).filter(Boolean);
+                          setForm({
+                            ...form,
+                            custom_config: {
+                              ...form.custom_config,
+                              recipient_emails: emails
+                            }
+                          });
+                        }}
+                        placeholder="admin@example.com, manager@example.com"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
+                        rows={2}
+                      />
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Comma-separated list of email addresses. Leave empty to use admin emails.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {form.job_type === 'low_stock_notification' && (
+                  <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-neutral-700">
+                    <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Custom Configuration
+                    </h3>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Recipient Emails (Optional)
+                      </label>
+                      <textarea
+                        value={form.custom_config?.recipient_emails?.join(', ') || ''}
+                        onChange={(e) => {
+                          const emails = e.target.value.split(',').map(email => email.trim()).filter(Boolean);
+                          setForm({
+                            ...form,
+                            custom_config: {
+                              ...form.custom_config,
+                              recipient_emails: emails
+                            }
+                          });
+                        }}
+                        placeholder="admin@example.com, manager@example.com"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
+                        rows={2}
+                      />
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Comma-separated list of email addresses. Leave empty to use admin emails.
+                      </p>
+                    </div>
+                  </div>
+                )}
+          </form>
+        </Modal>
 
         {/* Delete Confirmation */}
         <ConfirmationDialog

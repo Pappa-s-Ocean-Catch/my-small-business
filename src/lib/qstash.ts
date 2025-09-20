@@ -4,16 +4,28 @@ const qstash = new Client({
   token: process.env.QSTASH_TOKEN!,
 });
 
+// QStash signing keys for webhook signature verification
+export const QSTASH_CURRENT_SIGNING_KEY = process.env.QSTASH_CURRENT_SIGNING_KEY;
+export const QSTASH_NEXT_SIGNING_KEY = process.env.QSTASH_NEXT_SIGNING_KEY;
+
 export interface AutomationSchedule {
   id: string;
   name: string;
   description?: string;
-  job_type: 'shift_reminder' | 'low_stock_notification';
+  job_type: 'shift_reminder' | 'low_stock_notification' | 'missing_shift_allocation';
   schedule_type: 'daily' | 'weekly' | 'monthly';
   schedule_config: {
     time: string; // HH:MM format
     days?: number[]; // 0-6 for weekly (0=Sunday, 1=Monday, etc.)
     frequency?: string;
+  };
+  custom_config?: {
+    recipient_emails?: string[];
+    days_to_check?: number;
+    check_all_days?: boolean;
+    alert_threshold?: number;
+    warning_threshold?: number;
+    [key: string]: unknown; // Allow additional custom fields
   };
   is_enabled: boolean;
   qstash_job_id?: string;
@@ -27,12 +39,20 @@ export interface AutomationSchedule {
 export interface CreateScheduleRequest {
   name: string;
   description?: string;
-  job_type: 'shift_reminder' | 'low_stock_notification';
+  job_type: 'shift_reminder' | 'low_stock_notification' | 'missing_shift_allocation';
   schedule_type: 'daily' | 'weekly' | 'monthly';
   schedule_config: {
     time: string;
     days?: number[];
     frequency?: string;
+  };
+  custom_config?: {
+    recipient_emails?: string[];
+    days_to_check?: number;
+    check_all_days?: boolean;
+    alert_threshold?: number;
+    warning_threshold?: number;
+    [key: string]: unknown;
   };
 }
 
@@ -47,19 +67,28 @@ export class QStashAutomation {
    * Create a scheduled job in QStash
    */
   async createScheduledJob(schedule: AutomationSchedule): Promise<string> {
-    const cronExpression = this.generateCronExpression(schedule);
-    const endpoint = this.getJobEndpoint(schedule.job_type);
+    try {
+      const cronExpression = this.generateCronExpression(schedule);
+      const endpoint = this.getJobEndpoint(schedule.job_type);
 
-    const response = await qstash.publishJSON({
-      url: `${this.baseUrl}/api/automation/${endpoint}`,
-      body: {
-        schedule_id: schedule.id,
-        job_type: schedule.job_type,
-      },
-      cron: cronExpression,
-    });
+      const response = await qstash.schedules.create({
+        destination: `${this.baseUrl}/api/automation/${endpoint}`,
+        cron: cronExpression,
+        body: JSON.stringify({
+          schedule_id: schedule.id,
+          job_type: schedule.job_type,
+        }),
+      });
 
-    return response.messageId;
+      if (!response.scheduleId) {
+        throw new Error('QStash did not return a schedule ID');
+      }
+
+      return response.scheduleId;
+    } catch (error) {
+      console.error('QStash createScheduledJob error:', error);
+      throw new Error(`Failed to create QStash job: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   /**
@@ -79,19 +108,29 @@ export class QStashAutomation {
    * Delete a scheduled job
    */
   async deleteScheduledJob(jobId: string): Promise<void> {
-    await qstash.messages.delete(jobId);
+    try {
+      await qstash.schedules.delete(jobId);
+    } catch (error) {
+      console.error('QStash deleteScheduledJob error:', error);
+      throw new Error(`Failed to delete QStash job: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   /**
    * Pause/Resume a scheduled job
    */
   async toggleScheduledJob(jobId: string, enabled: boolean): Promise<void> {
-    // Note: QStash doesn't have pause/resume methods in the current API
-    // We'll need to delete and recreate the job to toggle it
-    if (!enabled) {
-      await qstash.messages.delete(jobId);
+    try {
+      // Note: QStash doesn't have pause/resume methods in the current API
+      // We'll need to delete and recreate the job to toggle it
+      if (!enabled) {
+        await qstash.schedules.delete(jobId);
+      }
+      // For enabling, we'll need to recreate the job from the schedule
+    } catch (error) {
+      console.error('QStash toggleScheduledJob error:', error);
+      throw new Error(`Failed to toggle QStash job: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-    // For enabling, we'll need to recreate the job from the schedule
   }
 
   /**
@@ -126,6 +165,8 @@ export class QStashAutomation {
         return 'shift-reminders';
       case 'low_stock_notification':
         return 'low-stock-notifications';
+      case 'missing_shift_allocation':
+        return 'missing-shift-allocation';
       default:
         throw new Error(`Unknown job type: ${jobType}`);
     }
@@ -135,7 +176,20 @@ export class QStashAutomation {
    * Get job status from QStash
    */
   async getJobStatus(jobId: string): Promise<unknown> {
-    return await qstash.messages.get(jobId);
+    return await qstash.schedules.get(jobId);
+  }
+
+  /**
+   * Get a specific message by ID for debugging
+   */
+  async getMessage(messageId: string): Promise<unknown> {
+    try {
+      const message = await qstash.messages.get(messageId);
+      return message;
+    } catch (error) {
+      console.error('QStash getMessage error:', error);
+      throw new Error(`Failed to get QStash message: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 }
 

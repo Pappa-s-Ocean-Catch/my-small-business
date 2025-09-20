@@ -50,7 +50,7 @@ export default function Modal({
         </div>
         
         {/* Modal Body */}
-        <div className={`max-h-[calc(85vh-80px)] overflow-y-auto overflow-x-hidden ${bodyClassName}`}>
+        <div className={`max-h-[calc(85vh-140px)] overflow-y-auto overflow-x-hidden ${bodyClassName}`}>
           {children}
         </div>
         
