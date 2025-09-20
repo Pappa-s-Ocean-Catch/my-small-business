@@ -240,7 +240,7 @@ export async function POST(request: NextRequest) {
     console.log('📧 Email content preview:', {
       subject: `Missing Shift Allocation Alert - ${datesWithoutShifts.length} Days Need Coverage`,
       htmlLength: emailHtml.length,
-      fromAddress: 'OperateFlow <noreply@operateflow.com>'
+      fromAddress: process.env.EMAIL_FROM!
     });
     
     const emailResults = [];
@@ -252,7 +252,7 @@ export async function POST(request: NextRequest) {
         console.log(`📧 Email subject: ${emailSubject}`);
         
         const result = await resend.emails.send({
-          from: 'OperateFlow <noreply@operateflow.com>',
+          from: process.env.EMAIL_FROM!,
           to: [recipientEmail],
           subject: emailSubject,
           html: emailHtml,

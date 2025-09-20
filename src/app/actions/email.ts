@@ -24,7 +24,7 @@ export async function sendShiftReminder(
     const formattedTime = `${startTime} - ${endTime}`;
 
     const { data, error } = await resend.emails.send({
-      from: process.env.EMAIL_FROM || 'OperateFlow <noreply@yourdomain.com>', // Replace with your verified domain
+      from: process.env.EMAIL_FROM!,
       to: [staffEmail],
       subject: `Shift Reminder - ${formattedDate}`,
       react: ShiftReminderEmail({
@@ -75,9 +75,9 @@ export async function sendMagicLinkInvite(inviteeEmail: string) {
     const actionUrl = data.properties.action_link as string;
 
     const { data: sent, error: sendErr } = await resend.emails.send({
-      from: process.env.EMAIL_FROM || 'OperateFlow <noreply@yourdomain.com>',
+      from: process.env.EMAIL_FROM!,
       to: [inviteeEmail],
-      subject: existing ? 'Your OperateFlow sign-in link' : 'You’re invited to OperateFlow',
+      subject: existing ? 'Your OperateFlow sign-in link' : 'You are invited to OperateFlow',
       react: MagicLinkInviteEmail({ inviteeEmail, actionUrl, isExistingUser: Boolean(existing) }),
     });
 

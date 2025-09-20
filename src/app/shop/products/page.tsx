@@ -25,6 +25,10 @@ type Product = {
   reorder_level: number;
   warning_threshold: number;
   alert_threshold: number;
+  units_per_box: number;
+  full_boxes: number;
+  loose_units: number;
+  total_units: number;
   image_url: string | null;
   description: string | null;
   is_active: boolean;
@@ -60,13 +64,28 @@ export default function ProductsPage() {
 
   // Helper function to get stock status based on thresholds
   const getStockStatus = (product: Product) => {
-    if (product.quantity_in_stock <= product.alert_threshold) {
+    const totalUnits = product.total_units || product.quantity_in_stock;
+    if (totalUnits <= product.alert_threshold) {
       return { status: 'critical', color: 'red', text: 'Critical' };
-    } else if (product.quantity_in_stock <= product.warning_threshold) {
+    } else if (totalUnits <= product.warning_threshold) {
       return { status: 'warning', color: 'yellow', text: 'Warning' };
     } else {
       return { status: 'good', color: 'green', text: 'In Stock' };
     }
+  };
+
+  // Helper function to format stock display
+  const formatStockDisplay = (product: Product) => {
+    const totalUnits = product.total_units || product.quantity_in_stock;
+    const unitsPerBox = product.units_per_box || 1;
+    const fullBoxes = product.full_boxes || 0;
+    const looseUnits = product.loose_units || 0;
+    
+    if (unitsPerBox === 1) {
+      return `${totalUnits} units`;
+    }
+    
+    return `${fullBoxes} boxes + ${looseUnits} units = ${totalUnits} total`;
   };
 
   const [form, setForm] = useState({
@@ -80,6 +99,9 @@ export default function ProductsPage() {
     reorder_level: "",
     warning_threshold: "",
     alert_threshold: "",
+    units_per_box: "1",
+    full_boxes: "0",
+    loose_units: "0",
     description: "",
     is_active: true
   });
@@ -165,6 +187,9 @@ export default function ProductsPage() {
       reorder_level: "",
       warning_threshold: "",
       alert_threshold: "",
+      units_per_box: "1",
+      full_boxes: "0",
+      loose_units: "0",
       description: "",
       is_active: true
     });
@@ -179,10 +204,13 @@ export default function ProductsPage() {
       supplier_id: product.supplier_id || "",
       purchase_price: product.purchase_price.toString(),
       sale_price: product.sale_price.toString(),
-      quantity_in_stock: product.quantity_in_stock.toString(),
+      quantity_in_stock: product.total_units?.toString() || product.quantity_in_stock.toString(),
       reorder_level: product.reorder_level.toString(),
       warning_threshold: product.warning_threshold.toString(),
       alert_threshold: product.alert_threshold.toString(),
+      units_per_box: product.units_per_box?.toString() || "1",
+      full_boxes: product.full_boxes?.toString() || "0",
+      loose_units: product.loose_units?.toString() || "0",
       description: product.description || "",
       is_active: product.is_active
     });
@@ -193,6 +221,13 @@ export default function ProductsPage() {
     e.preventDefault();
     const supabase = getSupabaseClient();
 
+    const unitsPerBox = parseInt(form.units_per_box);
+    const initialStock = parseInt(form.quantity_in_stock) || 0;
+    
+    // Convert initial stock to boxes and loose units
+    const fullBoxes = Math.floor(initialStock / unitsPerBox);
+    const looseUnits = initialStock % unitsPerBox;
+
     const productData = {
       name: form.name,
       sku: form.sku,
@@ -200,10 +235,13 @@ export default function ProductsPage() {
       supplier_id: form.supplier_id || null,
       purchase_price: parseFloat(form.purchase_price),
       sale_price: parseFloat(form.sale_price),
-      quantity_in_stock: parseInt(form.quantity_in_stock),
+      quantity_in_stock: initialStock, // Keep for backward compatibility
       reorder_level: parseInt(form.reorder_level),
       warning_threshold: parseInt(form.warning_threshold),
       alert_threshold: parseInt(form.alert_threshold),
+      units_per_box: unitsPerBox,
+      full_boxes: fullBoxes,
+      loose_units: looseUnits,
       description: form.description || null,
       is_active: form.is_active
     };
@@ -241,7 +279,10 @@ export default function ProductsPage() {
       'Supplier': product.supplier?.name || 'None',
       'Purchase Price': product.purchase_price,
       'Sale Price': product.sale_price,
-      'Quantity in Stock': product.quantity_in_stock,
+      'Quantity in Stock': product.total_units || product.quantity_in_stock,
+      'Units per Box': product.units_per_box || 1,
+      'Full Boxes': product.full_boxes || 0,
+      'Loose Units': product.loose_units || 0,
       'Reorder Level': product.reorder_level,
       'Status': getStockStatus(product).text,
       'Active': product.is_active ? 'Yes' : 'No',
@@ -431,14 +472,14 @@ export default function ProductsPage() {
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600 dark:text-gray-400">Stock:</span>
-                    <span className={`font-medium ${
-                      product.quantity_in_stock === 0 
+                    <span className={`font-medium text-right ${
+                      (product.total_units || product.quantity_in_stock) === 0 
                         ? "text-red-600 dark:text-red-400" 
-                        : product.quantity_in_stock <= product.reorder_level 
+                        : (product.total_units || product.quantity_in_stock) <= product.reorder_level 
                           ? "text-yellow-600 dark:text-yellow-400" 
                           : "text-green-600 dark:text-green-400"
                     }`}>
-                      {product.quantity_in_stock}
+                      {formatStockDisplay(product)}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
@@ -509,15 +550,15 @@ export default function ProductsPage() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <span className={`text-sm font-medium ${
-                            product.quantity_in_stock === 0 
+                            (product.total_units || product.quantity_in_stock) === 0 
                               ? 'text-red-600 dark:text-red-400' 
-                              : product.quantity_in_stock <= product.reorder_level 
+                              : (product.total_units || product.quantity_in_stock) <= product.reorder_level 
                                 ? 'text-yellow-600 dark:text-yellow-400' 
                                 : 'text-green-600 dark:text-green-400'
                           }`}>
-                            {product.quantity_in_stock}
+                            {formatStockDisplay(product)}
                           </span>
-                          {product.quantity_in_stock <= product.reorder_level && (
+                          {(product.total_units || product.quantity_in_stock) <= product.reorder_level && (
                             <FaExclamationTriangle className="w-4 h-4 text-red-500 ml-2" title="Low Stock" />
                           )}
                         </div>
@@ -526,15 +567,15 @@ export default function ProductsPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">${product.sale_price.toFixed(2)}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          product.quantity_in_stock === 0 
+                          (product.total_units || product.quantity_in_stock) === 0 
                             ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                            : product.quantity_in_stock <= product.reorder_level 
+                            : (product.total_units || product.quantity_in_stock) <= product.reorder_level 
                               ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
                               : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
                         }`}>
-                          {product.quantity_in_stock === 0 
+                          {(product.total_units || product.quantity_in_stock) === 0 
                             ? 'Out of Stock' 
-                            : product.quantity_in_stock <= product.reorder_level 
+                            : (product.total_units || product.quantity_in_stock) <= product.reorder_level 
                               ? 'Low Stock' 
                               : 'In Stock'}
                         </span>
@@ -690,15 +731,37 @@ export default function ProductsPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label className="grid gap-2">
-                <span className="text-sm text-gray-700 dark:text-gray-300">Quantity in Stock *</span>
+                <span className="text-sm text-gray-700 dark:text-gray-300">Units per Box *</span>
                 <input
                   type="number"
+                  min="1"
                   required
+                  className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
+                  value={form.units_per_box}
+                  onChange={(e) => setForm(f => ({ ...f, units_per_box: e.target.value }))}
+                  placeholder="How many units in one box/case"
+                />
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  Set to 1 for individual items, or the number of units per box/case
+                </span>
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm text-gray-700 dark:text-gray-300">Initial Stock (Units)</span>
+                <input
+                  type="number"
+                  min="0"
                   className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
                   value={form.quantity_in_stock}
                   onChange={(e) => setForm(f => ({ ...f, quantity_in_stock: e.target.value }))}
+                  placeholder="Total units to start with"
                 />
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  Will be automatically converted to boxes + loose units
+                </span>
               </label>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label className="grid gap-2">
                 <span className="text-sm text-gray-700 dark:text-gray-300">Reorder Level *</span>
                 <input

@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
     for (const adminEmail of adminEmails) {
       try {
         const result = await resend.emails.send({
-          from: 'OperateFlow <noreply@operateflow.com>',
+          from: process.env.EMAIL_FROM!,
           to: [adminEmail],
           subject: `Low Stock Alert - ${alertProducts.length} Critical, ${warningProducts.length} Warning`,
           html: emailHtml,

@@ -22,7 +22,7 @@ import {
   CSS 
 } from "@dnd-kit/utilities";
 import { format, addDays, startOfWeek, endOfWeek, isToday, isSameDay } from "date-fns";
-import { FaEdit, FaTrash, FaRedo, FaChevronLeft, FaChevronRight, FaHome, FaPrint, FaPlus, FaMagic } from "react-icons/fa";
+import { FaEdit, FaTrash, FaRedo, FaChevronLeft, FaChevronRight, FaHome, FaPrint, FaPlus, FaMagic, FaEnvelope } from "react-icons/fa";
 import { X } from "lucide-react";
 import { CalendarToolbar } from "@/components/CalendarToolbar";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
@@ -30,6 +30,7 @@ import ErrorModal from "@/components/ErrorModal";
 import PrintSchedule from "@/components/PrintSchedule";
 import { getDefaultSettings } from "@/lib/settings";
 import { getSupabaseClient } from "@/lib/supabase/client";
+import { sendWeeklyRoster, getWeeklyRosterData } from "@/app/actions/roster";
 import Link from "next/link";
 
 type Staff = {
@@ -296,6 +297,7 @@ export function DragDropCalendar({
   const [errorModal, setErrorModal] = useState<{ isOpen: boolean; title: string; message: string; details?: string }>({ isOpen: false, title: "", message: "" });
   const [activeId, setActiveId] = useState<string | null>(null);
   const [isCtrlPressed, setIsCtrlPressed] = useState(false);
+  const [sendingRoster, setSendingRoster] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -900,6 +902,109 @@ export function DragDropCalendar({
     }
   }, [autoShiftConfirm.summary]);
 
+  const handleSendRoster = useCallback(async () => {
+    if (sendingRoster) return;
+    
+    setSendingRoster(true);
+    try {
+      console.log('📧 Starting roster email process...');
+      
+      // Get roster data for current week
+      const rosterResult = await getWeeklyRosterData(currentWeek);
+      
+      if (!rosterResult.success || !rosterResult.data) {
+        setErrorModal({
+          isOpen: true,
+          title: "Roster Error",
+          message: rosterResult.error || "Failed to fetch roster data",
+          details: "Please try again or contact support if the issue persists."
+        });
+        return;
+      }
+
+      const staffRosters = rosterResult.data;
+      
+      if (staffRosters.length === 0) {
+        setErrorModal({
+          isOpen: true,
+          title: "No Staff Found",
+          message: "No staff members with shifts found for this week",
+          details: "Make sure shifts are assigned to staff members before sending rosters."
+        });
+        return;
+      }
+
+      // Filter out staff without email addresses
+      const staffWithEmails = staffRosters.filter(roster => roster.staffEmail);
+      const staffWithoutEmails = staffRosters.filter(roster => !roster.staffEmail);
+      
+      if (staffWithEmails.length === 0) {
+        setErrorModal({
+          isOpen: true,
+          title: "No Email Addresses",
+          message: "No staff members have email addresses configured",
+          details: "Please add email addresses to staff profiles before sending rosters."
+        });
+        return;
+      }
+
+      // Send roster emails
+      const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
+      const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
+      
+      const sendResult = await sendWeeklyRoster({
+        weekStart,
+        weekEnd,
+        staffRosters: staffWithEmails
+      });
+
+      if (!sendResult.success) {
+        setErrorModal({
+          isOpen: true,
+          title: "Send Failed",
+          message: sendResult.error || "Failed to send roster emails",
+          details: "Please try again or contact support if the issue persists."
+        });
+        return;
+      }
+
+      // Show success message with details
+      const results = sendResult.results || [];
+      const successful = results.filter(r => r.success).length;
+      const failed = results.filter(r => !r.success).length;
+      
+      let message = `Successfully sent roster emails to ${successful} staff members!`;
+      let details = `Week: ${format(weekStart, 'MMM dd')} - ${format(weekEnd, 'MMM dd, yyyy')}`;
+      
+      if (failed > 0) {
+        message += ` (${failed} emails failed)`;
+        details += `\n\nFailed emails:\n${results.filter(r => !r.success).map(r => `• ${r.email}: ${r.error}`).join('\n')}`;
+      }
+      
+      if (staffWithoutEmails.length > 0) {
+        details += `\n\nStaff without email addresses (${staffWithoutEmails.length}):\n${staffWithoutEmails.map(r => `• ${r.staffName}`).join('\n')}`;
+      }
+
+      setErrorModal({
+        isOpen: true,
+        title: "Roster Sent",
+        message,
+        details
+      });
+
+    } catch (error) {
+      console.error('Error sending roster:', error);
+      setErrorModal({
+        isOpen: true,
+        title: "Send Error",
+        message: "An unexpected error occurred while sending roster emails",
+        details: error instanceof Error ? error.message : "Unknown error occurred"
+      });
+    } finally {
+      setSendingRoster(false);
+    }
+  }, [currentWeek, sendingRoster]);
+
   return (
     <>
       {/* Print-only content */}
@@ -973,6 +1078,14 @@ export function DragDropCalendar({
               >
                 <FaPrint className="w-3 h-3" />
                 Print
+              </button>
+              <button
+                onClick={handleSendRoster}
+                disabled={sendingRoster}
+                className="flex items-center gap-1 px-3 py-1 text-sm bg-purple-600 text-white hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed rounded-lg transition-colors"
+              >
+                <FaEnvelope className="w-3 h-3" />
+                {sendingRoster ? 'Sending...' : 'Send Roster'}
               </button>
               <button
                 onClick={handleAutoShift}

@@ -290,6 +290,13 @@ export default function StaffPage() {
 
         // Handle payment instructions for existing staff
         if (instructions.length > 0) {
+          // Validate that all priorities are unique
+          const priorities = instructions.map(i => i.priority);
+          const uniquePriorities = new Set(priorities);
+          if (priorities.length !== uniquePriorities.size) {
+            throw new Error("Payment instruction priorities must be unique for each staff member");
+          }
+
           // First, mark existing instructions as historical
           const { error: updateError } = await supabase.from("staff_payment_instructions")
             .update({ 
@@ -300,6 +307,7 @@ export default function StaffPage() {
             .eq("is_current", true);
           
           if (updateError) {
+            console.error("Error marking payment instructions as historical:", updateError);
             throw new Error(`Failed to update payment instructions: ${updateError.message}`);
           }
           
@@ -320,6 +328,7 @@ export default function StaffPage() {
           );
           
           if (insertError) {
+            console.error("Error inserting payment instructions:", insertError);
             throw new Error(`Failed to insert payment instructions: ${insertError.message}`);
           }
         } else {
@@ -333,6 +342,7 @@ export default function StaffPage() {
             .eq("is_current", true);
             
           if (updateError) {
+            console.error("Error marking payment instructions as historical:", updateError);
             throw new Error(`Failed to update payment instructions: ${updateError.message}`);
           }
         }
@@ -1091,7 +1101,19 @@ export default function StaffPage() {
                           </label>
                           <label className="grid gap-1 text-xs sm:text-sm md:col-span-2">
                             <span>Priority</span>
-                            <input type="number" className="h-10 rounded-lg border px-3 bg-white dark:bg-neutral-900 min-w-0" value={instrDraft.priority} onChange={(e) => setInstrDraft(d => ({ ...d, priority: parseInt(e.target.value || '1') }))} />
+                            <input 
+                              type="number" 
+                              className={`h-10 rounded-lg border px-3 bg-white dark:bg-neutral-900 min-w-0 ${
+                                instructions.map(i => i.priority).includes(instrDraft.priority) 
+                                  ? 'border-red-500 bg-red-50 dark:bg-red-900/20' 
+                                  : ''
+                              }`} 
+                              value={instrDraft.priority} 
+                              onChange={(e) => setInstrDraft(d => ({ ...d, priority: parseInt(e.target.value || '1') }))} 
+                            />
+                            {instructions.map(i => i.priority).includes(instrDraft.priority) && (
+                              <span className="text-xs text-red-600 dark:text-red-400">Priority already used</span>
+                            )}
                           </label>
                           <div className="flex items-center gap-3 md:col-span-2">
                             <label className="text-xs sm:text-sm inline-flex items-center gap-2">
@@ -1100,7 +1122,15 @@ export default function StaffPage() {
                           </div>
                           <div className="md:col-span-12">
                             <ActionButton
-                              onClick={() => setInstructions(list => [...list, { id: crypto.randomUUID(), staff_id: editing?.id || 'new', ...instrDraft } as StaffPaymentInstruction])}
+                              onClick={() => {
+                                // Check if priority already exists
+                                const existingPriorities = instructions.map(i => i.priority);
+                                if (existingPriorities.includes(instrDraft.priority)) {
+                                  alert(`Priority ${instrDraft.priority} already exists. Please choose a different priority.`);
+                                  return;
+                                }
+                                setInstructions(list => [...list, { id: crypto.randomUUID(), staff_id: editing?.id || 'new', ...instrDraft } as StaffPaymentInstruction]);
+                              }}
                               variant="primary"
                               size="lg"
                               icon={<Plus className="size-4" />}

@@ -35,6 +35,10 @@ type Product = {
   alert_threshold: number;
   purchase_price: number;
   sale_price: number;
+  units_per_box: number;
+  full_boxes: number;
+  loose_units: number;
+  total_units: number;
   category: { name: string } | null;
   supplier: { name: string } | null;
   created_at: string;
@@ -51,6 +55,10 @@ type DatabaseProduct = {
   alert_threshold?: number;
   purchase_price: number;
   sale_price: number;
+  units_per_box: number;
+  full_boxes: number;
+  loose_units: number;
+  total_units: number;
   category: { name: string }[] | null;
   supplier: { name: string }[] | null;
   created_at: string;
@@ -66,6 +74,12 @@ type InventoryMovement = {
   total_cost: number | null;
   previous_quantity: number;
   new_quantity: number;
+  boxes_added: number;
+  units_added: number;
+  previous_boxes: number;
+  previous_loose_units: number;
+  new_boxes: number;
+  new_loose_units: number;
   reason: string | null;
   reference: string | null;
   notes: string | null;
@@ -116,11 +130,20 @@ export default function EnhancedInventoryPage() {
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
   const [movementModal, setMovementModal] = useState<{ isOpen: boolean; product: Product | null; type: 'purchase' | 'consumption' | 'adjustment' | null }>({ isOpen: false, product: null, type: null });
+  const [endOfDayModal, setEndOfDayModal] = useState<{ isOpen: boolean; product: Product | null }>({ isOpen: false, product: null });
   const [movementForm, setMovementForm] = useState({
     quantity: "",
+    boxes: "",
+    units: "",
     unit_cost: "",
     reason: "",
     reference: "",
+    notes: ""
+  });
+  const [endOfDayForm, setEndOfDayForm] = useState({
+    boxes: "",
+    units: "",
+    reason: "End of day adjustment",
     notes: ""
   });
 
@@ -271,25 +294,51 @@ export default function EnhancedInventoryPage() {
       const supabase = getSupabaseClient();
       const { data: { user } } = await supabase.auth.getUser();
       
-      const quantity = parseInt(movementForm.quantity);
+      const product = movementModal.product;
+      const unitsPerBox = product.units_per_box || 1;
+      
+      let boxesToAdd = 0;
+      let unitsToAdd = 0;
+      let totalQuantityChange = 0;
+      
+      if (movementModal.type === 'purchase') {
+        // For purchases, use boxes and units inputs
+        boxesToAdd = parseInt(movementForm.boxes) || 0;
+        unitsToAdd = parseInt(movementForm.units) || 0;
+        totalQuantityChange = (boxesToAdd * unitsPerBox) + unitsToAdd;
+      } else {
+        // For consumption/adjustment, use the quantity field (legacy support)
+        const quantity = parseInt(movementForm.quantity);
+        if (movementModal.type === 'consumption') {
+          totalQuantityChange = -quantity; // Negative for consumption
+        } else {
+          totalQuantityChange = quantity; // Positive/negative for adjustment
+        }
+        
+        // Convert to boxes and units for recording
+        const absQuantity = Math.abs(totalQuantityChange);
+        boxesToAdd = Math.floor(absQuantity / unitsPerBox);
+        unitsToAdd = absQuantity % unitsPerBox;
+        
+        if (totalQuantityChange < 0) {
+          boxesToAdd = -boxesToAdd;
+          unitsToAdd = -unitsToAdd;
+        }
+      }
+      
       const unitCost = movementForm.unit_cost ? parseFloat(movementForm.unit_cost) : null;
       
-      const { data, error } = await supabase
-        .from("inventory_movements")
-        .insert({
-          product_id: movementModal.product.id,
-          movement_type: movementModal.type,
-          quantity_change: quantity,
-          unit_cost: unitCost,
-          total_cost: unitCost ? quantity * unitCost : null,
-          previous_quantity: movementModal.product.quantity_in_stock,
-          reason: movementForm.reason || null,
-          reference: movementForm.reference || null,
-          notes: movementForm.notes || null,
-          created_by: user?.id || null
-        })
-        .select()
-        .single();
+      // Use the new box-based inventory function
+      const { data, error } = await supabase.rpc('update_inventory_with_boxes', {
+        p_product_id: product.id,
+        p_boxes_to_add: boxesToAdd,
+        p_units_to_add: unitsToAdd,
+        p_movement_type: movementModal.type,
+        p_reason: movementForm.reason || null,
+        p_reference: movementForm.reference || null,
+        p_notes: movementForm.notes || null,
+        p_created_by: user?.id || null
+      });
 
       if (error) {
         console.error("Error creating movement:", error);
@@ -298,7 +347,7 @@ export default function EnhancedInventoryPage() {
       }
 
       // Reset form and close modal
-      setMovementForm({ quantity: "", unit_cost: "", reason: "", reference: "", notes: "" });
+      setMovementForm({ quantity: "", boxes: "", units: "", unit_cost: "", reason: "", reference: "", notes: "" });
       setMovementModal({ isOpen: false, product: null, type: null });
       
       // Refresh data
@@ -307,6 +356,55 @@ export default function EnhancedInventoryPage() {
     } catch (error) {
       console.error("Error:", error);
       alert("Error creating movement");
+    }
+  };
+
+  const handleEndOfDaySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!endOfDayModal.product) return;
+
+    try {
+      const supabase = getSupabaseClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      const product = endOfDayModal.product;
+      const newBoxes = parseInt(endOfDayForm.boxes) || 0;
+      const newUnits = parseInt(endOfDayForm.units) || 0;
+      
+      // Validate loose units don't exceed units per box
+      if (newUnits >= product.units_per_box) {
+        alert(`Loose units cannot be ${newUnits} or more. Maximum is ${product.units_per_box - 1} for this product.`);
+        return;
+      }
+      
+      // Use the end-of-day adjustment function
+      const { data, error } = await supabase.rpc('adjust_inventory_end_of_day', {
+        p_product_id: product.id,
+        p_new_boxes: newBoxes,
+        p_new_loose_units: newUnits,
+        p_reason: endOfDayForm.reason,
+        p_notes: endOfDayForm.notes || null,
+        p_created_by: user?.id || null
+      });
+
+      if (error) {
+        console.error("Error adjusting inventory:", error);
+        alert("Error adjusting inventory: " + error.message);
+        return;
+      }
+
+      // Reset form and close modal
+      setEndOfDayForm({ boxes: "", units: "", reason: "End of day adjustment", notes: "" });
+      setEndOfDayModal({ isOpen: false, product: null });
+      
+      // Refresh data
+      await fetchData();
+      
+      alert("Inventory adjusted successfully!");
+      
+    } catch (error) {
+      console.error("Error:", error);
+      alert("An error occurred while adjusting inventory.");
     }
   };
 
@@ -663,6 +761,17 @@ export default function EnhancedInventoryPage() {
                     Consume
                   </button>
                 </div>
+                {product.units_per_box > 1 && (
+                  <div className="mt-2">
+                    <button
+                      onClick={() => setEndOfDayModal({ isOpen: true, product })}
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                    >
+                      <FaHistory className="w-3 h-3" />
+                      End of Day Adjustment
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
               </div>
@@ -860,23 +969,67 @@ export default function EnhancedInventoryPage() {
                  movementModal.type === 'consumption' ? 'Record Consumption' : 'Adjust Stock'}
               </h3>
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                Product: {movementModal.product.name} (Current Stock: {movementModal.product.quantity_in_stock})
+                Product: {movementModal.product.name}
+                <br />
+                Current Stock: {movementModal.product.units_per_box > 1 
+                  ? `${movementModal.product.full_boxes || 0} boxes + ${movementModal.product.loose_units || 0} units = ${movementModal.product.total_units || movementModal.product.quantity_in_stock} total`
+                  : `${movementModal.product.total_units || movementModal.product.quantity_in_stock} units`
+                }
+                <br />
+                Units per Box: {movementModal.product.units_per_box || 1}
               </p>
               
               <form onSubmit={handleMovementSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Quantity {movementModal.type === 'purchase' ? 'Purchased' : movementModal.type === 'consumption' ? 'Consumed' : 'Change'}
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min="1"
-                    value={movementForm.quantity}
-                    onChange={(e) => setMovementForm({ ...movementForm, quantity: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100"
-                  />
-                </div>
+                {movementModal.type === 'purchase' && movementModal.product.units_per_box > 1 ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Boxes Purchased
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={movementForm.boxes}
+                          onChange={(e) => setMovementForm({ ...movementForm, boxes: e.target.value })}
+                          className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100"
+                          placeholder="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Loose Units
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          max={movementModal.product.units_per_box - 1}
+                          value={movementForm.units}
+                          onChange={(e) => setMovementForm({ ...movementForm, units: e.target.value })}
+                          className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100"
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                      Total: {((parseInt(movementForm.boxes) || 0) * movementModal.product.units_per_box) + (parseInt(movementForm.units) || 0)} units
+                    </div>
+                  </>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Quantity {movementModal.type === 'purchase' ? 'Purchased' : movementModal.type === 'consumption' ? 'Consumed' : 'Change'}
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min="1"
+                      value={movementForm.quantity}
+                      onChange={(e) => setMovementForm({ ...movementForm, quantity: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100"
+                    />
+                  </div>
+                )}
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -941,6 +1094,102 @@ export default function EnhancedInventoryPage() {
                     className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                   >
                     Record Movement
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* End of Day Adjustment Modal */}
+        {endOfDayModal.isOpen && endOfDayModal.product && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-neutral-900 rounded-lg p-6 w-full max-w-md">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                End of Day Inventory Adjustment
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Product: {endOfDayModal.product.name}
+                <br />
+                Current Stock: {endOfDayModal.product.full_boxes || 0} boxes + {endOfDayModal.product.loose_units || 0} units = {endOfDayModal.product.total_units || endOfDayModal.product.quantity_in_stock} total
+                <br />
+                Units per Box: {endOfDayModal.product.units_per_box || 1}
+              </p>
+              
+              <form onSubmit={handleEndOfDaySubmit} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Remaining Boxes
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      value={endOfDayForm.boxes}
+                      onChange={(e) => setEndOfDayForm({ ...endOfDayForm, boxes: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Remaining Loose Units
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      max={endOfDayModal.product.units_per_box - 1}
+                      value={endOfDayForm.units}
+                      onChange={(e) => setEndOfDayForm({ ...endOfDayForm, units: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100"
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  New Total: {((parseInt(endOfDayForm.boxes) || 0) * endOfDayModal.product.units_per_box) + (parseInt(endOfDayForm.units) || 0)} units
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Reason
+                  </label>
+                  <input
+                    type="text"
+                    value={endOfDayForm.reason}
+                    onChange={(e) => setEndOfDayForm({ ...endOfDayForm, reason: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Notes
+                  </label>
+                  <textarea
+                    value={endOfDayForm.notes}
+                    onChange={(e) => setEndOfDayForm({ ...endOfDayForm, notes: e.target.value })}
+                    rows={3}
+                    className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100"
+                    placeholder="Any additional notes about the adjustment..."
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setEndOfDayModal({ isOpen: false, product: null })}
+                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-neutral-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Adjust Inventory
                   </button>
                 </div>
               </form>

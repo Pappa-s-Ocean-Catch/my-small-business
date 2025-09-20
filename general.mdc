@@ -1,0 +1,96 @@
+# General Development Rules
+
+## Email Configuration
+
+### CRITICAL: Never Hardcode Email Addresses
+- **NEVER** hardcode email addresses in code
+- **ALWAYS** use `process.env.EMAIL_FROM!` for the `from` field in Resend emails
+- **NEVER** use fallback values like `'OperateFlow <noreply@yourdomain.com>'`
+- **ALWAYS** use the non-null assertion operator `!` to ensure the environment variable is set
+
+### Correct Email Usage
+```typescript
+// ✅ CORRECT - Always use environment variable
+const result = await resend.emails.send({
+  from: process.env.EMAIL_FROM!,
+  to: [recipientEmail],
+  subject: emailSubject,
+  html: emailHtml,
+});
+
+// ❌ WRONG - Never hardcode or use fallbacks
+const result = await resend.emails.send({
+  from: 'OperateFlow <noreply@operateflow.com>', // NEVER DO THIS
+  to: [recipientEmail],
+  subject: emailSubject,
+  html: emailHtml,
+});
+
+// ❌ WRONG - Never use fallback values
+const result = await resend.emails.send({
+  from: process.env.EMAIL_FROM || 'OperateFlow <noreply@yourdomain.com>', // NEVER DO THIS
+  to: [recipientEmail],
+  subject: emailSubject,
+  html: emailHtml,
+});
+```
+
+### Environment Variable Requirements
+- `EMAIL_FROM` must be set in environment variables
+- Format should be: `"Your App Name <noreply@yourdomain.com>"`
+- Domain must be verified in Resend dashboard
+- If `EMAIL_FROM` is not set, the application should fail fast with a clear error
+
+## TypeScript Rules
+
+### Type Safety
+- **ALWAYS** use proper TypeScript types
+- **NEVER** use `any` type unless absolutely necessary
+- **ALWAYS** define interfaces for complex objects
+- **ALWAYS** use non-null assertion `!` for required environment variables
+
+### Error Handling
+- **ALWAYS** handle errors gracefully
+- **ALWAYS** provide meaningful error messages
+- **ALWAYS** log errors for debugging
+- **NEVER** silently fail
+
+## Database Rules
+
+### Supabase RLS Policies
+- **ALWAYS** use `profiles.id = auth.uid()` NOT `profiles.user_id = auth.uid()`
+- **ALWAYS** use `public.profiles(id)` for foreign key references
+- **ALWAYS** handle database errors with proper user feedback
+
+### Migration Files
+- **ALWAYS** use current timestamp format: `YYYYMMDDHHMMSS`
+- **ALWAYS** use `date +"%Y%m%d%H%M%S"` to get current timestamp
+- **ALWAYS** ensure migration files are incremental
+
+## UI/UX Rules
+
+### Components
+- **ALWAYS** use shared components (`Modal`, `ActionButton`, `ConfirmationDialog`)
+- **ALWAYS** follow the UI/UX style guide
+- **NEVER** use emoji icons in React components
+- **ALWAYS** use icons from `react-icons`
+
+### Forms
+- **ALWAYS** use `ActionButton` for async operations
+- **ALWAYS** provide loading states
+- **ALWAYS** validate form inputs
+- **ALWAYS** show clear error messages
+
+## Security Rules
+
+### Authentication
+- **ALWAYS** verify user authentication
+- **ALWAYS** check admin permissions where required
+- **ALWAYS** use proper webhook signature verification
+- **ALWAYS** handle authentication errors gracefully
+
+### Data Protection
+- **ALWAYS** use RLS policies for data access
+- **ALWAYS** validate user input
+- **ALWAYS** sanitize data before database operations
+- **NEVER** expose sensitive data in client-side code

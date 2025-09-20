@@ -48,7 +48,7 @@ export async function sendPasswordResetEmail(email: string) {
 
     // Send the email using Resend
     const { data: emailData, error: emailError } = await resend.emails.send({
-      from: "OperateFlow <noreply@operateflow.com>",
+      from: process.env.EMAIL_FROM!,
       to: [email],
       subject: "Reset Your OperateFlow Password",
       html: emailHtml,
