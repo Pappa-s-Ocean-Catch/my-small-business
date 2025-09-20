@@ -5,6 +5,7 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 import { AdminGuard } from "@/components/AdminGuard";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
 import { Loading } from "@/components/Loading";
+import Card from "@/components/Card";
 import { Plus, Pencil, Trash2, X, Clock, Send, Calendar } from "lucide-react";
 import { toast } from 'react-toastify';
 
@@ -411,7 +412,7 @@ export default function StaffPage() {
           </div>
         ) : (
           getFilteredStaff().map((s) => (
-            <div key={s.id} className="rounded-2xl border p-6 bg-white/60 dark:bg-black/20">
+            <Card key={s.id} padding="lg">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="flex items-start sm:items-center gap-4">
                   <div>
@@ -511,7 +512,7 @@ export default function StaffPage() {
                 </div>
               )}
 
-            </div>
+            </Card>
           ))
         )}
       </div>

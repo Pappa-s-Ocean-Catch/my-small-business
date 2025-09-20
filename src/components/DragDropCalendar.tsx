@@ -22,10 +22,14 @@ import {
   CSS 
 } from "@dnd-kit/utilities";
 import { format, addDays, startOfWeek, endOfWeek, isToday, isSameDay } from "date-fns";
-import { FaEdit, FaTrash, FaRedo, FaChevronLeft, FaChevronRight, FaHome, FaChartBar, FaPlus } from "react-icons/fa";
+import { FaEdit, FaTrash, FaRedo, FaChevronLeft, FaChevronRight, FaHome, FaPrint, FaPlus, FaMagic } from "react-icons/fa";
+import { X } from "lucide-react";
 import { CalendarToolbar } from "@/components/CalendarToolbar";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
+import ErrorModal from "@/components/ErrorModal";
+import PrintSchedule from "@/components/PrintSchedule";
 import { getDefaultSettings } from "@/lib/settings";
+import { getSupabaseClient } from "@/lib/supabase/client";
 import Link from "next/link";
 
 type Staff = {
@@ -53,6 +57,15 @@ type Section = {
 };
 type Shift = { id: string; staff_id: string | null; start_time: string; end_time: string; notes: string | null; non_billable_hours?: number; section_id?: string | null };
 type Availability = { id: string; staff_id: string; day_of_week: number; start_time: string; end_time: string };
+
+type AutoShiftSummary = {
+  totalShifts: number;
+  shiftsToCopy: number;
+  skippedShifts: number;
+  staffSummary: Array<{ name: string; hours: string }>;
+  totalHours: string;
+  shiftsToCopyData: Shift[];
+};
 
 type StaffHoliday = {
   id: string;
@@ -261,6 +274,8 @@ export function DragDropCalendar({
   const [editForm, setEditForm] = useState<{ start: string; end: string; notes: string; nonbill: string; section_id: string }>({ start: "", end: "", notes: "", nonbill: "0", section_id: "" });
   const [deleteConfirm, setDeleteConfirm] = useState<{ shift: Shift | null; isOpen: boolean }>({ shift: null, isOpen: false });
   const [assignmentModal, setAssignmentModal] = useState<{ shift: Shift | null; isOpen: boolean }>({ shift: null, isOpen: false });
+  const [autoShiftConfirm, setAutoShiftConfirm] = useState<{ isOpen: boolean; summary: AutoShiftSummary | null }>({ isOpen: false, summary: null });
+  const [errorModal, setErrorModal] = useState<{ isOpen: boolean; title: string; message: string; details?: string }>({ isOpen: false, title: "", message: "" });
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const sensors = useSensors(
@@ -556,10 +571,226 @@ export function DragDropCalendar({
     }
   }, [editingShift, onShiftStaffUpdate]);
 
+  const handlePrint = useCallback(() => {
+    window.print();
+  }, []);
+
+  const handleAutoShift = useCallback(async () => {
+    try {
+      // Get previous week's data
+      const previousWeek = addDays(currentWeek, -7);
+      const startOfPrevWeek = startOfWeek(previousWeek, { weekStartsOn: 1 });
+      const endOfPrevWeek = endOfWeek(previousWeek, { weekStartsOn: 1 });
+      
+      // Fetch previous week's shifts
+      const supabase = getSupabaseClient();
+      const { data: prevShifts, error } = await supabase
+        .from("shifts")
+        .select("*")
+        .gte("start_time", startOfPrevWeek.toISOString())
+        .lte("start_time", endOfPrevWeek.toISOString())
+        .not("staff_id", "is", null); // Only get assigned shifts
+
+      if (error) {
+        console.error("Error fetching previous week shifts:", error);
+        return;
+      }
+
+      // Filter to only assigned shifts from previous week
+      const assignedPrevShifts = (prevShifts || []).filter(shift => shift.staff_id !== null);
+      
+      if (assignedPrevShifts.length === 0) {
+        setErrorModal({
+          isOpen: true,
+          title: "No Shifts Found",
+          message: "No shifts found in the previous week to copy. Please ensure there are assigned shifts in the previous week before using Auto Shift."
+        });
+        return;
+      }
+
+      // Calculate summary
+      const staffSummary = new Map();
+      let totalHours = 0;
+
+      assignedPrevShifts.forEach(shift => {
+        const staffMember = staff.find(s => s.id === shift.staff_id);
+        if (staffMember) {
+          const start = new Date(shift.start_time);
+          const end = new Date(shift.end_time);
+          const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+          totalHours += hours;
+
+          if (staffSummary.has(staffMember.name)) {
+            staffSummary.set(staffMember.name, staffSummary.get(staffMember.name) + hours);
+          } else {
+            staffSummary.set(staffMember.name, hours);
+          }
+        }
+      });
+
+      // Check for existing shifts in current week to skip
+      const currentWeekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
+      const currentWeekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
+      
+      const { data: currentShifts } = await supabase
+        .from("shifts")
+        .select("*")
+        .gte("start_time", currentWeekStart.toISOString())
+        .lte("start_time", currentWeekEnd.toISOString());
+
+      const existingShifts = new Set();
+      (currentShifts || []).forEach(shift => {
+        const dayKey = shift.start_time.slice(0, 10);
+        const sectionKey = shift.section_id || 'no-section';
+        existingShifts.add(`${dayKey}-${sectionKey}`);
+      });
+
+      // Filter shifts that don't conflict with existing ones
+      const shiftsToCopy = assignedPrevShifts.filter(shift => {
+        const dayKey = shift.start_time.slice(0, 10);
+        const sectionKey = shift.section_id || 'no-section';
+        const newDayKey = addDays(new Date(dayKey), 7).toISOString().slice(0, 10);
+        return !existingShifts.has(`${newDayKey}-${sectionKey}`);
+      });
+
+      const summary = {
+        totalShifts: assignedPrevShifts.length,
+        shiftsToCopy: shiftsToCopy.length,
+        skippedShifts: assignedPrevShifts.length - shiftsToCopy.length,
+        staffSummary: Array.from(staffSummary.entries()).map(([name, hours]) => ({ name, hours: hours.toFixed(1) })),
+        totalHours: totalHours.toFixed(1),
+        shiftsToCopyData: shiftsToCopy
+      };
+
+      setAutoShiftConfirm({ isOpen: true, summary });
+    } catch (error) {
+      console.error("Error in handleAutoShift:", error);
+      setErrorModal({
+        isOpen: true,
+        title: "Auto Shift Error",
+        message: "An error occurred while preparing the auto shift. Please try again.",
+        details: error instanceof Error ? error.message : "Unknown error occurred"
+      });
+    }
+  }, [currentWeek, staff]);
+
+  const confirmAutoShift = useCallback(async () => {
+    if (!autoShiftConfirm.summary) return;
+
+    try {
+      const supabase = getSupabaseClient();
+      const shiftsToCreate = autoShiftConfirm.summary.shiftsToCopyData.map((shift: Shift) => {
+        const originalStartTime = new Date(shift.start_time);
+        const originalEndTime = new Date(shift.end_time);
+        
+        // Calculate the new date (7 days later)
+        const newDate = addDays(originalStartTime, 7);
+        
+        // Create new start time with the same time but new date
+        const newStartTime = new Date(newDate);
+        newStartTime.setHours(originalStartTime.getHours(), originalStartTime.getMinutes(), originalStartTime.getSeconds());
+        
+        // Create new end time with the same time but new date
+        const newEndTime = new Date(newDate);
+        newEndTime.setHours(originalEndTime.getHours(), originalEndTime.getMinutes(), originalEndTime.getSeconds());
+        
+        // Validate that end time is after start time
+        if (newEndTime <= newStartTime) {
+          console.error("Invalid shift time: end time must be after start time", {
+            original: { start: shift.start_time, end: shift.end_time },
+            new: { start: newStartTime.toISOString(), end: newEndTime.toISOString() }
+          });
+          return null; // Skip this shift
+        }
+
+        return {
+          staff_id: shift.staff_id,
+          start_time: newStartTime.toISOString(),
+          end_time: newEndTime.toISOString(),
+          notes: shift.notes,
+          non_billable_hours: shift.non_billable_hours,
+          section_id: shift.section_id
+        };
+      }).filter(Boolean); // Remove any null entries
+
+      // Check if we have any valid shifts to create
+      if (shiftsToCreate.length === 0) {
+        setErrorModal({
+          isOpen: true,
+          title: "No Valid Shifts",
+          message: "No valid shifts could be copied. This may be due to invalid time data in the previous week's shifts.",
+          details: "All shifts were filtered out due to time constraint violations."
+        });
+        return;
+      }
+
+      const { error } = await supabase
+        .from("shifts")
+        .insert(shiftsToCreate);
+
+      if (error) {
+        console.error("Error creating shifts:", error);
+        setErrorModal({
+          isOpen: true,
+          title: "Copy Shifts Error",
+          message: "An error occurred while copying shifts. Please try again.",
+          details: error.message
+        });
+        return;
+      }
+
+      // Close dialog and refresh data
+      setAutoShiftConfirm({ isOpen: false, summary: null });
+      
+      // Show success message
+      const originalCount = autoShiftConfirm.summary.shiftsToCopy;
+      const actualCount = shiftsToCreate.length;
+      const skippedCount = originalCount - actualCount;
+      
+      let message = `Successfully copied ${actualCount} shifts from the previous week!`;
+      let details = "The calendar will refresh to show the new shifts.";
+      
+      if (skippedCount > 0) {
+        message += ` (${skippedCount} shifts were skipped due to invalid time data)`;
+        details += ` ${skippedCount} shifts had invalid time constraints and were not copied.`;
+      }
+      
+      setErrorModal({
+        isOpen: true,
+        title: "Success",
+        message,
+        details
+      });
+      
+      // Refresh the calendar data after a short delay
+      setTimeout(() => {
+        window.location.reload(); // Simple refresh for now
+      }, 2000);
+    } catch (error) {
+      console.error("Error in confirmAutoShift:", error);
+      setErrorModal({
+        isOpen: true,
+        title: "Copy Shifts Error",
+        message: "An error occurred while copying shifts. Please try again.",
+        details: error instanceof Error ? error.message : "Unknown error occurred"
+      });
+    }
+  }, [autoShiftConfirm.summary]);
+
   return (
-    <div className="p-4 w-full">
+    <>
+      {/* Print-only content */}
+      <PrintSchedule 
+        shifts={shifts}
+        staff={staff}
+        sections={sections}
+        currentWeek={currentWeek}
+      />
+
+      {/* Main calendar content */}
+      <div className="p-4 w-full print-hide">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3 calendar-toolbar">
         <div>
           <h1 className="text-xl font-bold text-gray-900 dark:text-white">
             Weekly Schedule ({format(startOfThisWeek, 'dd-MM-yyyy')} - {format(endOfWeek(startOfThisWeek, { weekStartsOn: 1 }), 'dd-MM-yyyy')})
@@ -591,13 +822,22 @@ export function DragDropCalendar({
             <FaChevronRight className="w-3 h-3" />
           </button>
           {isAdmin && (
-            <Link
-              href="/reports"
-              className="flex items-center gap-1 px-3 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors"
-            >
-              <FaChartBar className="w-3 h-3" />
-              Reports
-            </Link>
+            <>
+              <button
+                onClick={handlePrint}
+                className="flex items-center gap-1 px-3 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors print-button"
+              >
+                <FaPrint className="w-3 h-3" />
+                Print
+              </button>
+              <button
+                onClick={handleAutoShift}
+                className="flex items-center gap-1 px-3 py-1 text-sm bg-green-600 text-white hover:bg-green-700 rounded-lg transition-colors"
+              >
+                <FaMagic className="w-3 h-3" />
+                Auto Shift
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -855,6 +1095,98 @@ export function DragDropCalendar({
         cancelText="Cancel"
         variant="danger"
       />
-    </div>
+
+      {/* Auto Shift Confirmation Dialog */}
+      {autoShiftConfirm.isOpen && autoShiftConfirm.summary && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm grid place-items-center p-4 z-50">
+          <div className="w-full max-w-2xl bg-white dark:bg-neutral-950 rounded-2xl shadow-2xl p-0 max-h-[85vh] overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-neutral-800">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Auto Shift - Copy from Previous Week</h2>
+              <button
+                type="button"
+                onClick={() => setAutoShiftConfirm({ isOpen: false, summary: null })}
+                className="h-8 w-8 rounded-lg inline-grid place-items-center hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
+              >
+                <X className="size-4 text-gray-500 dark:text-gray-400" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="max-h-[calc(85vh-80px)] overflow-y-auto overflow-x-hidden p-6">
+              <div className="space-y-4">
+                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                  <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">Summary</h3>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-blue-700 dark:text-blue-300">Total shifts found:</span>
+                      <span className="ml-2 font-medium">{autoShiftConfirm.summary.totalShifts}</span>
+                    </div>
+                    <div>
+                      <span className="text-blue-700 dark:text-blue-300">Shifts to copy:</span>
+                      <span className="ml-2 font-medium">{autoShiftConfirm.summary.shiftsToCopy}</span>
+                    </div>
+                    <div>
+                      <span className="text-blue-700 dark:text-blue-300">Shifts skipped:</span>
+                      <span className="ml-2 font-medium">{autoShiftConfirm.summary.skippedShifts}</span>
+                    </div>
+                    <div>
+                      <span className="text-blue-700 dark:text-blue-300">Total hours:</span>
+                      <span className="ml-2 font-medium">{autoShiftConfirm.summary.totalHours}h</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Staff Hours Breakdown</h3>
+                  <div className="space-y-2">
+                    {autoShiftConfirm.summary.staffSummary.map((staff: { name: string; hours: string }, index: number) => (
+                      <div key={index} className="flex justify-between items-center p-2 bg-gray-50 dark:bg-neutral-800 rounded">
+                        <span className="text-gray-900 dark:text-gray-100">{staff.name}</span>
+                        <span className="font-medium text-gray-700 dark:text-gray-300">{staff.hours}h</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {autoShiftConfirm.summary.skippedShifts > 0 && (
+                  <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg">
+                    <p className="text-yellow-800 dark:text-yellow-200 text-sm">
+                      <strong>Note:</strong> {autoShiftConfirm.summary.skippedShifts} shifts were skipped because they conflict with existing shifts in the current week.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-neutral-800 bg-gray-50/50 dark:bg-neutral-900/50">
+              <button
+                onClick={() => setAutoShiftConfirm({ isOpen: false, summary: null })}
+                className="h-10 px-4 rounded-lg border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmAutoShift}
+                className="h-10 px-4 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors"
+              >
+                Copy Shifts
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error Modal */}
+      <ErrorModal
+        isOpen={errorModal.isOpen}
+        onClose={() => setErrorModal({ isOpen: false, title: "", message: "" })}
+        title={errorModal.title}
+        message={errorModal.message}
+        details={errorModal.details}
+      />
+      </div>
+    </>
   );
 }

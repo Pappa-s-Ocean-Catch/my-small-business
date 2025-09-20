@@ -9,6 +9,7 @@ interface ModalProps {
   footer?: ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
+  bodyClassName?: string;
 }
 
 export default function Modal({ 
@@ -18,7 +19,8 @@ export default function Modal({
   children, 
   footer,
   size = 'lg',
-  className = ''
+  className = '',
+  bodyClassName = ''
 }: ModalProps) {
   if (!isOpen) return null;
 
@@ -48,7 +50,7 @@ export default function Modal({
         </div>
         
         {/* Modal Body */}
-        <div className="p-6 sm:p-8 max-h-[calc(85vh-80px)] overflow-y-auto overflow-x-hidden">
+        <div className={`max-h-[calc(85vh-80px)] overflow-y-auto overflow-x-hidden ${bodyClassName}`}>
           {children}
         </div>
         

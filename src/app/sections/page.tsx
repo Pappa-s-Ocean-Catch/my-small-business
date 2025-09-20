@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { AdminGuard } from '@/components/AdminGuard';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
+import Modal from '@/components/Modal';
+import Card from '@/components/Card';
 import { FaPlus, FaEdit, FaTrash, FaPalette } from 'react-icons/fa';
 import { getSupabaseClient } from '@/lib/supabase/client';
 
@@ -178,12 +180,14 @@ export default function SectionsPage() {
 
         <div className="grid gap-4">
           {sections.map((section) => (
-            <div
+            <Card
               key={section.id}
-              className={`p-4 rounded-lg border transition-all ${
+              variant={section.active ? "elevated" : "outlined"}
+              padding="md"
+              className={`transition-all ${
                 section.active
-                  ? 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
-                  : 'bg-gray-50 dark:bg-gray-900 border-gray-100 dark:border-gray-800 opacity-60'
+                  ? ''
+                  : 'opacity-60'
               }`}
             >
               <div className="flex items-center justify-between">
@@ -240,7 +244,7 @@ export default function SectionsPage() {
                   </button>
                 </div>
               </div>
-            </div>
+            </Card>
           ))}
         </div>
 
@@ -267,92 +271,97 @@ export default function SectionsPage() {
         )}
 
         {/* Add/Edit Form Modal */}
-        {showForm && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-2xl max-w-md w-full p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                {editingSection ? 'Edit Section' : 'Add Section'}
-              </h3>
-              <form onSubmit={submit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Section Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={form.name}
-                    onChange={(e) => setForm(prev => ({ ...prev, name: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="e.g., Fry, Cashier, Grill"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Description
-                  </label>
-                  <textarea
-                    value={form.description}
-                    onChange={(e) => setForm(prev => ({ ...prev, description: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Brief description of this section's responsibilities"
-                    rows={3}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Color
-                  </label>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="color"
-                      value={form.color}
-                      onChange={(e) => setForm(prev => ({ ...prev, color: e.target.value }))}
-                      className="w-12 h-10 border border-gray-300 dark:border-gray-600 rounded cursor-pointer"
-                    />
-                    <input
-                      type="text"
-                      value={form.color}
-                      onChange={(e) => setForm(prev => ({ ...prev, color: e.target.value }))}
-                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="#3B82F6"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Sort Order
-                  </label>
-                  <input
-                    type="number"
-                    value={form.sort_order}
-                    onChange={(e) => setForm(prev => ({ ...prev, sort_order: parseInt(e.target.value) || 0 }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="0"
-                  />
-                </div>
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="submit"
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    {editingSection ? 'Update' : 'Create'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowForm(false);
-                      resetForm();
-                    }}
-                    className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
+        <Modal
+          isOpen={showForm}
+          onClose={() => {
+            setShowForm(false);
+            resetForm();
+          }}
+          title={editingSection ? 'Edit Section' : 'Add Section'}
+          size="md"
+          bodyClassName="px-6 sm:px-8 pt-6 sm:pt-8"
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowForm(false);
+                  resetForm();
+                }}
+                className="h-10 px-4 rounded-lg border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="section-form"
+                className="h-10 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+              >
+                {editingSection ? 'Update' : 'Create'}
+              </button>
+            </>
+          }
+        >
+          <form id="section-form" onSubmit={submit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Section Name *
+              </label>
+              <input
+                type="text"
+                value={form.name}
+                onChange={(e) => setForm(prev => ({ ...prev, name: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="e.g., Fry, Cashier, Grill"
+                required
+              />
             </div>
-          </div>
-        )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Description
+              </label>
+              <textarea
+                value={form.description}
+                onChange={(e) => setForm(prev => ({ ...prev, description: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Brief description of this section's responsibilities"
+                rows={3}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Color
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={form.color}
+                  onChange={(e) => setForm(prev => ({ ...prev, color: e.target.value }))}
+                  className="w-12 h-10 border border-gray-300 dark:border-gray-600 rounded cursor-pointer"
+                />
+                <input
+                  type="text"
+                  value={form.color}
+                  onChange={(e) => setForm(prev => ({ ...prev, color: e.target.value }))}
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="#3B82F6"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Sort Order
+              </label>
+              <input
+                type="number"
+                value={form.sort_order}
+                onChange={(e) => setForm(prev => ({ ...prev, sort_order: parseInt(e.target.value) || 0 }))}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="0"
+              />
+            </div>
+          </form>
+        </Modal>
 
         {/* Delete Confirmation Dialog */}
         <ConfirmationDialog

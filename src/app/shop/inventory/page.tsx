@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { ensureProfile } from "@/app/actions/profile";
 import { AdminGuard } from "@/components/AdminGuard";
+import Modal from "@/components/Modal";
+import Card from "@/components/Card";
 import { FaWarehouse, FaArrowUp, FaArrowDown, FaHistory, FaSearch, FaFilter, FaFileExcel } from "react-icons/fa";
 import * as XLSX from "xlsx";
 import { toast } from 'react-toastify';
@@ -329,7 +331,7 @@ export default function InventoryPage() {
         </div>
 
         {/* Search and Filters */}
-        <div className="mb-6 p-4 bg-white dark:bg-neutral-900 rounded-lg border">
+        <Card variant="elevated" padding="md" className="mb-6">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
               <div className="relative">
@@ -356,11 +358,11 @@ export default function InventoryPage() {
               </select>
             )}
           </div>
-        </div>
+        </Card>
 
         {/* Current Stock Tab */}
         {activeTab === 'current' && (
-          <div className="bg-white dark:bg-neutral-900 rounded-lg border overflow-hidden">
+          <Card variant="elevated" className="overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 dark:bg-neutral-800">
@@ -419,7 +421,7 @@ export default function InventoryPage() {
                 </tbody>
               </table>
             </div>
-          </div>
+          </Card>
         )}
 
         {/* Stock Movements Tab */}
@@ -435,7 +437,7 @@ export default function InventoryPage() {
               </div>
             ) : (
               filteredMovements.map((movement) => (
-                <div key={movement.id} className="bg-white dark:bg-neutral-900 rounded-lg border p-4">
+                <Card key={movement.id} variant="elevated" padding="md">
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-3">
                       <div className="flex-shrink-0 mt-1">
@@ -479,22 +481,45 @@ export default function InventoryPage() {
                       </div>
                     </div>
                   </div>
-                </div>
+                </Card>
               ))
             )}
           </div>
         )}
 
         {/* Stock Adjustment Modal */}
-        {adjustmentModal.isOpen && adjustmentModal.product && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm grid place-items-center p-4 z-50" onClick={() => setAdjustmentModal({ product: null, isOpen: false })}>
-            <div className="w-full max-w-md bg-white dark:bg-neutral-950 rounded-2xl border shadow-xl p-6" onClick={(e) => e.stopPropagation()}>
-              <h2 className="text-lg font-semibold mb-4">Adjust Stock</h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        <Modal
+          isOpen={adjustmentModal.isOpen && !!adjustmentModal.product}
+          onClose={() => setAdjustmentModal({ product: null, isOpen: false })}
+          title="Adjust Stock"
+          size="md"
+          bodyClassName="px-6 sm:px-8 pt-6 sm:pt-8"
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => setAdjustmentModal({ product: null, isOpen: false })}
+                className="h-10 px-4 rounded-lg border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="stock-adjustment-form"
+                className="h-10 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+              >
+                Update Stock
+              </button>
+            </>
+          }
+        >
+          {adjustmentModal.product && (
+            <>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
                 Adjusting stock for: <strong>{adjustmentModal.product.name}</strong>
               </p>
               
-              <form onSubmit={saveStockAdjustment} className="grid gap-4">
+              <form id="stock-adjustment-form" onSubmit={saveStockAdjustment} className="grid gap-4">
                 <label className="grid gap-2">
                   <span className="text-sm text-gray-700 dark:text-gray-300">New Quantity *</span>
                   <input
@@ -529,26 +554,10 @@ export default function InventoryPage() {
                     rows={3}
                   />
                 </label>
-
-                <div className="flex justify-end gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setAdjustmentModal({ product: null, isOpen: false })}
-                    className="h-10 px-4 rounded-xl border"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="h-10 px-4 rounded-xl bg-blue-600 text-white hover:bg-blue-700"
-                  >
-                    Update Stock
-                  </button>
-                </div>
               </form>
-            </div>
-          </div>
-        )}
+            </>
+          )}
+        </Modal>
       </div>
     </AdminGuard>
   );

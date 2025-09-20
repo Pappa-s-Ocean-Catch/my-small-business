@@ -5,6 +5,8 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 import { ensureProfile } from "@/app/actions/profile";
 import { AdminGuard } from "@/components/AdminGuard";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
+import Modal from "@/components/Modal";
+import Card from "@/components/Card";
 import { FaPlus, FaEdit, FaTrash, FaBox, FaExclamationTriangle, FaSearch, FaFilter, FaFileExcel, FaTh, FaThLarge } from "react-icons/fa";
 import * as XLSX from "xlsx";
 import { toast } from 'react-toastify';
@@ -390,7 +392,7 @@ export default function ProductsPage() {
         {viewMode === 'card' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredProducts.map((product) => (
-              <div key={product.id} className="bg-white dark:bg-neutral-900 rounded-lg border p-4">
+              <Card key={product.id} variant="elevated" padding="md" hover>
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1">
                     <h3 className="font-medium text-gray-900 dark:text-white truncate">{product.name}</h3>
@@ -461,7 +463,7 @@ export default function ProductsPage() {
                     Delete
                   </button>
                 </div>
-              </div>
+              </Card>
             ))}
           </div>
         ) : (
@@ -583,177 +585,179 @@ export default function ProductsPage() {
         )}
 
         {/* Product Form Modal */}
-        {formOpen && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm grid place-items-center p-4 z-50" onClick={() => setFormOpen(false)}>
-            <div className="w-full max-w-2xl bg-white dark:bg-neutral-950 rounded-2xl border shadow-xl p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-              <h2 className="text-lg font-semibold mb-4">{editing ? "Edit Product" : "Add Product"}</h2>
-              
-              <form onSubmit={saveProduct} className="grid gap-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <label className="grid gap-2">
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Product Name *</span>
-                    <input
-                      type="text"
-                      required
-                      className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
-                      value={form.name}
-                      onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}
-                    />
-                  </label>
-                  <label className="grid gap-2">
-                    <span className="text-sm text-gray-700 dark:text-gray-300">SKU/Code *</span>
-                    <input
-                      type="text"
-                      required
-                      className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
-                      value={form.sku}
-                      onChange={(e) => setForm(f => ({ ...f, sku: e.target.value }))}
-                    />
-                  </label>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <label className="grid gap-2">
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Category</span>
-                    <select
-                      className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
-                      value={form.category_id}
-                      onChange={(e) => setForm(f => ({ ...f, category_id: e.target.value }))}
-                    >
-                      <option value="">Select Category</option>
-                      {categories.map(cat => (
-                        <option key={cat.id} value={cat.id}>{cat.name}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="grid gap-2">
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Supplier</span>
-                    <select
-                      className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
-                      value={form.supplier_id}
-                      onChange={(e) => setForm(f => ({ ...f, supplier_id: e.target.value }))}
-                    >
-                      <option value="">Select Supplier</option>
-                      {suppliers.map(supplier => (
-                        <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <label className="grid gap-2">
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Purchase Price *</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      required
-                      className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
-                      value={form.purchase_price}
-                      onChange={(e) => setForm(f => ({ ...f, purchase_price: e.target.value }))}
-                    />
-                  </label>
-                  <label className="grid gap-2">
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Sale Price *</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      required
-                      className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
-                      value={form.sale_price}
-                      onChange={(e) => setForm(f => ({ ...f, sale_price: e.target.value }))}
-                    />
-                  </label>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <label className="grid gap-2">
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Quantity in Stock *</span>
-                    <input
-                      type="number"
-                      required
-                      className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
-                      value={form.quantity_in_stock}
-                      onChange={(e) => setForm(f => ({ ...f, quantity_in_stock: e.target.value }))}
-                    />
-                  </label>
-                  <label className="grid gap-2">
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Reorder Level *</span>
-                    <input
-                      type="number"
-                      required
-                      className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
-                      value={form.reorder_level}
-                      onChange={(e) => setForm(f => ({ ...f, reorder_level: e.target.value }))}
-                    />
-                  </label>
-                  <label className="grid gap-2">
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Warning Threshold *</span>
-                    <input
-                      type="number"
-                      required
-                      className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
-                      value={form.warning_threshold}
-                      onChange={(e) => setForm(f => ({ ...f, warning_threshold: e.target.value }))}
-                      placeholder="Stock level for warning alert"
-                    />
-                  </label>
-                  <label className="grid gap-2">
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Alert Threshold *</span>
-                    <input
-                      type="number"
-                      required
-                      className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
-                      value={form.alert_threshold}
-                      onChange={(e) => setForm(f => ({ ...f, alert_threshold: e.target.value }))}
-                      placeholder="Stock level for critical alert"
-                    />
-                  </label>
-                </div>
-
-                <label className="grid gap-2">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">Description</span>
-                  <textarea
-                    className="min-h-24 rounded-xl border px-3 py-2 bg-white/80 dark:bg-neutral-900 resize-y"
-                    value={form.description}
-                    onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
-                    placeholder="Product description..."
-                    rows={3}
-                  />
-                </label>
-
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="is_active"
-                    checked={form.is_active}
-                    onChange={(e) => setForm(f => ({ ...f, is_active: e.target.checked }))}
-                    className="rounded"
-                  />
-                  <label htmlFor="is_active" className="text-sm text-gray-700 dark:text-gray-300">
-                    Active product
-                  </label>
-                </div>
-
-                <div className="flex justify-end gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setFormOpen(false)}
-                    className="h-10 px-4 rounded-xl border"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="h-10 px-4 rounded-xl bg-blue-600 text-white hover:bg-blue-700"
-                  >
-                    {editing ? "Update" : "Create"} Product
-                  </button>
-                </div>
-              </form>
+        <Modal
+          isOpen={formOpen}
+          onClose={() => setFormOpen(false)}
+          title={editing ? "Edit Product" : "Add Product"}
+          size="lg"
+          bodyClassName="px-6 sm:px-8 pt-6 sm:pt-8"
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => setFormOpen(false)}
+                className="h-10 px-4 rounded-lg border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="product-form"
+                className="h-10 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+              >
+                {editing ? "Update" : "Create"} Product
+              </button>
+            </>
+          }
+        >
+          <form id="product-form" onSubmit={saveProduct} className="grid gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <label className="grid gap-2">
+                <span className="text-sm text-gray-700 dark:text-gray-300">Product Name *</span>
+                <input
+                  type="text"
+                  required
+                  className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
+                  value={form.name}
+                  onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm text-gray-700 dark:text-gray-300">SKU/Code *</span>
+                <input
+                  type="text"
+                  required
+                  className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
+                  value={form.sku}
+                  onChange={(e) => setForm(f => ({ ...f, sku: e.target.value }))}
+                />
+              </label>
             </div>
-          </div>
-        )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <label className="grid gap-2">
+                <span className="text-sm text-gray-700 dark:text-gray-300">Category</span>
+                <select
+                  className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
+                  value={form.category_id}
+                  onChange={(e) => setForm(f => ({ ...f, category_id: e.target.value }))}
+                >
+                  <option value="">Select Category</option>
+                  {categories.map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm text-gray-700 dark:text-gray-300">Supplier</span>
+                <select
+                  className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
+                  value={form.supplier_id}
+                  onChange={(e) => setForm(f => ({ ...f, supplier_id: e.target.value }))}
+                >
+                  <option value="">Select Supplier</option>
+                  {suppliers.map(supplier => (
+                    <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <label className="grid gap-2">
+                <span className="text-sm text-gray-700 dark:text-gray-300">Purchase Price *</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
+                  value={form.purchase_price}
+                  onChange={(e) => setForm(f => ({ ...f, purchase_price: e.target.value }))}
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm text-gray-700 dark:text-gray-300">Sale Price *</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
+                  value={form.sale_price}
+                  onChange={(e) => setForm(f => ({ ...f, sale_price: e.target.value }))}
+                />
+              </label>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <label className="grid gap-2">
+                <span className="text-sm text-gray-700 dark:text-gray-300">Quantity in Stock *</span>
+                <input
+                  type="number"
+                  required
+                  className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
+                  value={form.quantity_in_stock}
+                  onChange={(e) => setForm(f => ({ ...f, quantity_in_stock: e.target.value }))}
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm text-gray-700 dark:text-gray-300">Reorder Level *</span>
+                <input
+                  type="number"
+                  required
+                  className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
+                  value={form.reorder_level}
+                  onChange={(e) => setForm(f => ({ ...f, reorder_level: e.target.value }))}
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm text-gray-700 dark:text-gray-300">Warning Threshold *</span>
+                <input
+                  type="number"
+                  required
+                  className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
+                  value={form.warning_threshold}
+                  onChange={(e) => setForm(f => ({ ...f, warning_threshold: e.target.value }))}
+                  placeholder="Stock level for warning alert"
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm text-gray-700 dark:text-gray-300">Alert Threshold *</span>
+                <input
+                  type="number"
+                  required
+                  className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
+                  value={form.alert_threshold}
+                  onChange={(e) => setForm(f => ({ ...f, alert_threshold: e.target.value }))}
+                  placeholder="Stock level for critical alert"
+                />
+              </label>
+            </div>
+
+            <label className="grid gap-2">
+              <span className="text-sm text-gray-700 dark:text-gray-300">Description</span>
+              <textarea
+                className="min-h-24 rounded-xl border px-3 py-2 bg-white/80 dark:bg-neutral-900 resize-y"
+                value={form.description}
+                onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Product description..."
+                rows={3}
+              />
+            </label>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="is_active"
+                checked={form.is_active}
+                onChange={(e) => setForm(f => ({ ...f, is_active: e.target.checked }))}
+                className="rounded"
+              />
+              <label htmlFor="is_active" className="text-sm text-gray-700 dark:text-gray-300">
+                Active product
+              </label>
+            </div>
+          </form>
+        </Modal>
 
         {/* Delete Confirmation Dialog */}
         <ConfirmationDialog

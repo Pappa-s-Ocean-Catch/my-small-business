@@ -53,3 +53,155 @@ input[type="month"]::-webkit-calendar-picker-indicator {
     opacity: 1;
   }
 }
+
+/* Print Styles for Calendar */
+@media print {
+  /* Set page to landscape mode */
+  @page {
+    size: A4 landscape;
+    margin: 0.5in;
+  }
+
+  /* Hide navigation and UI elements */
+  nav,
+  .navigation,
+  .navbar,
+  header,
+  .header,
+  .menu,
+  .sidebar,
+  .toolbar,
+  .controls,
+  button:not(.print-keep),
+  .print-hide {
+    display: none !important;
+  }
+
+  /* Hide specific calendar UI elements */
+  .calendar-toolbar,
+  .calendar-controls,
+  .calendar-header,
+  .drag-drop-controls,
+  .finance-section,
+  .print-button,
+  .edit-buttons,
+  .add-shift-button,
+  .print-hide {
+    display: none !important;
+  }
+
+  /* Show print content only when printing */
+  .print-only {
+    display: block !important;
+  }
+
+  /* Calendar print layout */
+  .calendar-print-container {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    color: black !important;
+  }
+
+  /* Print title */
+  .print-title {
+    text-align: center;
+    font-size: 24px;
+    font-weight: bold;
+    margin-bottom: 20px;
+    color: black !important;
+  }
+
+  /* Print date range */
+  .print-date-range {
+    text-align: center;
+    font-size: 16px;
+    margin-bottom: 30px;
+    color: black !important;
+  }
+
+  /* Shift table grid for print */
+  .print-shift-grid {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+  }
+
+  .print-shift-grid th,
+  .print-shift-grid td {
+    border: 1px solid #000;
+    padding: 8px;
+    text-align: center;
+    font-size: 12px;
+    color: black !important;
+    background: white !important;
+  }
+
+  .print-shift-grid th {
+    background-color: #f0f0f0 !important;
+    font-weight: bold;
+  }
+
+  .print-shift-grid .section-header {
+    background-color: #e0e0e0 !important;
+    font-weight: bold;
+  }
+
+  .print-shift-grid .day-header {
+    background-color: #f5f5f5 !important;
+    font-weight: bold;
+  }
+
+  /* Shift details in print */
+  .print-shift-details {
+    font-size: 10px;
+    line-height: 1.2;
+  }
+
+  .print-shift-staff {
+    font-weight: bold;
+    margin-bottom: 2px;
+  }
+
+  .print-shift-time {
+    color: #666;
+    margin-bottom: 2px;
+  }
+
+  .print-shift-notes {
+    font-style: italic;
+    color: #888;
+  }
+
+  /* Ensure proper page breaks */
+  .print-page-break {
+    page-break-before: always;
+  }
+
+  /* Hide drag and drop elements */
+  .dnd-context,
+  .drag-overlay,
+  .sortable-item {
+    position: static !important;
+    transform: none !important;
+  }
+
+  /* Force black text and white background */
+  * {
+    color: black !important;
+    background: white !important;
+    box-shadow: none !important;
+  }
+
+  /* Ensure tables fit on page */
+  .print-shift-grid {
+    max-width: 100%;
+    overflow: visible;
+  }
+}
+
+/* Hide print content in normal view */
+.print-only {
+  display: none;
+}

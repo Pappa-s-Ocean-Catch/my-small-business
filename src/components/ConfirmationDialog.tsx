@@ -91,11 +91,11 @@ export function ConfirmationDialog({
       onClick={handleBackdropClick}
     >
       <div 
-        className={`w-full max-w-lg bg-white dark:bg-neutral-900 rounded-3xl border ${styles.borderColor} shadow-2xl ${styles.glowColor} p-0 overflow-hidden animate-in zoom-in-95 duration-200`}
+        className={`w-full max-w-lg bg-white dark:bg-neutral-950 rounded-2xl shadow-2xl p-0 overflow-hidden animate-in zoom-in-95 duration-200`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header with gradient background */}
-        <div className={`${styles.iconBg} p-6 border-b ${styles.borderColor}`}>
+        <div className={`${styles.iconBg} p-6 border-b border-gray-200 dark:border-neutral-800`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className={`w-12 h-12 rounded-2xl ${styles.iconBg} flex items-center justify-center shadow-lg`}>
@@ -151,7 +151,7 @@ export function ConfirmationDialog({
               type="button"
               onClick={onClose}
               disabled={isLoading}
-              className="px-6 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="h-10 px-4 rounded-lg border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {cancelText}
             </button>
@@ -159,7 +159,7 @@ export function ConfirmationDialog({
               type="button"
               onClick={handleConfirm}
               disabled={isLoading}
-              className={`px-6 py-3 text-sm font-semibold rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 active:scale-95 ${styles.confirmButton}`}
+              className={`h-10 px-4 rounded-lg focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${styles.confirmButton}`}
             >
                   {isLoading ? (
                     <div className="flex items-center gap-2">

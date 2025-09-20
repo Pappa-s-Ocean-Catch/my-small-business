@@ -1,0 +1,121 @@
+# Error Handling Guidelines
+
+## Prohibited Practices
+
+### ❌ Never Use Browser Alerts
+- **NEVER** use `alert()`, `confirm()`, or `prompt()` in production code
+- These provide poor UX and are not accessible
+- They block the UI thread and create jarring user experiences
+
+### ❌ Silent Failures
+- **NEVER** silently fail or ignore errors
+- Always provide user feedback for error states
+- Log errors to console for debugging but show user-friendly messages
+
+## Required Error Handling Patterns
+
+### ✅ Use ErrorModal Component
+```tsx
+import ErrorModal from "@/components/ErrorModal";
+
+// For error states
+const [errorModal, setErrorModal] = useState({
+  isOpen: false,
+  title: "Error Title",
+  message: "User-friendly error message",
+  details: "Technical details (optional)"
+});
+
+// Show error
+setErrorModal({
+  isOpen: true,
+  title: "Operation Failed",
+  message: "Something went wrong. Please try again.",
+  details: error.message // Optional technical details
+});
+```
+
+### ✅ Use ConfirmationDialog for Confirmations
+```tsx
+import { ConfirmationDialog } from "@/components/ConfirmationDialog";
+
+// For confirmations
+const [confirmDialog, setConfirmDialog] = useState({
+  isOpen: false,
+  title: "Confirm Action",
+  message: "Are you sure you want to proceed?",
+  onConfirm: () => { /* action */ }
+});
+```
+
+### ✅ Use Inline Error Messages
+```tsx
+// For form validation errors
+{error && (
+  <div className="text-red-600 text-sm mt-1">
+    {error}
+  </div>
+)}
+```
+
+### ✅ Use Toast Notifications (Future)
+- Implement toast notifications for non-blocking success messages
+- Use for temporary feedback that doesn't require user action
+
+## Error Message Guidelines
+
+### User-Friendly Messages
+- Use clear, actionable language
+- Avoid technical jargon
+- Provide next steps when possible
+- Be specific about what went wrong
+
+### Examples
+```tsx
+// ❌ Bad
+"Database error: SQLSTATE[23000]: Integrity constraint violation"
+
+// ✅ Good
+"Unable to save changes. Please check your input and try again."
+
+// ❌ Bad
+"Error 500"
+
+// ✅ Good
+"Server error occurred. Please try again in a few moments."
+```
+
+## Implementation Checklist
+
+- [ ] Replace all `alert()` calls with ErrorModal
+- [ ] Replace all `confirm()` calls with ConfirmationDialog
+- [ ] Add proper error state management
+- [ ] Provide user-friendly error messages
+- [ ] Include technical details in console logs
+- [ ] Test error scenarios
+- [ ] Ensure accessibility compliance
+
+## Error Modal Props
+
+```tsx
+interface ErrorModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title?: string;        // Default: "Error"
+  message: string;       // Required user-friendly message
+  details?: string;      // Optional technical details
+  action?: ReactNode;    // Optional custom action button
+}
+```
+
+## Success Messages
+
+For success messages, use the ErrorModal with appropriate styling:
+```tsx
+setErrorModal({
+  isOpen: true,
+  title: "Success",
+  message: "Operation completed successfully!",
+  details: "Additional context if needed"
+});
+```

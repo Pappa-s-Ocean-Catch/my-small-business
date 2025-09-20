@@ -5,6 +5,8 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 import { ensureProfile } from "@/app/actions/profile";
 import { AdminGuard } from "@/components/AdminGuard";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
+import Modal from "@/components/Modal";
+import Card from "@/components/Card";
 import { FaPlus, FaEdit, FaTrash, FaTags, FaFileExcel } from "react-icons/fa";
 import * as XLSX from "xlsx";
 import { toast } from 'react-toastify';
@@ -208,7 +210,7 @@ export default function CategoriesPage() {
         {/* Categories List */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {categories.map((category) => (
-            <div key={category.id} className="bg-white dark:bg-neutral-900 rounded-lg border p-6">
+            <Card key={category.id} variant="elevated" padding="lg" hover>
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
@@ -248,7 +250,7 @@ export default function CategoriesPage() {
               <div className="text-xs text-gray-500 dark:text-gray-500">
                 Created {new Date(category.created_at).toLocaleDateString()}
               </div>
-            </div>
+            </Card>
           ))}
         </div>
 
@@ -270,54 +272,56 @@ export default function CategoriesPage() {
         )}
 
         {/* Category Form Modal */}
-        {formOpen && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm grid place-items-center p-4 z-50" onClick={() => setFormOpen(false)}>
-            <div className="w-full max-w-md bg-white dark:bg-neutral-950 rounded-2xl border shadow-xl p-6" onClick={(e) => e.stopPropagation()}>
-              <h2 className="text-lg font-semibold mb-4">{editing ? "Edit Category" : "Add Category"}</h2>
-              
-              <form onSubmit={saveCategory} className="grid gap-4">
-                <label className="grid gap-2">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">Category Name *</span>
-                  <input
-                    type="text"
-                    required
-                    className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
-                    value={form.name}
-                    onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}
-                    placeholder="e.g., Electronics, Clothing, Books"
-                  />
-                </label>
+        <Modal
+          isOpen={formOpen}
+          onClose={() => setFormOpen(false)}
+          title={editing ? "Edit Category" : "Add Category"}
+          size="md"
+          bodyClassName="px-6 sm:px-8 pt-6 sm:pt-8"
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => setFormOpen(false)}
+                className="h-10 px-4 rounded-lg border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="category-form"
+                className="h-10 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+              >
+                {editing ? "Update" : "Create"} Category
+              </button>
+            </>
+          }
+        >
+          <form id="category-form" onSubmit={saveCategory} className="grid gap-4">
+            <label className="grid gap-2">
+              <span className="text-sm text-gray-700 dark:text-gray-300">Category Name *</span>
+              <input
+                type="text"
+                required
+                className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
+                value={form.name}
+                onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="e.g., Electronics, Clothing, Books"
+              />
+            </label>
 
-                <label className="grid gap-2">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">Description</span>
-                  <textarea
-                    className="min-h-20 rounded-xl border px-3 py-2 bg-white/80 dark:bg-neutral-900 resize-y"
-                    value={form.description}
-                    onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
-                    placeholder="Optional description for this category..."
-                    rows={3}
-                  />
-                </label>
-
-                <div className="flex justify-end gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setFormOpen(false)}
-                    className="h-10 px-4 rounded-xl border"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="h-10 px-4 rounded-xl bg-blue-600 text-white hover:bg-blue-700"
-                  >
-                    {editing ? "Update" : "Create"} Category
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+            <label className="grid gap-2">
+              <span className="text-sm text-gray-700 dark:text-gray-300">Description</span>
+              <textarea
+                className="min-h-20 rounded-xl border px-3 py-2 bg-white/80 dark:bg-neutral-900 resize-y"
+                value={form.description}
+                onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Optional description for this category..."
+                rows={3}
+              />
+            </label>
+          </form>
+        </Modal>
 
         {/* Delete Confirmation Dialog */}
         <ConfirmationDialog

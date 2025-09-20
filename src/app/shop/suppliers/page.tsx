@@ -5,6 +5,8 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 import { ensureProfile } from "@/app/actions/profile";
 import { AdminGuard } from "@/components/AdminGuard";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
+import Modal from "@/components/Modal";
+import Card from "@/components/Card";
 import { FaPlus, FaEdit, FaTrash, FaTruck, FaPhone, FaEnvelope, FaMapMarkerAlt, FaFileExcel } from "react-icons/fa";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
@@ -230,7 +232,7 @@ export default function SuppliersPage() {
         {/* Suppliers List */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {suppliers.map((supplier) => (
-            <div key={supplier.id} className="bg-white dark:bg-neutral-900 rounded-lg border p-6">
+            <Card key={supplier.id} variant="elevated" padding="lg" hover>
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
@@ -299,7 +301,7 @@ export default function SuppliersPage() {
               <div className="text-xs text-gray-500 dark:text-gray-500">
                 Created {new Date(supplier.created_at).toLocaleDateString()}
               </div>
-            </div>
+            </Card>
           ))}
         </div>
 
@@ -321,99 +323,101 @@ export default function SuppliersPage() {
         )}
 
         {/* Supplier Form Modal */}
-        {formOpen && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm grid place-items-center p-4 z-50" onClick={() => setFormOpen(false)}>
-            <div className="w-full max-w-2xl bg-white dark:bg-neutral-950 rounded-2xl border shadow-xl p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-              <h2 className="text-lg font-semibold mb-4">{editing ? "Edit Supplier" : "Add Supplier"}</h2>
-              
-              <form onSubmit={saveSupplier} className="grid gap-4">
-                <label className="grid gap-2">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">Supplier Name *</span>
-                  <input
-                    type="text"
-                    required
-                    className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
-                    value={form.name}
-                    onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}
-                    placeholder="e.g., ABC Electronics, XYZ Wholesale"
-                  />
-                </label>
+        <Modal
+          isOpen={formOpen}
+          onClose={() => setFormOpen(false)}
+          title={editing ? "Edit Supplier" : "Add Supplier"}
+          size="lg"
+          bodyClassName="px-6 sm:px-8 pt-6 sm:pt-8"
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => setFormOpen(false)}
+                className="h-10 px-4 rounded-lg border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="supplier-form"
+                className="h-10 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+              >
+                {editing ? "Update" : "Create"} Supplier
+              </button>
+            </>
+          }
+        >
+          <form id="supplier-form" onSubmit={saveSupplier} className="grid gap-4">
+            <label className="grid gap-2">
+              <span className="text-sm text-gray-700 dark:text-gray-300">Supplier Name *</span>
+              <input
+                type="text"
+                required
+                className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
+                value={form.name}
+                onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="e.g., ABC Electronics, XYZ Wholesale"
+              />
+            </label>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <label className="grid gap-2">
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Contact Person</span>
-                    <input
-                      type="text"
-                      className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
-                      value={form.contact_person}
-                      onChange={(e) => setForm(f => ({ ...f, contact_person: e.target.value }))}
-                      placeholder="John Smith"
-                    />
-                  </label>
-                  <label className="grid gap-2">
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Phone</span>
-                    <input
-                      type="tel"
-                      className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
-                      value={form.phone}
-                      onChange={(e) => setForm(f => ({ ...f, phone: e.target.value }))}
-                      placeholder="+1 (555) 123-4567"
-                    />
-                  </label>
-                </div>
-
-                <label className="grid gap-2">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">Email</span>
-                  <input
-                    type="email"
-                    className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
-                    value={form.email}
-                    onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))}
-                    placeholder="contact@supplier.com"
-                  />
-                </label>
-
-                <label className="grid gap-2">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">Address</span>
-                  <textarea
-                    className="min-h-20 rounded-xl border px-3 py-2 bg-white/80 dark:bg-neutral-900 resize-y"
-                    value={form.address}
-                    onChange={(e) => setForm(f => ({ ...f, address: e.target.value }))}
-                    placeholder="123 Main St, City, State, ZIP"
-                    rows={3}
-                  />
-                </label>
-
-                <label className="grid gap-2">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">Notes</span>
-                  <textarea
-                    className="min-h-20 rounded-xl border px-3 py-2 bg-white/80 dark:bg-neutral-900 resize-y"
-                    value={form.notes}
-                    onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))}
-                    placeholder="Additional notes about this supplier..."
-                    rows={3}
-                  />
-                </label>
-
-                <div className="flex justify-end gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setFormOpen(false)}
-                    className="h-10 px-4 rounded-xl border"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="h-10 px-4 rounded-xl bg-blue-600 text-white hover:bg-blue-700"
-                  >
-                    {editing ? "Update" : "Create"} Supplier
-                  </button>
-                </div>
-              </form>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <label className="grid gap-2">
+                <span className="text-sm text-gray-700 dark:text-gray-300">Contact Person</span>
+                <input
+                  type="text"
+                  className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
+                  value={form.contact_person}
+                  onChange={(e) => setForm(f => ({ ...f, contact_person: e.target.value }))}
+                  placeholder="John Smith"
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm text-gray-700 dark:text-gray-300">Phone</span>
+                <input
+                  type="tel"
+                  className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
+                  value={form.phone}
+                  onChange={(e) => setForm(f => ({ ...f, phone: e.target.value }))}
+                  placeholder="+1 (555) 123-4567"
+                />
+              </label>
             </div>
-          </div>
-        )}
+
+            <label className="grid gap-2">
+              <span className="text-sm text-gray-700 dark:text-gray-300">Email</span>
+              <input
+                type="email"
+                className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
+                value={form.email}
+                onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))}
+                placeholder="contact@supplier.com"
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-sm text-gray-700 dark:text-gray-300">Address</span>
+              <textarea
+                className="min-h-20 rounded-xl border px-3 py-2 bg-white/80 dark:bg-neutral-900 resize-y"
+                value={form.address}
+                onChange={(e) => setForm(f => ({ ...f, address: e.target.value }))}
+                placeholder="123 Main St, City, State, ZIP"
+                rows={3}
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-sm text-gray-700 dark:text-gray-300">Notes</span>
+              <textarea
+                className="min-h-20 rounded-xl border px-3 py-2 bg-white/80 dark:bg-neutral-900 resize-y"
+                value={form.notes}
+                onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))}
+                placeholder="Additional notes about this supplier..."
+                rows={3}
+              />
+            </label>
+          </form>
+        </Modal>
 
         {/* Delete Confirmation Dialog */}
         <ConfirmationDialog
