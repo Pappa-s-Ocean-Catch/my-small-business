@@ -5,7 +5,7 @@ import { AdminGuard } from '@/components/AdminGuard';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 import Modal from '@/components/Modal';
 import Card from '@/components/Card';
-import { FaPlus, FaEdit, FaTrash, FaPalette } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaPalette, FaTimes, FaSave, FaToggleOn, FaToggleOff } from 'react-icons/fa';
 import { getSupabaseClient } from '@/lib/supabase/client';
 
 interface Section {
@@ -23,6 +23,7 @@ export default function SectionsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingSection, setEditingSection] = useState<Section | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState<Section | null>(null);
+  const [showToggleDialog, setShowToggleDialog] = useState<Section | null>(null);
   const [form, setForm] = useState({
     name: '',
     description: '',
@@ -129,16 +130,19 @@ export default function SectionsPage() {
     }
   };
 
-  const toggleActive = async (section: Section) => {
+  const toggleActive = async () => {
+    if (!showToggleDialog) return;
+
     try {
       const { error } = await supabase
         .from('sections')
-        .update({ active: !section.active })
-        .eq('id', section.id);
+        .update({ active: !showToggleDialog.active })
+        .eq('id', showToggleDialog.id);
 
       if (error) throw error;
 
       await fetchSections();
+      setShowToggleDialog(null);
     } catch (error) {
       console.error('Error toggling section:', error);
     }
@@ -221,26 +225,38 @@ export default function SectionsPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => toggleActive(section)}
-                    className={`px-3 py-1 text-sm rounded transition-colors ${
+                    onClick={() => setShowToggleDialog(section)}
+                    className={`flex items-center gap-2 px-3 py-1 text-sm rounded transition-colors ${
                       section.active
                         ? 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
                         : 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900 dark:text-green-300 dark:hover:bg-green-800'
                     }`}
                   >
-                    {section.active ? 'Deactivate' : 'Activate'}
+                    {section.active ? (
+                      <>
+                        <FaToggleOff className="w-3 h-3" />
+                        <span>Deactivate</span>
+                      </>
+                    ) : (
+                      <>
+                        <FaToggleOn className="w-3 h-3" />
+                        <span>Activate</span>
+                      </>
+                    )}
                   </button>
                   <button
                     onClick={() => startEdit(section)}
-                    className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 dark:text-gray-400 dark:hover:text-blue-400 dark:hover:bg-blue-900/20 rounded transition-colors"
+                    className="flex items-center gap-2 px-3 py-1 text-sm bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/40 rounded transition-colors"
                   >
-                    <FaEdit className="w-4 h-4" />
+                    <FaEdit className="w-3 h-3" />
+                    <span>Edit</span>
                   </button>
                   <button
                     onClick={() => setShowDeleteDialog(section)}
-                    className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 dark:text-gray-400 dark:hover:text-red-400 dark:hover:bg-red-900/20 rounded transition-colors"
+                    className="flex items-center gap-2 px-3 py-1 text-sm bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40 rounded transition-colors"
                   >
-                    <FaTrash className="w-4 h-4" />
+                    <FaTrash className="w-3 h-3" />
+                    <span>Delete</span>
                   </button>
                 </div>
               </div>
@@ -288,16 +304,18 @@ export default function SectionsPage() {
                   setShowForm(false);
                   resetForm();
                 }}
-                className="h-10 px-4 rounded-lg border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+                className="flex items-center gap-2 h-10 px-4 rounded-lg border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
               >
-                Cancel
+                <FaTimes className="w-4 h-4" />
+                <span>Cancel</span>
               </button>
               <button
                 type="submit"
                 form="section-form"
-                className="h-10 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                className="flex items-center gap-2 h-10 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
               >
-                {editingSection ? 'Update' : 'Create'}
+                <FaSave className="w-4 h-4" />
+                <span>{editingSection ? 'Update' : 'Create'}</span>
               </button>
             </>
           }
@@ -372,6 +390,21 @@ export default function SectionsPage() {
           message={`Are you sure you want to deactivate "${showDeleteDialog?.name}"? This will hide it from the calendar but preserve existing shifts.`}
           confirmText="Deactivate"
           variant="danger"
+        />
+
+        {/* Toggle Status Confirmation Dialog */}
+        <ConfirmationDialog
+          isOpen={!!showToggleDialog}
+          onClose={() => setShowToggleDialog(null)}
+          onConfirm={toggleActive}
+          title={showToggleDialog?.active ? "Deactivate Section" : "Activate Section"}
+          message={
+            showToggleDialog?.active
+              ? `Are you sure you want to deactivate "${showToggleDialog?.name}"? This will hide it from the system but preserve existing data.`
+              : `Are you sure you want to activate "${showToggleDialog?.name}"? This will make it available for use.`
+          }
+          confirmText={showToggleDialog?.active ? "Deactivate" : "Activate"}
+          variant={showToggleDialog?.active ? "warning" : "info"}
         />
       </div>
     </AdminGuard>

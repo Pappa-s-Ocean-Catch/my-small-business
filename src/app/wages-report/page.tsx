@@ -14,16 +14,19 @@ import { toast } from "react-toastify";
 type Staff = {
   id: string;
   name: string;
-  pay_rate: number; // legacy fallback
-  default_rate: number | null;
-  mon_rate: number | null;
-  tue_rate: number | null;
-  wed_rate: number | null;
-  thu_rate: number | null;
-  fri_rate: number | null;
-  sat_rate: number | null;
-  sun_rate: number | null;
 };
+
+type StaffRate = {
+  id: string;
+  staff_id: string;
+  rate: number;
+  rate_type: string; // 'default', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'
+  effective_date: string;
+  end_date: string;
+  is_current: boolean;
+  created_at: string;
+};
+
 type Shift = { id: string; staff_id: string | null; start_time: string; end_time: string; non_billable_hours?: number };
 type StaffPaymentInstruction = {
   id: string;
@@ -34,6 +37,10 @@ type StaffPaymentInstruction = {
   payment_method: string | null;
   priority: number;
   active: boolean;
+  effective_date: string;
+  end_date: string;
+  is_current: boolean;
+  created_at: string;
 };
 
 type DayCell = { hours: number; amount: number };
@@ -42,6 +49,7 @@ export default function WagesReportPage() {
   const [weekStart, setWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [weekEnd, setWeekEnd] = useState<Date>(endOfWeek(new Date(), { weekStartsOn: 1 }));
   const [staff, setStaff] = useState<Staff[]>([]);
+  const [staffRates, setStaffRates] = useState<StaffRate[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [instructions, setInstructions] = useState<StaffPaymentInstruction[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -59,8 +67,9 @@ export default function WagesReportPage() {
     setLoading(true);
     try {
       const supabase = getSupabaseClient();
-      const [{ data: staffData, error: staffErr }, { data: shiftData, error: shiftErr }] = await Promise.all([
-        supabase.from("staff").select("id, name, pay_rate, default_rate, mon_rate, tue_rate, wed_rate, thu_rate, fri_rate, sat_rate, sun_rate"),
+      const [{ data: staffData, error: staffErr }, { data: ratesData, error: ratesErr }, { data: shiftData, error: shiftErr }] = await Promise.all([
+        supabase.from("staff").select("id, name"),
+        supabase.from("staff_rates").select("*"),
         supabase
           .from("shifts")
           .select("id, staff_id, start_time, end_time, non_billable_hours")
@@ -69,9 +78,11 @@ export default function WagesReportPage() {
       ]);
 
       if (staffErr) throw new Error(staffErr.message);
+      if (ratesErr) throw new Error(ratesErr.message);
       if (shiftErr) throw new Error(shiftErr.message);
 
       setStaff((staffData as Staff[]) || []);
+      setStaffRates((ratesData as StaffRate[]) || []);
       setShifts((shiftData as Shift[]) || []);
       if (staffData && staffData.length > 0) {
         const { data: instr } = await supabase
@@ -79,6 +90,7 @@ export default function WagesReportPage() {
           .select("*")
           .in("staff_id", (staffData as Staff[]).map(s => s.id))
           .eq("active", true)
+          .eq("is_current", true)
           .order("priority", { ascending: true });
         setInstructions((instr as StaffPaymentInstruction[]) || []);
       } else {
@@ -103,22 +115,38 @@ export default function WagesReportPage() {
     return days;
   }, [weekStart]);
 
-  function getBaseRateForDate(staffMember: Staff, date: Date): number {
-    const dow = date.getDay();
-    const lookup: Array<number | null | undefined> = [
-      staffMember.sun_rate,
-      staffMember.mon_rate,
-      staffMember.tue_rate,
-      staffMember.wed_rate,
-      staffMember.thu_rate,
-      staffMember.fri_rate,
-      staffMember.sat_rate,
-    ];
-    const dayRate = lookup[dow];
-    return Number(dayRate ?? staffMember.default_rate ?? staffMember.pay_rate);
-  }
-
   const grid = useMemo(() => {
+    function getBaseRateForDate(staffId: string, date: Date): number {
+      // Find the rate that was effective on the given date
+      const dateStr = date.toISOString().split('T')[0];
+      const dayOfWeek = date.getDay(); // 0=Sunday, 1=Monday, etc.
+      
+      // Map day of week to rate type
+      const rateTypeMap: { [key: number]: string } = {
+        0: 'sun', 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu', 5: 'fri', 6: 'sat'
+      };
+      const rateType = rateTypeMap[dayOfWeek];
+      
+      // First try to find specific day rate
+      let rate = staffRates.find(r => 
+        r.staff_id === staffId && 
+        r.rate_type === rateType &&
+        r.effective_date <= dateStr && 
+        r.end_date >= dateStr
+      );
+      
+      // If no specific day rate, fall back to default rate
+      if (!rate) {
+        rate = staffRates.find(r => 
+          r.staff_id === staffId && 
+          r.rate_type === 'default' &&
+          r.effective_date <= dateStr && 
+          r.end_date >= dateStr
+        );
+      }
+      
+      return rate?.rate || 0;
+    }
     const staffMap: Record<string, { staff: Staff; cells: DayCell[]; totalHours: number; totalAmount: number }> = {};
     for (const s of staff) {
       staffMap[s.id] = {
@@ -151,7 +179,7 @@ export default function WagesReportPage() {
       const rawHours = Math.max(0, (end.getTime() - start.getTime()) / (1000 * 60 * 60));
       const nonbill = Number(shift.non_billable_hours || 0);
       const hours = Math.max(0, rawHours - nonbill);
-      const baseRate = getBaseRateForDate(staffRow.staff, start);
+      const baseRate = getBaseRateForDate(staffRow.staff.id, start);
       let remaining = hours;
       let amount = 0;
       const caps = capsByStaff[staffRow.staff.id];
@@ -180,7 +208,7 @@ export default function WagesReportPage() {
     const rows = Object.values(staffMap);
     rows.sort((a, b) => a.staff.name.localeCompare(b.staff.name));
     return rows;
-  }, [staff, shifts, daysOfWeek]);
+  }, [staff, staffRates, shifts, daysOfWeek, instructions]);
 
   const exportPdf = () => {
     try {
@@ -270,21 +298,21 @@ export default function WagesReportPage() {
           <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={goPrevWeek}
-              className="flex items-center gap-2 px-3 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800"
+              className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-neutral-900 shadow-lg rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
               title="Previous Week"
             >
               <FaChevronLeft className="w-4 h-4" /> Prev
             </button>
             <button
               onClick={goThisWeek}
-              className="flex items-center gap-2 px-3 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800"
+              className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-neutral-900 shadow-lg rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
               title="This Week"
             >
               Today
             </button>
             <button
               onClick={goNextWeek}
-              className="flex items-center gap-2 px-3 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800"
+              className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-neutral-900 shadow-lg rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
               title="Next Week"
             >
               Next <FaChevronRight className="w-4 h-4" />
@@ -306,7 +334,7 @@ export default function WagesReportPage() {
         </div>
 
         {/* Grid */}
-        <div className="bg-white dark:bg-neutral-900 rounded-lg border overflow-x-auto">
+        <div className="bg-white dark:bg-neutral-900 rounded-lg shadow-lg overflow-x-auto">
           <table className="w-full min-w-[900px]">
             <thead className="bg-gray-50 dark:bg-neutral-800">
               <tr>

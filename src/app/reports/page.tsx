@@ -15,18 +15,22 @@ import { toast } from 'react-toastify';
 type Staff = {
   id: string;
   name: string;
-  pay_rate: number; // legacy
   email: string | null;
-  default_rate: number | null;
-  mon_rate: number | null;
-  tue_rate: number | null;
-  wed_rate: number | null;
-  thu_rate: number | null;
-  fri_rate: number | null;
-  sat_rate: number | null;
-  sun_rate: number | null;
 };
-type Shift = { id: string; staff_id: string | null; start_time: string; end_time: string; notes: string | null; non_billable_hours?: number };
+
+type StaffRate = {
+  id: string;
+  staff_id: string;
+  rate: number;
+  rate_type: string; // 'default', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'
+  effective_date: string;
+  end_date: string;
+  is_current: boolean;
+  created_at: string;
+};
+
+type Shift = { id: string; staff_id: string | null; start_time: string; end_time: string; notes: string | null; non_billable_hours?: number; section_id?: string | null };
+type Section = { id: string; name: string; description: string | null; color: string; active: boolean; sort_order: number };
 type StaffPaymentInstruction = {
   id: string;
   staff_id: string;
@@ -36,6 +40,10 @@ type StaffPaymentInstruction = {
   payment_method: string | null;
   priority: number;
   active: boolean;
+  effective_date: string;
+  end_date: string;
+  is_current: boolean;
+  created_at: string;
 };
 
 interface FinancialReportRow {
@@ -48,11 +56,15 @@ interface FinancialReportRow {
   payRate: number;
   totalWage: number;
   shiftId: string;
+  sectionName: string;
+  sectionId: string | null;
 }
 
 export default function ReportsPage() {
   const [staff, setStaff] = useState<Staff[]>([]);
+  const [staffRates, setStaffRates] = useState<StaffRate[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
+  const [sections, setSections] = useState<Section[]>([]);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState({
@@ -96,13 +108,17 @@ export default function ReportsPage() {
 
   const fetchData = useCallback(async (): Promise<void> => {
     const supabase = getSupabaseClient();
-    const [{ data: staffData }, { data: shiftData }] = await Promise.all([
-      supabase.from("staff").select("id, name, pay_rate, email, default_rate, mon_rate, tue_rate, wed_rate, thu_rate, fri_rate, sat_rate, sun_rate"),
-      supabase.from("shifts").select("id, staff_id, start_time, end_time, notes, non_billable_hours")
+    const [{ data: staffData }, { data: ratesData }, { data: shiftData }, { data: sectionData }] = await Promise.all([
+      supabase.from("staff").select("id, name, email"),
+      supabase.from("staff_rates").select("*"),
+      supabase.from("shifts").select("id, staff_id, start_time, end_time, notes, non_billable_hours, section_id"),
+      supabase.from("sections").select("id, name, description, color, active, sort_order").eq("active", true).order("sort_order")
     ]);
 
     setStaff(staffData || []);
+    setStaffRates(ratesData || []);
     setShifts(shiftData || []);
+    setSections(sectionData || []);
     if (staffData && staffData.length > 0) {
       const staffIds = staffData.map(s => s.id);
       const { data: instr } = await supabase
@@ -110,6 +126,7 @@ export default function ReportsPage() {
         .select("*")
         .in("staff_id", staffIds)
         .eq("active", true)
+        .eq("is_current", true)
         .order("priority", { ascending: true });
       setInstructions(instr || []);
     } else {
@@ -122,22 +139,38 @@ export default function ReportsPage() {
     void fetchData();
   }, [fetchData]);
 
-  function getBaseRateForDate(staffMember: Staff, date: Date): number {
-    const dow = date.getDay(); // 0 Sun - 6 Sat
-    const lookup: Array<number | null | undefined> = [
-      staffMember.sun_rate,
-      staffMember.mon_rate,
-      staffMember.tue_rate,
-      staffMember.wed_rate,
-      staffMember.thu_rate,
-      staffMember.fri_rate,
-      staffMember.sat_rate,
-    ];
-    const dayRate = lookup[dow];
-    return Number(dayRate ?? staffMember.default_rate ?? staffMember.pay_rate);
-  }
-
   const generateReportData = useCallback(() => {
+    function getBaseRateForDate(staffId: string, date: Date): number {
+      // Find the rate that was effective on the given date
+      const dateStr = date.toISOString().split('T')[0];
+      const dayOfWeek = date.getDay(); // 0=Sunday, 1=Monday, etc.
+      
+      // Map day of week to rate type
+      const rateTypeMap: { [key: number]: string } = {
+        0: 'sun', 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu', 5: 'fri', 6: 'sat'
+      };
+      const rateType = rateTypeMap[dayOfWeek];
+      
+      // First try to find specific day rate
+      let rate = staffRates.find(r => 
+        r.staff_id === staffId && 
+        r.rate_type === rateType &&
+        r.effective_date <= dateStr && 
+        r.end_date >= dateStr
+      );
+      
+      // If no specific day rate, fall back to default rate
+      if (!rate) {
+        rate = staffRates.find(r => 
+          r.staff_id === staffId && 
+          r.rate_type === 'default' &&
+          r.effective_date <= dateStr && 
+          r.end_date >= dateStr
+        );
+      }
+      
+      return rate?.rate || 0;
+    }
     const reportRows: FinancialReportRow[] = [];
     // Build per-staff instruction caps map for this week
     const capsByStaff: Record<string, { list: StaffPaymentInstruction[]; remaining: number[] }> = {};
@@ -166,7 +199,7 @@ export default function ReportsPage() {
           const rawHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
           const nonbill = Number(shift.non_billable_hours || 0);
           const hours = Math.max(0, rawHours - nonbill);
-          const baseRate = getBaseRateForDate(staffMember, shiftDate);
+          const baseRate = getBaseRateForDate(staffMember.id, shiftDate);
           // Allocate hours across instructions
           let remaining = hours;
           let amount = 0;
@@ -186,6 +219,11 @@ export default function ReportsPage() {
             amount += remaining * baseRate;
           }
           
+          // Find section information
+          const section = sections.find(s => s.id === shift.section_id);
+          const sectionName = section ? section.name : 'No Section';
+          const sectionId = shift.section_id || null;
+          
           reportRows.push({
             date: format(shiftDate, "yyyy-MM-dd"),
             staffName: staffMember.name,
@@ -195,7 +233,9 @@ export default function ReportsPage() {
             nonBillableHours: nonbill,
             payRate: baseRate,
             totalWage: Math.round(amount * 100) / 100,
-            shiftId: shift.id
+            shiftId: shift.id,
+            sectionName,
+            sectionId
           });
         }
       }
@@ -208,7 +248,7 @@ export default function ReportsPage() {
     });
     
     setReportData(reportRows);
-  }, [shifts, staff, dateRange, instructions]);
+  }, [shifts, staff, staffRates, sections, dateRange, instructions]);
 
   useEffect(() => {
     generateReportData();
@@ -221,6 +261,27 @@ export default function ReportsPage() {
 
   const getTotalWages = () => {
     return reportData.reduce((total, row) => total + row.totalWage, 0);
+  };
+
+  const getSectionBreakdown = () => {
+    const sectionTotals: Record<string, { name: string; hours: number; wages: number; shifts: number }> = {};
+    
+    reportData.forEach(row => {
+      const sectionKey = row.sectionId || 'no-section';
+      if (!sectionTotals[sectionKey]) {
+        sectionTotals[sectionKey] = {
+          name: row.sectionName,
+          hours: 0,
+          wages: 0,
+          shifts: 0
+        };
+      }
+      sectionTotals[sectionKey].hours += row.hours;
+      sectionTotals[sectionKey].wages += row.totalWage;
+      sectionTotals[sectionKey].shifts += 1;
+    });
+    
+    return Object.values(sectionTotals).sort((a, b) => a.name.localeCompare(b.name));
   };
 
   const exportToPDF = () => {
@@ -243,6 +304,7 @@ export default function ReportsPage() {
     const tableData = reportData.map(row => [
       row.date,
       row.staffName,
+      row.sectionName,
       `${row.startTime} - ${row.endTime}`,
       row.hours.toString(),
       row.nonBillableHours > 0 ? row.nonBillableHours.toString() : '-',
@@ -251,7 +313,7 @@ export default function ReportsPage() {
     ]);
     
     autoTable(doc, {
-      head: [['Date', 'Staff', 'Time', 'Billable Hours', 'Non-Billable', 'Rate', 'Total']],
+      head: [['Date', 'Staff', 'Section', 'Time', 'Billable Hours', 'Non-Billable', 'Rate', 'Total']],
       body: tableData,
       startY: 54,
       styles: { fontSize: 8 },
@@ -260,10 +322,33 @@ export default function ReportsPage() {
       margin: { left: 14, right: 14 }
     });
     
-    // Footer
+    // Section Breakdown
     const finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable?.finalY || 54;
+    doc.setFontSize(12);
+    doc.text("Section Breakdown", 14, finalY + 20);
+    
+    const sectionData = getSectionBreakdown().map(section => [
+      section.name,
+      section.shifts.toString(),
+      section.hours.toFixed(2),
+      `$${section.wages.toFixed(2)}`,
+      section.hours > 0 ? `$${(section.wages / section.hours).toFixed(2)}` : '-'
+    ]);
+    
+    autoTable(doc, {
+      head: [['Section', 'Shifts', 'Total Hours', 'Total Wages', 'Avg Rate/Hour']],
+      body: sectionData,
+      startY: finalY + 30,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [66, 139, 202] },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+      margin: { left: 14, right: 14 }
+    });
+    
+    // Footer
+    const sectionFinalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable?.finalY || finalY + 30;
     doc.setFontSize(8);
-    doc.text(`Generated on ${format(new Date(), "MMM dd, yyyy 'at' HH:mm")}`, 14, finalY + 10);
+    doc.text(`Generated on ${format(new Date(), "MMM dd, yyyy 'at' HH:mm")}`, 14, sectionFinalY + 10);
     
     doc.save(`financial-report-${format(dateRange.start, "yyyy-MM-dd")}-to-${format(dateRange.end, "yyyy-MM-dd")}.pdf`);
     toast.success('PDF downloaded');
@@ -273,6 +358,7 @@ export default function ReportsPage() {
     const worksheet = XLSX.utils.json_to_sheet(reportData.map(row => ({
       Date: row.date,
       'Staff Name': row.staffName,
+      'Section': row.sectionName,
       'Start Time': row.startTime,
       'End Time': row.endTime,
       'Billable Hours': row.hours,
@@ -285,6 +371,7 @@ export default function ReportsPage() {
     const summaryRow = {
       Date: '',
       'Staff Name': 'TOTAL',
+      'Section': '',
       'Start Time': '',
       'End Time': '',
       'Billable Hours': getTotalHours(),
@@ -295,8 +382,18 @@ export default function ReportsPage() {
     
     XLSX.utils.sheet_add_json(worksheet, [summaryRow], { skipHeader: true, origin: -1 });
     
+    // Create section breakdown worksheet
+    const sectionWorksheet = XLSX.utils.json_to_sheet(getSectionBreakdown().map(section => ({
+      Section: section.name,
+      Shifts: section.shifts,
+      'Total Hours': section.hours,
+      'Total Wages': section.wages,
+      'Avg Rate/Hour': section.hours > 0 ? section.wages / section.hours : 0
+    })));
+    
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Financial Report");
+    XLSX.utils.book_append_sheet(workbook, sectionWorksheet, "Section Breakdown");
     
     const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
     const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -333,7 +430,7 @@ export default function ReportsPage() {
             </p>
           </div>
           
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-3 flex-wrap print:hidden">
             <button
               onClick={exportToPDF}
               className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
@@ -352,7 +449,7 @@ export default function ReportsPage() {
         </div>
 
         {/* Date Range Selector */}
-        <div className="mb-6 p-4 bg-white dark:bg-neutral-900 rounded-lg border">
+        <div className="mb-6 p-4 bg-white dark:bg-neutral-900 rounded-lg shadow-lg print:hidden">
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
             <label className="text-sm font-medium text-gray-800 dark:text-gray-200">Date Range:</label>
             <div className="flex items-center gap-3 flex-wrap">
@@ -374,29 +471,30 @@ export default function ReportsPage() {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="p-4 bg-white dark:bg-neutral-900 rounded-lg border">
-            <div className="text-sm text-gray-600 dark:text-gray-400">Total Shifts</div>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">{reportData.length}</div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 print:grid-cols-3 print:gap-2">
+          <div className="p-4 bg-white dark:bg-neutral-900 rounded-lg shadow-lg print:p-2 print:border print:border-gray-300">
+            <div className="text-sm text-gray-600 dark:text-gray-400 print:text-xs">Total Shifts</div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-white print:text-lg">{reportData.length}</div>
           </div>
-          <div className="p-4 bg-white dark:bg-neutral-900 rounded-lg border">
-            <div className="text-sm text-gray-600 dark:text-gray-400">Total Hours</div>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">{getTotalHours().toFixed(2)}</div>
+          <div className="p-4 bg-white dark:bg-neutral-900 rounded-lg shadow-lg print:p-2 print:border print:border-gray-300">
+            <div className="text-sm text-gray-600 dark:text-gray-400 print:text-xs">Total Hours</div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-white print:text-lg">{getTotalHours().toFixed(2)}</div>
           </div>
-          <div className="p-4 bg-white dark:bg-neutral-900 rounded-lg border">
-            <div className="text-sm text-gray-600 dark:text-gray-400">Total Wages</div>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">${getTotalWages().toFixed(2)}</div>
+          <div className="p-4 bg-white dark:bg-neutral-900 rounded-lg shadow-lg print:p-2 print:border print:border-gray-300">
+            <div className="text-sm text-gray-600 dark:text-gray-400 print:text-xs">Total Wages</div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-white print:text-lg">${getTotalWages().toFixed(2)}</div>
           </div>
         </div>
 
         {/* Data Table */}
-        <div className="bg-white dark:bg-neutral-900 rounded-lg border overflow-hidden">
+        <div className="bg-white dark:bg-neutral-900 rounded-lg shadow-lg overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-neutral-800">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Staff</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Section</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Time</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Billable Hours</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Non-Billable</th>
@@ -407,7 +505,7 @@ export default function ReportsPage() {
               <tbody className="divide-y divide-gray-200 dark:divide-neutral-700">
                 {reportData.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                    <td colSpan={8} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                       No shifts found for the selected date range
                     </td>
                   </tr>
@@ -416,6 +514,7 @@ export default function ReportsPage() {
                     <tr key={`${row.shiftId}-${index}`} className="hover:bg-gray-50 dark:hover:bg-neutral-800">
                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{row.date}</td>
                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{row.staffName}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{row.sectionName}</td>
                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{row.startTime} - {row.endTime}</td>
                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{row.hours}</td>
                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{row.nonBillableHours > 0 ? row.nonBillableHours : '-'}</td>
@@ -428,7 +527,7 @@ export default function ReportsPage() {
               {reportData.length > 0 && (
                 <tfoot className="bg-gray-50 dark:bg-neutral-800">
                   <tr>
-                    <td colSpan={3} className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">TOTAL</td>
+                    <td colSpan={4} className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">TOTAL</td>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{getTotalHours().toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">-</td>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">-</td>
@@ -439,6 +538,41 @@ export default function ReportsPage() {
             </table>
           </div>
         </div>
+
+        {/* Section Breakdown Table */}
+        {reportData.length > 0 && (
+          <div className="mt-8">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Section Breakdown</h2>
+            <div className="bg-white dark:bg-neutral-900 rounded-lg shadow-lg overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 dark:bg-neutral-800">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Section</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Shifts</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Hours</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Wages</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Avg Rate/Hour</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-neutral-700">
+                    {getSectionBreakdown().map((section, index) => (
+                      <tr key={index} className="hover:bg-gray-50 dark:hover:bg-neutral-800">
+                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{section.name}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{section.shifts}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{section.hours.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">${section.wages.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
+                          {section.hours > 0 ? `$${(section.wages / section.hours).toFixed(2)}` : '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </AdminGuard>
   );

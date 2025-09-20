@@ -7,7 +7,8 @@ import { ensureProfile } from "@/app/actions/profile";
 import { DragDropCalendar } from "@/components/DragDropCalendar";
 import { Loading } from "@/components/Loading";
 
-type Staff = { id: string; name: string; pay_rate: number; email: string | null; is_available: boolean };
+type Staff = { id: string; name: string; email: string | null; is_available: boolean };
+type StaffRate = { id: string; staff_id: string; rate: number; rate_type: string; effective_date: string; end_date: string; is_current: boolean; created_at: string };
 type Section = { id: string; name: string; description: string | null; color: string; active: boolean; sort_order: number };
 type Shift = { id: string; staff_id: string | null; start_time: string; end_time: string; notes: string | null; non_billable_hours?: number; section_id?: string | null };
 type Availability = { id: string; staff_id: string; day_of_week: number; start_time: string; end_time: string };
@@ -16,6 +17,7 @@ type StaffHoliday = { id: string; staff_id: string; start_date: string; end_date
 export default function CalendarPage() {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
+  const [staffRates, setStaffRates] = useState<StaffRate[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
   const [availability, setAvailability] = useState<Availability[]>([]);
   const [holidays, setHolidays] = useState<StaffHoliday[]>([]);
@@ -66,7 +68,7 @@ export default function CalendarPage() {
          shiftsQuery = shiftsQuery.eq("staff_id", user.id);
        }
 
-      const [shiftsResult, staffResult, sectionsResult, availabilityResult, holidaysResult] = await Promise.all([
+      const [shiftsResult, staffResult, ratesResult, sectionsResult, availabilityResult, holidaysResult] = await Promise.all([
         shiftsQuery,
         
         supabase
@@ -74,11 +76,14 @@ export default function CalendarPage() {
           .select(`
             id,
             name,
-            pay_rate,
             email,
             is_available
           `)
           .order("name", { ascending: true }),
+        
+        supabase
+          .from("staff_rates")
+          .select("*"),
         
         supabase
           .from("sections")
@@ -117,6 +122,7 @@ export default function CalendarPage() {
 
       if (shiftsResult.data) setShifts(shiftsResult.data);
       if (staffResult.data) setStaff(staffResult.data);
+      if (ratesResult.data) setStaffRates(ratesResult.data);
       if (sectionsResult.data) setSections(sectionsResult.data);
       if (availabilityResult.data) setAvailability(availabilityResult.data);
       if (holidaysResult.data) setHolidays(holidaysResult.data);
@@ -209,6 +215,7 @@ export default function CalendarPage() {
     <DragDropCalendar
       shifts={shifts}
       staff={staff}
+      staffRates={staffRates}
       sections={sections}
       availability={availability}
       holidays={holidays}

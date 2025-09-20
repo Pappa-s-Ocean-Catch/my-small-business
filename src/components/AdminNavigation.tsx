@@ -4,16 +4,19 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase/client";
-import { FaUsers, FaStore, FaUserShield, FaChartPie, FaFileAlt, FaMoneyBillWave, FaPalette } from "react-icons/fa";
+import { FaUsers, FaStore, FaUserShield, FaChartPie, FaFileAlt, FaMoneyBillWave, FaPalette, FaCog, FaRobot } from "react-icons/fa";
 
 export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 'horizontal' | 'vertical' }) {
   const [userRole, setUserRole] = useState<'admin' | 'staff' | null>(null);
   const [isMgmtOpen, setIsMgmtOpen] = useState<boolean>(false);
   const [isReportOpen, setIsReportOpen] = useState<boolean>(false);
+  const [isSystemOpen, setIsSystemOpen] = useState<boolean>(false);
   const [mgmtOffset, setMgmtOffset] = useState<number>(0);
   const [reportOffset, setReportOffset] = useState<number>(0);
+  const [systemOffset, setSystemOffset] = useState<number>(0);
   const mgmtRef = useRef<HTMLDivElement | null>(null);
   const reportRef = useRef<HTMLDivElement | null>(null);
+  const systemRef = useRef<HTMLDivElement | null>(null);
   const pathname = usePathname();
 
   useEffect(() => {
@@ -52,10 +55,13 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
       if (isReportOpen && reportRef.current && !reportRef.current.contains(target)) {
         setIsReportOpen(false);
       }
+      if (isSystemOpen && systemRef.current && !systemRef.current.contains(target)) {
+        setIsSystemOpen(false);
+      }
     }
     window.addEventListener('mousedown', handleClickOutside);
     return () => window.removeEventListener('mousedown', handleClickOutside);
-  }, [isMgmtOpen, isReportOpen]);
+  }, [isMgmtOpen, isReportOpen, isSystemOpen]);
 
   // Prevent mega menu overflow by shifting left when needed
   useEffect(() => {
@@ -72,11 +78,16 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
         const overflow = rect.left + desiredWidth + margin - window.innerWidth;
         setReportOffset(overflow > 0 ? -overflow : 0);
       }
+      if (isSystemOpen && systemRef.current) {
+        const rect = systemRef.current.getBoundingClientRect();
+        const overflow = rect.left + desiredWidth + margin - window.innerWidth;
+        setSystemOffset(overflow > 0 ? -overflow : 0);
+      }
     }
     computeOffsets();
     window.addEventListener('resize', computeOffsets);
     return () => window.removeEventListener('resize', computeOffsets);
-  }, [isMgmtOpen, isReportOpen]);
+  }, [isMgmtOpen, isReportOpen, isSystemOpen]);
 
   const isActive = (path: string) => {
     return pathname === path;
@@ -111,7 +122,6 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
               <Link className={getLinkClasses("/staff")} href="/staff" aria-label="Staff">Staff</Link>
               <Link className={getLinkClasses("/sections")} href="/sections" aria-label="Sections">Sections</Link>
               <Link className={getLinkClasses("/shop")} href="/shop" aria-label="Shop">Shop</Link>
-              <Link className={getLinkClasses("/users")} href="/users" aria-label="Users">Users</Link>
             </div>
           </div>
         ) : (
@@ -133,7 +143,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
             {isMgmtOpen && (
               <div className="absolute top-full mt-0.5 w-screen max-w-[640px] sm:w-[640px] rounded-xl bg-white/95 dark:bg-neutral-950/95 backdrop-blur shadow-lg z-50 p-3 overflow-hidden"
                    style={{ left: mgmtOffset }}>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <Link href="/staff" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-blue-600 dark:text-blue-400">
@@ -167,17 +177,6 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                       </div>
                     </div>
                   </Link>
-                  <Link href="/users" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
-                    <div className="flex items-start gap-3">
-                      <div className="mt-0.5 text-purple-600 dark:text-purple-400">
-                        <FaUserShield className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <div className="font-medium text-gray-900 dark:text-white">Users</div>
-                        <div className="text-xs text-gray-600 dark:text-gray-400">Admin user roles and access control</div>
-                      </div>
-                    </div>
-                  </Link>
                 </div>
               </div>
             )}
@@ -193,9 +192,10 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
           <div className="w-full">
             <Link className={getLinkClasses("/analysis-report")} href="/analysis-report" aria-label="Analysis & Report">Analysis & Report</Link>
             <div className="pl-2">
-              <Link className={getLinkClasses("/reports")} href="/reports" aria-label="Weekly Reports">Weekly Reports</Link>
+              <Link className={getLinkClasses("/reports")} href="/reports" aria-label="Weekly shift allocation report">Weekly shift allocation report</Link>
               <Link className={getLinkClasses("/analytics")} href="/analytics" aria-label="Analysis">Analysis</Link>
               <Link className={getLinkClasses("/wages-report")} href="/wages-report" aria-label="Wages Report">Wages Report</Link>
+              <Link className={getLinkClasses("/payment-report")} href="/payment-report" aria-label="Payment Report">Payment Report</Link>
             </div>
           </div>
         ) : (
@@ -217,14 +217,14 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
             {isReportOpen && (
               <div className="absolute top-full mt-0.5 w-screen max-w-[640px] sm:w-[640px] rounded-xl bg-white/95 dark:bg-neutral-950/95 backdrop-blur shadow-lg z-50 p-3 overflow-hidden"
                    style={{ left: reportOffset }}>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
                   <Link href="/reports" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-blue-600 dark:text-blue-400">
                         <FaFileAlt className="w-5 h-5" />
                       </div>
                       <div>
-                        <div className="font-medium text-gray-900 dark:text-white">Weekly Reports</div>
+                        <div className="font-medium text-gray-900 dark:text-white">Weekly shift allocation report</div>
                         <div className="text-xs text-gray-600 dark:text-gray-400">Exportable weekly performance and wages</div>
                       </div>
                     </div>
@@ -251,21 +251,93 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                       </div>
                     </div>
                   </Link>
+                  <Link href="/payment-report" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 text-green-600 dark:text-green-400">
+                        <FaMoneyBillWave className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white">Payment Report</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">Payment methods breakdown by staff</div>
+                      </div>
+                    </div>
+                  </Link>
                 </div>
               </div>
             )}
           </div>
         )
       )}
-      
-      {/* Automation - Admin only */}
+
+      {/* System group - Admin only (mega) */}
       {userRole === 'admin' && (
-        <Link className={getLinkClasses("/automation")} href="/automation" aria-label="Automation">Automation</Link>
-      )}
-      
-      {/* Settings - Admin only */}
-      {userRole === 'admin' && (
-        <Link className={getLinkClasses("/settings")} href="/settings" aria-label="Settings">Settings</Link>
+        orientation === 'vertical' ? (
+          <div className="w-full">
+            <div className="px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-200">System</div>
+            <div className="pl-2">
+              <Link className={getLinkClasses("/users")} href="/users" aria-label="Users">Users</Link>
+              <Link className={getLinkClasses("/automation")} href="/automation" aria-label="Automation">Automation</Link>
+              <Link className={getLinkClasses("/settings")} href="/settings" aria-label="Settings">Settings</Link>
+            </div>
+          </div>
+        ) : (
+          <div
+            className="relative h-full"
+            ref={systemRef}
+            onMouseEnter={() => setIsSystemOpen(true)}
+            onMouseLeave={() => setIsSystemOpen(false)}
+          >
+            <button
+              type="button"
+              className="flex items-center h-full px-4 transition-colors hover:bg-gray-100 dark:hover:bg-neutral-900"
+              onClick={() => setIsSystemOpen((v) => !v)}
+              aria-haspopup="menu"
+              aria-expanded={isSystemOpen}
+            >
+              System
+            </button>
+            {isSystemOpen && (
+              <div className="absolute top-full mt-0.5 w-screen max-w-[640px] sm:w-[640px] rounded-xl bg-white/95 dark:bg-neutral-950/95 backdrop-blur shadow-lg z-50 p-3 overflow-hidden"
+                   style={{ left: systemOffset }}>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <Link href="/users" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 text-purple-600 dark:text-purple-400">
+                        <FaUserShield className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white">Users</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">Admin user roles and access control</div>
+                      </div>
+                    </div>
+                  </Link>
+                  <Link href="/automation" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 text-orange-600 dark:text-orange-400">
+                        <FaRobot className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white">Automation</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">Automated notifications and reminders</div>
+                      </div>
+                    </div>
+                  </Link>
+                  <Link href="/settings" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 text-gray-600 dark:text-gray-400">
+                        <FaCog className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white">Settings</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">System configuration and preferences</div>
+                      </div>
+                    </div>
+                  </Link>
+                </div>
+              </div>
+            )}
+          </div>
+        )
       )}
     </nav>
   );

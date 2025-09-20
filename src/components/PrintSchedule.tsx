@@ -5,17 +5,19 @@ import { format, startOfWeek, endOfWeek } from "date-fns";
 type Staff = {
   id: string;
   name: string;
-  pay_rate: number;
   email: string | null;
   is_available: boolean;
-  default_rate?: number | null;
-  mon_rate?: number | null;
-  tue_rate?: number | null;
-  wed_rate?: number | null;
-  thu_rate?: number | null;
-  fri_rate?: number | null;
-  sat_rate?: number | null;
-  sun_rate?: number | null;
+};
+
+type StaffRate = {
+  id: string;
+  staff_id: string;
+  rate: number;
+  rate_type: string; // 'default', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'
+  effective_date: string;
+  end_date: string;
+  is_current: boolean;
+  created_at: string;
 };
 
 type Section = {
@@ -40,11 +42,12 @@ type Shift = {
 interface PrintScheduleProps {
   shifts: Shift[];
   staff: Staff[];
+  staffRates: StaffRate[];
   sections: Section[];
   currentWeek: Date;
 }
 
-export default function PrintSchedule({ shifts, staff, sections, currentWeek }: PrintScheduleProps) {
+export default function PrintSchedule({ shifts, staff, staffRates, sections, currentWeek }: PrintScheduleProps) {
   const startOfThisWeek = startOfWeek(currentWeek, { weekStartsOn: 1 });
   const weekDays = Array.from({ length: 7 }, (_, i) => {
     const date = new Date(startOfThisWeek);

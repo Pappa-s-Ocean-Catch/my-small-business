@@ -6,7 +6,7 @@ import { AdminGuard } from "@/components/AdminGuard";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
 import { Loading } from "@/components/Loading";
 import Card from "@/components/Card";
-import { Plus, Pencil, Trash2, X, Clock, Send, Calendar } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Clock, Send, Calendar, Save } from "lucide-react";
 import { toast } from 'react-toastify';
 
 type Staff = {
@@ -14,18 +14,20 @@ type Staff = {
   name: string;
   phone: string | null;
   email: string | null;
-  pay_rate: number;
-  default_rate: number | null;
-  mon_rate: number | null;
-  tue_rate: number | null;
-  wed_rate: number | null;
-  thu_rate: number | null;
-  fri_rate: number | null;
-  sat_rate: number | null;
-  sun_rate: number | null;
   is_available: boolean;
   role_slug: string | null;
   description: string | null;
+};
+
+type StaffRate = {
+  id: string;
+  staff_id: string;
+  rate: number;
+  rate_type: string; // 'default', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'
+  effective_date: string;
+  end_date: string;
+  is_current: boolean;
+  created_at: string;
 };
 
 type StaffPaymentInstruction = {
@@ -37,6 +39,10 @@ type StaffPaymentInstruction = {
   payment_method: string | null;
   priority: number;
   active: boolean;
+  effective_date: string;
+  end_date: string;
+  is_current: boolean;
+  created_at: string;
 };
 
 type StaffRole = {
@@ -66,6 +72,7 @@ const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 
 
 export default function StaffPage() {
   const [staff, setStaff] = useState<Staff[]>([]);
+  const [staffRates, setStaffRates] = useState<StaffRate[]>([]);
   const [staffRoles, setStaffRoles] = useState<StaffRole[]>([]);
   const [availability, setAvailability] = useState<Availability[]>([]);
   const [holidays, setHolidays] = useState<StaffHoliday[]>([]);
@@ -80,22 +87,21 @@ export default function StaffPage() {
     name: "",
     phone: "",
     email: "",
-    pay_rate: 0,
     default_rate: 0,
-    mon_rate: "" as string | number,
-    tue_rate: "" as string | number,
-    wed_rate: "" as string | number,
-    thu_rate: "" as string | number,
-    fri_rate: "" as string | number,
-    sat_rate: "" as string | number,
-    sun_rate: "" as string | number,
+    mon_rate: 0,
+    tue_rate: 0,
+    wed_rate: 0,
+    thu_rate: 0,
+    fri_rate: 0,
+    sat_rate: 0,
+    sun_rate: 0,
     is_available: true,
     role_slug: "member",
     description: "",
   });
 
   const [instructions, setInstructions] = useState<StaffPaymentInstruction[]>([]);
-  const [instrDraft, setInstrDraft] = useState<Omit<StaffPaymentInstruction, 'id' | 'staff_id'>>({
+  const [instrDraft, setInstrDraft] = useState<Omit<StaffPaymentInstruction, 'id' | 'staff_id' | 'effective_date' | 'end_date' | 'is_current' | 'created_at'>>({
     label: "",
     adjustment_per_hour: 0,
     weekly_hours_cap: null,
@@ -118,15 +124,51 @@ export default function StaffPage() {
     notes: "",
   });
 
+  const getCurrentRate = (staffId: string): number => {
+    const staffRatesForThisStaff = staffRates.filter(r => r.staff_id === staffId);
+    console.log('🔍 getCurrentRate debug:', {
+      staffId,
+      totalRates: staffRates.length,
+      staffRatesForThisStaff,
+      allRates: staffRates
+    });
+    
+    // First try to find default rate
+    let rate = staffRates.find(r => 
+      r.staff_id === staffId && 
+      r.rate_type === 'default'
+    );
+    
+    // If no default rate, try to find any rate for this staff (fallback)
+    if (!rate) {
+      rate = staffRates.find(r => r.staff_id === staffId);
+    }
+    
+    console.log('🎯 Found rate:', rate);
+    return rate?.rate || 0;
+  };
+
   const fetchStaff = async () => {
     setLoading(true);
-    const [{ data: staffData }, { data: availabilityData }, { data: rolesData }, { data: holidaysData }] = await Promise.all([
-      getSupabaseClient().from("staff").select("*").order("created_at", { ascending: false }),
+    const [{ data: staffData }, { data: ratesData }, { data: availabilityData }, { data: rolesData }, { data: holidaysData }] = await Promise.all([
+      getSupabaseClient().from("staff").select("id, name, phone, email, is_available, role_slug, description").order("created_at", { ascending: false }),
+      getSupabaseClient().from("staff_rates").select("*"),
       getSupabaseClient().from("staff_availability").select("*"),
       getSupabaseClient().from("staff_roles").select("*").order("name"),
       getSupabaseClient().from("staff_holidays").select("*").order("start_date", { ascending: false })
     ]);
+    console.log('📊 fetchStaff debug:', {
+      staffCount: staffData?.length || 0,
+      ratesCount: ratesData?.length || 0,
+      ratesData: ratesData,
+      rateTypes: ratesData?.map(r => ({ staff_id: r.staff_id, rate_type: r.rate_type, rate: r.rate })),
+      availabilityCount: availabilityData?.length || 0,
+      rolesCount: rolesData?.length || 0,
+      holidaysCount: holidaysData?.length || 0
+    });
+    
     if (staffData) setStaff(staffData as Staff[]);
+    if (ratesData) setStaffRates(ratesData as StaffRate[]);
     if (availabilityData) setAvailability(availabilityData as Availability[]);
     if (rolesData) setStaffRoles(rolesData as StaffRole[]);
     if (holidaysData) setHolidays(holidaysData as StaffHoliday[]);
@@ -138,7 +180,22 @@ export default function StaffPage() {
   }, []);
 
   const resetForm = () => {
-    setForm({ name: "", phone: "", email: "", pay_rate: 0, default_rate: 0, mon_rate: "", tue_rate: "", wed_rate: "", thu_rate: "", fri_rate: "", sat_rate: "", sun_rate: "", is_available: true, role_slug: "member", description: "" });
+    setForm({ 
+      name: "", 
+      phone: "", 
+      email: "", 
+      default_rate: 0,
+      mon_rate: 0,
+      tue_rate: 0,
+      wed_rate: 0,
+      thu_rate: 0,
+      fri_rate: 0,
+      sat_rate: 0,
+      sun_rate: 0,
+      is_available: true, 
+      role_slug: "member", 
+      description: "" 
+    });
     setEditing(null);
     setInstructions([]);
   };
@@ -146,59 +203,146 @@ export default function StaffPage() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const supabase = getSupabaseClient();
-    if (editing) {
-      await supabase.from("staff").update({
-        name: form.name,
-        phone: form.phone || null,
-        email: form.email || null,
-        pay_rate: form.pay_rate,
-        default_rate: form.default_rate,
-        mon_rate: form.mon_rate === "" ? null : Number(form.mon_rate),
-        tue_rate: form.tue_rate === "" ? null : Number(form.tue_rate),
-        wed_rate: form.wed_rate === "" ? null : Number(form.wed_rate),
-        thu_rate: form.thu_rate === "" ? null : Number(form.thu_rate),
-        fri_rate: form.fri_rate === "" ? null : Number(form.fri_rate),
-        sat_rate: form.sat_rate === "" ? null : Number(form.sat_rate),
-        sun_rate: form.sun_rate === "" ? null : Number(form.sun_rate),
-        is_available: form.is_available,
-        role_slug: form.role_slug,
-        description: form.description || null,
-      }).eq("id", editing.id);
-    } else {
-      const { data: inserted } = await supabase.from("staff").insert({
-        name: form.name,
-        phone: form.phone || null,
-        email: form.email || null,
-        pay_rate: form.pay_rate,
-        default_rate: form.default_rate,
-        mon_rate: form.mon_rate === "" ? null : Number(form.mon_rate),
-        tue_rate: form.tue_rate === "" ? null : Number(form.tue_rate),
-        wed_rate: form.wed_rate === "" ? null : Number(form.wed_rate),
-        thu_rate: form.thu_rate === "" ? null : Number(form.thu_rate),
-        fri_rate: form.fri_rate === "" ? null : Number(form.fri_rate),
-        sat_rate: form.sat_rate === "" ? null : Number(form.sat_rate),
-        sun_rate: form.sun_rate === "" ? null : Number(form.sun_rate),
-        is_available: form.is_available,
-        role_slug: form.role_slug,
-        description: form.description || null,
-      }).select().single();
-      if (inserted?.id && instructions.length > 0) {
-        await supabase.from("staff_payment_instructions").insert(
-          instructions.map(i => ({
-            staff_id: inserted.id,
-            label: i.label,
-            adjustment_per_hour: i.adjustment_per_hour,
-            weekly_hours_cap: i.weekly_hours_cap,
-            payment_method: i.payment_method,
-            priority: i.priority,
-            active: i.active,
-          }))
-        );
+    
+    try {
+      if (editing) {
+        // Update staff basic info
+        await supabase.from("staff").update({
+          name: form.name,
+          phone: form.phone || null,
+          email: form.email || null,
+          is_available: form.is_available,
+          role_slug: form.role_slug,
+          description: form.description || null,
+        }).eq("id", editing.id);
+
+        // Update all rates using temporal function
+        const ratesToUpdate = [
+          { type: 'default', rate: form.default_rate },
+          { type: 'mon', rate: form.mon_rate },
+          { type: 'tue', rate: form.tue_rate },
+          { type: 'wed', rate: form.wed_rate },
+          { type: 'thu', rate: form.thu_rate },
+          { type: 'fri', rate: form.fri_rate },
+          { type: 'sat', rate: form.sat_rate },
+          { type: 'sun', rate: form.sun_rate }
+        ];
+
+        for (const { type, rate } of ratesToUpdate) {
+          if (rate > 0) {
+            await supabase.rpc('update_staff_rate', {
+              p_staff_id: editing.id,
+              p_new_rate: rate,
+              p_rate_type: type,
+              p_effective_date: new Date().toISOString().split('T')[0]
+            });
+          }
+        }
+
+        // Handle payment instructions for existing staff
+        if (instructions.length > 0) {
+          // First, mark existing instructions as historical
+          await supabase.from("staff_payment_instructions")
+            .update({ 
+              end_date: new Date().toISOString().split('T')[0],
+              is_current: false 
+            })
+            .eq("staff_id", editing.id)
+            .eq("is_current", true);
+          
+          // Then insert the updated instructions
+          await supabase.from("staff_payment_instructions").insert(
+            instructions.map(i => ({
+              staff_id: editing.id,
+              label: i.label,
+              adjustment_per_hour: i.adjustment_per_hour,
+              weekly_hours_cap: i.weekly_hours_cap,
+              payment_method: i.payment_method,
+              priority: i.priority,
+              active: i.active,
+              effective_date: new Date().toISOString().split('T')[0],
+              end_date: '9999-12-31',
+              is_current: true,
+            }))
+          );
+        } else {
+          // If no instructions, mark all existing ones as historical
+          await supabase.from("staff_payment_instructions")
+            .update({ 
+              end_date: new Date().toISOString().split('T')[0],
+              is_current: false 
+            })
+            .eq("staff_id", editing.id)
+            .eq("is_current", true);
+        }
+        
+        toast.success(`Staff member "${form.name}" updated successfully!`);
+      } else {
+        const { data: inserted } = await supabase.from("staff").insert({
+          name: form.name,
+          phone: form.phone || null,
+          email: form.email || null,
+          is_available: form.is_available,
+          role_slug: form.role_slug,
+          description: form.description || null,
+        }).select().single();
+        
+        if (inserted?.id) {
+          // Create all rate entries
+          const ratesToCreate = [
+            { type: 'default', rate: form.default_rate },
+            { type: 'mon', rate: form.mon_rate },
+            { type: 'tue', rate: form.tue_rate },
+            { type: 'wed', rate: form.wed_rate },
+            { type: 'thu', rate: form.thu_rate },
+            { type: 'fri', rate: form.fri_rate },
+            { type: 'sat', rate: form.sat_rate },
+            { type: 'sun', rate: form.sun_rate }
+          ];
+
+          const validRates = ratesToCreate.filter(({ rate }) => rate > 0);
+          if (validRates.length > 0) {
+            await supabase.from("staff_rates").insert(
+              validRates.map(({ type, rate }) => ({
+                staff_id: inserted.id,
+                rate: rate,
+                rate_type: type,
+                effective_date: new Date().toISOString().split('T')[0],
+                end_date: '9999-12-31',
+                is_current: true,
+              }))
+            );
+          }
+          
+          // Create payment instructions
+          if (instructions.length > 0) {
+            await supabase.from("staff_payment_instructions").insert(
+              instructions.map(i => ({
+                staff_id: inserted.id,
+                label: i.label,
+                adjustment_per_hour: i.adjustment_per_hour,
+                weekly_hours_cap: i.weekly_hours_cap,
+                payment_method: i.payment_method,
+                priority: i.priority,
+                active: i.active,
+                effective_date: new Date().toISOString().split('T')[0],
+                end_date: '9999-12-31',
+                is_current: true,
+              }))
+            );
+          }
+        }
+        
+        toast.success(`Staff member "${form.name}" created successfully!`);
       }
+      
+      await fetchStaff();
+      setFormOpen(false);
+      resetForm();
+    } catch (error) {
+      console.error('Error saving staff member:', error);
+      toast.error(`Failed to save staff member. Please try again.`);
     }
-    await fetchStaff();
-    setFormOpen(false);
-    resetForm();
   };
 
   const startEdit = (s: Staff) => {
@@ -207,30 +351,69 @@ export default function StaffPage() {
       name: s.name,
       phone: s.phone ?? "",
       email: s.email ?? "",
-      pay_rate: s.pay_rate,
-      default_rate: s.default_rate ?? s.pay_rate,
-      mon_rate: s.mon_rate ?? "",
-      tue_rate: s.tue_rate ?? "",
-      wed_rate: s.wed_rate ?? "",
-      thu_rate: s.thu_rate ?? "",
-      fri_rate: s.fri_rate ?? "",
-      sat_rate: s.sat_rate ?? "",
-      sun_rate: s.sun_rate ?? "",
+      default_rate: 0, // Will be loaded from staff_rates
+      mon_rate: 0,
+      tue_rate: 0,
+      wed_rate: 0,
+      thu_rate: 0,
+      fri_rate: 0,
+      sat_rate: 0,
+      sun_rate: 0,
       is_available: s.is_available,
       role_slug: s.role_slug ?? "member",
       description: s.description ?? "",
     });
-    // Load payment instructions for this staff
+    
+    // Load current rates and payment instructions for this staff
     void (async () => {
-      const { data } = await getSupabaseClient().from("staff_payment_instructions").select("*").eq("staff_id", s.id).order("priority");
-      setInstructions((data as StaffPaymentInstruction[]) || []);
+      const supabase = getSupabaseClient();
+      const [{ data: ratesData }, { data: instructionData }] = await Promise.all([
+        supabase.from("staff_rates").select("*").eq("staff_id", s.id),
+        supabase.from("staff_payment_instructions").select("*").eq("staff_id", s.id).eq("is_current", true).order("priority")
+      ]);
+      
+      if (ratesData) {
+        const rates = ratesData as StaffRate[];
+        console.log('🔧 startEdit debug:', {
+          staffId: s.id,
+          ratesData,
+          rates,
+          currentRates: rates.filter(r => r.is_current === true)
+        });
+        
+        // Helper function to get current rate for a specific type
+        const getCurrentRateForType = (rateType: string) => {
+          const rate = rates.find(r => r.rate_type === rateType && r.is_current === true);
+          console.log(`🎯 getCurrentRateForType(${rateType}):`, rate, 'rate_type:', rate?.rate_type);
+          return rate?.rate || 0;
+        };
+        
+        setForm(prev => ({
+          ...prev,
+          default_rate: getCurrentRateForType('default'),
+          mon_rate: getCurrentRateForType('mon'),
+          tue_rate: getCurrentRateForType('tue'),
+          wed_rate: getCurrentRateForType('wed'),
+          thu_rate: getCurrentRateForType('thu'),
+          fri_rate: getCurrentRateForType('fri'),
+          sat_rate: getCurrentRateForType('sat'),
+          sun_rate: getCurrentRateForType('sun'),
+        }));
+      }
+      setInstructions((instructionData as StaffPaymentInstruction[]) || []);
     })();
     setFormOpen(true);
   };
 
   const remove = async (id: string) => {
-    await getSupabaseClient().from("staff").delete().eq("id", id);
-    await fetchStaff();
+    try {
+      await getSupabaseClient().from("staff").delete().eq("id", id);
+      await fetchStaff();
+      toast.success("Staff member deleted successfully!");
+    } catch (error) {
+      console.error('Error deleting staff member:', error);
+      toast.error("Failed to delete staff member. Please try again.");
+    }
   };
 
   const handleDeleteStaff = (staff: Staff) => {
@@ -245,67 +428,91 @@ export default function StaffPage() {
   };
 
   const addAvailability = async (staffId: string) => {
-    // Validate minimum 2-hour duration
-    const start = new Date(`2000-01-01T${availabilityForm.start_time}`);
-    const end = new Date(`2000-01-01T${availabilityForm.end_time}`);
-    const durationHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-    
-    if (durationHours < 2) {
-      alert("Minimum availability duration is 2 hours");
-      return;
+    try {
+      // Validate minimum 2-hour duration
+      const start = new Date(`2000-01-01T${availabilityForm.start_time}`);
+      const end = new Date(`2000-01-01T${availabilityForm.end_time}`);
+      const durationHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+      
+      if (durationHours < 2) {
+        toast.error("Minimum availability duration is 2 hours");
+        return;
+      }
+
+      if (availabilityForm.selected_days.length === 0) {
+        toast.error("Please select at least one day");
+        return;
+      }
+
+      // Insert availability for each selected day
+      const availabilityData = availabilityForm.selected_days.map(day => ({
+        staff_id: staffId,
+        day_of_week: day,
+        start_time: availabilityForm.start_time,
+        end_time: availabilityForm.end_time
+      }));
+
+      await getSupabaseClient().from("staff_availability").insert(availabilityData);
+      await fetchStaff();
+      setAvailabilityForm({ selected_days: [], start_time: "09:00", end_time: "17:00" });
+      toast.success("Availability added successfully!");
+    } catch (error) {
+      console.error('Error adding availability:', error);
+      toast.error("Failed to add availability. Please try again.");
     }
-
-    if (availabilityForm.selected_days.length === 0) {
-      alert("Please select at least one day");
-      return;
-    }
-
-    // Insert availability for each selected day
-    const availabilityData = availabilityForm.selected_days.map(day => ({
-      staff_id: staffId,
-      day_of_week: day,
-      start_time: availabilityForm.start_time,
-      end_time: availabilityForm.end_time
-    }));
-
-    await getSupabaseClient().from("staff_availability").insert(availabilityData);
-    await fetchStaff();
-    setAvailabilityForm({ selected_days: [], start_time: "09:00", end_time: "17:00" });
   };
 
   const removeAvailability = async (id: string) => {
-    await getSupabaseClient().from("staff_availability").delete().eq("id", id);
-    await fetchStaff();
+    try {
+      await getSupabaseClient().from("staff_availability").delete().eq("id", id);
+      await fetchStaff();
+      toast.success("Availability removed successfully!");
+    } catch (error) {
+      console.error('Error removing availability:', error);
+      toast.error("Failed to remove availability. Please try again.");
+    }
   };
 
   const addHoliday = async (staffId: string) => {
-    if (!holidayForm.start_date || !holidayForm.end_date) {
-      alert("Please select start and end dates");
-      return;
-    }
+    try {
+      if (!holidayForm.start_date || !holidayForm.end_date) {
+        toast.error("Please select start and end dates");
+        return;
+      }
 
-    const startDate = new Date(holidayForm.start_date);
-    const endDate = new Date(holidayForm.end_date);
-    
-    if (endDate < startDate) {
-      alert("End date must be after start date");
-      return;
-    }
+      const startDate = new Date(holidayForm.start_date);
+      const endDate = new Date(holidayForm.end_date);
+      
+      if (endDate < startDate) {
+        toast.error("End date must be after start date");
+        return;
+      }
 
-    await getSupabaseClient().from("staff_holidays").insert({
-      staff_id: staffId,
-      start_date: holidayForm.start_date,
-      end_date: holidayForm.end_date,
-      notes: holidayForm.notes || null
-    });
-    
-    setHolidayForm({ start_date: "", end_date: "", notes: "" });
-    await fetchStaff();
+      await getSupabaseClient().from("staff_holidays").insert({
+        staff_id: staffId,
+        start_date: holidayForm.start_date,
+        end_date: holidayForm.end_date,
+        notes: holidayForm.notes || null
+      });
+      
+      setHolidayForm({ start_date: "", end_date: "", notes: "" });
+      await fetchStaff();
+      toast.success("Holiday added successfully!");
+    } catch (error) {
+      console.error('Error adding holiday:', error);
+      toast.error("Failed to add holiday. Please try again.");
+    }
   };
 
   const removeHoliday = async (id: string) => {
-    await getSupabaseClient().from("staff_holidays").delete().eq("id", id);
-    await fetchStaff();
+    try {
+      await getSupabaseClient().from("staff_holidays").delete().eq("id", id);
+      await fetchStaff();
+      toast.success("Holiday removed successfully!");
+    } catch (error) {
+      console.error('Error removing holiday:', error);
+      toast.error("Failed to remove holiday. Please try again.");
+    }
   };
 
   const getStaffAvailability = (staffId: string) => {
@@ -429,7 +636,7 @@ export default function StaffPage() {
                       {s.email && <span className="ml-2">{s.email}</span>}
                     </div>
                     <div className="text-sm text-gray-700 dark:text-gray-300">
-                      ${s.pay_rate.toFixed(2)}/hr • {s.is_available ? <span className="text-green-600">Available</span> : <span className="text-red-600">Unavailable</span>}
+                      ${getCurrentRate(s.id).toFixed(2)}/hr • {s.is_available ? <span className="text-green-600">Available</span> : <span className="text-red-600">Unavailable</span>}
                     </div>
                     {s.description && (
                       <div className="text-sm text-gray-500 mt-1 break-words">{s.description}</div>
@@ -455,11 +662,13 @@ export default function StaffPage() {
                       <Send className="size-4" /> Invite
                     </button>
                   )}
-                  <button onClick={() => startEdit(s)} className="h-9 w-9 rounded-lg border inline-grid place-items-center hover:bg-gray-50 dark:hover:bg-neutral-900">
+                  <button onClick={() => startEdit(s)} className="flex items-center gap-2 h-9 px-3 rounded-lg border hover:bg-gray-50 dark:hover:bg-neutral-900">
                     <Pencil className="size-4" />
+                    <span className="text-sm">Edit</span>
                   </button>
-                  <button onClick={() => handleDeleteStaff(s)} className="h-9 w-9 rounded-lg border inline-grid place-items-center hover:bg-gray-50 dark:hover:bg-neutral-900 text-red-600">
+                  <button onClick={() => handleDeleteStaff(s)} className="flex items-center gap-2 h-9 px-3 rounded-lg border hover:bg-gray-50 dark:hover:bg-neutral-900 text-red-600">
                     <Trash2 className="size-4" />
+                    <span className="text-sm">Delete</span>
                   </button>
                 </div>
               </div>
@@ -583,46 +792,110 @@ export default function StaffPage() {
                   </>
                 )}
                 {activeTab === 'rates' && (
-                  <>
-                    <label className="grid gap-2">
-                      <span className="text-sm text-gray-700 dark:text-gray-300">Default Pay Rate</span>
-                      <input type="number" step="0.01" className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.default_rate} onChange={(e) => setForm((f) => ({ ...f, default_rate: parseFloat(e.target.value || '0') }))} />
-                    </label>
-                    <div className="grid gap-3">
-                      <span className="text-sm font-medium text-gray-800 dark:text-gray-200">Weekday rates (optional overrides)</span>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                        <label className="grid gap-1 text-xs sm:text-sm">
-                          <span>Mon</span>
-                          <input type="number" step="0.01" className="h-9 rounded-xl border px-2 bg-white/80 dark:bg-neutral-900 min-w-0" value={form.mon_rate} onChange={(e) => setForm((f) => ({ ...f, mon_rate: e.target.value }))} placeholder="" />
-                        </label>
-                        <label className="grid gap-1 text-xs sm:text-sm">
-                          <span>Tue</span>
-                          <input type="number" step="0.01" className="h-9 rounded-xl border px-2 bg-white/80 dark:bg-neutral-900 min-w-0" value={form.tue_rate} onChange={(e) => setForm((f) => ({ ...f, tue_rate: e.target.value }))} />
-                        </label>
-                        <label className="grid gap-1 text-xs sm:text-sm">
-                          <span>Wed</span>
-                          <input type="number" step="0.01" className="h-9 rounded-xl border px-2 bg-white/80 dark:bg-neutral-900 min-w-0" value={form.wed_rate} onChange={(e) => setForm((f) => ({ ...f, wed_rate: e.target.value }))} />
-                        </label>
-                        <label className="grid gap-1 text-xs sm:text-sm">
-                          <span>Thu</span>
-                          <input type="number" step="0.01" className="h-9 rounded-xl border px-2 bg-white/80 dark:bg-neutral-900 min-w-0" value={form.thu_rate} onChange={(e) => setForm((f) => ({ ...f, thu_rate: e.target.value }))} />
-                        </label>
-                        <label className="grid gap-1 text-xs sm:text-sm">
-                          <span>Fri</span>
-                          <input type="number" step="0.01" className="h-9 rounded-xl border px-2 bg-white/80 dark:bg-neutral-900 min-w-0" value={form.fri_rate} onChange={(e) => setForm((f) => ({ ...f, fri_rate: e.target.value }))} />
-                        </label>
-                        <label className="grid gap-1 text-xs sm:text-sm">
-                          <span>Sat</span>
-                          <input type="number" step="0.01" className="h-9 rounded-xl border px-2 bg-white/80 dark:bg-neutral-900 min-w-0" value={form.sat_rate} onChange={(e) => setForm((f) => ({ ...f, sat_rate: e.target.value }))} />
-                        </label>
-                        <label className="grid gap-1 text-xs sm:text-sm">
-                          <span>Sun</span>
-                          <input type="number" step="0.01" className="h-9 rounded-xl border px-2 bg-white/80 dark:bg-neutral-900 min-w-0" value={form.sun_rate} onChange={(e) => setForm((f) => ({ ...f, sun_rate: e.target.value }))} />
-                        </label>
-                      </div>
-                      <p className="text-xs text-gray-500">Leave weekday fields empty to use the default rate.</p>
+                  <div className="grid gap-4">
+                    <div className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-2">Pay Rates ($/hour)</div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                      Set default rate and specific weekday rates. Weekday rates override default rate for that day.
+                    </p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <label className="grid gap-2">
+                        <span className="text-sm text-gray-700 dark:text-gray-300">Default Rate</span>
+                        <input 
+                          type="number" 
+                          step="0.01" 
+                          className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" 
+                          value={form.default_rate} 
+                          onChange={(e) => setForm((f) => ({ ...f, default_rate: parseFloat(e.target.value || '0') }))} 
+                          placeholder="Enter default hourly rate"
+                        />
+                      </label>
+                      
+                      <label className="grid gap-2">
+                        <span className="text-sm text-gray-700 dark:text-gray-300">Monday Rate</span>
+                        <input 
+                          type="number" 
+                          step="0.01" 
+                          className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" 
+                          value={form.mon_rate} 
+                          onChange={(e) => setForm((f) => ({ ...f, mon_rate: parseFloat(e.target.value || '0') }))} 
+                          placeholder="Enter Monday rate (optional)"
+                        />
+                      </label>
+                      
+                      <label className="grid gap-2">
+                        <span className="text-sm text-gray-700 dark:text-gray-300">Tuesday Rate</span>
+                        <input 
+                          type="number" 
+                          step="0.01" 
+                          className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" 
+                          value={form.tue_rate} 
+                          onChange={(e) => setForm((f) => ({ ...f, tue_rate: parseFloat(e.target.value || '0') }))} 
+                          placeholder="Enter Tuesday rate (optional)"
+                        />
+                      </label>
+                      
+                      <label className="grid gap-2">
+                        <span className="text-sm text-gray-700 dark:text-gray-300">Wednesday Rate</span>
+                        <input 
+                          type="number" 
+                          step="0.01" 
+                          className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" 
+                          value={form.wed_rate} 
+                          onChange={(e) => setForm((f) => ({ ...f, wed_rate: parseFloat(e.target.value || '0') }))} 
+                          placeholder="Enter Wednesday rate (optional)"
+                        />
+                      </label>
+                      
+                      <label className="grid gap-2">
+                        <span className="text-sm text-gray-700 dark:text-gray-300">Thursday Rate</span>
+                        <input 
+                          type="number" 
+                          step="0.01" 
+                          className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" 
+                          value={form.thu_rate} 
+                          onChange={(e) => setForm((f) => ({ ...f, thu_rate: parseFloat(e.target.value || '0') }))} 
+                          placeholder="Enter Thursday rate (optional)"
+                        />
+                      </label>
+                      
+                      <label className="grid gap-2">
+                        <span className="text-sm text-gray-700 dark:text-gray-300">Friday Rate</span>
+                        <input 
+                          type="number" 
+                          step="0.01" 
+                          className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" 
+                          value={form.fri_rate} 
+                          onChange={(e) => setForm((f) => ({ ...f, fri_rate: parseFloat(e.target.value || '0') }))} 
+                          placeholder="Enter Friday rate (optional)"
+                        />
+                      </label>
+                      
+                      <label className="grid gap-2">
+                        <span className="text-sm text-gray-700 dark:text-gray-300">Saturday Rate</span>
+                        <input 
+                          type="number" 
+                          step="0.01" 
+                          className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" 
+                          value={form.sat_rate} 
+                          onChange={(e) => setForm((f) => ({ ...f, sat_rate: parseFloat(e.target.value || '0') }))} 
+                          placeholder="Enter Saturday rate (optional)"
+                        />
+                      </label>
+                      
+                      <label className="grid gap-2">
+                        <span className="text-sm text-gray-700 dark:text-gray-300">Sunday Rate</span>
+                        <input 
+                          type="number" 
+                          step="0.01" 
+                          className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" 
+                          value={form.sun_rate} 
+                          onChange={(e) => setForm((f) => ({ ...f, sun_rate: parseFloat(e.target.value || '0') }))} 
+                          placeholder="Enter Sunday rate (optional)"
+                        />
+                      </label>
                     </div>
-                  </>
+                  </div>
                 )}
                 {activeTab === 'instructions' && (
                   <>
@@ -644,7 +917,11 @@ export default function StaffPage() {
                           </label>
                           <label className="grid gap-1 text-xs sm:text-sm md:col-span-3">
                             <span>Payment method</span>
-                            <input className="h-10 rounded-lg border px-3 bg-white dark:bg-neutral-900 min-w-0" value={instrDraft.payment_method ?? ''} onChange={(e) => setInstrDraft(d => ({ ...d, payment_method: e.target.value }))} />
+                            <select className="h-10 rounded-lg border px-3 bg-white dark:bg-neutral-900 min-w-0" value={instrDraft.payment_method ?? ''} onChange={(e) => setInstrDraft(d => ({ ...d, payment_method: e.target.value }))}>
+                              <option value="">Select payment method</option>
+                              <option value="Booking">Booking</option>
+                              <option value="Cash">Cash</option>
+                            </select>
                           </label>
                           <label className="grid gap-1 text-xs sm:text-sm md:col-span-2">
                             <span>Priority</span>
@@ -656,7 +933,10 @@ export default function StaffPage() {
                             </label>
                           </div>
                           <div className="md:col-span-12">
-                            <button type="button" onClick={() => setInstructions(list => [...list, { id: crypto.randomUUID(), staff_id: editing?.id || 'new', ...instrDraft } as StaffPaymentInstruction])} className="h-10 px-4 rounded-lg bg-blue-600 text-white">Add instruction</button>
+                            <button type="button" onClick={() => setInstructions(list => [...list, { id: crypto.randomUUID(), staff_id: editing?.id || 'new', ...instrDraft } as StaffPaymentInstruction])} className="flex items-center gap-2 h-10 px-4 rounded-lg bg-blue-600 text-white">
+                              <Plus className="size-4" />
+                              <span>Add instruction</span>
+                            </button>
                           </div>
                         </div>
                         {instructions.length === 0 ? (
@@ -666,7 +946,7 @@ export default function StaffPage() {
                             <div className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-3">Current Payment Instructions</div>
                             <div className="space-y-2">
                               {instructions.sort((a,b) => a.priority - b.priority).map((ins, idx) => (
-                                <div key={ins.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center bg-white dark:bg-neutral-900 rounded-lg p-3 text-sm border">
+                                <div key={ins.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center bg-white dark:bg-neutral-900 p-3 text-sm border-l-4 border-l-blue-500">
                                 <div className="md:col-span-3 font-medium">{ins.label}</div>
                                 <div className="md:col-span-2">Adj/hr: {ins.adjustment_per_hour}</div>
                                 <div className="md:col-span-2">Cap: {ins.weekly_hours_cap ?? '∞'}</div>
@@ -674,8 +954,9 @@ export default function StaffPage() {
                                 <div className="md:col-span-1">Prio: {ins.priority}</div>
                                 <div className="md:col-span-1">{ins.active ? 'Active' : 'Inactive'}</div>
                                 <div className="md:col-span-12 md:justify-self-end">
-                                  <button type="button" onClick={() => setInstructions(list => list.filter((_, i) => i !== idx))} className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded px-2 py-1">
-                                    Remove
+                                  <button type="button" onClick={() => setInstructions(list => list.filter((_, i) => i !== idx))} className="flex items-center gap-2 px-3 py-1 text-sm bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40 rounded transition-colors">
+                                    <Trash2 className="w-3 h-3" />
+                                    <span>Remove</span>
                                   </button>
                                 </div>
                               </div>
@@ -756,8 +1037,9 @@ export default function StaffPage() {
                                   <span className="font-medium">{DAYS[a.day_of_week]}</span>
                                   <span className="ml-2">{formatTime(a.start_time)} - {formatTime(a.end_time)}</span>
                                 </div>
-                                <button type="button" onClick={() => setAvailabilityDeleteConfirm({ availabilityId: a.id, isOpen: true })} className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded px-2 py-1">
-                                  Remove
+                                <button type="button" onClick={() => setAvailabilityDeleteConfirm({ availabilityId: a.id, isOpen: true })} className="flex items-center gap-2 px-3 py-1 text-sm bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40 rounded transition-colors">
+                                  <Trash2 className="w-3 h-3" />
+                                  <span>Remove</span>
                                 </button>
                               </div>
                             ))}
@@ -789,7 +1071,10 @@ export default function StaffPage() {
                           <span className="text-sm text-gray-700 dark:text-gray-300">Notes (optional)</span>
                           <input type="text" placeholder="e.g., Vacation, Sick leave" className="h-10 rounded-lg border px-3 bg-white dark:bg-neutral-900" value={holidayForm.notes} onChange={(e) => setHolidayForm((f) => ({ ...f, notes: e.target.value }))} />
                         </label>
-                        <button type="button" onClick={() => editing && addHoliday(editing.id)} className="h-10 px-4 rounded-lg bg-blue-600 text-white">Add Holiday</button>
+                        <button type="button" onClick={() => editing && addHoliday(editing.id)} className="flex items-center gap-2 h-10 px-4 rounded-lg bg-blue-600 text-white">
+                          <Plus className="size-4" />
+                          <span>Add Holiday</span>
+                        </button>
                       </div>
 
                       {/* Show existing holidays */}
@@ -808,8 +1093,9 @@ export default function StaffPage() {
                                   )}
                                   {h.notes && <div className="text-xs text-gray-500 mt-1">{h.notes}</div>}
                                 </div>
-                                <button type="button" onClick={() => setHolidayDeleteConfirm({ holidayId: h.id, isOpen: true })} className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded px-2 py-1">
-                                  Remove
+                                <button type="button" onClick={() => setHolidayDeleteConfirm({ holidayId: h.id, isOpen: true })} className="flex items-center gap-2 px-3 py-1 text-sm bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40 rounded transition-colors">
+                                  <Trash2 className="w-3 h-3" />
+                                  <span>Remove</span>
                                 </button>
                               </div>
                             ))}
@@ -825,8 +1111,14 @@ export default function StaffPage() {
             
             {/* Modal Footer */}
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-neutral-800 bg-gray-50/50 dark:bg-neutral-900/50">
-              <button type="button" onClick={() => setFormOpen(false)} className="h-10 px-4 rounded-lg border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors">Cancel</button>
-              <button type="submit" form="staff-form" className="h-10 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors">Save</button>
+              <button type="button" onClick={() => setFormOpen(false)} className="flex items-center gap-2 h-10 px-4 rounded-lg border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors">
+                <X className="size-4" />
+                <span>Cancel</span>
+              </button>
+              <button type="submit" form="staff-form" className="flex items-center gap-2 h-10 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors">
+                <Save className="size-4" />
+                <span>Save</span>
+              </button>
             </div>
           </div>
         </div>

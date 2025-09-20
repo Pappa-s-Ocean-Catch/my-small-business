@@ -35,17 +35,19 @@ import Link from "next/link";
 type Staff = {
   id: string;
   name: string;
-  pay_rate: number; // legacy fallback
   email: string | null;
   is_available: boolean;
-  default_rate?: number | null;
-  mon_rate?: number | null;
-  tue_rate?: number | null;
-  wed_rate?: number | null;
-  thu_rate?: number | null;
-  fri_rate?: number | null;
-  sat_rate?: number | null;
-  sun_rate?: number | null;
+};
+
+type StaffRate = {
+  id: string;
+  staff_id: string;
+  rate: number;
+  rate_type: string; // 'default', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'
+  effective_date: string;
+  end_date: string;
+  is_current: boolean;
+  created_at: string;
 };
 type Section = {
   id: string;
@@ -78,6 +80,7 @@ type StaffHoliday = {
 interface DragDropCalendarProps {
   shifts: Shift[];
   staff: Staff[];
+  staffRates: StaffRate[];
   availability: Availability[];
   holidays: StaffHoliday[];
   sections: Section[];
@@ -260,6 +263,7 @@ function SectionDayCell({ day, section, shifts, staff, isAdmin, onShiftCreate, o
 export function DragDropCalendar({
   shifts,
   staff,
+  staffRates,
   availability,
   sections,
   isAdmin,
@@ -299,14 +303,41 @@ export function DragDropCalendar({
     const rawHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
     const nonbill = Number(shift.non_billable_hours || 0);
     const hours = Math.max(0, rawHours - nonbill);
-    const dow = start.getDay();
-    const lookup: Array<number | null | undefined> = [s.sun_rate, s.mon_rate, s.tue_rate, s.wed_rate, s.thu_rate, s.fri_rate, s.sat_rate];
-    const baseRate = Number(lookup[dow] ?? s.default_rate ?? s.pay_rate);
+    
+    // Find the rate that was effective on the shift date
+    const dateStr = start.toISOString().split('T')[0];
+    const dayOfWeek = start.getDay(); // 0=Sunday, 1=Monday, etc.
+    
+    // Map day of week to rate type
+    const rateTypeMap: { [key: number]: string } = {
+      0: 'sun', 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu', 5: 'fri', 6: 'sat'
+    };
+    const rateType = rateTypeMap[dayOfWeek];
+    
+    // First try to find specific day rate
+    let rate = staffRates.find(r => 
+      r.staff_id === s.id && 
+      r.rate_type === rateType &&
+      r.effective_date <= dateStr && 
+      r.end_date >= dateStr
+    );
+    
+    // If no specific day rate, fall back to default rate
+    if (!rate) {
+      rate = staffRates.find(r => 
+        r.staff_id === s.id && 
+        r.rate_type === 'default' &&
+        r.effective_date <= dateStr && 
+        r.end_date >= dateStr
+      );
+    }
+    
+    const baseRate = rate?.rate || 0;
     
     // For now, use simple calculation since we don't have payment instructions in calendar context
     // TODO: Add payment instructions support to calendar if needed
     return Math.max(0, hours) * baseRate;
-  }, [staff]);
+  }, [staff, staffRates]);
 
   const getDailyTotal = useCallback((day: Date): number => {
     const dayKey = day.toISOString().slice(0, 10);
@@ -494,22 +525,42 @@ export function DragDropCalendar({
 
   // Get staff rate for the shift date
   const getStaffRate = useCallback((staffMember: Staff): number => {
-    if (!editingShift) return staffMember.pay_rate;
+    if (!editingShift) {
+      // Return current default rate if no shift is being edited
+      const currentRate = staffRates.find(r => r.staff_id === staffMember.id && r.rate_type === 'default' && r.is_current);
+      return currentRate?.rate || 0;
+    }
     
     const shiftDate = new Date(editingShift.start_time);
-    const dayOfWeek = shiftDate.getDay();
-    const lookup: Array<number | null | undefined> = [
-      staffMember.sun_rate,
-      staffMember.mon_rate,
-      staffMember.tue_rate,
-      staffMember.wed_rate,
-      staffMember.thu_rate,
-      staffMember.fri_rate,
-      staffMember.sat_rate,
-    ];
-    const dayRate = lookup[dayOfWeek];
-    return Number(dayRate ?? staffMember.default_rate ?? staffMember.pay_rate);
-  }, [editingShift]);
+    const dateStr = shiftDate.toISOString().split('T')[0];
+    const dayOfWeek = shiftDate.getDay(); // 0=Sunday, 1=Monday, etc.
+    
+    // Map day of week to rate type
+    const rateTypeMap: { [key: number]: string } = {
+      0: 'sun', 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu', 5: 'fri', 6: 'sat'
+    };
+    const rateType = rateTypeMap[dayOfWeek];
+    
+    // First try to find specific day rate
+    let rate = staffRates.find(r => 
+      r.staff_id === staffMember.id && 
+      r.rate_type === rateType &&
+      r.effective_date <= dateStr && 
+      r.end_date >= dateStr
+    );
+    
+    // If no specific day rate, fall back to default rate
+    if (!rate) {
+      rate = staffRates.find(r => 
+        r.staff_id === staffMember.id && 
+        r.rate_type === 'default' &&
+        r.effective_date <= dateStr && 
+        r.end_date >= dateStr
+      );
+    }
+    
+    return rate?.rate || 0;
+  }, [editingShift, staffRates]);
 
   const handleShiftDelete = useCallback((shift: Shift) => {
     setDeleteConfirm({ shift, isOpen: true });
@@ -783,6 +834,7 @@ export function DragDropCalendar({
       <PrintSchedule 
         shifts={shifts}
         staff={staff}
+        staffRates={staffRates}
         sections={sections}
         currentWeek={currentWeek}
       />
@@ -1066,7 +1118,7 @@ export function DragDropCalendar({
                 >
                   <div className="font-medium text-gray-900 dark:text-white">{s.name}</div>
                   <div className="text-sm text-gray-600 dark:text-gray-400">
-                    ${s.pay_rate}/hour
+                    ${staffRates.find(r => r.staff_id === s.id && r.rate_type === 'default' && r.is_current)?.rate || 0}/hour
                   </div>
                 </button>
               ))}

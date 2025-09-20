@@ -1,0 +1,125 @@
+---
+globs: *.tsx
+alwaysApply: false
+---
+# UI/UX Guidelines
+
+Quick reference for consistent UI/UX across all `.tsx` files.
+
+## 🎯 Button Pattern (MANDATORY)
+
+**Structure:** Icon on left + Text on right
+```tsx
+<button className="flex items-center gap-2 [styles]">
+  <IconComponent className="w-4 h-4" />
+  <span>Button Text</span>
+</button>
+```
+
+**Requirements:**
+- ✅ Icon + Text (never text-only or icon-only)
+- ✅ `gap-2` spacing between icon and text
+- ✅ `w-4 h-4` icon size (standard), `w-3 h-3` (small)
+- ✅ Text wrapped in `<span>` tags
+
+## 🎨 Block Styling (MANDATORY)
+
+**Preferred block styling pattern:**
+```tsx
+// ✅ Preferred: Block with box shadow and background
+<div className="bg-white dark:bg-neutral-900 shadow-lg rounded-lg p-4">
+  {/* Content */}
+</div>
+
+// ✅ Alternative: Card component
+<Card variant="elevated" padding="md">
+  {/* Content */}
+</Card>
+```
+
+**Requirements:**
+- ✅ Use `shadow-lg` or `shadow-xl` for depth
+- ✅ Use `bg-white dark:bg-neutral-900` for background
+- ✅ Use `rounded-lg` for subtle rounding (not `rounded-xl` or `rounded-2xl`)
+- ✅ Use `p-4` or `p-6` for consistent padding
+- ✅ Avoid heavy borders - prefer subtle shadows
+
+**Prohibited block styling:**
+```tsx
+// ❌ Avoid: Heavy borders and excessive rounding
+<div className="border-2 border-gray-300 rounded-2xl p-4">
+
+// ❌ Avoid: No background or shadow
+<div className="border border-gray-200 rounded-lg p-4">
+```
+
+## ⚠️ Confirmation Dialogs (MANDATORY)
+
+**All destructive actions require confirmation:**
+- Delete operations
+- Status changes (activate/deactivate)
+- Data modifications
+- Bulk operations
+
+```tsx
+import { ConfirmationDialog } from "@/components/ConfirmationDialog";
+
+<ConfirmationDialog
+  isOpen={showDialog}
+  onClose={() => setShowDialog(false)}
+  onConfirm={handleAction}
+  title="Action Title"
+  message="Clear confirmation message"
+  variant="danger" // or "warning", "info"
+/>
+```
+
+## 🍞 Toast Notifications (MANDATORY)
+
+**For inline table/card actions (success/error feedback):**
+
+```tsx
+import { toast } from "react-hot-toast"; // or your toast library
+
+// Success
+toast.success("Item updated successfully!");
+
+// Error
+toast.error("Failed to update item. Please try again.");
+
+// Info
+toast("Operation completed");
+```
+
+**When to use Toast:**
+- ✅ Table row actions (edit, delete, status change)
+- ✅ Card inline actions
+- ✅ Quick feedback for non-blocking operations
+- ✅ Success/error messages for data operations
+
+**When NOT to use Toast:**
+- ❌ Critical errors (use ErrorModal)
+- ❌ Confirmation dialogs (use ConfirmationDialog)
+- ❌ Form validation errors (use inline errors)
+
+## 🚫 Prohibited
+
+- `alert()`, `confirm()`, `prompt()` - Use proper components
+- Text-only buttons - Always include icons
+- Icon-only buttons - Always include text
+- No confirmation for destructive actions
+- No feedback for inline actions
+- Heavy borders on blocks - Use shadows instead
+- Excessive rounding - Use `rounded-lg` maximum
+- **NEVER run `npx supabase db reset` or any database reset commands** - This is a production database! Use `npx supabase db push` for migrations instead
+- **When database schema changes, update ALL related code** - Forms, calculations, queries, and data handling must be updated to use new/changed fields
+- **Only run `npm run build:agent` for massive changes** - Don't run build after every small edit, only when making significant structural changes
+
+## 📋 Quick Checklist
+
+- [ ] Button has icon + text
+- [ ] Destructive actions have confirmation
+- [ ] Inline actions show toast feedback
+- [ ] Blocks use shadows instead of heavy borders
+- [ ] Consistent styling and spacing
+- [ ] Proper error handling
