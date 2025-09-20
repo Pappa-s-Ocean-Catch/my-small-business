@@ -114,6 +114,7 @@ toast("Operation completed");
 - **NEVER run `npx supabase db reset` or any database reset commands** - This is a production database! Use `npx supabase db push` for migrations instead
 - **When database schema changes, update ALL related code** - Forms, calculations, queries, and data handling must be updated to use new/changed fields
 - **Only run `npm run build:agent` for massive changes** - Don't run build after every small edit, only when making significant structural changes
+- **ALWAYS check Supabase errors** - Never show success toast without verifying database operations succeeded. Use `const { error } = await supabase...` and throw errors with specific messages
 
 ## 📋 Quick Checklist
 

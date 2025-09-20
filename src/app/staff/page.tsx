@@ -198,6 +198,8 @@ export default function StaffPage() {
     });
     setEditing(null);
     setInstructions([]);
+    setAvailabilityForm({ selected_days: [], start_time: "09:00", end_time: "17:00" });
+    setHolidayForm({ start_date: "", end_date: "", notes: "" });
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -207,7 +209,7 @@ export default function StaffPage() {
     try {
       if (editing) {
         // Update staff basic info
-        await supabase.from("staff").update({
+        const { error: staffUpdateError } = await supabase.from("staff").update({
           name: form.name,
           phone: form.phone || null,
           email: form.email || null,
@@ -215,6 +217,10 @@ export default function StaffPage() {
           role_slug: form.role_slug,
           description: form.description || null,
         }).eq("id", editing.id);
+        
+        if (staffUpdateError) {
+          throw new Error(`Failed to update staff info: ${staffUpdateError.message}`);
+        }
 
         // Update all rates using temporal function
         const ratesToUpdate = [
@@ -230,19 +236,23 @@ export default function StaffPage() {
 
         for (const { type, rate } of ratesToUpdate) {
           if (rate > 0) {
-            await supabase.rpc('update_staff_rate', {
+            const { error: rateError } = await supabase.rpc('update_staff_rate', {
               p_staff_id: editing.id,
               p_new_rate: rate,
               p_rate_type: type,
               p_effective_date: new Date().toISOString().split('T')[0]
             });
+            
+            if (rateError) {
+              throw new Error(`Failed to update ${type} rate: ${rateError.message}`);
+            }
           }
         }
 
         // Handle payment instructions for existing staff
         if (instructions.length > 0) {
           // First, mark existing instructions as historical
-          await supabase.from("staff_payment_instructions")
+          const { error: updateError } = await supabase.from("staff_payment_instructions")
             .update({ 
               end_date: new Date().toISOString().split('T')[0],
               is_current: false 
@@ -250,8 +260,12 @@ export default function StaffPage() {
             .eq("staff_id", editing.id)
             .eq("is_current", true);
           
+          if (updateError) {
+            throw new Error(`Failed to update payment instructions: ${updateError.message}`);
+          }
+          
           // Then insert the updated instructions
-          await supabase.from("staff_payment_instructions").insert(
+          const { error: insertError } = await supabase.from("staff_payment_instructions").insert(
             instructions.map(i => ({
               staff_id: editing.id,
               label: i.label,
@@ -265,20 +279,69 @@ export default function StaffPage() {
               is_current: true,
             }))
           );
+          
+          if (insertError) {
+            throw new Error(`Failed to insert payment instructions: ${insertError.message}`);
+          }
         } else {
           // If no instructions, mark all existing ones as historical
-          await supabase.from("staff_payment_instructions")
+          const { error: updateError } = await supabase.from("staff_payment_instructions")
             .update({ 
               end_date: new Date().toISOString().split('T')[0],
               is_current: false 
             })
             .eq("staff_id", editing.id)
             .eq("is_current", true);
+            
+          if (updateError) {
+            throw new Error(`Failed to update payment instructions: ${updateError.message}`);
+          }
+        }
+        
+        // Handle availability for existing staff
+        if (availabilityForm.selected_days.length > 0) {
+          // Validate minimum 2-hour duration
+          const start = new Date(`2000-01-01T${availabilityForm.start_time}`);
+          const end = new Date(`2000-01-01T${availabilityForm.end_time}`);
+          const durationHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+          
+          if (durationHours >= 2) {
+            // Insert availability for each selected day
+            const availabilityData = availabilityForm.selected_days.map(day => ({
+              staff_id: editing.id,
+              day_of_week: day,
+              start_time: availabilityForm.start_time,
+              end_time: availabilityForm.end_time
+            }));
+
+            const { error: availabilityError } = await supabase.from("staff_availability").insert(availabilityData);
+            if (availabilityError) {
+              throw new Error(`Failed to save availability: ${availabilityError.message}`);
+            }
+          }
+        }
+        
+        // Handle holidays for existing staff
+        if (holidayForm.start_date && holidayForm.end_date) {
+          const startDate = new Date(holidayForm.start_date);
+          const endDate = new Date(holidayForm.end_date);
+          
+          if (endDate >= startDate) {
+            const { error: holidayError } = await supabase.from("staff_holidays").insert({
+              staff_id: editing.id,
+              start_date: holidayForm.start_date,
+              end_date: holidayForm.end_date,
+              notes: holidayForm.notes || null
+            });
+            if (holidayError) {
+              throw new Error(`Failed to save holiday: ${holidayError.message}`);
+            }
+          }
         }
         
         toast.success(`Staff member "${form.name}" updated successfully!`);
       } else {
-        const { data: inserted } = await supabase.from("staff").insert({
+        const { data: inserted, error: staffInsertError } = await supabase.from("staff").insert({
           name: form.name,
           phone: form.phone || null,
           email: form.email || null,
@@ -286,6 +349,10 @@ export default function StaffPage() {
           role_slug: form.role_slug,
           description: form.description || null,
         }).select().single();
+        
+        if (staffInsertError) {
+          throw new Error(`Failed to create staff member: ${staffInsertError.message}`);
+        }
         
         if (inserted?.id) {
           // Create all rate entries
@@ -302,7 +369,7 @@ export default function StaffPage() {
 
           const validRates = ratesToCreate.filter(({ rate }) => rate > 0);
           if (validRates.length > 0) {
-            await supabase.from("staff_rates").insert(
+            const { error: ratesError } = await supabase.from("staff_rates").insert(
               validRates.map(({ type, rate }) => ({
                 staff_id: inserted.id,
                 rate: rate,
@@ -312,11 +379,14 @@ export default function StaffPage() {
                 is_current: true,
               }))
             );
+            if (ratesError) {
+              throw new Error(`Failed to create rates: ${ratesError.message}`);
+            }
           }
           
           // Create payment instructions
           if (instructions.length > 0) {
-            await supabase.from("staff_payment_instructions").insert(
+            const { error: instructionsError } = await supabase.from("staff_payment_instructions").insert(
               instructions.map(i => ({
                 staff_id: inserted.id,
                 label: i.label,
@@ -330,6 +400,50 @@ export default function StaffPage() {
                 is_current: true,
               }))
             );
+            if (instructionsError) {
+              throw new Error(`Failed to create payment instructions: ${instructionsError.message}`);
+            }
+          }
+        }
+        
+        // Handle availability for new staff
+        if (inserted?.id && availabilityForm.selected_days.length > 0) {
+          // Validate minimum 2-hour duration
+          const start = new Date(`2000-01-01T${availabilityForm.start_time}`);
+          const end = new Date(`2000-01-01T${availabilityForm.end_time}`);
+          const durationHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+          
+          if (durationHours >= 2) {
+            // Insert availability for each selected day
+            const availabilityData = availabilityForm.selected_days.map(day => ({
+              staff_id: inserted.id,
+              day_of_week: day,
+              start_time: availabilityForm.start_time,
+              end_time: availabilityForm.end_time
+            }));
+
+            const { error: availabilityError } = await supabase.from("staff_availability").insert(availabilityData);
+            if (availabilityError) {
+              throw new Error(`Failed to save availability: ${availabilityError.message}`);
+            }
+          }
+        }
+        
+        // Handle holidays for new staff
+        if (inserted?.id && holidayForm.start_date && holidayForm.end_date) {
+          const startDate = new Date(holidayForm.start_date);
+          const endDate = new Date(holidayForm.end_date);
+          
+          if (endDate >= startDate) {
+            const { error: holidayError } = await supabase.from("staff_holidays").insert({
+              staff_id: inserted.id,
+              start_date: holidayForm.start_date,
+              end_date: holidayForm.end_date,
+              notes: holidayForm.notes || null
+            });
+            if (holidayError) {
+              throw new Error(`Failed to save holiday: ${holidayError.message}`);
+            }
           }
         }
         
@@ -728,9 +842,9 @@ export default function StaffPage() {
 
       {formOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm grid place-items-center p-4 z-50" onClick={() => setFormOpen(false)}>
-          <div className="w-full max-w-4xl bg-white dark:bg-neutral-950 rounded-2xl shadow-2xl p-0 max-h-[85vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-4xl bg-white dark:bg-neutral-950 rounded-2xl shadow-2xl p-0 max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-neutral-800">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-neutral-800 flex-shrink-0">
               <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{editing ? "Edit staff" : "Add staff"}</h2>
               <button type="button" onClick={() => setFormOpen(false)} className="h-8 w-8 rounded-lg inline-grid place-items-center hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors">
                 <X className="size-4 text-gray-500 dark:text-gray-400" />
@@ -738,7 +852,7 @@ export default function StaffPage() {
             </div>
             
         {/* Modal Body */}
-        <div className="max-h-[calc(85vh-80px)] overflow-y-auto overflow-x-hidden pb-5">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden">
               <div className="px-6 sm:px-8 pt-6 sm:pt-8">
                 <div className="flex flex-wrap gap-2 border-b border-gray-200 dark:border-neutral-800 pb-4 mb-6">
                 <button type="button" className={`px-3 py-2 text-sm border-b-2 ${activeTab==='general' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 dark:text-gray-300'}`} onClick={() => setActiveTab('general')}>General</button>
@@ -1110,7 +1224,7 @@ export default function StaffPage() {
             </div>
             
             {/* Modal Footer */}
-            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-neutral-800 bg-gray-50/50 dark:bg-neutral-900/50">
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-neutral-800 bg-gray-50/50 dark:bg-neutral-900/50 flex-shrink-0">
               <button type="button" onClick={() => setFormOpen(false)} className="flex items-center gap-2 h-10 px-4 rounded-lg border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors">
                 <X className="size-4" />
                 <span>Cancel</span>
