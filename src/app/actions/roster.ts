@@ -130,7 +130,7 @@ export async function sendWeeklyRoster(request: SendRosterRequest): Promise<{
           break;
         }
 
-        if (result.error) {
+        if (result && result.error) {
           console.error(`❌ Error sending roster to ${roster.staffEmail}:`, result.error);
           emailResults.push({
             email: roster.staffEmail,
