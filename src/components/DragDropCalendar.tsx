@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { 
   DndContext, 
   DragEndEvent, 
@@ -108,6 +108,7 @@ interface SectionDayCellProps {
   shifts: Shift[];
   staff: Staff[];
   isAdmin: boolean;
+  isCtrlPressed: boolean;
   onShiftCreate: (day: Date) => Promise<void>;
   onShiftEdit: (shift: Shift) => void;
   onShiftDelete: (shift: Shift) => void;
@@ -122,7 +123,7 @@ function DraggableShift({ shift, staff, isAdmin, onEdit, onDelete, onAssign }: D
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: shift.id });
+  } = useSortable({ id: shift.id, disabled: !isAdmin });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -135,8 +136,10 @@ function DraggableShift({ shift, staff, isAdmin, onEdit, onDelete, onAssign }: D
       ref={setNodeRef}
       style={style}
       {...attributes}
-      {...listeners}
-      className="rounded-lg border p-2 bg-white dark:bg-neutral-800 border-gray-200 dark:border-neutral-600 cursor-move hover:shadow-md transition-shadow"
+      {...(isAdmin ? listeners : {})}
+      className={`rounded-lg border p-2 bg-white dark:bg-neutral-800 border-gray-200 dark:border-neutral-600 transition-shadow ${
+        isAdmin ? 'cursor-move hover:shadow-md' : 'cursor-default'
+      }`}
     >
       <div className="text-xs">
         <div className="font-medium text-gray-900 dark:text-white">
@@ -200,7 +203,7 @@ function DraggableShift({ shift, staff, isAdmin, onEdit, onDelete, onAssign }: D
   );
 }
 
-function SectionDayCell({ day, section, shifts, staff, isAdmin, onShiftCreate, onShiftEdit, onShiftDelete, onShiftAssign }: SectionDayCellProps) {
+function SectionDayCell({ day, section, shifts, staff, isAdmin, isCtrlPressed, onShiftCreate, onShiftEdit, onShiftDelete, onShiftAssign }: SectionDayCellProps) {
   const getStaffById = (id: string | null) => staff.find(s => s.id === id) || null;
   // Use a separator that won't conflict with UUIDs or dates
   const dropZoneId = `drop_${section.id}_${day.toISOString()}`;
@@ -215,10 +218,21 @@ function SectionDayCell({ day, section, shifts, staff, isAdmin, onShiftCreate, o
       id={dropZoneId}
       className={`min-h-[120px] p-2 border rounded-lg relative transition-colors ${
         isOver 
-          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
-          : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750'
+          ? isCtrlPressed 
+            ? 'border-green-500 bg-green-50 dark:bg-green-900/20' 
+            : 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+          : isCtrlPressed
+            ? 'border-green-300 dark:border-green-700 bg-green-25 dark:bg-green-900/10 hover:bg-green-50 dark:hover:bg-green-900/20'
+            : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750'
       }`}
     >
+      {/* Clone mode indicator */}
+      {isCtrlPressed && (
+        <div className="absolute top-1 left-1 w-6 h-6 bg-green-600 text-white rounded-full flex items-center justify-center text-xs z-10">
+          <span className="text-[10px] font-bold">+</span>
+        </div>
+      )}
+      
       {/* Add shift button for admins */}
       {isAdmin && (
         <button
@@ -281,6 +295,7 @@ export function DragDropCalendar({
   const [autoShiftConfirm, setAutoShiftConfirm] = useState<{ isOpen: boolean; summary: AutoShiftSummary | null }>({ isOpen: false, summary: null });
   const [errorModal, setErrorModal] = useState<{ isOpen: boolean; title: string; message: string; details?: string }>({ isOpen: false, title: "", message: "" });
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [isCtrlPressed, setIsCtrlPressed] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -289,6 +304,36 @@ export function DragDropCalendar({
       },
     })
   );
+
+  // Track Ctrl key state for clone operations - only for admin users on calendar page
+  useEffect(() => {
+    // Don't set up keyboard listeners for staff users
+    if (!isAdmin) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Only track Ctrl key when we're on the calendar page and user is admin
+      if ((event.key === 'Control' || event.metaKey) && window.location.pathname === '/calendar') {
+        setIsCtrlPressed(true);
+      }
+    };
+
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.key === 'Control' || event.metaKey) {
+        setIsCtrlPressed(false);
+      }
+    };
+
+    // Only add listeners when the calendar is mounted and user is admin
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [isAdmin]);
 
   const startOfThisWeek = startOfWeek(currentWeek, { weekStartsOn: 1 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(startOfThisWeek, i));
@@ -351,11 +396,21 @@ export function DragDropCalendar({
   }, [weekDays, getDailyTotal]);
 
   const handleDragStart = (event: DragStartEvent) => {
+    // Only allow dragging for admin users
+    if (!isAdmin) {
+      return;
+    }
     setActiveId(event.active.id as string);
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
+    
+    // Only allow drag operations for admin users
+    if (!isAdmin) {
+      setActiveId(null);
+      return;
+    }
     
     if (!over) {
       setActiveId(null);
@@ -408,15 +463,32 @@ export function DragDropCalendar({
       const newStartTime = `${format(targetDate, 'yyyy-MM-dd')}T${currentStartTime}`;
       const newEndTime = `${format(targetDate, 'yyyy-MM-dd')}T${currentEndTime}`;
 
-      // Update the shift
-      try {
-        await onShiftUpdate(sourceShift.id, {
-          start_time: newStartTime,
-          end_time: newEndTime,
-          section_id: sectionId
-        });
-      } catch (error) {
-        console.error('Error updating shift:', error);
+      if (isCtrlPressed && isDifferentDate) {
+        // Clone the shift to the new date
+        try {
+          const clonedShift: Omit<Shift, 'id'> = {
+            staff_id: sourceShift.staff_id,
+            start_time: newStartTime,
+            end_time: newEndTime,
+            notes: sourceShift.notes,
+            non_billable_hours: sourceShift.non_billable_hours,
+            section_id: sectionId
+          };
+          await onShiftCreate(clonedShift);
+        } catch (error) {
+          console.error('Error cloning shift:', error);
+        }
+      } else {
+        // Move the shift (original behavior)
+        try {
+          await onShiftUpdate(sourceShift.id, {
+            start_time: newStartTime,
+            end_time: newEndTime,
+            section_id: sectionId
+          });
+        } catch (error) {
+          console.error('Error updating shift:', error);
+        }
       }
     }
     
@@ -839,8 +911,16 @@ export function DragDropCalendar({
         currentWeek={currentWeek}
       />
 
+      {/* Clone Mode Indicator */}
+      {isCtrlPressed && (
+        <div className="fixed top-4 right-4 z-40 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-pulse">
+          <div className="w-2 h-2 bg-white rounded-full"></div>
+          <span className="text-sm font-medium">Clone Mode Active</span>
+        </div>
+      )}
+
       {/* Main calendar content */}
-      <div className="p-4 w-full print-hide">
+      <div className="p-4 w-full print-hide" data-calendar-container>
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3 calendar-toolbar">
         <div>
@@ -848,7 +928,19 @@ export function DragDropCalendar({
             Weekly Schedule ({format(startOfThisWeek, 'dd-MM-yyyy')} - {format(endOfWeek(startOfThisWeek, { weekStartsOn: 1 }), 'dd-MM-yyyy')})
           </h1>
           <p className="text-xs text-gray-600 dark:text-gray-400">
-            Drag shifts to reorganize • Click + to add shifts
+            {isAdmin ? (
+              <>
+                Drag shifts to reorganize • Ctrl+Drag to clone to different day • Click + to add shifts
+                {isCtrlPressed && (
+                  <span className="ml-2 inline-flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-[10px] font-medium">
+                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+                    Clone Mode
+                  </span>
+                )}
+              </>
+            ) : (
+              "View your assigned shifts for the week • Contact admin for schedule changes"
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -957,6 +1049,7 @@ export function DragDropCalendar({
                     shifts={shifts.filter(s => s.section_id === section.id && isSameDay(new Date(s.start_time), day))}
                     staff={staff}
                     isAdmin={isAdmin}
+                    isCtrlPressed={isCtrlPressed}
                     onShiftCreate={handleShiftCreate}
                     onShiftEdit={handleShiftEdit}
                     onShiftDelete={handleShiftDelete}
@@ -970,11 +1063,24 @@ export function DragDropCalendar({
 
         <DragOverlay>
           {activeId ? (
-            <div className="rounded-lg border p-2 bg-white dark:bg-neutral-800 border-gray-200 dark:border-neutral-600 shadow-lg">
+            <div className={`rounded-lg border p-2 shadow-lg ${
+              isCtrlPressed 
+                ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700' 
+                : 'bg-white dark:bg-neutral-800 border-gray-200 dark:border-neutral-600'
+            }`}>
               <div className="text-xs">
-                <div className="font-medium text-gray-900 dark:text-white">
-                  Dragging shift...
+                <div className={`font-medium ${
+                  isCtrlPressed 
+                    ? 'text-green-900 dark:text-green-100' 
+                    : 'text-gray-900 dark:text-white'
+                }`}>
+                  {isCtrlPressed ? 'Cloning shift...' : 'Dragging shift...'}
                 </div>
+                {isCtrlPressed && (
+                  <div className="text-green-700 dark:text-green-300 text-[10px] mt-1">
+                    Hold Ctrl to clone
+                  </div>
+                )}
               </div>
             </div>
           ) : null}
