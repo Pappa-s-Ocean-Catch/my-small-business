@@ -7,7 +7,7 @@ interface PasswordResetProps {
 
 export const PasswordReset = ({ resetUrl, userEmail }: PasswordResetProps) => {
   return (
-    <EmailLayout>
+    <EmailLayout title="Password Reset">
       <div style={{ textAlign: 'center', padding: '40px 20px' }}>
         <h1 style={{ 
           color: '#1f2937', 

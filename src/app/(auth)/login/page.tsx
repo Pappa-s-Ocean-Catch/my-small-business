@@ -156,7 +156,7 @@ export default function LoginPage() {
             />
           </label>
           
-          {authMode === 'password' && (
+          {authMode === 'password' && !showForgotPassword && (
             <label className="grid gap-2">
               <span className="text-sm text-gray-600">Password</span>
               <div className="relative">
@@ -183,7 +183,10 @@ export default function LoginPage() {
             <div className="text-right">
               <button
                 type="button"
-                onClick={() => setShowForgotPassword(true)}
+                onClick={() => {
+                  setShowForgotPassword(true);
+                  setPassword(''); // Clear password when switching to forgot password mode
+                }}
                 className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
               >
                 Forgot password?

@@ -13,7 +13,7 @@ type StaffRate = { id: string; staff_id: string; rate: number; rate_type: string
 type Section = { id: string; name: string; description: string | null; color: string; active: boolean; sort_order: number };
 type Shift = { id: string; staff_id: string | null; start_time: string; end_time: string; notes: string | null; non_billable_hours?: number; section_id?: string | null };
 type Availability = { id: string; staff_id: string; day_of_week: number; start_time: string; end_time: string };
-type StaffHoliday = { id: string; staff_id: string; start_date: string; end_date: string; notes: string | null };
+type StaffHoliday = { id: string; staff_id: string; start_date: string; end_date: string; reason: string | null };
 
 export default function CalendarPage() {
   const router = useRouter();
@@ -47,6 +47,11 @@ export default function CalendarPage() {
           .single();
         isUserAdmin = profile?.role_slug === 'admin';
         setIsAdmin(isUserAdmin);
+        
+        // Ensure staff profile is linked for non-admin users
+        if (!isUserAdmin) {
+          await supabase.rpc('link_staff_profile', { p_profile_id: user.id });
+        }
       }
 
       // Fetch shifts for current week
@@ -70,7 +75,19 @@ export default function CalendarPage() {
 
        if (!isUserAdmin) {
          // Non-admins see only their assigned shifts
-         shiftsQuery = shiftsQuery.eq("staff_id", user.id);
+         // First, find the staff record linked to this user's profile
+         const { data: staffRecord } = await supabase
+           .from("staff")
+           .select("id")
+           .eq("profile_id", user.id)
+           .single();
+         
+         if (staffRecord) {
+           shiftsQuery = shiftsQuery.eq("staff_id", staffRecord.id);
+         } else {
+           // If no staff record found, show no shifts
+           shiftsQuery = shiftsQuery.eq("staff_id", "00000000-0000-0000-0000-000000000000");
+         }
        }
 
       const [shiftsResult, staffResult, ratesResult, sectionsResult, availabilityResult, holidaysResult] = await Promise.all([
@@ -120,7 +137,7 @@ export default function CalendarPage() {
             staff_id,
             start_date,
             end_date,
-            notes
+            reason
           `)
           .order("start_date", { ascending: false })
       ]);

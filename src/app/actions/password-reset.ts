@@ -41,7 +41,7 @@ export async function sendPasswordResetEmail(email: string) {
     const resetUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/reset-password`;
 
     // Render the email template
-    const emailHtml = render(PasswordReset({ 
+    const emailHtml = await render(PasswordReset({ 
       resetUrl, 
       userEmail: email 
     }));

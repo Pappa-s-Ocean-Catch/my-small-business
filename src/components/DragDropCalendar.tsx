@@ -74,7 +74,7 @@ type StaffHoliday = {
   staff_id: string;
   start_date: string;
   end_date: string;
-  notes: string | null;
+  reason: string | null;
 };
 
 interface DragDropCalendarProps {

@@ -54,7 +54,7 @@ export default function ProfilePage() {
       
       // Check if user has a password set
       const { data: { session } } = await supabase.auth.getSession();
-      setHasPassword(!!session?.user?.app_metadata?.provider === 'email');
+      setHasPassword(session?.user?.app_metadata?.provider === 'email');
       
     } catch (error) {
       console.error("Error fetching profile:", error);

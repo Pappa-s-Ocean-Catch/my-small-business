@@ -8,7 +8,87 @@ Quick reference for consistent UI/UX across all `.tsx` files.
 
 ## 🎯 Button Pattern (MANDATORY)
 
-**Structure:** Icon on left + Text on right
+### ActionButton Component (PREFERRED)
+
+**For buttons with async operations, use the ActionButton component:**
+```tsx
+import { ActionButton } from "@/components/ActionButton";
+
+<ActionButton
+  onClick={async () => {
+    // Your async operation
+    await someAsyncFunction();
+  }}
+  variant="primary" // 'primary' | 'secondary' | 'danger' | 'success'
+  size="md" // 'sm' | 'md' | 'lg'
+  icon={<Send className="size-4" />}
+  loadingText="Sending..." // Optional custom loading text
+  title="Send invitation" // Optional tooltip
+>
+  Send Invitation
+</ActionButton>
+```
+
+**ActionButton Features:**
+- ✅ Automatic loading state with spinner
+- ✅ Button disabled during async operations
+- ✅ Error handling with console logging
+- ✅ Multiple variants and sizes
+- ✅ Icon support with consistent sizing
+- ✅ Custom loading text option
+- ✅ TypeScript support
+
+**When to use ActionButton:**
+- ✅ API calls (send invite, save data, delete items)
+- ✅ Database operations
+- ✅ File uploads/downloads
+- ✅ Any async operation that takes time
+- ✅ Form submissions
+
+**ActionButton Variants:**
+```tsx
+// Primary (default) - Black/white background
+<ActionButton variant="primary" onClick={handleSave}>
+  Save Changes
+</ActionButton>
+
+// Secondary - Border with hover effects
+<ActionButton variant="secondary" onClick={handleCancel}>
+  Cancel
+</ActionButton>
+
+// Danger - Red styling for destructive actions
+<ActionButton variant="danger" onClick={handleDelete}>
+  Delete Item
+</ActionButton>
+
+// Success - Green styling for success actions
+<ActionButton variant="success" onClick={handleApprove}>
+  Approve
+</ActionButton>
+```
+
+**ActionButton Sizes:**
+```tsx
+// Small - h-8 px-3 text-sm
+<ActionButton size="sm" onClick={handleAction}>
+  Small Action
+</ActionButton>
+
+// Medium (default) - h-9 px-3 text-sm
+<ActionButton size="md" onClick={handleAction}>
+  Medium Action
+</ActionButton>
+
+// Large - h-10 px-4 text-base
+<ActionButton size="lg" onClick={handleAction}>
+  Large Action
+</ActionButton>
+```
+
+### Standard Button Pattern (FALLBACK)
+
+**For simple buttons without async operations:**
 ```tsx
 <button className="flex items-center gap-2 [styles]">
   <IconComponent className="w-4 h-4" />
@@ -111,6 +191,9 @@ toast("Operation completed");
 - No feedback for inline actions
 - Heavy borders on blocks - Use shadows instead
 - Excessive rounding - Use `rounded-lg` maximum
+- **Using regular buttons for async operations** - Use ActionButton for any operation that takes time
+- **Not handling loading states** - All async operations must show loading feedback
+- **Double-clicking buttons** - ActionButton prevents this automatically
 - **NEVER run `npx supabase db reset` or any database reset commands** - This is a production database! Use `npx supabase db push` for migrations instead
 - **When database schema changes, update ALL related code** - Forms, calculations, queries, and data handling must be updated to use new/changed fields
 - **Only run `npm run build:agent` for massive changes** - Don't run build after every small edit, only when making significant structural changes
@@ -119,6 +202,8 @@ toast("Operation completed");
 ## 📋 Quick Checklist
 
 - [ ] Button has icon + text
+- [ ] Async operations use ActionButton component
+- [ ] Loading states are handled properly
 - [ ] Destructive actions have confirmation
 - [ ] Inline actions show toast feedback
 - [ ] Blocks use shadows instead of heavy borders

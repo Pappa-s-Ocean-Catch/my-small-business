@@ -6,8 +6,9 @@ import { AdminGuard } from "@/components/AdminGuard";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
 import { Loading } from "@/components/Loading";
 import Card from "@/components/Card";
-import { Plus, Pencil, Trash2, X, Clock, Send, Calendar, Save } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Clock, Send, Calendar, Save, User, Link } from "lucide-react";
 import { toast } from 'react-toastify';
+import { ActionButton } from "@/components/ActionButton";
 
 type Staff = {
   id: string;
@@ -17,6 +18,7 @@ type Staff = {
   is_available: boolean;
   role_slug: string | null;
   description: string | null;
+  profile_id: string | null;
 };
 
 type StaffRate = {
@@ -65,7 +67,7 @@ type StaffHoliday = {
   staff_id: string;
   start_date: string;
   end_date: string;
-  notes: string | null;
+  reason: string | null;
 };
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -82,6 +84,43 @@ export default function StaffPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<{ staff: Staff | null; isOpen: boolean }>({ staff: null, isOpen: false });
   const [availabilityDeleteConfirm, setAvailabilityDeleteConfirm] = useState<{ availabilityId: string | null; isOpen: boolean }>({ availabilityId: null, isOpen: false });
   const [holidayDeleteConfirm, setHolidayDeleteConfirm] = useState<{ holidayId: string | null; isOpen: boolean }>({ holidayId: null, isOpen: false });
+
+  // Function to link all staff to profiles by email
+  const linkAllStaffProfiles = async () => {
+    try {
+      const supabase = getSupabaseClient();
+      // Get all profiles and link staff by email
+      const { data: profiles } = await supabase.from('profiles').select('id, email');
+      if (!profiles) return;
+
+      for (const profile of profiles) {
+        if (profile.email) {
+          await supabase.rpc('link_staff_profile', { p_profile_id: profile.id });
+        }
+      }
+      
+      // Refresh staff data to get updated profile_id
+      await fetchStaff();
+      toast.success('Staff profiles linked successfully');
+    } catch (error) {
+      console.error('Error linking staff profiles:', error);
+      toast.error('Failed to link staff profiles');
+    }
+  };
+
+  // Function to send invitation
+  const sendInvitation = async (email: string) => {
+    const res = await fetch('/api/invitations/send', { 
+      method: 'POST', 
+      headers: { 'Content-Type': 'application/json' }, 
+      body: JSON.stringify({ email }) 
+    });
+    const json = await res.json();
+    if (!json.success) {
+      throw new Error(json.error || 'Failed to send invitation');
+    }
+    toast.success('Invitation email sent');
+  };
 
   const [form, setForm] = useState({
     name: "",
@@ -121,7 +160,7 @@ export default function StaffPage() {
   const [holidayForm, setHolidayForm] = useState({
     start_date: "",
     end_date: "",
-    notes: "",
+    reason: "",
   });
 
   const getCurrentRate = (staffId: string): number => {
@@ -151,7 +190,7 @@ export default function StaffPage() {
   const fetchStaff = async () => {
     setLoading(true);
     const [{ data: staffData }, { data: ratesData }, { data: availabilityData }, { data: rolesData }, { data: holidaysData }] = await Promise.all([
-      getSupabaseClient().from("staff").select("id, name, phone, email, is_available, role_slug, description").order("created_at", { ascending: false }),
+      getSupabaseClient().from("staff").select("id, name, phone, email, is_available, role_slug, description, profile_id").order("created_at", { ascending: false }),
       getSupabaseClient().from("staff_rates").select("*"),
       getSupabaseClient().from("staff_availability").select("*"),
       getSupabaseClient().from("staff_roles").select("*").order("name"),
@@ -199,7 +238,7 @@ export default function StaffPage() {
     setEditing(null);
     setInstructions([]);
     setAvailabilityForm({ selected_days: [], start_time: "09:00", end_time: "17:00" });
-    setHolidayForm({ start_date: "", end_date: "", notes: "" });
+    setHolidayForm({ start_date: "", end_date: "", reason: "" });
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -331,7 +370,7 @@ export default function StaffPage() {
               staff_id: editing.id,
               start_date: holidayForm.start_date,
               end_date: holidayForm.end_date,
-              notes: holidayForm.notes || null
+              reason: holidayForm.reason || null
             });
             if (holidayError) {
               throw new Error(`Failed to save holiday: ${holidayError.message}`);
@@ -439,7 +478,7 @@ export default function StaffPage() {
               staff_id: inserted.id,
               start_date: holidayForm.start_date,
               end_date: holidayForm.end_date,
-              notes: holidayForm.notes || null
+              reason: holidayForm.reason || null
             });
             if (holidayError) {
               throw new Error(`Failed to save holiday: ${holidayError.message}`);
@@ -606,10 +645,10 @@ export default function StaffPage() {
         staff_id: staffId,
         start_date: holidayForm.start_date,
         end_date: holidayForm.end_date,
-        notes: holidayForm.notes || null
+        reason: holidayForm.reason || null
       });
       
-      setHolidayForm({ start_date: "", end_date: "", notes: "" });
+      setHolidayForm({ start_date: "", end_date: "", reason: "" });
       await fetchStaff();
       toast.success("Holiday added successfully!");
     } catch (error) {
@@ -684,9 +723,26 @@ export default function StaffPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Team</h1>
           <p className="text-sm text-gray-500">Manage staff, pay rates, and availability</p>
         </div>
-        <button onClick={() => { resetForm(); setFormOpen(true); }} className="h-10 px-4 rounded-xl bg-black text-white dark:bg-white dark:text-black inline-flex items-center gap-2">
-          <Plus className="size-4" /> Add staff
-        </button>
+        <div className="flex gap-2">
+          <ActionButton
+            onClick={linkAllStaffProfiles}
+            variant="secondary"
+            size="lg"
+            icon={<User className="size-4" />}
+            className="rounded-xl"
+          >
+            Link Profiles
+          </ActionButton>
+          <ActionButton
+            onClick={() => { resetForm(); setFormOpen(true); }}
+            variant="primary"
+            size="lg"
+            icon={<Plus className="size-4" />}
+            className="rounded-xl"
+          >
+            Add staff
+          </ActionButton>
+        </div>
       </div>
 
       {/* Day Filter */}
@@ -738,7 +794,14 @@ export default function StaffPage() {
                 <div className="flex items-start sm:items-center gap-4">
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-semibold">{s.name}</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold">{s.name}</h3>
+                        {s.profile_id && (
+                          <div title="Account linked - Staff can log in">
+                            <Link className="size-4 text-green-600 dark:text-green-400" />
+                          </div>
+                        )}
+                      </div>
                       {s.role_slug && (
                         <span className="text-xs px-2 py-1 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
                           {staffRoles.find(r => r.slug === s.role_slug)?.name || s.role_slug}
@@ -759,22 +822,17 @@ export default function StaffPage() {
                 </div>
                 {/* Desktop actions */}
                 <div className="hidden md:flex flex-wrap items-center gap-2">
-                  {s.email && (
-                    <button
-                      onClick={async () => {
-                        const res = await fetch('/api/invitations/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: s.email }) });
-                        const json = await res.json();
-                        if (!json.success) {
-                          toast.error(json.error || 'Failed to send invitation');
-                        } else {
-                          toast.success('Invitation email sent');
-                        }
-                      }}
-                      className="h-9 px-3 rounded-lg border inline-flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-neutral-900 text-blue-600"
+                  {s.email && !s.profile_id && (
+                    <ActionButton
+                      onClick={() => sendInvitation(s.email!)}
+                      variant="secondary"
+                      size="md"
+                      icon={<Send className="size-4" />}
                       title="Send Invitation"
+                      className="text-blue-600"
                     >
-                      <Send className="size-4" /> Invite
-                    </button>
+                      Invite
+                    </ActionButton>
                   )}
                   <button onClick={() => startEdit(s)} className="flex items-center gap-2 h-9 px-3 rounded-lg border hover:bg-gray-50 dark:hover:bg-neutral-900">
                     <Pencil className="size-4" />
@@ -789,22 +847,16 @@ export default function StaffPage() {
 
               {/* Mobile actions at bottom */}
               <div className="mt-4 grid grid-cols-2 gap-2 md:hidden">
-                {s.email ? (
-                  <button
-                    onClick={async () => {
-                      const res = await fetch('/api/invitations/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: s.email }) });
-                      const json = await res.json();
-                      if (!json.success) {
-                        toast.error(json.error || 'Failed to send invitation');
-                      } else {
-                        toast.success('Invitation email sent');
-                      }
-                    }}
-                    className="h-10 px-3 rounded-lg border inline-flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-neutral-900 text-blue-600"
+                {s.email && !s.profile_id ? (
+                  <ActionButton
+                    onClick={() => sendInvitation(s.email!)}
+                    variant="secondary"
+                    size="lg"
+                    icon={<Send className="size-4" />}
+                    className="text-blue-600"
                   >
-                    <Send className="size-4" />
                     <span className="text-sm">Invite</span>
-                  </button>
+                  </ActionButton>
                 ) : (
                   <div className="h-10 px-3 rounded-lg border inline-flex items-center justify-center gap-2 opacity-50 cursor-not-allowed">
                     <Send className="size-4" />
@@ -1047,10 +1099,15 @@ export default function StaffPage() {
                             </label>
                           </div>
                           <div className="md:col-span-12">
-                            <button type="button" onClick={() => setInstructions(list => [...list, { id: crypto.randomUUID(), staff_id: editing?.id || 'new', ...instrDraft } as StaffPaymentInstruction])} className="flex items-center gap-2 h-10 px-4 rounded-lg bg-blue-600 text-white">
-                              <Plus className="size-4" />
-                              <span>Add instruction</span>
-                            </button>
+                            <ActionButton
+                              onClick={() => setInstructions(list => [...list, { id: crypto.randomUUID(), staff_id: editing?.id || 'new', ...instrDraft } as StaffPaymentInstruction])}
+                              variant="primary"
+                              size="lg"
+                              icon={<Plus className="size-4" />}
+                              className="bg-blue-600"
+                            >
+                              Add instruction
+                            </ActionButton>
                           </div>
                         </div>
                         {instructions.length === 0 ? (
@@ -1133,9 +1190,18 @@ export default function StaffPage() {
                           </label>
                         </div>
                         
-                        <button type="button" onClick={() => editing && addAvailability(editing.id)} className="h-10 px-4 rounded-lg bg-blue-600 text-white">
+                        <ActionButton
+                          onClick={async () => {
+                            if (editing) {
+                              await addAvailability(editing.id);
+                            }
+                          }}
+                          variant="primary"
+                          size="lg"
+                          className="bg-blue-600"
+                        >
                           Add to {availabilityForm.selected_days.length} Selected Day{availabilityForm.selected_days.length !== 1 ? 's' : ''}
-                        </button>
+                        </ActionButton>
                       </div>
 
                       {/* Show existing availability */}
@@ -1183,12 +1249,21 @@ export default function StaffPage() {
                         </div>
                         <label className="grid gap-2">
                           <span className="text-sm text-gray-700 dark:text-gray-300">Notes (optional)</span>
-                          <input type="text" placeholder="e.g., Vacation, Sick leave" className="h-10 rounded-lg border px-3 bg-white dark:bg-neutral-900" value={holidayForm.notes} onChange={(e) => setHolidayForm((f) => ({ ...f, notes: e.target.value }))} />
+                          <input type="text" placeholder="e.g., Vacation, Sick leave" className="h-10 rounded-lg border px-3 bg-white dark:bg-neutral-900" value={holidayForm.reason} onChange={(e) => setHolidayForm((f) => ({ ...f, reason: e.target.value }))} />
                         </label>
-                        <button type="button" onClick={() => editing && addHoliday(editing.id)} className="flex items-center gap-2 h-10 px-4 rounded-lg bg-blue-600 text-white">
-                          <Plus className="size-4" />
-                          <span>Add Holiday</span>
-                        </button>
+                        <ActionButton
+                          onClick={async () => {
+                            if (editing) {
+                              await addHoliday(editing.id);
+                            }
+                          }}
+                          variant="primary"
+                          size="lg"
+                          icon={<Plus className="size-4" />}
+                          className="bg-blue-600"
+                        >
+                          Add Holiday
+                        </ActionButton>
                       </div>
 
                       {/* Show existing holidays */}
@@ -1205,7 +1280,7 @@ export default function StaffPage() {
                                   {h.start_date !== h.end_date && (
                                     <span> - {new Date(h.end_date).toLocaleDateString()}</span>
                                   )}
-                                  {h.notes && <div className="text-xs text-gray-500 mt-1">{h.notes}</div>}
+                                  {h.reason && <div className="text-xs text-gray-500 mt-1">{h.reason}</div>}
                                 </div>
                                 <button type="button" onClick={() => setHolidayDeleteConfirm({ holidayId: h.id, isOpen: true })} className="flex items-center gap-2 px-3 py-1 text-sm bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40 rounded transition-colors">
                                   <Trash2 className="w-3 h-3" />
@@ -1229,10 +1304,20 @@ export default function StaffPage() {
                 <X className="size-4" />
                 <span>Cancel</span>
               </button>
-              <button type="submit" form="staff-form" className="flex items-center gap-2 h-10 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors">
-                <Save className="size-4" />
-                <span>Save</span>
-              </button>
+              <ActionButton
+                onClick={async () => {
+                  const form = document.getElementById('staff-form') as HTMLFormElement;
+                  if (form) {
+                    form.requestSubmit();
+                  }
+                }}
+                variant="primary"
+                size="lg"
+                icon={<Save className="size-4" />}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                Save
+              </ActionButton>
             </div>
           </div>
         </div>
