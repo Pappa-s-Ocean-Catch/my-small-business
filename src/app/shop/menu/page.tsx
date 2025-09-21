@@ -6,6 +6,7 @@ import Modal from '@/components/Modal';
 import { ActionButton } from '@/components/ActionButton';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 import { ProductSearch } from '@/components/ProductSearch';
+import { ImageUpload } from '@/components/ImageUpload';
 import { toast } from 'react-toastify';
 import { 
   getSaleProducts, 
@@ -607,17 +608,11 @@ export default function MenuPage() {
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Image URL
-              </label>
-              <input
-                type="url"
-                value={productForm.image_url}
-                onChange={(e) => setProductForm(prev => ({ ...prev, image_url: e.target.value }))}
-                className="w-full h-10 rounded-lg border border-gray-300 dark:border-neutral-600 px-3 bg-white dark:bg-neutral-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
+            <ImageUpload
+              currentImageUrl={productForm.image_url}
+              onImageChange={(url) => setProductForm(prev => ({ ...prev, image_url: url || "" }))}
+              type="sale_product"
+            />
 
             <div className="flex items-center">
               <input

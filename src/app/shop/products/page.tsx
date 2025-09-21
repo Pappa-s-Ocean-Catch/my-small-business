@@ -12,6 +12,7 @@ import * as XLSX from "xlsx";
 import { toast } from 'react-toastify';
 import { saveAs } from "file-saver";
 import Link from "next/link";
+import { ImageUpload } from "@/components/ImageUpload";
 
 type Product = {
   id: string;
@@ -129,6 +130,7 @@ export default function ProductsPage() {
     full_boxes: "0",
     loose_units: "0",
     description: "",
+    image_url: "",
     is_active: true
   });
 
@@ -217,6 +219,7 @@ export default function ProductsPage() {
       full_boxes: "0",
       loose_units: "0",
       description: "",
+      image_url: "",
       is_active: true
     });
   };
@@ -238,6 +241,7 @@ export default function ProductsPage() {
       full_boxes: product.full_boxes?.toString() || "0",
       loose_units: product.loose_units?.toString() || "0",
       description: product.description || "",
+      image_url: product.image_url || "",
       is_active: product.is_active
     });
     setFormOpen(true);
@@ -269,6 +273,7 @@ export default function ProductsPage() {
       full_boxes: fullBoxes,
       loose_units: looseUnits,
       description: form.description || null,
+      image_url: form.image_url || null,
       is_active: form.is_active
     };
 
@@ -844,6 +849,12 @@ export default function ProductsPage() {
                 rows={3}
               />
             </label>
+
+            <ImageUpload
+              currentImageUrl={form.image_url}
+              onImageChange={(url) => setForm(f => ({ ...f, image_url: url || "" }))}
+              type="product"
+            />
 
             <div className="flex items-center gap-2">
               <input
