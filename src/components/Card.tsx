@@ -33,7 +33,7 @@ export default function Card({
   return (
     <div 
       className={`
-        rounded-2xl 
+        rounded-lg 
         ${variantClasses[variant]} 
         ${paddingClasses[padding]} 
         ${hoverClasses} 

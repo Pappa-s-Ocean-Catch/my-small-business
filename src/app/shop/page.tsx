@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { ensureProfile } from "@/app/actions/profile";
 import { AdminGuard } from "@/components/AdminGuard";
-import { FaBox, FaTags, FaTruck, FaWarehouse, FaExclamationTriangle, FaPlus, FaChartLine } from "react-icons/fa";
+import { FaBox, FaTags, FaTruck, FaWarehouse, FaExclamationTriangle, FaPlus, FaChartLine, FaUtensils } from "react-icons/fa";
 import Link from "next/link";
 import { LoadingPage } from "@/components/Loading";
 
@@ -216,27 +216,27 @@ export default function ShopPage() {
             </Link>
 
             <Link
-              href="/shop/inventory"
+              href="/shop/inventory/enhanced"
               className="p-4 bg-white dark:bg-neutral-900 rounded-lg border hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
             >
               <div className="flex items-center gap-3">
                 <FaWarehouse className="w-6 h-6 text-orange-600 dark:text-orange-400" />
                 <div>
-                  <h3 className="font-medium text-gray-900 dark:text-white">Basic Inventory</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Track stock movements</p>
+                  <h3 className="font-medium text-gray-900 dark:text-white">Inventory Management</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Track stock, movements, COGS & analytics</p>
                 </div>
               </div>
             </Link>
 
             <Link
-              href="/shop/inventory/enhanced"
+              href="/shop/menu"
               className="p-4 bg-white dark:bg-neutral-900 rounded-lg border hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
             >
               <div className="flex items-center gap-3">
-                <FaChartLine className="w-6 h-6 text-green-600 dark:text-green-400" />
+                <FaUtensils className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
                 <div>
-                  <h3 className="font-medium text-gray-900 dark:text-white">Enhanced Inventory</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">COGS, financial reports & charts</p>
+                  <h3 className="font-medium text-gray-900 dark:text-white">Menu</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Sale products & categories</p>
                 </div>
               </div>
             </Link>

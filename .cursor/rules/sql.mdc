@@ -1,0 +1,162 @@
+---
+description: SQL and PostgreSQL migration best practices
+globs: ["**/*.sql", "supabase/migrations/**"]
+alwaysApply: true
+---
+
+# SQL Migration Best Practices
+
+## PostgreSQL Constraint Syntax
+
+### ❌ WRONG - PostgreSQL does NOT support this:
+```sql
+ALTER TABLE table_name 
+ADD CONSTRAINT IF NOT EXISTS constraint_name 
+CHECK (condition);
+```
+
+### ✅ CORRECT - Use DO blocks instead:
+```sql
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'constraint_name'
+    ) THEN
+        ALTER TABLE table_name 
+        ADD CONSTRAINT constraint_name 
+        CHECK (condition);
+    END IF;
+END $$;
+```
+
+## Migration File Naming
+
+- **ALWAYS** use timestamp format: `YYYYMMDDHHMMSS_description.sql`
+- Use `date +"%Y%m%d%H%M%S"` to get current timestamp
+- Ensure migration files are incremental and newer than existing ones
+
+## Safe Migration Practices
+
+### Tables and Columns
+```sql
+-- ✅ Safe - supported by PostgreSQL
+CREATE TABLE IF NOT EXISTS table_name (...);
+ALTER TABLE table_name ADD COLUMN IF NOT EXISTS column_name TYPE;
+CREATE INDEX IF NOT EXISTS index_name ON table_name(column);
+```
+
+### Constraints and Functions
+```sql
+-- ✅ Safe - use DO blocks for constraints
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'constraint_name') THEN
+        ALTER TABLE table_name ADD CONSTRAINT constraint_name CHECK (condition);
+    END IF;
+END $$;
+
+-- ✅ Safe - functions can be replaced
+CREATE OR REPLACE FUNCTION function_name(...) RETURNS TYPE AS $$ ... $$;
+```
+
+### Data Insertion
+```sql
+-- ✅ Safe - prevents duplicates
+INSERT INTO table_name (columns) VALUES (values) ON CONFLICT DO NOTHING;
+INSERT INTO table_name (columns) VALUES (values) ON CONFLICT (column) DO UPDATE SET ...;
+```
+
+## Common Pitfalls to Avoid
+
+1. **Never use `IF NOT EXISTS` with `ADD CONSTRAINT`** - PostgreSQL doesn't support it
+2. **Always check constraint existence** before adding constraints in DO blocks
+3. **Use proper conflict resolution** for data insertions
+4. **Test migrations** before deploying to production
+5. **Use descriptive constraint names** that are easy to identify
+6. **Avoid reserved keywords** in function parameters and table/column names
+7. **Be careful with constraint logic** - `loose_units < units_per_box` should be `loose_units <= units_per_box` to allow exact matches
+8. **Handle constraint conflicts during data insertion** - Drop constraints before inserting data, then re-add them after
+
+## Example Migration Structure
+
+```sql
+-- Migration: 20250921083928_add_example_feature.sql
+
+-- 1. Create tables (safe)
+CREATE TABLE IF NOT EXISTS public.example_table (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 2. Add columns (safe)
+ALTER TABLE public.example_table 
+ADD COLUMN IF NOT EXISTS description TEXT,
+ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+
+-- 3. Add constraints (use DO blocks)
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'example_table_name_not_empty'
+    ) THEN
+        ALTER TABLE public.example_table 
+        ADD CONSTRAINT example_table_name_not_empty 
+        CHECK (length(name) > 0);
+    END IF;
+END $$;
+
+-- 4. Create indexes (safe)
+CREATE INDEX IF NOT EXISTS idx_example_table_active 
+ON public.example_table(is_active);
+
+-- 5. Insert data (safe)
+INSERT INTO public.example_table (name, description) VALUES
+('Example 1', 'First example'),
+('Example 2', 'Second example')
+ON CONFLICT (name) DO NOTHING;
+
+-- 6. Add comments
+COMMENT ON TABLE public.example_table IS 'Example table for demonstration';
+COMMENT ON COLUMN public.example_table.name IS 'Name of the example item';
+```
+
+## Handling Constraint Conflicts During Data Insertion
+
+When inserting data that might violate existing constraints, use this pattern:
+
+```sql
+-- Migration: 20250921083928_insert_data_with_constraint_conflicts.sql
+
+-- 1. Temporarily drop problematic constraints
+DO $$ 
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'problematic_constraint_name'
+    ) THEN
+        ALTER TABLE public.table_name 
+        DROP CONSTRAINT problematic_constraint_name;
+    END IF;
+END $$;
+
+-- 2. Insert your data
+INSERT INTO public.table_name (columns) VALUES
+('data that might violate constraints'),
+('more data');
+
+-- 3. Re-add the constraint with corrected logic
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'problematic_constraint_name'
+    ) THEN
+        ALTER TABLE public.table_name 
+        ADD CONSTRAINT problematic_constraint_name 
+        CHECK (corrected_condition);
+    END IF;
+END $$;
+```

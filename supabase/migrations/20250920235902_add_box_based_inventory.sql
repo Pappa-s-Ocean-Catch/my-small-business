@@ -7,23 +7,55 @@ ADD COLUMN IF NOT EXISTS units_per_box INTEGER NOT NULL DEFAULT 1,
 ADD COLUMN IF NOT EXISTS full_boxes INTEGER NOT NULL DEFAULT 0,
 ADD COLUMN IF NOT EXISTS loose_units INTEGER NOT NULL DEFAULT 0;
 
--- Add constraints to ensure data integrity
-ALTER TABLE public.products 
-ADD CONSTRAINT IF NOT EXISTS products_units_per_box_positive 
-CHECK (units_per_box > 0);
+-- Add constraints to ensure data integrity (using DO blocks to handle IF NOT EXISTS)
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'products_units_per_box_positive'
+    ) THEN
+        ALTER TABLE public.products 
+        ADD CONSTRAINT products_units_per_box_positive 
+        CHECK (units_per_box > 0);
+    END IF;
+END $$;
 
-ALTER TABLE public.products 
-ADD CONSTRAINT IF NOT EXISTS products_full_boxes_non_negative 
-CHECK (full_boxes >= 0);
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'products_full_boxes_non_negative'
+    ) THEN
+        ALTER TABLE public.products 
+        ADD CONSTRAINT products_full_boxes_non_negative 
+        CHECK (full_boxes >= 0);
+    END IF;
+END $$;
 
-ALTER TABLE public.products 
-ADD CONSTRAINT IF NOT EXISTS products_loose_units_non_negative 
-CHECK (loose_units >= 0);
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'products_loose_units_non_negative'
+    ) THEN
+        ALTER TABLE public.products 
+        ADD CONSTRAINT products_loose_units_non_negative 
+        CHECK (loose_units >= 0);
+    END IF;
+END $$;
 
--- Add constraint to ensure loose_units < units_per_box (can't have more loose units than a full box)
-ALTER TABLE public.products 
-ADD CONSTRAINT IF NOT EXISTS products_loose_units_valid 
-CHECK (loose_units < units_per_box);
+-- Add constraint to ensure loose_units <= units_per_box (can't have more loose units than a full box)
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'products_loose_units_valid'
+    ) THEN
+        ALTER TABLE public.products 
+        ADD CONSTRAINT products_loose_units_valid 
+        CHECK (loose_units <= units_per_box);
+    END IF;
+END $$;
 
 -- Add computed column for total units (replaces quantity_in_stock)
 ALTER TABLE public.products 
@@ -38,11 +70,21 @@ COMMENT ON COLUMN public.products.total_units IS 'Total units calculated from bo
 -- Migrate existing quantity_in_stock to box-based system
 -- For existing products, assume they are individual items (units_per_box = 1)
 -- and put all stock as loose_units
+-- Handle cases where quantity_in_stock > 1 by setting units_per_box appropriately
 UPDATE public.products 
 SET 
-  units_per_box = 1,
-  full_boxes = 0,
-  loose_units = quantity_in_stock
+  units_per_box = CASE 
+    WHEN quantity_in_stock > 1 THEN quantity_in_stock
+    ELSE 1
+  END,
+  full_boxes = CASE 
+    WHEN quantity_in_stock > 1 THEN 1
+    ELSE 0
+  END,
+  loose_units = CASE 
+    WHEN quantity_in_stock > 1 THEN 0
+    ELSE quantity_in_stock
+  END
 WHERE units_per_box = 1 AND full_boxes = 0 AND loose_units = 0;
 
 -- Add box/unit breakdown to inventory_movements table
@@ -54,18 +96,42 @@ ADD COLUMN IF NOT EXISTS previous_loose_units INTEGER DEFAULT 0,
 ADD COLUMN IF NOT EXISTS new_boxes INTEGER DEFAULT 0,
 ADD COLUMN IF NOT EXISTS new_loose_units INTEGER DEFAULT 0;
 
--- Add constraints for inventory_movements
-ALTER TABLE public.inventory_movements 
-ADD CONSTRAINT IF NOT EXISTS inventory_movements_boxes_non_negative 
-CHECK (boxes_added >= 0 AND units_added >= 0);
+-- Add constraints for inventory_movements (using DO blocks to handle IF NOT EXISTS)
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'inventory_movements_boxes_non_negative'
+    ) THEN
+        ALTER TABLE public.inventory_movements 
+        ADD CONSTRAINT inventory_movements_boxes_non_negative 
+        CHECK (boxes_added >= 0 AND units_added >= 0);
+    END IF;
+END $$;
 
-ALTER TABLE public.inventory_movements 
-ADD CONSTRAINT IF NOT EXISTS inventory_movements_previous_non_negative 
-CHECK (previous_boxes >= 0 AND previous_loose_units >= 0);
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'inventory_movements_previous_non_negative'
+    ) THEN
+        ALTER TABLE public.inventory_movements 
+        ADD CONSTRAINT inventory_movements_previous_non_negative 
+        CHECK (previous_boxes >= 0 AND previous_loose_units >= 0);
+    END IF;
+END $$;
 
-ALTER TABLE public.inventory_movements 
-ADD CONSTRAINT IF NOT EXISTS inventory_movements_new_non_negative 
-CHECK (new_boxes >= 0 AND new_loose_units >= 0);
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'inventory_movements_new_non_negative'
+    ) THEN
+        ALTER TABLE public.inventory_movements 
+        ADD CONSTRAINT inventory_movements_new_non_negative 
+        CHECK (new_boxes >= 0 AND new_loose_units >= 0);
+    END IF;
+END $$;
 
 -- Create function to convert total units to boxes and loose units
 CREATE OR REPLACE FUNCTION public.convert_units_to_boxes(
@@ -195,8 +261,8 @@ BEGIN
   END IF;
   
   -- Validate new loose units don't exceed units per box
-  IF p_new_loose_units >= v_units_per_box THEN
-    RAISE EXCEPTION 'Loose units cannot be greater than or equal to units per box';
+  IF p_new_loose_units > v_units_per_box THEN
+    RAISE EXCEPTION 'Loose units cannot be greater than units per box';
   END IF;
   
   -- Calculate changes
@@ -238,7 +304,6 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE VIEW public.products_with_box_inventory AS
 SELECT 
   p.*,
-  p.total_units as quantity_in_stock, -- For backward compatibility
   CASE 
     WHEN p.total_units <= p.alert_threshold THEN 'critical'
     WHEN p.total_units <= p.warning_threshold THEN 'warning'

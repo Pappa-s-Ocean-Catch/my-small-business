@@ -57,6 +57,13 @@ const result = await resend.emails.send({
 
 ## Database Rules
 
+### Supabase Configuration
+- **CRITICAL**: This project uses **Supabase Cloud (Production)**, NOT local development
+- **NEVER** run `supabase start`, `supabase stop`, or any local development commands
+- **ALWAYS** use `npx supabase` commands for cloud operations
+- **ALWAYS** use `npx supabase db push` to apply migrations to cloud database
+- **NEVER** attempt to run local Supabase containers or Docker-based commands
+
 ### Supabase RLS Policies
 - **ALWAYS** use `profiles.id = auth.uid()` NOT `profiles.user_id = auth.uid()`
 - **ALWAYS** use `public.profiles(id)` for foreign key references

@@ -1,6 +1,7 @@
 ---
 alwaysApply: true
 ---
-- run build:agent to verify the build is green without any error after some change or before report big task done
+- CRITICAL: NEVER run `npm run build` - ALWAYS use `npm run build:agent` to verify the build is green without any error after some change or before reporting big task done
+- CRITICAL: The build command is `npm run build:agent` NOT `npm run build` - this is a hard rule that must be followed
 - Do not using emoji icon on the react component, using icon from react-icons instead
 - All delete action need to be guard by ConfirmationDialog (share component)

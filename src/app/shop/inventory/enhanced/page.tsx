@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { ensureProfile } from "@/app/actions/profile";
 import { AdminGuard } from "@/components/AdminGuard";
-import { FaWarehouse, FaArrowUp, FaArrowDown, FaHistory, FaSearch, FaFilter, FaFileExcel, FaChartLine, FaShoppingCart, FaBoxOpen, FaDollarSign } from "react-icons/fa";
+import { ActionButton } from "@/components/ActionButton";
+import { FaWarehouse, FaArrowUp, FaArrowDown, FaHistory, FaSearch, FaFilter, FaFileExcel, FaChartLine, FaShoppingCart, FaBoxOpen, FaDollarSign, FaTh, FaList } from "react-icons/fa";
 import * as XLSX from "xlsx";
 import { toast } from 'react-toastify';
 import { saveAs } from "file-saver";
@@ -39,7 +40,7 @@ type Product = {
   full_boxes: number;
   loose_units: number;
   total_units: number;
-  category: { name: string } | null;
+  category: { id: string; name: string } | null;
   supplier: { name: string } | null;
   created_at: string;
   updated_at: string;
@@ -59,7 +60,7 @@ type DatabaseProduct = {
   full_boxes: number;
   loose_units: number;
   total_units: number;
-  category: { name: string }[] | null;
+  category: { id: string; name: string }[] | null;
   supplier: { name: string }[] | null;
   created_at: string;
   updated_at: string;
@@ -68,7 +69,7 @@ type DatabaseProduct = {
 type InventoryMovement = {
   id: string;
   product_id: string;
-  movement_type: 'purchase' | 'consumption' | 'adjustment' | 'return' | 'transfer';
+  movement_type: 'received' | 'consume' | 'adjustment' | 'return' | 'transfer';
   quantity_change: number;
   unit_cost: number | null;
   total_cost: number | null;
@@ -129,7 +130,10 @@ export default function EnhancedInventoryPage() {
   const [filterType, setFilterType] = useState("all");
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
-  const [movementModal, setMovementModal] = useState<{ isOpen: boolean; product: Product | null; type: 'purchase' | 'consumption' | 'adjustment' | null }>({ isOpen: false, product: null, type: null });
+  const [filterCategory, setFilterCategory] = useState("all");
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+  const [movementModal, setMovementModal] = useState<{ isOpen: boolean; product: Product | null; type: 'received' | 'consume' | 'adjustment' | null }>({ isOpen: false, product: null, type: null });
   const [endOfDayModal, setEndOfDayModal] = useState<{ isOpen: boolean; product: Product | null }>({ isOpen: false, product: null });
   const [movementForm, setMovementForm] = useState({
     quantity: "",
@@ -151,12 +155,24 @@ export default function EnhancedInventoryPage() {
     try {
       const supabase = getSupabaseClient();
       
+      // Fetch categories first
+      const { data: categoriesData, error: categoriesError } = await supabase
+        .from("categories")
+        .select("id, name")
+        .order("name");
+
+      if (categoriesError) {
+        console.error("Error fetching categories:", categoriesError);
+      } else if (categoriesData) {
+        setCategories(categoriesData);
+      }
+
       // Fetch products with categories and suppliers
       const { data: productsData, error: productsError } = await supabase
         .from("products")
         .select(`
           *,
-          category:categories(name),
+          category:categories(id, name),
           supplier:suppliers(name)
         `)
         .eq("is_active", true)
@@ -286,9 +302,35 @@ export default function EnhancedInventoryPage() {
     }
   }, [isAdmin, fetchData]);
 
-  const handleMovementSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleMovementModalOpen = (product: Product, type: 'received' | 'consume' | 'adjustment') => {
+    setMovementModal({ isOpen: true, product, type });
+    // Auto-populate unit cost for received items
+    if (type === 'received' && product.purchase_price) {
+      setMovementForm(prev => ({
+        ...prev,
+        unit_cost: product.purchase_price.toString()
+      }));
+    }
+  };
+
+  const handleMovementSubmit = async () => {
     if (!movementModal.product || !movementModal.type) return;
+
+    // Validate form based on type
+    if ((movementModal.type === 'received' || movementModal.type === 'consume') && movementModal.product.units_per_box > 1) {
+      const boxes = parseInt(movementForm.boxes) || 0;
+      const units = parseInt(movementForm.units) || 0;
+      if (boxes === 0 && units === 0) {
+        toast.error('Please enter at least one box or unit');
+        return;
+      }
+    } else if (movementModal.type === 'adjustment') {
+      const quantity = parseInt(movementForm.quantity);
+      if (!quantity || quantity === 0) {
+        toast.error('Please enter a valid quantity');
+        return;
+      }
+    }
 
     try {
       const supabase = getSupabaseClient();
@@ -301,19 +343,22 @@ export default function EnhancedInventoryPage() {
       let unitsToAdd = 0;
       let totalQuantityChange = 0;
       
-      if (movementModal.type === 'purchase') {
-        // For purchases, use boxes and units inputs
+      if (movementModal.type === 'received') {
+        // For received stock, use boxes and units inputs (adds to inventory)
         boxesToAdd = parseInt(movementForm.boxes) || 0;
         unitsToAdd = parseInt(movementForm.units) || 0;
         totalQuantityChange = (boxesToAdd * unitsPerBox) + unitsToAdd;
+      } else if (movementModal.type === 'consume') {
+        // For consumed stock, use boxes and units inputs (subtracts from inventory)
+        const boxesConsumed = parseInt(movementForm.boxes) || 0;
+        const unitsConsumed = parseInt(movementForm.units) || 0;
+        totalQuantityChange = -((boxesConsumed * unitsPerBox) + unitsConsumed); // Negative for consumption
+        boxesToAdd = -boxesConsumed;
+        unitsToAdd = -unitsConsumed;
       } else {
-        // For consumption/adjustment, use the quantity field (legacy support)
+        // For adjustment, use the quantity field (legacy support)
         const quantity = parseInt(movementForm.quantity);
-        if (movementModal.type === 'consumption') {
-          totalQuantityChange = -quantity; // Negative for consumption
-        } else {
-          totalQuantityChange = quantity; // Positive/negative for adjustment
-        }
+        totalQuantityChange = quantity; // Positive/negative for adjustment
         
         // Convert to boxes and units for recording
         const absQuantity = Math.abs(totalQuantityChange);
@@ -342,8 +387,8 @@ export default function EnhancedInventoryPage() {
 
       if (error) {
         console.error("Error creating movement:", error);
-        alert("Error creating movement: " + error.message);
-        return;
+        toast.error(`Failed to record ${movementModal.type} movement: ${error.message}`);
+        throw error;
       }
 
       // Reset form and close modal
@@ -353,14 +398,22 @@ export default function EnhancedInventoryPage() {
       // Refresh data
       await fetchData();
       
+      // Show success message
+      const movementTypeText = movementModal.type === 'received' ? 'stock received' : 
+                              movementModal.type === 'consume' ? 'stock consumed' : 'stock adjusted';
+      toast.success(`${product.name} ${movementTypeText} successfully!`);
+      
     } catch (error) {
       console.error("Error:", error);
-      alert("Error creating movement");
+      // Error toast is already shown above if it's a Supabase error
+      if (!(error instanceof Error) || !error.message?.includes('Failed to record')) {
+        toast.error("An unexpected error occurred. Please try again.");
+      }
+      throw error;
     }
   };
 
-  const handleEndOfDaySubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleEndOfDaySubmit = async () => {
     if (!endOfDayModal.product) return;
 
     try {
@@ -373,7 +426,7 @@ export default function EnhancedInventoryPage() {
       
       // Validate loose units don't exceed units per box
       if (newUnits >= product.units_per_box) {
-        alert(`Loose units cannot be ${newUnits} or more. Maximum is ${product.units_per_box - 1} for this product.`);
+        toast.error(`Loose units cannot be ${newUnits} or more. Maximum is ${product.units_per_box - 1} for this product.`);
         return;
       }
       
@@ -389,8 +442,8 @@ export default function EnhancedInventoryPage() {
 
       if (error) {
         console.error("Error adjusting inventory:", error);
-        alert("Error adjusting inventory: " + error.message);
-        return;
+        toast.error(`Failed to adjust inventory: ${error.message}`);
+        throw error;
       }
 
       // Reset form and close modal
@@ -400,18 +453,22 @@ export default function EnhancedInventoryPage() {
       // Refresh data
       await fetchData();
       
-      alert("Inventory adjusted successfully!");
+      toast.success(`${product.name} inventory adjusted successfully!`);
       
     } catch (error) {
       console.error("Error:", error);
-      alert("An error occurred while adjusting inventory.");
+      // Error toast is already shown above if it's a Supabase error
+      if (!(error instanceof Error) || !error.message?.includes('Failed to adjust inventory')) {
+        toast.error("An unexpected error occurred. Please try again.");
+      }
+      throw error;
     }
   };
 
   const getMovementIcon = (type: string) => {
     switch (type) {
-      case 'purchase': return <FaShoppingCart className="w-4 h-4 text-green-600" />;
-      case 'consumption': return <FaBoxOpen className="w-4 h-4 text-red-600" />;
+      case 'received': return <FaShoppingCart className="w-4 h-4 text-green-600" />;
+      case 'consume': return <FaBoxOpen className="w-4 h-4 text-red-600" />;
       case 'adjustment': return <FaHistory className="w-4 h-4 text-blue-600" />;
       default: return <FaHistory className="w-4 h-4 text-gray-600" />;
     }
@@ -419,17 +476,43 @@ export default function EnhancedInventoryPage() {
 
   const getMovementColor = (type: string) => {
     switch (type) {
-      case 'purchase': return 'text-green-600 dark:text-green-400';
-      case 'consumption': return 'text-red-600 dark:text-red-400';
+      case 'received': return 'text-green-600 dark:text-green-400';
+      case 'consume': return 'text-red-600 dark:text-red-400';
       case 'adjustment': return 'text-blue-600 dark:text-blue-400';
       default: return 'text-gray-600 dark:text-gray-400';
     }
   };
 
+  const formatStockDisplayTable = (product: Product) => {
+    const totalUnits = product.total_units || product.quantity_in_stock;
+    const unitsPerBox = product.units_per_box || 1;
+    const fullBoxes = product.full_boxes || 0;
+    const looseUnits = product.loose_units || 0;
+
+    if (unitsPerBox === 1) {
+      return `${totalUnits}`;
+    }
+
+    if (fullBoxes === 0 && looseUnits === 0) {
+      return '0';
+    }
+
+    if (fullBoxes === 0) {
+      return `${looseUnits} units`;
+    }
+
+    if (looseUnits === 0) {
+      return `${fullBoxes} boxes`;
+    }
+
+    return `${fullBoxes}b + ${looseUnits}u`;
+  };
+
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          product.sku.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesSearch;
+    const matchesCategory = filterCategory === "all" || product.category?.id === filterCategory;
+    return matchesSearch && matchesCategory;
   });
 
   const filteredMovements = movements.filter(movement => {
@@ -528,14 +611,14 @@ export default function EnhancedInventoryPage() {
   // Chart data preparation
   const chartData = movementSummary.map(item => ({
     date: format(new Date(item.movement_date), 'MMM dd'),
-    purchase: item.movement_type === 'purchase' ? item.total_quantity_change : 0,
-    consumption: item.movement_type === 'consumption' ? Math.abs(item.total_quantity_change) : 0,
+    received: item.movement_type === 'received' ? item.total_quantity_change : 0,
+    consume: item.movement_type === 'consume' ? Math.abs(item.total_quantity_change) : 0,
     cost: item.total_cost || 0
   }));
 
   const pieData = [
-    { name: 'Purchase', value: movementSummary.filter(m => m.movement_type === 'purchase').reduce((sum, m) => sum + m.total_quantity_change, 0), color: '#10b981' },
-    { name: 'Consumption', value: Math.abs(movementSummary.filter(m => m.movement_type === 'consumption').reduce((sum, m) => sum + m.total_quantity_change, 0)), color: '#ef4444' },
+    { name: 'Received', value: movementSummary.filter(m => m.movement_type === 'received').reduce((sum, m) => sum + m.total_quantity_change, 0), color: '#10b981' },
+    { name: 'Consumed', value: Math.abs(movementSummary.filter(m => m.movement_type === 'consume').reduce((sum, m) => sum + m.total_quantity_change, 0)), color: '#ef4444' },
     { name: 'Adjustment', value: movementSummary.filter(m => m.movement_type === 'adjustment').reduce((sum, m) => sum + Math.abs(m.total_quantity_change), 0), color: '#3b82f6' }
   ];
 
@@ -561,9 +644,9 @@ export default function EnhancedInventoryPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Enhanced Inventory Management</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Inventory Management</h1>
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              Track movements, COGS, and financial performance
+              Track stock levels, movements, COGS, and financial performance
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -599,51 +682,53 @@ export default function EnhancedInventoryPage() {
 
         {/* Tabs */}
         <div className="mb-6">
-          <div className="flex space-x-1 bg-gray-100 dark:bg-neutral-800 p-1 rounded-lg w-fit">
-            <button
-              onClick={() => setActiveTab('current')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                activeTab === 'current'
-                  ? 'bg-white dark:bg-neutral-700 text-gray-900 dark:text-white shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              <FaWarehouse className="w-4 h-4 inline mr-2" />
-              Current Stock
-            </button>
-            <button
-              onClick={() => setActiveTab('movements')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                activeTab === 'movements'
-                  ? 'bg-white dark:bg-neutral-700 text-gray-900 dark:text-white shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              <FaHistory className="w-4 h-4 inline mr-2" />
-              Movements
-            </button>
-            <button
-              onClick={() => setActiveTab('financial')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                activeTab === 'financial'
-                  ? 'bg-white dark:bg-neutral-700 text-gray-900 dark:text-white shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              <FaDollarSign className="w-4 h-4 inline mr-2" />
-              Financial
-            </button>
-            <button
-              onClick={() => setActiveTab('charts')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                activeTab === 'charts'
-                  ? 'bg-white dark:bg-neutral-700 text-gray-900 dark:text-white shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              <FaChartLine className="w-4 h-4 inline mr-2" />
-              Charts
-            </button>
+          <div className="border-b border-gray-200 dark:border-neutral-700">
+            <nav className="-mb-px flex space-x-8">
+              <button
+                onClick={() => setActiveTab('current')}
+                className={`group inline-flex items-center py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'current'
+                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-neutral-600'
+                }`}
+              >
+                <FaWarehouse className={`w-4 h-4 mr-2 ${activeTab === 'current' ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'}`} />
+                Current Stock
+              </button>
+              <button
+                onClick={() => setActiveTab('movements')}
+                className={`group inline-flex items-center py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'movements'
+                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-neutral-600'
+                }`}
+              >
+                <FaHistory className={`w-4 h-4 mr-2 ${activeTab === 'movements' ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'}`} />
+                Movements
+              </button>
+              <button
+                onClick={() => setActiveTab('financial')}
+                className={`group inline-flex items-center py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'financial'
+                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-neutral-600'
+                }`}
+              >
+                <FaDollarSign className={`w-4 h-4 mr-2 ${activeTab === 'financial' ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'}`} />
+                Financial
+              </button>
+              <button
+                onClick={() => setActiveTab('charts')}
+                className={`group inline-flex items-center py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'charts'
+                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-neutral-600'
+                }`}
+              >
+                <FaChartLine className={`w-4 h-4 mr-2 ${activeTab === 'charts' ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'}`} />
+                Charts
+              </button>
+            </nav>
           </div>
         </div>
 
@@ -672,6 +757,44 @@ export default function EnhancedInventoryPage() {
                 />
               </div>
             </div>
+            {activeTab === 'current' && (
+              <>
+                <select
+                  value={filterCategory}
+                  onChange={(e) => setFilterCategory(e.target.value)}
+                  className="px-3 py-2 border rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100"
+                >
+                  <option value="all">All Categories</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="flex border rounded-lg bg-white dark:bg-neutral-800">
+                  <button
+                    onClick={() => setViewMode('cards')}
+                    className={`px-3 py-2 rounded-l-lg transition-colors ${
+                      viewMode === 'cards'
+                        ? 'bg-blue-600 text-white'
+                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-neutral-700'
+                    }`}
+                  >
+                    <FaTh className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setViewMode('table')}
+                    className={`px-3 py-2 rounded-r-lg transition-colors ${
+                      viewMode === 'table'
+                        ? 'bg-blue-600 text-white'
+                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-neutral-700'
+                    }`}
+                  >
+                    <FaList className="w-4 h-4" />
+                  </button>
+                </div>
+              </>
+            )}
             {activeTab === 'movements' && (
               <>
                 <select
@@ -680,8 +803,8 @@ export default function EnhancedInventoryPage() {
                   className="px-3 py-2 border rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100"
                 >
                   <option value="all">All Types</option>
-                  <option value="purchase">Purchase</option>
-                  <option value="consumption">Consumption</option>
+                  <option value="received">Received</option>
+                  <option value="consume">Consume</option>
                   <option value="adjustment">Adjustment</option>
                 </select>
                 <input
@@ -718,62 +841,144 @@ export default function EnhancedInventoryPage() {
                     : 'Try adjusting your search terms or filters.'}
                 </p>
               </div>
-            ) : (
+            ) : viewMode === 'cards' ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredProducts.map((product) => (
-              <div key={product.id} className="bg-white dark:bg-neutral-900 rounded-lg border p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold text-gray-900 dark:text-white">{product.name}</h3>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    product.quantity_in_stock === 0 
-                      ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                      : product.quantity_in_stock <= product.reorder_level 
-                        ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                        : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                  }`}>
-                    {product.quantity_in_stock === 0 
-                      ? 'Out of Stock' 
-                      : product.quantity_in_stock <= product.reorder_level 
-                        ? 'Low Stock' 
-                        : 'In Stock'}
-                  </span>
-                </div>
-                <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                  <p><span className="font-medium">SKU:</span> {product.sku}</p>
-                  <p><span className="font-medium">Stock:</span> {product.quantity_in_stock}</p>
-                  <p><span className="font-medium">Reorder Level:</span> {product.reorder_level}</p>
-                  <p><span className="font-medium">Purchase Price:</span> ${product.purchase_price}</p>
-                  <p><span className="font-medium">Sale Price:</span> ${product.sale_price}</p>
-                </div>
-                <div className="mt-4 flex gap-2">
-                  <button
-                    onClick={() => setMovementModal({ isOpen: true, product, type: 'purchase' })}
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
-                  >
-                    <FaArrowUp className="w-3 h-3" />
-                    Purchase
-                  </button>
-                  <button
-                    onClick={() => setMovementModal({ isOpen: true, product, type: 'consumption' })}
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
-                  >
-                    <FaArrowDown className="w-3 h-3" />
-                    Consume
-                  </button>
-                </div>
-                {product.units_per_box > 1 && (
-                  <div className="mt-2">
-                    <button
-                      onClick={() => setEndOfDayModal({ isOpen: true, product })}
-                      className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-                    >
-                      <FaHistory className="w-3 h-3" />
-                      End of Day Adjustment
-                    </button>
+                  <div key={product.id} className="bg-white dark:bg-neutral-900 rounded-lg border p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-semibold text-gray-900 dark:text-white">{product.name}</h3>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        product.quantity_in_stock === 0 
+                          ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                          : product.quantity_in_stock <= product.reorder_level 
+                            ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                            : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                      }`}>
+                        {product.quantity_in_stock === 0 
+                          ? 'Out of Stock' 
+                          : product.quantity_in_stock <= product.reorder_level 
+                            ? 'Low Stock' 
+                            : 'In Stock'}
+                      </span>
+                    </div>
+                    <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                      <p><span className="font-medium">SKU:</span> {product.sku}</p>
+                      <p><span className="font-medium">Category:</span> {product.category?.name || 'None'}</p>
+                      <p><span className="font-medium">Stock:</span> {product.quantity_in_stock}</p>
+                      <p><span className="font-medium">Reorder Level:</span> {product.reorder_level}</p>
+                      <p><span className="font-medium">Purchase Price:</span> ${product.purchase_price}</p>
+                      <p><span className="font-medium">Sale Price:</span> ${product.sale_price}</p>
+                    </div>
+                    <div className="mt-4 flex gap-2">
+                      <button
+                        onClick={() => handleMovementModalOpen(product, 'received')}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
+                      >
+                        <FaArrowUp className="w-3 h-3" />
+                        Received
+                      </button>
+                      <button
+                        onClick={() => handleMovementModalOpen(product, 'consume')}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+                      >
+                        <FaArrowDown className="w-3 h-3" />
+                        Consume
+                      </button>
+                    </div>
+                    {product.units_per_box > 1 && (
+                      <div className="mt-2">
+                        <button
+                          onClick={() => setEndOfDayModal({ isOpen: true, product })}
+                          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                        >
+                          <FaHistory className="w-3 h-3" />
+                          End of Day Adjustment
+                        </button>
+                      </div>
+                    )}
                   </div>
-                )}
+                ))}
               </div>
-            ))}
+            ) : (
+              <div className="bg-white dark:bg-neutral-900 rounded-lg border overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full table-fixed">
+                    <thead className="bg-gray-50 dark:bg-neutral-800">
+                      <tr>
+                        <th className="w-1/4 px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Product</th>
+                        <th className="w-20 px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">SKU</th>
+                        <th className="w-24 px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</th>
+                        <th className="w-20 px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Stock</th>
+                        <th className="w-20 px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Reorder</th>
+                        <th className="w-20 px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Purchase</th>
+                        <th className="w-20 px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Sale</th>
+                        <th className="w-32 px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-neutral-700">
+                      {filteredProducts.map((product) => (
+                        <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-neutral-800">
+                          <td className="px-4 py-4">
+                            <div className="flex items-center">
+                              <div>
+                                <div className="text-sm font-medium text-gray-900 dark:text-white truncate">{product.name}</div>
+                                <div className="flex items-center mt-1">
+                                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                    product.quantity_in_stock === 0 
+                                      ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                                      : product.quantity_in_stock <= product.reorder_level 
+                                        ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                                        : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                  }`}>
+                                    {product.quantity_in_stock === 0 
+                                      ? 'Out of Stock' 
+                                      : product.quantity_in_stock <= product.reorder_level 
+                                        ? 'Low Stock' 
+                                        : 'In Stock'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4 text-sm text-gray-900 dark:text-gray-100 truncate">{product.sku}</td>
+                          <td className="px-4 py-4 text-sm text-gray-900 dark:text-gray-100 truncate">{product.category?.name || 'None'}</td>
+                          <td className="px-4 py-4">
+                            <div className="flex items-center">
+                              <span className={`text-sm font-medium ${
+                                product.quantity_in_stock === 0
+                                  ? 'text-red-600 dark:text-red-400'
+                                  : product.quantity_in_stock <= product.reorder_level
+                                    ? 'text-yellow-600 dark:text-yellow-400'
+                                    : 'text-green-600 dark:text-green-400'
+                              }`}>
+                                {formatStockDisplayTable(product)}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4 text-sm text-gray-900 dark:text-gray-100">{product.reorder_level}</td>
+                          <td className="px-4 py-4 text-sm text-gray-900 dark:text-gray-100">${product.purchase_price}</td>
+                          <td className="px-4 py-4 text-sm text-gray-900 dark:text-gray-100">${product.sale_price}</td>
+                          <td className="px-4 py-3 text-sm">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleMovementModalOpen(product, 'received')}
+                                className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 font-medium text-xs"
+                              >
+                                Received
+                              </button>
+                              <button
+                                onClick={() => handleMovementModalOpen(product, 'consume')}
+                                className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 font-medium text-xs"
+                              >
+                                Consume
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </div>
@@ -789,7 +994,7 @@ export default function EnhancedInventoryPage() {
                 </h3>
                 <p className="text-gray-600 dark:text-gray-400 mb-4">
                   {movements.length === 0 
-                    ? 'Start by recording some purchases or consumption to track inventory movements.' 
+                    ? 'Start by recording some stock received or consumed to track inventory movements.' 
                     : 'Try adjusting your search terms or date filters.'}
                 </p>
                 {movements.length === 0 && (
@@ -929,8 +1134,8 @@ export default function EnhancedInventoryPage() {
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Line type="monotone" dataKey="purchase" stroke="#10b981" strokeWidth={2} name="Purchase" />
-                  <Line type="monotone" dataKey="consumption" stroke="#ef4444" strokeWidth={2} name="Consumption" />
+                  <Line type="monotone" dataKey="received" stroke="#10b981" strokeWidth={2} name="Received" />
+                  <Line type="monotone" dataKey="consume" stroke="#ef4444" strokeWidth={2} name="Consumed" />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -965,8 +1170,8 @@ export default function EnhancedInventoryPage() {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white dark:bg-neutral-900 rounded-lg p-6 w-full max-w-md">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                {movementModal.type === 'purchase' ? 'Record Purchase' : 
-                 movementModal.type === 'consumption' ? 'Record Consumption' : 'Adjust Stock'}
+                {movementModal.type === 'received' ? 'Record Stock Received' : 
+                 movementModal.type === 'consume' ? 'Record Stock Consumption' : 'Adjust Stock'}
               </h3>
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                 Product: {movementModal.product.name}
@@ -979,17 +1184,18 @@ export default function EnhancedInventoryPage() {
                 Units per Box: {movementModal.product.units_per_box || 1}
               </p>
               
-              <form onSubmit={handleMovementSubmit} className="space-y-4">
-                {movementModal.type === 'purchase' && movementModal.product.units_per_box > 1 ? (
+              <div className="space-y-4">
+                {(movementModal.type === 'received' || movementModal.type === 'consume') && movementModal.product.units_per_box > 1 ? (
                   <>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Boxes Purchased
+                          {movementModal.type === 'received' ? 'Boxes Received' : 'Boxes Consumed'}
                         </label>
                         <input
                           type="number"
                           min="0"
+                          required
                           value={movementForm.boxes}
                           onChange={(e) => setMovementForm({ ...movementForm, boxes: e.target.value })}
                           className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100"
@@ -998,7 +1204,7 @@ export default function EnhancedInventoryPage() {
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Loose Units
+                          {movementModal.type === 'received' ? 'Loose Units Received' : 'Loose Units Consumed'}
                         </label>
                         <input
                           type="number"
@@ -1013,12 +1219,17 @@ export default function EnhancedInventoryPage() {
                     </div>
                     <div className="text-sm text-gray-600 dark:text-gray-400">
                       Total: {((parseInt(movementForm.boxes) || 0) * movementModal.product.units_per_box) + (parseInt(movementForm.units) || 0)} units
+                      {movementModal.type === 'consume' && (
+                        <span className="text-red-600 dark:text-red-400 ml-2">
+                          (Will be subtracted from inventory)
+                        </span>
+                      )}
                     </div>
                   </>
                 ) : (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Quantity {movementModal.type === 'purchase' ? 'Purchased' : movementModal.type === 'consumption' ? 'Consumed' : 'Change'}
+                      Quantity {movementModal.type === 'received' ? 'Received' : movementModal.type === 'consume' ? 'Consumed' : 'Change'}
                     </label>
                     <input
                       type="number"
@@ -1028,6 +1239,11 @@ export default function EnhancedInventoryPage() {
                       onChange={(e) => setMovementForm({ ...movementForm, quantity: e.target.value })}
                       className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100"
                     />
+                    {movementModal.type === 'consume' && (
+                      <div className="text-sm text-red-600 dark:text-red-400 mt-1">
+                        This will be subtracted from inventory
+                      </div>
+                    )}
                   </div>
                 )}
                 
@@ -1089,14 +1305,18 @@ export default function EnhancedInventoryPage() {
                   >
                     Cancel
                   </button>
-                  <button
-                    type="submit"
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  <ActionButton
+                    onClick={handleMovementSubmit}
+                    variant="primary"
+                    size="md"
+                    icon={<FaHistory className="w-4 h-4" />}
+                    loadingText="Recording..."
+                    className="flex-1"
                   >
                     Record Movement
-                  </button>
+                  </ActionButton>
                 </div>
-              </form>
+              </div>
             </div>
           </div>
         )}
@@ -1116,7 +1336,7 @@ export default function EnhancedInventoryPage() {
                 Units per Box: {endOfDayModal.product.units_per_box || 1}
               </p>
               
-              <form onSubmit={handleEndOfDaySubmit} className="space-y-4">
+              <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1185,14 +1405,18 @@ export default function EnhancedInventoryPage() {
                   >
                     Cancel
                   </button>
-                  <button
-                    type="submit"
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  <ActionButton
+                    onClick={handleEndOfDaySubmit}
+                    variant="primary"
+                    size="md"
+                    icon={<FaHistory className="w-4 h-4" />}
+                    loadingText="Adjusting..."
+                    className="flex-1"
                   >
                     Adjust Inventory
-                  </button>
+                  </ActionButton>
                 </div>
-              </form>
+              </div>
             </div>
           </div>
         )}

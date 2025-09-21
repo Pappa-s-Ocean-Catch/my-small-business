@@ -4,19 +4,22 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase/client";
-import { FaUsers, FaStore, FaUserShield, FaChartPie, FaFileAlt, FaMoneyBillWave, FaPalette, FaCog, FaRobot } from "react-icons/fa";
+import { FaUsers, FaStore, FaUserShield, FaChartPie, FaFileAlt, FaMoneyBillWave, FaPalette, FaCog, FaRobot, FaBox, FaTags, FaWarehouse, FaUtensils } from "react-icons/fa";
 
 export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 'horizontal' | 'vertical' }) {
   const [userRole, setUserRole] = useState<'admin' | 'staff' | null>(null);
   const [isMgmtOpen, setIsMgmtOpen] = useState<boolean>(false);
   const [isReportOpen, setIsReportOpen] = useState<boolean>(false);
   const [isSystemOpen, setIsSystemOpen] = useState<boolean>(false);
+  const [isShopOpen, setIsShopOpen] = useState<boolean>(false);
   const [mgmtOffset, setMgmtOffset] = useState<number>(0);
   const [reportOffset, setReportOffset] = useState<number>(0);
   const [systemOffset, setSystemOffset] = useState<number>(0);
+  const [shopOffset, setShopOffset] = useState<number>(0);
   const mgmtRef = useRef<HTMLDivElement | null>(null);
   const reportRef = useRef<HTMLDivElement | null>(null);
   const systemRef = useRef<HTMLDivElement | null>(null);
+  const shopRef = useRef<HTMLDivElement | null>(null);
   const pathname = usePathname();
 
   useEffect(() => {
@@ -58,10 +61,13 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
       if (isSystemOpen && systemRef.current && !systemRef.current.contains(target)) {
         setIsSystemOpen(false);
       }
+      if (isShopOpen && shopRef.current && !shopRef.current.contains(target)) {
+        setIsShopOpen(false);
+      }
     }
     window.addEventListener('mousedown', handleClickOutside);
     return () => window.removeEventListener('mousedown', handleClickOutside);
-  }, [isMgmtOpen, isReportOpen, isSystemOpen]);
+  }, [isMgmtOpen, isReportOpen, isSystemOpen, isShopOpen]);
 
   // Prevent mega menu overflow by shifting left when needed
   useEffect(() => {
@@ -83,11 +89,16 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
         const overflow = rect.left + desiredWidth + margin - window.innerWidth;
         setSystemOffset(overflow > 0 ? -overflow : 0);
       }
+      if (isShopOpen && shopRef.current) {
+        const rect = shopRef.current.getBoundingClientRect();
+        const overflow = rect.left + desiredWidth + margin - window.innerWidth;
+        setShopOffset(overflow > 0 ? -overflow : 0);
+      }
     }
     computeOffsets();
     window.addEventListener('resize', computeOffsets);
     return () => window.removeEventListener('resize', computeOffsets);
-  }, [isMgmtOpen, isReportOpen, isSystemOpen]);
+  }, [isMgmtOpen, isReportOpen, isSystemOpen, isShopOpen]);
 
   const isActive = (path: string) => {
     return pathname === path;
@@ -121,7 +132,6 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
             <div className="pl-2">
               <Link className={getLinkClasses("/staff")} href="/staff" aria-label="Staff">Staff</Link>
               <Link className={getLinkClasses("/sections")} href="/sections" aria-label="Sections">Sections</Link>
-              <Link className={getLinkClasses("/shop")} href="/shop" aria-label="Shop">Shop</Link>
             </div>
           </div>
         ) : (
@@ -143,7 +153,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
             {isMgmtOpen && (
               <div className="absolute top-full mt-0.5 w-screen max-w-[640px] sm:w-[640px] rounded-xl bg-white/95 dark:bg-neutral-950/95 backdrop-blur shadow-lg z-50 p-3 overflow-hidden"
                    style={{ left: mgmtOffset }}>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <Link href="/staff" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-blue-600 dark:text-blue-400">
@@ -166,17 +176,124 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                       </div>
                     </div>
                   </Link>
-                  <Link href="/shop" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
-                    <div className="flex items-start gap-3">
-                      <div className="mt-0.5 text-emerald-600 dark:text-emerald-400">
-                        <FaStore className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <div className="font-medium text-gray-900 dark:text-white">Shop</div>
-                        <div className="text-xs text-gray-600 dark:text-gray-400">Products, inventory, suppliers and categories</div>
-                      </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      )}
+
+      {/* Shop group - Admin only (mega) */}
+      {userRole === 'admin' && (
+        orientation === 'vertical' ? (
+          <div className="w-full">
+            <div className="px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-200">Shop</div>
+            <div className="pl-2">
+              <Link className={getLinkClasses("/shop")} href="/shop" aria-label="Shop Overview">Shop Overview</Link>
+              <Link className={getLinkClasses("/shop/products")} href="/shop/products" aria-label="Products">Products</Link>
+              <Link className={getLinkClasses("/shop/categories")} href="/shop/categories" aria-label="Categories">Categories</Link>
+              <Link className={getLinkClasses("/shop/inventory/enhanced")} href="/shop/inventory/enhanced" aria-label="Inventory">Inventory</Link>
+              <Link className={getLinkClasses("/shop/suppliers")} href="/shop/suppliers" aria-label="Suppliers">Suppliers</Link>
+              <Link className={getLinkClasses("/shop/menu")} href="/shop/menu" aria-label="Menu">Menu</Link>
+            </div>
+          </div>
+        ) : (
+          <div
+            className="relative h-full"
+            ref={shopRef}
+            onMouseEnter={() => setIsShopOpen(true)}
+            onMouseLeave={() => setIsShopOpen(false)}
+          >
+            <button
+              type="button"
+              className="flex items-center h-full px-4 transition-colors hover:bg-gray-100 dark:hover:bg-neutral-900"
+              onClick={() => setIsShopOpen((v) => !v)}
+              aria-haspopup="menu"
+              aria-expanded={isShopOpen}
+            >
+              Shop
+            </button>
+            {isShopOpen && (
+              <div className="absolute top-full mt-0.5 w-screen max-w-[640px] sm:w-[640px] rounded-xl bg-white/95 dark:bg-neutral-950/95 backdrop-blur shadow-lg z-50 p-3 overflow-hidden"
+                   style={{ left: shopOffset }}>
+                <div className="flex">
+                  {/* Left Panel - Main Shop Link */}
+                  <div className="w-1/2 pr-3">
+                    <div className="border-r border-gray-200 dark:border-neutral-700 pr-3">
+                      <Link href="/shop" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5 text-emerald-600 dark:text-emerald-400">
+                            <FaStore className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <div className="font-medium text-gray-900 dark:text-white">Shop Overview</div>
+                            <div className="text-xs text-gray-600 dark:text-gray-400">Main shop dashboard and settings</div>
+                          </div>
+                        </div>
+                      </Link>
                     </div>
-                  </Link>
+                  </div>
+                  
+                  {/* Right Panel - Shop Subcategories */}
+                  <div className="w-1/2 pl-3">
+                    <div className="space-y-2">
+                      <Link href="/shop/products" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5 text-blue-600 dark:text-blue-400">
+                            <FaBox className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="font-medium text-gray-900 dark:text-white">Products</div>
+                            <div className="text-xs text-gray-600 dark:text-gray-400">Manage product catalog</div>
+                          </div>
+                        </div>
+                      </Link>
+                      <Link href="/shop/categories" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5 text-purple-600 dark:text-purple-400">
+                            <FaTags className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="font-medium text-gray-900 dark:text-white">Categories</div>
+                            <div className="text-xs text-gray-600 dark:text-gray-400">Organize product categories</div>
+                          </div>
+                        </div>
+                      </Link>
+                      <Link href="/shop/inventory/enhanced" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5 text-orange-600 dark:text-orange-400">
+                            <FaWarehouse className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="font-medium text-gray-900 dark:text-white">Inventory</div>
+                            <div className="text-xs text-gray-600 dark:text-gray-400">Track stock levels and movements</div>
+                          </div>
+                        </div>
+                      </Link>
+                      <Link href="/shop/suppliers" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5 text-green-600 dark:text-green-400">
+                            <FaStore className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="font-medium text-gray-900 dark:text-white">Suppliers</div>
+                            <div className="text-xs text-gray-600 dark:text-gray-400">Manage supplier relationships</div>
+                          </div>
+                        </div>
+                      </Link>
+                      <Link href="/shop/menu" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5 text-red-600 dark:text-red-400">
+                            <FaUtensils className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="font-medium text-gray-900 dark:text-white">Menu</div>
+                            <div className="text-xs text-gray-600 dark:text-gray-400">Configure sale products and menu</div>
+                          </div>
+                        </div>
+                      </Link>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

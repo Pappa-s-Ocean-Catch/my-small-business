@@ -277,7 +277,7 @@ export default function CategoriesPage() {
           onClose={() => setFormOpen(false)}
           title={editing ? "Edit Category" : "Add Category"}
           size="md"
-          bodyClassName="px-6 sm:px-8 pt-6 sm:pt-8"
+          bodyClassName="p-6"
           footer={
             <>
               <button

@@ -328,7 +328,7 @@ export default function SuppliersPage() {
           onClose={() => setFormOpen(false)}
           title={editing ? "Edit Supplier" : "Add Supplier"}
           size="lg"
-          bodyClassName="px-6 sm:px-8 pt-6 sm:pt-8"
+          bodyClassName="p-6"
           footer={
             <>
               <button
