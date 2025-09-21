@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { ensureProfile } from "@/app/actions/profile";
 import { AdminGuard } from "@/components/AdminGuard";
 import { ActionButton } from "@/components/ActionButton";
+import Card from "@/components/Card";
 import { FaWarehouse, FaArrowUp, FaArrowDown, FaHistory, FaSearch, FaFilter, FaFileExcel, FaChartLine, FaShoppingCart, FaBoxOpen, FaDollarSign, FaTh, FaList } from "react-icons/fa";
 import * as XLSX from "xlsx";
 import { toast } from 'react-toastify';
@@ -146,6 +148,9 @@ export default function EnhancedInventoryPage() {
     reference: "",
     notes: ""
   });
+
+  // Handle URL parameters for deep linking (TODO: implement)
+  // const searchParams = useSearchParams();
   const [endOfDayForm, setEndOfDayForm] = useState({
     boxes: "",
     units: "",
@@ -318,15 +323,25 @@ export default function EnhancedInventoryPage() {
   const handleMovementSubmit = async () => {
     if (!movementModal.product || !movementModal.type) return;
 
-    // Validate form based on type
-    if ((movementModal.type === 'received' || movementModal.type === 'consume') && movementModal.product.units_per_box > 1) {
-      const boxes = parseInt(movementForm.boxes) || 0;
-      const units = parseInt(movementForm.units) || 0;
-      if (boxes === 0 && units === 0) {
-        toast.error('Please enter at least one box or unit');
-        return;
+    // Validate form based on type and product configuration
+    if (movementModal.product.units_per_box > 1) {
+      // For multi-unit products, validate boxes and units
+      if (movementModal.type === 'received' || movementModal.type === 'consume') {
+        const boxes = parseInt(movementForm.boxes) || 0;
+        const units = parseInt(movementForm.units) || 0;
+        if (boxes === 0 && units === 0) {
+          toast.error('Please enter at least one box or unit');
+          return;
+        }
+      } else if (movementModal.type === 'adjustment') {
+        const quantity = parseInt(movementForm.quantity);
+        if (!quantity || quantity === 0) {
+          toast.error('Please enter a valid quantity');
+          return;
+        }
       }
-    } else if (movementModal.type === 'adjustment') {
+    } else {
+      // For single-unit products, validate quantity field
       const quantity = parseInt(movementForm.quantity);
       if (!quantity || quantity === 0) {
         toast.error('Please enter a valid quantity');
@@ -345,31 +360,46 @@ export default function EnhancedInventoryPage() {
       let unitsToAdd = 0;
       let totalQuantityChange = 0;
       
-      if (movementModal.type === 'received') {
-        // For received stock, use boxes and units inputs (adds to inventory)
-        boxesToAdd = parseInt(movementForm.boxes) || 0;
-        unitsToAdd = parseInt(movementForm.units) || 0;
-        totalQuantityChange = (boxesToAdd * unitsPerBox) + unitsToAdd;
-      } else if (movementModal.type === 'consume') {
-        // For consumed stock, use boxes and units inputs (subtracts from inventory)
-        const boxesConsumed = parseInt(movementForm.boxes) || 0;
-        const unitsConsumed = parseInt(movementForm.units) || 0;
-        totalQuantityChange = -((boxesConsumed * unitsPerBox) + unitsConsumed); // Negative for consumption
-        boxesToAdd = -boxesConsumed;
-        unitsToAdd = -unitsConsumed;
+      if (unitsPerBox > 1) {
+        // Multi-unit products: use boxes and units inputs
+        if (movementModal.type === 'received') {
+          // For received stock, use boxes and units inputs (adds to inventory)
+          boxesToAdd = parseInt(movementForm.boxes) || 0;
+          unitsToAdd = parseInt(movementForm.units) || 0;
+          totalQuantityChange = (boxesToAdd * unitsPerBox) + unitsToAdd;
+        } else if (movementModal.type === 'consume') {
+          // For consumed stock, use boxes and units inputs (subtracts from inventory)
+          const boxesConsumed = parseInt(movementForm.boxes) || 0;
+          const unitsConsumed = parseInt(movementForm.units) || 0;
+          totalQuantityChange = -((boxesConsumed * unitsPerBox) + unitsConsumed); // Negative for consumption
+          boxesToAdd = -boxesConsumed;
+          unitsToAdd = -unitsConsumed;
+        } else {
+          // For adjustment, use the quantity field
+          const quantity = parseInt(movementForm.quantity);
+          totalQuantityChange = quantity; // Positive/negative for adjustment
+          
+          // Convert to boxes and units for recording
+          const absQuantity = Math.abs(totalQuantityChange);
+          boxesToAdd = Math.floor(absQuantity / unitsPerBox);
+          unitsToAdd = absQuantity % unitsPerBox;
+          
+          if (totalQuantityChange < 0) {
+            boxesToAdd = -boxesToAdd;
+            unitsToAdd = -unitsToAdd;
+          }
+        }
       } else {
-        // For adjustment, use the quantity field (legacy support)
+        // Single-unit products: use quantity field
         const quantity = parseInt(movementForm.quantity);
-        totalQuantityChange = quantity; // Positive/negative for adjustment
-        
-        // Convert to boxes and units for recording
-        const absQuantity = Math.abs(totalQuantityChange);
-        boxesToAdd = Math.floor(absQuantity / unitsPerBox);
-        unitsToAdd = absQuantity % unitsPerBox;
-        
-        if (totalQuantityChange < 0) {
-          boxesToAdd = -boxesToAdd;
-          unitsToAdd = -unitsToAdd;
+        if (movementModal.type === 'consume') {
+          totalQuantityChange = -quantity; // Negative for consumption
+          boxesToAdd = -quantity;
+          unitsToAdd = 0;
+        } else {
+          totalQuantityChange = quantity; // Positive for received/adjustment
+          boxesToAdd = quantity;
+          unitsToAdd = 0;
         }
       }
       
@@ -426,10 +456,19 @@ export default function EnhancedInventoryPage() {
       const newBoxes = parseInt(endOfDayForm.boxes) || 0;
       const newUnits = parseInt(endOfDayForm.units) || 0;
       
-      // Validate loose units don't exceed units per box
-      if (newUnits >= product.units_per_box) {
-        toast.error(`Loose units cannot be ${newUnits} or more. Maximum is ${product.units_per_box - 1} for this product.`);
-        return;
+      // Validate based on product type
+      if (product.units_per_box > 1) {
+        // For multi-unit products, validate loose units don't exceed units per box
+        if (newUnits >= product.units_per_box) {
+          toast.error(`Loose units cannot be ${newUnits} or more. Maximum is ${product.units_per_box - 1} for this product.`);
+          return;
+        }
+      } else {
+        // For single-unit products, validate that we have a valid count
+        if (newBoxes < 0) {
+          toast.error('Stock count cannot be negative.');
+          return;
+        }
       }
       
       // Use the end-of-day adjustment function
@@ -735,17 +774,10 @@ export default function EnhancedInventoryPage() {
         </div>
 
 
-        {/* Debug Info */}
-        <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-          <div className="text-sm text-blue-800 dark:text-blue-200">
-            <strong>Debug Info:</strong> Products: {products.length}, Movements: {movements.length}, 
-            Filtered Products: {filteredProducts.length}, Filtered Movements: {filteredMovements.length}
-            {searchTerm && <span> | Search: &ldquo;{searchTerm}&rdquo;</span>}
-          </div>
-        </div>
 
         {/* Search and Filters */}
-        <div className="mb-6 p-4 bg-white dark:bg-neutral-900 rounded-lg border">
+        <Card className="mb-6">
+          <div className="p-4">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
               <div className="relative">
@@ -826,7 +858,8 @@ export default function EnhancedInventoryPage() {
               </>
             )}
           </div>
-        </div>
+          </div>
+        </Card>
 
         {/* Content based on active tab */}
         {activeTab === 'current' && (
@@ -846,7 +879,8 @@ export default function EnhancedInventoryPage() {
             ) : viewMode === 'cards' ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredProducts.map((product) => (
-                  <div key={product.id} className="bg-white dark:bg-neutral-900 rounded-lg border p-6">
+                  <Card key={product.id}>
+                    <div className="p-6">
                     {/* Product Image */}
                     {product.image_url ? (
                       <div className="mb-4">
@@ -909,22 +943,21 @@ export default function EnhancedInventoryPage() {
                         Consume
                       </button>
                     </div>
-                    {product.units_per_box > 1 && (
-                      <div className="mt-2">
-                        <button
-                          onClick={() => setEndOfDayModal({ isOpen: true, product })}
-                          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-                        >
-                          <FaHistory className="w-3 h-3" />
-                          End of Day Adjustment
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                    <div className="mt-2">
+                      <button
+                        onClick={() => setEndOfDayModal({ isOpen: true, product })}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                      >
+                        <FaHistory className="w-3 h-3" />
+                        End of Day Adjustment
+                      </button>
+                    </div>
+                    </div>
+                  </Card>
                 ))}
               </div>
             ) : (
-              <div className="bg-white dark:bg-neutral-900 rounded-lg border overflow-hidden">
+              <Card className="overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full table-fixed">
                     <thead className="bg-gray-50 dark:bg-neutral-800">
@@ -1021,7 +1054,7 @@ export default function EnhancedInventoryPage() {
                     </tbody>
                   </table>
                 </div>
-              </div>
+              </Card>
             )}
           </div>
         )}
@@ -1046,7 +1079,7 @@ export default function EnhancedInventoryPage() {
                 )}
               </div>
             ) : (
-              <div className="bg-white dark:bg-neutral-900 rounded-lg border overflow-hidden">
+              <Card className="overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead className="bg-gray-50 dark:bg-neutral-800">
@@ -1103,13 +1136,13 @@ export default function EnhancedInventoryPage() {
                     </tbody>
                   </table>
                 </div>
-              </div>
+              </Card>
             )}
           </div>
         )}
 
         {activeTab === 'financial' && (
-          <div className="bg-white dark:bg-neutral-900 rounded-lg border overflow-hidden">
+          <Card className="overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 dark:bg-neutral-800">
@@ -1161,13 +1194,14 @@ export default function EnhancedInventoryPage() {
                 </tbody>
               </table>
             </div>
-          </div>
+          </Card>
         )}
 
         {activeTab === 'charts' && (
           <div className="space-y-6">
             {/* Movement Trends Chart */}
-            <div className="bg-white dark:bg-neutral-900 rounded-lg border p-6">
+            <Card>
+              <div className="p-6">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Inventory Movement Trends</h3>
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={chartData}>
@@ -1180,10 +1214,12 @@ export default function EnhancedInventoryPage() {
                   <Line type="monotone" dataKey="consume" stroke="#ef4444" strokeWidth={2} name="Consumed" />
                 </LineChart>
               </ResponsiveContainer>
-            </div>
+              </div>
+            </Card>
 
             {/* Movement Distribution Pie Chart */}
-            <div className="bg-white dark:bg-neutral-900 rounded-lg border p-6">
+            <Card>
+              <div className="p-6">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Movement Distribution</h3>
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
@@ -1203,7 +1239,8 @@ export default function EnhancedInventoryPage() {
                   <Tooltip />
                 </PieChart>
               </ResponsiveContainer>
-            </div>
+              </div>
+            </Card>
           </div>
         )}
 
@@ -1370,49 +1407,86 @@ export default function EnhancedInventoryPage() {
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                 End of Day Inventory Adjustment
               </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                Product: {endOfDayModal.product.name}
-                <br />
-                Current Stock: {endOfDayModal.product.full_boxes || 0} boxes + {endOfDayModal.product.loose_units || 0} units = {endOfDayModal.product.total_units || endOfDayModal.product.quantity_in_stock} total
-                <br />
-                Units per Box: {endOfDayModal.product.units_per_box || 1}
-              </p>
+              
+              {/* Product Information Box */}
+              <div className="bg-gray-50 dark:bg-neutral-800 rounded-lg p-4 mb-4 border border-gray-200 dark:border-neutral-700">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-gray-900 dark:text-white">Product:</span>
+                    <span className="text-gray-700 dark:text-gray-300">{endOfDayModal.product.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-gray-900 dark:text-white">Current Stock:</span>
+                    <span className="text-gray-700 dark:text-gray-300">
+                      {endOfDayModal.product.full_boxes || 0} boxes + {endOfDayModal.product.loose_units || 0} units = {endOfDayModal.product.total_units || endOfDayModal.product.quantity_in_stock} total
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-gray-900 dark:text-white">Units per Box:</span>
+                    <span className="text-gray-700 dark:text-gray-300">{endOfDayModal.product.units_per_box || 1}</span>
+                  </div>
+                </div>
+              </div>
               
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Remaining Boxes
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      min="0"
-                      value={endOfDayForm.boxes}
-                      onChange={(e) => setEndOfDayForm({ ...endOfDayForm, boxes: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100"
-                      placeholder="0"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Remaining Loose Units
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      min="0"
-                      max={endOfDayModal.product.units_per_box - 1}
-                      value={endOfDayForm.units}
-                      onChange={(e) => setEndOfDayForm({ ...endOfDayForm, units: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100"
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">
-                  New Total: {((parseInt(endOfDayForm.boxes) || 0) * endOfDayModal.product.units_per_box) + (parseInt(endOfDayForm.units) || 0)} units
-                </div>
+                {endOfDayModal.product.units_per_box > 1 ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Remaining Boxes
+                        </label>
+                        <input
+                          type="number"
+                          required
+                          min="0"
+                          value={endOfDayForm.boxes}
+                          onChange={(e) => setEndOfDayForm({ ...endOfDayForm, boxes: e.target.value })}
+                          className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100"
+                          placeholder="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Remaining Loose Units
+                        </label>
+                        <input
+                          type="number"
+                          required
+                          min="0"
+                          max={endOfDayModal.product.units_per_box - 1}
+                          value={endOfDayForm.units}
+                          onChange={(e) => setEndOfDayForm({ ...endOfDayForm, units: e.target.value })}
+                          className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100"
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                      New Total: {((parseInt(endOfDayForm.boxes) || 0) * endOfDayModal.product.units_per_box) + (parseInt(endOfDayForm.units) || 0)} units
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Actual Stock Count
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        min="0"
+                        value={endOfDayForm.boxes}
+                        onChange={(e) => setEndOfDayForm({ ...endOfDayForm, boxes: e.target.value, units: "0" })}
+                        className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                      New Total: {parseInt(endOfDayForm.boxes) || 0} units
+                    </div>
+                  </>
+                )}
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

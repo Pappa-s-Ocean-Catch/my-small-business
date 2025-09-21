@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import Card from '@/components/Card';
 import { Loading } from '@/components/Loading';
 import { FaArrowLeft, FaBox, FaWarehouse, FaChartLine, FaHistory, FaShoppingCart, FaCalendarAlt, FaExclamationTriangle } from 'react-icons/fa';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 interface Product {
   id: string;
@@ -17,8 +18,8 @@ interface Product {
   category_name: string;
   supplier_id: string;
   supplier_name: string;
-  cost_price: number;
-  selling_price: number;
+  purchase_price: number;
+  sale_price: number;
   units_per_box: number;
   reorder_level: number;
   quantity_in_stock: number;
@@ -192,6 +193,45 @@ export default function ProductDetailsPage() {
     }
   };
 
+  // Process movements data for chart
+  const getChartData = () => {
+    if (movements.length === 0) return [];
+    
+    // Sort movements by date
+    const sortedMovements = [...movements].sort((a, b) => 
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+    
+    // Calculate running stock levels
+    let runningStock = product?.total_units || 0;
+    const chartData = [];
+    
+    // Work backwards from current stock to calculate historical levels
+    for (let i = sortedMovements.length - 1; i >= 0; i--) {
+      const movement = sortedMovements[i];
+      runningStock -= movement.quantity_change; // Subtract the change to get previous level
+      
+      chartData.unshift({
+        date: new Date(movement.created_at).toLocaleDateString(),
+        stock: runningStock,
+        movement: movement.quantity_change,
+        type: movement.movement_type,
+        reason: movement.reason || 'No reason'
+      });
+    }
+    
+    // Add current stock level
+    chartData.push({
+      date: 'Current',
+      stock: product?.total_units || 0,
+      movement: 0,
+      type: 'current',
+      reason: 'Current stock level'
+    });
+    
+    return chartData;
+  };
+
   if (authLoading || loading) {
     return <Loading />;
   }
@@ -278,12 +318,12 @@ export default function ProductDetailsPage() {
                     <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">{product.supplier_name}</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Cost Price</label>
-                    <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">${product.cost_price.toFixed(2)}</p>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Purchase Price</label>
+                    <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">${product.purchase_price.toFixed(2)}</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Selling Price</label>
-                    <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">${product.selling_price.toFixed(2)}</p>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Sale Price</label>
+                    <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">${product.sale_price.toFixed(2)}</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Units per Box</label>
@@ -302,6 +342,70 @@ export default function ProductDetailsPage() {
                 )}
               </div>
             </Card>
+
+            {/* Stock Movement Chart */}
+            {movements.length > 0 && (
+              <Card>
+                <div className="p-6">
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                    <FaChartLine className="w-5 h-5 mr-2" />
+                    Stock Movement Trend
+                  </h2>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={getChartData()}>
+                        <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                        <XAxis 
+                          dataKey="date" 
+                          className="text-xs"
+                          tick={{ fontSize: 12 }}
+                        />
+                        <YAxis 
+                          className="text-xs"
+                          tick={{ fontSize: 12 }}
+                        />
+                        <Tooltip 
+                          contentStyle={{
+                            backgroundColor: 'var(--color-bg)',
+                            border: '1px solid var(--color-border)',
+                            borderRadius: '8px',
+                            color: 'var(--color-text)'
+                          }}
+                          formatter={(value: number, name: string) => {
+                            if (name === 'stock') return [value, 'Stock Level'];
+                            if (name === 'movement') return [value > 0 ? `+${value}` : value, 'Movement'];
+                            return [value, name];
+                          }}
+                          labelFormatter={(label) => `Date: ${label}`}
+                        />
+                        <Legend />
+                        <Line 
+                          type="monotone" 
+                          dataKey="stock" 
+                          stroke="#3b82f6" 
+                          strokeWidth={3}
+                          dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4 }}
+                          activeDot={{ r: 6, stroke: '#3b82f6', strokeWidth: 2 }}
+                          name="Stock Level"
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="movement" 
+                          stroke="#ef4444" 
+                          strokeWidth={2}
+                          dot={{ fill: '#ef4444', strokeWidth: 2, r: 3 }}
+                          name="Movement"
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
+                    <p>• <span className="text-blue-600 font-medium">Blue line</span> shows stock levels over time</p>
+                    <p>• <span className="text-red-600 font-medium">Red line</span> shows individual movements (positive = received, negative = consumed)</p>
+                  </div>
+                </div>
+              </Card>
+            )}
 
             {/* Stock Movements History */}
             <Card>

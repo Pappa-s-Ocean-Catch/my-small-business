@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { FaPlus, FaEdit, FaTrash, FaEye, FaEyeSlash, FaUtensils, FaTag, FaDollarSign, FaClock, FaBox } from 'react-icons/fa';
 import Modal from '@/components/Modal';
 import { ActionButton } from '@/components/ActionButton';
@@ -23,6 +24,7 @@ import {
 } from '@/app/actions/sale-products';
 
 export default function MenuPage() {
+  const router = useRouter();
   const [saleProducts, setSaleProducts] = useState<SaleProductWithDetails[]>([]);
   const [saleCategories, setSaleCategories] = useState<SaleCategory[]>([]);
   const [availableProducts, setAvailableProducts] = useState<Array<{
@@ -437,7 +439,12 @@ export default function MenuPage() {
                 )}
                 <div className="p-4">
                   <div className="flex items-start justify-between mb-2">
-                    <h3 className="font-medium text-gray-900 dark:text-white">{product.name}</h3>
+                    <h3 
+                      className="font-medium text-gray-900 dark:text-white cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                      onClick={() => router.push(`/shop/menu/${product.id}`)}
+                    >
+                      {product.name}
+                    </h3>
                     <div className="flex items-center gap-2">
                       {product.is_active ? (
                         <FaEye className="h-4 w-4 text-green-600" />
