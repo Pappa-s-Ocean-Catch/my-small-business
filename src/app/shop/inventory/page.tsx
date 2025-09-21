@@ -40,6 +40,7 @@ type Product = {
   full_boxes: number;
   loose_units: number;
   total_units: number;
+  image_url: string | null;
   category: { id: string; name: string } | null;
   supplier: { name: string } | null;
   created_at: string;
@@ -60,6 +61,7 @@ type DatabaseProduct = {
   full_boxes: number;
   loose_units: number;
   total_units: number;
+  image_url: string | null;
   category: { id: string; name: string }[] | null;
   supplier: { name: string }[] | null;
   created_at: string;
@@ -845,6 +847,23 @@ export default function EnhancedInventoryPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredProducts.map((product) => (
                   <div key={product.id} className="bg-white dark:bg-neutral-900 rounded-lg border p-6">
+                    {/* Product Image */}
+                    {product.image_url ? (
+                      <div className="mb-4">
+                        <img 
+                          src={product.image_url} 
+                          alt={`${product.name} product image`}
+                          className="w-full h-32 object-cover rounded-lg border border-gray-200 dark:border-neutral-700"
+                        />
+                      </div>
+                    ) : (
+                      <div className="mb-4">
+                        <div className="w-full h-32 bg-gray-100 dark:bg-neutral-800 rounded-lg border border-gray-200 dark:border-neutral-700 flex items-center justify-center">
+                          <FaBoxOpen className="w-8 h-8 text-gray-400" />
+                        </div>
+                      </div>
+                    )}
+                    
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="font-semibold text-gray-900 dark:text-white">{product.name}</h3>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -924,8 +943,21 @@ export default function EnhancedInventoryPage() {
                       {filteredProducts.map((product) => (
                         <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-neutral-800">
                           <td className="px-4 py-4">
-                            <div className="flex items-center">
-                              <div>
+                            <div className="flex items-center gap-3">
+                              {/* Product Image Thumbnail */}
+                              {product.image_url ? (
+                                <img 
+                                  src={product.image_url} 
+                                  alt={`${product.name} product image`}
+                                  className="w-12 h-12 object-cover rounded-lg border border-gray-200 dark:border-neutral-700 flex-shrink-0"
+                                />
+                              ) : (
+                                <div className="w-12 h-12 bg-gray-100 dark:bg-neutral-800 rounded-lg border border-gray-200 dark:border-neutral-700 flex items-center justify-center flex-shrink-0">
+                                  <FaBoxOpen className="w-5 h-5 text-gray-400" />
+                                </div>
+                              )}
+                              
+                              <div className="min-w-0 flex-1">
                                 <div className="text-sm font-medium text-gray-900 dark:text-white truncate">{product.name}</div>
                                 <div className="flex items-center mt-1">
                                   <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${

@@ -7,7 +7,7 @@ import { toast } from 'react-toastify';
 interface ImageUploadProps {
   currentImageUrl?: string;
   onImageChange: (url: string | null) => void;
-  type: 'product' | 'sale_product';
+  type: 'product' | 'sale_product' | 'staff' | 'supplier';
   className?: string;
   disabled?: boolean;
 }
@@ -202,7 +202,10 @@ export function ImageUpload({
   return (
     <div className={`space-y-3 ${className}`}>
       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-        Product Image
+        {type === 'product' ? 'Product Image' : 
+         type === 'sale_product' ? 'Menu Item Image' :
+         type === 'staff' ? 'Staff Photo' :
+         type === 'supplier' ? 'Supplier Logo' : 'Image'}
       </label>
       
       {/* Image Preview */}
@@ -210,7 +213,7 @@ export function ImageUpload({
         <div className="relative inline-block">
           <img
             src={previewUrl}
-            alt="Product preview"
+            alt={`${type} preview`}
             className="w-32 h-32 object-cover rounded-lg border border-gray-200 dark:border-neutral-700"
           />
           {!disabled && (

@@ -7,9 +7,10 @@ import { AdminGuard } from "@/components/AdminGuard";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
 import Modal from "@/components/Modal";
 import Card from "@/components/Card";
-import { FaPlus, FaEdit, FaTrash, FaTruck, FaPhone, FaEnvelope, FaMapMarkerAlt, FaFileExcel } from "react-icons/fa";
+import { FaPlus, FaEdit, FaTrash, FaTruck, FaPhone, FaEnvelope, FaMapMarkerAlt, FaFileExcel, FaGlobe } from "react-icons/fa";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
+import { ImageUpload } from "@/components/ImageUpload";
 
 type Supplier = {
   id: string;
@@ -19,6 +20,8 @@ type Supplier = {
   email: string | null;
   address: string | null;
   notes: string | null;
+  image_url: string | null;
+  website: string | null;
   created_at: string;
   updated_at: string;
   product_count?: number;
@@ -38,7 +41,9 @@ export default function SuppliersPage() {
     phone: "",
     email: "",
     address: "",
-    notes: ""
+    notes: "",
+    image_url: "",
+    website: ""
   });
 
   useEffect(() => {
@@ -106,7 +111,9 @@ export default function SuppliersPage() {
       phone: "",
       email: "",
       address: "",
-      notes: ""
+      notes: "",
+      image_url: "",
+      website: ""
     });
   };
 
@@ -118,7 +125,9 @@ export default function SuppliersPage() {
       phone: supplier.phone || "",
       email: supplier.email || "",
       address: supplier.address || "",
-      notes: supplier.notes || ""
+      notes: supplier.notes || "",
+      image_url: supplier.image_url || "",
+      website: supplier.website || ""
     });
     setFormOpen(true);
   };
@@ -133,7 +142,9 @@ export default function SuppliersPage() {
       phone: form.phone || null,
       email: form.email || null,
       address: form.address || null,
-      notes: form.notes || null
+      notes: form.notes || null,
+      image_url: form.image_url || null,
+      website: form.website || null
     };
 
     if (editing) {
@@ -168,6 +179,7 @@ export default function SuppliersPage() {
       'Phone': supplier.phone || '',
       'Email': supplier.email || '',
       'Address': supplier.address || '',
+      'Website': supplier.website || '',
       'Notes': supplier.notes || '',
       'Product Count': supplier.product_count || 0,
       'Created Date': new Date(supplier.created_at).toLocaleDateString(),
@@ -235,9 +247,17 @@ export default function SuppliersPage() {
             <Card key={supplier.id} variant="elevated" padding="lg" hover>
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
-                    <FaTruck className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                  </div>
+                  {supplier.image_url ? (
+                    <img 
+                      src={supplier.image_url} 
+                      alt={`${supplier.name} logo`}
+                      className="w-10 h-10 rounded-lg object-cover border border-gray-200 dark:border-neutral-700"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
+                      <FaTruck className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                    </div>
+                  )}
                   <div>
                     <h3 className="font-medium text-gray-900 dark:text-white">{supplier.name}</h3>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -280,6 +300,19 @@ export default function SuppliersPage() {
                   <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                     <FaEnvelope className="w-3 h-3" />
                     <span>{supplier.email}</span>
+                  </div>
+                )}
+                {supplier.website && (
+                  <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <FaGlobe className="w-3 h-3" />
+                    <a 
+                      href={supplier.website} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      {supplier.website}
+                    </a>
                   </div>
                 )}
                 {supplier.address && (
@@ -349,6 +382,13 @@ export default function SuppliersPage() {
           }
         >
           <form id="supplier-form" onSubmit={saveSupplier} className="grid gap-4">
+            <ImageUpload
+              currentImageUrl={form.image_url}
+              onImageChange={(url) => setForm(f => ({ ...f, image_url: url || "" }))}
+              type="supplier"
+              disabled={false}
+            />
+            
             <label className="grid gap-2">
               <span className="text-sm text-gray-700 dark:text-gray-300">Supplier Name *</span>
               <input
@@ -392,6 +432,17 @@ export default function SuppliersPage() {
                 value={form.email}
                 onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))}
                 placeholder="contact@supplier.com"
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-sm text-gray-700 dark:text-gray-300">Website</span>
+              <input
+                type="url"
+                className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
+                value={form.website}
+                onChange={(e) => setForm(f => ({ ...f, website: e.target.value }))}
+                placeholder="https://www.supplier.com"
               />
             </label>
 

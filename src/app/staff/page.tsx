@@ -9,6 +9,7 @@ import Card from "@/components/Card";
 import { Plus, Pencil, Trash2, X, Clock, Send, Calendar, Save, User, Link } from "lucide-react";
 import { toast } from 'react-toastify';
 import { ActionButton } from "@/components/ActionButton";
+import { ImageUpload } from "@/components/ImageUpload";
 
 type Staff = {
   id: string;
@@ -19,6 +20,7 @@ type Staff = {
   role_slug: string | null;
   description: string | null;
   profile_id: string | null;
+  image_url: string | null;
 };
 
 type StaffRate = {
@@ -137,6 +139,7 @@ export default function StaffPage() {
     is_available: true,
     role_slug: "member",
     description: "",
+    image_url: "",
   });
 
   const [instructions, setInstructions] = useState<StaffPaymentInstruction[]>([]);
@@ -190,7 +193,7 @@ export default function StaffPage() {
   const fetchStaff = async () => {
     setLoading(true);
     const [{ data: staffData }, { data: ratesData }, { data: availabilityData }, { data: rolesData }, { data: holidaysData }] = await Promise.all([
-      getSupabaseClient().from("staff").select("id, name, phone, email, is_available, role_slug, description, profile_id").order("created_at", { ascending: false }),
+      getSupabaseClient().from("staff").select("id, name, phone, email, is_available, role_slug, description, profile_id, image_url").order("created_at", { ascending: false }),
       getSupabaseClient().from("staff_rates").select("*"),
       getSupabaseClient().from("staff_availability").select("*"),
       getSupabaseClient().from("staff_roles").select("*").order("name"),
@@ -233,7 +236,8 @@ export default function StaffPage() {
       sun_rate: 0,
       is_available: true, 
       role_slug: "member", 
-      description: "" 
+      description: "",
+      image_url: ""
     });
     setEditing(null);
     setInstructions([]);
@@ -255,6 +259,7 @@ export default function StaffPage() {
           is_available: form.is_available,
           role_slug: form.role_slug,
           description: form.description || null,
+          image_url: form.image_url || null,
         }).eq("id", editing.id);
         
         if (staffUpdateError) {
@@ -397,6 +402,7 @@ export default function StaffPage() {
           is_available: form.is_available,
           role_slug: form.role_slug,
           description: form.description || null,
+          image_url: form.image_url || null,
         }).select().single();
         
         if (staffInsertError) {
@@ -525,6 +531,7 @@ export default function StaffPage() {
       is_available: s.is_available,
       role_slug: s.role_slug ?? "member",
       description: s.description ?? "",
+      image_url: s.image_url ?? "",
     });
     
     // Load current rates and payment instructions for this staff
@@ -802,6 +809,17 @@ export default function StaffPage() {
             <Card key={s.id} padding="lg">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="flex items-start sm:items-center gap-4">
+                  {s.image_url ? (
+                    <img 
+                      src={s.image_url} 
+                      alt={`${s.name} photo`}
+                      className="w-12 h-12 rounded-lg object-cover border border-gray-200 dark:border-neutral-700 flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 bg-gray-100 dark:bg-neutral-800 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <User className="size-6 text-gray-400" />
+                    </div>
+                  )}
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <div className="flex items-center gap-2">
@@ -928,6 +946,12 @@ export default function StaffPage() {
               <div className="grid gap-5">
                 {activeTab === 'general' && (
                   <>
+                    <ImageUpload
+                      currentImageUrl={form.image_url}
+                      onImageChange={(url) => setForm((f) => ({ ...f, image_url: url || "" }))}
+                      type="staff"
+                      disabled={false}
+                    />
                     <label className="grid gap-2">
                       <span className="text-sm text-gray-700 dark:text-gray-300">Name</span>
                       <input className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
@@ -1121,8 +1145,10 @@ export default function StaffPage() {
                             </label>
                           </div>
                           <div className="md:col-span-12">
-                            <ActionButton
-                              onClick={() => {
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault(); // Prevent form submission
                                 // Check if priority already exists
                                 const existingPriorities = instructions.map(i => i.priority);
                                 if (existingPriorities.includes(instrDraft.priority)) {
@@ -1130,14 +1156,21 @@ export default function StaffPage() {
                                   return;
                                 }
                                 setInstructions(list => [...list, { id: crypto.randomUUID(), staff_id: editing?.id || 'new', ...instrDraft } as StaffPaymentInstruction]);
+                                // Clear the form after adding
+                                setInstrDraft({
+                                  label: "",
+                                  adjustment_per_hour: 0,
+                                  weekly_hours_cap: null,
+                                  payment_method: "",
+                                  priority: Math.max(...instructions.map(i => i.priority), 0) + 1, // Auto-increment priority
+                                  active: true,
+                                });
                               }}
-                              variant="primary"
-                              size="lg"
-                              icon={<Plus className="size-4" />}
-                              className="bg-blue-600"
+                              className="h-10 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors inline-flex items-center justify-center gap-2"
                             >
+                              <Plus className="size-4" />
                               Add instruction
-                            </ActionButton>
+                            </button>
                           </div>
                         </div>
                         {instructions.length === 0 ? (
@@ -1220,18 +1253,18 @@ export default function StaffPage() {
                           </label>
                         </div>
                         
-                        <ActionButton
-                          onClick={async () => {
+                        <button
+                          type="button"
+                          onClick={async (e) => {
+                            e.preventDefault(); // Prevent form submission
                             if (editing) {
                               await addAvailability(editing.id);
                             }
                           }}
-                          variant="primary"
-                          size="lg"
-                          className="bg-blue-600"
+                          className="h-10 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors inline-flex items-center justify-center gap-2"
                         >
                           Add to {availabilityForm.selected_days.length} Selected Day{availabilityForm.selected_days.length !== 1 ? 's' : ''}
-                        </ActionButton>
+                        </button>
                       </div>
 
                       {/* Show existing availability */}
@@ -1281,19 +1314,19 @@ export default function StaffPage() {
                           <span className="text-sm text-gray-700 dark:text-gray-300">Notes (optional)</span>
                           <input type="text" placeholder="e.g., Vacation, Sick leave" className="h-10 rounded-lg border px-3 bg-white dark:bg-neutral-900" value={holidayForm.reason} onChange={(e) => setHolidayForm((f) => ({ ...f, reason: e.target.value }))} />
                         </label>
-                        <ActionButton
-                          onClick={async () => {
+                        <button
+                          type="button"
+                          onClick={async (e) => {
+                            e.preventDefault(); // Prevent form submission
                             if (editing) {
                               await addHoliday(editing.id);
                             }
                           }}
-                          variant="primary"
-                          size="lg"
-                          icon={<Plus className="size-4" />}
-                          className="bg-blue-600"
+                          className="h-10 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors inline-flex items-center justify-center gap-2"
                         >
+                          <Plus className="size-4" />
                           Add Holiday
-                        </ActionButton>
+                        </button>
                       </div>
 
                       {/* Show existing holidays */}
