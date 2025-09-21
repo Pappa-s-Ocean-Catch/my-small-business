@@ -402,7 +402,7 @@ export default function ProductDetailsPage() {
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h2>
                 <div className="space-y-3">
                   <button
-                    onClick={() => router.push(`/shop/inventory/enhanced?product=${product.id}`)}
+                    onClick={() => router.push(`/shop/inventory?product=${product.id}`)}
                     className="w-full flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700"
                   >
                     <FaWarehouse className="w-4 h-4 mr-2" />

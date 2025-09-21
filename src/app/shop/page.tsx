@@ -215,10 +215,10 @@ export default function ShopPage() {
               </div>
             </Link>
 
-            <Link
-              href="/shop/inventory/enhanced"
-              className="p-4 bg-white dark:bg-neutral-900 rounded-lg border hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
-            >
+    <Link
+      href="/shop/inventory"
+      className="p-4 bg-white dark:bg-neutral-900 rounded-lg border hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+    >
               <div className="flex items-center gap-3">
                 <FaWarehouse className="w-6 h-6 text-orange-600 dark:text-orange-400" />
                 <div>

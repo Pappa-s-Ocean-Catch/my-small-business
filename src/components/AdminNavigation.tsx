@@ -192,7 +192,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
               <Link className={getLinkClasses("/shop")} href="/shop" aria-label="Shop Overview">Shop Overview</Link>
               <Link className={getLinkClasses("/shop/products")} href="/shop/products" aria-label="Products">Products</Link>
               <Link className={getLinkClasses("/shop/categories")} href="/shop/categories" aria-label="Categories">Categories</Link>
-              <Link className={getLinkClasses("/shop/inventory/enhanced")} href="/shop/inventory/enhanced" aria-label="Inventory">Inventory</Link>
+              <Link className={getLinkClasses("/shop/inventory")} href="/shop/inventory" aria-label="Inventory">Inventory</Link>
               <Link className={getLinkClasses("/shop/suppliers")} href="/shop/suppliers" aria-label="Suppliers">Suppliers</Link>
               <Link className={getLinkClasses("/shop/menu")} href="/shop/menu" aria-label="Menu">Menu</Link>
             </div>
@@ -259,7 +259,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                           </div>
                         </div>
                       </Link>
-                      <Link href="/shop/inventory/enhanced" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                      <Link href="/shop/inventory" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                         <div className="flex items-start gap-3">
                           <div className="mt-0.5 text-orange-600 dark:text-orange-400">
                             <FaWarehouse className="w-4 h-4" />

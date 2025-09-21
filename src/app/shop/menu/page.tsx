@@ -648,7 +648,7 @@ export default function MenuPage() {
 
               <div className="space-y-4">
                 {productForm.ingredients.map((ingredient, index) => (
-                  <div key={index} className="border border-gray-200 dark:border-neutral-700 rounded-lg p-4">
+                  <div key={index} className="bg-gray-50 dark:bg-neutral-800 rounded-lg p-4 shadow-sm">
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="font-medium text-gray-900 dark:text-white">Ingredient {index + 1}</h4>
                       <button

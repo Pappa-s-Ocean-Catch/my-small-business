@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
           <p style="margin: 0; color: #6b7280;">
             Please review your inventory and consider placing orders for these products.
             <br><br>
-            <a href="${process.env.NEXT_PUBLIC_SITE_URL}/shop/inventory/enhanced" style="color: #3b82f6; text-decoration: none;">
+            <a href="${process.env.NEXT_PUBLIC_SITE_URL}/shop/inventory" style="color: #3b82f6; text-decoration: none;">
               View Inventory Dashboard →
             </a>
           </p>
