@@ -100,13 +100,14 @@ export default function MenuScreensBuilderPage() {
     void selectScreen(res.data.id);
   };
 
-  const handleSaveBasics = async (input: { name?: string; slug?: string; is_published?: boolean; show_images?: boolean }) => {
+  const handleSaveBasics = async (input: { name?: string; slug?: string; is_published?: boolean; show_images?: boolean; subtitle?: string }) => {
     if (!selectedScreen) return;
     const res = await updateMenuScreen(selectedScreen.screen.id, input);
-    if (res.error || !res.data) { setError(res.error ?? 'Failed to update'); return; }
+    if (res.error || !res.data) { setError(res.error ?? 'Failed to update'); toast.error(res.error ?? 'Failed to update'); return; }
     setSelectedScreen({ screen: res.data as MenuScreen, categories: selectedScreen.categories });
     const refreshed = await listMenuScreens();
     if (!refreshed.error && refreshed.data) setScreens(refreshed.data);
+    toast.success('Basics saved');
   };
 
   const handleDeleteScreen = async () => {
@@ -235,6 +236,18 @@ export default function MenuScreensBuilderPage() {
                       </a>
                     )}
                     <button
+                      onClick={() => void handleSaveBasics({
+                        name: selectedScreen.screen.name,
+                        slug: selectedScreen.screen.slug,
+                        is_published: selectedScreen.screen.is_published,
+                        show_images: showImages,
+                        subtitle: (selectedScreen.screen as unknown as { subtitle?: string }).subtitle ?? ''
+                      })}
+                      className="inline-flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                    >
+                      <FaSave /> Save Basics
+                    </button>
+                    <button
                       onClick={() => setShowDeleteDialog({ open: true, id: selectedScreen!.screen.id, name: selectedScreen!.screen.name })}
                       className="inline-flex items-center gap-2 px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700"
                     >
@@ -265,9 +278,9 @@ export default function MenuScreensBuilderPage() {
                     <span className="text-sm text-gray-600">Subtitle</span>
                     <input
                       className="mt-1 w-full border px-3 py-2 bg-white dark:bg-neutral-950"
-                      value={(selectedScreen.screen as any).subtitle ?? ''}
-                      onChange={(e) => setSelectedScreen(s => s ? { ...s, screen: { ...s.screen, subtitle: e.target.value } as any } : s)}
-                      onBlur={() => void handleSaveBasics({ subtitle: (selectedScreen.screen as any).subtitle } as any)}
+                      value={(selectedScreen.screen as unknown as { subtitle?: string }).subtitle ?? ''}
+                      onChange={(e) => setSelectedScreen(s => s ? { ...s, screen: { ...s.screen, ...(s.screen as unknown as { subtitle?: string }), subtitle: e.target.value } as unknown as MenuScreen } : s)}
+                      onBlur={() => void handleSaveBasics({ subtitle: (selectedScreen.screen as unknown as { subtitle?: string }).subtitle ?? '' })}
                     />
                   </label>
                   <label className="flex items-center gap-3 mt-6">
@@ -299,10 +312,15 @@ export default function MenuScreensBuilderPage() {
                     <h2 className="font-medium">Available Categories</h2>
                   </div>
                   <ul className="space-y-2">
-                    {availableCategories.map(cat => (
-                      <li key={cat.id} className={`flex items-center justify-between border px-3 py-2 ${usageCounts[cat.id] ? 'bg-gray-100 text-gray-500' : ''}`}>
+                    {availableCategories
+                      .slice()
+                      .sort((a, b) => a.name.localeCompare(b.name))
+                      .map(cat => (
+                      <li key={cat.id} className={`flex items-center justify-between px-3 py-2 rounded shadow-sm ${usageCounts[cat.id] ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-white dark:bg-neutral-800'}`}>
                         <span>{cat.name}</span>
-                        <button className="text-blue-600 hover:text-blue-700 disabled:opacity-60" onClick={() => addCategory(cat.id)}>Add</button>
+                        <button className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 disabled:opacity-60" onClick={() => addCategory(cat.id)}>
+                          <FaPlus className="w-4 h-4" /> Add
+                        </button>
                       </li>
                     ))}
                   </ul>

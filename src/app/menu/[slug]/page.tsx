@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { getMenuScreenBySlug, getMenuScreenWithCategories } from '@/app/actions/menu-screens';
 import { getSaleCategories, getSaleProducts, type SaleCategory, type SaleProductWithDetails } from '@/app/actions/sale-products';
+import { FaExpand, FaCompress } from 'react-icons/fa';
 
 export default function PublicMenuScreenPage() {
   const params = useParams<{ slug: string }>();
@@ -14,6 +15,33 @@ export default function PublicMenuScreenPage() {
   const [products, setProducts] = useState<SaleProductWithDetails[]>([]);
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
   const [categoryColumnMap, setCategoryColumnMap] = useState<Record<string, { columnIndex: number; sortOrder: number }>>({});
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const resetTimer = () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = setTimeout(async () => {
+        if (!document.fullscreenElement) {
+          try {
+            await document.documentElement.requestFullscreen();
+          } catch {}
+        }
+      }, 60_000);
+    };
+
+    const handleFsChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener('fullscreenchange', handleFsChange);
+    const events: Array<keyof WindowEventMap> = ['mousemove', 'keydown', 'click', 'touchstart'];
+    const options: AddEventListenerOptions = { passive: true };
+    events.forEach(evt => window.addEventListener(evt, resetTimer, options));
+    resetTimer();
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange);
+      events.forEach(evt => window.removeEventListener(evt, resetTimer));
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     void loadData();
@@ -34,7 +62,7 @@ export default function PublicMenuScreenPage() {
           })()
         ]);
         if (screenRes.error || !screenRes.data) { setError(screenRes.error ?? 'Menu not found'); return; }
-        setScreen({ id: screenRes.data.id, name: screenRes.data.name, subtitle: (screenRes.data as any).subtitle ?? null, show_images: Boolean(screenRes.data.show_images), num_columns: Number(screenRes.data.num_columns || 3) });
+        setScreen({ id: screenRes.data.id, name: screenRes.data.name, subtitle: screenRes.data.subtitle ?? null, show_images: Boolean(screenRes.data.show_images), num_columns: Number(screenRes.data.num_columns || 3) });
         if (catsRes.error || !catsRes.data) { setError(catsRes.error ?? 'Failed to load categories'); return; }
         setCategories(catsRes.data.filter(c => c.is_active !== false));
         if (productsRes.error || !productsRes.data) { setError(productsRes.error ?? 'Failed to load products'); return; }
@@ -78,6 +106,23 @@ export default function PublicMenuScreenPage() {
   return (
     <div className="min-h-screen w-full p-6" style={{ background: '#fff8f0' }}>
       <div className="max-w-7xl mx-auto">
+        <button
+          aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+          onClick={async () => {
+            try {
+              if (document.fullscreenElement) {
+                await document.exitFullscreen();
+              } else {
+                await document.documentElement.requestFullscreen();
+              }
+            } catch (e) {
+              // noop
+            }
+          }}
+          className="fixed bottom-4 right-4 z-50 inline-flex items-center justify-center w-14 h-14 rounded-lg bg-transparent text-neutral-800/80 hover:text-neutral-900 hover:bg-neutral-900/5 backdrop-blur transition-colors"
+        >
+          {isFullscreen ? <FaCompress className="w-7 h-7" /> : <FaExpand className="w-7 h-7" />}
+        </button>
         <div className="mb-6 text-center">
           <h1 className="text-4xl font-extrabold tracking-tight" style={{ color: '#ff6363' }}>{screen.name}</h1>
           {screen.subtitle && <p className="text-sm text-neutral-600">{screen.subtitle}</p>}
