@@ -10,6 +10,7 @@ interface AIImageGeneratorProps {
   productName: string;
   description?: string;
   ingredients?: string[];
+  category?: string;
   className?: string;
   disabled?: boolean;
 }
@@ -20,6 +21,7 @@ export function AIImageGenerator({
   productName,
   description,
   ingredients,
+  category,
   className = '',
   disabled = false 
 }: AIImageGeneratorProps) {
@@ -63,6 +65,7 @@ export function AIImageGenerator({
           productName: productName.trim(),
           description: description?.trim(),
           ingredients: ingredients?.filter(ing => ing.trim()),
+          category: category?.trim(),
           context: context.trim(),
           referenceImageBase64,
           maxSizeKB: maxSizeKB
@@ -89,8 +92,8 @@ export function AIImageGenerator({
       const errorMessage = error instanceof Error ? error.message : 'Failed to generate image';
       
       // Show a more user-friendly message for unsupported image generation
-      if (errorMessage.includes('not currently supported')) {
-        toast.info('AI image generation is not available yet. Please use the traditional image upload below.');
+      if (errorMessage.includes('not currently supported') || errorMessage.includes('Unable to generate image')) {
+        toast.info('AI image generation is not available yet. Google\'s Gemini models are currently text-based. Please use the traditional image upload below.');
       } else {
         toast.error(errorMessage);
       }
@@ -382,6 +385,7 @@ export function AIImageGenerator({
           {/* Product Info Display */}
           <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
             <div><strong>Product:</strong> {productName}</div>
+            {category && <div><strong>Category:</strong> {category}</div>}
             {description && <div><strong>Description:</strong> {description}</div>}
             {ingredients && ingredients.length > 0 && (
               <div><strong>Ingredients:</strong> {ingredients.join(', ')}</div>

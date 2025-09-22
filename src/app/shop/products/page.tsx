@@ -857,6 +857,7 @@ export default function ProductsPage() {
               currentImageUrl={form.image_url}
               productName={form.name}
               description={form.description}
+              category={categories.find(cat => cat.id === form.category_id)?.name || ''}
               className="w-full"
             />
             

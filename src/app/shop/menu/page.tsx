@@ -815,6 +815,12 @@ export default function MenuPage() {
                       currentImageUrl={productForm.image_url}
                       productName={productForm.name}
                       description={productForm.description}
+                      category={(() => {
+                        const mainCategory = saleCategories.find(cat => cat.id === productForm.sale_category_id);
+                        const subCategory = saleCategories.find(cat => cat.id === productForm.sub_category_id);
+                        if (subCategory) return `${mainCategory?.name || ''} - ${subCategory.name}`;
+                        return mainCategory?.name || '';
+                      })()}
                       ingredients={productForm.ingredients.map(ing => {
                         const product = availableProducts.find(p => p.id === ing.product_id);
                         return product ? `${product.name} (${ing.quantity_required} ${ing.unit_of_measure})` : '';

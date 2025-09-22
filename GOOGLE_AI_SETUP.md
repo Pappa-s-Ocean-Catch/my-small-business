@@ -43,12 +43,13 @@ GOOGLE_AI_API_KEY=your_google_ai_api_key_here
 
 ## Features Implemented
 
-### ✅ AI Image Generation
-- **Model**: Uses `gemini-2.5-flash-image-preview` for image generation
-- **Capabilities**: Generates professional food product images based on product details
-- **Size Control**: Customizable max file size (50KB - 1000KB) with slider and number input
-- **Fallback**: Traditional image upload is always available as backup
-- **Status**: Fully functional with Google's latest image generation model
+### ⚠️ AI Image Generation (Currently Limited)
+- **Model**: Attempts to use `gemini-2.5-flash-image-preview` for image generation
+- **Current Status**: Google's Gemini models are primarily text-based and don't support actual image generation yet
+- **Behavior**: Models return text descriptions instead of images
+- **Size Control**: Customizable max file size (50KB - 1000KB) with slider and number input (ready for when image generation works)
+- **Fallback**: Traditional image upload is always available and fully functional
+- **Future**: Will automatically work when Google adds image generation capabilities
 
 ### ✅ Traditional Image Upload
 - Upload and manage product images via Vercel Blob storage
@@ -56,11 +57,11 @@ GOOGLE_AI_API_KEY=your_google_ai_api_key_here
 - Image validation and optimization
 - Full integration with product forms
 
-### ✅ AI Image Generation Workflow
+### ⚠️ Current AI Image Generation Workflow
 1. **Configure**: Set max image size (50KB - 1000KB) using slider or number input
-2. **Generate**: AI creates image using `gemini-2.5-flash-image-preview` model with size constraints
-3. **Preview**: User reviews the generated image
-4. **Confirm**: Image is uploaded to Vercel Blob storage
+2. **Attempt Generation**: Tries to generate image using `gemini-2.5-flash-image-preview` model
+3. **Fallback**: When image generation fails, shows user-friendly message
+4. **Traditional Upload**: User can upload their own image using the traditional upload feature
 5. **Save**: Image URL is saved to the product record
 
 ### ✅ Reference Image Support

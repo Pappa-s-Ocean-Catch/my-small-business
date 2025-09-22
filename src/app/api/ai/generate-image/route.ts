@@ -51,6 +51,7 @@ export async function POST(request: NextRequest) {
       productName, 
       description, 
       ingredients, 
+      category,
       context, 
       referenceImageBase64,
       maxSizeKB = 200 
@@ -65,6 +66,7 @@ export async function POST(request: NextRequest) {
       productName,
       description,
       ingredients,
+      category,
       context,
       referenceImageBase64,
       maxSizeKB

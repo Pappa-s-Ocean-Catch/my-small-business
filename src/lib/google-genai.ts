@@ -16,6 +16,7 @@ export async function generateProductImage({
   productName,
   description,
   ingredients,
+  category,
   context,
   referenceImageBase64,
   maxSizeKB = 200
@@ -23,6 +24,7 @@ export async function generateProductImage({
   productName: string;
   description?: string;
   ingredients?: string[];
+  category?: string;
   context?: string;
   referenceImageBase64?: string;
   maxSizeKB?: number;
@@ -32,6 +34,10 @@ export async function generateProductImage({
     
     // Build the prompt - be very explicit about wanting an image
     let prompt = `Generate a high-quality, appetizing food product image for "${productName}". `;
+    
+    if (category) {
+      prompt += `Category: ${category}. `;
+    }
     
     if (description) {
       prompt += `Description: ${description}. `;
@@ -77,29 +83,41 @@ export async function generateProductImage({
           });
         }
         
-        const result = await model.generateContent(parts);
-        const response = await result.response;
-        
-        // Get the generated image - check multiple possible locations
+        // Try streaming first for image generation
         let imageData = null;
-        
-        // Try different possible locations for the image data
-        if (response.candidates?.[0]?.content?.parts) {
-          for (const part of response.candidates[0].content.parts) {
-            if (part.inlineData) {
-              imageData = part.inlineData;
-              break;
+        try {
+          const result = await model.generateContentStream(parts);
+          
+          for await (const chunk of result.stream) {
+            if (chunk.candidates?.[0]?.content?.parts) {
+              for (const part of chunk.candidates[0].content.parts) {
+                if (part.inlineData) {
+                  imageData = part.inlineData;
+                  break;
+                }
+              }
+            }
+            if (imageData) break;
+          }
+        } catch (streamError) {
+          // Fallback to regular generateContent
+          const result = await model.generateContent(parts);
+          const response = await result.response;
+          
+          // Get the generated image - check multiple possible locations
+          if (response.candidates?.[0]?.content?.parts) {
+            for (const part of response.candidates[0].content.parts) {
+              if (part.inlineData) {
+                imageData = part.inlineData;
+                break;
+              }
             }
           }
         }
         
-        // If still no image, check if there's text content that might contain image info
-        if (!imageData && response.candidates?.[0]?.content?.parts) {
-          for (const part of response.candidates[0].content.parts) {
-            if (part.text) {
-              console.log('Model returned text instead of image:', part.text.substring(0, 100) + '...');
-            }
-          }
+        // If still no image, log that no image was generated
+        if (!imageData) {
+          console.log('Model returned text instead of image or no image data found');
         }
         
         if (imageData) {
