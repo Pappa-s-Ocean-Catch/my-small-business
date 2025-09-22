@@ -31,7 +31,7 @@ export function AIImageGenerator({
   const [context, setContext] = useState('');
   const [referenceImage, setReferenceImage] = useState<string | null>(null);
   const [referenceImageBase64, setReferenceImageBase64] = useState<string | null>(null);
-  const [maxSizeKB, setMaxSizeKB] = useState(200);
+  const [maxSizeKB, setMaxSizeKB] = useState(300);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleGenerateImage = async () => {
@@ -99,6 +99,64 @@ export function AIImageGenerator({
     }
   };
 
+  // Image compression utility
+  const compressImage = (file: File, maxSizeKB: number): Promise<File> => {
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+      
+      img.onload = () => {
+        // Calculate new dimensions (max 1200px width/height for web optimization)
+        const maxDimension = 1200;
+        let { width, height } = img;
+        
+        if (width > height && width > maxDimension) {
+          height = (height * maxDimension) / width;
+          width = maxDimension;
+        } else if (height > maxDimension) {
+          width = (width * maxDimension) / height;
+          height = maxDimension;
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        
+        // Draw and compress
+        ctx?.drawImage(img, 0, 0, width, height);
+        
+        // Try different quality levels to achieve target size
+        const tryCompress = (quality: number): void => {
+          canvas.toBlob((blob) => {
+            if (!blob) {
+              resolve(file); // Fallback to original
+              return;
+            }
+            
+            const sizeKB = blob.size / 1024;
+            
+            if (sizeKB <= maxSizeKB || quality <= 0.1) {
+              // Create new file with compressed blob
+              const compressedFile = new File([blob], file.name, { 
+                type: 'image/jpeg',
+                lastModified: Date.now()
+              });
+              resolve(compressedFile);
+            } else {
+              // Try with lower quality
+              tryCompress(quality - 0.1);
+            }
+          }, 'image/jpeg', quality);
+        };
+        
+        // Start with 0.8 quality
+        tryCompress(0.8);
+      };
+      
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
   const handleConfirmUpload = async () => {
     if (!generatedImageBlob) return;
 
@@ -108,7 +166,14 @@ export function AIImageGenerator({
       // Convert blob URL back to file for upload
       const response = await fetch(generatedImageBlob);
       const blob = await response.blob();
-      const file = new File([blob], 'ai-generated-image.jpg', { type: 'image/jpeg' });
+      const originalFile = new File([blob], 'ai-generated-image.jpg', { type: 'image/jpeg' });
+      
+      // Compress the image to target size
+      const compressedFile = await compressImage(originalFile, maxSizeKB);
+      
+      console.log(`Image compressed: ${(originalFile.size / 1024).toFixed(1)}KB → ${(compressedFile.size / 1024).toFixed(1)}KB`);
+      
+      const file = compressedFile;
 
       // Get the user's access token for authentication
       const { getSupabaseClient } = await import("@/lib/supabase/client");
@@ -369,7 +434,7 @@ export function AIImageGenerator({
               </div>
             </div>
             <div className="text-xs text-gray-500 dark:text-gray-500">
-              Smaller sizes = faster generation, larger sizes = higher quality. Recommended: 200-500KB
+              Smaller sizes = faster generation, larger sizes = higher quality. Recommended: 300-500KB for web optimization
             </div>
           </div>
 
