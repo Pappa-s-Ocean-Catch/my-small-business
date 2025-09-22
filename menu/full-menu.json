@@ -1,0 +1,767 @@
+[
+  {
+    "category": "BEEF BURGERS",
+    "items": [
+      {
+        "name": "Plain Beef Burger",
+        "description": "Beef patty, lettuce, & tomato sauce.",
+        "price": 7.50
+      },
+      {
+        "name": "The Lot Burger",
+        "description": "Beef patty, egg, bacon, cheese, tomato, red onion, lettuce, & tomato relish",
+        "price": 11.50
+      },
+      {
+        "name": "Cheese Burger",
+        "description": "Beef patty, cheese, lettuce, & tomato sauce",
+        "price": 7.95
+      },
+      {
+        "name": "Double Cheese Burger",
+        "description": "Two beef patties, double cheese, lettuce, & tomato sauce",
+        "price": 12.50
+      },
+      {
+        "name": "Bit Cheese Burger",
+        "description": "Beef patty, bacon, lettuce, tomato, cheese, mayo, & tomato sauce",
+        "price": 10.20
+      },
+      {
+        "name": "Bbq Cheese Burger",
+        "description": "Beef patty, cheese, bacon, red onion, lettuce, & bbq sauce",
+        "price": 10.90
+      },
+      {
+        "name": "The Aussie Burger",
+        "description": "Beef patty, egg, bacon, cheese, beetroot, tomato, red onion, lettuce, bbq sauce, & tomato sauce",
+        "price": 12.00
+      },
+      {
+        "name": "Tropical Burger",
+        "description": "Beef patty, pineapple, bacon, cheese, lettuce, mango, & tomato relish",
+        "price": 10.50
+      },
+      {
+        "name": "Mexican Burger",
+        "description": "Beef patty, jalapenos, cheese, tomato, red onion, lettuce, & peri peri mayo",
+        "price": 10.90
+      },
+      {
+        "name": "Royale With Cheese Burger",
+        "description": "Beef patty, double cheese, red onion, pickles, tomato relish & american mustard",
+        "price": 11.50
+      }
+    ]
+  },
+  {
+    "category": "CHICKEN BURGERS",
+    "items": [
+      {
+        "name": "Plain Chicken Burger",
+        "description": "Breaded fillet schmaltz, lettuce, & mayo",
+        "price": 7.95
+      },
+      {
+        "name": "Chicken Burger With The Lot",
+        "description": "Breaded fillet schmaltz, bacon, egg, cheese, tomato, lettuce, & mayo",
+        "price": 12.00
+      },
+      {
+        "name": "Chicken Bit Burger",
+        "description": "Breaded fillet schmaltz, bacon, lettuce, tomato, cheese, & mayo",
+        "price": 10.00
+      },
+      {
+        "name": "Hawaiian Chicken Burger",
+        "description": "Breaded fillet schmaltz, bacon, pineapple, cheese, lettuce, & mayo",
+        "price": 11.00
+      },
+      {
+        "name": "Peri Peri Chicken Burger",
+        "description": "Breaded fillet schmaltz, jalapenos, cheese, tomato, red onion, lettuce, & peri peri mayo",
+        "price": 10.00
+      },
+      {
+        "name": "Traditional Chicken Schmaltz",
+        "description": "crumbed breaded fillet schmaltz, lettuce and mayo",
+        "price": 10.00
+      },
+      {
+        "name": "Kids Chicken Burger",
+        "description": "Crumbled chicken patty, lettuce and tomato sauce",
+        "price": 7.00
+      }
+    ]
+  },
+  {
+    "category": "FISH BURGERS",
+    "items": [
+      {
+        "name": "Plain Fish Burger",
+        "description": "Flake (grilled or fried), lettuce, & tartare",
+        "price": 12.20
+      },
+      {
+        "name": "Classic Fish Burger",
+        "description": "Flake (grilled or fried), cheese, tomato, lettuce, & tartare",
+        "price": 13.50
+      }
+    ]
+  },
+  {
+    "category": "VEGETARIAN BURGERS",
+    "items": [
+      {
+        "name": "Plain Veggie Burger",
+        "description": "Gourmet vegetable patty, lettuce, & tomato sauce",
+        "price": 9.50
+      },
+      {
+        "name": "Classic Veggie Burger",
+        "description": "Gourmet vegetable patty, cheese, tomato, red onion, lettuce, mayo, & tomato relish",
+        "price": 11.00
+      }
+    ]
+  },
+  {
+    "category": "STEAK SANDWICHES",
+    "items": [
+      {
+        "name": "Plain Steak Sandwich",
+        "description": "Gourmet steak, lettuce, & tomato sauce",
+        "price": 11.00
+      },
+      {
+        "name": "Classic Steak Sandwich",
+        "description": "Gourmet steak, lettuce, tomato sauce, cheese, tomato, & red onion",
+        "price": 11.00
+      },
+      {
+        "name": "Classic Steak Lot",
+        "description": "Gourmet steak, lettuce, tomato sauce, cheese, egg, bacon, tomato & red onion",
+        "price": 14.50
+      }
+    ]
+  },
+  {
+    "category": "SOUVLAKI",
+    "items": [
+      {
+        "name": "Lamb Souvlaki",
+        "description": "Lamb yiros meat, lettuce, tomato, red onion, & garlic sauce",
+        "price": 13.95
+      },
+      {
+        "name": "Chicken Souvlaki",
+        "description": "Chicken Yiros meat, lettuce, tomato, red onion, & garlic sauce",
+        "price": 13.95
+      },
+      {
+        "name": "Mix Souvlaki",
+        "description": "Lamb and Chicken yiros meat, lettuce, tomato, red onion, & garlic sauce",
+        "price": 15.50
+      },
+      {
+        "name": "Fish Souvlaki",
+        "description": "Flake (grilled or fried), lettuce, tomato, red onion, & tartare sauce",
+        "price": 14.50
+      },
+      {
+        "name": "Vegetable Souvlaki",
+        "description": "Gourmet vegetable patty, lettuce, tomato, beetroot, red onion, & mayo",
+        "price": 11.00
+      },
+      {
+        "name": "Souva With The Lot",
+        "description": "Lamb yiros meat, egg, bacon, cheese, lettuce, tomato, red onion & tzatziki.",
+        "price": 18.50
+      }
+    ]
+  },
+  {
+    "category": "CHICKEN/LAMB SNACK PACK",
+    "items": [
+      {
+        "name": "Chicken Snack Pack",
+        "description": "Delicious chicken yiros meat with chips and cheese, topped with chilli, barbecue and homemade garlic sauce.",
+        "price": 17.95
+      },
+      {
+        "name": "Lamb Snack Pack",
+        "description": "Delicious Lamb yiros meat with chips and cheese, topped with chilli, barbecue and homemade garlic sauce.",
+        "price": 17.95
+      },
+      {
+        "name": "Mix Snack Pack",
+        "description": "Delicious chicken and lamb yiros meat with chips and cheese, topped with chilli, barbecue and homemade garlic sauce.",
+        "price": 19.95
+      }
+    ]
+  },
+  {
+    "category": "PACKS",
+    "items": [
+      {
+        "name": "Flake Pack For One",
+        "description": "1 x Flake, 1 x Potato Cake, 1 x Dim Sim, & Small Chips",
+        "price": 15.50
+      },
+      {
+        "name": "Flake Pack For Two",
+        "description": "2 x Flake, 2 x Potato Cakes, 2 x Dim Sims, & Small Chips",
+        "price": 27.75
+      },
+      {
+        "name": "Family Flake Pack",
+        "description": "4 x Flake, 4 x Potato Cakes, 4 x Dim Sims, & Medium Chips",
+        "price": 57.00
+      },
+      {
+        "name": "Pack for 3",
+        "description": "3 Butter fish, 3 potato cakes, 3 dim sims and medium chips.",
+        "price": 42.00
+      },
+      {
+        "name": "Flathead Pack",
+        "description": "6 x Flathead filets, & Medium Chips",
+        "price": 24.00
+      },
+      {
+        "name": "Dim & Cake Pack",
+        "description": "2 x Potato Cakes, 2 x Dim Sims, & Small Chips",
+        "price": 12.70
+      },
+      {
+        "name": "Party Pack",
+        "description": "8 x Potato Cakes, 8 x Dim Sims, & Extra Large Chips",
+        "price": 42.00
+      },
+      {
+        "name": "Chicken Breast Nuggets - 8 Nuggets",
+        "description": "",
+        "price": 8.50
+      },
+      {
+        "name": "Chicken Breast Nuggets - 12 Nugget",
+        "description": "",
+        "price": 13.00
+      },
+      {
+        "name": "Calamari Pack",
+        "description": "4 x Panko Crumbed Calamari, & Small Chips",
+        "price": 12.20
+      },
+      {
+        "name": "Salt & Pepper Squid Pack",
+        "description": "8 x Salt & Pepper Squid, & Small Chips",
+        "price": 13.80
+      },
+      {
+        "name": "Kids Snack Pack",
+        "description": "2 x Flathead Fillets, & Small Chips",
+        "price": 12.20
+      },
+      {
+        "name": "Kids Pack",
+        "description": "1 fish bite, 1 potato cake, 1 dim sim and $2.00 of chips.",
+        "price": 11.00
+      },
+      {
+        "name": "Fishermans Catch",
+        "description": "1 Flake, 1 scallop, 1 seafood stick, 2 calamari rings, half serve chips and 375ml can",
+        "price": 23.00
+      },
+      {
+        "name": "Nuggets And Chips Pack",
+        "description": "",
+        "price": 6.90
+      }
+    ]
+  },
+  {
+    "category": "FISH",
+    "items": [
+      {
+        "name": "Flake (Australian)",
+        "description": "Grilled or fried",
+        "price": 9.20
+      },
+      {
+        "name": "Blue Grenadier",
+        "description": "Grilled or fried",
+        "price": 9.50
+      },
+      {
+        "name": "Flathead",
+        "description": "3 fillets fried only",
+        "price": 9.50
+      },
+      {
+        "name": "Barramundi",
+        "description": "Grilled or fried",
+        "price": 10.50
+      },
+      {
+        "name": "Whiting",
+        "description": "Grilled or fried",
+        "price": 9.50
+      },
+      {
+        "name": "Butter Fish",
+        "description": "Grilled or fried",
+        "price": 9.50
+      },
+      {
+        "name": "Barracouta",
+        "description": "",
+        "price": 14.50
+      }
+    ]
+  },
+  {
+    "category": "CHIPS",
+    "items": [
+      {
+        "name": "Half Serve Chips",
+        "description": "",
+        "price": 3.00
+      },
+      {
+        "name": "Small Chips",
+        "description": "Serves 1",
+        "price": 5.50
+      },
+      {
+        "name": "Medium Chips",
+        "description": "Serves 2-3",
+        "price": 8.00
+      },
+      {
+        "name": "Large Chips",
+        "description": "Serves 3-4",
+        "price": 10.50
+      },
+      {
+        "name": "Extra Large Chips",
+        "description": "Serves 4-5",
+        "price": 12.50
+      },
+      {
+        "name": "Sweet Potato Chips",
+        "description": "A serve of Sweet Potato chips seasoned with salt and choice of sauce.",
+        "price": 7.30
+      }
+    ]
+  },
+  {
+    "category": "Chips And Gravy",
+    "items": [
+      {
+        "name": "Small chips and gravy",
+        "description": "",
+        "price": 5.50
+      },
+      {
+        "name": "Large chips and gravy",
+        "description": "",
+        "price": 7.70
+      }
+    ]
+  },
+  {
+    "category": "SEAFOOD SIDES",
+    "items": [
+      {
+        "name": "Seafood Stick",
+        "description": "",
+        "price": 2.00
+      },
+      {
+        "name": "Fish Bite",
+        "description": "",
+        "price": 4.60
+      },
+      {
+        "name": "Prawn Cutlet",
+        "description": "",
+        "price": 2.95
+      },
+      {
+        "name": "Fish Cake",
+        "description": "",
+        "price": 3.75
+      },
+      {
+        "name": "Calamari Ring",
+        "description": "Panko crumbed",
+        "price": 1.95
+      },
+      {
+        "name": "Scallop",
+        "description": "",
+        "price": 3.60
+      },
+      {
+        "name": "Salt & Pepper Squid",
+        "description": "Serve of 8",
+        "price": 8.50
+      },
+      {
+        "name": "Prawn In Batter",
+        "description": "",
+        "price": 3.95
+      },
+      {
+        "name": "Mussell In Batter",
+        "description": "",
+        "price": 2.75
+      }
+    ]
+  },
+  {
+    "category": "SIDES",
+    "items": [
+      {
+        "name": "Dim Sim - Steamed",
+        "description": "",
+        "price": 1.80
+      },
+      {
+        "name": "Dim Sim - Fried",
+        "description": "",
+        "price": 1.80
+      },
+      {
+        "name": "Potato Cake",
+        "description": "",
+        "price": 1.80
+      },
+      {
+        "name": "Spring Roll",
+        "description": "",
+        "price": 4.20
+      },
+      {
+        "name": "Chiko Roll",
+        "description": "",
+        "price": 4.20
+      },
+      {
+        "name": "Corn Jack",
+        "description": "",
+        "price": 4.20
+      },
+      {
+        "name": "Chicken Breast Nugget",
+        "description": "",
+        "price": 1.20
+      },
+      {
+        "name": "Frankfurt In Batter",
+        "description": "",
+        "price": 4.75
+      },
+      {
+        "name": "Burger In Batter",
+        "description": "",
+        "price": 5.20
+      },
+      {
+        "name": "Vegie Dim Sim",
+        "description": "",
+        "price": 2.20
+      },
+      {
+        "name": "Pickled Onion",
+        "description": "",
+        "price": 2.00
+      },
+      {
+        "name": "South Melbourne Dim Sim",
+        "description": "",
+        "price": 3.40
+      },
+      {
+        "name": "Cheese Kransky In Batter",
+        "description": "",
+        "price": 4.95
+      },
+      {
+        "name": "Dimm Sim In Batter",
+        "description": "",
+        "price": 2.85
+      },
+      {
+        "name": "Cheese & Bacon Potato Cake",
+        "description": "",
+        "price": 5.50
+      },
+      {
+        "name": "Gravy Small",
+        "description": "",
+        "price": 3.50
+      },
+      {
+        "name": "Gravy Medium",
+        "description": "",
+        "price": 5.50
+      },
+      {
+        "name": "Gravy Large",
+        "description": "",
+        "price": 7.50
+      },
+      {
+        "name": "Dino Nuggets",
+        "description": "",
+        "price": 1.10
+      },
+      {
+        "name": "Garlic Chicken Balls",
+        "description": "Great tasting chicken balls filled with garlic butter centre and parsley.",
+        "price": 2.20
+      },
+      {
+        "name": "Hash Brown",
+        "description": "",
+        "price": 2.00
+      },
+      {
+        "name": "Sweet Potato Cake",
+        "description": "",
+        "price": 2.60
+      }
+    ]
+  },
+  {
+    "category": "SWEET",
+    "items": [
+      {
+        "name": "Pineapple Fritter",
+        "description": "",
+        "price": 4.00
+      },
+      {
+        "name": "Banana Fritter",
+        "description": "",
+        "price": 4.00
+      },
+      {
+        "name": "Hot Jam Donut",
+        "description": "",
+        "price": 1.50
+      },
+      {
+        "name": "6s Hot Jam Donut",
+        "description": "",
+        "price": 6.00
+      },
+      {
+        "name": "Mars Bar In Batter",
+        "description": "",
+        "price": 3.50
+      },
+      {
+        "name": "Snickers In Batter",
+        "description": "",
+        "price": 3.80
+      }
+    ]
+  },
+  {
+    "category": "DRINKS",
+    "subCategories": [
+      {
+        "name": "Can",
+        "items": [
+          {
+            "name": "Coke",
+            "price": 3.30
+          },
+          {
+            "name": "Coke Zero",
+            "price": 3.30
+          },
+          {
+            "name": "Coke Vanilla",
+            "price": 3.30
+          },
+          {
+            "name": "Coke Vanilla Zero",
+            "price": 3.30
+          },
+          {
+            "name": "Kirks Paisto",
+            "price": 3.30
+          },
+          {
+            "name": "Kirks Creaming Soda",
+            "price": 3.30
+          },
+          {
+            "name": "Sprite",
+            "price": 3.30
+          },
+          {
+            "name": "Fanta",
+            "price": 3.30
+          },
+          {
+            "name": "Monster",
+            "price": 3.80
+          },
+          {
+            "name": "Pepsi Max",
+            "price": 3.30
+          },
+          {
+            "name": "Monster can Zero",
+            "price": 3.80
+          }
+        ]
+      },
+      {
+        "name": "600ml Bottle",
+        "items": [
+          {
+            "name": "Coke",
+            "price": 4.40
+          },
+          {
+            "name": "Coke Zero",
+            "price": 4.40
+          },
+          {
+            "name": "Fanta",
+            "price": 4.40
+          },
+          {
+            "name": "Coke Zero Vanilla",
+            "price": 4.40
+          },
+          {
+            "name": "Coke Vanilla",
+            "price": 4.40
+          }
+        ]
+      },
+      {
+        "name": "1.25l Bottle",
+        "items": [
+          {
+            "name": "Coke",
+            "price": 5.50
+          },
+          {
+            "name": "Coke Zero",
+            "price": 5.50
+          },
+          {
+            "name": "Fanta",
+            "price": 5.50
+          },
+          {
+            "name": "Sprite",
+            "price": 5.50
+          },
+          {
+            "name": "Kirks Creaming Soda",
+            "price": 5.50
+          },
+          {
+            "name": "Kirks Paisto",
+            "price": 5.50
+          },
+          {
+            "name": "Mountain Dew",
+            "price": 5.50
+          }
+        ]
+      },
+      {
+        "name": "2l Bottle",
+        "items": [
+          {
+            "name": "Coke",
+            "price": 6.50
+          },
+          {
+            "name": "Coke Zero",
+            "price": 6.50
+          },
+          {
+            "name": "Fanta",
+            "price": 6.50
+          },
+          {
+            "name": "Sprite",
+            "price": 6.50
+          },
+          {
+            "name": "Mountain Dew",
+            "price": 6.50
+          }
+        ]
+      },
+      {
+        "name": "Water",
+        "items": [
+          {
+            "name": "600ml",
+            "price": 2.20
+          }
+        ]
+      },
+      {
+        "name": "Powerade Ion4",
+        "items": [
+          {
+            "name": "Powerade Red",
+            "price": 4.95
+          },
+          {
+            "name": "Powerade Blue",
+            "price": 4.95
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "category": "SAUCES",
+    "items": [
+      {
+        "name": "Tartare Sauce",
+        "price": 2.00
+      },
+      {
+        "name": "Ketchup",
+        "price": 2.00
+      },
+      {
+        "name": "Garlic Aioli",
+        "price": 2.00
+      },
+      {
+        "name": "Peri Peri Sauce",
+        "price": 2.00
+      }
+    ]
+  },
+  {
+    "category": "ALL DAY BREAKFAST",
+    "items": [
+      {
+        "name": "Egg And Bacon Bun",
+        "description": "2 pieces of bacon with fried egg wrapped with tomato sauce in a delicious bun",
+        "price": 6.50
+      },
+      {
+        "name": "Egg And Bacon Sandwich",
+        "description": "2 pieces of bacon with fried egg and tomato sauce in super thick white bread",
+        "price": 6.50
+      }
+    ]
+  }
+]

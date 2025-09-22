@@ -9,8 +9,12 @@ export interface SaleCategory {
   description: string | null;
   sort_order: number;
   is_active: boolean;
+  parent_category_id: string | null;
   created_at: string;
   updated_at: string;
+  // Joined data for hierarchy
+  parent_category_name?: string | null;
+  sub_categories?: SaleCategory[];
 }
 
 export interface SaleProduct {
@@ -20,6 +24,7 @@ export interface SaleProduct {
   sale_price: number;
   image_url: string | null;
   sale_category_id: string | null;
+  sub_category_id: string | null;
   is_active: boolean;
   preparation_time_minutes: number;
   created_at: string;
@@ -50,6 +55,7 @@ export interface SaleProductWithDetails extends SaleProduct {
   is_available: boolean;
   ingredients: SaleProductIngredient[];
   category_name?: string;
+  sub_category_name?: string;
 }
 
 // Sale Categories CRUD
@@ -57,9 +63,13 @@ export async function getSaleCategories(): Promise<{ data: SaleCategory[] | null
   try {
     const supabase = await createServiceRoleClient();
     
+    // Fetch all categories with hierarchy information
     const { data, error } = await supabase
       .from('sale_categories')
-      .select('*')
+      .select(`
+        *,
+        parent_category:sale_categories!parent_category_id(name)
+      `)
       .order('sort_order', { ascending: true });
 
     if (error) {
@@ -67,7 +77,13 @@ export async function getSaleCategories(): Promise<{ data: SaleCategory[] | null
       return { data: null, error: error.message };
     }
 
-    return { data, error: null };
+    // Transform the data to include parent category name
+    const transformedData = data?.map(category => ({
+      ...category,
+      parent_category_name: category.parent_category?.name || null
+    })) || [];
+
+    return { data: transformedData, error: null };
   } catch (error) {
     console.error('Unexpected error fetching sale categories:', error);
     return { data: null, error: 'An unexpected error occurred' };
@@ -78,6 +94,8 @@ export async function createSaleCategory(formData: {
   name: string;
   description?: string;
   sort_order?: number;
+  parent_category_id?: string;
+  is_active?: boolean;
 }): Promise<{ data: SaleCategory | null; error: string | null }> {
   try {
     const supabase = await createServiceRoleClient();
@@ -87,7 +105,9 @@ export async function createSaleCategory(formData: {
       .insert([{
         name: formData.name,
         description: formData.description || null,
-        sort_order: formData.sort_order || 0
+        sort_order: formData.sort_order || 0,
+        parent_category_id: formData.parent_category_id || null,
+        is_active: formData.is_active !== undefined ? formData.is_active : true
       }])
       .select()
       .single();
@@ -111,6 +131,7 @@ export async function updateSaleCategory(
     description?: string;
     sort_order?: number;
     is_active?: boolean;
+    parent_category_id?: string;
   }
 ): Promise<{ data: SaleCategory | null; error: string | null }> {
   try {
@@ -122,7 +143,8 @@ export async function updateSaleCategory(
         name: formData.name,
         description: formData.description || null,
         sort_order: formData.sort_order || 0,
-        is_active: formData.is_active !== undefined ? formData.is_active : true
+        is_active: formData.is_active !== undefined ? formData.is_active : true,
+        parent_category_id: formData.parent_category_id || null
       })
       .eq('id', id)
       .select()
@@ -166,12 +188,13 @@ export async function getSaleProducts(): Promise<{ data: SaleProductWithDetails[
   try {
     const supabase = await createServiceRoleClient();
     
-    // Get sale products with category names
+    // Get sale products with category and sub-category names
     const { data: products, error: productsError } = await supabase
       .from('sale_products')
       .select(`
         *,
-        sale_categories!sale_category_id(name)
+        sale_categories!sale_category_id(name),
+        sub_category:sale_categories!sub_category_id(name)
       `)
       .order('name', { ascending: true });
 
@@ -227,7 +250,8 @@ export async function getSaleProducts(): Promise<{ data: SaleProductWithDetails[
           product_purchase_price: (ing.products as { name: string; sku: string; purchase_price: number; total_units: number } | null)?.purchase_price,
           product_total_units: (ing.products as { name: string; sku: string; purchase_price: number; total_units: number } | null)?.total_units
         })),
-        category_name: (product.sale_categories as { name: string } | null)?.name
+        category_name: (product.sale_categories as { name: string } | null)?.name,
+        sub_category_name: (product.sub_category as { name: string } | null)?.name
       };
     });
 
@@ -306,7 +330,8 @@ export async function getSaleProduct(id: string): Promise<{ data: SaleProductWit
           product_units_per_box: product?.units_per_box
         };
       }) || [],
-      category_name: (product.sale_categories as { name: string } | null)?.name
+      category_name: (product.sale_categories as { name: string } | null)?.name,
+      sub_category_name: (product.sub_category as { name: string } | null)?.name
     };
 
     return { data: productWithDetails, error: null };
@@ -322,6 +347,7 @@ export async function createSaleProduct(formData: {
   sale_price: number;
   image_url?: string;
   sale_category_id?: string;
+  sub_category_id?: string;
   preparation_time_minutes?: number;
   ingredients: Array<{
     product_id: string;
@@ -343,6 +369,7 @@ export async function createSaleProduct(formData: {
         sale_price: formData.sale_price,
         image_url: formData.image_url || null,
         sale_category_id: formData.sale_category_id || null,
+        sub_category_id: formData.sub_category_id || null,
         preparation_time_minutes: formData.preparation_time_minutes || 0
       }])
       .select()
@@ -391,6 +418,7 @@ export async function updateSaleProduct(
     sale_price: number;
     image_url?: string;
     sale_category_id?: string;
+    sub_category_id?: string;
     preparation_time_minutes?: number;
     is_active?: boolean;
     ingredients: Array<{
@@ -414,6 +442,7 @@ export async function updateSaleProduct(
         sale_price: formData.sale_price,
         image_url: formData.image_url || null,
         sale_category_id: formData.sale_category_id || null,
+        sub_category_id: formData.sub_category_id || null,
         preparation_time_minutes: formData.preparation_time_minutes || 0,
         is_active: formData.is_active !== undefined ? formData.is_active : true
       })

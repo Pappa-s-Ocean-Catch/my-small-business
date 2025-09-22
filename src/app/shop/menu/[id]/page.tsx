@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { FaArrowLeft, FaUtensils, FaDollarSign, FaClock, FaBox, FaExclamationTriangle, FaCheckCircle, FaTag } from 'react-icons/fa';
+import { FaArrowLeft, FaUtensils, FaClock, FaBox, FaExclamationTriangle, FaCheckCircle, FaTag } from 'react-icons/fa';
 import Card from '@/components/Card';
 import { toast } from 'react-toastify';
 import { getSupabaseClient } from '@/lib/supabase/client';

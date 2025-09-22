@@ -1,0 +1,55 @@
+{
+    "category": "Beef Burgers",
+    "burgers": [
+      {
+        "name": "Plain Beef Burger",
+        "description": "Beef patty, lettuce, & tomato sauce.",
+        "price": 7.50
+      },
+      {
+        "name": "Cheese Burger",
+        "description": "Beef patty, cheese, lettuce, & tomato sauce",
+        "price": 7.95
+      },
+      {
+        "name": "BLT Cheese Burger",
+        "description": "Beef patty, bacon, lettuce, tomato, cheese, mayo, & tomato sauce",
+        "price": 10.20
+      },
+      {
+        "name": "The Aussie Burger",
+        "description": "Beef patty, egg, bacon, cheese, beetroot, tomato, red onion, lettuce, bbq sauce, & tomato sauce",
+        "price": 12.00
+      },
+      {
+        "name": "Mexican Burger",
+        "description": "Beef patty, jalapenos, cheese, tomato, red onion, lettuce, & peri peri mayo",
+        "price": 10.90
+      },
+      {
+        "name": "The Lot Burger",
+        "description": "Beef patty, egg, bacon, cheese, tomato, red onion, lettuce, & tomato relish",
+        "price": 11.50
+      },
+      {
+        "name": "Double Cheese Burger",
+        "description": "Two beef patties, double cheese, lettuce, & tomato sauce",
+        "price": 12.50
+      },
+      {
+        "name": "BBQ Cheese Burger",
+        "description": "Beef patty, cheese, bacon, red onion, lettuce, & bbq sauce",
+        "price": 10.20
+      },
+      {
+        "name": "Tropical Burger",
+        "description": "Beef patty, pineapple, bacon, cheese, lettuce, mayo, & tomato relish",
+        "price": 10.50
+      },
+      {
+        "name": "Royale With Cheese Burger",
+        "description": "Beef patty, double cheese, red onion, pickles, tomato relish & american mustard",
+        "price": 11.50
+      }
+    ]
+  }
