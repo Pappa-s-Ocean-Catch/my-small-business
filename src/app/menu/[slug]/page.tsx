@@ -88,16 +88,17 @@ export default function PublicMenuScreenPage() {
     }
   }, [params?.slug]);
 
-  const productsByCategory = useMemo(() => {
-    const map = new Map<string, SaleProductWithDetails[]>();
-    for (const p of products) {
-      if (!p.sale_category_id) continue;
-      const arr = map.get(p.sale_category_id) ?? [];
-      arr.push(p);
-      map.set(p.sale_category_id, arr);
+  const categoryChildrenMap = useMemo(() => {
+    const children: Record<string, string[]> = {};
+    for (const c of categories) {
+      if (c.parent_category_id) {
+        const parentId = c.parent_category_id;
+        if (!children[parentId]) children[parentId] = [];
+        children[parentId].push(c.id);
+      }
     }
-    return map;
-  }, [products]);
+    return children;
+  }, [categories]);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-xl">Loading menu...</div>;
   if (error) return <div className="min-h-screen flex items-center justify-center text-red-600">{error}</div>;
@@ -140,7 +141,12 @@ export default function PublicMenuScreenPage() {
                   return sa - sb;
                 })
                 .map(cat => {
-                  const items = productsByCategory.get(cat.id) ?? [];
+                  const includeIds = new Set<string>([cat.id, ...(categoryChildrenMap[cat.id] ?? [])]);
+                  const items = products.filter(p => {
+                    const saleCatOk = p.sale_category_id ? includeIds.has(p.sale_category_id) : false;
+                    const subCatOk = (p as unknown as { sub_category_id?: string }).sub_category_id ? includeIds.has((p as unknown as { sub_category_id?: string }).sub_category_id as string) : false;
+                    return saleCatOk || subCatOk;
+                  });
                   if (items.length === 0) return null;
                   return (
                     <div key={cat.id} className="rounded-xl shadow-sm border bg-white overflow-hidden">
