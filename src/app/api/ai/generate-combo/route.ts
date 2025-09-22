@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
       name: string;
       description?: string | null;
       sale_price?: number | null;
+      image_url?: string | null;
       sale_categories?: { name?: string | null } | null;
       sub_category?: { name?: string | null } | null;
     };
@@ -95,12 +96,12 @@ export async function POST(request: NextRequest) {
 
     const imageMap: Record<string, string | undefined> = {};
     const priceMap: Record<string, number> = {};
-    (saleProducts as RawSaleProduct[] | null ?? []).forEach((p: any) => {
+    (saleProducts as RawSaleProduct[] | null ?? []).forEach((p) => {
       priceMap[p.id] = Number(p.sale_price ?? 0);
       imageMap[p.id] = p.image_url ?? undefined;
     });
 
-    const products: ComboProduct[] = (saleProducts as RawSaleProduct[] | null ?? []).map((p: any) => ({
+    const products: ComboProduct[] = (saleProducts as RawSaleProduct[] | null ?? []).map((p) => ({
       id: p.id,
       name: p.name,
       description: p.description ?? undefined,
