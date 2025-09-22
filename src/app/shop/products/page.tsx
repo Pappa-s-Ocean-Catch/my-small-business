@@ -13,6 +13,7 @@ import { toast } from 'react-toastify';
 import { saveAs } from "file-saver";
 import Link from "next/link";
 import { ImageUpload } from "@/components/ImageUpload";
+import { AIImageGenerator } from "@/components/AIImageGenerator";
 
 type Product = {
   id: string;
@@ -850,11 +851,24 @@ export default function ProductsPage() {
               />
             </label>
 
-            <ImageUpload
+            {/* AI Image Generator */}
+            <AIImageGenerator
+              onImageGenerated={(url) => setForm(f => ({ ...f, image_url: url || "" }))}
               currentImageUrl={form.image_url}
-              onImageChange={(url) => setForm(f => ({ ...f, image_url: url || "" }))}
-              type="product"
+              productName={form.name}
+              description={form.description}
+              className="w-full"
             />
+            
+            {/* Traditional Image Upload */}
+            <div className="border-t border-gray-200 dark:border-neutral-700 pt-3">
+              <div className="text-xs text-gray-500 dark:text-gray-500 mb-2">Or upload your own image:</div>
+              <ImageUpload
+                currentImageUrl={form.image_url}
+                onImageChange={(url) => setForm(f => ({ ...f, image_url: url || "" }))}
+                type="product"
+              />
+            </div>
 
             <div className="flex items-center gap-2">
               <input

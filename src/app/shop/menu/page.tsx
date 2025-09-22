@@ -8,6 +8,7 @@ import { ActionButton } from '@/components/ActionButton';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 import { ProductSearch } from '@/components/ProductSearch';
 import { ImageUpload } from '@/components/ImageUpload';
+import { AIImageGenerator } from '@/components/AIImageGenerator';
 import { toast } from 'react-toastify';
 import { 
   getSaleProducts, 
@@ -807,12 +808,30 @@ export default function MenuPage() {
                         </button>
                       </div>
                     )}
-                    <ImageUpload
-                      onImageChange={(url) => setProductForm({ ...productForm, image_url: url || '' })}
+                    
+                    {/* AI Image Generator */}
+                    <AIImageGenerator
+                      onImageGenerated={(url) => setProductForm({ ...productForm, image_url: url || '' })}
                       currentImageUrl={productForm.image_url}
-                      type="sale_product"
+                      productName={productForm.name}
+                      description={productForm.description}
+                      ingredients={productForm.ingredients.map(ing => {
+                        const product = availableProducts.find(p => p.id === ing.product_id);
+                        return product ? `${product.name} (${ing.quantity_required} ${ing.unit_of_measure})` : '';
+                      }).filter(Boolean)}
                       className="w-full"
                     />
+                    
+                    {/* Traditional Image Upload */}
+                    <div className="border-t border-gray-200 dark:border-neutral-700 pt-3">
+                      <div className="text-xs text-gray-500 dark:text-gray-500 mb-2">Or upload your own image:</div>
+                      <ImageUpload
+                        onImageChange={(url) => setProductForm({ ...productForm, image_url: url || '' })}
+                        currentImageUrl={productForm.image_url}
+                        type="sale_product"
+                        className="w-full"
+                      />
+                    </div>
                   </div>
                 </div>
 
