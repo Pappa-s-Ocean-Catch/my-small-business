@@ -307,17 +307,24 @@ export function AIImageGenerator({
       )}
 
       {/* AI Generator Toggle */}
-      {!currentImageUrl && (
-        <button
-          type="button"
-          onClick={() => setShowGenerator(!showGenerator)}
-          disabled={disabled || isGenerating}
-          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <FaMagic className="w-4 h-4" />
-          {isGenerating ? 'Generating...' : 'Generate AI Image'}
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={() => {
+          if (currentImageUrl) {
+            // Show confirmation dialog when there's already an image
+            if (confirm('This will replace the current image with a new AI-generated one. Continue?')) {
+              setShowGenerator(true);
+            }
+          } else {
+            setShowGenerator(!showGenerator);
+          }
+        }}
+        disabled={disabled || isGenerating}
+        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <FaMagic className="w-4 h-4" />
+        {isGenerating ? 'Generating...' : currentImageUrl ? 'Generate New AI Image' : 'Generate AI Image'}
+      </button>
 
       {/* AI Generated Image Preview */}
       {showPreview && generatedImageBlob && (
@@ -375,7 +382,7 @@ export function AIImageGenerator({
       )}
 
       {/* AI Generator Panel */}
-      {showGenerator && !currentImageUrl && !showPreview && (
+      {showGenerator && !showPreview && (
         <div className="border border-gray-200 dark:border-neutral-700 rounded-lg p-4 space-y-4 bg-gray-50 dark:bg-neutral-800">
           <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
             <FaMagic className="w-4 h-4 text-purple-600" />
@@ -528,18 +535,6 @@ export function AIImageGenerator({
         </div>
       )}
 
-      {/* Change Image Button (when image exists) */}
-      {currentImageUrl && !disabled && !showPreview && (
-        <button
-          type="button"
-          onClick={() => setShowGenerator(!showGenerator)}
-          disabled={isGenerating || isUploading}
-          className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-neutral-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-neutral-600 transition-colors disabled:opacity-50"
-        >
-          <FaMagic className="w-4 h-4" />
-          {isGenerating ? 'Generating...' : 'Generate New AI Image'}
-        </button>
-      )}
     </div>
   );
 }
