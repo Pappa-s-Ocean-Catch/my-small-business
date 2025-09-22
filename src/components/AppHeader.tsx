@@ -7,7 +7,7 @@ import { Logo } from "./Logo";
 
 export function AppHeader() {
   const pathname = usePathname();
-  if (pathname?.startsWith("/menu/")) {
+  if (pathname?.startsWith("/menu")) {
     return null;
   }
   return (

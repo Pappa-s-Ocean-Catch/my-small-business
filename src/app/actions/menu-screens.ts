@@ -124,6 +124,23 @@ export async function deleteMenuScreen(id: string): Promise<{ ok: boolean; error
   }
 }
 
+export async function saveMenuScreensOrder(idsInOrder: string[]): Promise<{ ok: boolean; error: string | null }> {
+  try {
+    const supabase = await createServiceRoleClient();
+    for (let i = 0; i < idsInOrder.length; i++) {
+      const id = idsInOrder[i];
+      const { error } = await supabase
+        .from('menu_screens')
+        .update({ sort_order: i })
+        .eq('id', id);
+      if (error) return { ok: false, error: error.message };
+    }
+    return { ok: true, error: null };
+  } catch (err) {
+    return { ok: false, error: 'Failed to save screens order' };
+  }
+}
+
 export async function replaceMenuScreenCategories(menuScreenId: string, categoryIdsSorted: string[]): Promise<{ ok: boolean; error: string | null }> {
   try {
     const supabase = await createServiceRoleClient();

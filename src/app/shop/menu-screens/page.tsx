@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-toastify';
-import { FaPlus, FaSave, FaTrash, FaGripVertical, FaEye, FaEyeSlash, FaExternalLinkAlt } from 'react-icons/fa';
+import { FaPlus, FaSave, FaTrash, FaGripVertical, FaEye, FaEyeSlash, FaExternalLinkAlt, FaMagic } from 'react-icons/fa';
 import { 
   listMenuScreens,
   createMenuScreen,
@@ -11,10 +11,12 @@ import {
   getMenuScreenWithCategories,
   replaceMenuScreenCategories,
   getMenuScreenCategoryUsageCounts,
-  type MenuScreen
+  type MenuScreen,
+  saveMenuScreensOrder
 } from '@/app/actions/menu-screens';
 import { getSaleCategories, type SaleCategory } from '@/app/actions/sale-products';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 type ScreenWithCats = {
   screen: MenuScreen;
@@ -37,6 +39,8 @@ export default function MenuScreensBuilderPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState<{ open: boolean; id: string | null; name: string }>(
     { open: false, id: null, name: '' }
   );
+  const [aiGenerating, setAiGenerating] = useState<boolean>(false);
+  const [aiImageBase64, setAiImageBase64] = useState<string | null>(null);
 
   useEffect(() => {
     void loadInitial();
@@ -194,6 +198,49 @@ export default function MenuScreensBuilderPage() {
     }
   };
 
+  const generateAiPoster = async () => {
+    try {
+      setAiGenerating(true);
+      setAiImageBase64(null);
+      const supabase = getSupabaseClient();
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (!token) { toast.error('Not authenticated'); return; }
+
+      // Fetch product names for selected categories
+      const { data: productsData, error: productsError } = await supabase
+        .from('sale_products')
+        .select('name, sale_category_id, sub_category_id')
+        .in('sale_category_id', selectedCategoryIds);
+      if (productsError) { toast.error(`Load products failed: ${productsError.message}`); return; }
+      const productNames = (productsData ?? []).map(p => p.name);
+
+      const res = await fetch('/api/ai/generate-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          productName: selectedScreen?.screen.name ?? 'Menu Poster',
+          description: 'High quality, print-ready poster for in-store display. Bright, appetizing, clean background, crisp typography placeholder, 300 DPI look.',
+          ingredients: productNames,
+          category: 'Menu',
+          context: 'Create a visually compelling poster highlighting the selected menu items. No watermarks. Center composition.' ,
+          maxSizeKB: 900
+        })
+      });
+      const json = await res.json();
+      if (!res.ok) { toast.error(json.error ?? 'AI failed'); return; }
+      setAiImageBase64(json.imageBase64 as string);
+      toast.success('AI image generated');
+    } catch (e) {
+      toast.error('Failed to generate AI image');
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
   if (loading) return <div className="p-6">Loading...</div>;
   if (error) return <div className="p-6 text-red-600">{error}</div>;
 
@@ -206,12 +253,33 @@ export default function MenuScreensBuilderPage() {
         </button>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs with drag-and-drop ordering */}
       <div className="overflow-x-auto">
         <div className="flex items-center gap-2 border-b">
-          {screens.map(s => (
-            <div key={s.id} className={`px-3 py-2 cursor-pointer whitespace-nowrap ${selectedScreen?.screen.id === s.id ? 'border-b-2 border-blue-600 text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-900'}`}
-                 onClick={() => void selectScreen(s.id)}>
+          {screens.map((s, idx) => (
+            <div
+              key={s.id}
+              draggable
+              onDragStart={(e) => { e.dataTransfer.setData('text/plain', s.id); }}
+              onDragOver={(e) => { e.preventDefault(); }}
+              onDrop={async (e) => {
+                e.preventDefault();
+                const draggedId = e.dataTransfer.getData('text/plain');
+                const from = screens.findIndex(x => x.id === draggedId);
+                const to = idx;
+                if (from === -1 || to === -1 || from === to) return;
+                const next = [...screens];
+                const [moved] = next.splice(from, 1);
+                next.splice(to, 0, moved);
+                setScreens(next);
+                const ids = next.map(x => x.id);
+                const res = await saveMenuScreensOrder(ids);
+                if (res.error) toast.error(`Save order failed: ${res.error}`);
+              }}
+              className={`px-3 py-2 cursor-move whitespace-nowrap select-none ${selectedScreen?.screen.id === s.id ? 'border-b-2 border-blue-600 text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-900'}`}
+              onClick={() => void selectScreen(s.id)}
+              title="Drag to reorder"
+            >
               <span className="truncate">{s.name}</span>
             </div>
           ))}
@@ -341,6 +409,9 @@ export default function MenuScreensBuilderPage() {
                       <button onClick={() => void saveLayout()} className="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
                         <FaSave /> Save Layout
                       </button>
+                      <button onClick={() => void generateAiPoster()} disabled={aiGenerating || selectedCategoryIds.length === 0} className="inline-flex items-center gap-2 px-3 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-60">
+                        <FaMagic /> {aiGenerating ? 'Generating…' : 'AI Poster'}
+                      </button>
                     </div>
                   </div>
 
@@ -383,6 +454,22 @@ export default function MenuScreensBuilderPage() {
                   </div>
                 </div>
               </div>
+
+              {aiImageBase64 && (
+                <div className="bg-white dark:bg-neutral-900 p-4 rounded border">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-medium">AI Poster Preview</h3>
+                    <a
+                      href={`data:image/png;base64,${aiImageBase64}`}
+                      download={`poster-${selectedScreen?.screen.slug ?? 'menu'}.png`}
+                      className="px-3 py-2 rounded bg-green-600 text-white hover:bg-green-700"
+                    >
+                      Download PNG
+                    </a>
+                  </div>
+                  <img src={`data:image/png;base64,${aiImageBase64}`} alt="AI Poster" className="w-full h-auto rounded" />
+                </div>
+              )}
             </div>
           )}
       </div>
