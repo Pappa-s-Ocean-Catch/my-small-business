@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { ensureProfile } from "@/app/actions/profile";
 import { AdminGuard } from "@/components/AdminGuard";
-import { FaBox, FaTags, FaTruck, FaWarehouse, FaExclamationTriangle, FaPlus, FaChartLine, FaUtensils } from "react-icons/fa";
+import { FaBox, FaTags, FaTruck, FaWarehouse, FaExclamationTriangle, FaPlus, FaChartLine, FaUtensils, FaEye } from "react-icons/fa";
 import Link from "next/link";
 import { LoadingPage } from "@/components/Loading";
 
@@ -237,6 +237,19 @@ export default function ShopPage() {
                 <div>
                   <h3 className="font-medium text-gray-900 dark:text-white">Menu</h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Sale products & categories</p>
+                </div>
+              </div>
+            </Link>
+
+            <Link
+              href="/shop/menu-screens"
+              className="p-4 bg-white dark:bg-neutral-900 rounded-lg border hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <FaEye className="w-6 h-6 text-pink-600 dark:text-pink-400" />
+                <div>
+                  <h3 className="font-medium text-gray-900 dark:text-white">Menu Builder</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Design in-store screens</p>
                 </div>
               </div>
             </Link>
