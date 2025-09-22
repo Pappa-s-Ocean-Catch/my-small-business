@@ -102,6 +102,100 @@ export function AIImageGenerator({
     }
   };
 
+  const handleQuickGenerate = async () => {
+    if (!productName.trim()) {
+      toast.error('Product name is required for image generation');
+      return;
+    }
+
+    setIsGenerating(true);
+
+    try {
+      // Get the user's access token for authentication
+      const { getSupabaseClient } = await import("@/lib/supabase/client");
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        toast.error('No valid session found. Please log in again.');
+        return;
+      }
+
+      // Generate image with default settings
+      const response = await fetch('/api/ai/generate-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          productName: productName.trim(),
+          description: description?.trim(),
+          ingredients: ingredients?.filter(ing => ing.trim()),
+          category: category?.trim(),
+          context: '', // No additional context for quick generation
+          referenceImageBase64: null, // No reference image for quick generation
+          maxSizeKB: maxSizeKB
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Image generation failed');
+      }
+
+      // Convert base64 to blob URL
+      const imageBlob = await fetch(`data:image/jpeg;base64,${result.imageBase64}`).then(r => r.blob());
+      const imageUrl = URL.createObjectURL(imageBlob);
+      
+      // Auto-confirm and upload
+      const originalFile = new File([imageBlob], 'ai-generated-image.jpg', { type: 'image/jpeg' });
+      const compressedFile = await compressImage(originalFile, maxSizeKB);
+      
+      console.log(`Quick generation - Image compressed: ${(originalFile.size / 1024).toFixed(1)}KB → ${(compressedFile.size / 1024).toFixed(1)}KB`);
+      
+      // Upload to Vercel Blob
+      const formData = new FormData();
+      formData.append('file', compressedFile);
+      formData.append('type', 'sale_product');
+
+      const uploadResponse = await fetch('/api/upload', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: formData,
+      });
+
+      const uploadResult = await uploadResponse.json();
+
+      if (!uploadResponse.ok) {
+        throw new Error(uploadResult.error || 'Upload failed');
+      }
+
+      // Clean up blob URL
+      URL.revokeObjectURL(imageUrl);
+      
+      // Set the final image URL
+      onImageGenerated(uploadResult.url);
+      toast.success('AI image generated and uploaded successfully!');
+
+    } catch (error) {
+      console.error('Quick generation error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to generate image';
+      
+      // Show a more user-friendly message for unsupported image generation
+      if (errorMessage.includes('not currently supported') || errorMessage.includes('Unable to generate image')) {
+        toast.info('AI image generation is not available yet. Google\'s Gemini models are currently text-based. Please use the traditional image upload below.');
+      } else {
+        toast.error(errorMessage);
+      }
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   // Image compression utility
   const compressImage = (file: File, maxSizeKB: number): Promise<File> => {
     return new Promise((resolve) => {
@@ -306,25 +400,48 @@ export function AIImageGenerator({
         </div>
       )}
 
-      {/* AI Generator Toggle */}
-      <button
-        type="button"
-        onClick={() => {
-          if (currentImageUrl) {
-            // Show confirmation dialog when there's already an image
-            if (confirm('This will replace the current image with a new AI-generated one. Continue?')) {
-              setShowGenerator(true);
+      {/* AI Generator Buttons */}
+      <div className="flex gap-2">
+        {/* Quick Generate Button */}
+        <button
+          type="button"
+          onClick={() => {
+            if (currentImageUrl) {
+              // Show confirmation dialog when there's already an image
+              if (confirm('This will replace the current image with a new AI-generated one. Continue?')) {
+                handleQuickGenerate();
+              }
+            } else {
+              handleQuickGenerate();
             }
-          } else {
-            setShowGenerator(!showGenerator);
-          }
-        }}
-        disabled={disabled || isGenerating}
-        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        <FaMagic className="w-4 h-4" />
-        {isGenerating ? 'Generating...' : currentImageUrl ? 'Generate New AI Image' : 'Generate AI Image'}
-      </button>
+          }}
+          disabled={disabled || isGenerating}
+          className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+        >
+          <FaMagic className="w-4 h-4" />
+          {isGenerating ? 'Generating...' : 'Quick Generate'}
+        </button>
+
+        {/* Regular Generate Button */}
+        <button
+          type="button"
+          onClick={() => {
+            if (currentImageUrl) {
+              // Show confirmation dialog when there's already an image
+              if (confirm('This will replace the current image with a new AI-generated one. Continue?')) {
+                setShowGenerator(true);
+              }
+            } else {
+              setShowGenerator(!showGenerator);
+            }
+          }}
+          disabled={disabled || isGenerating}
+          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <FaMagic className="w-4 h-4" />
+          {isGenerating ? 'Generating...' : currentImageUrl ? 'Custom Generate' : 'Custom Generate'}
+        </button>
+      </div>
 
       {/* AI Generated Image Preview */}
       {showPreview && generatedImageBlob && (
