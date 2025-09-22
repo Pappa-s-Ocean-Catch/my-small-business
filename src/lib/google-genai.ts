@@ -11,6 +11,125 @@ export function getGoogleGenAI() {
   return new GoogleGenerativeAI(apiKey);
 }
 
+// =========================
+// Combo generation (text)
+// =========================
+export type ComboConstraints = {
+  numCombos: number; // how many combos to propose
+  itemsPerCombo?: number; // items per combo
+  serves?: number; // intended serves per combo
+  priceMin?: number;
+  priceMax?: number;
+  preferredCategories?: string[];
+  dietaryNotes?: string; // e.g., halal-friendly, vegetarian options
+  mealPeriod?: 'lunch' | 'dinner' | 'all_day';
+  groupType?: 'couple' | 'friends' | 'family' | 'custom';
+  peopleCount?: number; // for friends/custom; family defaults assumed (2 adults, 2 kids) unless provided
+};
+
+export type ComboProduct = {
+  id: string;
+  name: string;
+  description?: string;
+  categoryName?: string;
+  price: number;
+  ingredients?: Array<{ name: string; quantity?: string }>;
+  popularityScore?: number; // optional metric
+  costEstimate?: number; // optional COGS
+};
+
+export type ComboItem = {
+  productId: string;
+  name: string;
+  quantity: number;
+};
+
+export type ComboRecommendation = {
+  title: string;
+  items: ComboItem[];
+  suggestedBundlePrice: number;
+  estimatedMarginPercent?: number;
+  reasoning: string;
+};
+
+export async function generateCombos({
+  constraints,
+  products,
+}: {
+  constraints: ComboConstraints;
+  products: ComboProduct[];
+}): Promise<{ combos: ComboRecommendation[]; error?: string }> {
+  try {
+    const genAI = getGoogleGenAI();
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
+
+    const schema = {
+      type: 'object',
+      properties: {
+        combos: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              title: { type: 'string' },
+              items: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    productId: { type: 'string' },
+                    name: { type: 'string' },
+                    quantity: { type: 'number' },
+                  },
+                  required: ['productId', 'name', 'quantity'],
+                },
+              },
+              suggestedBundlePrice: { type: 'number' },
+              estimatedMarginPercent: { type: 'number' },
+              reasoning: { type: 'string' },
+            },
+            required: ['title', 'items', 'suggestedBundlePrice', 'reasoning'],
+          },
+        },
+      },
+      required: ['combos'],
+      additionalProperties: false,
+    };
+
+    const promptHeader =
+      'You are a restaurant combo planner. Build combos to maximize revenue while respecting constraints. '
+      + 'Use only the provided product list. Prefer popular, high-margin items when possible. '
+      + 'Ensure variety and category balance when applicable. Output strictly valid JSON matching the provided schema. No extra text.';
+
+    const parts: Part[] = [
+      { text: `${promptHeader}\n\nConstraints (JSON):\n${JSON.stringify(constraints)}\n\nProducts (JSON):\n${JSON.stringify(products.slice(0, 300))}\n\nSchema (JSON):\n${JSON.stringify(schema)}` },
+    ];
+
+    const result = await model.generateContent(parts);
+    const response = await result.response;
+    const text = response.text();
+
+    // Attempt to parse as JSON. Strip code fences if present.
+    const jsonString = text
+      .replace(/^```(json)?/i, '')
+      .replace(/```$/i, '')
+      .trim();
+
+    const parsed = JSON.parse(jsonString) as { combos: ComboRecommendation[] };
+    if (!parsed || !Array.isArray(parsed.combos)) {
+      throw new Error('Invalid AI response format: missing combos array');
+    }
+
+    return { combos: parsed.combos };
+  } catch (error) {
+    console.error('Error generating combos:', error);
+    return {
+      combos: [],
+      error: error instanceof Error ? error.message : 'Failed to generate combos',
+    };
+  }
+}
+
 // Generate image using Google's Gemini model
 export async function generateProductImage({
   productName,

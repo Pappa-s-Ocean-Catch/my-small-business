@@ -195,6 +195,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
               <Link className={getLinkClasses("/shop/inventory")} href="/shop/inventory" aria-label="Inventory">Inventory</Link>
               <Link className={getLinkClasses("/shop/suppliers")} href="/shop/suppliers" aria-label="Suppliers">Suppliers</Link>
               <Link className={getLinkClasses("/shop/menu")} href="/shop/menu" aria-label="Menu">Menu</Link>
+              <Link className={getLinkClasses("/shop/combo")} href="/shop/combo" aria-label="Combo">Combo</Link>
             </div>
           </div>
         ) : (
@@ -289,6 +290,17 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                           <div>
                             <div className="font-medium text-gray-900 dark:text-white">Menu</div>
                             <div className="text-xs text-gray-600 dark:text-gray-400">Configure sale products and menu</div>
+                          </div>
+                        </div>
+                      </Link>
+                      <Link href="/shop/combo" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5 text-emerald-600 dark:text-emerald-400">
+                            <FaUtensils className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="font-medium text-gray-900 dark:text-white">Combo</div>
+                            <div className="text-xs text-gray-600 dark:text-gray-400">AI combo builder for bundles</div>
                           </div>
                         </div>
                       </Link>
