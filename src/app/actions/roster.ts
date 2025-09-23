@@ -202,6 +202,12 @@ export async function getWeeklyRosterData(weekStart: Date): Promise<{
     const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
     const startOfThisWeek = startOfWeek(weekStart, { weekStartsOn: 1 });
     
+    // Create timezone-aware week boundaries
+    const weekStartDate = new Date(startOfThisWeek);
+    weekStartDate.setHours(0, 0, 0, 0); // Start of day in local timezone
+    const weekEndDate = new Date(weekEnd);
+    weekEndDate.setHours(23, 59, 59, 999); // End of day in local timezone
+    
     console.log(`📊 Fetching roster data for week: ${format(startOfThisWeek, 'yyyy-MM-dd')} to ${format(weekEnd, 'yyyy-MM-dd')}`);
 
     // Fetch shifts for the week with staff and section information
@@ -226,8 +232,8 @@ export async function getWeeklyRosterData(weekStart: Date): Promise<{
           color
         )
       `)
-      .gte('start_time', startOfThisWeek.toISOString())
-      .lte('start_time', weekEnd.toISOString())
+      .gte('start_time', weekStartDate.toISOString())
+      .lte('start_time', weekEndDate.toISOString())
       .not('staff_id', 'is', null)
       .order('start_time', { ascending: true });
 

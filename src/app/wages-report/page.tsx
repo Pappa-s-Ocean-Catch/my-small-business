@@ -73,8 +73,8 @@ export default function WagesReportPage() {
         supabase
           .from("shifts")
           .select("id, staff_id, start_time, end_time, non_billable_hours")
-          .gte("start_time", format(weekStart, "yyyy-MM-dd"))
-          .lte("start_time", format(weekEnd, "yyyy-MM-dd")),
+          .gte("start_time", weekStart.toISOString())
+          .lte("start_time", weekEnd.toISOString()),
       ]);
 
       if (staffErr) throw new Error(staffErr.message);

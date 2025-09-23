@@ -5,17 +5,21 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 import { AdminGuard } from "@/components/AdminGuard";
 import { toast } from 'react-toastify';
 
-type Defaults = { 
+type Defaults = {
   pay_rate: number;
   default_shift_start_time: string;
   default_shift_end_time: string;
+  store_open_time: string;
+  store_close_time: string;
 };
 
 export default function SettingsPage() {
   const [defaults, setDefaults] = useState<Defaults>({ 
     pay_rate: 0,
     default_shift_start_time: "11:00",
-    default_shift_end_time: "18:00"
+    default_shift_end_time: "18:00",
+    store_open_time: "10:00",
+    store_close_time: "21:00"
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -25,7 +29,9 @@ export default function SettingsPage() {
     const value = (data?.value as Defaults | undefined) ?? { 
       pay_rate: 0,
       default_shift_start_time: "11:00",
-      default_shift_end_time: "18:00"
+      default_shift_end_time: "18:00",
+      store_open_time: "10:00",
+      store_close_time: "21:00"
     };
     setDefaults(value);
     setLoading(false);
@@ -91,6 +97,33 @@ export default function SettingsPage() {
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400">
               These times will be used when creating new shifts if no specific times are set.
+            </p>
+          </div>
+
+          <div className="grid gap-4">
+            <h2 className="text-lg font-medium">Store Hours</h2>
+            <div className="grid gap-4 sm:grid-cols-2 max-w-md">
+              <label className="grid gap-2">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Store open time</span>
+                <input 
+                  type="time" 
+                  className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" 
+                  value={defaults.store_open_time} 
+                  onChange={(e) => setDefaults(prev => ({ ...prev, store_open_time: e.target.value }))} 
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Store close time</span>
+                <input 
+                  type="time" 
+                  className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" 
+                  value={defaults.store_close_time} 
+                  onChange={(e) => setDefaults(prev => ({ ...prev, store_close_time: e.target.value }))} 
+                />
+              </label>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Store operating hours. Used for smart shift prefill when no existing shifts are found for a date + section.
             </p>
           </div>
 

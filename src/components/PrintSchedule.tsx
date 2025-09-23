@@ -94,8 +94,18 @@ export default function PrintSchedule({ shifts, staff, staffRates, sections, cur
                         <div className="print-shift-details">
                           {dayShifts.map((shift) => {
                             const staffMember = staff.find(s => s.id === shift.staff_id);
-                            const startTime = shift.start_time.slice(11, 16);
-                            const endTime = shift.end_time.slice(11, 16);
+                            const startTime = new Date(shift.start_time).toLocaleTimeString('en-AU', { 
+                              timeZone: 'Australia/Melbourne',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hour12: false
+                            });
+                            const endTime = new Date(shift.end_time).toLocaleTimeString('en-AU', { 
+                              timeZone: 'Australia/Melbourne',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hour12: false
+                            });
                             
                             return (
                               <div key={shift.id} style={{ marginBottom: '4px' }}>

@@ -33,9 +33,15 @@ export function useDashboardData() {
           setUser(userData);
 
           if (profile?.role_slug === 'staff') {
-            // Fetch staff's shifts for this week
+            // Fetch staff's shifts for this week - handle timezone properly
             const startOfThisWeek = startOfWeek(new Date(), { weekStartsOn: 1 });
             const endOfThisWeek = endOfWeek(new Date(), { weekStartsOn: 1 });
+            
+            // Create timezone-aware week boundaries
+            const weekStartDate = new Date(startOfThisWeek);
+            weekStartDate.setHours(0, 0, 0, 0); // Start of day in local timezone
+            const weekEndDate = new Date(endOfThisWeek);
+            weekEndDate.setHours(23, 59, 59, 999); // End of day in local timezone
             
             // First, find the staff record linked to this user's profile
             const { data: staffRecord } = await supabase
@@ -55,8 +61,8 @@ export function useDashboardData() {
                   notes
                 `)
                 .eq("staff_id", staffRecord.id)
-                .gte("start_time", startOfThisWeek.toISOString())
-                .lte("start_time", endOfThisWeek.toISOString())
+                .gte("start_time", weekStartDate.toISOString())
+                .lte("start_time", weekEndDate.toISOString())
                 .order("start_time", { ascending: true });
               
               // Transform the data to match our Shift type

@@ -21,13 +21,14 @@ import {
 import { 
   CSS 
 } from "@dnd-kit/utilities";
-import { format, addDays, startOfWeek, endOfWeek, isToday, isSameDay } from "date-fns";
+import { format, addDays, startOfWeek, endOfWeek, isToday, isSameDay, addWeeks, subWeeks } from "date-fns";
 import { FaEdit, FaTrash, FaRedo, FaChevronLeft, FaChevronRight, FaHome, FaPrint, FaPlus, FaMagic, FaEnvelope } from "react-icons/fa";
 import { X } from "lucide-react";
 import { CalendarToolbar } from "@/components/CalendarToolbar";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
 import ErrorModal from "@/components/ErrorModal";
 import PrintSchedule from "@/components/PrintSchedule";
+import { ShiftModal } from "@/components/ShiftModal";
 import { getDefaultSettings } from "@/lib/settings";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { sendWeeklyRoster, getWeeklyRosterData } from "@/app/actions/roster";
@@ -101,6 +102,7 @@ interface DraggableShiftProps {
   onEdit: (shift: Shift) => void;
   onDelete: (shift: Shift) => void;
   onAssign: (shift: Shift) => void;
+  formatTimeForDisplay: (isoString: string) => string;
 }
 
 interface SectionDayCellProps {
@@ -114,9 +116,10 @@ interface SectionDayCellProps {
   onShiftEdit: (shift: Shift) => void;
   onShiftDelete: (shift: Shift) => void;
   onShiftAssign: (shift: Shift) => void;
+  formatTimeForDisplay: (isoString: string) => string;
 }
 
-function DraggableShift({ shift, staff, isAdmin, onEdit, onDelete, onAssign }: DraggableShiftProps) {
+function DraggableShift({ shift, staff, isAdmin, onEdit, onDelete, onAssign, formatTimeForDisplay }: DraggableShiftProps) {
   const {
     attributes,
     listeners,
@@ -142,10 +145,10 @@ function DraggableShift({ shift, staff, isAdmin, onEdit, onDelete, onAssign }: D
         isAdmin ? 'cursor-move hover:shadow-md' : 'cursor-default'
       }`}
     >
-      <div className="text-xs">
-        <div className="font-medium text-gray-900 dark:text-white">
-          {shift.start_time.slice(11, 16)} - {shift.end_time.slice(11, 16)}
-        </div>
+        <div className="text-xs">
+          <div className="font-medium text-gray-900 dark:text-white">
+            {formatTimeForDisplay(shift.start_time)} - {formatTimeForDisplay(shift.end_time)}
+          </div>
         {staff && (
           <div className="text-gray-600 dark:text-gray-400">
             {staff.name}
@@ -204,7 +207,7 @@ function DraggableShift({ shift, staff, isAdmin, onEdit, onDelete, onAssign }: D
   );
 }
 
-function SectionDayCell({ day, section, shifts, staff, isAdmin, isCtrlPressed, onShiftCreate, onShiftEdit, onShiftDelete, onShiftAssign }: SectionDayCellProps) {
+function SectionDayCell({ day, section, shifts, staff, isAdmin, isCtrlPressed, onShiftCreate, onShiftEdit, onShiftDelete, onShiftAssign, formatTimeForDisplay }: SectionDayCellProps) {
   const getStaffById = (id: string | null) => staff.find(s => s.id === id) || null;
   // Use a separator that won't conflict with UUIDs or dates
   const dropZoneId = `drop_${section.id}_${day.toISOString()}`;
@@ -258,6 +261,7 @@ function SectionDayCell({ day, section, shifts, staff, isAdmin, isCtrlPressed, o
               onEdit={onShiftEdit}
               onDelete={onShiftDelete}
               onAssign={onShiftAssign}
+              formatTimeForDisplay={formatTimeForDisplay}
             />
           );
         })}
@@ -299,6 +303,17 @@ export function DragDropCalendar({
   const [isCtrlPressed, setIsCtrlPressed] = useState(false);
   const [sendingRoster, setSendingRoster] = useState(false);
 
+  // Helper function to convert UTC time to Melbourne local time for display
+  const formatTimeForDisplay = useCallback((isoString: string) => {
+    const date = new Date(isoString);
+    return date.toLocaleTimeString('en-AU', { 
+      timeZone: 'Australia/Melbourne',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+  }, []);
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -339,6 +354,7 @@ export function DragDropCalendar({
 
   const startOfThisWeek = startOfWeek(currentWeek, { weekStartsOn: 1 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(startOfThisWeek, i));
+  
 
   // Finance helpers (admin only)
   const calculateShiftCost = useCallback((shift: Shift): number => {
@@ -459,11 +475,15 @@ export function DragDropCalendar({
 
     if (isDifferentSection || isDifferentDate) {
       // Calculate new start and end times
-      const currentStartTime = sourceShift.start_time.slice(11, 16); // Get time part
-      const currentEndTime = sourceShift.end_time.slice(11, 16);
+      const currentStartTime = formatTimeForDisplay(sourceShift.start_time); // Get time part
+      const currentEndTime = formatTimeForDisplay(sourceShift.end_time);
       
-      const newStartTime = `${format(targetDate, 'yyyy-MM-dd')}T${currentStartTime}`;
-      const newEndTime = `${format(targetDate, 'yyyy-MM-dd')}T${currentEndTime}`;
+      // Ensure proper timezone handling for drag and drop
+      // Create Date objects in local timezone (Melbourne), then convert to UTC
+      const startDateTime = new Date(`${format(targetDate, 'yyyy-MM-dd')}T${currentStartTime}:00`);
+      const endDateTime = new Date(`${format(targetDate, 'yyyy-MM-dd')}T${currentEndTime}:00`);
+      const newStartTime = startDateTime.toISOString();
+      const newEndTime = endDateTime.toISOString();
 
       if (isCtrlPressed && isDifferentDate) {
         // Clone the shift to the new date
@@ -503,27 +523,50 @@ export function DragDropCalendar({
     const defaultStartTime = defaultSettings.default_shift_start_time;
     const defaultEndTime = defaultSettings.default_shift_end_time;
     
+    // Debug: Log the settings
+    console.log('🔍 Default settings:', defaultSettings);
+    console.log('🔍 defaultStartTime:', defaultStartTime);
+    console.log('🔍 defaultEndTime:', defaultEndTime);
+    
+    // Get the first available section for prefill
+    const defaultSectionId = sections.length > 0 ? sections[0].id : null;
+    
+    // Check for existing shifts on this date for this section
+    const dayStr = format(day, 'yyyy-MM-dd');
+    const existingShiftsForSection = shifts.filter(shift => {
+      const shiftDate = shift.start_time.split('T')[0];
+      return shiftDate === dayStr && shift.section_id === defaultSectionId;
+    });
+    
+    // Always use default shift times from settings
+    const prefillStartTime = defaultStartTime;
+    const prefillEndTime = defaultEndTime;
+    
+    console.log('🔍 Using default shift times from settings:', defaultStartTime, '-', defaultEndTime);
+    console.log('🔍 Existing shifts for this date + section:', existingShiftsForSection.length);
+    
     // Create a temporary shift object for the edit modal
     const tempShift: Shift = {
       id: 'temp-new-shift',
       staff_id: null,
-      start_time: `${format(day, 'yyyy-MM-dd')}T${defaultStartTime}`,
-      end_time: `${format(day, 'yyyy-MM-dd')}T${defaultEndTime}`,
+      start_time: `${dayStr}T${prefillStartTime}`,
+      end_time: `${dayStr}T${prefillEndTime}`,
       notes: null,
-      non_billable_hours: 0
+      non_billable_hours: 0,
+      section_id: defaultSectionId
     };
 
-    // Initialize form with default times and first available section
-    const defaultSectionId = sections.length > 0 ? sections[0].id : "";
-    setEditForm({ start: defaultStartTime, end: defaultEndTime, notes: "", nonbill: "0", section_id: defaultSectionId });
+    // Debug: Log the date being passed
+    console.log('🔍 Creating shift for date:', dayStr);
+    console.log('🔍 Section:', defaultSectionId);
+    console.log('🔍 Existing shifts for this date + section:', existingShiftsForSection.length);
+    console.log('🔍 Prefill times:', prefillStartTime, '-', prefillEndTime);
+    console.log('🔍 Temp shift start_time:', tempShift.start_time);
+
     setEditingShift(tempShift);
-  }, [sections]);
+  }, [sections, shifts]);
 
   const handleShiftEdit = useCallback((shift: Shift) => {
-    // Initialize form with existing times and notes
-    const startTime = shift.start_time.slice(11, 16);
-    const endTime = shift.end_time.slice(11, 16);
-    setEditForm({ start: startTime, end: endTime, notes: shift.notes ?? "", nonbill: String(shift.non_billable_hours ?? 0), section_id: shift.section_id ?? "" });
     setEditingShift(shift);
   }, []);
 
@@ -661,9 +704,28 @@ export function DragDropCalendar({
   const saveEdit = useCallback(async () => {
     if (!editingShift) return;
     const datePart = editingShift.start_time.slice(0, 10);
-    const newStartIso = `${datePart}T${editForm.start}`;
-    const newEndIso = `${datePart}T${editForm.end}`;
+    
+    // Create Date objects in local timezone (Melbourne)
+    // The browser will automatically handle the timezone conversion
+    const startDateTime = new Date(`${datePart}T${editForm.start}:00`);
+    const endDateTime = new Date(`${datePart}T${editForm.end}:00`);
+    
+    // Convert to UTC for database storage
+    const newStartIso = startDateTime.toISOString();
+    const newEndIso = endDateTime.toISOString();
     const nb = Number(editForm.nonbill || 0);
+    
+    // Debug: Log what's being saved
+    console.log('🔍 Shift Creation Debug:', {
+      selectedDate: datePart,
+      localTimeInput: `${editForm.start} - ${editForm.end}`,
+      startDateTime: startDateTime.toString(),
+      endDateTime: endDateTime.toString(),
+      startUTC: newStartIso,
+      endUTC: newEndIso,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      offset: new Date().getTimezoneOffset()
+    });
     
     if (editingShift.id === 'temp-new-shift') {
       // Create new shift
@@ -753,15 +815,21 @@ export function DragDropCalendar({
         }
       });
 
-      // Check for existing shifts in current week to skip
+      // Check for existing shifts in current week to skip - handle timezone properly
       const currentWeekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
       const currentWeekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
+      
+      // Create timezone-aware week boundaries
+      const weekStartDate = new Date(currentWeekStart);
+      weekStartDate.setHours(0, 0, 0, 0); // Start of day in local timezone
+      const weekEndDate = new Date(currentWeekEnd);
+      weekEndDate.setHours(23, 59, 59, 999); // End of day in local timezone
       
       const { data: currentShifts } = await supabase
         .from("shifts")
         .select("*")
-        .gte("start_time", currentWeekStart.toISOString())
-        .lte("start_time", currentWeekEnd.toISOString());
+        .gte("start_time", weekStartDate.toISOString())
+        .lte("start_time", weekEndDate.toISOString());
 
       const existingShifts = new Set();
       (currentShifts || []).forEach(shift => {
@@ -811,13 +879,19 @@ export function DragDropCalendar({
         // Calculate the new date (7 days later)
         const newDate = addDays(originalStartTime, 7);
         
-        // Create new start time with the same time but new date
-        const newStartTime = new Date(newDate);
-        newStartTime.setHours(originalStartTime.getHours(), originalStartTime.getMinutes(), originalStartTime.getSeconds());
+        // Create new start time with the same time but new date - handle timezone properly
+        // Extract time components from original times
+        const originalStartHours = originalStartTime.getHours();
+        const originalStartMinutes = originalStartTime.getMinutes();
+        const originalEndHours = originalEndTime.getHours();
+        const originalEndMinutes = originalEndTime.getMinutes();
         
-        // Create new end time with the same time but new date
+        // Create new dates in local timezone (Melbourne)
+        const newStartTime = new Date(newDate);
+        newStartTime.setHours(originalStartHours, originalStartMinutes, 0, 0);
+        
         const newEndTime = new Date(newDate);
-        newEndTime.setHours(originalEndTime.getHours(), originalEndTime.getMinutes(), originalEndTime.getSeconds());
+        newEndTime.setHours(originalEndHours, originalEndMinutes, 0, 0);
         
         // Validate that end time is after start time
         if (newEndTime <= newStartTime) {
@@ -1117,6 +1191,72 @@ export function DragDropCalendar({
         </div>
       )}
 
+      {/* Debug Button */}
+      <div className="mt-6 mb-4 flex justify-end">
+        <button
+          onClick={async () => {
+            // Collect all debug information
+            const debugInfo = {
+              timestamp: new Date().toISOString(),
+              browser: {
+                userAgent: navigator.userAgent,
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                offset: new Date().getTimezoneOffset(),
+                language: navigator.language
+              },
+              calendar: {
+                currentWeek: currentWeek.toISOString(),
+                currentWeekLocal: currentWeek.toLocaleDateString('en-AU', { timeZone: 'Australia/Melbourne' }),
+                startOfThisWeek: startOfThisWeek.toISOString(),
+                startOfThisWeekLocal: startOfThisWeek.toLocaleDateString('en-AU', { timeZone: 'Australia/Melbourne' }),
+                weekDays: weekDays.map(day => ({
+                  date: day.toISOString(),
+                  dateLocal: day.toLocaleDateString('en-AU', { timeZone: 'Australia/Melbourne' }),
+                  dayName: day.toLocaleDateString('en-AU', { weekday: 'long', timeZone: 'Australia/Melbourne' })
+                }))
+              },
+              shifts: shifts.map(shift => ({
+                id: shift.id,
+                start_time: shift.start_time,
+                end_time: shift.end_time,
+                start_time_parsed: new Date(shift.start_time).toString(),
+                end_time_parsed: new Date(shift.end_time).toString(),
+                start_time_local: new Date(shift.start_time).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' }),
+                end_time_local: new Date(shift.end_time).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' }),
+                section_id: shift.section_id,
+                staff_id: shift.staff_id
+              })),
+              sections: sections.map(section => ({
+                id: section.id,
+                name: section.name,
+                active: section.active
+              })),
+              staff: staff.map(s => ({
+                id: s.id,
+                name: s.name,
+                is_available: s.is_available
+              }))
+            };
+
+            // Format as JSON string
+            const debugString = JSON.stringify(debugInfo, null, 2);
+            
+            try {
+              await navigator.clipboard.writeText(debugString);
+              alert('Debug information copied to clipboard!');
+              console.log('🔍 Full Debug Information:', debugInfo);
+            } catch (err) {
+              console.error('Failed to copy to clipboard:', err);
+              console.log('🔍 Full Debug Information (manual copy):', debugString);
+              alert('Failed to copy to clipboard. Check console for debug info.');
+            }
+          }}
+          className="px-3 py-1 bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/30 transition-colors text-xs"
+        >
+          🔍 Copy Debug Info
+        </button>
+      </div>
+
       {/* Calendar Grid */}
       <div className="mt-6">
       <DndContext
@@ -1159,7 +1299,17 @@ export function DragDropCalendar({
                     key={`${section.id}-${day.toISOString()}`}
                     day={day}
                     section={section}
-                    shifts={shifts.filter(s => s.section_id === section.id && isSameDay(new Date(s.start_time), day))}
+    shifts={shifts.filter(s => {
+      if (s.section_id !== section.id) return false;
+      
+      // Handle timezone properly by comparing dates in Melbourne timezone
+      const shiftDate = new Date(s.start_time);
+      const shiftDateMelbourne = shiftDate.toLocaleDateString('en-CA', { timeZone: 'Australia/Melbourne' }); // YYYY-MM-DD format
+      const dayDateMelbourne = day.toLocaleDateString('en-CA', { timeZone: 'Australia/Melbourne' }); // YYYY-MM-DD format
+      const matches = shiftDateMelbourne === dayDateMelbourne;
+      
+      return matches;
+    })}
                     staff={staff}
                     isAdmin={isAdmin}
                     isCtrlPressed={isCtrlPressed}
@@ -1167,6 +1317,7 @@ export function DragDropCalendar({
                     onShiftEdit={handleShiftEdit}
                     onShiftDelete={handleShiftDelete}
                     onShiftAssign={handleShiftAssign}
+                    formatTimeForDisplay={formatTimeForDisplay}
                   />
                 ))}
               </div>
@@ -1201,113 +1352,54 @@ export function DragDropCalendar({
       </DndContext>
       </div>
 
-      {/* Edit Shift Modal */}
-      {editingShift && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-700 shadow-2xl max-w-md w-full p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                {editingShift?.id === 'temp-new-shift' ? 'Add Shift' : 'Edit Shift'}
-              </h3>
-              <button aria-label="Close" onClick={() => setEditingShift(null)} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-neutral-800 text-gray-600 dark:text-gray-300">×</button>
-            </div>
-            <div className="grid gap-3">
-              <label className="block">
-                <span className="block text-sm text-gray-700 dark:text-gray-300 mb-1">Start</span>
-                <input type="time" value={editForm.start} onChange={(e) => handleTimeChange('start', e.target.value)} className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white" />
-              </label>
-              <label className="block">
-                <span className="block text-sm text-gray-700 dark:text-gray-300 mb-1">End</span>
-                <input type="time" value={editForm.end} onChange={(e) => handleTimeChange('end', e.target.value)} className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white" />
-              </label>
-              {/* Total hours hint */}
-              {editForm.start && editForm.end && (
-                <div className="text-sm text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-3 py-2 rounded-lg">
-                  <div>Total duration: {calculateTotalHours(editForm.start, editForm.end).toFixed(2)} hours</div>
-                  {Number(editForm.nonbill || 0) > 0 && (
-                    <div className="text-xs mt-1">
-                      Billable: {(calculateTotalHours(editForm.start, editForm.end) - Number(editForm.nonbill || 0)).toFixed(2)} hours
-                    </div>
-                  )}
-                </div>
-              )}
-              <label className="block">
-                <span className="block text-sm text-gray-700 dark:text-gray-300 mb-1">Section</span>
-                <select 
-                  value={editForm.section_id} 
-                  onChange={(e) => setEditForm(s => ({ ...s, section_id: e.target.value }))} 
-                  className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
-                >
-                  <option value="">Select a section</option>
-                  {sections.filter(s => s.active).map(section => (
-                    <option key={section.id} value={section.id}>
-                      {section.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            <label className="block">
-              <span className="block text-sm text-gray-700 dark:text-gray-300 mb-1">Non-billable hours</span>
-              <input type="number" step="0.25" min="0" value={editForm.nonbill} onChange={(e) => setEditForm(s => ({ ...s, nonbill: e.target.value }))} placeholder="e.g., 0.5 for 30m, 0.75 for 45m" className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white" />
-            </label>
-              <label className="block">
-                <span className="block text-sm text-gray-700 dark:text-gray-300 mb-1">Notes</span>
-                <textarea value={editForm.notes} onChange={(e) => setEditForm(s => ({ ...s, notes: e.target.value }))} rows={3} className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white" />
-              </label>
-              
-              {/* Staff Assignment Section */}
-              {isAdmin && editForm.start && editForm.end && (
-                <div className="block">
-                  <span className="block text-sm text-gray-700 dark:text-gray-300 mb-2">Assign Staff</span>
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {/* Unassigned option */}
-                    <button
-                      onClick={() => handleStaffAssignmentInEdit(null)}
-                      className={`w-full p-3 text-left border rounded-lg transition-colors ${
-                        editingShift?.staff_id === null 
-                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
-                          : 'border-gray-200 dark:border-neutral-700 hover:bg-gray-50 dark:hover:bg-neutral-800'
-                      }`}
-                    >
-                      <div className="font-medium text-gray-900 dark:text-white">Unassigned</div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400">No staff assigned</div>
-                    </button>
-                    
-                    {/* Available staff */}
-                    {getAvailableStaff().map((s) => (
-                      <button
-                        key={s.id}
-                        onClick={() => handleStaffAssignmentInEdit(s.id)}
-                        className={`w-full p-3 text-left border rounded-lg transition-colors ${
-                          editingShift?.staff_id === s.id 
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
-                            : 'border-gray-200 dark:border-neutral-700 hover:bg-gray-50 dark:hover:bg-neutral-800'
-                        }`}
-                      >
-                        <div className="font-medium text-gray-900 dark:text-white">{s.name}</div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
-                          ${getStaffRate(s).toFixed(2)}/hour
-                        </div>
-                      </button>
-                    ))}
-                    
-                    {/* No available staff message */}
-                    {getAvailableStaff().length === 0 && (
-                      <div className="p-3 text-center text-sm text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-neutral-700 rounded-lg">
-                        No available staff for this time slot
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setEditingShift(null)} className="px-4 py-2 border rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800">Cancel</button>
-              <button onClick={() => { void saveEdit(); }} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Shift Modal */}
+      <ShiftModal
+        isOpen={!!editingShift}
+        onClose={() => setEditingShift(null)}
+        onSave={async (shiftData) => {
+          console.log('🔍 DragDropCalendar - ShiftModal onSave called with:', {
+            shiftData,
+            editingShift,
+            isNewShift: editingShift?.id === 'temp-new-shift',
+            start_time_parsed: new Date(shiftData.start_time).toString(),
+            end_time_parsed: new Date(shiftData.end_time).toString(),
+            start_time_local: new Date(shiftData.start_time).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' }),
+            end_time_local: new Date(shiftData.end_time).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' })
+          });
+
+          if (editingShift?.id === 'temp-new-shift') {
+            // Create new shift
+            const newShift: Omit<Shift, 'id'> = {
+              staff_id: shiftData.staff_id,
+              start_time: shiftData.start_time,
+              end_time: shiftData.end_time,
+              notes: shiftData.notes || null,
+              non_billable_hours: shiftData.non_billable_hours,
+              section_id: shiftData.section_id
+            };
+            console.log('🔍 DragDropCalendar - Creating new shift:', newShift);
+            await onShiftCreate(newShift);
+          } else if (editingShift) {
+            // Update existing shift
+            console.log('🔍 DragDropCalendar - Updating existing shift:', editingShift.id, shiftData);
+            await onShiftUpdate(editingShift.id, shiftData);
+          }
+        }}
+        initialData={editingShift ? {
+          start_time: editingShift.start_time,
+          end_time: editingShift.end_time,
+          notes: editingShift.notes || "",
+          non_billable_hours: editingShift.non_billable_hours || 0,
+          section_id: editingShift.section_id || null,
+          staff_id: editingShift.staff_id
+        } : undefined}
+        selectedDate={editingShift?.start_time?.slice(0, 10)}
+        sections={sections}
+        staff={staff}
+        staffRates={staffRates}
+        isAdmin={isAdmin}
+        isNewShift={editingShift?.id === 'temp-new-shift'}
+      />
 
       {/* Assignment Modal */}
       {assignmentModal.isOpen && assignmentModal.shift && (
@@ -1317,7 +1409,7 @@ export function DragDropCalendar({
               Assign Staff to Shift
             </h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              {assignmentModal.shift.start_time.slice(11, 16)} - {assignmentModal.shift.end_time.slice(11, 16)}
+              {formatTimeForDisplay(assignmentModal.shift.start_time)} - {formatTimeForDisplay(assignmentModal.shift.end_time)}
             </p>
             
             <div className="space-y-2 mb-6">
@@ -1329,18 +1421,63 @@ export function DragDropCalendar({
                 <div className="text-sm text-gray-600 dark:text-gray-400">No staff assigned</div>
               </button>
               
-              {staff.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => handleStaffAssignment(s.id)}
-                  className="w-full p-3 text-left border border-gray-200 dark:border-neutral-700 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
-                >
-                  <div className="font-medium text-gray-900 dark:text-white">{s.name}</div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">
-                    ${staffRates.find(r => r.staff_id === s.id && r.rate_type === 'default' && r.is_current)?.rate || 0}/hour
-                  </div>
-                </button>
-              ))}
+              {staff.map((s) => {
+                // Get the shift date for rate calculation
+                const shiftDate = assignmentModal.shift?.start_time?.slice(0, 10) || '';
+                const dateObj = new Date(shiftDate);
+                const dayOfWeek = dateObj.getDay(); // 0=Sunday, 1=Monday, etc.
+                
+                // Map day of week to rate type
+                const rateTypeMap: { [key: number]: string } = {
+                  0: 'sun', 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu', 5: 'fri', 6: 'sat'
+                };
+                const rateType = rateTypeMap[dayOfWeek];
+                
+                // Find the appropriate rate
+                let rate = staffRates.find(r => 
+                  r.staff_id === s.id && 
+                  r.rate_type === rateType &&
+                  r.effective_date <= shiftDate && 
+                  r.end_date >= shiftDate &&
+                  r.is_current
+                );
+                
+                // If no specific day rate, fall back to default rate
+                if (!rate) {
+                  rate = staffRates.find(r => 
+                    r.staff_id === s.id && 
+                    r.rate_type === 'default' &&
+                    r.effective_date <= shiftDate && 
+                    r.end_date >= shiftDate &&
+                    r.is_current
+                  );
+                }
+                
+                const hourlyRate = rate?.rate || 0;
+                
+                // Calculate shift duration
+                const startTime = new Date(assignmentModal.shift?.start_time || '');
+                const endTime = new Date(assignmentModal.shift?.end_time || '');
+                const durationMs = endTime.getTime() - startTime.getTime();
+                const durationHours = durationMs / (1000 * 60 * 60);
+                const totalCost = hourlyRate * durationHours;
+                
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => handleStaffAssignment(s.id)}
+                    className="w-full p-3 text-left border border-gray-200 dark:border-neutral-700 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+                  >
+                    <div className="font-medium text-gray-900 dark:text-white">{s.name}</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                      ${hourlyRate}/hour
+                      <span className="ml-2 font-medium text-green-600 dark:text-green-400">
+                        Total: ${totalCost.toFixed(2)} ({durationHours.toFixed(1)}h)
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
             
             <div className="flex justify-end gap-3">

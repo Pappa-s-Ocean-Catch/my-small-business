@@ -25,6 +25,13 @@ export default function CalendarPage() {
   const [holidays, setHolidays] = useState<StaffHoliday[]>([]);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [anchor, setAnchor] = useState(new Date());
+  
+  // Debug: Log the initial anchor date
+  console.log('📅 Calendar Page - Initial anchor:', {
+    anchor: anchor.toISOString(),
+    anchorLocal: anchor.toLocaleDateString('en-AU', { timeZone: 'Australia/Melbourne' }),
+    anchorDayName: anchor.toLocaleDateString('en-AU', { weekday: 'long', timeZone: 'Australia/Melbourne' })
+  });
 
   const fetchData = useCallback(async () => {
     try {
@@ -54,24 +61,51 @@ export default function CalendarPage() {
         }
       }
 
-      // Fetch shifts for current week
-      const startOfThisWeek = startOfWeek(anchor, { weekStartsOn: 1 });
-      const endOfThisWeek = endOfWeek(anchor, { weekStartsOn: 1 });
-      
-       let shiftsQuery = supabase
-         .from("shifts")
-         .select(`
-           id,
-           staff_id,
-           start_time,
-           end_time,
-           notes,
-           non_billable_hours,
-           section_id
-         `)
-         .gte("start_time", startOfThisWeek.toISOString())
-         .lte("start_time", endOfThisWeek.toISOString())
-         .order("start_time", { ascending: true });
+    // Fetch shifts for current week - handle Melbourne timezone properly
+    const startOfThisWeek = startOfWeek(anchor, { weekStartsOn: 1 });
+    const endOfThisWeek = endOfWeek(anchor, { weekStartsOn: 1 });
+    
+    // Create timezone-aware week boundaries for Melbourne
+    // Set to start and end of day in Melbourne timezone
+    const weekStartDate = new Date(startOfThisWeek);
+    weekStartDate.setHours(0, 0, 0, 0); // Start of day in Melbourne timezone
+    const weekEndDate = new Date(endOfThisWeek);
+    weekEndDate.setHours(23, 59, 59, 999); // End of day in Melbourne timezone
+    
+    console.log('📅 Calendar Page - Week boundaries:', {
+      anchor: anchor.toISOString(),
+      anchorLocal: anchor.toLocaleDateString('en-AU', { timeZone: 'Australia/Melbourne' }),
+      startOfThisWeek: startOfThisWeek.toISOString(),
+      startOfThisWeekLocal: startOfThisWeek.toLocaleDateString('en-AU', { timeZone: 'Australia/Melbourne' }),
+      endOfThisWeek: endOfThisWeek.toISOString(),
+      endOfThisWeekLocal: endOfThisWeek.toLocaleDateString('en-AU', { timeZone: 'Australia/Melbourne' }),
+      weekStartDate: weekStartDate.toISOString(),
+      weekEndDate: weekEndDate.toISOString(),
+      weekDays: Array.from({ length: 7 }, (_, i) => {
+        const day = new Date(startOfThisWeek);
+        day.setDate(startOfThisWeek.getDate() + i);
+        return {
+          day: day.toISOString().split('T')[0],
+          dayLocal: day.toLocaleDateString('en-AU', { timeZone: 'Australia/Melbourne' }),
+          dayName: day.toLocaleDateString('en-AU', { weekday: 'long', timeZone: 'Australia/Melbourne' })
+        };
+      })
+    });
+    
+     let shiftsQuery = supabase
+       .from("shifts")
+       .select(`
+         id,
+         staff_id,
+         start_time,
+         end_time,
+         notes,
+         non_billable_hours,
+         section_id
+       `)
+       .gte("start_time", weekStartDate.toISOString())
+       .lte("start_time", weekEndDate.toISOString())
+       .order("start_time", { ascending: true });
 
        if (!isUserAdmin) {
          // Non-admins see only their assigned shifts
@@ -142,7 +176,23 @@ export default function CalendarPage() {
           .order("start_date", { ascending: false })
       ]);
 
-      if (shiftsResult.data) setShifts(shiftsResult.data);
+      if (shiftsResult.data) {
+        console.log('📅 Calendar Page - Shifts loaded from DB:', {
+          totalShifts: shiftsResult.data.length,
+          shifts: shiftsResult.data.map(shift => ({
+            id: shift.id,
+            start_time: shift.start_time,
+            end_time: shift.end_time,
+            start_time_parsed: new Date(shift.start_time).toString(),
+            end_time_parsed: new Date(shift.end_time).toString(),
+            start_time_local: new Date(shift.start_time).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' }),
+            end_time_local: new Date(shift.end_time).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' }),
+            section_id: shift.section_id,
+            staff_id: shift.staff_id
+          }))
+        });
+        setShifts(shiftsResult.data);
+      }
       if (staffResult.data) setStaff(staffResult.data);
       if (ratesResult.data) setStaffRates(ratesResult.data);
       if (sectionsResult.data) setSections(sectionsResult.data);
@@ -160,6 +210,14 @@ export default function CalendarPage() {
 
   const createShift = useCallback(async (shift: Omit<Shift, 'id'>) => {
     try {
+      console.log('📅 Calendar Page - Creating shift:', {
+        input_shift: shift,
+        start_time_parsed: new Date(shift.start_time).toString(),
+        end_time_parsed: new Date(shift.end_time).toString(),
+        start_time_local: new Date(shift.start_time).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' }),
+        end_time_local: new Date(shift.end_time).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' })
+      });
+      
       const supabase = getSupabaseClient();
       const { data, error } = await supabase
         .from("shifts")
@@ -169,6 +227,31 @@ export default function CalendarPage() {
 
       if (error) throw error;
       if (data) {
+        console.log('📅 Calendar Page - Shift created successfully:', {
+          created_shift: data,
+          start_time_parsed: new Date(data.start_time).toString(),
+          end_time_parsed: new Date(data.end_time).toString(),
+          start_time_local: new Date(data.start_time).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' }),
+          end_time_local: new Date(data.end_time).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' })
+        });
+        
+        // Auto-navigate to the week containing the newly created shift
+        const shiftDate = new Date(data.start_time);
+        const shiftWeekStart = startOfWeek(shiftDate, { weekStartsOn: 1 });
+        
+        console.log('📅 Calendar Page - Auto-navigating to shift week:', {
+          shiftDate: shiftDate.toISOString(),
+          shiftDateLocal: shiftDate.toLocaleDateString('en-AU', { timeZone: 'Australia/Melbourne' }),
+          shiftDateDayName: shiftDate.toLocaleDateString('en-AU', { weekday: 'long', timeZone: 'Australia/Melbourne' }),
+          shiftWeekStart: shiftWeekStart.toISOString(),
+          shiftWeekStartLocal: shiftWeekStart.toLocaleDateString('en-AU', { timeZone: 'Australia/Melbourne' }),
+          shiftWeekStartDayName: shiftWeekStart.toLocaleDateString('en-AU', { weekday: 'long', timeZone: 'Australia/Melbourne' }),
+          currentAnchor: anchor.toISOString(),
+          currentAnchorLocal: anchor.toLocaleDateString('en-AU', { timeZone: 'Australia/Melbourne' })
+        });
+        
+        setAnchor(shiftWeekStart);
+        
         setShifts(prev => [...prev, data]);
       }
     } catch (error) {

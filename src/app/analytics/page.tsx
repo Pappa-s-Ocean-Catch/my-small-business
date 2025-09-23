@@ -102,11 +102,17 @@ export default function AnalyticsPage() {
       try {
         const supabase = getSupabaseClient();
         
-        // Calculate date ranges
+        // Calculate date ranges with timezone awareness
         const endDate = new Date();
         const startDate = timeRange === '7d' ? subDays(endDate, 7) : 
                          timeRange === '30d' ? subDays(endDate, 30) : 
                          subDays(endDate, 90);
+        
+        // Set to start and end of day in Melbourne timezone
+        const startDateMelbourne = new Date(startDate);
+        startDateMelbourne.setHours(0, 0, 0, 0);
+        const endDateMelbourne = new Date(endDate);
+        endDateMelbourne.setHours(23, 59, 59, 999);
 
         // Fetch all data in parallel
         const [
@@ -120,7 +126,8 @@ export default function AnalyticsPage() {
           supabase.from("shifts").select(`
             id, date, start_time, end_time,
             staff:staff_id (name, pay_rate)
-          `).gte("date", startDate.toISOString().split('T')[0]),
+          `).gte("start_time", startDateMelbourne.toISOString())
+           .lte("start_time", endDateMelbourne.toISOString()),
           supabase.from("products").select(`
             id, name, quantity_in_stock, purchase_price, sale_price, reorder_level,
             category:category_id (name)

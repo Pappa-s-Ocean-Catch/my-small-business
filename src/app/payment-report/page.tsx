@@ -71,9 +71,18 @@ export default function PaymentReportPage() {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
-  const [dateRange, setDateRange] = useState({
-    start: startOfWeek(new Date(), { weekStartsOn: 1 }),
-    end: endOfWeek(new Date(), { weekStartsOn: 1 })
+  const [dateRange, setDateRange] = useState(() => {
+    const now = new Date();
+    const start = startOfWeek(now, { weekStartsOn: 1 });
+    const end = endOfWeek(now, { weekStartsOn: 1 });
+    
+    // Set to start and end of day in Melbourne timezone
+    const startDate = new Date(start);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(end);
+    endDate.setHours(23, 59, 59, 999);
+    
+    return { start: startDate, end: endDate };
   });
   const [reportData, setReportData] = useState<PaymentReportRow[]>([]);
   const [instructions, setInstructions] = useState<StaffPaymentInstruction[]>([]);
@@ -138,7 +147,8 @@ export default function PaymentReportPage() {
   const generateReportData = useCallback(() => {
     function getBaseRateForDate(staffId: string, date: Date): number {
       // Find the rate that was effective on the given date
-      const dateStr = date.toISOString().split('T')[0];
+      // Use Melbourne timezone for date string to ensure consistency
+      const dateStr = date.toLocaleDateString('en-CA', { timeZone: 'Australia/Melbourne' });
       const dayOfWeek = date.getDay(); // 0=Sunday, 1=Monday, etc.
       
       // Map day of week to rate type
@@ -211,7 +221,12 @@ export default function PaymentReportPage() {
       const shiftDate = new Date(shift.start_time);
       
       // Only include shifts within the selected date range
-      if (isWithinInterval(shiftDate, { start: dateRange.start, end: dateRange.end })) {
+      // Compare dates in Melbourne timezone to ensure proper filtering
+      const shiftDateMelbourne = shiftDate.toLocaleDateString('en-CA', { timeZone: 'Australia/Melbourne' });
+      const rangeStartMelbourne = dateRange.start.toLocaleDateString('en-CA', { timeZone: 'Australia/Melbourne' });
+      const rangeEndMelbourne = dateRange.end.toLocaleDateString('en-CA', { timeZone: 'Australia/Melbourne' });
+      
+      if (shiftDateMelbourne >= rangeStartMelbourne && shiftDateMelbourne <= rangeEndMelbourne) {
         const staffMember = staff.find(s => s.id === shift.staff_id);
         
         if (staffMember) {
