@@ -64,6 +64,7 @@ export default function ProductsPage() {
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [filterStock, setFilterStock] = useState<string>("all");
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
+  const [productFormTab, setProductFormTab] = useState<'general' | 'supplier' | 'system'>('general');
 
   // Helper function to get stock status based on thresholds
   const getStockStatus = (product: Product) => {
@@ -250,6 +251,7 @@ export default function ProductsPage() {
     });
     setAlternativeSuppliers([]);
     setNewAlternativeSupplier("");
+    setProductFormTab('general');
   };
 
   const startEdit = (product: Product) => {
@@ -279,6 +281,7 @@ export default function ProductsPage() {
     setNewAlternativeSupplier("");
     
     setFormOpen(true);
+    setProductFormTab('general');
   };
 
   const saveProduct = async (e: React.FormEvent) => {
@@ -762,245 +765,264 @@ export default function ProductsPage() {
           }
         >
           <form id="product-form" onSubmit={saveProduct} className="grid gap-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <label className="grid gap-2">
-                <span className="text-sm text-gray-700 dark:text-gray-300">Product Name *</span>
-                <input
-                  type="text"
-                  required
-                  className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
-                  value={form.name}
-                  onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}
-                />
-              </label>
-              <label className="grid gap-2">
-                <span className="text-sm text-gray-700 dark:text-gray-300">SKU/Code *</span>
-                <input
-                  type="text"
-                  required
-                  className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
-                  value={form.sku}
-                  onChange={(e) => setForm(f => ({ ...f, sku: e.target.value }))}
-                />
-              </label>
+            {/* Tabs */}
+            <div className="border-b border-gray-200 dark:border-neutral-700 -mt-2">
+              <nav className="flex gap-6">
+                <button type="button" onClick={() => setProductFormTab('general')} className={`py-2 text-sm font-medium ${productFormTab==='general' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-600 dark:text-gray-400'}`}>General</button>
+                <button type="button" onClick={() => setProductFormTab('supplier')} className={`py-2 text-sm font-medium ${productFormTab==='supplier' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-600 dark:text-gray-400'}`}>Supplier</button>
+                <button type="button" onClick={() => setProductFormTab('system')} className={`py-2 text-sm font-medium ${productFormTab==='system' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-600 dark:text-gray-400'}`}>System</button>
+              </nav>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <label className="grid gap-2">
-                <span className="text-sm text-gray-700 dark:text-gray-300">Category</span>
-                <select
-                  className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
-                  value={form.category_id}
-                  onChange={(e) => setForm(f => ({ ...f, category_id: e.target.value }))}
-                >
-                  <option value="">Select Category</option>
-                  {categories.map(cat => (
-                    <option key={cat.id} value={cat.id}>{cat.name}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="grid gap-2">
-                <span className="text-sm text-gray-700 dark:text-gray-300">Primary Supplier</span>
-                <select
-                  className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
-                  value={form.supplier_id}
-                  onChange={(e) => setForm(f => ({ ...f, supplier_id: e.target.value }))}
-                >
-                  <option value="">Select Primary Supplier</option>
-                  {suppliers.map(supplier => (
-                    <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            {/* Alternative Suppliers Section */}
-            <div className="grid gap-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Alternative Suppliers</span>
-                <span className="text-xs text-gray-500 dark:text-gray-400">Optional backup suppliers</span>
-              </div>
-              
-              {/* Current Alternative Suppliers */}
-              {alternativeSuppliers.length > 0 && (
-                <div className="space-y-2">
-                  {alternativeSuppliers.map(supplierId => (
-                    <div key={supplierId} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-neutral-800 rounded-lg">
-                      <span className="text-sm text-gray-700 dark:text-gray-300">
-                        {getSupplierName(supplierId)}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => removeAlternativeSupplier(supplierId)}
-                        className="text-red-500 hover:text-red-700 text-sm"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
+            {productFormTab === 'general' && (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <label className="grid gap-2">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Product Name *</span>
+                    <input
+                      type="text"
+                      required
+                      className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
+                      value={form.name}
+                      onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}
+                    />
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">SKU/Code *</span>
+                    <input
+                      type="text"
+                      required
+                      className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
+                      value={form.sku}
+                      onChange={(e) => setForm(f => ({ ...f, sku: e.target.value }))}
+                    />
+                  </label>
                 </div>
-              )}
-              
-              {/* Add New Alternative Supplier */}
-              <div className="flex gap-2">
-                <select
-                  className="flex-1 h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
-                  value={newAlternativeSupplier}
-                  onChange={(e) => setNewAlternativeSupplier(e.target.value)}
-                >
-                  <option value="">Select Alternative Supplier</option>
-                  {suppliers
-                    .filter(s => s.id !== form.supplier_id && !alternativeSuppliers.includes(s.id))
-                    .map(supplier => (
-                      <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
-                    ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={addAlternativeSupplier}
-                  disabled={!newAlternativeSupplier}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-                >
-                  Add
-                </button>
-              </div>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <label className="grid gap-2">
-                <span className="text-sm text-gray-700 dark:text-gray-300">Purchase Price *</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
-                  value={form.purchase_price}
-                  onChange={(e) => setForm(f => ({ ...f, purchase_price: e.target.value }))}
-                />
-              </label>
-              <label className="grid gap-2">
-                <span className="text-sm text-gray-700 dark:text-gray-300">Sale Price *</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
-                  value={form.sale_price}
-                  onChange={(e) => setForm(f => ({ ...f, sale_price: e.target.value }))}
-                />
-              </label>
-            </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <label className="grid gap-2">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Category</span>
+                    <select
+                      className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
+                      value={form.category_id}
+                      onChange={(e) => setForm(f => ({ ...f, category_id: e.target.value }))}
+                    >
+                      <option value="">Select Category</option>
+                      {categories.map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <label className="grid gap-2">
-                <span className="text-sm text-gray-700 dark:text-gray-300">Units per Box *</span>
-                <input
-                  type="number"
-                  min="1"
-                  required
-                  className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
-                  value={form.units_per_box}
-                  onChange={(e) => setForm(f => ({ ...f, units_per_box: e.target.value }))}
-                  placeholder="How many units in one box/case"
-                />
-                <span className="text-xs text-gray-500 dark:text-gray-400">
-                  Set to 1 for individual items, or the number of units per box/case
-                </span>
-              </label>
-              <label className="grid gap-2">
-                <span className="text-sm text-gray-700 dark:text-gray-300">Initial Stock (Units)</span>
-                <input
-                  type="number"
-                  min="0"
-                  className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
-                  value={form.quantity_in_stock}
-                  onChange={(e) => setForm(f => ({ ...f, quantity_in_stock: e.target.value }))}
-                  placeholder="Total units to start with"
-                />
-                <span className="text-xs text-gray-500 dark:text-gray-400">
-                  Will be automatically converted to boxes + loose units
-                </span>
-              </label>
-            </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <label className="grid gap-2">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Purchase Price *</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      required
+                      className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
+                      value={form.purchase_price}
+                      onChange={(e) => setForm(f => ({ ...f, purchase_price: e.target.value }))}
+                    />
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Sale Price *</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      required
+                      className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
+                      value={form.sale_price}
+                      onChange={(e) => setForm(f => ({ ...f, sale_price: e.target.value }))}
+                    />
+                  </label>
+                </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <label className="grid gap-2">
-                <span className="text-sm text-gray-700 dark:text-gray-300">Reorder Level *</span>
-                <input
-                  type="number"
-                  required
-                  className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
-                  value={form.reorder_level}
-                  onChange={(e) => setForm(f => ({ ...f, reorder_level: e.target.value }))}
-                />
-              </label>
-              <label className="grid gap-2">
-                <span className="text-sm text-gray-700 dark:text-gray-300">Warning Threshold *</span>
-                <input
-                  type="number"
-                  required
-                  className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
-                  value={form.warning_threshold}
-                  onChange={(e) => setForm(f => ({ ...f, warning_threshold: e.target.value }))}
-                  placeholder="Stock level for warning alert"
-                />
-              </label>
-              <label className="grid gap-2">
-                <span className="text-sm text-gray-700 dark:text-gray-300">Alert Threshold *</span>
-                <input
-                  type="number"
-                  required
-                  className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
-                  value={form.alert_threshold}
-                  onChange={(e) => setForm(f => ({ ...f, alert_threshold: e.target.value }))}
-                  placeholder="Stock level for critical alert"
-                />
-              </label>
-            </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <label className="grid gap-2">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Units per Box *</span>
+                    <input
+                      type="number"
+                      min="1"
+                      required
+                      className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
+                      value={form.units_per_box}
+                      onChange={(e) => setForm(f => ({ ...f, units_per_box: e.target.value }))}
+                      placeholder="How many units in one box/case"
+                    />
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      Set to 1 for individual items, or the number of units per box/case
+                    </span>
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Initial Stock (Units)</span>
+                    <input
+                      type="number"
+                      min="0"
+                      className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
+                      value={form.quantity_in_stock}
+                      onChange={(e) => setForm(f => ({ ...f, quantity_in_stock: e.target.value }))}
+                      placeholder="Total units to start with"
+                    />
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      Will be automatically converted to boxes + loose units
+                    </span>
+                  </label>
+                </div>
 
-            <label className="grid gap-2">
-              <span className="text-sm text-gray-700 dark:text-gray-300">Description</span>
-              <textarea
-                className="min-h-24 rounded-lg border px-3 py-2 bg-white/80 dark:bg-neutral-900 resize-y"
-                value={form.description}
-                onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
-                placeholder="Product description..."
-                rows={3}
-              />
-            </label>
+                <label className="grid gap-2">
+                  <span className="text-sm text-gray-700 dark:text-gray-300">Description</span>
+                  <textarea
+                    className="min-h-24 rounded-lg border px-3 py-2 bg-white/80 dark:bg-neutral-900 resize-y"
+                    value={form.description}
+                    onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
+                    placeholder="Product description..."
+                    rows={3}
+                  />
+                </label>
 
-            {/* AI Image Generator */}
-            <AIImageGenerator
-              onImageGenerated={(url) => setForm(f => ({ ...f, image_url: url || "" }))}
-              currentImageUrl={form.image_url}
-              productName={form.name}
-              description={form.description}
-              category={categories.find(cat => cat.id === form.category_id)?.name || ''}
-              className="w-full"
-            />
-            
-            {/* Traditional Image Upload */}
-            <div className="border-t border-gray-200 dark:border-neutral-700 pt-3">
-              <div className="text-xs text-gray-500 dark:text-gray-500 mb-2">Or upload your own image:</div>
-              <ImageUpload
-                currentImageUrl={form.image_url}
-                onImageChange={(url) => setForm(f => ({ ...f, image_url: url || "" }))}
-                type="product"
-              />
-            </div>
+                {/* AI Image Generator */}
+                <AIImageGenerator
+                  onImageGenerated={(url) => setForm(f => ({ ...f, image_url: url || "" }))}
+                  currentImageUrl={form.image_url}
+                  productName={form.name}
+                  description={form.description}
+                  category={categories.find(cat => cat.id === form.category_id)?.name || ''}
+                  className="w-full"
+                />
+                
+                {/* Traditional Image Upload */}
+                <div className="border-t border-gray-200 dark:border-neutral-700 pt-3">
+                  <div className="text-xs text-gray-500 dark:text-gray-500 mb-2">Or upload your own image:</div>
+                  <ImageUpload
+                    currentImageUrl={form.image_url}
+                    onImageChange={(url) => setForm(f => ({ ...f, image_url: url || "" }))}
+                    type="product"
+                  />
+                </div>
 
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="is_active"
-                checked={form.is_active}
-                onChange={(e) => setForm(f => ({ ...f, is_active: e.target.checked }))}
-                className="rounded"
-              />
-              <label htmlFor="is_active" className="text-sm text-gray-700 dark:text-gray-300">
-                Active product
-              </label>
-            </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="is_active"
+                    checked={form.is_active}
+                    onChange={(e) => setForm(f => ({ ...f, is_active: e.target.checked }))}
+                    className="rounded"
+                  />
+                  <label htmlFor="is_active" className="text-sm text-gray-700 dark:text-gray-300">
+                    Active product
+                  </label>
+                </div>
+              </>
+            )}
+
+            {productFormTab === 'supplier' && (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <label className="grid gap-2">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Primary Supplier</span>
+                    <select
+                      className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
+                      value={form.supplier_id}
+                      onChange={(e) => setForm(f => ({ ...f, supplier_id: e.target.value }))}
+                    >
+                      <option value="">Select Primary Supplier</option>
+                      {suppliers.map(supplier => (
+                        <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                {/* Alternative Suppliers Section */}
+                <div className="grid gap-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Alternative Suppliers</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">Optional backup suppliers</span>
+                  </div>
+                  {alternativeSuppliers.length > 0 && (
+                    <div className="space-y-2">
+                      {alternativeSuppliers.map(supplierId => (
+                        <div key={supplierId} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-neutral-800 rounded-lg">
+                          <span className="text-sm text-gray-700 dark:text-gray-300">
+                            {getSupplierName(supplierId)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => removeAlternativeSupplier(supplierId)}
+                            className="text-red-500 hover:text-red-700 text-sm"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <select
+                      className="flex-1 h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
+                      value={newAlternativeSupplier}
+                      onChange={(e) => setNewAlternativeSupplier(e.target.value)}
+                    >
+                      <option value="">Select Alternative Supplier</option>
+                      {suppliers
+                        .filter(s => s.id !== form.supplier_id && !alternativeSuppliers.includes(s.id))
+                        .map(supplier => (
+                          <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
+                        ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={addAlternativeSupplier}
+                      disabled={!newAlternativeSupplier}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {productFormTab === 'system' && (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <label className="grid gap-2">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Reorder Level *</span>
+                    <input
+                      type="number"
+                      required
+                      className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
+                      value={form.reorder_level}
+                      onChange={(e) => setForm(f => ({ ...f, reorder_level: e.target.value }))}
+                    />
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Warning Threshold *</span>
+                    <input
+                      type="number"
+                      required
+                      className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
+                      value={form.warning_threshold}
+                      onChange={(e) => setForm(f => ({ ...f, warning_threshold: e.target.value }))}
+                      placeholder="Stock level for warning alert"
+                    />
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Alert Threshold *</span>
+                    <input
+                      type="number"
+                      required
+                      className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
+                      value={form.alert_threshold}
+                      onChange={(e) => setForm(f => ({ ...f, alert_threshold: e.target.value }))}
+                      placeholder="Stock level for critical alert"
+                    />
+                  </label>
+                </div>
+              </>
+            )}
           </form>
         </Modal>
 

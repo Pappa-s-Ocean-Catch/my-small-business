@@ -26,11 +26,31 @@ type LowStockNotification = {
   resolved_by?: { email: string } | null;
 };
 
+type IngredientNotification = {
+  id: string;
+  sale_product_id: string;
+  buildable_units: number;
+  warning_threshold: number | null;
+  alert_threshold: number | null;
+  is_resolved: boolean;
+  resolved_at: string | null;
+  created_at: string;
+  sale_product: { id: string; name: string };
+  missing_ingredients: Array<{
+    product_id: string;
+    product_name: string;
+    required: number;
+    available: number;
+  }>;
+};
+
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<LowStockNotification[]>([]);
+  const [ingredientNotifications, setIngredientNotifications] = useState<IngredientNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [activeTab, setActiveTab] = useState<'active' | 'resolved'>('active');
+  const [mode, setMode] = useState<'product' | 'ingredient'>('product');
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -80,14 +100,29 @@ export default function NotificationsPage() {
       .order("created_at", { ascending: false });
 
     setNotifications(notificationsData || []);
+  }, []);
+
+  const fetchIngredientNotifications = useCallback(async (): Promise<void> => {
+    const supabase = getSupabaseClient();
+
+    const { data } = await supabase
+      .from('ingredient_stock_notifications')
+      .select(`*, sale_product:sale_product_id(id, name)`) 
+      .order('created_at', { ascending: false });
+
+    setIngredientNotifications((data || []) as unknown as IngredientNotification[]);
     setLoading(false);
   }, []);
 
   useEffect(() => {
     if (isAdmin) {
-      void fetchNotifications();
+      if (mode === 'product') {
+        void fetchNotifications();
+      } else {
+        void fetchIngredientNotifications();
+      }
     }
-  }, [isAdmin, fetchNotifications]);
+  }, [isAdmin, mode, fetchNotifications, fetchIngredientNotifications]);
 
   const resolveNotification = async (notificationId: string) => {
     const supabase = getSupabaseClient();
@@ -105,6 +140,9 @@ export default function NotificationsPage() {
 
   const filteredNotifications = notifications.filter(notification => 
     activeTab === 'active' ? !notification.is_resolved : notification.is_resolved
+  );
+  const filteredIngredientNotifications = ingredientNotifications.filter(n =>
+    activeTab === 'active' ? !n.is_resolved : n.is_resolved
   );
 
   if (loading || isAdmin === null) {
@@ -130,9 +168,21 @@ export default function NotificationsPage() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Low Stock Notifications</h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Monitor and manage low stock alerts
-            </p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Monitor and manage stock alerts (product and ingredient)</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setMode('product')}
+              className={`px-3 py-1 rounded text-sm ${mode === 'product' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-neutral-800 text-gray-700 dark:text-gray-300'}`}
+            >
+              Product Alerts
+            </button>
+            <button
+              onClick={() => setMode('ingredient')}
+              className={`px-3 py-1 rounded text-sm ${mode === 'ingredient' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-neutral-800 text-gray-700 dark:text-gray-300'}`}
+            >
+              Ingredient Alerts
+            </button>
           </div>
         </div>
 
@@ -164,7 +214,8 @@ export default function NotificationsPage() {
 
         {/* Notifications List */}
         <div className="space-y-4">
-          {filteredNotifications.length === 0 ? (
+          {mode === 'product' ? (
+            filteredNotifications.length === 0 ? (
             <div className="text-center py-12">
               <FaBell className="w-12 h-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
@@ -177,8 +228,8 @@ export default function NotificationsPage() {
                 }
               </p>
             </div>
-          ) : (
-            filteredNotifications.map((notification) => (
+            ) : (
+              filteredNotifications.map((notification) => (
               <div key={notification.id} className={`bg-white dark:bg-neutral-900 rounded-lg border p-4 ${
                 notification.is_resolved ? 'opacity-75' : ''
               }`}>
@@ -260,7 +311,91 @@ export default function NotificationsPage() {
                   )}
                 </div>
               </div>
-            ))
+              ))
+            )
+          ) : (
+            filteredIngredientNotifications.length === 0 ? (
+              <div className="text-center py-12">
+                <FaBell className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                  {activeTab === 'active' ? 'No active ingredient alerts' : 'No resolved ingredient alerts'}
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400">
+                  {activeTab === 'active' 
+                    ? 'All sale products are buildable with current stock!' 
+                    : 'No ingredient notifications have been resolved yet'
+                  }
+                </p>
+              </div>
+            ) : (
+              filteredIngredientNotifications.map((n) => (
+                <div key={n.id} className={`bg-white dark:bg-neutral-900 rounded-lg border p-4 ${n.is_resolved ? 'opacity-75' : ''}`}>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 mt-1">
+                        {n.is_resolved ? (
+                          <FaCheck className="w-5 h-5 text-green-600" />
+                        ) : (
+                          <FaExclamationTriangle className="w-5 h-5 text-red-600" />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-medium text-gray-900 dark:text-white">
+                            {n.sale_product.name}
+                          </h3>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-300">
+                            Buildable: {n.buildable_units}
+                          </span>
+                        </div>
+                        {n.missing_ingredients.length > 0 && (
+                          <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                            <div className="font-medium mb-1">Missing/Low Ingredients:</div>
+                            <ul className="list-disc pl-5">
+                              {n.missing_ingredients.map((mi, idx) => (
+                                <li key={idx}>
+                                  {mi.product_name}: need {mi.required}, available {mi.available}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        <div className="text-sm text-gray-500 dark:text-gray-500 mt-1">
+                          Alert created on {format(new Date(n.created_at), "MMM dd, yyyy 'at' HH:mm")}
+                        </div>
+                      </div>
+                    </div>
+                    {!n.is_resolved && (
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/shop/products`}
+                          className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                        >
+                          View Inventory
+                        </Link>
+                        <button
+                          onClick={async () => {
+                            const supabase = getSupabaseClient();
+                            await supabase
+                              .from('ingredient_stock_notifications')
+                              .update({ 
+                                is_resolved: true,
+                                resolved_at: new Date().toISOString(),
+                                resolved_by: (await supabase.auth.getUser()).data.user?.id
+                              })
+                              .eq('id', n.id);
+                            await fetchIngredientNotifications();
+                          }}
+                          className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                        >
+                          Mark Resolved
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))
+            )
           )}
         </div>
 
@@ -272,7 +407,9 @@ export default function NotificationsPage() {
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Active Alerts</p>
                 <p className="text-2xl font-bold text-red-600 dark:text-red-400">
-                  {notifications.filter(n => !n.is_resolved).length}
+                  {mode === 'product' 
+                    ? notifications.filter(n => !n.is_resolved).length
+                    : ingredientNotifications.filter(n => !n.is_resolved).length}
                 </p>
               </div>
             </div>

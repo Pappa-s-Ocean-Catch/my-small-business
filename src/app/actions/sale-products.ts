@@ -29,6 +29,8 @@ export interface SaleProduct {
   preparation_time_minutes: number;
   created_at: string;
   updated_at: string;
+  warning_threshold_units?: number | null;
+  alert_threshold_units?: number | null;
 }
 
 export interface SaleProductIngredient {
@@ -349,6 +351,8 @@ export async function createSaleProduct(formData: {
   sale_category_id?: string;
   sub_category_id?: string;
   preparation_time_minutes?: number;
+  warning_threshold_units?: number | null;
+  alert_threshold_units?: number | null;
   ingredients: Array<{
     product_id: string;
     quantity_required: number;
@@ -370,7 +374,9 @@ export async function createSaleProduct(formData: {
         image_url: formData.image_url || null,
         sale_category_id: formData.sale_category_id || null,
         sub_category_id: formData.sub_category_id || null,
-        preparation_time_minutes: formData.preparation_time_minutes || 0
+        preparation_time_minutes: formData.preparation_time_minutes || 0,
+        warning_threshold_units: formData.warning_threshold_units ?? null,
+        alert_threshold_units: formData.alert_threshold_units ?? null
       }])
       .select()
       .single();
@@ -421,6 +427,8 @@ export async function updateSaleProduct(
     sub_category_id?: string;
     preparation_time_minutes?: number;
     is_active?: boolean;
+    warning_threshold_units?: number | null;
+    alert_threshold_units?: number | null;
     ingredients: Array<{
       product_id: string;
       quantity_required: number;
@@ -444,7 +452,9 @@ export async function updateSaleProduct(
         sale_category_id: formData.sale_category_id || null,
         sub_category_id: formData.sub_category_id || null,
         preparation_time_minutes: formData.preparation_time_minutes || 0,
-        is_active: formData.is_active !== undefined ? formData.is_active : true
+        is_active: formData.is_active !== undefined ? formData.is_active : true,
+        warning_threshold_units: formData.warning_threshold_units ?? null,
+        alert_threshold_units: formData.alert_threshold_units ?? null
       })
       .eq('id', id)
       .select()

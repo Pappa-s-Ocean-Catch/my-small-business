@@ -19,6 +19,8 @@ interface SaleProduct {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  warning_threshold_units: number | null;
+  alert_threshold_units: number | null;
 }
 
 interface SaleCategory {
@@ -46,7 +48,10 @@ interface SaleProductQueryResult {
   is_active: boolean;
   created_at: string;
   updated_at: string;
-  sale_categories: SaleCategory[] | null;
+  warning_threshold_units: number | null;
+  alert_threshold_units: number | null;
+  sale_category: SaleCategory | null;
+  sub_category?: SaleCategory | null;
 }
 
 interface IngredientQueryResult {
@@ -93,12 +98,39 @@ export default function SaleProductDetailsPage() {
   const [productionCapacity, setProductionCapacity] = useState<ProductionCapacity | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [warningThreshold, setWarningThreshold] = useState<string>("");
+  const [alertThreshold, setAlertThreshold] = useState<string>("");
+  const [savingThresholds, setSavingThresholds] = useState(false);
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
 
   useEffect(() => {
     if (params.id) {
       fetchSaleProductDetails(params.id as string);
     }
   }, [params.id]);
+
+  // Check admin role to determine read-only view
+  useEffect(() => {
+    const checkRole = async () => {
+      try {
+        const supabase = getSupabaseClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          setIsAdmin(false);
+          return;
+        }
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role_slug')
+          .eq('id', user.id)
+          .single();
+        setIsAdmin(profile?.role_slug === 'admin');
+      } catch {
+        setIsAdmin(false);
+      }
+    };
+    void checkRole();
+  }, []);
 
   const fetchSaleProductDetails = async (id: string) => {
     try {
@@ -119,7 +151,12 @@ export default function SaleProductDetailsPage() {
           is_active,
           created_at,
           updated_at,
-          sale_categories (
+          warning_threshold_units,
+          alert_threshold_units,
+          sale_category:sale_categories!sale_category_id (
+            name
+          ),
+          sub_category:sale_categories!sub_category_id (
             name
           )
         `)
@@ -134,13 +171,46 @@ export default function SaleProductDetailsPage() {
         throw new Error('Sale product not found');
       }
 
-      const typedProductData = productData as SaleProductQueryResult;
+      type UnknownRecord = Record<string, unknown>;
+      const pd = productData as unknown as UnknownRecord;
+
+      // Safely extract sale_category.name (could be object or array)
+      let sale_category_name: string | null = null;
+      const sc = pd["sale_category"] as unknown;
+      if (Array.isArray(sc)) {
+        const first = sc[0] as UnknownRecord | undefined;
+        const n = first?.name as unknown;
+        if (typeof n === 'string') sale_category_name = n;
+      } else if (sc && typeof sc === 'object') {
+        const n = (sc as UnknownRecord).name as unknown;
+        if (typeof n === 'string') sale_category_name = n;
+      }
+
+      // Safely extract numeric thresholds
+      const wtRaw = pd["warning_threshold_units"] as unknown;
+      const atRaw = pd["alert_threshold_units"] as unknown;
+      const warning_threshold_units = typeof wtRaw === 'number' ? wtRaw : null;
+      const alert_threshold_units = typeof atRaw === 'number' ? atRaw : null;
+
       const saleProduct: SaleProduct = {
-        ...typedProductData,
-        sale_category_name: typedProductData.sale_categories?.[0]?.name || null,
+        id: String(pd.id),
+        name: String(pd.name),
+        description: (pd.description as string | null) ?? null,
+        sale_price: typeof pd.sale_price === 'number' ? (pd.sale_price as number) : 0,
+        image_url: (pd.image_url as string | null) ?? null,
+        preparation_time_minutes: typeof pd.preparation_time_minutes === 'number' ? (pd.preparation_time_minutes as number) : 0,
+        sale_category_id: (pd.sale_category_id as string | null) ?? null,
+        sale_category_name,
+        is_active: typeof pd.is_active === 'boolean' ? (pd.is_active as boolean) : true,
+        created_at: String(pd.created_at),
+        updated_at: String(pd.updated_at),
+        warning_threshold_units,
+        alert_threshold_units,
       };
 
       setSaleProduct(saleProduct);
+      setWarningThreshold(saleProduct.warning_threshold_units?.toString() ?? "");
+      setAlertThreshold(saleProduct.alert_threshold_units?.toString() ?? "");
 
       // Fetch ingredients with current stock
       const { data: ingredientsData, error: ingredientsError } = await supabase
@@ -170,22 +240,25 @@ export default function SaleProductDetailsPage() {
       }
 
       const typedIngredientsData = ingredientsData as IngredientQueryResult[];
-      const ingredients: Ingredient[] = typedIngredientsData.map(ing => ({
-        id: ing.id,
-        product_id: ing.product_id,
-        product_name: ing.products[0]?.name || '',
-        product_sku: ing.products[0]?.sku || '',
-        quantity_required: ing.quantity_required,
-        unit_of_measure: ing.unit_of_measure,
-        is_optional: ing.is_optional,
-        notes: ing.notes,
-        current_stock: ing.products[0]?.total_units || 0,
-        units_per_box: ing.products[0]?.units_per_box || 1,
-        full_boxes: ing.products[0]?.full_boxes || 0,
-        loose_units: ing.products[0]?.loose_units || 0,
-        total_units: ing.products[0]?.total_units || 0,
-        purchase_price: ing.products[0]?.purchase_price || 0,
-      }));
+      const ingredients: Ingredient[] = typedIngredientsData.map(ing => {
+        const pSrc = Array.isArray(ing.products) ? ing.products[0] : (ing.products as unknown as Product | undefined);
+        return {
+          id: ing.id,
+          product_id: ing.product_id,
+          product_name: pSrc?.name || 'Unknown Product',
+          product_sku: pSrc?.sku || '',
+          quantity_required: ing.quantity_required,
+          unit_of_measure: ing.unit_of_measure,
+          is_optional: ing.is_optional,
+          notes: ing.notes,
+          current_stock: pSrc?.total_units || 0,
+          units_per_box: pSrc?.units_per_box || 1,
+          full_boxes: pSrc?.full_boxes || 0,
+          loose_units: pSrc?.loose_units || 0,
+          total_units: pSrc?.total_units || 0,
+          purchase_price: pSrc?.purchase_price || 0,
+        };
+      });
 
       setIngredients(ingredients);
 
@@ -199,6 +272,46 @@ export default function SaleProductDetailsPage() {
       toast.error('Failed to load product details');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const saveThresholds = async () => {
+    if (!saleProduct) return;
+    try {
+      setSavingThresholds(true);
+      const supabase = getSupabaseClient();
+
+      const warningVal = warningThreshold.trim() === "" ? null : Number(warningThreshold);
+      const alertVal = alertThreshold.trim() === "" ? null : Number(alertThreshold);
+
+      if ((warningVal !== null && Number.isNaN(warningVal)) || (alertVal !== null && Number.isNaN(alertVal))) {
+        toast.error('Thresholds must be numbers or left blank');
+        setSavingThresholds(false);
+        return;
+      }
+
+      const { error: updateError } = await supabase
+        .from('sale_products')
+        .update({
+          warning_threshold_units: warningVal,
+          alert_threshold_units: alertVal,
+        })
+        .eq('id', saleProduct.id);
+
+      if (updateError) {
+        console.error('Failed to save thresholds:', updateError);
+        toast.error('Failed to save thresholds');
+        setSavingThresholds(false);
+        return;
+      }
+
+      setSaleProduct({ ...saleProduct, warning_threshold_units: warningVal, alert_threshold_units: alertVal });
+      toast.success('Ingredient thresholds saved');
+    } catch (e) {
+      console.error('Error saving thresholds:', e);
+      toast.error('Unexpected error saving thresholds');
+    } finally {
+      setSavingThresholds(false);
     }
   };
 
@@ -231,8 +344,10 @@ export default function SaleProductDetailsPage() {
         }
       }
 
-      // Calculate cost contribution
-      totalCost += ingredient.quantity_required * ingredient.purchase_price;
+      // Calculate cost contribution using unit price (not box price)
+      const unitsPerBox = ingredient.units_per_box > 0 ? ingredient.units_per_box : 1;
+      const unitPrice = ingredient.purchase_price / unitsPerBox;
+      totalCost += ingredient.quantity_required * unitPrice;
     });
 
     // If no limiting ingredient found (all optional), we can make 0
@@ -375,6 +490,52 @@ export default function SaleProductDetailsPage() {
                   <FaUtensils className="w-5 h-5 text-blue-600" />
                   Recipe & Ingredients
                 </h2>
+
+                {/* Ingredient-based Buildable Thresholds (Admin only) */}
+                {isAdmin && (
+                  <>
+                    <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <label className="grid gap-1">
+                        <span className="text-sm text-gray-700 dark:text-gray-300">Warning Threshold (buildable units)</span>
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          step={1}
+                          value={warningThreshold}
+                          onChange={(e) => setWarningThreshold(e.target.value)}
+                          className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
+                          placeholder="e.g. 10"
+                        />
+                        <span className="text-xs text-gray-500 dark:text-gray-400">When buildable units drop to this number or below, show warning</span>
+                      </label>
+
+                      <label className="grid gap-1">
+                        <span className="text-sm text-gray-700 dark:text-gray-300">Alert Threshold (buildable units)</span>
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          step={1}
+                          value={alertThreshold}
+                          onChange={(e) => setAlertThreshold(e.target.value)}
+                          className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
+                          placeholder="e.g. 5"
+                        />
+                        <span className="text-xs text-gray-500 dark:text-gray-400">When buildable units drop to this number or below, show critical alert</span>
+                      </label>
+                    </div>
+                    <div className="mb-6">
+                      <button
+                        onClick={saveThresholds}
+                        disabled={savingThresholds}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                      >
+                        {savingThresholds ? 'Saving...' : 'Save Thresholds'}
+                      </button>
+                    </div>
+                  </>
+                )}
                 
                 {ingredients.length === 0 ? (
                   <div className="text-center py-8">
@@ -397,6 +558,10 @@ export default function SaleProductDetailsPage() {
                               )}
                             </div>
                             <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                              <span className="font-medium text-gray-900 dark:text-white">{ingredient.product_name}</span>
+                              <span className="text-gray-500 dark:text-gray-400">({ingredient.product_sku})</span>
+                            </div>
+                            <div className="mt-1 flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
                               <span>Required: {ingredient.quantity_required} {ingredient.unit_of_measure}</span>
                               <span>Available: {ingredient.current_stock} {ingredient.unit_of_measure}</span>
                               <span className={`font-medium ${getStockStatusColor(ingredient)}`}>
@@ -407,14 +572,18 @@ export default function SaleProductDetailsPage() {
                               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 italic">{ingredient.notes}</p>
                             )}
                           </div>
-                          <div className="text-right">
-                            <div className="text-sm text-gray-600 dark:text-gray-400">
-                              Can make: {Math.floor(ingredient.current_stock / ingredient.quantity_required)}
+                            <div className="text-right">
+                              <div className="text-sm text-gray-600 dark:text-gray-400">
+                                Can make: {Math.floor(ingredient.current_stock / ingredient.quantity_required)}
+                              </div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400">
+                                {(() => {
+                                  const unitPrice = ingredient.units_per_box > 0 ? ingredient.purchase_price / ingredient.units_per_box : 0;
+                                  const lineCost = unitPrice * ingredient.quantity_required;
+                                  return `Unit: $${unitPrice.toFixed(3)} • Cost: $${lineCost.toFixed(2)}`;
+                                })()}
+                              </div>
                             </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">
-                              ${(ingredient.quantity_required * ingredient.purchase_price).toFixed(2)} cost
-                            </div>
-                          </div>
                         </div>
                       </div>
                     ))}

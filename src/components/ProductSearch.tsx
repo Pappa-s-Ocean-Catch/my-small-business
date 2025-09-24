@@ -207,9 +207,9 @@ export function ProductSearch({
                   } ${isSelected ? 'bg-green-50 dark:bg-green-900/20' : ''}`}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <div className="font-medium text-gray-900 dark:text-white truncate">
+                        <div className="font-semibold text-gray-900 dark:text-white text-base whitespace-normal break-words">
                           {product.name}
                         </div>
                         {isSelected && (

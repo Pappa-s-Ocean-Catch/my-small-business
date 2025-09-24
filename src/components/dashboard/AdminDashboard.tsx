@@ -122,7 +122,7 @@ export function AdminDashboard({ businessStats }: AdminDashboardProps) {
         </Link>
       </div>
 
-      {/* Alerts */}
+      {/* Alerts - Product Level */}
       {businessStats && businessStats.lowStockProducts > 0 && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-6">
           <div className="flex items-center gap-4">
@@ -142,6 +142,25 @@ export function AdminDashboard({ businessStats }: AdminDashboardProps) {
           </div>
         </div>
       )}
+
+      {/* Alerts - Ingredient Level (badge to notifications page; counts will be shown there) */}
+      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-6">
+        <div className="flex items-center gap-4">
+          <FaExclamationTriangle className="w-8 h-8 text-amber-600" />
+          <div>
+            <h3 className="font-semibold text-amber-800 dark:text-amber-200">Ingredient Availability</h3>
+            <p className="text-amber-700 dark:text-amber-300">
+              Check ingredient-based buildability alerts for sale products.
+            </p>
+            <Link 
+              href="/shop/notifications" 
+              className="inline-flex items-center mt-2 text-sm font-medium text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300"
+            >
+              Review ingredient alerts →
+            </Link>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

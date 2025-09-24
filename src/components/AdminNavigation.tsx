@@ -133,6 +133,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
               <Link className={getLinkClasses("/staff")} href="/staff" aria-label="Staff">Staff</Link>
               <Link className={getLinkClasses("/sections")} href="/sections" aria-label="Sections">Sections</Link>
               <Link className={getLinkClasses("/shop/menu-screens")} href="/shop/menu-screens" aria-label="Menu Builder">Menu Builder</Link>
+              <Link className={getLinkClasses("/planner")} href="/planner" aria-label="AI Planner">AI Planner</Link>
             </div>
           </div>
         ) : (
@@ -185,6 +186,17 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                       <div>
                         <div className="font-medium text-gray-900 dark:text-white">Menu Builder</div>
                         <div className="text-xs text-gray-600 dark:text-gray-400">Design public in-store menu screens</div>
+                      </div>
+                    </div>
+                  </Link>
+                  <Link href="/planner" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 text-purple-600 dark:text-purple-400">
+                        <FaRobot className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white">AI Planner</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">Generate optimal shift assignments with AI</div>
                       </div>
                     </div>
                   </Link>

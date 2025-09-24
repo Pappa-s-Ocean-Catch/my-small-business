@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { FaPlus, FaEdit, FaTrash, FaEye, FaEyeSlash, FaUtensils, FaTag, FaClock, FaBox, FaChevronDown, FaChevronRight, FaFilter } from 'react-icons/fa';
 import Modal from '@/components/Modal';
 import { ActionButton } from '@/components/ActionButton';
@@ -64,6 +65,8 @@ export default function MenuPage() {
     sub_category_id: '',
     preparation_time_minutes: 0,
     is_active: true,
+    warning_threshold_units: '' as string | number,
+    alert_threshold_units: '' as string | number,
     ingredients: [] as Array<{
       product_id: string;
       quantity_required: number;
@@ -198,6 +201,8 @@ export default function MenuPage() {
         sub_category_id: product.sub_category_id || '',
         preparation_time_minutes: product.preparation_time_minutes,
         is_active: product.is_active,
+        warning_threshold_units: (product as unknown as { warning_threshold_units?: number | null }).warning_threshold_units ?? '',
+        alert_threshold_units: (product as unknown as { alert_threshold_units?: number | null }).alert_threshold_units ?? '',
         ingredients: product.ingredients.map(ing => ({
           product_id: ing.product_id,
           quantity_required: ing.quantity_required,
@@ -217,6 +222,8 @@ export default function MenuPage() {
         sub_category_id: selectedSubCategoryId || '',
         preparation_time_minutes: 0,
         is_active: true,
+        warning_threshold_units: '',
+        alert_threshold_units: '',
         ingredients: []
       });
     }
@@ -257,14 +264,22 @@ export default function MenuPage() {
     e.preventDefault();
     try {
       if (editingProduct) {
-        const result = await updateSaleProduct(editingProduct.id, productForm);
+        const result = await updateSaleProduct(editingProduct.id, {
+          ...productForm,
+          warning_threshold_units: productForm.warning_threshold_units === '' ? null : Number(productForm.warning_threshold_units),
+          alert_threshold_units: productForm.alert_threshold_units === '' ? null : Number(productForm.alert_threshold_units),
+        });
         if (result.error) {
           toast.error(result.error);
           return;
         }
         toast.success('Product updated successfully');
       } else {
-        const result = await createSaleProduct(productForm);
+        const result = await createSaleProduct({
+          ...productForm,
+          warning_threshold_units: productForm.warning_threshold_units === '' ? null : Number(productForm.warning_threshold_units),
+          alert_threshold_units: productForm.alert_threshold_units === '' ? null : Number(productForm.alert_threshold_units),
+        });
         if (result.error) {
           toast.error(result.error);
           return;
@@ -582,9 +597,18 @@ export default function MenuPage() {
                   <div className="p-4">
                     <div className="flex items-start justify-between mb-2">
                       <h3 className="font-semibold text-gray-900 dark:text-white text-lg">
-                        {product.name}
+                        <Link href={`/shop/menu/${product.id}`} className="hover:underline">
+                          {product.name}
+                        </Link>
                       </h3>
                       <div className="flex gap-1">
+                        <Link
+                          href={`/shop/menu/${product.id}`}
+                          className="p-2 text-gray-500 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors"
+                          title="View details"
+                        >
+                          <FaEye className="h-4 w-4" />
+                        </Link>
                         <button
                           onClick={() => openProductModal(product)}
                           className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
@@ -757,7 +781,7 @@ export default function MenuPage() {
                       type="text"
                       value={productForm.name}
                       onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
-                      className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
+                      className="w-1/2 h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
                       placeholder="Enter product name"
                       required
                     />
@@ -910,6 +934,36 @@ export default function MenuPage() {
 
             {activeProductTab === 'ingredients' && (
               <div className="space-y-4">
+                {/* Ingredient-based thresholds in modal */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <label className="grid gap-1">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Warning Threshold (buildable units)</span>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      step={1}
+                      value={productForm.warning_threshold_units}
+                      onChange={(e) => setProductForm({ ...productForm, warning_threshold_units: e.target.value })}
+                      className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
+                      placeholder="e.g. 10"
+                    />
+                  </label>
+                  <label className="grid gap-1">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Alert Threshold (buildable units)</span>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      step={1}
+                      value={productForm.alert_threshold_units}
+                      onChange={(e) => setProductForm({ ...productForm, alert_threshold_units: e.target.value })}
+                      className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
+                      placeholder="e.g. 5"
+                    />
+                  </label>
+                </div>
+
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">Recipe Ingredients</h3>
                   <button
@@ -958,26 +1012,20 @@ export default function MenuPage() {
                   <div className="space-y-3">
                     {productForm.ingredients.map((ingredient, index) => (
                       <div key={index} className="grid grid-cols-1 md:grid-cols-6 gap-3 p-4 border border-gray-200 dark:border-neutral-700 rounded-lg bg-gray-50/50 dark:bg-neutral-800/50">
-                        <div className="md:col-span-2">
+                        <div className="md:col-span-3">
                           <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                             Product
                           </label>
-                          <select
-                            value={ingredient.product_id}
-                            onChange={(e) => {
+                          <ProductSearch
+                            products={availableProducts}
+                            selectedProductId={ingredient.product_id}
+                            onProductSelect={(productId) => {
                               const newIngredients = [...productForm.ingredients];
-                              newIngredients[index].product_id = e.target.value;
+                              newIngredients[index].product_id = productId;
                               setProductForm({ ...productForm, ingredients: newIngredients });
                             }}
-                            className="w-full h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900 text-sm"
-                          >
-                            <option value="">Select Product</option>
-                            {availableProducts.map((product) => (
-                              <option key={product.id} value={product.id}>
-                                {product.name} ({product.sku})
-                              </option>
-                            ))}
-                          </select>
+                            className="w-full"
+                          />
                         </div>
 
                         <div>
@@ -986,7 +1034,7 @@ export default function MenuPage() {
                           </label>
                           <input
                             type="number"
-                            step="0.001"
+                            step="0.1"
                             min="0"
                             value={ingredient.quantity_required}
                             onChange={(e) => {
