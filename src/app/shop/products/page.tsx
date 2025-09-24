@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { ensureProfile } from "@/app/actions/profile";
@@ -8,7 +8,7 @@ import { AdminGuard } from "@/components/AdminGuard";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
 import Modal from "@/components/Modal";
 import Card from "@/components/Card";
-import { FaPlus, FaEdit, FaTrash, FaBox, FaExclamationTriangle, FaSearch, FaFilter, FaFileExcel, FaTh, FaThLarge, FaSave, FaTimes } from "react-icons/fa";
+import { FaPlus, FaEdit, FaTrash, FaBox, FaExclamationTriangle, FaSearch, FaFileExcel, FaTh, FaThLarge, FaSave, FaTimes } from "react-icons/fa";
 import * as XLSX from "xlsx";
 import { toast } from 'react-toastify';
 import { saveAs } from "file-saver";
@@ -52,7 +52,7 @@ type Supplier = {
   name: string;
 };
 
-export default function ProductsPage() {
+function ProductsPageContent() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -1110,5 +1110,13 @@ export default function ProductsPage() {
         />
       </div>
     </AdminGuard>
+  );
+}
+
+export default function ProductsPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-center text-gray-500">Loading products...</div>}>
+      <ProductsPageContent />
+    </Suspense>
   );
 }
