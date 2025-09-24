@@ -100,6 +100,7 @@ export default function NotificationsPage() {
       .order("created_at", { ascending: false });
 
     setNotifications(notificationsData || []);
+    setLoading(false);
   }, []);
 
   const fetchIngredientNotifications = useCallback(async (): Promise<void> => {
@@ -116,6 +117,7 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     if (isAdmin) {
+      setLoading(true);
       if (mode === 'product') {
         void fetchNotifications();
       } else {

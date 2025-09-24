@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { ensureProfile } from "@/app/actions/profile";
 import { AdminGuard } from "@/components/AdminGuard";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
 import Modal from "@/components/Modal";
 import Card from "@/components/Card";
-import { FaPlus, FaEdit, FaTrash, FaBox, FaExclamationTriangle, FaSearch, FaFilter, FaFileExcel, FaTh, FaThLarge } from "react-icons/fa";
+import { FaPlus, FaEdit, FaTrash, FaBox, FaExclamationTriangle, FaSearch, FaFilter, FaFileExcel, FaTh, FaThLarge, FaSave, FaTimes } from "react-icons/fa";
 import * as XLSX from "xlsx";
 import { toast } from 'react-toastify';
 import { saveAs } from "file-saver";
@@ -63,8 +64,11 @@ export default function ProductsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [filterStock, setFilterStock] = useState<string>("all");
+  const [lowStockUrlMode, setLowStockUrlMode] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
   const [productFormTab, setProductFormTab] = useState<'general' | 'supplier' | 'system'>('general');
+  const searchParams = useSearchParams();
+  const [editHandled, setEditHandled] = useState<boolean>(false);
 
   // Helper function to get stock status based on thresholds
   const getStockStatus = (product: Product) => {
@@ -163,6 +167,21 @@ export default function ProductsPage() {
       setViewMode(savedViewMode);
     }
 
+    // Initialize filters from URL params
+    try {
+      const urlFilter = searchParams?.get('filter');
+      if (urlFilter) {
+        if (urlFilter === 'low-stock') {
+          // Low stock preset includes both warning and critical
+          setFilterStock('warning');
+          setLowStockUrlMode(true);
+        } else if (urlFilter === 'critical' || urlFilter === 'warning' || urlFilter === 'good' || urlFilter === 'all') {
+          setFilterStock(urlFilter);
+          setLowStockUrlMode(false);
+        }
+      }
+    } catch {}
+
     const checkAdmin = async () => {
       const supabase = getSupabaseClient();
       const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -192,6 +211,19 @@ export default function ProductsPage() {
     };
     void checkAdmin();
   }, []);
+
+  // Handle deep-link editing via ?edit=productId
+  useEffect(() => {
+    if (!isAdmin || loading) return;
+    const editId = searchParams?.get('edit');
+    if (!editId || editHandled) return;
+
+    const product = products.find(p => p.id === editId);
+    if (product) {
+      startEdit(product);
+      setEditHandled(true);
+    }
+  }, [isAdmin, loading, products, searchParams, editHandled]);
 
   const fetchData = useCallback(async (): Promise<void> => {
     const supabase = getSupabaseClient();
@@ -288,60 +320,87 @@ export default function ProductsPage() {
     e.preventDefault();
     const supabase = getSupabaseClient();
 
-    const unitsPerBox = parseInt(form.units_per_box);
-    const initialStock = parseInt(form.quantity_in_stock) || 0;
-    
-    // Convert initial stock to boxes and loose units
-    const fullBoxes = Math.floor(initialStock / unitsPerBox);
-    const looseUnits = initialStock % unitsPerBox;
+    try {
+      const unitsPerBox = parseInt(form.units_per_box);
+      const initialStock = parseInt(form.quantity_in_stock) || 0;
 
-    const productData = {
-      name: form.name,
-      sku: form.sku,
-      category_id: form.category_id || null,
-      supplier_id: form.supplier_id || null,
-      purchase_price: parseFloat(form.purchase_price),
-      sale_price: parseFloat(form.sale_price),
-      quantity_in_stock: initialStock, // Keep for backward compatibility
-      reorder_level: parseInt(form.reorder_level),
-      warning_threshold: parseInt(form.warning_threshold),
-      alert_threshold: parseInt(form.alert_threshold),
-      units_per_box: unitsPerBox,
-      full_boxes: fullBoxes,
-      loose_units: looseUnits,
-      description: form.description || null,
-      image_url: form.image_url || null,
-      is_active: form.is_active
-    };
+      const fullBoxes = Math.floor(initialStock / unitsPerBox);
+      const looseUnits = initialStock % unitsPerBox;
 
-    let productId: string;
-    if (editing) {
-      await supabase.from("products").update(productData).eq("id", editing.id);
-      productId = editing.id;
-    } else {
-      const { data: newProduct } = await supabase.from("products").insert(productData).select().single();
-      productId = newProduct.id;
-    }
+      const productData = {
+        name: form.name,
+        sku: form.sku,
+        category_id: form.category_id || null,
+        supplier_id: form.supplier_id || null,
+        purchase_price: parseFloat(form.purchase_price),
+        sale_price: parseFloat(form.sale_price),
+        quantity_in_stock: initialStock,
+        reorder_level: parseInt(form.reorder_level),
+        warning_threshold: parseInt(form.warning_threshold),
+        alert_threshold: parseInt(form.alert_threshold),
+        units_per_box: unitsPerBox,
+        full_boxes: fullBoxes,
+        loose_units: looseUnits,
+        description: form.description || null,
+        image_url: form.image_url || null,
+        is_active: form.is_active
+      };
 
-    // Handle alternative suppliers
-    if (productId) {
-      // Delete existing alternative suppliers
-      await supabase.from("product_alternative_suppliers").delete().eq("product_id", productId);
-      
-      // Insert new alternative suppliers
-      if (alternativeSuppliers.length > 0) {
-        const altSupplierData = alternativeSuppliers.map(supplierId => ({
-          product_id: productId,
-          supplier_id: supplierId
-        }));
-        await supabase.from("product_alternative_suppliers").insert(altSupplierData);
+      let productId: string | null = null;
+      if (editing) {
+        const { error: updErr } = await supabase.from("products").update(productData).eq("id", editing.id);
+        if (updErr) {
+          toast.error(`Failed to update product: ${updErr.message}`);
+          return;
+        }
+        productId = editing.id;
+      } else {
+        const { data: newProduct, error: insErr } = await supabase
+          .from("products")
+          .insert(productData)
+          .select()
+          .single();
+        if (insErr || !newProduct) {
+          toast.error(`Failed to create product: ${insErr?.message || 'Unknown error'}`);
+          return;
+        }
+        productId = newProduct.id as string;
       }
-    }
 
-    await fetchData();
-    setFormOpen(false);
-    setEditing(null);
-    resetForm();
+      if (productId) {
+        const { error: delAltErr } = await supabase
+          .from("product_alternative_suppliers")
+          .delete()
+          .eq("product_id", productId);
+        if (delAltErr) {
+          toast.error(`Failed to update alternative suppliers: ${delAltErr.message}`);
+          return;
+        }
+
+        if (alternativeSuppliers.length > 0) {
+          const altSupplierData = alternativeSuppliers.map(supplierId => ({
+            product_id: productId as string,
+            supplier_id: supplierId
+          }));
+          const { error: insAltErr } = await supabase
+            .from("product_alternative_suppliers")
+            .insert(altSupplierData);
+          if (insAltErr) {
+            toast.error(`Failed to add alternative suppliers: ${insAltErr.message}`);
+            return;
+          }
+        }
+      }
+
+      await fetchData();
+      setFormOpen(false);
+      setEditing(null);
+      resetForm();
+      toast.success(editing ? 'Product updated successfully' : 'Product created successfully');
+    } catch (err) {
+      toast.error('Unexpected error while saving product');
+      console.error('saveProduct error', err);
+    }
   };
 
   const handleDeleteProduct = (product: Product) => {
@@ -349,11 +408,20 @@ export default function ProductsPage() {
   };
 
   const confirmDeleteProduct = async () => {
-    if (deleteConfirm.product) {
-      const supabase = getSupabaseClient();
-      await supabase.from("products").delete().eq("id", deleteConfirm.product.id);
+    if (!deleteConfirm.product) return;
+    const supabase = getSupabaseClient();
+    try {
+      const { error } = await supabase.from("products").delete().eq("id", deleteConfirm.product.id);
+      if (error) {
+        toast.error(`Failed to delete product: ${error.message}`);
+        return;
+      }
       await fetchData();
       setDeleteConfirm({ product: null, isOpen: false });
+      toast.success('Product deleted successfully');
+    } catch (err) {
+      toast.error('Unexpected error while deleting product');
+      console.error('confirmDeleteProduct error', err);
     }
   };
 
@@ -398,9 +466,10 @@ export default function ProductsPage() {
                          product.sku.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = filterCategory === "all" || product.category_id === filterCategory;
     const stockStatus = getStockStatus(product);
+    const lowStockPresetActive = lowStockUrlMode && filterStock === 'warning';
     const matchesStock = filterStock === "all" || 
                         (filterStock === "critical" && stockStatus.status === 'critical') ||
-                        (filterStock === "warning" && stockStatus.status === 'warning') ||
+                        (filterStock === "warning" && (stockStatus.status === 'warning' || (lowStockPresetActive && stockStatus.status === 'critical'))) ||
                         (filterStock === "good" && stockStatus.status === 'good');
     
     return matchesSearch && matchesCategory && matchesStock;
@@ -750,16 +819,18 @@ export default function ProductsPage() {
               <button
                 type="button"
                 onClick={() => setFormOpen(false)}
-                className="h-10 px-4 rounded-lg border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+                className="h-10 px-4 rounded-lg border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors flex items-center gap-2"
               >
+                <FaTimes className="w-4 h-4" />
                 Cancel
               </button>
               <button
                 type="submit"
                 form="product-form"
-                className="h-10 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                className="h-10 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center gap-2"
               >
-                {editing ? "Update" : "Create"} Product
+                {editing ? <FaSave className="w-4 h-4" /> : <FaPlus className="w-4 h-4" />}
+                {editing ? "Update Product" : "Create Product"}
               </button>
             </>
           }

@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { FaPlus, FaEdit, FaTrash, FaEye, FaEyeSlash, FaUtensils, FaTag, FaClock, FaBox, FaChevronDown, FaChevronRight, FaFilter } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaEye, FaEyeSlash, FaUtensils, FaTag, FaClock, FaBox, FaChevronDown, FaChevronRight, FaFilter, FaSave, FaTimes } from 'react-icons/fa';
 import Modal from '@/components/Modal';
 import { ActionButton } from '@/components/ActionButton';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
@@ -723,7 +723,7 @@ export default function MenuPage() {
                 onClick={() => setShowProductModal(false)}
                 className="flex items-center gap-2 h-10 px-4 rounded-lg border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
               >
-                <FaTrash className="w-4 h-4" />
+                <FaTimes className="w-4 h-4" />
                 <span>Cancel</span>
               </button>
               <ActionButton
@@ -732,7 +732,7 @@ export default function MenuPage() {
                 }}
                 variant="primary"
                 size="md"
-                icon={<FaPlus className="w-4 h-4" />}
+                icon={editingProduct ? <FaSave className="w-4 h-4" /> : <FaPlus className="w-4 h-4" />}
                 loadingText={editingProduct ? 'Updating...' : 'Creating...'}
               >
                 {editingProduct ? 'Update Product' : 'Create Product'}
@@ -1124,7 +1124,7 @@ export default function MenuPage() {
                 onClick={() => setShowCategoryModal(false)}
                 className="flex items-center gap-2 h-10 px-4 rounded-lg border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
               >
-                <FaTrash className="w-4 h-4" />
+                <FaTimes className="w-4 h-4" />
                 <span>Cancel</span>
               </button>
               <ActionButton
@@ -1133,7 +1133,7 @@ export default function MenuPage() {
                 }}
                 variant="primary"
                 size="md"
-                icon={<FaTag className="w-4 h-4" />}
+                icon={editingCategory ? <FaSave className="w-4 h-4" /> : <FaTag className="w-4 h-4" />}
                 loadingText={editingCategory ? 'Updating...' : 'Creating...'}
               >
                 {editingCategory ? 'Update Category' : 'Create Category'}
