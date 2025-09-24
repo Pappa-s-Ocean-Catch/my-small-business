@@ -38,6 +38,7 @@ type Product = {
   updated_at: string;
   category?: { name: string } | null;
   supplier?: { name: string } | null;
+  alternative_suppliers?: Array<{ id: string; supplier_id: string; supplier: { name: string } }>;
 };
 
 type Category = {
@@ -135,6 +136,25 @@ export default function ProductsPage() {
     is_active: true
   });
 
+  const [alternativeSuppliers, setAlternativeSuppliers] = useState<string[]>([]);
+  const [newAlternativeSupplier, setNewAlternativeSupplier] = useState("");
+
+  // Helper functions for alternative suppliers
+  const addAlternativeSupplier = () => {
+    if (newAlternativeSupplier && !alternativeSuppliers.includes(newAlternativeSupplier)) {
+      setAlternativeSuppliers([...alternativeSuppliers, newAlternativeSupplier]);
+      setNewAlternativeSupplier("");
+    }
+  };
+
+  const removeAlternativeSupplier = (supplierId: string) => {
+    setAlternativeSuppliers(alternativeSuppliers.filter(id => id !== supplierId));
+  };
+
+  const getSupplierName = (supplierId: string) => {
+    return suppliers.find(s => s.id === supplierId)?.name || "Unknown Supplier";
+  };
+
   useEffect(() => {
     // Load view mode preference from localStorage
     const savedViewMode = localStorage.getItem('products-view-mode') as 'card' | 'table' | null;
@@ -185,7 +205,12 @@ export default function ProductsPage() {
         .select(`
           *,
           category:categories(name),
-          supplier:suppliers(name)
+          supplier:suppliers(name),
+          alternative_suppliers:product_alternative_suppliers(
+            id,
+            supplier_id,
+            supplier:suppliers(name)
+          )
         `)
         .order("created_at", { ascending: false }),
       supabase.from("categories").select("id, name").order("name"),
@@ -223,6 +248,8 @@ export default function ProductsPage() {
       image_url: "",
       is_active: true
     });
+    setAlternativeSuppliers([]);
+    setNewAlternativeSupplier("");
   };
 
   const startEdit = (product: Product) => {
@@ -245,6 +272,12 @@ export default function ProductsPage() {
       image_url: product.image_url || "",
       is_active: product.is_active
     });
+    
+    // Load alternative suppliers
+    const altSuppliers = product.alternative_suppliers?.map(alt => alt.supplier_id) || [];
+    setAlternativeSuppliers(altSuppliers);
+    setNewAlternativeSupplier("");
+    
     setFormOpen(true);
   };
 
@@ -278,10 +311,28 @@ export default function ProductsPage() {
       is_active: form.is_active
     };
 
+    let productId: string;
     if (editing) {
       await supabase.from("products").update(productData).eq("id", editing.id);
+      productId = editing.id;
     } else {
-      await supabase.from("products").insert(productData);
+      const { data: newProduct } = await supabase.from("products").insert(productData).select().single();
+      productId = newProduct.id;
+    }
+
+    // Handle alternative suppliers
+    if (productId) {
+      // Delete existing alternative suppliers
+      await supabase.from("product_alternative_suppliers").delete().eq("product_id", productId);
+      
+      // Insert new alternative suppliers
+      if (alternativeSuppliers.length > 0) {
+        const altSupplierData = alternativeSuppliers.map(supplierId => ({
+          product_id: productId,
+          supplier_id: supplierId
+        }));
+        await supabase.from("product_alternative_suppliers").insert(altSupplierData);
+      }
     }
 
     await fetchData();
@@ -504,9 +555,17 @@ export default function ProductsPage() {
                     <span className="text-gray-900 dark:text-white">{product.category?.name || "None"}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-400">Supplier:</span>
+                    <span className="text-gray-600 dark:text-gray-400">Primary Supplier:</span>
                     <span className="text-gray-900 dark:text-white">{product.supplier?.name || "None"}</span>
                   </div>
+                  {product.alternative_suppliers && product.alternative_suppliers.length > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600 dark:text-gray-400">Alt Suppliers:</span>
+                      <span className="text-gray-900 dark:text-white">
+                        {product.alternative_suppliers.map(alt => alt.supplier.name).join(", ")}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600 dark:text-gray-400">Stock:</span>
                     <span className={`font-medium text-right ${
@@ -553,7 +612,8 @@ export default function ProductsPage() {
                     <th className="w-1/4 px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Product</th>
                     <th className="w-20 px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">SKU</th>
                     <th className="w-24 px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</th>
-                    <th className="w-24 px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Supplier</th>
+                    <th className="w-24 px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Primary Supplier</th>
+                    <th className="w-32 px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Alt Suppliers</th>
                     <th className="w-20 px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Stock</th>
                     <th className="w-24 px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Purchase</th>
                     <th className="w-20 px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Sale</th>
@@ -589,6 +649,12 @@ export default function ProductsPage() {
                       <td className="px-4 py-4 text-sm text-gray-900 dark:text-gray-100 truncate">{product.sku}</td>
                       <td className="px-4 py-4 text-sm text-gray-900 dark:text-gray-100 truncate">{product.category?.name || 'None'}</td>
                       <td className="px-4 py-4 text-sm text-gray-900 dark:text-gray-100 truncate">{product.supplier?.name || 'None'}</td>
+                      <td className="px-4 py-4 text-sm text-gray-600 dark:text-gray-400 truncate">
+                        {product.alternative_suppliers && product.alternative_suppliers.length > 0 
+                          ? product.alternative_suppliers.map(alt => alt.supplier.name).join(", ")
+                          : 'None'
+                        }
+                      </td>
                       <td className="px-4 py-4">
                         <div className="flex items-center">
                           <span className={`text-sm font-medium ${
@@ -734,18 +800,70 @@ export default function ProductsPage() {
                 </select>
               </label>
               <label className="grid gap-2">
-                <span className="text-sm text-gray-700 dark:text-gray-300">Supplier</span>
+                <span className="text-sm text-gray-700 dark:text-gray-300">Primary Supplier</span>
                 <select
                   className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
                   value={form.supplier_id}
                   onChange={(e) => setForm(f => ({ ...f, supplier_id: e.target.value }))}
                 >
-                  <option value="">Select Supplier</option>
+                  <option value="">Select Primary Supplier</option>
                   {suppliers.map(supplier => (
                     <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
                   ))}
                 </select>
               </label>
+            </div>
+
+            {/* Alternative Suppliers Section */}
+            <div className="grid gap-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Alternative Suppliers</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">Optional backup suppliers</span>
+              </div>
+              
+              {/* Current Alternative Suppliers */}
+              {alternativeSuppliers.length > 0 && (
+                <div className="space-y-2">
+                  {alternativeSuppliers.map(supplierId => (
+                    <div key={supplierId} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-neutral-800 rounded-lg">
+                      <span className="text-sm text-gray-700 dark:text-gray-300">
+                        {getSupplierName(supplierId)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeAlternativeSupplier(supplierId)}
+                        className="text-red-500 hover:text-red-700 text-sm"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* Add New Alternative Supplier */}
+              <div className="flex gap-2">
+                <select
+                  className="flex-1 h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
+                  value={newAlternativeSupplier}
+                  onChange={(e) => setNewAlternativeSupplier(e.target.value)}
+                >
+                  <option value="">Select Alternative Supplier</option>
+                  {suppliers
+                    .filter(s => s.id !== form.supplier_id && !alternativeSuppliers.includes(s.id))
+                    .map(supplier => (
+                      <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
+                    ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={addAlternativeSupplier}
+                  disabled={!newAlternativeSupplier}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                >
+                  Add
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
