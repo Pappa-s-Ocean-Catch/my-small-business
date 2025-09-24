@@ -39,6 +39,7 @@ type Staff = {
   name: string;
   email: string | null;
   is_available: boolean;
+  skills: string[];
 };
 
 type StaffRate = {
@@ -112,7 +113,7 @@ interface SectionDayCellProps {
   staff: Staff[];
   isAdmin: boolean;
   isCtrlPressed: boolean;
-  onShiftCreate: (day: Date) => Promise<void>;
+  onShiftCreate: (day: Date, sectionId?: string) => Promise<void>;
   onShiftEdit: (shift: Shift) => void;
   onShiftDelete: (shift: Shift) => void;
   onShiftAssign: (shift: Shift) => void;
@@ -240,7 +241,7 @@ function SectionDayCell({ day, section, shifts, staff, isAdmin, isCtrlPressed, o
       {/* Add shift button for admins */}
       {isAdmin && (
         <button
-          onClick={() => onShiftCreate(day).catch(console.error)}
+          onClick={() => onShiftCreate(day, section.id).catch(console.error)}
           className="absolute top-1 right-1 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs hover:bg-blue-700 transition-colors z-10"
           title="Add shift"
         >
@@ -517,7 +518,7 @@ export function DragDropCalendar({
     setActiveId(null);
   };
 
-  const handleShiftCreate = useCallback(async (day: Date) => {
+  const handleShiftCreate = useCallback(async (day: Date, sectionId?: string) => {
     // Fetch default settings
     const defaultSettings = await getDefaultSettings();
     const defaultStartTime = defaultSettings.default_shift_start_time;
@@ -528,8 +529,8 @@ export function DragDropCalendar({
     console.log('🔍 defaultStartTime:', defaultStartTime);
     console.log('🔍 defaultEndTime:', defaultEndTime);
     
-    // Get the first available section for prefill
-    const defaultSectionId = sections.length > 0 ? sections[0].id : null;
+    // Use the provided section ID or fall back to first available section
+    const defaultSectionId = sectionId || (sections.length > 0 ? sections[0].id : null);
     
     // Check for existing shifts on this date for this section
     const dayStr = format(day, 'yyyy-MM-dd');
@@ -1421,7 +1422,19 @@ export function DragDropCalendar({
                 <div className="text-sm text-gray-600 dark:text-gray-400">No staff assigned</div>
               </button>
               
-              {staff.map((s) => {
+              {staff.filter(s => {
+                // Filter staff based on their skills for the shift's section
+                const shiftSectionId = assignmentModal.shift?.section_id;
+                
+                // If no section is assigned to the shift, show all staff
+                if (!shiftSectionId) return true;
+                
+                // If staff has no skills defined (empty array), they can work in any section
+                if (!s.skills || s.skills.length === 0) return true;
+                
+                // Check if staff has the skill for the shift's section
+                return s.skills.includes(shiftSectionId);
+              }).map((s) => {
                 // Get the shift date for rate calculation
                 const shiftDate = assignmentModal.shift?.start_time?.slice(0, 10) || '';
                 const dateObj = new Date(shiftDate);

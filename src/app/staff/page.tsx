@@ -21,6 +21,7 @@ type Staff = {
   description: string | null;
   profile_id: string | null;
   image_url: string | null;
+  skills: string[]; // Array of section IDs this staff can work in
 };
 
 type StaffRate = {
@@ -72,6 +73,13 @@ type StaffHoliday = {
   reason: string | null;
 };
 
+type Section = {
+  id: string;
+  name: string;
+  color: string;
+  active: boolean;
+};
+
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export default function StaffPage() {
@@ -80,6 +88,7 @@ export default function StaffPage() {
   const [staffRoles, setStaffRoles] = useState<StaffRole[]>([]);
   const [availability, setAvailability] = useState<Availability[]>([]);
   const [holidays, setHolidays] = useState<StaffHoliday[]>([]);
+  const [sections, setSections] = useState<Section[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Staff | null>(null);
@@ -140,6 +149,7 @@ export default function StaffPage() {
     role_slug: "member",
     description: "",
     image_url: "",
+    skills: [] as string[], // Array of section IDs
   });
 
   const [instructions, setInstructions] = useState<StaffPaymentInstruction[]>([]);
@@ -192,12 +202,13 @@ export default function StaffPage() {
 
   const fetchStaff = async () => {
     setLoading(true);
-    const [{ data: staffData }, { data: ratesData }, { data: availabilityData }, { data: rolesData }, { data: holidaysData }] = await Promise.all([
-      getSupabaseClient().from("staff").select("id, name, phone, email, is_available, role_slug, description, profile_id, image_url").order("created_at", { ascending: false }),
+    const [{ data: staffData }, { data: ratesData }, { data: availabilityData }, { data: rolesData }, { data: holidaysData }, { data: sectionsData }] = await Promise.all([
+      getSupabaseClient().from("staff").select("id, name, phone, email, is_available, role_slug, description, profile_id, image_url, skills").order("created_at", { ascending: false }),
       getSupabaseClient().from("staff_rates").select("*"),
       getSupabaseClient().from("staff_availability").select("*"),
       getSupabaseClient().from("staff_roles").select("*").order("name"),
-      getSupabaseClient().from("staff_holidays").select("*").order("start_date", { ascending: false })
+      getSupabaseClient().from("staff_holidays").select("*").order("start_date", { ascending: false }),
+      getSupabaseClient().from("sections").select("id, name, color, active").order("name")
     ]);
     console.log('📊 fetchStaff debug:', {
       staffCount: staffData?.length || 0,
@@ -206,7 +217,8 @@ export default function StaffPage() {
       rateTypes: ratesData?.map(r => ({ staff_id: r.staff_id, rate_type: r.rate_type, rate: r.rate })),
       availabilityCount: availabilityData?.length || 0,
       rolesCount: rolesData?.length || 0,
-      holidaysCount: holidaysData?.length || 0
+      holidaysCount: holidaysData?.length || 0,
+      sectionsCount: sectionsData?.length || 0
     });
     
     if (staffData) setStaff(staffData as Staff[]);
@@ -214,6 +226,7 @@ export default function StaffPage() {
     if (availabilityData) setAvailability(availabilityData as Availability[]);
     if (rolesData) setStaffRoles(rolesData as StaffRole[]);
     if (holidaysData) setHolidays(holidaysData as StaffHoliday[]);
+    if (sectionsData) setSections(sectionsData as Section[]);
     setLoading(false);
   };
 
@@ -237,7 +250,8 @@ export default function StaffPage() {
       is_available: true, 
       role_slug: "member", 
       description: "",
-      image_url: ""
+      image_url: "",
+      skills: []
     });
     setEditing(null);
     setInstructions([]);
@@ -260,6 +274,7 @@ export default function StaffPage() {
           role_slug: form.role_slug,
           description: form.description || null,
           image_url: form.image_url || null,
+          skills: form.skills,
         }).eq("id", editing.id);
         
         if (staffUpdateError) {
@@ -403,6 +418,7 @@ export default function StaffPage() {
           role_slug: form.role_slug,
           description: form.description || null,
           image_url: form.image_url || null,
+          skills: form.skills,
         }).select().single();
         
         if (staffInsertError) {
@@ -532,6 +548,7 @@ export default function StaffPage() {
       role_slug: s.role_slug ?? "member",
       description: s.description ?? "",
       image_url: s.image_url ?? "",
+      skills: s.skills || [],
     });
     
     // Load current rates and payment instructions for this staff
@@ -988,6 +1005,38 @@ export default function StaffPage() {
                         placeholder="Optional description about the staff member, their skills, responsibilities, etc."
                         rows={4}
                       />
+                    </label>
+                    
+                    <label className="grid gap-2">
+                      <span className="text-sm text-gray-700 dark:text-gray-300">Skills/Sections</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Select which sections this staff member can work in. Leave empty to allow them to work in any section.
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {sections.filter(s => s.active).map((section) => (
+                          <label key={section.id} className="flex items-center gap-2 p-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={form.skills.includes(section.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setForm(f => ({ ...f, skills: [...f.skills, section.id] }));
+                                } else {
+                                  setForm(f => ({ ...f, skills: f.skills.filter(id => id !== section.id) }));
+                                }
+                              }}
+                              className="rounded border-gray-300"
+                            />
+                            <div className="flex items-center gap-2">
+                              <div 
+                                className="w-3 h-3 rounded-full" 
+                                style={{ backgroundColor: section.color }}
+                              ></div>
+                              <span className="text-sm text-gray-700 dark:text-gray-300">{section.name}</span>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
                     </label>
                   </>
                 )}

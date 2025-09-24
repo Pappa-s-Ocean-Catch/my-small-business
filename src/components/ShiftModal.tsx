@@ -24,7 +24,7 @@ interface ShiftModalProps {
   };
   selectedDate?: string;
   sections: Array<{ id: string; name: string; active: boolean }>;
-  staff: Array<{ id: string; name: string; is_available: boolean }>;
+  staff: Array<{ id: string; name: string; is_available: boolean; skills: string[] }>;
   staffRates: Array<{ id: string; staff_id: string; rate_type: string; rate: number; effective_date: string; end_date: string; is_current: boolean }>;
   isAdmin: boolean;
   isNewShift: boolean;
@@ -343,7 +343,18 @@ export function ShiftModal({
                   </button>
                   
                   {/* Staff options */}
-                  {staff.filter(s => s.is_available).map((s) => {
+                  {staff.filter(s => {
+                    if (!s.is_available) return false;
+                    
+                    // If no section is selected, show all available staff
+                    if (!formData.section_id) return true;
+                    
+                    // If staff has no skills defined (empty array), they can work in any section
+                    if (!s.skills || s.skills.length === 0) return true;
+                    
+                    // Check if staff has the skill for the selected section
+                    return s.skills.includes(formData.section_id);
+                  }).map((s) => {
                     const hourlyRate = getStaffRateForDate(s.id, currentSelectedDate);
                     const totalCost = calculateTotalCost(s.id);
                     const duration = calculateShiftDuration();

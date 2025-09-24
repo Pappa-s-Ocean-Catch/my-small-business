@@ -8,7 +8,7 @@ import { DragDropCalendar } from "@/components/DragDropCalendar";
 import { Loading } from "@/components/Loading";
 import { useRouter } from "next/navigation";
 
-type Staff = { id: string; name: string; email: string | null; is_available: boolean };
+type Staff = { id: string; name: string; email: string | null; is_available: boolean; skills: string[] };
 type StaffRate = { id: string; staff_id: string; rate: number; rate_type: string; effective_date: string; end_date: string; is_current: boolean; created_at: string };
 type Section = { id: string; name: string; description: string | null; color: string; active: boolean; sort_order: number };
 type Shift = { id: string; staff_id: string | null; start_time: string; end_time: string; notes: string | null; non_billable_hours?: number; section_id?: string | null };
@@ -133,7 +133,8 @@ export default function CalendarPage() {
             id,
             name,
             email,
-            is_available
+            is_available,
+            skills
           `)
           .order("name", { ascending: true }),
         
