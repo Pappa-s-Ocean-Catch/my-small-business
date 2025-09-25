@@ -22,7 +22,7 @@ import {
   CSS 
 } from "@dnd-kit/utilities";
 import { format, addDays, startOfWeek, endOfWeek, isToday, isSameDay, addWeeks, subWeeks } from "date-fns";
-import { FaEdit, FaTrash, FaRedo, FaChevronLeft, FaChevronRight, FaHome, FaPrint, FaPlus, FaMagic, FaEnvelope } from "react-icons/fa";
+import { FaEdit, FaTrash, FaRedo, FaChevronLeft, FaChevronRight, FaHome, FaPrint, FaPlus, FaMagic, FaEnvelope, FaSave, FaLayerGroup } from "react-icons/fa";
 import { X } from "lucide-react";
 import { CalendarToolbar } from "@/components/CalendarToolbar";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
@@ -78,6 +78,24 @@ type StaffHoliday = {
   start_date: string;
   end_date: string;
   reason: string | null;
+};
+
+type TemplateItem = {
+  day_of_week: number; // 0-6 (Sun-Sat)
+  section_id: string | null;
+  staff_id: string | null;
+  start_hhmm: string; // "HH:MM"
+  end_hhmm: string;   // "HH:MM"
+  notes: string | null;
+  non_billable_hours?: number;
+};
+
+type ShiftTemplate = {
+  id: string;
+  name: string;
+  calendar: { items: TemplateItem[] };
+  created_by: string;
+  created_at: string;
 };
 
 interface DragDropCalendarProps {
@@ -298,6 +316,230 @@ export function DragDropCalendar({
   const [editForm, setEditForm] = useState<{ start: string; end: string; notes: string; nonbill: string; section_id: string }>({ start: "", end: "", notes: "", nonbill: "0", section_id: "" });
   const [deleteConfirm, setDeleteConfirm] = useState<{ shift: Shift | null; isOpen: boolean }>({ shift: null, isOpen: false });
   const [assignmentModal, setAssignmentModal] = useState<{ shift: Shift | null; isOpen: boolean }>({ shift: null, isOpen: false });
+  const [templates, setTemplates] = useState<ShiftTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState<boolean>(false);
+  const [saveTemplateModal, setSaveTemplateModal] = useState<{ isOpen: boolean }>({ isOpen: false });
+  const [templateName, setTemplateName] = useState<string>("");
+  const [chooseAutoShiftModal, setChooseAutoShiftModal] = useState<{ isOpen: boolean }>({ isOpen: false });
+  const [templateDeleteConfirm, setTemplateDeleteConfirm] = useState<{ template: ShiftTemplate | null; isOpen: boolean }>({ template: null, isOpen: false });
+
+  const loadTemplates = useCallback(async () => {
+    try {
+      setLoadingTemplates(true);
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase
+        .from('shift_templates')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setTemplates(data || []);
+    } catch (err) {
+      console.error('Failed to load templates', err);
+    } finally {
+      setLoadingTemplates(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAdmin) {
+      void loadTemplates();
+    }
+  }, [isAdmin, loadTemplates]);
+
+  const openSaveTemplate = useCallback(() => {
+    setTemplateName("");
+    setSaveTemplateModal({ isOpen: true });
+  }, []);
+
+  const saveCurrentWeekAsTemplate = useCallback(async () => {
+    try {
+      if (!templateName.trim()) return;
+      const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
+      const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
+
+      // Build template items from current shifts only within the current week
+      const items: TemplateItem[] = shifts
+        .filter((s) => {
+          const d = new Date(s.start_time);
+          return d >= weekStart && d <= weekEnd;
+        })
+        .map((s) => {
+          const start = new Date(s.start_time);
+          const end = new Date(s.end_time);
+          const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+          const start_hhmm = `${pad(start.getHours())}:${pad(start.getMinutes())}`;
+          const end_hhmm = `${pad(end.getHours())}:${pad(end.getMinutes())}`;
+          return {
+            day_of_week: start.getDay(),
+            section_id: s.section_id || null,
+            staff_id: s.staff_id,
+            start_hhmm,
+            end_hhmm,
+            notes: s.notes,
+            non_billable_hours: typeof s.non_billable_hours === 'number' ? s.non_billable_hours : 0,
+          };
+        });
+
+      const supabase = getSupabaseClient();
+      const { error } = await supabase
+        .from('shift_templates')
+        .insert({ name: templateName.trim(), calendar: { items } });
+      if (error) throw error;
+
+      setSaveTemplateModal({ isOpen: false });
+      setTemplateName("");
+      await loadTemplates();
+      setErrorModal({
+        isOpen: true,
+        title: 'Template Saved',
+        message: 'Your current week has been saved as a template.',
+        details: undefined,
+      });
+    } catch (err) {
+      console.error('Save template failed', err);
+      setErrorModal({
+        isOpen: true,
+        title: 'Save Template Error',
+        message: 'Failed to save the template. Please try again.',
+        details: err instanceof Error ? err.message : 'Unknown error',
+      });
+    }
+  }, [currentWeek, loadTemplates, shifts, templateName]);
+
+  const openChooseAutoShift = useCallback(() => {
+    setChooseAutoShiftModal({ isOpen: true });
+    void loadTemplates();
+  }, [loadTemplates]);
+
+  const applyTemplateToCurrentWeek = useCallback(async (template: ShiftTemplate) => {
+    try {
+      const supabase = getSupabaseClient();
+      const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
+      const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
+
+      // Load existing shifts in current week to prevent duplicates by day+section+start_hhmm
+      const { data: currentWeekShifts, error: curErr } = await supabase
+        .from('shifts')
+        .select('*')
+        .gte('start_time', weekStart.toISOString())
+        .lte('start_time', weekEnd.toISOString());
+      if (curErr) throw curErr;
+
+      const existingKeys = new Set<string>();
+      (currentWeekShifts || []).forEach((s) => {
+        const d = new Date(s.start_time);
+        const dow = d.getDay();
+        const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+        const hhmm = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        const sectionKey = s.section_id || 'no-section';
+        existingKeys.add(`${dow}-${sectionKey}-${hhmm}`);
+      });
+
+      const items = Array.isArray(template.calendar?.items) ? template.calendar.items : [];
+
+      const toCreate = items
+        .filter((it) => it && typeof it.day_of_week === 'number')
+        .filter((it) => !existingKeys.has(`${it.day_of_week}-${it.section_id || 'no-section'}-${it.start_hhmm}`))
+        .map((it) => {
+          const dayDate = new Date(weekStart);
+          dayDate.setDate(weekStart.getDate() + it.day_of_week - (weekStart.getDay()));
+          // Ensure we align Monday-start weeks; compute real date: startOfWeek is Monday (1)
+          // So build by adding delta from Monday
+          const mondayDow = 1; // Monday
+          const delta = (it.day_of_week - mondayDow + 7) % 7;
+          const baseDate = new Date(weekStart);
+          baseDate.setDate(weekStart.getDate() + delta);
+
+          const [sh, sm] = it.start_hhmm.split(':').map((v) => Number(v));
+          const [eh, em] = it.end_hhmm.split(':').map((v) => Number(v));
+
+          const start = new Date(baseDate);
+          start.setHours(sh, sm, 0, 0);
+          const end = new Date(baseDate);
+          end.setHours(eh, em, 0, 0);
+          if (end <= start) {
+            // Skip invalid
+            return null;
+          }
+          return {
+            staff_id: it.staff_id,
+            section_id: it.section_id,
+            start_time: start.toISOString(),
+            end_time: end.toISOString(),
+            notes: it.notes,
+            non_billable_hours: typeof it.non_billable_hours === 'number' ? it.non_billable_hours : 0,
+          };
+        })
+        .filter((v): v is {
+          staff_id: string | null;
+          section_id: string | null;
+          start_time: string;
+          end_time: string;
+          notes: string | null;
+          non_billable_hours: number;
+        } => Boolean(v));
+
+      if (toCreate.length === 0) {
+        setErrorModal({
+          isOpen: true,
+          title: 'No Shifts Created',
+          message: 'All shifts in this template already exist for the current week or are invalid.',
+          details: undefined,
+        });
+        return;
+      }
+
+      const { error } = await supabase.from('shifts').insert(toCreate);
+      if (error) throw error;
+
+      setChooseAutoShiftModal({ isOpen: false });
+      setErrorModal({
+        isOpen: true,
+        title: 'Template Applied',
+        message: `Created ${toCreate.length} shifts from template '${template.name}'.`,
+        details: 'The calendar will refresh to show the new shifts.',
+      });
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch (err) {
+      console.error('Apply template failed', err);
+      setErrorModal({
+        isOpen: true,
+        title: 'Apply Template Error',
+        message: 'Failed to apply the selected template.',
+        details: err instanceof Error ? err.message : 'Unknown error',
+      });
+    }
+  }, [currentWeek]);
+
+  const confirmDeleteTemplate = useCallback(async () => {
+    if (!templateDeleteConfirm.template) return;
+    try {
+      const supabase = getSupabaseClient();
+      const { error } = await supabase
+        .from('shift_templates')
+        .delete()
+        .eq('id', templateDeleteConfirm.template.id);
+      if (error) throw error;
+      setTemplateDeleteConfirm({ template: null, isOpen: false });
+      await loadTemplates();
+      setErrorModal({
+        isOpen: true,
+        title: 'Template Deleted',
+        message: 'The template has been deleted successfully.',
+        details: undefined,
+      });
+    } catch (err) {
+      console.error('Delete template failed', err);
+      setErrorModal({
+        isOpen: true,
+        title: 'Delete Template Error',
+        message: 'Failed to delete the template. Please try again.',
+        details: err instanceof Error ? err.message : 'Unknown error',
+      });
+    }
+  }, [loadTemplates, templateDeleteConfirm.template]);
   const [autoShiftConfirm, setAutoShiftConfirm] = useState<{ isOpen: boolean; summary: AutoShiftSummary | null }>({ isOpen: false, summary: null });
   const [errorModal, setErrorModal] = useState<{ isOpen: boolean; title: string; message: string; details?: string }>({ isOpen: false, title: "", message: "" });
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -1100,7 +1342,7 @@ export function DragDropCalendar({
       )}
 
       {/* Main calendar content */}
-      <div className="p-4 w-full print-hide" data-calendar-container>
+      <div className="p-4 w-full print-hide pb-28 md:pb-32" data-calendar-container>
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3 calendar-toolbar">
         <div>
@@ -1145,32 +1387,7 @@ export function DragDropCalendar({
             Next
             <FaChevronRight className="w-3 h-3" />
           </button>
-          {isAdmin && (
-            <>
-              <button
-                onClick={handlePrint}
-                className="flex items-center gap-1 px-3 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors print-button"
-              >
-                <FaPrint className="w-3 h-3" />
-                Print
-              </button>
-              <button
-                onClick={handleSendRoster}
-                disabled={sendingRoster}
-                className="flex items-center gap-1 px-3 py-1 text-sm bg-purple-600 text-white hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed rounded-lg transition-colors"
-              >
-                <FaEnvelope className="w-3 h-3" />
-                {sendingRoster ? 'Sending...' : 'Send Roster'}
-              </button>
-              <button
-                onClick={handleAutoShift}
-                className="flex items-center gap-1 px-3 py-1 text-sm bg-green-600 text-white hover:bg-green-700 rounded-lg transition-colors"
-              >
-                <FaMagic className="w-3 h-3" />
-                Auto Shift
-              </button>
-            </>
-          )}
+          {isAdmin && null}
         </div>
       </div>
 
@@ -1192,71 +1409,7 @@ export function DragDropCalendar({
         </div>
       )}
 
-      {/* Debug Button */}
-      <div className="mt-6 mb-4 flex justify-end">
-        <button
-          onClick={async () => {
-            // Collect all debug information
-            const debugInfo = {
-              timestamp: new Date().toISOString(),
-              browser: {
-                userAgent: navigator.userAgent,
-                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                offset: new Date().getTimezoneOffset(),
-                language: navigator.language
-              },
-              calendar: {
-                currentWeek: currentWeek.toISOString(),
-                currentWeekLocal: currentWeek.toLocaleDateString('en-AU', { timeZone: 'Australia/Melbourne' }),
-                startOfThisWeek: startOfThisWeek.toISOString(),
-                startOfThisWeekLocal: startOfThisWeek.toLocaleDateString('en-AU', { timeZone: 'Australia/Melbourne' }),
-                weekDays: weekDays.map(day => ({
-                  date: day.toISOString(),
-                  dateLocal: day.toLocaleDateString('en-AU', { timeZone: 'Australia/Melbourne' }),
-                  dayName: day.toLocaleDateString('en-AU', { weekday: 'long', timeZone: 'Australia/Melbourne' })
-                }))
-              },
-              shifts: shifts.map(shift => ({
-                id: shift.id,
-                start_time: shift.start_time,
-                end_time: shift.end_time,
-                start_time_parsed: new Date(shift.start_time).toString(),
-                end_time_parsed: new Date(shift.end_time).toString(),
-                start_time_local: new Date(shift.start_time).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' }),
-                end_time_local: new Date(shift.end_time).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' }),
-                section_id: shift.section_id,
-                staff_id: shift.staff_id
-              })),
-              sections: sections.map(section => ({
-                id: section.id,
-                name: section.name,
-                active: section.active
-              })),
-              staff: staff.map(s => ({
-                id: s.id,
-                name: s.name,
-                is_available: s.is_available
-              }))
-            };
-
-            // Format as JSON string
-            const debugString = JSON.stringify(debugInfo, null, 2);
-            
-            try {
-              await navigator.clipboard.writeText(debugString);
-              alert('Debug information copied to clipboard!');
-              console.log('🔍 Full Debug Information:', debugInfo);
-            } catch (err) {
-              console.error('Failed to copy to clipboard:', err);
-              console.log('🔍 Full Debug Information (manual copy):', debugString);
-              alert('Failed to copy to clipboard. Check console for debug info.');
-            }
-          }}
-          className="px-3 py-1 bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/30 transition-colors text-xs"
-        >
-          🔍 Copy Debug Info
-        </button>
-      </div>
+      
 
       {/* Calendar Grid */}
       <div className="mt-6">
@@ -1352,6 +1505,52 @@ export function DragDropCalendar({
         </DragOverlay>
       </DndContext>
       </div>
+
+      {/* Fixed bottom action bar for admins */}
+      {isAdmin && (
+        <div className="fixed inset-x-0 bottom-4 md:bottom-6 z-40 print-hide group h-12 md:h-16">
+          {/* Hover catcher area (transparent, full width) */}
+          <div className="absolute inset-x-0 bottom-0 h-12 md:h-16"></div>
+          {/* Action bar container - hidden until hover */}
+          <div className="mx-auto max-w-7xl px-4 pb-4 pointer-events-none">
+            <div className="transform translate-y-6 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-200 ease-out pointer-events-auto">
+              <div className="w-full bg-transparent">
+                <div className="flex flex-wrap items-center justify-center gap-2 p-3">
+                  <button
+                    onClick={handlePrint}
+                    className="flex items-center gap-3 px-4 py-3 text-base bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors"
+                  >
+                    <FaPrint className="w-3 h-3" />
+                    Print
+                  </button>
+                  <button
+                    onClick={handleSendRoster}
+                    disabled={sendingRoster}
+                    className="flex items-center gap-3 px-4 py-3 text-base bg-purple-600 text-white hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed rounded-lg transition-colors"
+                  >
+                    <FaEnvelope className="w-3 h-3" />
+                    {sendingRoster ? 'Sending...' : 'Send Roster'}
+                  </button>
+                  <button
+                    onClick={openSaveTemplate}
+                    className="flex items-center gap-3 px-4 py-3 text-base bg-amber-600 text-white hover:bg-amber-700 rounded-lg transition-colors"
+                  >
+                    <FaSave className="w-3 h-3" />
+                    Save as Template
+                  </button>
+                  <button
+                    onClick={openChooseAutoShift}
+                    className="flex items-center gap-3 px-4 py-3 text-base bg-green-600 text-white hover:bg-green-700 rounded-lg transition-colors"
+                  >
+                    <FaMagic className="w-3 h-3" />
+                    Auto Shift
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Shift Modal */}
       <ShiftModal
@@ -1599,6 +1798,124 @@ export function DragDropCalendar({
         </div>
       )}
 
+      {/* Save Template Modal */}
+      {saveTemplateModal.isOpen && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm grid place-items-center p-4 z-50">
+          <div className="w-full max-w-md bg-white dark:bg-neutral-950 rounded-2xl shadow-2xl p-0 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-neutral-800">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Save Current Week as Template</h2>
+              <button
+                type="button"
+                onClick={() => setSaveTemplateModal({ isOpen: false })}
+                className="h-8 w-8 rounded-lg inline-grid place-items-center hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
+              >
+                <X className="size-4 text-gray-500 dark:text-gray-400" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Template Name</label>
+              <input
+                type="text"
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                placeholder="e.g. Busy Week Setup"
+                className="w-full h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900 border-gray-300 dark:border-neutral-700 text-gray-900 dark:text-white"
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400">This will capture all shifts in the current week.</p>
+            </div>
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-neutral-800 bg-gray-50/50 dark:bg-neutral-900/50">
+              <button
+                onClick={() => setSaveTemplateModal({ isOpen: false })}
+                className="h-10 px-4 rounded-lg border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveCurrentWeekAsTemplate}
+                disabled={!templateName.trim()}
+                className="h-10 px-4 rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+              >
+                Save Template
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Choose Auto Shift Source Modal */}
+      {chooseAutoShiftModal.isOpen && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm grid place-items-center p-4 z-50">
+          <div className="w-full max-w-xl bg-white dark:bg-neutral-950 rounded-2xl shadow-2xl p-0 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-neutral-800">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Auto Shift</h2>
+              <button
+                type="button"
+                onClick={() => setChooseAutoShiftModal({ isOpen: false })}
+                className="h-8 w-8 rounded-lg inline-grid place-items-center hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
+              >
+                <X className="size-4 text-gray-500 dark:text-gray-400" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <button
+                onClick={() => { setChooseAutoShiftModal({ isOpen: false }); void (async () => { await handleAutoShift(); })(); }}
+                className="w-full flex items-center gap-3 p-3 border border-gray-200 dark:border-neutral-700 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+              >
+                <FaMagic className="w-4 h-4 text-green-600" />
+                <div className="text-left">
+                  <div className="font-medium text-gray-900 dark:text-white">Copy from Previous Week</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Uses the same shifts from last week</div>
+                </div>
+              </button>
+
+              <div className="pt-2">
+                <div className="flex items-center gap-2 mb-2">
+                  <FaLayerGroup className="w-3 h-3 text-gray-500" />
+                  <div className="text-sm font-semibold text-gray-800 dark:text-gray-200">Saved Templates</div>
+                </div>
+                {loadingTemplates && (
+                  <div className="text-sm text-gray-500 dark:text-gray-400">Loading templates...</div>
+                )}
+                {!loadingTemplates && templates.length === 0 && (
+                  <div className="text-sm text-gray-500 dark:text-gray-400">No templates yet. Save your current week to create one.</div>
+                )}
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {templates.map((t) => (
+                    <div
+                      key={t.id}
+                      className="w-full p-3 border border-gray-200 dark:border-neutral-700 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors flex items-center justify-between gap-3"
+                    >
+                      <button
+                        onClick={() => void (async () => { await applyTemplateToCurrentWeek(t); })()}
+                        className="flex-1 text-left"
+                      >
+                        <div className="font-medium text-gray-900 dark:text-white">{t.name}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">{new Date(t.created_at).toLocaleString()}</div>
+                      </button>
+                      <button
+                        onClick={() => setTemplateDeleteConfirm({ template: t, isOpen: true })}
+                        className="px-2 py-1 text-xs rounded bg-red-600 text-white hover:bg-red-700"
+                        title="Delete template"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-neutral-800 bg-gray-50/50 dark:bg-neutral-900/50">
+              <button
+                onClick={() => setChooseAutoShiftModal({ isOpen: false })}
+                className="h-10 px-4 rounded-lg border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Error Modal */}
       <ErrorModal
         isOpen={errorModal.isOpen}
@@ -1606,6 +1923,18 @@ export function DragDropCalendar({
         title={errorModal.title}
         message={errorModal.message}
         details={errorModal.details}
+      />
+
+      {/* Delete Template Confirmation */}
+      <ConfirmationDialog
+        isOpen={templateDeleteConfirm.isOpen}
+        onClose={() => setTemplateDeleteConfirm({ template: null, isOpen: false })}
+        onConfirm={confirmDeleteTemplate}
+        title="Delete Template"
+        message={`Are you sure you want to delete template '${templateDeleteConfirm.template?.name ?? ''}'? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
       />
       </div>
     </>

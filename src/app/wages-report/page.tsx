@@ -52,6 +52,7 @@ export default function WagesReportPage() {
   const [staffRates, setStaffRates] = useState<StaffRate[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [instructions, setInstructions] = useState<StaffPaymentInstruction[]>([]);
+  const [holidays, setHolidays] = useState<{ date: string; markup_percentage: number; markup_amount: number }[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
   const reloadWeek = useCallback((base: Date) => {
@@ -67,7 +68,7 @@ export default function WagesReportPage() {
     setLoading(true);
     try {
       const supabase = getSupabaseClient();
-      const [{ data: staffData, error: staffErr }, { data: ratesData, error: ratesErr }, { data: shiftData, error: shiftErr }] = await Promise.all([
+      const [{ data: staffData, error: staffErr }, { data: ratesData, error: ratesErr }, { data: shiftData, error: shiftErr }, { data: holidayData, error: holidayErr }] = await Promise.all([
         supabase.from("staff").select("id, name"),
         supabase.from("staff_rates").select("*"),
         supabase
@@ -75,15 +76,27 @@ export default function WagesReportPage() {
           .select("id, staff_id, start_time, end_time, non_billable_hours")
           .gte("start_time", weekStart.toISOString())
           .lte("start_time", weekEnd.toISOString()),
+        supabase
+          .from("public_holidays")
+          .select("holiday_date, markup_percentage, markup_amount")
+          .gte("holiday_date", weekStart.toISOString().split('T')[0])
+          .lte("holiday_date", weekEnd.toISOString().split('T')[0])
+          .eq("is_active", true),
       ]);
 
       if (staffErr) throw new Error(staffErr.message);
       if (ratesErr) throw new Error(ratesErr.message);
       if (shiftErr) throw new Error(shiftErr.message);
+      if (holidayErr) throw new Error(holidayErr.message);
 
       setStaff((staffData as Staff[]) || []);
       setStaffRates((ratesData as StaffRate[]) || []);
       setShifts((shiftData as Shift[]) || []);
+      setHolidays((holidayData as { holiday_date: string; markup_percentage: number; markup_amount: number }[])?.map(h => ({
+        date: h.holiday_date,
+        markup_percentage: h.markup_percentage,
+        markup_amount: h.markup_amount
+      })) || []);
       if (staffData && staffData.length > 0) {
         const { data: instr } = await supabase
           .from("staff_payment_instructions")
@@ -145,7 +158,21 @@ export default function WagesReportPage() {
         );
       }
       
-      return rate?.rate || 0;
+      const baseRate = rate?.rate || 0;
+      
+      // Check for holiday adjustments
+      const holiday = holidays.find(h => h.date === dateStr);
+      if (holiday) {
+        if (holiday.markup_percentage > 0) {
+          // Apply percentage markup
+          return baseRate * (holiday.markup_percentage / 100.0);
+        } else if (holiday.markup_amount > 0) {
+          // Apply fixed amount markup
+          return baseRate + holiday.markup_amount;
+        }
+      }
+      
+      return baseRate;
     }
     const staffMap: Record<string, { staff: Staff; cells: DayCell[]; totalHours: number; totalAmount: number }> = {};
     for (const s of staff) {
@@ -208,7 +235,7 @@ export default function WagesReportPage() {
     const rows = Object.values(staffMap);
     rows.sort((a, b) => a.staff.name.localeCompare(b.staff.name));
     return rows;
-  }, [staff, staffRates, shifts, daysOfWeek, instructions]);
+  }, [staff, staffRates, shifts, daysOfWeek, instructions, holidays]);
 
   const exportPdf = () => {
     try {

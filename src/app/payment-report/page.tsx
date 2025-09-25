@@ -86,6 +86,7 @@ export default function PaymentReportPage() {
   });
   const [reportData, setReportData] = useState<PaymentReportRow[]>([]);
   const [instructions, setInstructions] = useState<StaffPaymentInstruction[]>([]);
+  const [holidays, setHolidays] = useState<{ date: string; markup_percentage: number; markup_amount: number }[]>([]);
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -115,15 +116,26 @@ export default function PaymentReportPage() {
 
   const fetchData = useCallback(async (): Promise<void> => {
     const supabase = getSupabaseClient();
-    const [{ data: staffData }, { data: ratesData }, { data: shiftData }] = await Promise.all([
+    const [{ data: staffData }, { data: ratesData }, { data: shiftData }, { data: holidayData }] = await Promise.all([
       supabase.from("staff").select("id, name, email"),
       supabase.from("staff_rates").select("*"),
-      supabase.from("shifts").select("id, staff_id, start_time, end_time, notes, non_billable_hours, section_id")
+      supabase.from("shifts").select("id, staff_id, start_time, end_time, notes, non_billable_hours, section_id"),
+      supabase
+        .from("public_holidays")
+        .select("holiday_date, markup_percentage, markup_amount")
+        .gte("holiday_date", dateRange.start.toISOString().split('T')[0])
+        .lte("holiday_date", dateRange.end.toISOString().split('T')[0])
+        .eq("is_active", true)
     ]);
 
     setStaff(staffData || []);
     setStaffRates(ratesData || []);
     setShifts(shiftData || []);
+    setHolidays((holidayData as { holiday_date: string; markup_percentage: number; markup_amount: number }[])?.map(h => ({
+      date: h.holiday_date,
+      markup_percentage: h.markup_percentage,
+      markup_amount: h.markup_amount
+    })) || []);
     if (staffData && staffData.length > 0) {
       const staffIds = staffData.map(s => s.id);
       const { data: instr } = await supabase
@@ -138,7 +150,7 @@ export default function PaymentReportPage() {
       setInstructions([]);
     }
     setLoading(false);
-  }, []);
+  }, [dateRange]);
 
   useEffect(() => {
     void fetchData();
@@ -175,7 +187,21 @@ export default function PaymentReportPage() {
         );
       }
       
-      return rate?.rate || 0;
+      const baseRate = rate?.rate || 0;
+      
+      // Check for holiday adjustments
+      const holiday = holidays.find(h => h.date === dateStr);
+      if (holiday) {
+        if (holiday.markup_percentage > 0) {
+          // Apply percentage markup
+          return baseRate * (holiday.markup_percentage / 100.0);
+        } else if (holiday.markup_amount > 0) {
+          // Apply fixed amount markup
+          return baseRate + holiday.markup_amount;
+        }
+      }
+      
+      return baseRate;
     }
     const reportRows: PaymentReportRow[] = [];
     
@@ -314,7 +340,7 @@ export default function PaymentReportPage() {
     reportRows.sort((a, b) => a.staffName.localeCompare(b.staffName));
     
     setReportData(reportRows);
-  }, [shifts, staff, staffRates, dateRange, instructions]);
+  }, [shifts, staff, staffRates, dateRange, instructions, holidays]);
 
   useEffect(() => {
     generateReportData();

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase/client";
-import { FaUsers, FaStore, FaUserShield, FaChartPie, FaFileAlt, FaMoneyBillWave, FaPalette, FaCog, FaRobot, FaBox, FaTags, FaWarehouse, FaUtensils } from "react-icons/fa";
+import { FaUsers, FaStore, FaUserShield, FaChartPie, FaFileAlt, FaMoneyBillWave, FaPalette, FaCog, FaRobot, FaBox, FaTags, FaWarehouse, FaUtensils, FaCalendarAlt } from "react-icons/fa";
 
 export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 'horizontal' | 'vertical' }) {
   const [userRole, setUserRole] = useState<'admin' | 'staff' | null>(null);
@@ -134,6 +134,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
               <Link className={getLinkClasses("/sections")} href="/sections" aria-label="Sections">Sections</Link>
               <Link className={getLinkClasses("/shop/menu-screens")} href="/shop/menu-screens" aria-label="Menu Builder">Menu Builder</Link>
               <Link className={getLinkClasses("/planner")} href="/planner" aria-label="AI Planner">AI Planner</Link>
+              <Link className={getLinkClasses("/holidays")} href="/holidays" aria-label="Public Holidays">Public Holidays</Link>
             </div>
           </div>
         ) : (
@@ -197,6 +198,17 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                       <div>
                         <div className="font-medium text-gray-900 dark:text-white">AI Planner</div>
                         <div className="text-xs text-gray-600 dark:text-gray-400">Generate optimal shift assignments with AI</div>
+                      </div>
+                    </div>
+                  </Link>
+                  <Link href="/holidays" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 text-green-600 dark:text-green-400">
+                        <FaCalendarAlt className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white">Public Holidays</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">Manage holidays and staff rate adjustments</div>
                       </div>
                     </div>
                   </Link>

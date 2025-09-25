@@ -209,6 +209,42 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE;
 
+-- Function to get staff rate with holiday adjustments
+CREATE OR REPLACE FUNCTION get_staff_rate_with_holiday_adjustment(staff_id UUID, date DATE DEFAULT CURRENT_DATE)
+RETURNS DECIMAL AS $$
+DECLARE
+  base_rate DECIMAL;
+  holiday_adjustment RECORD;
+  adjusted_rate DECIMAL;
+BEGIN
+  -- Get base rate for the date
+  SELECT get_staff_rate_for_day(staff_id, EXTRACT(DOW FROM date)::INTEGER, date) INTO base_rate;
+  
+  -- Check for holiday adjustments
+  SELECT markup_percentage, markup_amount INTO holiday_adjustment
+  FROM public_holidays 
+  WHERE holiday_date = date 
+    AND is_active = true
+  LIMIT 1;
+  
+  -- Apply holiday adjustments if found
+  IF FOUND THEN
+    IF holiday_adjustment.markup_percentage > 0 THEN
+      -- Apply percentage markup
+      adjusted_rate := base_rate * (holiday_adjustment.markup_percentage / 100.0);
+    ELSE
+      -- Apply fixed amount markup
+      adjusted_rate := base_rate + COALESCE(holiday_adjustment.markup_amount, 0);
+    END IF;
+  ELSE
+    -- No holiday adjustment, return base rate
+    adjusted_rate := base_rate;
+  END IF;
+  
+  RETURN COALESCE(adjusted_rate, 0);
+END;
+$$ LANGUAGE plpgsql STABLE;
+
 CREATE OR REPLACE FUNCTION get_current_payment_instructions(staff_id UUID, date DATE DEFAULT CURRENT_DATE)
 RETURNS TABLE(
     id UUID,
