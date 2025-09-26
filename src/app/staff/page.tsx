@@ -177,26 +177,27 @@ export default function StaffPage() {
   });
 
   const getCurrentRate = (staffId: string): number => {
+    const today = new Date().toISOString().slice(0, 10);
     const staffRatesForThisStaff = staffRates.filter(r => r.staff_id === staffId);
-    console.log('🔍 getCurrentRate debug:', {
-      staffId,
-      totalRates: staffRates.length,
-      staffRatesForThisStaff,
-      allRates: staffRates
-    });
     
-    // First try to find default rate
-    let rate = staffRates.find(r => 
-      r.staff_id === staffId && 
-      r.rate_type === 'default'
+    // Prefer current default rate within effective window
+    let rate = staffRatesForThisStaff.find(r => 
+      r.rate_type === 'default' &&
+      r.is_current === true &&
+      r.effective_date <= today &&
+      r.end_date >= today
     );
     
-    // If no default rate, try to find any rate for this staff (fallback)
+    // Fallback: any current default rate
     if (!rate) {
-      rate = staffRates.find(r => r.staff_id === staffId);
+      rate = staffRatesForThisStaff.find(r => r.rate_type === 'default' && r.is_current === true);
     }
     
-    console.log('🎯 Found rate:', rate);
+    // Last fallback: any rate for this staff
+    if (!rate) {
+      rate = staffRatesForThisStaff[0];
+    }
+    
     return rate?.rate || 0;
   };
 
