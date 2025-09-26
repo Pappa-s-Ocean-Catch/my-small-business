@@ -545,6 +545,7 @@ export function DragDropCalendar({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [isCtrlPressed, setIsCtrlPressed] = useState(false);
   const [sendingRoster, setSendingRoster] = useState(false);
+  const [activeDayIndex, setActiveDayIndex] = useState<number>(0);
 
   // Helper function to convert UTC time to Melbourne local time for display
   const formatTimeForDisplay = useCallback((isoString: string) => {
@@ -597,6 +598,11 @@ export function DragDropCalendar({
 
   const startOfThisWeek = startOfWeek(currentWeek, { weekStartsOn: 1 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(startOfThisWeek, i));
+  
+  useEffect(() => {
+    const todayIndex = weekDays.findIndex(d => isToday(d));
+    setActiveDayIndex(todayIndex >= 0 ? todayIndex : 0);
+  }, [currentWeek]);
   
 
   // Finance helpers (admin only)
@@ -1368,24 +1374,24 @@ export function DragDropCalendar({
             )}
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto justify-between sm:justify-end">
           <button
             onClick={() => onWeekChange(addDays(currentWeek, -7))}
-            className="flex items-center gap-1 px-3 py-1 text-sm bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 rounded-lg transition-colors"
+            className="flex items-center justify-center gap-1 px-3 py-2 text-sm bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 rounded-lg transition-colors flex-1 sm:flex-initial"
           >
             <FaChevronLeft className="w-3 h-3" />
             Prev
           </button>
           <button
             onClick={() => onWeekChange(new Date())}
-            className="flex items-center gap-1 px-3 py-1 text-sm bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 rounded-lg transition-colors"
+            className="flex items-center justify-center gap-1 px-3 py-2 text-sm bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 rounded-lg transition-colors flex-1 sm:flex-initial"
           >
             <FaHome className="w-3 h-3" />
             Today
           </button>
           <button
             onClick={() => onWeekChange(addDays(currentWeek, 7))}
-            className="flex items-center gap-1 px-3 py-1 text-sm bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 rounded-lg transition-colors"
+            className="flex items-center justify-center gap-1 px-3 py-2 text-sm bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 rounded-lg transition-colors flex-1 sm:flex-initial"
           >
             Next
             <FaChevronRight className="w-3 h-3" />
@@ -1416,6 +1422,77 @@ export function DragDropCalendar({
 
       {/* Calendar Grid */}
       <div className="mt-6">
+      {/* Mobile: single-day view with quick nav */}
+      <div className="md:hidden">
+        <div className="flex flex-wrap gap-2 pb-2 justify-between">
+          {weekDays.map((day, idx) => {
+            const isActive = idx === activeDayIndex;
+            const today = isToday(day);
+            return (
+              <button
+                key={day.toISOString()}
+                onClick={() => setActiveDayIndex(idx)}
+                className={`px-2.5 py-1.5 rounded-md border transition-colors text-xs ${
+                  isActive
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : today
+                      ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-900'
+                      : 'bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-neutral-700'
+                }`}
+                aria-current={isActive ? 'date' : undefined}
+              >
+                <div className="font-semibold leading-none">{format(day, 'EEE')}</div>
+                <div className="text-[10px] leading-none">{format(day, 'dd/MM')}</div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Selected day header removed as it's visible in the day chips */}
+
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="mt-3 space-y-2">
+            {sections.map((section) => (
+              <div key={section.id} className="grid gap-2 mb-2" style={{ gridTemplateColumns: `120px 1fr` }}>
+                {/* Section label (column 1) */}
+                <div className="p-3 text-sm font-medium text-white rounded-lg flex items-center gap-2" style={{ backgroundColor: section.color }}>
+                  <div className="w-3 h-3 rounded-full bg-white/20"></div>
+                  <span className="font-semibold">{section.name}</span>
+                </div>
+                {/* Shift allocation droppable (column 2) */}
+                <SectionDayCell
+                  key={`${section.id}-${weekDays[activeDayIndex].toISOString()}`}
+                  day={weekDays[activeDayIndex]}
+                  section={section}
+                  shifts={shifts.filter(s => {
+                    if (s.section_id !== section.id) return false;
+                    const shiftDate = new Date(s.start_time);
+                    const shiftDateMelbourne = shiftDate.toLocaleDateString('en-CA', { timeZone: 'Australia/Melbourne' });
+                    const dayDateMelbourne = weekDays[activeDayIndex].toLocaleDateString('en-CA', { timeZone: 'Australia/Melbourne' });
+                    return shiftDateMelbourne === dayDateMelbourne;
+                  })}
+                  staff={staff}
+                  isAdmin={isAdmin}
+                  isCtrlPressed={isCtrlPressed}
+                  onShiftCreate={handleShiftCreate}
+                  onShiftEdit={handleShiftEdit}
+                  onShiftDelete={handleShiftDelete}
+                  onShiftAssign={handleShiftAssign}
+                  formatTimeForDisplay={formatTimeForDisplay}
+                />
+              </div>
+            ))}
+          </div>
+        </DndContext>
+      </div>
+
+      {/* Desktop and tablets: weekly grid */}
+      <div className="hidden md:block">
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -1508,45 +1585,46 @@ export function DragDropCalendar({
         </DragOverlay>
       </DndContext>
       </div>
+      </div>
 
       {/* Fixed bottom action bar for admins */}
       {isAdmin && (
-        <div className="fixed inset-x-0 bottom-4 md:bottom-6 z-40 print-hide group h-12 md:h-16">
+        <div className="fixed inset-x-0 bottom-4 md:bottom-6 z-40 print-hide group h-14 md:h-16">
           {/* Hover catcher area (transparent, full width) */}
-          <div className="absolute inset-x-0 bottom-0 h-12 md:h-16"></div>
-          {/* Action bar container - hidden until hover */}
+          <div className="absolute inset-x-0 bottom-0 h-14 md:h-16"></div>
+          {/* Action bar container - always visible on mobile, hover-reveal on md+ */}
           <div className="mx-auto max-w-7xl px-4 pb-4 pointer-events-none">
-            <div className="transform translate-y-6 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-200 ease-out pointer-events-auto">
+            <div className="transform translate-y-0 opacity-100 md:translate-y-6 md:opacity-0 md:group-hover:translate-y-0 md:group-hover:opacity-100 transition-all duration-200 ease-out pointer-events-auto">
               <div className="w-full bg-transparent">
-                <div className="flex flex-wrap items-center justify-center gap-2 p-3">
+                <div className="flex md:flex-wrap flex-nowrap items-center justify-center gap-3 p-3">
                   <button
                     onClick={handlePrint}
-                    className="flex items-center gap-3 px-4 py-3 text-base bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors"
+                    className="flex items-center justify-center gap-2 px-4 py-3 md:px-5 md:py-3.5 text-base bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors"
                   >
-                    <FaPrint className="w-3 h-3" />
-                    Print
+                    <FaPrint className="w-5 h-5 md:w-4 md:h-4" />
+                    <span className="hidden md:inline">Print</span>
                   </button>
                   <button
                     onClick={handleSendRoster}
                     disabled={sendingRoster}
-                    className="flex items-center gap-3 px-4 py-3 text-base bg-purple-600 text-white hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed rounded-lg transition-colors"
+                    className="flex items-center justify-center gap-2 px-4 py-3 md:px-5 md:py-3.5 text-base bg-purple-600 text-white hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed rounded-lg transition-colors"
                   >
-                    <FaEnvelope className="w-3 h-3" />
-                    {sendingRoster ? 'Sending...' : 'Send Roster'}
+                    <FaEnvelope className="w-5 h-5 md:w-4 md:h-4" />
+                    <span className="hidden md:inline">{sendingRoster ? 'Sending...' : 'Send Roster'}</span>
                   </button>
                   <button
                     onClick={openSaveTemplate}
-                    className="flex items-center gap-3 px-4 py-3 text-base bg-amber-600 text-white hover:bg-amber-700 rounded-lg transition-colors"
+                    className="flex items-center justify-center gap-2 px-4 py-3 md:px-5 md:py-3.5 text-base bg-amber-600 text-white hover:bg-amber-700 rounded-lg transition-colors"
                   >
-                    <FaSave className="w-3 h-3" />
-                    Save as Template
+                    <FaSave className="w-5 h-5 md:w-4 md:h-4" />
+                    <span className="hidden md:inline">Save as Template</span>
                   </button>
                   <button
                     onClick={openChooseAutoShift}
-                    className="flex items-center gap-3 px-4 py-3 text-base bg-green-600 text-white hover:bg-green-700 rounded-lg transition-colors"
+                    className="flex items-center justify-center gap-2 px-4 py-3 md:px-5 md:py-3.5 text-base bg-green-600 text-white hover:bg-green-700 rounded-lg transition-colors"
                   >
-                    <FaMagic className="w-3 h-3" />
-                    Auto Shift
+                    <FaMagic className="w-5 h-5 md:w-4 md:h-4" />
+                    <span className="hidden md:inline">Auto Shift</span>
                   </button>
                 </div>
               </div>
