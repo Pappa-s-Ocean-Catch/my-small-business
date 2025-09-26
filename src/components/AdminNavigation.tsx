@@ -120,9 +120,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
       <Link className={getLinkClasses("/")} href="/" aria-label="Dashboard">Dashboard</Link>
       
       {/* Work shift (Calendar) - visible to authenticated users only, second item */}
-      {userRole !== null && (
-        <Link className={getLinkClasses("/calendar")} href="/calendar" aria-label="Work shift">Work shift</Link>
-      )}
+      <Link className={getLinkClasses("/calendar")} href="/calendar" aria-label="Work shift">Work shift</Link>
 
       {/* Management group - Admin only */}
       {userRole === 'admin' && (

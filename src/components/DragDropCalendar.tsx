@@ -1785,7 +1785,7 @@ export function DragDropCalendar({
       {/* Assignment Modal */}
       {assignmentModal.isOpen && assignmentModal.shift && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-700 shadow-2xl max-w-md w-full p-6">
+          <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-700 shadow-2xl max-w-md w-full p-6 max-h-[85vh] overflow-y-auto">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
               Assign Staff to Shift
             </h3>
@@ -1793,7 +1793,7 @@ export function DragDropCalendar({
               {formatTimeForDisplay(assignmentModal.shift.start_time)} - {formatTimeForDisplay(assignmentModal.shift.end_time)}
             </p>
             
-            <div className="space-y-2 mb-6">
+            <div className="space-y-2 mb-6 overflow-y-auto max-h-[60vh] pr-1">
               <button
                 onClick={() => handleStaffAssignment(null)}
                 className="w-full p-3 text-left border border-gray-200 dark:border-neutral-700 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
