@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { 
   DndContext, 
   DragEndEvent, 
@@ -164,64 +164,69 @@ function DraggableShift({ shift, staff, isAdmin, onEdit, onDelete, onAssign, for
         isAdmin ? 'cursor-move hover:shadow-md' : 'cursor-default'
       }`}
     >
-        <div className="text-xs">
-          <div className="font-medium text-gray-900 dark:text-white">
-            {formatTimeForDisplay(shift.start_time)} - {formatTimeForDisplay(shift.end_time)}
+      <div className="text-xs">
+        <div className="flex items-center justify-between gap-2 md:block">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="font-medium text-gray-900 dark:text-white whitespace-nowrap">
+              {formatTimeForDisplay(shift.start_time)} - {formatTimeForDisplay(shift.end_time)}
+            </div>
+            {staff && (
+              <div className="text-gray-600 dark:text-gray-400 truncate">
+                {staff.name}
+              </div>
+            )}
+            {!staff && (
+              <div className="text-orange-600 dark:text-orange-400 truncate">
+                Unassigned
+              </div>
+            )}
           </div>
-        {staff && (
-          <div className="text-gray-600 dark:text-gray-400">
-            {staff.name}
-          </div>
-        )}
-        {!staff && (
-          <div className="text-orange-600 dark:text-orange-400">
-            Unassigned
-          </div>
-        )}
+
+          {isAdmin && (
+            <div className="flex gap-1 md:mt-2 md:justify-start shrink-0">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(shift);
+                }}
+                className="p-1.5 md:p-1 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900 rounded"
+                title="Edit shift"
+              >
+                <FaEdit className="w-4 h-4 md:w-3 md:h-3" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAssign(shift);
+                }}
+                className="p-1.5 md:p-1 text-green-600 hover:bg-green-100 dark:hover:bg-green-900 rounded"
+                title="Assign staff"
+              >
+                <FaRedo className="w-4 h-4 md:w-3 md:h-3" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(shift);
+                }}
+                className="p-1.5 md:p-1 text-red-600 hover:bg-red-100 dark:hover:bg-red-900 rounded"
+                title="Delete shift"
+              >
+                <FaTrash className="w-4 h-4 md:w-3 md:h-3" />
+              </button>
+            </div>
+          )}
+        </div>
+
         {typeof shift.non_billable_hours === 'number' && shift.non_billable_hours > 0 && (
           <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">Non-bill: {shift.non_billable_hours}h</div>
         )}
         {shift.notes && (
-          <div className="text-gray-500 dark:text-gray-500 text-xs mt-1">
+          <div className="text-gray-500 dark:text-gray-500 text-xs mt-1 line-clamp-2 md:line-clamp-none">
             {shift.notes}
           </div>
         )}
       </div>
-      
-      {isAdmin && (
-        <div className="flex gap-1 mt-2">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(shift);
-            }}
-            className="p-1 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900 rounded"
-            title="Edit shift"
-          >
-            <FaEdit className="w-3 h-3" />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onAssign(shift);
-            }}
-            className="p-1 text-green-600 hover:bg-green-100 dark:hover:bg-green-900 rounded"
-            title="Assign staff"
-          >
-            <FaRedo className="w-3 h-3" />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(shift);
-            }}
-            className="p-1 text-red-600 hover:bg-red-100 dark:hover:bg-red-900 rounded"
-            title="Delete shift"
-          >
-            <FaTrash className="w-3 h-3" />
-          </button>
-        </div>
-      )}
     </div>
   );
 }
@@ -546,6 +551,8 @@ export function DragDropCalendar({
   const [isCtrlPressed, setIsCtrlPressed] = useState(false);
   const [sendingRoster, setSendingRoster] = useState(false);
   const [activeDayIndex, setActiveDayIndex] = useState<number>(0);
+  const [mobileActionsVisible, setMobileActionsVisible] = useState(false);
+  const mobileEndRef = useRef<HTMLDivElement | null>(null);
 
   // Helper function to convert UTC time to Melbourne local time for display
   const formatTimeForDisplay = useCallback((isoString: string) => {
@@ -603,6 +610,31 @@ export function DragDropCalendar({
     const todayIndex = weekDays.findIndex(d => isToday(d));
     setActiveDayIndex(todayIndex >= 0 ? todayIndex : 0);
   }, [currentWeek]);
+
+  // On mobile, show admin action bar only when user scrolls to end of page
+  useEffect(() => {
+    // Only apply on client and for mobile widths
+    if (typeof window === 'undefined') return;
+    const isMobile = window.matchMedia('(max-width: 767px)').matches;
+    if (!isMobile) {
+      setMobileActionsVisible(false);
+      return;
+    }
+    const sentinel = mobileEndRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        setMobileActionsVisible(entry.isIntersecting);
+      },
+      { root: null, rootMargin: '0px', threshold: 0.25 }
+    );
+    observer.observe(sentinel);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
   
 
   // Finance helpers (admin only)
@@ -1424,7 +1456,7 @@ export function DragDropCalendar({
       <div className="mt-6">
       {/* Mobile: single-day view with quick nav */}
       <div className="md:hidden">
-        <div className="flex flex-wrap gap-2 pb-2 justify-between">
+        <div className="flex flex-wrap gap-1 pb-2 justify-between">
           {weekDays.map((day, idx) => {
             const isActive = idx === activeDayIndex;
             const today = isToday(day);
@@ -1432,7 +1464,7 @@ export function DragDropCalendar({
               <button
                 key={day.toISOString()}
                 onClick={() => setActiveDayIndex(idx)}
-                className={`px-2.5 py-1.5 rounded-md border transition-colors text-xs ${
+                className={`px-2 py-1.5 rounded-md border transition-colors text-xs ${
                   isActive
                     ? 'bg-blue-600 text-white border-blue-600'
                     : today
@@ -1587,9 +1619,12 @@ export function DragDropCalendar({
       </div>
       </div>
 
+      {/* Scroll end sentinel for mobile action bar visibility */}
+      <div ref={mobileEndRef} className="h-1 w-full" aria-hidden></div>
+
       {/* Fixed bottom action bar for admins */}
       {isAdmin && (
-        <div className="fixed inset-x-0 bottom-4 md:bottom-6 z-40 print-hide group h-14 md:h-16">
+        <div className={`fixed inset-x-0 bottom-4 md:bottom-6 z-40 print-hide group h-14 md:h-16 ${mobileActionsVisible ? '' : 'hidden md:block'}` }>
           {/* Hover catcher area (transparent, full width) */}
           <div className="absolute inset-x-0 bottom-0 h-14 md:h-16"></div>
           {/* Action bar container - always visible on mobile, hover-reveal on md+ */}
