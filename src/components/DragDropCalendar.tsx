@@ -165,58 +165,56 @@ function DraggableShift({ shift, staff, isAdmin, onEdit, onDelete, onAssign, for
       }`}
     >
       <div className="text-xs">
-        <div className="flex items-center justify-between gap-2 md:block">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="font-medium text-gray-900 dark:text-white whitespace-nowrap">
-              {formatTimeForDisplay(shift.start_time)} - {formatTimeForDisplay(shift.end_time)}
-            </div>
-            {staff && (
-              <div className="text-gray-600 dark:text-gray-400 truncate">
-                {staff.name}
-              </div>
-            )}
-            {!staff && (
-              <div className="text-orange-600 dark:text-orange-400 truncate">
-                Unassigned
-              </div>
-            )}
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="font-medium text-gray-900 dark:text-white whitespace-nowrap">
+            {formatTimeForDisplay(shift.start_time)} - {formatTimeForDisplay(shift.end_time)}
           </div>
-
-          {isAdmin && (
-            <div className="flex gap-1 md:mt-2 md:justify-start shrink-0">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEdit(shift);
-                }}
-                className="p-1.5 md:p-1 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900 rounded"
-                title="Edit shift"
-              >
-                <FaEdit className="w-4 h-4 md:w-3 md:h-3" />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onAssign(shift);
-                }}
-                className="p-1.5 md:p-1 text-green-600 hover:bg-green-100 dark:hover:bg-green-900 rounded"
-                title="Assign staff"
-              >
-                <FaRedo className="w-4 h-4 md:w-3 md:h-3" />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete(shift);
-                }}
-                className="p-1.5 md:p-1 text-red-600 hover:bg-red-100 dark:hover:bg-red-900 rounded"
-                title="Delete shift"
-              >
-                <FaTrash className="w-4 h-4 md:w-3 md:h-3" />
-              </button>
+          {staff && (
+            <div className="text-gray-600 dark:text-gray-400 truncate">
+              {staff.name}
+            </div>
+          )}
+          {!staff && (
+            <div className="text-orange-600 dark:text-orange-400 truncate">
+              Unassigned
             </div>
           )}
         </div>
+
+        {isAdmin && (
+          <div className="flex gap-1 mt-2 justify-start">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(shift);
+              }}
+              className="p-1.5 md:p-1 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900 rounded"
+              title="Edit shift"
+            >
+              <FaEdit className="w-4 h-4 md:w-3 md:h-3" />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onAssign(shift);
+              }}
+              className="p-1.5 md:p-1 text-green-600 hover:bg-green-100 dark:hover:bg-green-900 rounded"
+              title="Assign staff"
+            >
+              <FaRedo className="w-4 h-4 md:w-3 md:h-3" />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(shift);
+              }}
+              className="p-1.5 md:p-1 text-red-600 hover:bg-red-100 dark:hover:bg-red-900 rounded"
+              title="Delete shift"
+            >
+              <FaTrash className="w-4 h-4 md:w-3 md:h-3" />
+            </button>
+          </div>
+        )}
 
         {typeof shift.non_billable_hours === 'number' && shift.non_billable_hours > 0 && (
           <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">Non-bill: {shift.non_billable_hours}h</div>
@@ -244,7 +242,7 @@ function SectionDayCell({ day, section, shifts, staff, isAdmin, isCtrlPressed, o
     <div 
       ref={setNodeRef}
       id={dropZoneId}
-      className={`min-h-[120px] p-2 border rounded-lg relative transition-colors ${
+      className={`min-h-[96px] md:min-h-[120px] p-1.5 md:p-2 border rounded-lg relative transition-colors ${
         isOver 
           ? isCtrlPressed 
             ? 'border-green-500 bg-green-50 dark:bg-green-900/20' 
@@ -265,7 +263,7 @@ function SectionDayCell({ day, section, shifts, staff, isAdmin, isCtrlPressed, o
       {isAdmin && (
         <button
           onClick={() => onShiftCreate(day, section.id).catch(console.error)}
-          className="absolute top-1 right-1 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs hover:bg-blue-700 transition-colors z-10"
+          className="absolute top-1 right-1 w-6 h-6 md:w-7 md:h-7 bg-blue-600 text-white rounded-full flex items-center justify-center text-[10px] md:text-xs hover:bg-blue-700 transition-colors z-10"
           title="Add shift"
         >
           <FaPlus className="w-3 h-3" />
