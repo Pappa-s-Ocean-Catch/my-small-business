@@ -1385,8 +1385,10 @@ export function DragDropCalendar({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3 calendar-toolbar">
         <div>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-            Weekly Schedule ({format(startOfThisWeek, 'dd-MM-yyyy')} - {format(endOfWeek(startOfThisWeek, { weekStartsOn: 1 }), 'dd-MM-yyyy')})
+          <h1 className="text-base md:text-xl font-bold text-gray-900 dark:text-white whitespace-nowrap overflow-hidden text-ellipsis">
+            <span className="md:hidden">Week</span>
+            <span className="hidden md:inline">Weekly Schedule</span>
+            <span> ({format(startOfThisWeek, 'dd-MM-yyyy')} - {format(endOfWeek(startOfThisWeek, { weekStartsOn: 1 }), 'dd-MM-yyyy')})</span>
           </h1>
           <p className="text-xs text-gray-600 dark:text-gray-400">
             {isAdmin ? (
