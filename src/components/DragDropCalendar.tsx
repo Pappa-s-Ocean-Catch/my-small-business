@@ -122,6 +122,7 @@ interface DraggableShiftProps {
   onDelete: (shift: Shift) => void;
   onAssign: (shift: Shift) => void;
   formatTimeForDisplay: (isoString: string) => string;
+  getShiftFinance: (shift: Shift) => { hours: number; rate: number; total: number };
 }
 
 interface SectionDayCellProps {
@@ -136,9 +137,10 @@ interface SectionDayCellProps {
   onShiftDelete: (shift: Shift) => void;
   onShiftAssign: (shift: Shift) => void;
   formatTimeForDisplay: (isoString: string) => string;
+  getShiftFinance: (shift: Shift) => { hours: number; rate: number; total: number };
 }
 
-function DraggableShift({ shift, staff, isAdmin, onEdit, onDelete, onAssign, formatTimeForDisplay }: DraggableShiftProps) {
+function DraggableShift({ shift, staff, isAdmin, onEdit, onDelete, onAssign, formatTimeForDisplay, getShiftFinance }: DraggableShiftProps) {
   const {
     attributes,
     listeners,
@@ -165,20 +167,42 @@ function DraggableShift({ shift, staff, isAdmin, onEdit, onDelete, onAssign, for
       }`}
     >
       <div className="text-xs">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="font-medium text-gray-900 dark:text-white whitespace-nowrap">
-            {formatTimeForDisplay(shift.start_time)} - {formatTimeForDisplay(shift.end_time)}
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <div className="font-medium text-gray-900 dark:text-white whitespace-nowrap">
+              {formatTimeForDisplay(shift.start_time)} - {formatTimeForDisplay(shift.end_time)}
+            </div>
+            {/* Mobile inline name/unassigned */}
+            {staff ? (
+              <div className="text-gray-600 dark:text-gray-400 truncate md:hidden">
+                {staff.name}
+              </div>
+            ) : (
+              <div className="text-orange-600 dark:text-orange-400 truncate md:hidden">
+                Unassigned
+              </div>
+            )}
           </div>
-          {staff && (
-            <div className="text-gray-600 dark:text-gray-400 truncate">
+          {/* Desktop: name/unassigned on second line */}
+          {staff ? (
+            <div className="hidden md:block text-gray-600 dark:text-gray-400 truncate">
               {staff.name}
             </div>
-          )}
-          {!staff && (
-            <div className="text-orange-600 dark:text-orange-400 truncate">
+          ) : (
+            <div className="hidden md:block text-orange-600 dark:text-orange-400 truncate">
               Unassigned
             </div>
           )}
+
+          {/* Admin-only finance summary */}
+          {isAdmin && staff && (() => {
+            const { hours, rate, total } = getShiftFinance(shift);
+            return (
+              <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">
+                ${rate.toFixed(2)}/h × {hours.toFixed(1)}h = <span className="font-medium text-gray-700 dark:text-gray-300">${total.toFixed(2)}</span>
+              </div>
+            );
+          })()}
         </div>
 
         {isAdmin && (
@@ -229,7 +253,7 @@ function DraggableShift({ shift, staff, isAdmin, onEdit, onDelete, onAssign, for
   );
 }
 
-function SectionDayCell({ day, section, shifts, staff, isAdmin, isCtrlPressed, onShiftCreate, onShiftEdit, onShiftDelete, onShiftAssign, formatTimeForDisplay }: SectionDayCellProps) {
+function SectionDayCell({ day, section, shifts, staff, isAdmin, isCtrlPressed, onShiftCreate, onShiftEdit, onShiftDelete, onShiftAssign, formatTimeForDisplay, getShiftFinance }: SectionDayCellProps) {
   const getStaffById = (id: string | null) => staff.find(s => s.id === id) || null;
   // Use a separator that won't conflict with UUIDs or dates
   const dropZoneId = `drop_${section.id}_${day.toISOString()}`;
@@ -284,6 +308,7 @@ function SectionDayCell({ day, section, shifts, staff, isAdmin, isCtrlPressed, o
               onDelete={onShiftDelete}
               onAssign={onShiftAssign}
               formatTimeForDisplay={formatTimeForDisplay}
+              getShiftFinance={getShiftFinance}
             />
           );
         })}
@@ -682,15 +707,45 @@ export function DragDropCalendar({
   }, [staff, staffRates]);
 
   const getDailyTotal = useCallback((day: Date): number => {
-    const dayKey = day.toISOString().slice(0, 10);
+    // Compare dates in Melbourne timezone to match visual grouping
+    const dayKeyMel = day.toLocaleDateString('en-CA', { timeZone: 'Australia/Melbourne' });
     return shifts
-      .filter(s => s.start_time.slice(0, 10) === dayKey)
+      .filter(s => {
+        const shiftDate = new Date(s.start_time);
+        const shiftKeyMel = shiftDate.toLocaleDateString('en-CA', { timeZone: 'Australia/Melbourne' });
+        return shiftKeyMel === dayKeyMel;
+      })
       .reduce((sum, s) => sum + calculateShiftCost(s), 0);
   }, [shifts, calculateShiftCost]);
 
   const getWeeklyTotal = useCallback((): number => {
     return weekDays.reduce((sum, d) => sum + getDailyTotal(d), 0);
   }, [weekDays, getDailyTotal]);
+
+  // Compute finance details for a specific shift (hours, rate, total)
+  const getShiftFinance = useCallback((shift: Shift): { hours: number; rate: number; total: number } => {
+    const start = new Date(shift.start_time);
+    const end = new Date(shift.end_time);
+    const rawHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+    const nonbill = Number(shift.non_billable_hours || 0);
+    const hours = Math.max(0, rawHours - nonbill);
+
+    let rate = 0;
+    if (shift.staff_id) {
+      const dateStr = start.toISOString().split('T')[0];
+      const dayOfWeek = start.getDay();
+      const rateTypeMap: { [key: number]: string } = { 0: 'sun', 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu', 5: 'fri', 6: 'sat' };
+      const rateType = rateTypeMap[dayOfWeek];
+
+      let r = staffRates.find(rr => rr.staff_id === shift.staff_id && rr.rate_type === rateType && rr.effective_date <= dateStr && rr.end_date >= dateStr);
+      if (!r) {
+        r = staffRates.find(rr => rr.staff_id === shift.staff_id && rr.rate_type === 'default' && rr.effective_date <= dateStr && rr.end_date >= dateStr);
+      }
+      rate = r?.rate || 0;
+    }
+    const total = Math.max(0, hours) * rate;
+    return { hours: Math.max(0, hours), rate, total };
+  }, [staffRates]);
 
   const handleDragStart = (event: DragStartEvent) => {
     // Only allow dragging for admin users
@@ -1516,6 +1571,7 @@ export function DragDropCalendar({
                   onShiftDelete={handleShiftDelete}
                   onShiftAssign={handleShiftAssign}
                   formatTimeForDisplay={formatTimeForDisplay}
+                  getShiftFinance={getShiftFinance}
                 />
               </div>
             ))}
@@ -1584,6 +1640,7 @@ export function DragDropCalendar({
                     onShiftDelete={handleShiftDelete}
                     onShiftAssign={handleShiftAssign}
                     formatTimeForDisplay={formatTimeForDisplay}
+                    getShiftFinance={getShiftFinance}
                   />
                 ))}
               </div>
