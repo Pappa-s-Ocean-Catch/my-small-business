@@ -200,7 +200,7 @@ function DraggableShift({ shift, staff, isAdmin, onEdit, onDelete, onAssign, for
             const { hours, rate, total } = getShiftFinance(shift);
             return (
               <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">
-                ${rate.toFixed(2)}/h × {hours.toFixed(1)}h = <span className="font-medium text-gray-700 dark:text-gray-300">${total.toFixed(2)}</span>
+                ${rate.toFixed(2)}/h × {hours.toFixed(2)}h = <span className="font-medium text-gray-700 dark:text-gray-300">${total.toFixed(2)}</span>
               </div>
             );
           })()}
