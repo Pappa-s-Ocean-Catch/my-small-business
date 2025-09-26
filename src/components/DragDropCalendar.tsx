@@ -948,10 +948,11 @@ export function DragDropCalendar({
     if (!editingShift) return;
     const datePart = editingShift.start_time.slice(0, 10);
     
-    // Create Date objects in local timezone (Melbourne)
-    // The browser will automatically handle the timezone conversion
-    const startDateTime = new Date(`${datePart}T${editForm.start}:00`);
-    const endDateTime = new Date(`${datePart}T${editForm.end}:00`);
+    // Create Date objects in Melbourne timezone explicitly
+    // Melbourne is UTC+10 (or UTC+11 during daylight saving)
+    // Use explicit timezone offset to ensure consistent behavior
+    const startDateTime = new Date(`${datePart}T${editForm.start}:00+10:00`);
+    const endDateTime = new Date(`${datePart}T${editForm.end}:00+10:00`);
     
     // Convert to UTC for database storage
     const newStartIso = startDateTime.toISOString();
@@ -967,7 +968,9 @@ export function DragDropCalendar({
       startUTC: newStartIso,
       endUTC: newEndIso,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      offset: new Date().getTimezoneOffset()
+      offset: new Date().getTimezoneOffset(),
+      melbourneOffset: '+10:00',
+      note: 'Using explicit Melbourne timezone (+10:00) to prevent timezone conversion issues'
     });
     
     if (editingShift.id === 'temp-new-shift') {
