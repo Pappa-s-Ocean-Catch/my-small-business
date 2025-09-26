@@ -23,6 +23,7 @@ type Staff = {
   image_url: string | null;
   skills: string[]; // Array of section IDs this staff can work in
   dob?: string | null;
+  applies_public_holiday_rules?: boolean;
 };
 
 type StaffRate = {
@@ -152,6 +153,7 @@ export default function StaffPage() {
     description: "",
     image_url: "",
     skills: [] as string[], // Array of section IDs
+    applies_public_holiday_rules: true,
   });
 
   const [instructions, setInstructions] = useState<StaffPaymentInstruction[]>([]);
@@ -206,7 +208,7 @@ export default function StaffPage() {
   const fetchStaff = async () => {
     setLoading(true);
     const [{ data: staffData }, { data: ratesData }, { data: availabilityData }, { data: rolesData }, { data: holidaysData }, { data: sectionsData }] = await Promise.all([
-      getSupabaseClient().from("staff").select("id, name, phone, email, dob, is_available, role_slug, description, profile_id, image_url, skills").order("created_at", { ascending: false }),
+      getSupabaseClient().from("staff").select("id, name, phone, email, dob, is_available, role_slug, description, profile_id, image_url, skills, applies_public_holiday_rules").order("created_at", { ascending: false }),
       getSupabaseClient().from("staff_rates").select("*"),
       getSupabaseClient().from("staff_availability").select("*"),
       getSupabaseClient().from("staff_roles").select("*").order("name"),
@@ -255,7 +257,8 @@ export default function StaffPage() {
       role_slug: "member", 
       description: "",
       image_url: "",
-      skills: []
+      skills: [],
+      applies_public_holiday_rules: true
     });
     setEditing(null);
     setInstructions([]);
@@ -280,6 +283,7 @@ export default function StaffPage() {
           description: form.description || null,
           image_url: form.image_url || null,
           skills: form.skills,
+          applies_public_holiday_rules: form.applies_public_holiday_rules,
         }).eq("id", editing.id);
         
         if (staffUpdateError) {
@@ -425,6 +429,7 @@ export default function StaffPage() {
           description: form.description || null,
           image_url: form.image_url || null,
           skills: form.skills,
+          applies_public_holiday_rules: form.applies_public_holiday_rules,
         }).select().single();
         
         if (staffInsertError) {
@@ -556,6 +561,7 @@ export default function StaffPage() {
       description: s.description ?? "",
       image_url: s.image_url ?? "",
       skills: s.skills || [],
+      applies_public_holiday_rules: s.applies_public_holiday_rules ?? true,
     });
     
     // Load current rates and payment instructions for this staff
@@ -1033,6 +1039,13 @@ export default function StaffPage() {
                       <label className="grid gap-2">
                         <span className="text-sm text-gray-700 dark:text-gray-300">Available</span>
                         <select className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.is_available ? 'yes' : 'no'} onChange={(e) => setForm((f) => ({ ...f, is_available: e.target.value === 'yes' }))}>
+                          <option value="yes">Yes</option>
+                          <option value="no">No</option>
+                        </select>
+                      </label>
+                      <label className="grid gap-2 md:col-span-2">
+                        <span className="text-sm text-gray-700 dark:text-gray-300">Apply Public Holiday Wage Rules</span>
+                        <select className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.applies_public_holiday_rules ? 'yes' : 'no'} onChange={(e) => setForm((f) => ({ ...f, applies_public_holiday_rules: e.target.value === 'yes' }))}>
                           <option value="yes">Yes</option>
                           <option value="no">No</option>
                         </select>

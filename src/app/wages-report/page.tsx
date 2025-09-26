@@ -14,6 +14,7 @@ import { toast } from "react-toastify";
 type Staff = {
   id: string;
   name: string;
+  applies_public_holiday_rules?: boolean;
 };
 
 type StaffRate = {
@@ -69,7 +70,7 @@ export default function WagesReportPage() {
     try {
       const supabase = getSupabaseClient();
       const [{ data: staffData, error: staffErr }, { data: ratesData, error: ratesErr }, { data: shiftData, error: shiftErr }, { data: holidayData, error: holidayErr }] = await Promise.all([
-        supabase.from("staff").select("id, name"),
+        supabase.from("staff").select("id, name, applies_public_holiday_rules"),
         supabase.from("staff_rates").select("*"),
         supabase
           .from("shifts")
@@ -128,52 +129,31 @@ export default function WagesReportPage() {
     return days;
   }, [weekStart]);
 
-  const grid = useMemo(() => {
-    function getBaseRateForDate(staffId: string, date: Date): number {
-      // Find the rate that was effective on the given date
-      const dateStr = date.toISOString().split('T')[0];
-      const dayOfWeek = date.getDay(); // 0=Sunday, 1=Monday, etc.
-      
-      // Map day of week to rate type
-      const rateTypeMap: { [key: number]: string } = {
-        0: 'sun', 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu', 5: 'fri', 6: 'sat'
-      };
-      const rateType = rateTypeMap[dayOfWeek];
-      
-      // First try to find specific day rate
-      let rate = staffRates.find(r => 
-        r.staff_id === staffId && 
-        r.rate_type === rateType &&
-        r.effective_date <= dateStr && 
-        r.end_date >= dateStr
-      );
-      
-      // If no specific day rate, fall back to default rate
-      if (!rate) {
-        rate = staffRates.find(r => 
-          r.staff_id === staffId && 
-          r.rate_type === 'default' &&
-          r.effective_date <= dateStr && 
-          r.end_date >= dateStr
-        );
-      }
-      
-      const baseRate = rate?.rate || 0;
-      
-      // Check for holiday adjustments
+  const getBaseRateForDate = useCallback((staffId: string, date: Date): number => {
+    const dateStr = date.toISOString().split('T')[0];
+    const dayOfWeek = date.getDay();
+    const rateTypeMap: { [key: number]: string } = { 0: 'sun', 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu', 5: 'fri', 6: 'sat' };
+    const rateType = rateTypeMap[dayOfWeek];
+    let rate = staffRates.find(r => r.staff_id === staffId && r.rate_type === rateType && r.effective_date <= dateStr && r.end_date >= dateStr);
+    if (!rate) {
+      rate = staffRates.find(r => r.staff_id === staffId && r.rate_type === 'default' && r.effective_date <= dateStr && r.end_date >= dateStr);
+    }
+    let baseRate = rate?.rate || 0;
+    const staffRow = staff.find(s => s.id === staffId);
+    if (staffRow?.applies_public_holiday_rules) {
       const holiday = holidays.find(h => h.date === dateStr);
       if (holiday) {
         if (holiday.markup_percentage > 0) {
-          // Apply percentage markup
-          return baseRate * (holiday.markup_percentage / 100.0);
+          baseRate = baseRate * (holiday.markup_percentage / 100.0);
         } else if (holiday.markup_amount > 0) {
-          // Apply fixed amount markup
-          return baseRate + holiday.markup_amount;
+          baseRate = baseRate + holiday.markup_amount;
         }
       }
-      
-      return baseRate;
     }
+    return baseRate;
+  }, [staff, staffRates, holidays]);
+
+  const grid = useMemo(() => {
     const staffMap: Record<string, { staff: Staff; cells: DayCell[]; totalHours: number; totalAmount: number }> = {};
     for (const s of staff) {
       staffMap[s.id] = {
@@ -235,7 +215,7 @@ export default function WagesReportPage() {
     const rows = Object.values(staffMap);
     rows.sort((a, b) => a.staff.name.localeCompare(b.staff.name));
     return rows;
-  }, [staff, staffRates, shifts, daysOfWeek, instructions, holidays]);
+  }, [staff, staffRates, shifts, daysOfWeek, instructions, holidays, getBaseRateForDate]);
 
   const exportPdf = () => {
     try {
@@ -391,7 +371,9 @@ export default function WagesReportPage() {
                       <td key={`${row.staff.id}-${idx}`} className="px-4 py-3 text-sm text-gray-900 dark:text-white">
                         <div className="flex flex-col">
                           <span>{cell.amount > 0 ? `$${cell.amount.toFixed(2)}` : '-'}</span>
-                          <span className="text-xs text-gray-500 dark:text-gray-400">{cell.hours > 0 ? `${cell.hours.toFixed(2)}h` : ''}</span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            {cell.hours > 0 ? `${cell.hours.toFixed(2)}h × $${getBaseRateForDate(row.staff.id, daysOfWeek[idx]).toFixed(2)}` : ''}
+                          </span>
                         </div>
                       </td>
                     ))}

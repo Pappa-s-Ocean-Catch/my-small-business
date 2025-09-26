@@ -15,6 +15,7 @@ type Staff = {
   id: string;
   name: string;
   email: string | null;
+  applies_public_holiday_rules?: boolean;
 };
 
 type StaffRate = {
@@ -117,7 +118,7 @@ export default function PaymentReportPage() {
   const fetchData = useCallback(async (): Promise<void> => {
     const supabase = getSupabaseClient();
     const [{ data: staffData }, { data: ratesData }, { data: shiftData }, { data: holidayData }] = await Promise.all([
-      supabase.from("staff").select("id, name, email"),
+      supabase.from("staff").select("id, name, email, applies_public_holiday_rules"),
       supabase.from("staff_rates").select("*"),
       supabase.from("shifts").select("id, staff_id, start_time, end_time, notes, non_billable_hours, section_id"),
       supabase
@@ -189,15 +190,18 @@ export default function PaymentReportPage() {
       
       const baseRate = rate?.rate || 0;
       
-      // Check for holiday adjustments
-      const holiday = holidays.find(h => h.date === dateStr);
-      if (holiday) {
-        if (holiday.markup_percentage > 0) {
-          // Apply percentage markup
-          return baseRate * (holiday.markup_percentage / 100.0);
-        } else if (holiday.markup_amount > 0) {
-          // Apply fixed amount markup
-          return baseRate + holiday.markup_amount;
+      // Check for holiday adjustments (only if staff opted in)
+      const staffRow = staff.find(s => s.id === staffId);
+      if (staffRow?.applies_public_holiday_rules) {
+        const holiday = holidays.find(h => h.date === dateStr);
+        if (holiday) {
+          if (holiday.markup_percentage > 0) {
+            // Apply percentage markup
+            return baseRate * (holiday.markup_percentage / 100.0);
+          } else if (holiday.markup_amount > 0) {
+            // Apply fixed amount markup
+            return baseRate + holiday.markup_amount;
+          }
         }
       }
       
@@ -516,6 +520,104 @@ export default function PaymentReportPage() {
     });
   };
 
+  // Expand/collapse details per staff row
+  const [expandedStaffId, setExpandedStaffId] = useState<string | null>(null);
+
+  // Build per-day details for a staff within the selected range using same allocation logic
+  const getStaffDailyDetails = useCallback((staffId: string) => {
+    // Prepare instruction caps (copy per staff)
+    const list = instructions
+      .filter(i => i.staff_id === staffId)
+      .slice()
+      .sort((a, b) => a.priority - b.priority);
+    const remaining = list.map(i => i.weekly_hours_cap ?? Number.POSITIVE_INFINITY);
+
+    // Group by date string (Melbourne)
+    const byDate: Record<string, { hours: number; amount: number; rate: number; bookingHours: number; bookingAmount: number; cashHours: number; cashAmount: number }> = {};
+    const sorted = shifts
+      .filter(s => s.staff_id === staffId)
+      .sort((a, b) => a.start_time.localeCompare(b.start_time));
+
+    for (const shift of sorted) {
+      const shiftDate = new Date(shift.start_time);
+      const shiftDateMel = shiftDate.toLocaleDateString('en-CA', { timeZone: 'Australia/Melbourne' });
+      const rangeStartMel = dateRange.start.toLocaleDateString('en-CA', { timeZone: 'Australia/Melbourne' });
+      const rangeEndMel = dateRange.end.toLocaleDateString('en-CA', { timeZone: 'Australia/Melbourne' });
+      if (shiftDateMel < rangeStartMel || shiftDateMel > rangeEndMel) continue;
+
+      const start = new Date(shift.start_time);
+      const end = new Date(shift.end_time);
+      const rawHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+      const nonbill = Number(shift.non_billable_hours || 0);
+      const hours = Math.max(0, rawHours - nonbill);
+      const baseRate = (function () {
+        // same as in generateReportData but reuse code inline
+        const dateStr = shiftDate.toLocaleDateString('en-CA', { timeZone: 'Australia/Melbourne' });
+        const dayOfWeek = shiftDate.getDay();
+        const rateTypeMap: { [key: number]: string } = { 0: 'sun', 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu', 5: 'fri', 6: 'sat' };
+        const rateType = rateTypeMap[dayOfWeek];
+        let rate = staffRates.find(r => r.staff_id === staffId && r.rate_type === rateType && r.effective_date <= dateStr && r.end_date >= dateStr);
+        if (!rate) {
+          rate = staffRates.find(r => r.staff_id === staffId && r.rate_type === 'default' && r.effective_date <= dateStr && r.end_date >= dateStr);
+        }
+        let br = rate?.rate || 0;
+        const holiday = holidays.find(h => h.date === dateStr);
+        if (holiday) {
+          if (holiday.markup_percentage > 0) br = br * (holiday.markup_percentage / 100.0);
+          else if (holiday.markup_amount > 0) br = br + holiday.markup_amount;
+        }
+        return br;
+      })();
+
+      // Allocate with caps across instructions
+      let remainingHours = hours;
+      let amount = 0;
+      let bookingHours = 0;
+      let bookingAmount = 0;
+      let cashHours = 0;
+      let cashAmount = 0;
+      if (list.length > 0) {
+        for (let idx = 0; idx < list.length && remainingHours > 0; idx++) {
+          const capLeft = remaining[idx];
+          if (capLeft <= 0) continue;
+          const take = Math.min(remainingHours, capLeft);
+          const lineAmount = take * (baseRate + list[idx].adjustment_per_hour);
+          amount += lineAmount;
+          if (list[idx].payment_method === 'Booking') {
+            bookingHours += take;
+            bookingAmount += lineAmount;
+          } else if (list[idx].payment_method === 'Cash') {
+            cashHours += take;
+            cashAmount += lineAmount;
+          }
+          remaining[idx] = capLeft - take;
+          remainingHours -= take;
+        }
+      }
+      if (remainingHours > 0) {
+        const lineAmount = remainingHours * baseRate;
+        amount += lineAmount;
+        // Default remaining to Cash
+        cashHours += remainingHours;
+        cashAmount += lineAmount;
+      }
+
+      if (!byDate[shiftDateMel]) byDate[shiftDateMel] = { hours: 0, amount: 0, rate: baseRate, bookingHours: 0, bookingAmount: 0, cashHours: 0, cashAmount: 0 };
+      byDate[shiftDateMel].hours += hours;
+      byDate[shiftDateMel].amount += amount;
+      byDate[shiftDateMel].rate = baseRate; // display base rate reference
+      byDate[shiftDateMel].bookingHours += bookingHours;
+      byDate[shiftDateMel].bookingAmount += bookingAmount;
+      byDate[shiftDateMel].cashHours += cashHours;
+      byDate[shiftDateMel].cashAmount += cashAmount;
+    }
+
+    // Return as sorted array by date
+    return Object.entries(byDate)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, v]) => ({ date, hours: v.hours, amount: v.amount, rate: v.rate, bookingHours: v.bookingHours, bookingAmount: v.bookingAmount, cashHours: v.cashHours, cashAmount: v.cashAmount }));
+  }, [shifts, dateRange, staffRates, instructions, holidays]);
+
   if (loading) {
     return (
       <AdminGuard>
@@ -671,19 +773,47 @@ export default function PaymentReportPage() {
                     </td>
                   </tr>
                 ) : (
-                  reportData.map((row, index) => (
-                    <tr key={index} className="hover:bg-gray-50 dark:hover:bg-neutral-800">
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{row.staffName}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{row.totalHours}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">${row.totalWages.toFixed(2)}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{row.bookingHours}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">${row.bookingRate.toFixed(2)}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">${row.bookingWages.toFixed(2)}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{row.cashHours}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">${row.cashRate.toFixed(2)}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">${row.cashWages.toFixed(2)}</td>
-                    </tr>
-                  ))
+                  staff.map((s) => {
+                    const row = reportData.find(r => r.staffName === s.name);
+                    const details = expandedStaffId === s.id ? getStaffDailyDetails(s.id) : [];
+                    return (
+                      <>
+                        <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-neutral-800 cursor-pointer" onClick={() => setExpandedStaffId(prev => prev === s.id ? null : s.id)}>
+                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{s.name}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{row ? row.totalHours : 0}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">${row ? row.totalWages.toFixed(2) : '0.00'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{row ? row.bookingHours : 0}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">${row ? row.bookingRate.toFixed(2) : '0.00'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">${row ? row.bookingWages.toFixed(2) : '0.00'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{row ? row.cashHours : 0}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">${row ? row.cashRate.toFixed(2) : '0.00'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">${row ? row.cashWages.toFixed(2) : '0.00'}</td>
+                        </tr>
+                        {expandedStaffId === s.id && details.length > 0 && (
+                          <tr key={`${s.id}-details`} className="bg-gray-50/70 dark:bg-neutral-800/50">
+                            <td colSpan={9} className="px-4 py-3">
+                              <div className="text-xs text-gray-700 dark:text-gray-300 space-y-2">
+                                {details.map(d => (
+                                  <div key={d.date} className="flex items-center justify-between">
+                                    <span className="font-medium">{format(new Date(d.date), 'EEE dd MMM')}</span>
+                                    <span className="text-right">
+                                      <span className="mr-2">{d.hours.toFixed(2)}h × ${d.rate.toFixed(2)} = ${d.amount.toFixed(2)}</span>
+                                      {d.bookingHours > 0 && (
+                                        <span className="ml-2 text-emerald-600 dark:text-emerald-400">Booking: {d.bookingHours.toFixed(2)}h (${d.bookingAmount.toFixed(2)})</span>
+                                      )}
+                                      {d.cashHours > 0 && (
+                                        <span className="ml-2 text-blue-600 dark:text-blue-400">Cash: {d.cashHours.toFixed(2)}h (${d.cashAmount.toFixed(2)})</span>
+                                      )}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    );
+                  })
                 )}
               </tbody>
               {reportData.length > 0 && (
