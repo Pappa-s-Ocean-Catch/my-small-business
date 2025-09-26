@@ -22,6 +22,7 @@ type Staff = {
   profile_id: string | null;
   image_url: string | null;
   skills: string[]; // Array of section IDs this staff can work in
+  dob?: string | null;
 };
 
 type StaffRate = {
@@ -137,6 +138,7 @@ export default function StaffPage() {
     name: "",
     phone: "",
     email: "",
+    dob: "",
     default_rate: 0,
     mon_rate: 0,
     tue_rate: 0,
@@ -204,7 +206,7 @@ export default function StaffPage() {
   const fetchStaff = async () => {
     setLoading(true);
     const [{ data: staffData }, { data: ratesData }, { data: availabilityData }, { data: rolesData }, { data: holidaysData }, { data: sectionsData }] = await Promise.all([
-      getSupabaseClient().from("staff").select("id, name, phone, email, is_available, role_slug, description, profile_id, image_url, skills").order("created_at", { ascending: false }),
+      getSupabaseClient().from("staff").select("id, name, phone, email, dob, is_available, role_slug, description, profile_id, image_url, skills").order("created_at", { ascending: false }),
       getSupabaseClient().from("staff_rates").select("*"),
       getSupabaseClient().from("staff_availability").select("*"),
       getSupabaseClient().from("staff_roles").select("*").order("name"),
@@ -240,6 +242,7 @@ export default function StaffPage() {
       name: "", 
       phone: "", 
       email: "", 
+      dob: "",
       default_rate: 0,
       mon_rate: 0,
       tue_rate: 0,
@@ -271,6 +274,7 @@ export default function StaffPage() {
           name: form.name,
           phone: form.phone || null,
           email: form.email || null,
+          dob: form.dob || null,
           is_available: form.is_available,
           role_slug: form.role_slug,
           description: form.description || null,
@@ -415,6 +419,7 @@ export default function StaffPage() {
           name: form.name,
           phone: form.phone || null,
           email: form.email || null,
+          dob: form.dob || null,
           is_available: form.is_available,
           role_slug: form.role_slug,
           description: form.description || null,
@@ -537,6 +542,7 @@ export default function StaffPage() {
       name: s.name,
       phone: s.phone ?? "",
       email: s.email ?? "",
+      dob: s.dob ?? "",
       default_rate: 0, // Will be loaded from staff_rates
       mon_rate: 0,
       tue_rate: 0,
@@ -904,16 +910,16 @@ export default function StaffPage() {
                       size="md"
                       icon={<Send className="size-4" />}
                       title="Send Invitation"
-                      className="text-blue-600"
+                      className="text-blue-600 border-0"
                     >
                       Invite
                     </ActionButton>
                   )}
-                  <button onClick={() => startEdit(s)} className="flex items-center gap-2 h-9 px-3 rounded-lg border hover:bg-gray-50 dark:hover:bg-neutral-900">
+                  <button onClick={() => startEdit(s)} className="flex items-center gap-2 h-9 px-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 text-gray-700 dark:text-gray-300">
                     <Pencil className="size-4" />
                     <span className="text-sm">Edit</span>
                   </button>
-                  <button onClick={() => handleDeleteStaff(s)} className="flex items-center gap-2 h-9 px-3 rounded-lg border hover:bg-gray-50 dark:hover:bg-neutral-900 text-red-600">
+                  <button onClick={() => handleDeleteStaff(s)} className="flex items-center gap-2 h-9 px-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 text-red-600">
                     <Trash2 className="size-4" />
                     <span className="text-sm">Delete</span>
                   </button>
@@ -928,21 +934,21 @@ export default function StaffPage() {
                     variant="secondary"
                     size="lg"
                     icon={<Send className="size-4" />}
-                    className="text-blue-600"
+                    className="text-blue-600 border-0"
                   >
                     <span className="text-sm">Invite</span>
                   </ActionButton>
                 ) : (
-                  <div className="h-10 px-3 rounded-lg border inline-flex items-center justify-center gap-2 opacity-50 cursor-not-allowed">
+                  <div className="h-10 px-3 rounded-lg inline-flex items-center justify-center gap-2 opacity-50 cursor-not-allowed">
                     <Send className="size-4" />
                     <span className="text-sm">Invite</span>
                   </div>
                 )}
-                <button onClick={() => startEdit(s)} className="h-10 px-3 rounded-lg border inline-flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-neutral-900">
+                <button onClick={() => startEdit(s)} className="h-10 px-3 rounded-lg inline-flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-neutral-900 text-gray-700 dark:text-gray-300">
                   <Pencil className="size-4" />
                   <span className="text-sm">Edit</span>
                 </button>
-                <button onClick={() => handleDeleteStaff(s)} className="h-10 px-3 rounded-lg border inline-flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-neutral-900 text-red-600">
+                <button onClick={() => handleDeleteStaff(s)} className="h-10 px-3 rounded-lg inline-flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-neutral-900 text-red-600">
                   <Trash2 className="size-4" />
                   <span className="text-sm">Delete</span>
                 </button>
@@ -1007,6 +1013,12 @@ export default function StaffPage() {
                       <label className="grid gap-2">
                         <span className="text-sm text-gray-700 dark:text-gray-300">Email</span>
                         <input type="email" className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <label className="grid gap-2">
+                        <span className="text-sm text-gray-700 dark:text-gray-300">Date of Birth</span>
+                        <input type="date" className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.dob} onChange={(e) => setForm((f) => ({ ...f, dob: e.target.value }))} />
                       </label>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1462,14 +1474,15 @@ export default function StaffPage() {
               </button>
               <ActionButton
                 onClick={async () => {
-                  const form = document.getElementById('staff-form') as HTMLFormElement;
-                  if (form) {
-                    form.requestSubmit();
+                  const formEl = document.getElementById('staff-form') as HTMLFormElement | null;
+                  if (formEl) {
+                    formEl.requestSubmit();
                   }
                 }}
                 variant="primary"
                 size="lg"
                 icon={<Save className="size-4" />}
+                loadingText="Saving..."
                 className="bg-blue-600 hover:bg-blue-700"
               >
                 Save
