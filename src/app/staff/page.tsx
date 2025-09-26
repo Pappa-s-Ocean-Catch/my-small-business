@@ -161,7 +161,7 @@ export default function StaffPage() {
     priority: 1,
     active: true,
   });
-  const [activeTab, setActiveTab] = useState<'general' | 'rates' | 'instructions' | 'availability' | 'holidays'>("general");
+  const [activeTab, setActiveTab] = useState<'general' | 'rates' | 'instructions' | 'availability' | 'holidays' | 'photo'>("general");
   const [dayFilter, setDayFilter] = useState<number | null>(null); // null = show all, 1-7 = specific day
 
   const [availabilityForm, setAvailabilityForm] = useState({
@@ -750,6 +750,35 @@ export default function StaffPage() {
     return `${hour12}:${minutes} ${ampm}`;
   };
 
+  // Get effective hourly rate for a staff member on a specific day of week (0-6)
+  const getRateForDay = (staffId: string, dayOfWeek: number): number => {
+    const today = new Date().toISOString().slice(0, 10);
+    const rateTypeMap: { [key: number]: string } = {
+      0: 'sun', 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu', 5: 'fri', 6: 'sat'
+    };
+    const rateType = rateTypeMap[dayOfWeek];
+
+    // Prefer current specific day rate within effective window
+    let rate = staffRates.find(r =>
+      r.staff_id === staffId &&
+      r.rate_type === rateType &&
+      r.is_current === true &&
+      r.effective_date <= today &&
+      r.end_date >= today
+    );
+    // Fallback: current default rate within window
+    if (!rate) {
+      rate = staffRates.find(r =>
+        r.staff_id === staffId &&
+        r.rate_type === 'default' &&
+        r.is_current === true &&
+        r.effective_date <= today &&
+        r.end_date >= today
+      );
+    }
+    return rate?.rate || 0;
+  };
+
   return (
     <AdminGuard>
     <div className="p-6 max-w-7xl mx-auto">
@@ -920,15 +949,16 @@ export default function StaffPage() {
               </div>
               
               {/* Display availability for quick overview */}
-              {getStaffAvailability(s.id).length > 0 && (
+                    {getStaffAvailability(s.id).length > 0 && (
                 <div className="mt-4 pt-4 border-t">
                   <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Availability</div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                    {getStaffAvailability(s.id).map((a) => (
-                      <div key={a.id} className="bg-white dark:bg-neutral-900 rounded-lg p-2 text-sm">
-                        <span>{DAYS[a.day_of_week]} {formatTime(a.start_time)} - {formatTime(a.end_time)}</span>
-                      </div>
-                    ))}
+                          {getStaffAvailability(s.id).map((a) => (
+                            <div key={a.id} className="bg-white dark:bg-neutral-900 rounded-lg p-2 text-sm flex items-center justify-between">
+                              <span>{DAYS[a.day_of_week]} {formatTime(a.start_time)} - {formatTime(a.end_time)}</span>
+                              {(() => { const r = getRateForDay(s.id, a.day_of_week); return r > 0 ? (<span className="text-green-600 dark:text-green-400 font-medium">${r.toFixed(2)}/h</span>) : null })()}
+                            </div>
+                          ))}
                   </div>
                 </div>
               )}
@@ -958,45 +988,44 @@ export default function StaffPage() {
                 <button type="button" className={`px-3 py-2 text-sm border-b-2 ${activeTab==='instructions' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 dark:text-gray-300'}`} onClick={() => setActiveTab('instructions')}>Payment Instructions</button>
                 <button type="button" className={`px-3 py-2 text-sm border-b-2 ${activeTab==='availability' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 dark:text-gray-300'}`} onClick={() => setActiveTab('availability')}>Availability</button>
                 <button type="button" className={`px-3 py-2 text-sm border-b-2 ${activeTab==='holidays' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 dark:text-gray-300'}`} onClick={() => setActiveTab('holidays')}>Holidays</button>
+                  <button type="button" className={`px-3 py-2 text-sm border-b-2 ${activeTab==='photo' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 dark:text-gray-300'}`} onClick={() => setActiveTab('photo')}>Photo</button>
                 </div>
               </div>
             <form id="staff-form" onSubmit={submit} className="px-6 sm:px-8">
               <div className="grid gap-5">
                 {activeTab === 'general' && (
                   <>
-                    <ImageUpload
-                      currentImageUrl={form.image_url}
-                      onImageChange={(url) => setForm((f) => ({ ...f, image_url: url || "" }))}
-                      type="staff"
-                      disabled={false}
-                    />
                     <label className="grid gap-2">
                       <span className="text-sm text-gray-700 dark:text-gray-300">Name</span>
                       <input className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
                     </label>
-                    <label className="grid gap-2">
-                      <span className="text-sm text-gray-700 dark:text-gray-300">Phone</span>
-                      <input className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
-                    </label>
-                    <label className="grid gap-2">
-                      <span className="text-sm text-gray-700 dark:text-gray-300">Email</span>
-                      <input type="email" className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
-                    </label>
-                    <label className="grid gap-2">
-                      <span className="text-sm text-gray-700 dark:text-gray-300">Role</span>
-                      <select className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.role_slug} onChange={(e) => setForm((f) => ({ ...f, role_slug: e.target.value }))}>
-                        {staffRoles.map((role) => (
-                          <option key={role.slug} value={role.slug}>{role.name}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="grid gap-2">
-                      <span className="text-sm text-gray-700 dark:text-gray-300">Available</span>
-                      <select className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.is_available ? 'yes' : 'no'} onChange={(e) => setForm((f) => ({ ...f, is_available: e.target.value === 'yes' }))}>
-                        <option value="yes">Yes</option>
-                        <option value="no">No</option>
-                      </select>
-                    </label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <label className="grid gap-2">
+                        <span className="text-sm text-gray-700 dark:text-gray-300">Phone</span>
+                        <input className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
+                      </label>
+                      <label className="grid gap-2">
+                        <span className="text-sm text-gray-700 dark:text-gray-300">Email</span>
+                        <input type="email" className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <label className="grid gap-2">
+                        <span className="text-sm text-gray-700 dark:text-gray-300">Role</span>
+                        <select className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.role_slug} onChange={(e) => setForm((f) => ({ ...f, role_slug: e.target.value }))}>
+                          {staffRoles.map((role) => (
+                            <option key={role.slug} value={role.slug}>{role.name}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="grid gap-2">
+                        <span className="text-sm text-gray-700 dark:text-gray-300">Available</span>
+                        <select className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" value={form.is_available ? 'yes' : 'no'} onChange={(e) => setForm((f) => ({ ...f, is_available: e.target.value === 'yes' }))}>
+                          <option value="yes">Yes</option>
+                          <option value="no">No</option>
+                        </select>
+                      </label>
+                    </div>
                     <label className="grid gap-2">
                       <span className="text-sm text-gray-700 dark:text-gray-300">Description</span>
                       <textarea 
@@ -1040,6 +1069,20 @@ export default function StaffPage() {
                       </div>
                     </label>
                   </>
+                )}
+                {activeTab === 'photo' && (
+                  <div className="grid gap-4">
+                    <div>
+                      <div className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-1">Staff Photo</div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Upload or change the staff member&apos;s profile photo.</p>
+                    </div>
+                    <ImageUpload
+                      currentImageUrl={form.image_url}
+                      onImageChange={(url) => setForm((f) => ({ ...f, image_url: url || "" }))}
+                      type="staff"
+                      disabled={false}
+                    />
+                  </div>
                 )}
                 {activeTab === 'rates' && (
                   <div className="grid gap-4">

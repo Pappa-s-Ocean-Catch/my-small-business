@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { FaUpload, FaTimes, FaImage, FaSpinner } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 
@@ -21,6 +21,11 @@ export function ImageUpload({
 }: ImageUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(currentImageUrl || null);
+  
+  // Keep preview in sync if parent passes a new currentImageUrl (e.g., when editing existing staff)
+  useEffect(() => {
+    setPreviewUrl(currentImageUrl || null);
+  }, [currentImageUrl]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -207,6 +212,16 @@ export function ImageUpload({
          type === 'staff' ? 'Staff Photo' :
          type === 'supplier' ? 'Supplier Logo' : 'Image'}
       </label>
+
+      {/* Hidden input (always mounted) so Change Image button can trigger it */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/jpg,image/png,image/webp"
+        onChange={handleFileSelect}
+        className="hidden"
+        disabled={disabled || uploading}
+      />
       
       {/* Image Preview */}
       {previewUrl && (
@@ -243,15 +258,6 @@ export function ImageUpload({
           `}
           onClick={() => !disabled && !uploading && fileInputRef.current?.click()}
         >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/jpg,image/png,image/webp"
-            onChange={handleFileSelect}
-            className="hidden"
-            disabled={disabled || uploading}
-          />
-          
           <div className="space-y-2">
             {uploading ? (
               <FaSpinner className="w-8 h-8 text-gray-400 mx-auto animate-spin" />
