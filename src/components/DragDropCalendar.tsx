@@ -106,6 +106,7 @@ interface DragDropCalendarProps {
   holidays: StaffHoliday[];
   sections: Section[];
   isAdmin: boolean;
+  isLoading?: boolean;
   onShiftCreate: (shift: Omit<Shift, 'id'>) => Promise<void>;
   onShiftUpdate: (id: string, updates: Partial<Shift>) => Promise<void>;
   onShiftDelete: (id: string) => Promise<void>;
@@ -333,6 +334,7 @@ export function DragDropCalendar({
   availability,
   sections,
   isAdmin,
+  isLoading = false,
   onShiftCreate,
   onShiftUpdate,
   onShiftDelete,
@@ -1492,13 +1494,13 @@ export function DragDropCalendar({
         <div className="mt-4 rounded-xl border p-3 bg-white dark:bg-neutral-800 border-gray-200 dark:border-neutral-700">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Weekly Finance</h2>
-            <div className="text-sm font-bold text-gray-900 dark:text-white">${getWeeklyTotal().toFixed(2)}</div>
+            <div className="text-xs md:text-sm font-bold text-gray-900 dark:text-white">${Math.round(getWeeklyTotal()).toLocaleString()}</div>
           </div>
           <div className="grid grid-cols-7 gap-2">
             {weekDays.map((day) => (
               <div key={day.toISOString()} className={`text-center rounded-lg p-2 ${isToday(day) ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-gray-50 dark:bg-neutral-900'}`}>
                 <div className={`text-xs ${isToday(day) ? 'text-blue-700 dark:text-blue-300' : 'text-gray-600 dark:text-gray-400'}`}>{format(day, 'EEE')}</div>
-                <div className={`text-xs font-semibold ${isToday(day) ? 'text-blue-700 dark:text-blue-300' : 'text-gray-900 dark:text-white'}`}>${getDailyTotal(day).toFixed(2)}</div>
+                <div className={`text-[10px] md:text-xs font-semibold ${isToday(day) ? 'text-blue-700 dark:text-blue-300' : 'text-gray-900 dark:text-white'}`}>${Math.round(getDailyTotal(day)).toLocaleString()}</div>
               </div>
             ))}
           </div>
@@ -1509,6 +1511,12 @@ export function DragDropCalendar({
 
       {/* Calendar Grid */}
       <div className="mt-6">
+      {isLoading && (
+        <div className="mb-4 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+          <div className="w-3 h-3 rounded-full border-2 border-blue-600 border-t-transparent animate-spin"></div>
+          Loading week...
+        </div>
+      )}
       {/* Mobile: single-day view with quick nav */}
       <div className="md:hidden">
         <div className="flex flex-wrap gap-1 pb-2 justify-between">

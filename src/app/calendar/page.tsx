@@ -25,6 +25,7 @@ export default function CalendarPage() {
   const [holidays, setHolidays] = useState<StaffHoliday[]>([]);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [anchor, setAnchor] = useState(new Date());
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   
   // Debug: Log the initial anchor date
   console.log('📅 Calendar Page - Initial anchor:', {
@@ -35,6 +36,7 @@ export default function CalendarPage() {
 
   const fetchData = useCallback(async () => {
     try {
+      setIsLoading(true);
       const supabase = getSupabaseClient();
       const { data: { user } } = await supabase.auth.getUser();
       
@@ -202,6 +204,8 @@ export default function CalendarPage() {
 
     } catch (error) {
       console.error("Error fetching calendar data:", error);
+    } finally {
+      setIsLoading(false);
     }
   }, [anchor, router]);
 
@@ -326,6 +330,7 @@ export default function CalendarPage() {
       availability={availability}
       holidays={holidays}
       isAdmin={isAdmin}
+      isLoading={isLoading}
       onShiftCreate={createShift}
       onShiftUpdate={updateShift}
       onShiftDelete={deleteShift}
