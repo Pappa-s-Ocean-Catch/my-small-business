@@ -359,6 +359,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
               <Link className={getLinkClasses("/analytics")} href="/analytics" aria-label="Analysis">Analysis</Link>
               <Link className={getLinkClasses("/wages-report")} href="/wages-report" aria-label="Wages Report">Wages Report</Link>
               <Link className={getLinkClasses("/payment-report")} href="/payment-report" aria-label="Payment Report">Payment Report</Link>
+              <Link className={getLinkClasses("/paid-payments")} href="/paid-payments" aria-label="Paid Payments">Paid Payments</Link>
             </div>
           </div>
         ) : (
@@ -422,6 +423,17 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                       <div>
                         <div className="font-medium text-gray-900 dark:text-white">Payment Report</div>
                         <div className="text-xs text-gray-600 dark:text-gray-400">Payment methods breakdown by staff</div>
+                      </div>
+                    </div>
+                  </Link>
+                  <Link href="/paid-payments" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 text-blue-600 dark:text-blue-400">
+                        <FaMoneyBillWave className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white">Paid Payments</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">View sealed payment records</div>
                       </div>
                     </div>
                   </Link>

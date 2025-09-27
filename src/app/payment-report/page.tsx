@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AdminGuard } from "@/components/AdminGuard";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { startOfWeek, endOfWeek, addWeeks, subWeeks, format, isWithinInterval } from "date-fns";
-import { FaFilePdf, FaFileExcel, FaChevronLeft, FaChevronRight } from "react-icons/fa";
+import { FaFilePdf, FaFileExcel, FaChevronLeft, FaChevronRight, FaCheckCircle, FaLock } from "react-icons/fa";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
@@ -91,6 +91,8 @@ export default function PaymentReportPage() {
   const [reportData, setReportData] = useState<PaymentReportRow[]>([]);
   const [instructions, setInstructions] = useState<StaffPaymentInstruction[]>([]);
   const [holidays, setHolidays] = useState<{ date: string; markup_percentage: number; markup_amount: number }[]>([]);
+  const [paidStaffIds, setPaidStaffIds] = useState<Set<string>>(new Set());
+  const [markingAsPaid, setMarkingAsPaid] = useState<string | null>(null);
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -120,7 +122,7 @@ export default function PaymentReportPage() {
 
   const fetchData = useCallback(async (): Promise<void> => {
     const supabase = getSupabaseClient();
-    const [{ data: staffData }, { data: ratesData }, { data: shiftData }, { data: holidayData }, brandSettingsResponse] = await Promise.all([
+    const [{ data: staffData }, { data: ratesData }, { data: shiftData }, { data: holidayData }, brandSettingsResponse, { data: wagePaymentData }] = await Promise.all([
       supabase.from("staff").select("id, name, email, applies_public_holiday_rules"),
       supabase.from("staff_rates").select("*"),
       supabase.from("shifts").select("id, staff_id, start_time, end_time, notes, non_billable_hours, section_id"),
@@ -130,7 +132,12 @@ export default function PaymentReportPage() {
         .gte("holiday_date", dateRange.start.toISOString().split('T')[0])
         .lte("holiday_date", dateRange.end.toISOString().split('T')[0])
         .eq("is_active", true),
-      fetch('/api/brand-settings').then(res => res.json())
+      fetch('/api/brand-settings').then(res => res.json()),
+      supabase
+        .from("wage_payments")
+        .select("staff_id")
+        .eq("week_start", dateRange.start.toISOString().split('T')[0])
+        .eq("week_end", dateRange.end.toISOString().split('T')[0])
     ]);
 
     setStaff(staffData || []);
@@ -142,6 +149,7 @@ export default function PaymentReportPage() {
       markup_amount: h.markup_amount
     })) || []);
     setBrandSettings(brandSettingsResponse.success ? brandSettingsResponse.data : null);
+    setPaidStaffIds(new Set((wagePaymentData || []).map((wp: { staff_id: string }) => wp.staff_id)));
     if (staffData && staffData.length > 0) {
       const staffIds = staffData.map(s => s.id);
       const { data: instr } = await supabase
@@ -544,6 +552,235 @@ export default function PaymentReportPage() {
     });
   };
 
+  const [confirmPayment, setConfirmPayment] = useState<{
+    isOpen: boolean;
+    staffId: string | null;
+    staffName: string;
+    totalWages: number;
+  }>({ isOpen: false, staffId: null, staffName: '', totalWages: 0 });
+
+  const markAsPaid = async (staffId: string) => {
+    if (paidStaffIds.has(staffId)) {
+      toast.error("This staff member is already marked as paid!");
+      return;
+    }
+
+    setMarkingAsPaid(staffId);
+    try {
+      const supabase = getSupabaseClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        toast.error("You must be logged in to mark payments as paid");
+        return;
+      }
+
+      // Find the staff member's data
+      const staffMember = staff.find(s => s.id === staffId);
+      const staffReportData = reportData.find(row => {
+        const staffMember = staff.find(s => s.id === staffId);
+        return staffMember && row.staffName === staffMember.name;
+      });
+
+      if (!staffMember || !staffReportData) {
+        toast.error("Staff member data not found");
+        return;
+      }
+
+      // Get the detailed breakdown for this staff member (same logic as getStaffDailyDetails)
+      const staffShifts = shifts.filter(shift => 
+        shift.staff_id === staffId &&
+        shift.start_time >= dateRange.start.toISOString() &&
+        shift.start_time <= dateRange.end.toISOString()
+      );
+
+      // Prepare instruction caps for this staff
+      const staffInstructions = instructions.filter(inst => inst.staff_id === staffId);
+      const list = staffInstructions.slice().sort((a, b) => a.priority - b.priority);
+      const remaining = list.map(i => i.weekly_hours_cap ?? Number.POSITIVE_INFINITY);
+
+      // Calculate detailed shift breakdown with payment types
+      const detailedShifts = staffShifts.map(shift => {
+        const shiftDate = new Date(shift.start_time);
+        const start = new Date(shift.start_time);
+        const end = new Date(shift.end_time);
+        const rawHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+        const nonbill = Number(shift.non_billable_hours || 0);
+        const hours = Math.max(0, rawHours - nonbill);
+
+        // Calculate base rate (same logic as in generateReportData)
+        const dateStr = shiftDate.toLocaleDateString('en-CA', { timeZone: 'Australia/Melbourne' });
+        const dayOfWeek = shiftDate.getDay();
+        const rateTypeMap: { [key: number]: string } = { 0: 'sun', 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu', 5: 'fri', 6: 'sat' };
+        const rateType = rateTypeMap[dayOfWeek];
+        let rate = staffRates.find(r => r.staff_id === staffId && r.rate_type === rateType && r.effective_date <= dateStr && r.end_date >= dateStr);
+        if (!rate) {
+          rate = staffRates.find(r => r.staff_id === staffId && r.rate_type === 'default' && r.effective_date <= dateStr && r.end_date >= dateStr);
+        }
+        let baseRate = rate?.rate || 0;
+        
+        // Apply holiday adjustments
+        const staffRow = staff.find(s => s.id === staffId);
+        if (staffRow?.applies_public_holiday_rules) {
+          const holiday = holidays.find(h => h.date === dateStr);
+          if (holiday) {
+            if (holiday.markup_percentage > 0) {
+              baseRate = baseRate * (holiday.markup_percentage / 100.0);
+            } else if (holiday.markup_amount > 0) {
+              baseRate = baseRate + holiday.markup_amount;
+            }
+          }
+        }
+
+        // Allocate hours across instructions to determine payment types
+        let remainingHours = hours;
+        let totalAmount = 0;
+        let bookingHours = 0;
+        let bookingAmount = 0;
+        let cashHours = 0;
+        let cashAmount = 0;
+        let paymentType = 'cash'; // default
+        let effectiveRate = baseRate; // Default to base rate
+
+        if (list.length > 0) {
+          for (let idx = 0; idx < list.length && remainingHours > 0; idx++) {
+            const capLeft = remaining[idx];
+            if (capLeft <= 0) continue;
+            const take = Math.min(remainingHours, capLeft);
+            const adjustedRate = baseRate + list[idx].adjustment_per_hour;
+            const lineAmount = take * adjustedRate;
+            totalAmount += lineAmount;
+            
+            // Set the effective rate based on the first instruction that applies
+            if (take > 0 && effectiveRate === baseRate) {
+              effectiveRate = adjustedRate;
+            }
+            
+            if (list[idx].payment_method === 'Booking') {
+              bookingHours += take;
+              bookingAmount += lineAmount;
+              paymentType = 'booking';
+            } else if (list[idx].payment_method === 'Cash') {
+              cashHours += take;
+              cashAmount += lineAmount;
+              paymentType = 'cash';
+            }
+            
+            remaining[idx] = capLeft - take;
+            remainingHours -= take;
+          }
+        }
+        
+        if (remainingHours > 0) {
+          const lineAmount = remainingHours * baseRate;
+          totalAmount += lineAmount;
+          cashHours += remainingHours;
+          cashAmount += lineAmount;
+          paymentType = 'cash';
+        }
+
+        return {
+          id: shift.id,
+          start_time: shift.start_time,
+          end_time: shift.end_time,
+          hours: hours,
+          rate: effectiveRate, // Store the effective rate (base + adjustments)
+          base_rate: baseRate, // Keep original base rate for reference
+          rate_type: rateType,
+          total_amount: totalAmount,
+          payment_type: paymentType,
+          booking_hours: bookingHours,
+          booking_amount: bookingAmount,
+          cash_hours: cashHours,
+          cash_amount: cashAmount,
+          non_billable_hours: shift.non_billable_hours,
+          notes: shift.notes,
+          is_holiday: holidays.some(h => h.date === dateStr),
+          is_public_holiday: staffRow?.applies_public_holiday_rules && holidays.some(h => h.date === dateStr)
+        };
+      });
+
+      // Prepare the payment data for this specific staff member
+      const paymentData = {
+        staff: {
+          id: staffMember.id,
+          name: staffMember.name,
+          email: staffMember.email
+        },
+        summary: {
+          totalHours: staffReportData.totalHours,
+          totalWages: staffReportData.totalWages,
+          bookingHours: staffReportData.bookingHours,
+          bookingWages: staffReportData.bookingWages,
+          cashHours: staffReportData.cashHours,
+          cashWages: staffReportData.cashWages,
+          reportGenerated: new Date().toISOString(),
+          weekStart: dateRange.start.toISOString(),
+          weekEnd: dateRange.end.toISOString()
+        },
+        shifts: detailedShifts, // Store the pre-calculated detailed shifts
+        rates: staffRates.filter(rate => rate.staff_id === staffId),
+        instructions: staffInstructions,
+        holidays: holidays
+      };
+
+      const { error } = await supabase
+        .from("wage_payments")
+        .insert({
+          staff_id: staffId,
+          week_start: dateRange.start.toISOString().split('T')[0],
+          week_end: dateRange.end.toISOString().split('T')[0],
+          total_hours: staffReportData.totalHours,
+          total_wages: staffReportData.totalWages,
+          booking_hours: staffReportData.bookingHours,
+          booking_wages: staffReportData.bookingWages,
+          cash_hours: staffReportData.cashHours,
+          cash_wages: staffReportData.cashWages,
+          payment_data: paymentData,
+          created_by: user.id
+        });
+
+      if (error) {
+        throw error;
+      }
+
+      setPaidStaffIds(prev => new Set([...prev, staffId]));
+      toast.success(`${staffMember.name}'s payment has been marked as paid and sealed!`);
+    } catch (error) {
+      console.error("Error marking payment as paid:", error);
+      toast.error("Failed to mark payment as paid. Please try again.");
+    } finally {
+      setMarkingAsPaid(null);
+    }
+  };
+
+  const handleMarkAsPaidClick = (staffId: string) => {
+    const staffMember = staff.find(s => s.id === staffId);
+    const staffReportData = reportData.find(row => {
+      const staffMember = staff.find(s => s.id === staffId);
+      return staffMember && row.staffName === staffMember.name;
+    });
+
+    if (!staffMember || !staffReportData) {
+      toast.error("Staff member data not found");
+      return;
+    }
+
+    setConfirmPayment({
+      isOpen: true,
+      staffId,
+      staffName: staffMember.name,
+      totalWages: staffReportData.totalWages
+    });
+  };
+
+  const confirmMarkAsPaid = () => {
+    if (confirmPayment.staffId) {
+      markAsPaid(confirmPayment.staffId);
+      setConfirmPayment({ isOpen: false, staffId: null, staffName: '', totalWages: 0 });
+    }
+  };
+
   // Expand/collapse details per staff row
   const [expandedStaffId, setExpandedStaffId] = useState<string | null>(null);
 
@@ -600,13 +837,22 @@ export default function PaymentReportPage() {
       let bookingAmount = 0;
       let cashHours = 0;
       let cashAmount = 0;
+      let effectiveRate = baseRate; // Default to base rate
+      
       if (list.length > 0) {
         for (let idx = 0; idx < list.length && remainingHours > 0; idx++) {
           const capLeft = remaining[idx];
           if (capLeft <= 0) continue;
           const take = Math.min(remainingHours, capLeft);
-          const lineAmount = take * (baseRate + list[idx].adjustment_per_hour);
+          const adjustedRate = baseRate + list[idx].adjustment_per_hour;
+          const lineAmount = take * adjustedRate;
           amount += lineAmount;
+          
+          // Set the effective rate based on the first instruction that applies
+          if (take > 0 && effectiveRate === baseRate) {
+            effectiveRate = adjustedRate;
+          }
+          
           if (list[idx].payment_method === 'Booking') {
             bookingHours += take;
             bookingAmount += lineAmount;
@@ -629,7 +875,7 @@ export default function PaymentReportPage() {
       if (!byDate[shiftDateMel]) byDate[shiftDateMel] = { hours: 0, amount: 0, rate: baseRate, bookingHours: 0, bookingAmount: 0, cashHours: 0, cashAmount: 0 };
       byDate[shiftDateMel].hours += hours;
       byDate[shiftDateMel].amount += amount;
-      byDate[shiftDateMel].rate = baseRate; // display base rate reference
+      byDate[shiftDateMel].rate = effectiveRate; // display effective rate (base + adjustments)
       byDate[shiftDateMel].bookingHours += bookingHours;
       byDate[shiftDateMel].bookingAmount += bookingAmount;
       byDate[shiftDateMel].cashHours += cashHours;
@@ -668,7 +914,15 @@ export default function PaymentReportPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Payment Report</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Payment Report</h1>
+              {paidStaffIds.size > 0 && (
+                <div className="flex items-center gap-2 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded-full text-sm font-medium">
+                  <FaCheckCircle className="w-4 h-4" />
+                  {paidStaffIds.size} Paid
+                </div>
+              )}
+            </div>
             <p className="text-sm text-gray-600 dark:text-gray-400">
               {format(dateRange.start, "MMM dd, yyyy")} - {format(dateRange.end, "MMM dd, yyyy")}
             </p>
@@ -785,6 +1039,7 @@ export default function PaymentReportPage() {
                   <th rowSpan={2} className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Wages</th>
                   <th colSpan={3} className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Booking</th>
                   <th colSpan={3} className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Cash</th>
+                  <th rowSpan={2} className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
                 </tr>
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Hours</th>
@@ -818,10 +1073,29 @@ export default function PaymentReportPage() {
                           <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{row ? row.cashHours : 0}</td>
                           <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">${row ? row.cashRate.toFixed(2) : '0.00'}</td>
                           <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">${row ? row.cashWages.toFixed(2) : '0.00'}</td>
+                          <td className="px-4 py-3 text-sm text-center" onClick={(e) => e.stopPropagation()}>
+                            {paidStaffIds.has(s.id) ? (
+                              <div className="flex items-center justify-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 rounded-full text-xs font-medium">
+                                <FaCheckCircle className="w-3 h-3" />
+                                Paid
+                              </div>
+                            ) : row && row.totalWages > 0 ? (
+                              <button
+                                onClick={() => handleMarkAsPaidClick(s.id)}
+                                disabled={markingAsPaid === s.id}
+                                className="flex items-center gap-1 px-2 py-1 bg-blue-600 text-white rounded-full text-xs font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                              >
+                                <FaLock className="w-3 h-3" />
+                                {markingAsPaid === s.id ? "Marking..." : "Mark as Paid"}
+                              </button>
+                            ) : (
+                              <span className="text-gray-400 text-xs">No wages</span>
+                            )}
+                          </td>
                         </tr>
                         {expandedStaffId === s.id && details.length > 0 && (
                           <tr key={`${s.id}-details`} className="bg-gray-50/70 dark:bg-neutral-800/50">
-                            <td colSpan={9} className="px-4 py-3">
+                            <td colSpan={10} className="px-4 py-3">
                               <div className="text-xs text-gray-700 dark:text-gray-300 space-y-2">
                                 {details.map(d => (
                                   <div key={d.date} className="flex items-center justify-between">
@@ -858,12 +1132,51 @@ export default function PaymentReportPage() {
                     <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{getCashTotals().hours.toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">-</td>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">${getCashTotals().wages.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">-</td>
                   </tr>
                 </tfoot>
               )}
             </table>
           </div>
         </div>
+
+        {/* Confirmation Dialog */}
+        {confirmPayment.isOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-neutral-900 rounded-lg p-6 max-w-md w-full mx-4">
+              <div className="flex items-center gap-3 mb-4">
+                <FaLock className="w-6 h-6 text-blue-600" />
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Mark as Paid</h3>
+              </div>
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
+                Are you sure you want to mark <strong>{confirmPayment.staffName}</strong>&apos;s payment as paid?
+              </p>
+              <div className="bg-gray-50 dark:bg-neutral-800 rounded-lg p-3 mb-4">
+                <div className="text-sm text-gray-600 dark:text-gray-400">Total Wages:</div>
+                <div className="text-lg font-semibold text-gray-900 dark:text-white">
+                  ${confirmPayment.totalWages.toFixed(2)}
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                This action will seal the payment data and cannot be undone.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setConfirmPayment({ isOpen: false, staffId: null, staffName: '', totalWages: 0 })}
+                  className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-neutral-700 rounded-lg hover:bg-gray-300 dark:hover:bg-neutral-600 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmMarkAsPaid}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Mark as Paid
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </AdminGuard>
   );
