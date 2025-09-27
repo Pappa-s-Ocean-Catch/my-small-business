@@ -11,8 +11,8 @@ import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { toast } from 'react-toastify';
-import { addBrandingHeader, getBrandingHeaderHeight, BrandSettings } from "@/lib/pdf-branding";
-import { getBrandSettings } from "@/lib/brand-settings";
+import { addBrandingHeader, getBrandingHeaderHeight } from "@/lib/pdf-branding";
+import { BrandSettings } from "@/lib/brand-settings";
 
 type Staff = {
   id: string;
@@ -120,19 +120,19 @@ export default function ReportsPage() {
 
   const fetchData = useCallback(async (): Promise<void> => {
     const supabase = getSupabaseClient();
-    const [{ data: staffData }, { data: ratesData }, { data: shiftData }, { data: sectionData }, brandSettingsData] = await Promise.all([
+    const [{ data: staffData }, { data: ratesData }, { data: shiftData }, { data: sectionData }, brandSettingsResponse] = await Promise.all([
       supabase.from("staff").select("id, name, email"),
       supabase.from("staff_rates").select("*"),
       supabase.from("shifts").select("id, staff_id, start_time, end_time, notes, non_billable_hours, section_id"),
       supabase.from("sections").select("id, name, description, color, active, sort_order").eq("active", true).order("sort_order"),
-      getBrandSettings()
+      fetch('/api/brand-settings').then(res => res.json())
     ]);
 
     setStaff(staffData || []);
     setStaffRates(ratesData || []);
     setShifts(shiftData || []);
     setSections(sectionData || []);
-    setBrandSettings(brandSettingsData);
+    setBrandSettings(brandSettingsResponse.success ? brandSettingsResponse.data : null);
     if (staffData && staffData.length > 0) {
       const staffIds = staffData.map(s => s.id);
       const { data: instr } = await supabase
@@ -503,7 +503,7 @@ export default function ReportsPage() {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 print:grid-cols-3 print:gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6 print:grid-cols-3 print:gap-2">
           <div className="p-4 bg-white dark:bg-neutral-900 rounded-lg shadow-lg print:p-2 print:border print:border-gray-300">
             <div className="text-sm text-gray-600 dark:text-gray-400 print:text-xs">Total Shifts</div>
             <div className="text-2xl font-bold text-gray-900 dark:text-white print:text-lg">{reportData.length}</div>

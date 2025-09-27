@@ -10,8 +10,8 @@ import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { toast } from "react-toastify";
-import { addBrandingHeader, getBrandingHeaderHeight, BrandSettings } from "@/lib/pdf-branding";
-import { getBrandSettings } from "@/lib/brand-settings";
+import { addBrandingHeader, getBrandingHeaderHeight } from "@/lib/pdf-branding";
+import { BrandSettings } from "@/lib/brand-settings";
 
 type Staff = {
   id: string;
@@ -72,7 +72,7 @@ export default function WagesReportPage() {
     setLoading(true);
     try {
       const supabase = getSupabaseClient();
-      const [{ data: staffData, error: staffErr }, { data: ratesData, error: ratesErr }, { data: shiftData, error: shiftErr }, { data: holidayData, error: holidayErr }, brandSettingsData] = await Promise.all([
+      const [{ data: staffData, error: staffErr }, { data: ratesData, error: ratesErr }, { data: shiftData, error: shiftErr }, { data: holidayData, error: holidayErr }, brandSettingsResponse] = await Promise.all([
         supabase.from("staff").select("id, name, applies_public_holiday_rules"),
         supabase.from("staff_rates").select("*"),
         supabase
@@ -86,7 +86,7 @@ export default function WagesReportPage() {
           .gte("holiday_date", weekStart.toISOString().split('T')[0])
           .lte("holiday_date", weekEnd.toISOString().split('T')[0])
           .eq("is_active", true),
-        getBrandSettings()
+        fetch('/api/brand-settings').then(res => res.json())
       ]);
 
       if (staffErr) throw new Error(staffErr.message);
@@ -102,7 +102,7 @@ export default function WagesReportPage() {
         markup_percentage: h.markup_percentage,
         markup_amount: h.markup_amount
       })) || []);
-      setBrandSettings(brandSettingsData);
+      setBrandSettings(brandSettingsResponse.success ? brandSettingsResponse.data : null);
       if (staffData && staffData.length > 0) {
         const { data: instr } = await supabase
           .from("staff_payment_instructions")
@@ -323,41 +323,47 @@ export default function WagesReportPage() {
               Week: {format(weekStart, "MMM dd, yyyy")} - {format(weekEnd, "MMM dd, yyyy")}
             </p>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={goPrevWeek}
-              className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-neutral-900 shadow-lg rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
-              title="Previous Week"
-            >
-              <FaChevronLeft className="w-4 h-4" /> Prev
-            </button>
-            <button
-              onClick={goThisWeek}
-              className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-neutral-900 shadow-lg rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
-              title="This Week"
-            >
-              Today
-            </button>
-            <button
-              onClick={goNextWeek}
-              className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-neutral-900 shadow-lg rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
-              title="Next Week"
-            >
-              Next <FaChevronRight className="w-4 h-4" />
-            </button>
+          <div className="flex flex-col gap-3 print:hidden">
+            {/* Navigation buttons - always on first row */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <button
+                onClick={goPrevWeek}
+                className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-neutral-900 shadow-lg rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+                title="Previous Week"
+              >
+                <FaChevronLeft className="w-4 h-4" /> Prev
+              </button>
+              <button
+                onClick={goThisWeek}
+                className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-neutral-900 shadow-lg rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+                title="This Week"
+              >
+                Today
+              </button>
+              <button
+                onClick={goNextWeek}
+                className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-neutral-900 shadow-lg rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+                title="Next Week"
+              >
+                Next <FaChevronRight className="w-4 h-4" />
+              </button>
+            </div>
 
-            <button
-              onClick={exportPdf}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-            >
-              <FaFilePdf className="w-4 h-4" /> Export PDF
-            </button>
-            <button
-              onClick={exportExcel}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-            >
-              <FaFileExcel className="w-4 h-4" /> Export Excel
-            </button>
+            {/* Export buttons - second row on mobile, same row on desktop */}
+            <div className="flex items-center gap-3 flex-wrap md:flex-nowrap md:ml-auto">
+              <button
+                onClick={exportPdf}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                <FaFilePdf className="w-4 h-4" /> Export PDF
+              </button>
+              <button
+                onClick={exportExcel}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                <FaFileExcel className="w-4 h-4" /> Export Excel
+              </button>
+            </div>
           </div>
         </div>
 

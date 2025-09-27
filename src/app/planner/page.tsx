@@ -566,7 +566,7 @@ Return ONLY a JSON array of assignments in this exact format:
         {results && (
           <div className="grid gap-6">
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <Card>
                 <div className="flex items-center gap-3">
                   <FaDollarSign className="w-8 h-8 text-green-600" />

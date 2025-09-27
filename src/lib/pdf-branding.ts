@@ -1,10 +1,5 @@
 import jsPDF from 'jspdf';
-
-export interface BrandSettings {
-  business_name: string;
-  logo_url: string | null;
-  slogan: string | null;
-}
+import { BrandSettings } from './brand-settings';
 
 export async function addBrandingHeader(
   doc: jsPDF, 
@@ -16,8 +11,14 @@ export async function addBrandingHeader(
   const margin = 14;
   let yPosition = 20;
 
-  // Add logo if available
+  // Calculate header height for logo positioning
+  const headerHeight = 60; // Total height for business name + slogan
+  let logoHeight = 0;
+  let logoWidth = 0;
+
+  // Load logo if available
   if (brandSettings.logo_url) {
+    console.log('📄 PDF Branding - Loading logo:', brandSettings.logo_url);
     try {
       // Create an image element to load the logo
       const img = new Image();
@@ -29,33 +30,45 @@ export async function addBrandingHeader(
         img.src = brandSettings.logo_url!;
       });
 
-      // Add logo (max 40px height)
-      const logoHeight = 40;
-      const logoWidth = (img.width / img.height) * logoHeight;
-      doc.addImage(img, 'PNG', margin, yPosition, logoWidth, logoHeight);
+      console.log('📄 PDF Branding - Logo loaded successfully, dimensions:', img.width, 'x', img.height);
       
-      yPosition += logoHeight + 10;
+      // Calculate logo dimensions (max 50px height to fit header)
+      logoHeight = Math.min(50, img.height);
+      logoWidth = (img.width / img.height) * logoHeight;
+      
+      // Position logo on the right side
+      const logoX = pageWidth - margin - logoWidth;
+      const logoY = yPosition + (headerHeight - logoHeight) / 2; // Center vertically in header
+      doc.addImage(img, 'PNG', logoX, logoY, logoWidth, logoHeight);
+      
+      console.log('📄 PDF Branding - Logo added to PDF at position:', logoX, logoY);
     } catch (error) {
-      console.warn('Failed to load logo for PDF:', error);
+      console.warn('📄 PDF Branding - Failed to load logo for PDF:', error);
     }
+  } else {
+    console.log('📄 PDF Branding - No logo URL provided');
   }
 
-  // Add business name
-  doc.setFontSize(18);
+  // Add business name (big text on the left)
+  console.log('📄 PDF Branding - Adding business name:', brandSettings.business_name);
+  doc.setFontSize(24);
   doc.setFont('helvetica', 'bold');
-  doc.text(brandSettings.business_name, margin, yPosition);
-  yPosition += 8;
-
-  // Add slogan if available
+  doc.setTextColor(0, 0, 0);
+  doc.text(brandSettings.business_name, margin, yPosition + 15);
+  
+  // Add slogan if available (smaller text on second line)
   if (brandSettings.slogan) {
-    doc.setFontSize(10);
+    console.log('📄 PDF Branding - Adding slogan:', brandSettings.slogan);
+    doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100, 100, 100);
-    doc.text(brandSettings.slogan, margin, yPosition);
-    yPosition += 15;
+    doc.text(brandSettings.slogan, margin, yPosition + 30);
   } else {
-    yPosition += 10;
+    console.log('📄 PDF Branding - No slogan provided');
   }
+
+  // Move to after the header
+  yPosition += headerHeight + 10;
 
   // Add title
   doc.setFontSize(16);
@@ -86,16 +99,10 @@ export async function addBrandingHeader(
 export function getBrandingHeaderHeight(brandSettings: BrandSettings, hasSubtitle: boolean = false): number {
   let height = 20; // Base margin
   
-  if (brandSettings.logo_url) {
-    height += 50; // Logo height + spacing
-  } else {
-    height += 10; // Just spacing
-  }
+  // Header section (business name + slogan + logo)
+  height += 60; // Fixed header height for business name and slogan
   
-  if (brandSettings.slogan) {
-    height += 15; // Slogan height + spacing
-  }
-  
+  // Title section
   height += 25; // Title height + spacing
   
   if (hasSubtitle) {

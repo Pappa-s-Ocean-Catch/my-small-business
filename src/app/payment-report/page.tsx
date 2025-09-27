@@ -10,8 +10,8 @@ import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { toast } from "react-toastify";
-import { addBrandingHeader, getBrandingHeaderHeight, BrandSettings } from "@/lib/pdf-branding";
-import { getBrandSettings } from "@/lib/brand-settings";
+import { addBrandingHeader, getBrandingHeaderHeight } from "@/lib/pdf-branding";
+import { BrandSettings } from "@/lib/brand-settings";
 
 type Staff = {
   id: string;
@@ -120,7 +120,7 @@ export default function PaymentReportPage() {
 
   const fetchData = useCallback(async (): Promise<void> => {
     const supabase = getSupabaseClient();
-    const [{ data: staffData }, { data: ratesData }, { data: shiftData }, { data: holidayData }, brandSettingsData] = await Promise.all([
+    const [{ data: staffData }, { data: ratesData }, { data: shiftData }, { data: holidayData }, brandSettingsResponse] = await Promise.all([
       supabase.from("staff").select("id, name, email, applies_public_holiday_rules"),
       supabase.from("staff_rates").select("*"),
       supabase.from("shifts").select("id, staff_id, start_time, end_time, notes, non_billable_hours, section_id"),
@@ -130,7 +130,7 @@ export default function PaymentReportPage() {
         .gte("holiday_date", dateRange.start.toISOString().split('T')[0])
         .lte("holiday_date", dateRange.end.toISOString().split('T')[0])
         .eq("is_active", true),
-      getBrandSettings()
+      fetch('/api/brand-settings').then(res => res.json())
     ]);
 
     setStaff(staffData || []);
@@ -141,7 +141,7 @@ export default function PaymentReportPage() {
       markup_percentage: h.markup_percentage,
       markup_amount: h.markup_amount
     })) || []);
-    setBrandSettings(brandSettingsData);
+    setBrandSettings(brandSettingsResponse.success ? brandSettingsResponse.data : null);
     if (staffData && staffData.length > 0) {
       const staffIds = staffData.map(s => s.id);
       const { data: instr } = await supabase
@@ -380,8 +380,12 @@ export default function PaymentReportPage() {
   const exportToPDF = async () => {
     const doc = new jsPDF();
     
+    // Debug: Log brand settings
+    console.log('📄 Payment Report PDF - Brand Settings:', brandSettings);
+    
     // Add branding header
     if (brandSettings) {
+      console.log('📄 Using brand settings for PDF header');
       await addBrandingHeader(
         doc, 
         brandSettings, 
@@ -389,6 +393,7 @@ export default function PaymentReportPage() {
         `Period: ${format(dateRange.start, "MMM dd, yyyy")} - ${format(dateRange.end, "MMM dd, yyyy")}`
       );
     } else {
+      console.log('📄 No brand settings found, using fallback header');
       // Fallback if no brand settings
       doc.setFontSize(16);
       doc.text("Payment Report", 14, 18);
@@ -669,43 +674,49 @@ export default function PaymentReportPage() {
             </p>
           </div>
           
-          <div className="flex items-center gap-3 flex-wrap print:hidden">
-            <button
-              onClick={goPrevWeek}
-              className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-neutral-900 shadow-lg rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
-              title="Previous Week"
-            >
-              <FaChevronLeft className="w-4 h-4" /> Prev
-            </button>
-            <button
-              onClick={goThisWeek}
-              className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-neutral-900 shadow-lg rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
-              title="This Week"
-            >
-              Today
-            </button>
-            <button
-              onClick={goNextWeek}
-              className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-neutral-900 shadow-lg rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
-              title="Next Week"
-            >
-              Next <FaChevronRight className="w-4 h-4" />
-            </button>
+          <div className="flex flex-col gap-3 print:hidden">
+            {/* Navigation buttons - always on first row */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <button
+                onClick={goPrevWeek}
+                className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-neutral-900 shadow-lg rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+                title="Previous Week"
+              >
+                <FaChevronLeft className="w-4 h-4" /> Prev
+              </button>
+              <button
+                onClick={goThisWeek}
+                className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-neutral-900 shadow-lg rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+                title="This Week"
+              >
+                Today
+              </button>
+              <button
+                onClick={goNextWeek}
+                className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-neutral-900 shadow-lg rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+                title="Next Week"
+              >
+                Next <FaChevronRight className="w-4 h-4" />
+              </button>
+            </div>
 
-            <button
-              onClick={exportToPDF}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-            >
-              <FaFilePdf className="w-4 h-4" />
-              Export PDF
-            </button>
-            <button
-              onClick={exportToExcel}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-            >
-              <FaFileExcel className="w-4 h-4" />
-              Export Excel
-            </button>
+            {/* Export buttons - second row on mobile, same row on desktop */}
+            <div className="flex items-center gap-3 flex-wrap md:flex-nowrap md:ml-auto">
+              <button
+                onClick={exportToPDF}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                <FaFilePdf className="w-4 h-4" />
+                Export PDF
+              </button>
+              <button
+                onClick={exportToExcel}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                <FaFileExcel className="w-4 h-4" />
+                Export Excel
+              </button>
+            </div>
           </div>
         </div>
 
@@ -744,7 +755,7 @@ export default function PaymentReportPage() {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 print:grid-cols-4 print:gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 print:grid-cols-4 print:gap-2">
           <div className="p-4 bg-white dark:bg-neutral-900 rounded-lg shadow-lg print:p-2 print:border print:border-gray-300">
             <div className="text-sm text-gray-600 dark:text-gray-400 print:text-xs">Total Hours</div>
             <div className="text-2xl font-bold text-gray-900 dark:text-white print:text-lg">{getTotalHours().toFixed(2)}</div>
