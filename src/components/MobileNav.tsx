@@ -1,9 +1,28 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { AdminNavigation } from "@/components/AdminNavigation";
 import Link from "next/link";
-import { FaBars, FaTimes, FaChevronDown, FaHome, FaCalendarAlt, FaDollarSign } from "react-icons/fa";
+import { 
+  FaBars, 
+  FaTimes, 
+  FaChevronDown, 
+  FaHome, 
+  FaCalendarAlt, 
+  FaDollarSign,
+  FaUsers,
+  FaCog,
+  FaStore,
+  FaChartLine,
+  FaFileAlt,
+  FaUtensils,
+  FaBox,
+  FaTags,
+  FaWarehouse,
+  FaShoppingBag,
+  FaMoneyBillWave,
+  FaChartPie,
+  FaExclamationTriangle
+} from "react-icons/fa";
 
 export function MobileNav() {
   const [open, setOpen] = useState(false);
@@ -15,130 +34,298 @@ export function MobileNav() {
 
   useEffect(() => {
     setMounted(true);
-    // Debug mount
-    console.log('[MobileNav] mounted');
   }, []);
+
+  const closeMenu = () => setOpen(false);
 
   return (
     <div className="md:hidden">
+      {/* Menu Trigger Button */}
       <button
         aria-label="Open menu"
-        className="p-2 rounded-lg border hover:bg-gray-50 dark:hover:bg-neutral-900"
-        onClick={() => { console.log('[MobileNav] open click'); setOpen(true); }}
+        className="p-3 rounded-lg border hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors"
+        onClick={() => setOpen(true)}
       >
         <FaBars className="w-5 h-5" />
       </button>
 
+      {/* Mobile Menu Overlay */}
       {open && (
         <div className="fixed inset-0 z-[100]">
+          {/* Backdrop */}
           <div
-            className="absolute inset-0 bg-black/40 z-0"
-            onClick={() => { console.log('[MobileNav] backdrop click -> close'); setOpen(false); }}
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={closeMenu}
           />
-          <div className="absolute top-0 right-0 h-full w-80 max-w-[85%] bg-white dark:bg-neutral-950 border-l p-4 flex flex-col gap-4 shadow-2xl rounded-l-2xl z-10">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold">Menu</span>
-              <button aria-label="Close menu" className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-900" onClick={() => { console.log('[MobileNav] close button'); setOpen(false); }}>
-                <FaTimes className="w-4 h-4" />
-              </button>
-            </div>
-            {/* Scrollable content area */}
-            <div className="flex-1 bg-white dark:bg-neutral-950 p-2">
-            {/* Guard to avoid any hydration mismatch causing empty content */}
-            {!mounted ? (
-              <div className="text-sm text-gray-500">Loading menu…</div>
-            ) : (
-            <>
-            {/* Quick links */}
-            <div className="grid grid-cols-2 gap-2">
-              <Link href="/" onClick={() => setOpen(false)} className="p-3 rounded-lg border hover:bg-gray-50 dark:hover:bg-neutral-900 inline-flex items-center gap-2">
-                <FaHome className="w-3.5 h-3.5" />
-                <span className="text-sm">Dashboard</span>
-              </Link>
-              <Link href="/calendar" onClick={() => setOpen(false)} className="p-3 rounded-lg border hover:bg-gray-50 dark:hover:bg-neutral-900 inline-flex items-center gap-2">
-                <FaCalendarAlt className="w-3.5 h-3.5" />
-                <span className="text-sm">Work shift</span>
-              </Link>
-              <Link href="/income-expense" onClick={() => setOpen(false)} className="p-3 rounded-lg border hover:bg-gray-50 dark:hover:bg-neutral-900 inline-flex items-center gap-2">
-                <FaDollarSign className="w-3.5 h-3.5" />
-                <span className="text-sm">Income/Expense</span>
-              </Link>
-            </div>
-
-            {/* Collapsible groups */}
-            <div className="divide-y divide-gray-200 dark:divide-neutral-800">
-              {/* Management */}
-              <div className="py-2">
-                <button className="w-full flex items-center justify-between px-2 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900" onClick={() => { const next = !mgmtOpen; console.log('[MobileNav] toggle mgmt', next); setMgmtOpen(next); if (next) { setShopOpen(false); setReportsOpen(false); setSystemOpen(false); } }}>
-                  <span className="text-sm font-medium">Management</span>
-                  <FaChevronDown className={`w-3 h-3 transition-transform ${mgmtOpen ? 'rotate-180' : ''}`} />
+          
+          {/* Menu Panel - Slides in from left */}
+          <div className="absolute top-0 left-0 h-full w-[90vw] bg-neutral-900/95 backdrop-blur-md shadow-2xl transform transition-transform duration-300 ease-out">
+            <div className="h-full flex flex-col bg-neutral-900">
+              {/* Header */}
+              <div className="bg-blue-600 px-4 py-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                    <FaStore className="w-5 h-5 text-white" />
+                  </div>
+                  <span className="text-white font-semibold text-lg">Business Hub</span>
+                </div>
+                <button 
+                  aria-label="Close menu" 
+                  className="p-2 rounded-lg hover:bg-white/20 transition-colors"
+                  onClick={closeMenu}
+                >
+                  <FaTimes className="w-5 h-5 text-white" />
                 </button>
-                {mgmtOpen && (
-                  <div className="mt-1 pl-2 grid gap-1">
-                    <Link href="/staff" onClick={() => setOpen(false)} className="px-3 py-2 text-sm rounded hover:bg-gray-50 dark:hover:bg-neutral-900">Staff</Link>
-                    <Link href="/sections" onClick={() => setOpen(false)} className="px-3 py-2 text-sm rounded hover:bg-gray-50 dark:hover:bg-neutral-900">Sections</Link>
-                    <Link href="/shop/menu-screens" onClick={() => setOpen(false)} className="px-3 py-2 text-sm rounded hover:bg-gray-50 dark:hover:bg-neutral-900">Menu Builder</Link>
-                    <Link href="/planner" onClick={() => setOpen(false)} className="px-3 py-2 text-sm rounded hover:bg-gray-50 dark:hover:bg-neutral-900">AI Planner</Link>
-                    <Link href="/holidays" onClick={() => setOpen(false)} className="px-3 py-2 text-sm rounded hover:bg-gray-50 dark:hover:bg-neutral-900">Public Holidays</Link>
+              </div>
+
+              {/* Quick Actions */}
+              <div className="p-3 bg-neutral-800">
+                <h3 className="text-xs font-semibold text-gray-300 mb-2 uppercase tracking-wider">Quick Actions</h3>
+                <div className="grid grid-cols-4 gap-2 bg-neutral-800/30">
+                  <Link 
+                    href="/" 
+                    onClick={closeMenu} 
+                    className="p-3 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200 active:scale-95 flex flex-col items-center gap-1"
+                  >
+                    <FaHome className="w-4 h-4 text-blue-400" />
+                    <span className="text-xs font-medium text-white">Dashboard</span>
+                  </Link>
+                  <Link 
+                    href="/calendar" 
+                    onClick={closeMenu} 
+                    className="p-3 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200 active:scale-95 flex flex-col items-center gap-1"
+                  >
+                    <FaCalendarAlt className="w-4 h-4 text-green-400" />
+                    <span className="text-xs font-medium text-white">Work Shift</span>
+                  </Link>
+                  <Link 
+                    href="/income-expense" 
+                    onClick={closeMenu} 
+                    className="p-3 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200 active:scale-95 flex flex-col items-center gap-1"
+                  >
+                    <FaDollarSign className="w-4 h-4 text-yellow-400" />
+                    <span className="text-xs font-medium text-white">Income</span>
+                  </Link>
+                  <Link 
+                    href="/cash-flow" 
+                    onClick={closeMenu} 
+                    className="p-3 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200 active:scale-95 flex flex-col items-center gap-1"
+                  >
+                    <FaChartLine className="w-4 h-4 text-purple-400" />
+                    <span className="text-xs font-medium text-white">Cash Flow</span>
+                  </Link>
+                </div>
+              </div>
+
+              {/* Main Menu Sections */}
+              <div className="flex-1 px-4 py-2 bg-neutral-800">
+                {!mounted ? (
+                  <div className="text-sm text-gray-400 text-center py-8">Loading menu...</div>
+                ) : (
+                  <div className="space-y-2 bg-neutral-800">
+                    <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 bg-neutral-800 px-2 py-1 rounded">Main Menu</div>
+                    {/* Management Section */}
+                    <div className="border-b border-neutral-700 pb-2 bg-neutral-800">
+                      <button 
+                        className="w-full flex items-center justify-between px-3 py-3 rounded-lg hover:bg-white/10 transition-colors"
+                        onClick={() => {
+                          setMgmtOpen(!mgmtOpen);
+                          if (!mgmtOpen) {
+                            setShopOpen(false);
+                            setReportsOpen(false);
+                            setSystemOpen(false);
+                          }
+                        }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <FaUsers className="w-5 h-5 text-blue-400" />
+                          <span className="font-semibold text-white">Management</span>
+                        </div>
+                        <FaChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${mgmtOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      {mgmtOpen && (
+                        <div className="ml-8 mt-2 space-y-1">
+                          <Link href="/staff" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                            <FaUsers className="w-4 h-4 mr-2 text-blue-400" />
+                            Staff
+                          </Link>
+                          <Link href="/sections" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                            <FaCog className="w-4 h-4 mr-2 text-gray-400" />
+                            Sections
+                          </Link>
+                          <Link href="/shop/menu-screens" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                            <FaUtensils className="w-4 h-4 mr-2 text-orange-400" />
+                            Menu Builder
+                          </Link>
+                          <Link href="/planner" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                            <FaChartLine className="w-4 h-4 mr-2 text-purple-400" />
+                            AI Planner
+                          </Link>
+                          <Link href="/holidays" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                            <FaCalendarAlt className="w-4 h-4 mr-2 text-green-400" />
+                            Public Holidays
+                          </Link>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Shop Section */}
+                    <div className="border-b border-neutral-700 pb-2 bg-neutral-800">
+                      <button 
+                        className="w-full flex items-center justify-between px-3 py-3 rounded-lg hover:bg-white/10 transition-colors"
+                        onClick={() => {
+                          setShopOpen(!shopOpen);
+                          if (!shopOpen) {
+                            setMgmtOpen(false);
+                            setReportsOpen(false);
+                            setSystemOpen(false);
+                          }
+                        }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <FaStore className="w-5 h-5 text-green-400" />
+                          <span className="font-semibold text-white">Shop</span>
+                        </div>
+                        <FaChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${shopOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      {shopOpen && (
+                        <div className="ml-8 mt-2 space-y-1">
+                          <Link href="/shop" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                            <FaStore className="w-4 h-4 mr-2 text-green-400" />
+                            Shop Overview
+                          </Link>
+                          <Link href="/shop/products" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                            <FaBox className="w-4 h-4 mr-2 text-blue-400" />
+                            Products
+                          </Link>
+                          <Link href="/shop/categories" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                            <FaTags className="w-4 h-4 mr-2 text-purple-400" />
+                            Categories
+                          </Link>
+                          <Link href="/shop/inventory" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                            <FaWarehouse className="w-4 h-4 mr-2 text-orange-400" />
+                            Inventory
+                          </Link>
+                          <Link href="/shop/suppliers" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                            <FaShoppingBag className="w-4 h-4 mr-2 text-yellow-400" />
+                            Suppliers
+                          </Link>
+                          <Link href="/shop/menu" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                            <FaUtensils className="w-4 h-4 mr-2 text-red-400" />
+                            Menu
+                          </Link>
+                          <Link href="/shop/combo" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                            <FaUtensils className="w-4 h-4 mr-2 text-emerald-400" />
+                            Combo
+                          </Link>
+                          <Link href="/income-expense" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                            <FaDollarSign className="w-4 h-4 mr-2 text-yellow-400" />
+                            Income & Expenses
+                          </Link>
+                          <Link href="/cash-flow" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                            <FaChartLine className="w-4 h-4 mr-2 text-purple-400" />
+                            Cash Flow Analysis
+                          </Link>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Analysis & Reports Section */}
+                    <div className="border-b border-neutral-700 pb-2 bg-neutral-800">
+                      <button 
+                        className="w-full flex items-center justify-between px-3 py-3 rounded-lg hover:bg-white/10 transition-colors"
+                        onClick={() => {
+                          setReportsOpen(!reportsOpen);
+                          if (!reportsOpen) {
+                            setMgmtOpen(false);
+                            setShopOpen(false);
+                            setSystemOpen(false);
+                          }
+                        }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <FaChartPie className="w-5 h-5 text-purple-400" />
+                          <span className="font-semibold text-white">Analysis & Reports</span>
+                        </div>
+                        <FaChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${reportsOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      {reportsOpen && (
+                        <div className="ml-8 mt-2 space-y-1">
+                          <Link href="/analysis-report" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                            <FaChartPie className="w-4 h-4 mr-2 text-purple-400" />
+                            Analysis & Report
+                          </Link>
+                          <Link href="/reports" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                            <FaFileAlt className="w-4 h-4 mr-2 text-blue-400" />
+                            Weekly Shift Report
+                          </Link>
+                          <Link href="/analytics" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                            <FaChartLine className="w-4 h-4 mr-2 text-green-400" />
+                            Analytics
+                          </Link>
+                          <Link href="/wages-report" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                            <FaMoneyBillWave className="w-4 h-4 mr-2 text-yellow-400" />
+                            Wages Report
+                          </Link>
+                          <Link href="/payment-report" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                            <FaMoneyBillWave className="w-4 h-4 mr-2 text-green-400" />
+                            Payment Report
+                          </Link>
+                          <Link href="/paid-payments" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                            <FaMoneyBillWave className="w-4 h-4 mr-2 text-blue-400" />
+                            Paid Payments
+                          </Link>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* System Section */}
+                    <div className="pb-2 bg-neutral-800">
+                      <button 
+                        className="w-full flex items-center justify-between px-3 py-3 rounded-lg hover:bg-white/10 transition-colors"
+                        onClick={() => {
+                          setSystemOpen(!systemOpen);
+                          if (!systemOpen) {
+                            setMgmtOpen(false);
+                            setShopOpen(false);
+                            setReportsOpen(false);
+                          }
+                        }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <FaCog className="w-5 h-5 text-gray-400" />
+                          <span className="font-semibold text-white">System</span>
+                        </div>
+                        <FaChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${systemOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      {systemOpen && (
+                        <div className="ml-8 mt-2 space-y-1">
+                          <Link href="/users" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                            <FaUsers className="w-4 h-4 mr-2 text-blue-400" />
+                            Users
+                          </Link>
+                          <Link href="/automation" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                            <FaCog className="w-4 h-4 mr-2 text-orange-400" />
+                            Automation
+                          </Link>
+                          <Link href="/settings" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                            <FaCog className="w-4 h-4 mr-2 text-gray-400" />
+                            Settings
+                          </Link>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
 
-              {/* Shop */}
-              <div className="py-2">
-                <button className="w-full flex items-center justify-between px-2 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900" onClick={() => { const next = !shopOpen; console.log('[MobileNav] toggle shop', next); setShopOpen(next); if (next) { setMgmtOpen(false); setReportsOpen(false); setSystemOpen(false); } }}>
-                  <span className="text-sm font-medium">Shop</span>
-                  <FaChevronDown className={`w-3 h-3 transition-transform ${shopOpen ? 'rotate-180' : ''}`} />
-                </button>
-                {shopOpen && (
-                  <div className="mt-1 pl-2 grid gap-1">
-                    <Link href="/shop" onClick={() => setOpen(false)} className="px-3 py-2 text-sm rounded hover:bg-gray-50 dark:hover:bg-neutral-900">Shop Overview</Link>
-                    <Link href="/shop/products" onClick={() => setOpen(false)} className="px-3 py-2 text-sm rounded hover:bg-gray-50 dark:hover:bg-neutral-900">Products</Link>
-                    <Link href="/shop/categories" onClick={() => setOpen(false)} className="px-3 py-2 text-sm rounded hover:bg-gray-50 dark:hover:bg-neutral-900">Categories</Link>
-                    <Link href="/shop/inventory" onClick={() => setOpen(false)} className="px-3 py-2 text-sm rounded hover:bg-gray-50 dark:hover:bg-neutral-900">Inventory</Link>
-                    <Link href="/shop/suppliers" onClick={() => setOpen(false)} className="px-3 py-2 text-sm rounded hover:bg-gray-50 dark:hover:bg-neutral-900">Suppliers</Link>
-                    <Link href="/shop/menu" onClick={() => setOpen(false)} className="px-3 py-2 text-sm rounded hover:bg-gray-50 dark:hover:bg-neutral-900">Menu</Link>
-                    <Link href="/shop/combo" onClick={() => setOpen(false)} className="px-3 py-2 text-sm rounded hover:bg-gray-50 dark:hover:bg-neutral-900">Combo</Link>
-                  </div>
-                )}
+              {/* Bottom Status/Issues */}
+              <div className="border-t border-neutral-700 p-4 bg-neutral-800/50">
+                <div className="flex items-center gap-3 p-3 bg-red-500/20 border border-red-500/30 rounded-lg">
+                  <FaExclamationTriangle className="w-4 h-4 text-red-400" />
+                  <span className="text-sm text-red-300">1 Issue</span>
+                </div>
               </div>
-
-              {/* Reports */}
-              <div className="py-2">
-                <button className="w-full flex items-center justify-between px-2 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900" onClick={() => { const next = !reportsOpen; console.log('[MobileNav] toggle reports', next); setReportsOpen(next); if (next) { setMgmtOpen(false); setShopOpen(false); setSystemOpen(false); } }}>
-                  <span className="text-sm font-medium">Analysis & Report</span>
-                  <FaChevronDown className={`w-3 h-3 transition-transform ${reportsOpen ? 'rotate-180' : ''}`} />
-                </button>
-                {reportsOpen && (
-                  <div className="mt-1 pl-2 grid gap-1">
-                    <Link href="/analysis-report" onClick={() => setOpen(false)} className="px-3 py-2 text-sm rounded hover:bg-gray-50 dark:hover:bg-neutral-900">Analysis & Report</Link>
-                    <Link href="/reports" onClick={() => setOpen(false)} className="px-3 py-2 text-sm rounded hover:bg-gray-50 dark:hover:bg-neutral-900">Weekly shift report</Link>
-                    <Link href="/analytics" onClick={() => setOpen(false)} className="px-3 py-2 text-sm rounded hover:bg-gray-50 dark:hover:bg-neutral-900">Analysis</Link>
-                    <Link href="/wages-report" onClick={() => setOpen(false)} className="px-3 py-2 text-sm rounded hover:bg-gray-50 dark:hover:bg-neutral-900">Wages Report</Link>
-                    <Link href="/payment-report" onClick={() => setOpen(false)} className="px-3 py-2 text-sm rounded hover:bg-gray-50 dark:hover:bg-neutral-900">Payment Report</Link>
-                    <Link href="/income-expense" onClick={() => setOpen(false)} className="px-3 py-2 text-sm rounded hover:bg-gray-50 dark:hover:bg-neutral-900">Income & Expenses</Link>
-                  </div>
-                )}
-              </div>
-
-              {/* System */}
-              <div className="py-2">
-                <button className="w-full flex items-center justify-between px-2 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900" onClick={() => { const next = !systemOpen; console.log('[MobileNav] toggle system', next); setSystemOpen(next); if (next) { setMgmtOpen(false); setShopOpen(false); setReportsOpen(false); } }}>
-                  <span className="text-sm font-medium">System</span>
-                  <FaChevronDown className={`w-3 h-3 transition-transform ${systemOpen ? 'rotate-180' : ''}`} />
-                </button>
-                {systemOpen && (
-                  <div className="mt-1 pl-2 grid gap-1">
-                    <Link href="/users" onClick={() => setOpen(false)} className="px-3 py-2 text-sm rounded hover:bg-gray-50 dark:hover:bg-neutral-900">Users</Link>
-                    <Link href="/automation" onClick={() => setOpen(false)} className="px-3 py-2 text-sm rounded hover:bg-gray-50 dark:hover:bg-neutral-900">Automation</Link>
-                    <Link href="/settings" onClick={() => setOpen(false)} className="px-3 py-2 text-sm rounded hover:bg-gray-50 dark:hover:bg-neutral-900">Settings</Link>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            </>
-            )}
             </div>
           </div>
         </div>
