@@ -10,6 +10,8 @@ import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { toast } from "react-toastify";
+import { addBrandingHeader, getBrandingHeaderHeight, BrandSettings } from "@/lib/pdf-branding";
+import { getBrandSettings } from "@/lib/brand-settings";
 
 type Staff = {
   id: string;
@@ -72,6 +74,7 @@ export default function PaymentReportPage() {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
+  const [brandSettings, setBrandSettings] = useState<BrandSettings | null>(null);
   const [dateRange, setDateRange] = useState(() => {
     const now = new Date();
     const start = startOfWeek(now, { weekStartsOn: 1 });
@@ -117,7 +120,7 @@ export default function PaymentReportPage() {
 
   const fetchData = useCallback(async (): Promise<void> => {
     const supabase = getSupabaseClient();
-    const [{ data: staffData }, { data: ratesData }, { data: shiftData }, { data: holidayData }] = await Promise.all([
+    const [{ data: staffData }, { data: ratesData }, { data: shiftData }, { data: holidayData }, brandSettingsData] = await Promise.all([
       supabase.from("staff").select("id, name, email, applies_public_holiday_rules"),
       supabase.from("staff_rates").select("*"),
       supabase.from("shifts").select("id, staff_id, start_time, end_time, notes, non_billable_hours, section_id"),
@@ -126,7 +129,8 @@ export default function PaymentReportPage() {
         .select("holiday_date, markup_percentage, markup_amount")
         .gte("holiday_date", dateRange.start.toISOString().split('T')[0])
         .lte("holiday_date", dateRange.end.toISOString().split('T')[0])
-        .eq("is_active", true)
+        .eq("is_active", true),
+      getBrandSettings()
     ]);
 
     setStaff(staffData || []);
@@ -137,6 +141,7 @@ export default function PaymentReportPage() {
       markup_percentage: h.markup_percentage,
       markup_amount: h.markup_amount
     })) || []);
+    setBrandSettings(brandSettingsData);
     if (staffData && staffData.length > 0) {
       const staffIds = staffData.map(s => s.id);
       const { data: instr } = await supabase
@@ -372,23 +377,37 @@ export default function PaymentReportPage() {
     }), { hours: 0, wages: 0 });
   };
 
-  const exportToPDF = () => {
+  const exportToPDF = async () => {
     const doc = new jsPDF();
     
-    // Title
-    doc.setFontSize(16);
-    doc.text("Payment Report", 14, 18);
-    doc.setFontSize(10);
-    doc.text(
-      `Period: ${format(dateRange.start, "MMM dd, yyyy")} - ${format(dateRange.end, "MMM dd, yyyy")}`,
-      14,
-      24
-    );
+    // Add branding header
+    if (brandSettings) {
+      await addBrandingHeader(
+        doc, 
+        brandSettings, 
+        "Payment Report",
+        `Period: ${format(dateRange.start, "MMM dd, yyyy")} - ${format(dateRange.end, "MMM dd, yyyy")}`
+      );
+    } else {
+      // Fallback if no brand settings
+      doc.setFontSize(16);
+      doc.text("Payment Report", 14, 18);
+      doc.setFontSize(10);
+      doc.text(
+        `Period: ${format(dateRange.start, "MMM dd, yyyy")} - ${format(dateRange.end, "MMM dd, yyyy")}`,
+        14,
+        24
+      );
+    }
+    
+    // Calculate start position based on branding header height
+    const headerHeight = brandSettings ? getBrandingHeaderHeight(brandSettings, true) : 30;
+    const startY = headerHeight + 10;
     
     // Summary
     doc.setFontSize(10);
-    doc.text(`Total Hours: ${getTotalHours().toFixed(2)}`, 14, 38);
-    doc.text(`Total Wages: $${getTotalWages().toFixed(2)}`, 14, 46);
+    doc.text(`Total Hours: ${getTotalHours().toFixed(2)}`, 14, startY);
+    doc.text(`Total Wages: $${getTotalWages().toFixed(2)}`, 14, startY + 8);
     
     // Table data
     const tableData = reportData.map(row => [
@@ -409,7 +428,7 @@ export default function PaymentReportPage() {
         ['', '', '', 'Hours', 'Rate', 'Wages', 'Hours', 'Rate', 'Wages']
       ],
       body: tableData,
-      startY: 54,
+      startY: startY + 20,
       styles: { fontSize: 8 },
       headStyles: { fillColor: [66, 139, 202] },
       alternateRowStyles: { fillColor: [245, 245, 245] },

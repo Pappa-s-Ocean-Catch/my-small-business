@@ -1,6 +1,8 @@
 "use client";
 
 import { format, startOfWeek, endOfWeek } from "date-fns";
+import { useEffect, useState } from "react";
+import { getBrandSettings } from "@/lib/brand-settings";
 
 type Staff = {
   id: string;
@@ -48,6 +50,16 @@ interface PrintScheduleProps {
 }
 
 export default function PrintSchedule({ shifts, staff, staffRates, sections, currentWeek }: PrintScheduleProps) {
+  const [brandSettings, setBrandSettings] = useState<{ business_name: string; logo_url: string | null; slogan: string | null } | null>(null);
+  
+  useEffect(() => {
+    const loadBrandSettings = async () => {
+      const settings = await getBrandSettings();
+      setBrandSettings(settings);
+    };
+    loadBrandSettings();
+  }, []);
+  
   const startOfThisWeek = startOfWeek(currentWeek, { weekStartsOn: 1 });
   const weekDays = Array.from({ length: 7 }, (_, i) => {
     const date = new Date(startOfThisWeek);
@@ -57,6 +69,27 @@ export default function PrintSchedule({ shifts, staff, staffRates, sections, cur
 
   return (
     <div className="calendar-print-container print-only">
+      {/* Branding Header */}
+      {brandSettings && (
+        <div className="print-branding-header" style={{ marginBottom: '20px', textAlign: 'center' }}>
+          {brandSettings.logo_url && (
+            <img 
+              src={brandSettings.logo_url} 
+              alt={brandSettings.business_name} 
+              style={{ height: '40px', marginBottom: '10px' }}
+            />
+          )}
+          <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '5px' }}>
+            {brandSettings.business_name}
+          </div>
+          {brandSettings.slogan && (
+            <div style={{ fontSize: '12px', color: '#666' }}>
+              {brandSettings.slogan}
+            </div>
+          )}
+        </div>
+      )}
+      
       <div className="print-title">SHIFT SCHEDULE</div>
       <div className="print-date-range">
         {format(startOfThisWeek, 'dd-MM-yyyy')} - {format(endOfWeek(startOfThisWeek, { weekStartsOn: 1 }), 'dd-MM-yyyy')}

@@ -10,6 +10,8 @@ import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { toast } from "react-toastify";
+import { addBrandingHeader, getBrandingHeaderHeight, BrandSettings } from "@/lib/pdf-branding";
+import { getBrandSettings } from "@/lib/brand-settings";
 
 type Staff = {
   id: string;
@@ -55,6 +57,7 @@ export default function WagesReportPage() {
   const [instructions, setInstructions] = useState<StaffPaymentInstruction[]>([]);
   const [holidays, setHolidays] = useState<{ date: string; markup_percentage: number; markup_amount: number }[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [brandSettings, setBrandSettings] = useState<BrandSettings | null>(null);
 
   const reloadWeek = useCallback((base: Date) => {
     setWeekStart(startOfWeek(base, { weekStartsOn: 1 }));
@@ -69,7 +72,7 @@ export default function WagesReportPage() {
     setLoading(true);
     try {
       const supabase = getSupabaseClient();
-      const [{ data: staffData, error: staffErr }, { data: ratesData, error: ratesErr }, { data: shiftData, error: shiftErr }, { data: holidayData, error: holidayErr }] = await Promise.all([
+      const [{ data: staffData, error: staffErr }, { data: ratesData, error: ratesErr }, { data: shiftData, error: shiftErr }, { data: holidayData, error: holidayErr }, brandSettingsData] = await Promise.all([
         supabase.from("staff").select("id, name, applies_public_holiday_rules"),
         supabase.from("staff_rates").select("*"),
         supabase
@@ -83,6 +86,7 @@ export default function WagesReportPage() {
           .gte("holiday_date", weekStart.toISOString().split('T')[0])
           .lte("holiday_date", weekEnd.toISOString().split('T')[0])
           .eq("is_active", true),
+        getBrandSettings()
       ]);
 
       if (staffErr) throw new Error(staffErr.message);
@@ -98,6 +102,7 @@ export default function WagesReportPage() {
         markup_percentage: h.markup_percentage,
         markup_amount: h.markup_amount
       })) || []);
+      setBrandSettings(brandSettingsData);
       if (staffData && staffData.length > 0) {
         const { data: instr } = await supabase
           .from("staff_payment_instructions")
@@ -217,17 +222,33 @@ export default function WagesReportPage() {
     return rows;
   }, [staff, staffRates, shifts, daysOfWeek, instructions, holidays, getBaseRateForDate]);
 
-  const exportPdf = () => {
+  const exportPdf = async () => {
     try {
       const doc = new jsPDF();
-      doc.setFontSize(16);
-      doc.text("Wages Report", 14, 18);
-      doc.setFontSize(10);
-      doc.text(
-        `Week: ${format(weekStart, "MMM dd, yyyy")} - ${format(weekEnd, "MMM dd, yyyy")}`,
-        14,
-        24
-      );
+      
+      // Add branding header
+      if (brandSettings) {
+        await addBrandingHeader(
+          doc, 
+          brandSettings, 
+          "Wages Report",
+          `Week: ${format(weekStart, "MMM dd, yyyy")} - ${format(weekEnd, "MMM dd, yyyy")}`
+        );
+      } else {
+        // Fallback if no brand settings
+        doc.setFontSize(16);
+        doc.text("Wages Report", 14, 18);
+        doc.setFontSize(10);
+        doc.text(
+          `Week: ${format(weekStart, "MMM dd, yyyy")} - ${format(weekEnd, "MMM dd, yyyy")}`,
+          14,
+          24
+        );
+      }
+      
+      // Calculate start position based on branding header height
+      const headerHeight = brandSettings ? getBrandingHeaderHeight(brandSettings, true) : 30;
+      const startY = headerHeight + 10;
 
       const head = [
         [
@@ -246,7 +267,7 @@ export default function WagesReportPage() {
       autoTable(doc, {
         head,
         body,
-        startY: 30,
+        startY: startY,
         styles: { fontSize: 8 },
         headStyles: { fillColor: [66, 139, 202] },
         alternateRowStyles: { fillColor: [245, 245, 245] },

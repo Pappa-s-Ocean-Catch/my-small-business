@@ -11,6 +11,8 @@ import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { toast } from 'react-toastify';
+import { addBrandingHeader, getBrandingHeaderHeight, BrandSettings } from "@/lib/pdf-branding";
+import { getBrandSettings } from "@/lib/brand-settings";
 
 type Staff = {
   id: string;
@@ -67,6 +69,7 @@ export default function ReportsPage() {
   const [sections, setSections] = useState<Section[]>([]);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
+  const [brandSettings, setBrandSettings] = useState<BrandSettings | null>(null);
   const [dateRange, setDateRange] = useState(() => {
     const now = new Date();
     const start = startOfWeek(now, { weekStartsOn: 1 }); // Monday
@@ -117,17 +120,19 @@ export default function ReportsPage() {
 
   const fetchData = useCallback(async (): Promise<void> => {
     const supabase = getSupabaseClient();
-    const [{ data: staffData }, { data: ratesData }, { data: shiftData }, { data: sectionData }] = await Promise.all([
+    const [{ data: staffData }, { data: ratesData }, { data: shiftData }, { data: sectionData }, brandSettingsData] = await Promise.all([
       supabase.from("staff").select("id, name, email"),
       supabase.from("staff_rates").select("*"),
       supabase.from("shifts").select("id, staff_id, start_time, end_time, notes, non_billable_hours, section_id"),
-      supabase.from("sections").select("id, name, description, color, active, sort_order").eq("active", true).order("sort_order")
+      supabase.from("sections").select("id, name, description, color, active, sort_order").eq("active", true).order("sort_order"),
+      getBrandSettings()
     ]);
 
     setStaff(staffData || []);
     setStaffRates(ratesData || []);
     setShifts(shiftData || []);
     setSections(sectionData || []);
+    setBrandSettings(brandSettingsData);
     if (staffData && staffData.length > 0) {
       const staffIds = staffData.map(s => s.id);
       const { data: instr } = await supabase
@@ -299,21 +304,33 @@ export default function ReportsPage() {
     return Object.values(sectionTotals).sort((a, b) => a.name.localeCompare(b.name));
   };
 
-  const exportToPDF = () => {
+  const exportToPDF = async () => {
     const doc = new jsPDF();
     
-    // Title
-    doc.setFontSize(20);
-    doc.text("Financial Report", 14, 22);
+    // Add branding header
+    if (brandSettings) {
+      await addBrandingHeader(
+        doc, 
+        brandSettings, 
+        "Financial Report",
+        `Period: ${format(dateRange.start, "MMM dd, yyyy")} - ${format(dateRange.end, "MMM dd, yyyy")}`
+      );
+    } else {
+      // Fallback if no brand settings
+      doc.setFontSize(20);
+      doc.text("Financial Report", 14, 22);
+      doc.setFontSize(12);
+      doc.text(`Period: ${format(dateRange.start, "MMM dd, yyyy")} - ${format(dateRange.end, "MMM dd, yyyy")}`, 14, 30);
+    }
     
-    // Date range
-    doc.setFontSize(12);
-    doc.text(`Period: ${format(dateRange.start, "MMM dd, yyyy")} - ${format(dateRange.end, "MMM dd, yyyy")}`, 14, 30);
+    // Calculate start position based on branding header height
+    const headerHeight = brandSettings ? getBrandingHeaderHeight(brandSettings, true) : 40;
+    const startY = headerHeight + 10;
     
     // Summary
     doc.setFontSize(10);
-    doc.text(`Total Hours: ${getTotalHours().toFixed(2)}`, 14, 38);
-    doc.text(`Total Wages: $${getTotalWages().toFixed(2)}`, 14, 46);
+    doc.text(`Total Hours: ${getTotalHours().toFixed(2)}`, 14, startY);
+    doc.text(`Total Wages: $${getTotalWages().toFixed(2)}`, 14, startY + 8);
     
     // Table data
     const tableData = reportData.map(row => [
@@ -330,7 +347,7 @@ export default function ReportsPage() {
     autoTable(doc, {
       head: [['Date', 'Staff', 'Section', 'Time', 'Billable Hours', 'Non-Billable', 'Rate', 'Total']],
       body: tableData,
-      startY: 54,
+      startY: startY + 20,
       styles: { fontSize: 8 },
       headStyles: { fillColor: [66, 139, 202] },
       alternateRowStyles: { fillColor: [245, 245, 245] },

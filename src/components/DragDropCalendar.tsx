@@ -31,7 +31,7 @@ import PrintSchedule from "@/components/PrintSchedule";
 import { ShiftModal } from "@/components/ShiftModal";
 import { getDefaultSettings } from "@/lib/settings";
 import { getSupabaseClient } from "@/lib/supabase/client";
-import { sendWeeklyRoster, getWeeklyRosterData } from "@/app/actions/roster";
+import { sendWeeklyRoster, getWeeklyRosterData, StaffRoster } from "@/app/actions/roster";
 import Link from "next/link";
 
 type Staff = {
@@ -585,6 +585,12 @@ export function DragDropCalendar({
   const [sendingRoster, setSendingRoster] = useState(false);
   const [activeDayIndex, setActiveDayIndex] = useState<number>(0);
   const [mobileActionsVisible, setMobileActionsVisible] = useState(false);
+  const [rosterConfirmModal, setRosterConfirmModal] = useState<{ 
+    isOpen: boolean; 
+    staffRosters: StaffRoster[] | null;
+    weekStart: Date | null;
+    weekEnd: Date | null;
+  }>({ isOpen: false, staffRosters: null, weekStart: null, weekEnd: null });
   const mobileEndRef = useRef<HTMLDivElement | null>(null);
 
   // Helper function to convert UTC time to Melbourne local time for display
@@ -1326,7 +1332,6 @@ export function DragDropCalendar({
   const handleSendRoster = useCallback(async () => {
     if (sendingRoster) return;
     
-    setSendingRoster(true);
     try {
       console.log('📧 Starting roster email process...');
       
@@ -1369,14 +1374,42 @@ export function DragDropCalendar({
         return;
       }
 
-      // Send roster emails
+      // Show confirmation modal with staff details
       const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
       const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
       
-      const sendResult = await sendWeeklyRoster({
+      setRosterConfirmModal({
+        isOpen: true,
+        staffRosters: staffWithEmails,
         weekStart,
-        weekEnd,
-        staffRosters: staffWithEmails
+        weekEnd
+      });
+      
+    } catch (error) {
+      console.error('Error preparing roster:', error);
+      setErrorModal({
+        isOpen: true,
+        title: "Roster Error",
+        message: "An unexpected error occurred while preparing roster data",
+        details: error instanceof Error ? error.message : "Unknown error occurred",
+        variant: 'error'
+      });
+    }
+  }, [currentWeek, sendingRoster]);
+
+  const handleConfirmSendRoster = useCallback(async () => {
+    if (!rosterConfirmModal.staffRosters || !rosterConfirmModal.weekStart || !rosterConfirmModal.weekEnd) return;
+    
+    setSendingRoster(true);
+    setRosterConfirmModal({ isOpen: false, staffRosters: null, weekStart: null, weekEnd: null });
+    
+    try {
+      console.log('📧 Sending roster emails...');
+      
+      const sendResult = await sendWeeklyRoster({
+        weekStart: rosterConfirmModal.weekStart,
+        weekEnd: rosterConfirmModal.weekEnd,
+        staffRosters: rosterConfirmModal.staffRosters
       });
 
       if (!sendResult.success) {
@@ -1384,7 +1417,8 @@ export function DragDropCalendar({
           isOpen: true,
           title: "Send Failed",
           message: sendResult.error || "Failed to send roster emails",
-          details: "Please try again or contact support if the issue persists."
+          details: "Please try again or contact support if the issue persists.",
+          variant: 'error'
         });
         return;
       }
@@ -1395,18 +1429,12 @@ export function DragDropCalendar({
       const failed = results.filter(r => !r.success).length;
       
       let message = `Successfully sent roster emails to ${successful} staff members!`;
-      const details = `Week: ${format(weekStart, 'MMM dd')} - ${format(weekEnd, 'MMM dd, yyyy')}`;
+      const details = `Week: ${format(rosterConfirmModal.weekStart, 'MMM dd')} - ${format(rosterConfirmModal.weekEnd, 'MMM dd, yyyy')}`;
       let variant: 'success' | 'warning' | 'error' = 'success';
       
       if (failed > 0) {
         message += ` (${failed} emails failed)`;
         variant = 'warning'; // Show warning if some emails failed
-      }
-      
-      if (staffWithoutEmails.length > 0) {
-        if (variant === 'success') {
-          variant = 'warning'; // Show warning if some staff don't have emails
-        }
       }
 
       setErrorModal({
@@ -1416,7 +1444,7 @@ export function DragDropCalendar({
         details,
         variant,
         emailResults: results,
-        staffWithoutEmails
+        staffWithoutEmails: []
       });
 
     } catch (error) {
@@ -1431,7 +1459,7 @@ export function DragDropCalendar({
     } finally {
       setSendingRoster(false);
     }
-  }, [currentWeek, sendingRoster]);
+  }, [rosterConfirmModal]);
 
   return (
     <>
@@ -2135,6 +2163,75 @@ export function DragDropCalendar({
         cancelText="Cancel"
         variant="danger"
       />
+
+      {/* Roster Confirmation Modal */}
+      {rosterConfirmModal.isOpen && rosterConfirmModal.staffRosters && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+            <div className="p-6 border-b border-gray-200 dark:border-neutral-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Send Roster Confirmation
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                Week: {rosterConfirmModal.weekStart && rosterConfirmModal.weekEnd ? 
+                  `${format(rosterConfirmModal.weekStart, 'MMM dd')} - ${format(rosterConfirmModal.weekEnd, 'MMM dd, yyyy')}` : ''}
+              </p>
+            </div>
+            
+            <div className="p-6 max-h-96 overflow-y-auto">
+              <div className="space-y-4">
+                {rosterConfirmModal.staffRosters.map((roster) => (
+                  <div key={roster.staffId} className="border border-gray-200 dark:border-neutral-600 rounded-lg p-4">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <h4 className="font-medium text-gray-900 dark:text-white">{roster.staffName}</h4>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">{roster.staffEmail}</p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">
+                          {roster.totalHours.toFixed(1)}h total
+                        </div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                          {roster.totalBillableHours.toFixed(1)}h billable
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      {roster.shifts.length} shift{roster.shifts.length !== 1 ? 's' : ''} scheduled
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            <div className="p-6 border-t border-gray-200 dark:border-neutral-700 flex justify-end gap-3">
+              <button
+                onClick={() => setRosterConfirmModal({ isOpen: false, staffRosters: null, weekStart: null, weekEnd: null })}
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-neutral-700 hover:bg-gray-200 dark:hover:bg-neutral-600 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmSendRoster}
+                disabled={sendingRoster}
+                className="px-4 py-2 bg-purple-600 text-white hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center gap-2"
+              >
+                {sendingRoster ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <FaEnvelope className="w-4 h-4" />
+                    Send Roster
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       </div>
     </>
   );
