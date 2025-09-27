@@ -1,5 +1,6 @@
 import * as React from 'react';
-import { Html, Head, Preview, Body, Container, Section, Text, Heading, Img } from '@react-email/components';
+import { Html, Head, Preview, Body, Container, Section, Text, Img } from '@react-email/components';
+import { Tailwind } from '@react-email/tailwind';
 
 type EmailLayoutProps = {
   title: string;
@@ -22,39 +23,35 @@ export function EmailLayout({
     <Html>
       <Head />
       {previewText ? <Preview>{previewText}</Preview> : null}
-      <Body style={bodyStyle}>
-        <Container style={containerStyle}>
-          <Section style={headerStyle}>
-            <div style={brandRowStyle as React.CSSProperties}>
-              {logoUrl ? (
-                <Img src={logoUrl} alt={companyName} width={24} height={24} style={{ borderRadius: 6 }} />
-              ) : null}
-              <Text style={brandNameStyle}>{companyName}</Text>
-            </div>
-            <Text style={subtitleStyle}>{title}</Text>
-          </Section>
+      <Body className="bg-gray-100 p-6">
+        <Tailwind>
+          <Container className="max-w-2xl mx-auto bg-white rounded-xl overflow-hidden shadow-lg">
+            <Section className="bg-blue-500 text-white p-5">
+              <Section className="flex items-center gap-3">
+                {logoUrl && (
+                  <Img 
+                    src={logoUrl} 
+                    alt={companyName} 
+                    width={24} 
+                    height={24} 
+                    className="rounded" 
+                  />
+                )}
+                <Text className="font-bold text-lg text-white m-0">{companyName}</Text>
+              </Section>
+              <Text className="mt-1 text-sm text-blue-100 mb-0">{title}</Text>
+            </Section>
 
-          <Section style={contentStyle}>
-            {children}
-          </Section>
+            <Section className="p-6">
+              {children}
+            </Section>
 
-          <Section style={footerStyle}>
-            <Text style={footerTextStyle}>{footerText}</Text>
-          </Section>
-        </Container>
+            <Section className="bg-gray-50 p-4 text-center">
+              <Text className="text-gray-500 text-xs m-0">{footerText}</Text>
+            </Section>
+          </Container>
+        </Tailwind>
       </Body>
     </Html>
   );
 }
-
-const bodyStyle = { backgroundColor: '#f6f8fb', padding: '24px' } as const;
-const containerStyle = { maxWidth: 560, margin: '0 auto', backgroundColor: '#ffffff', borderRadius: 12, overflow: 'hidden' } as const;
-const headerStyle = { padding: '20px 24px', backgroundColor: '#0ea5e9', color: '#ffffff' } as const;
-const brandRowStyle = { display: 'flex', alignItems: 'center', gap: 12 };
-const brandNameStyle = { fontWeight: 700, fontSize: 16, color: '#ffffff', margin: 0 } as const;
-const subtitleStyle = { marginTop: 4, fontSize: 12, color: '#e6f6ff', marginBottom: 0 } as const;
-const contentStyle = { padding: '24px' } as const;
-const footerStyle = { padding: '16px 24px', backgroundColor: '#f9fafb' } as const;
-const footerTextStyle = { color: '#6b7280', fontSize: 12, textAlign: 'center' as const, margin: 0 } as const;
-
-

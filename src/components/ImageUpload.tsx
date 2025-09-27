@@ -7,7 +7,7 @@ import { toast } from 'react-toastify';
 interface ImageUploadProps {
   currentImageUrl?: string;
   onImageChange: (url: string | null) => void;
-  type: 'product' | 'sale_product' | 'staff' | 'supplier';
+  type: 'product' | 'sale_product' | 'staff' | 'supplier' | 'brand';
   className?: string;
   disabled?: boolean;
 }
@@ -210,7 +210,8 @@ export function ImageUpload({
         {type === 'product' ? 'Product Image' : 
          type === 'sale_product' ? 'Menu Item Image' :
          type === 'staff' ? 'Staff Photo' :
-         type === 'supplier' ? 'Supplier Logo' : 'Image'}
+         type === 'supplier' ? 'Supplier Logo' :
+         type === 'brand' ? 'Business Logo' : 'Image'}
       </label>
 
       {/* Hidden input (always mounted) so Change Image button can trigger it */}

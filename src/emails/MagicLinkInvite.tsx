@@ -1,32 +1,60 @@
 import * as React from 'react';
 import { EmailLayout } from './components/EmailLayout';
+import { Tailwind } from '@react-email/tailwind';
+import { Container, Section, Text, Button } from '@react-email/components';
 
-export function MagicLinkInviteEmail({ inviteeEmail, actionUrl, isExistingUser = false }: { inviteeEmail: string; actionUrl: string; isExistingUser?: boolean }) {
+export function MagicLinkInviteEmail({ 
+  inviteeEmail, 
+  actionUrl, 
+  isExistingUser = false,
+  businessName = 'OperateFlow',
+  logoUrl
+}: { 
+  inviteeEmail: string; 
+  actionUrl: string; 
+  isExistingUser?: boolean;
+  businessName?: string;
+  logoUrl?: string;
+}) {
   return (
-    <EmailLayout title="You're invited to OperateFlow" companyName="OperateFlow" previewText="Your OperateFlow sign-in link">
-      <p style={{ margin: 0, fontSize: 14, color: '#111827' }}>Hello,</p>
-      {isExistingUser ? (
-        <p style={{ margin: '12px 0 0', fontSize: 14, color: '#374151' }}>
-          Here is your secure sign-in link for <strong>OperateFlow</strong>.
-        </p>
-      ) : (
-        <p style={{ margin: '12px 0 0', fontSize: 14, color: '#374151' }}>
-          You&apos;ve been invited to join <strong>OperateFlow</strong> with the email <strong>{inviteeEmail}</strong>.
-        </p>
-      )}
-      <p style={{ margin: '12px 0 0', fontSize: 14, color: '#374151' }}>
-        Click the button below to securely sign in.
-      </p>
-      <div style={{ marginTop: 16 }}>
-        <a href={actionUrl} style={{ display: 'inline-block', background: '#0ea5e9', color: '#ffffff', textDecoration: 'none', padding: '10px 14px', borderRadius: 10, fontWeight: 600, fontSize: 14 }}>
-          Sign in to OperateFlow
-        </a>
-      </div>
-      <p style={{ margin: '16px 0 0', fontSize: 12, color: '#6b7280' }}>
-        If you didn’t request this, you can safely ignore this email.
-      </p>
+    <EmailLayout 
+      title={`You're invited to ${businessName}`} 
+      companyName={businessName} 
+      logoUrl={logoUrl}
+      previewText={`Your ${businessName} sign-in link`}
+    >
+      <Tailwind>
+        <Container className="max-w-lg mx-auto font-sans">
+          <Section className="p-6">
+            <Text className="text-base text-gray-800 m-0 mb-3">
+              Hello,
+            </Text>
+            {isExistingUser ? (
+              <Text className="text-base text-gray-600 mb-4 m-0">
+                Here is your secure sign-in link for <strong>{businessName}</strong>.
+              </Text>
+            ) : (
+            <Text className="text-base text-gray-600 mb-4 m-0">
+              You&apos;ve been invited to join <strong>{businessName}</strong> with the email <strong>{inviteeEmail}</strong>.
+            </Text>
+            )}
+            <Text className="text-base text-gray-600 mb-4 m-0">
+              Click the button below to securely sign in.
+            </Text>
+            <Section className="mt-4">
+              <Button
+                href={actionUrl}
+                className="inline-block bg-blue-500 text-white no-underline px-4 py-3 rounded-lg font-semibold text-sm"
+              >
+                Sign in to {businessName}
+              </Button>
+            </Section>
+            <Text className="text-xs text-gray-500 mt-4 mb-0">
+              If you didn&apos;t request this, you can safely ignore this email.
+            </Text>
+          </Section>
+        </Container>
+      </Tailwind>
     </EmailLayout>
   );
 }
-
-

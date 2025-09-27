@@ -5,8 +5,14 @@ import { Resend } from 'resend';
 import { WeeklyRoster } from '@/emails/WeeklyRoster';
 import { render } from '@react-email/render';
 import { startOfWeek, endOfWeek, format } from 'date-fns';
+import { getBrandSettings } from '@/lib/brand-settings';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
+
+// Email override for testing - redirect all emails to test address if set
+const getEmailOverride = (originalEmail: string): string => {
+  return process.env.OVERRIDE_EMAIL_ADDRESS || originalEmail;
+};
 
 export interface RosterShift {
   id: string;
@@ -41,7 +47,7 @@ export interface SendRosterRequest {
 export async function sendWeeklyRoster(request: SendRosterRequest): Promise<{ 
   success: boolean; 
   error?: string; 
-  results?: Array<{ email: string; success: boolean; messageId?: string; error?: string }> 
+  results?: Array<{ staffName: string; email: string; success: boolean; messageId?: string; error?: string }> 
 }> {
   try {
     const { weekStart, weekEnd, staffRosters } = request;
@@ -67,6 +73,12 @@ export async function sendWeeklyRoster(request: SendRosterRequest): Promise<{
       };
     }
 
+    // Get brand settings for email templates
+    const brandSettings = await getBrandSettings();
+    const businessName = brandSettings?.business_name || 'OperateFlow';
+    const businessSlogan = brandSettings?.slogan || 'Streamline Your Operations';
+    const logoUrl = brandSettings?.logo_url;
+
     const emailResults = [];
 
     for (let i = 0; i < staffWithShifts.length; i++) {
@@ -81,6 +93,7 @@ export async function sendWeeklyRoster(request: SendRosterRequest): Promise<{
       if (!roster.staffEmail) {
         console.log(`⚠️ Skipping ${roster.staffName} - no email address`);
         emailResults.push({
+          staffName: roster.staffName,
           email: 'No email',
           success: false,
           error: 'No email address provided'
@@ -89,7 +102,12 @@ export async function sendWeeklyRoster(request: SendRosterRequest): Promise<{
       }
 
       try {
+        const actualEmail = getEmailOverride(roster.staffEmail);
         console.log(`📧 Sending roster to ${roster.staffName} (${roster.staffEmail})`);
+        if (actualEmail !== roster.staffEmail) {
+          console.log(`📧 Email override active: redirecting to ${actualEmail}`);
+        }
+        console.log(`📧 Email details: Subject="Weekly Roster - ${weekStartFormatted} to ${weekEndFormatted}", Shifts=${roster.shifts.length}, Hours=${roster.totalHours}`);
         
         // Render the email template
         const emailHtml = await render(WeeklyRoster({
@@ -98,7 +116,10 @@ export async function sendWeeklyRoster(request: SendRosterRequest): Promise<{
           weekEnd: weekEndFormatted,
           shifts: roster.shifts,
           totalHours: roster.totalHours,
-          totalBillableHours: roster.totalBillableHours
+          totalBillableHours: roster.totalBillableHours,
+          businessName,
+          businessSlogan,
+          logoUrl: logoUrl || undefined
         }));
 
         const emailSubject = `Weekly Roster - ${weekStartFormatted} to ${weekEndFormatted}`;
@@ -111,7 +132,7 @@ export async function sendWeeklyRoster(request: SendRosterRequest): Promise<{
         while (retryCount <= maxRetries) {
           result = await resend.emails.send({
             from: process.env.EMAIL_FROM!,
-            to: [roster.staffEmail],
+            to: [getEmailOverride(roster.staffEmail)],
             subject: emailSubject,
             html: emailHtml,
           });
@@ -131,34 +152,38 @@ export async function sendWeeklyRoster(request: SendRosterRequest): Promise<{
         }
 
         if (result && result.error) {
-          console.error(`❌ Error sending roster to ${roster.staffEmail}:`, result.error);
+          console.error(`❌ Error sending roster to ${roster.staffName} (${roster.staffEmail}):`, result.error);
           emailResults.push({
+            staffName: roster.staffName,
             email: roster.staffEmail,
             success: false,
             error: result.error.message || 'Resend API error'
           });
         } else if (result && result.data) {
-          console.log(`✅ Roster sent successfully to ${roster.staffEmail}:`, {
+          console.log(`✅ Roster sent successfully to ${roster.staffName} (${roster.staffEmail}):`, {
             messageId: result.data.id,
             shifts: roster.shifts.length,
             totalHours: roster.totalHours
           });
           emailResults.push({
+            staffName: roster.staffName,
             email: roster.staffEmail,
             success: true,
             messageId: result.data.id
           });
         } else {
-          console.error(`❌ Unexpected result for ${roster.staffEmail}:`, result);
+          console.error(`❌ Unexpected result for ${roster.staffName} (${roster.staffEmail}):`, result);
           emailResults.push({
+            staffName: roster.staffName,
             email: roster.staffEmail,
             success: false,
             error: 'Unexpected result from email service'
           });
         }
       } catch (error) {
-        console.error(`❌ Error processing roster for ${roster.staffEmail}:`, error);
+        console.error(`❌ Error processing roster for ${roster.staffName} (${roster.staffEmail}):`, error);
         emailResults.push({
+          staffName: roster.staffName,
           email: roster.staffEmail,
           success: false,
           error: error instanceof Error ? error.message : 'Unknown error'

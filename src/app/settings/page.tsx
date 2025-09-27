@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { AdminGuard } from "@/components/AdminGuard";
+import { ImageUpload } from "@/components/ImageUpload";
 import { toast } from 'react-toastify';
 
 type Defaults = {
@@ -13,6 +14,13 @@ type Defaults = {
   store_close_time: string;
 };
 
+type BrandSettings = {
+  id: string;
+  business_name: string;
+  slogan: string | null;
+  logo_url: string | null;
+};
+
 export default function SettingsPage() {
   const [defaults, setDefaults] = useState<Defaults>({ 
     pay_rate: 0,
@@ -21,12 +29,22 @@ export default function SettingsPage() {
     store_open_time: "10:00",
     store_close_time: "21:00"
   });
+  const [brandSettings, setBrandSettings] = useState<BrandSettings>({
+    id: '',
+    business_name: 'OperateFlow',
+    slogan: '',
+    logo_url: null
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingBrand, setSavingBrand] = useState(false);
 
   const load = async () => {
-    const { data } = await getSupabaseClient().from("settings").select("value").eq("key", "defaults").maybeSingle();
-    const value = (data?.value as Defaults | undefined) ?? { 
+    const supabase = getSupabaseClient();
+    
+    // Load defaults
+    const { data: defaultsData } = await supabase.from("settings").select("value").eq("key", "defaults").maybeSingle();
+    const value = (defaultsData?.value as Defaults | undefined) ?? { 
       pay_rate: 0,
       default_shift_start_time: "11:00",
       default_shift_end_time: "18:00",
@@ -34,6 +52,13 @@ export default function SettingsPage() {
       store_close_time: "21:00"
     };
     setDefaults(value);
+
+    // Load brand settings
+    const { data: brandData } = await supabase.from("brand_settings").select("*").maybeSingle();
+    if (brandData) {
+      setBrandSettings(brandData);
+    }
+    
     setLoading(false);
   };
 
@@ -50,6 +75,48 @@ export default function SettingsPage() {
       toast.error("Failed to save settings. Please try again.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const saveBrand = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingBrand(true);
+    try {
+      const supabase = getSupabaseClient();
+      
+      if (brandSettings.id) {
+        // Update existing brand settings
+        await supabase
+          .from("brand_settings")
+          .update({
+            business_name: brandSettings.business_name,
+            slogan: brandSettings.slogan,
+            logo_url: brandSettings.logo_url,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", brandSettings.id);
+      } else {
+        // Create new brand settings
+        const { data, error } = await supabase
+          .from("brand_settings")
+          .insert({
+            business_name: brandSettings.business_name,
+            slogan: brandSettings.slogan,
+            logo_url: brandSettings.logo_url
+          })
+          .select()
+          .single();
+        
+        if (error) throw error;
+        setBrandSettings(data);
+      }
+      
+      toast.success("Brand settings saved successfully!");
+    } catch (error) {
+      console.error("Error saving brand settings:", error);
+      toast.error("Failed to save brand settings. Please try again.");
+    } finally {
+      setSavingBrand(false);
     }
   };
 
@@ -133,6 +200,62 @@ export default function SettingsPage() {
             className="h-10 px-4 rounded-xl bg-black text-white dark:bg-white dark:text-black w-fit disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? "Saving..." : "Save Settings"}
+          </button>
+        </form>
+
+        {/* Brand Settings */}
+        <form onSubmit={saveBrand} className="mt-12 grid gap-6">
+          <div className="grid gap-4">
+            <h2 className="text-lg font-medium">Brand Settings</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Configure your business branding for emails and communications.
+            </p>
+            
+            <div className="grid gap-4">
+              <label className="grid gap-2">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Business Name</span>
+                <input 
+                  type="text" 
+                  className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" 
+                  value={brandSettings.business_name} 
+                  onChange={(e) => setBrandSettings(prev => ({ ...prev, business_name: e.target.value }))}
+                  placeholder="Your Business Name"
+                  required
+                />
+              </label>
+              
+              <label className="grid gap-2">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Slogan (Optional)</span>
+                <input 
+                  type="text" 
+                  className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900" 
+                  value={brandSettings.slogan || ''} 
+                  onChange={(e) => setBrandSettings(prev => ({ ...prev, slogan: e.target.value }))}
+                  placeholder="Your business slogan or tagline"
+                />
+              </label>
+              
+              <div className="grid gap-2">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Logo</span>
+                <ImageUpload
+                  type="brand"
+                  currentImageUrl={brandSettings.logo_url || undefined}
+                  onImageChange={(url) => setBrandSettings(prev => ({ ...prev, logo_url: url }))}
+                  className="w-full"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Upload your business logo. This will be used in email templates and communications.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <button 
+            type="submit"
+            disabled={savingBrand}
+            className="h-10 px-4 rounded-xl bg-black text-white dark:bg-white dark:text-black w-fit disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {savingBrand ? "Saving Brand Settings..." : "Save Brand Settings"}
           </button>
         </form>
       </div>

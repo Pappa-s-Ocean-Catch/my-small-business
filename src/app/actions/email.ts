@@ -5,8 +5,14 @@ import { ShiftReminderEmail } from '@/emails/ShiftReminder';
 import { MagicLinkInviteEmail } from '@/emails/MagicLinkInvite';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { format } from 'date-fns';
+import { getBrandSettings } from '@/lib/brand-settings';
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+
+// Email override for testing - redirect all emails to test address if set
+const getEmailOverride = (originalEmail: string): string => {
+  return process.env.OVERRIDE_EMAIL_ADDRESS || originalEmail;
+};
 
 export async function sendShiftReminder(
   staffEmail: string,
@@ -19,19 +25,25 @@ export async function sendShiftReminder(
     if (!resend || !process.env.RESEND_API_KEY) {
       throw new Error('RESEND_API_KEY is not configured');
     }
+    // Get brand settings
+    const brandSettings = await getBrandSettings();
+    const businessName = brandSettings?.business_name || 'OperateFlow';
+    const logoUrl = brandSettings?.logo_url;
 
     const formattedDate = format(shiftDate, 'EEEE, MMMM do, yyyy');
     const formattedTime = `${startTime} - ${endTime}`;
-
+    const  emailTo = getEmailOverride(staffEmail);
+    console.log('📧 Sending shift reminder to:', emailTo);  
     const { data, error } = await resend.emails.send({
       from: process.env.EMAIL_FROM!,
-      to: [staffEmail],
+      to: [emailTo],
       subject: `Shift Reminder - ${formattedDate}`,
       react: ShiftReminderEmail({
         staffName,
         shiftDate: formattedDate,
         shiftTime: formattedTime,
-        businessName: 'OperateFlow',
+        businessName,
+        logoUrl: logoUrl || undefined,
       }),
     });
 
@@ -74,11 +86,22 @@ export async function sendMagicLinkInvite(inviteeEmail: string) {
 
     const actionUrl = data.properties.action_link as string;
 
+    // Get brand settings
+    const brandSettings = await getBrandSettings();
+    const businessName = brandSettings?.business_name || 'OperateFlow';
+    const logoUrl = brandSettings?.logo_url;
+
     const { data: sent, error: sendErr } = await resend.emails.send({
       from: process.env.EMAIL_FROM!,
       to: [inviteeEmail],
-      subject: existing ? 'Your OperateFlow sign-in link' : 'You are invited to OperateFlow',
-      react: MagicLinkInviteEmail({ inviteeEmail, actionUrl, isExistingUser: Boolean(existing) }),
+      subject: existing ? `Your ${businessName} sign-in link` : `You are invited to ${businessName}`,
+      react: MagicLinkInviteEmail({ 
+        inviteeEmail, 
+        actionUrl, 
+        isExistingUser: Boolean(existing),
+        businessName,
+        logoUrl: logoUrl || undefined
+      }),
     });
 
     if (sendErr) {

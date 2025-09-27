@@ -571,7 +571,15 @@ export function DragDropCalendar({
     }
   }, [loadTemplates, templateDeleteConfirm.template]);
   const [autoShiftConfirm, setAutoShiftConfirm] = useState<{ isOpen: boolean; summary: AutoShiftSummary | null }>({ isOpen: false, summary: null });
-  const [errorModal, setErrorModal] = useState<{ isOpen: boolean; title: string; message: string; details?: string }>({ isOpen: false, title: "", message: "" });
+  const [errorModal, setErrorModal] = useState<{ 
+    isOpen: boolean; 
+    title: string; 
+    message: string; 
+    details?: string; 
+    variant?: 'success' | 'warning' | 'error';
+    emailResults?: Array<{ staffName: string; email: string; success: boolean; messageId?: string; error?: string }>;
+    staffWithoutEmails?: Array<{ staffName: string; staffEmail: string | null }>;
+  }>({ isOpen: false, title: "", message: "" });
   const [activeId, setActiveId] = useState<string | null>(null);
   const [isCtrlPressed, setIsCtrlPressed] = useState(false);
   const [sendingRoster, setSendingRoster] = useState(false);
@@ -1387,22 +1395,28 @@ export function DragDropCalendar({
       const failed = results.filter(r => !r.success).length;
       
       let message = `Successfully sent roster emails to ${successful} staff members!`;
-      let details = `Week: ${format(weekStart, 'MMM dd')} - ${format(weekEnd, 'MMM dd, yyyy')}`;
+      const details = `Week: ${format(weekStart, 'MMM dd')} - ${format(weekEnd, 'MMM dd, yyyy')}`;
+      let variant: 'success' | 'warning' | 'error' = 'success';
       
       if (failed > 0) {
         message += ` (${failed} emails failed)`;
-        details += `\n\nFailed emails:\n${results.filter(r => !r.success).map(r => `• ${r.email}: ${r.error}`).join('\n')}`;
+        variant = 'warning'; // Show warning if some emails failed
       }
       
       if (staffWithoutEmails.length > 0) {
-        details += `\n\nStaff without email addresses (${staffWithoutEmails.length}):\n${staffWithoutEmails.map(r => `• ${r.staffName}`).join('\n')}`;
+        if (variant === 'success') {
+          variant = 'warning'; // Show warning if some staff don't have emails
+        }
       }
 
       setErrorModal({
         isOpen: true,
         title: "Roster Sent",
         message,
-        details
+        details,
+        variant,
+        emailResults: results,
+        staffWithoutEmails
       });
 
     } catch (error) {
@@ -1411,7 +1425,8 @@ export function DragDropCalendar({
         isOpen: true,
         title: "Send Error",
         message: "An unexpected error occurred while sending roster emails",
-        details: error instanceof Error ? error.message : "Unknown error occurred"
+        details: error instanceof Error ? error.message : "Unknown error occurred",
+        variant: 'error'
       });
     } finally {
       setSendingRoster(false);
@@ -2104,6 +2119,9 @@ export function DragDropCalendar({
         title={errorModal.title}
         message={errorModal.message}
         details={errorModal.details}
+        variant={errorModal.variant}
+        emailResults={errorModal.emailResults}
+        staffWithoutEmails={errorModal.staffWithoutEmails}
       />
 
       {/* Delete Template Confirmation */}

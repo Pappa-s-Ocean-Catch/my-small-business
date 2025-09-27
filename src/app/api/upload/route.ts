@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    if (!type || !['product', 'sale_product', 'staff', 'supplier'].includes(type)) {
+    if (!type || !['product', 'sale_product', 'staff', 'supplier', 'brand'].includes(type)) {
       return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
     }
 
