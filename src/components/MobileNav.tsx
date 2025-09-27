@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { AdminNavigation } from "@/components/AdminNavigation";
 import Link from "next/link";
-import { FaBars, FaTimes, FaChevronDown, FaHome, FaCalendarAlt } from "react-icons/fa";
+import { FaBars, FaTimes, FaChevronDown, FaHome, FaCalendarAlt, FaDollarSign } from "react-icons/fa";
 
 export function MobileNav() {
   const [open, setOpen] = useState(false);
@@ -59,6 +59,10 @@ export function MobileNav() {
                 <FaCalendarAlt className="w-3.5 h-3.5" />
                 <span className="text-sm">Work shift</span>
               </Link>
+              <Link href="/income-expense" onClick={() => setOpen(false)} className="p-3 rounded-lg border hover:bg-gray-50 dark:hover:bg-neutral-900 inline-flex items-center gap-2">
+                <FaDollarSign className="w-3.5 h-3.5" />
+                <span className="text-sm">Income/Expense</span>
+              </Link>
             </div>
 
             {/* Collapsible groups */}
@@ -112,6 +116,7 @@ export function MobileNav() {
                     <Link href="/analytics" onClick={() => setOpen(false)} className="px-3 py-2 text-sm rounded hover:bg-gray-50 dark:hover:bg-neutral-900">Analysis</Link>
                     <Link href="/wages-report" onClick={() => setOpen(false)} className="px-3 py-2 text-sm rounded hover:bg-gray-50 dark:hover:bg-neutral-900">Wages Report</Link>
                     <Link href="/payment-report" onClick={() => setOpen(false)} className="px-3 py-2 text-sm rounded hover:bg-gray-50 dark:hover:bg-neutral-900">Payment Report</Link>
+                    <Link href="/income-expense" onClick={() => setOpen(false)} className="px-3 py-2 text-sm rounded hover:bg-gray-50 dark:hover:bg-neutral-900">Income & Expenses</Link>
                   </div>
                 )}
               </div>

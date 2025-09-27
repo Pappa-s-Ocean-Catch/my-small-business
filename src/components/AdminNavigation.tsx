@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase/client";
-import { FaUsers, FaStore, FaUserShield, FaChartPie, FaFileAlt, FaMoneyBillWave, FaPalette, FaCog, FaRobot, FaBox, FaTags, FaWarehouse, FaUtensils, FaCalendarAlt } from "react-icons/fa";
+import { FaUsers, FaStore, FaUserShield, FaChartPie, FaFileAlt, FaMoneyBillWave, FaPalette, FaCog, FaRobot, FaBox, FaTags, FaWarehouse, FaUtensils, FaCalendarAlt, FaDollarSign, FaChartLine } from "react-icons/fa";
 
 export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 'horizontal' | 'vertical' }) {
   const [userRole, setUserRole] = useState<'admin' | 'staff' | null>(null);
@@ -224,12 +224,29 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
             <div className="px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-200">Shop</div>
             <div className="pl-2">
               <Link className={getLinkClasses("/shop")} href="/shop" aria-label="Shop Overview">Shop Overview</Link>
-              <Link className={getLinkClasses("/shop/products")} href="/shop/products" aria-label="Products">Products</Link>
-              <Link className={getLinkClasses("/shop/categories")} href="/shop/categories" aria-label="Categories">Categories</Link>
-              <Link className={getLinkClasses("/shop/inventory")} href="/shop/inventory" aria-label="Inventory">Inventory</Link>
-              <Link className={getLinkClasses("/shop/suppliers")} href="/shop/suppliers" aria-label="Suppliers">Suppliers</Link>
-              <Link className={getLinkClasses("/shop/menu")} href="/shop/menu" aria-label="Menu">Menu</Link>
-              <Link className={getLinkClasses("/shop/combo")} href="/shop/combo" aria-label="Combo">Combo</Link>
+              <div className="pl-2 mt-2">
+                <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Inventory</div>
+                <div className="pl-2 space-y-1">
+                  <Link className={getLinkClasses("/shop/products")} href="/shop/products" aria-label="Products">Products</Link>
+                  <Link className={getLinkClasses("/shop/categories")} href="/shop/categories" aria-label="Categories">Categories</Link>
+                  <Link className={getLinkClasses("/shop/inventory")} href="/shop/inventory" aria-label="Inventory">Inventory</Link>
+                  <Link className={getLinkClasses("/shop/suppliers")} href="/shop/suppliers" aria-label="Suppliers">Suppliers</Link>
+                </div>
+              </div>
+              <div className="pl-2 mt-2">
+                <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Menu</div>
+                <div className="pl-2 space-y-1">
+                  <Link className={getLinkClasses("/shop/menu")} href="/shop/menu" aria-label="Menu">Menu</Link>
+                  <Link className={getLinkClasses("/shop/combo")} href="/shop/combo" aria-label="Combo">Combo</Link>
+                </div>
+              </div>
+              <div className="pl-2 mt-2">
+                <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Finance</div>
+                <div className="pl-2 space-y-1">
+                  <Link className={getLinkClasses("/income-expense")} href="/income-expense" aria-label="Income & Expenses">Income & Expenses</Link>
+                  <Link className={getLinkClasses("/cash-flow")} href="/cash-flow" aria-label="Cash Flow Analysis">Cash Flow Analysis</Link>
+                </div>
+              </div>
             </div>
           </div>
         ) : (
@@ -249,11 +266,11 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
               Shop
             </button>
             {isShopOpen && (
-              <div className="absolute top-full mt-0.5 w-screen max-w-[640px] sm:w-[640px] rounded-xl bg-white/95 dark:bg-neutral-950/95 backdrop-blur shadow-lg z-50 p-3 overflow-hidden"
+              <div className="absolute top-full mt-0.5 w-screen max-w-[800px] sm:w-[800px] rounded-xl bg-white/95 dark:bg-neutral-950/95 backdrop-blur shadow-lg z-50 p-3 overflow-hidden"
                    style={{ left: shopOffset }}>
                 <div className="flex">
                   {/* Left Panel - Main Shop Link */}
-                  <div className="w-1/2 pr-3">
+                  <div className="w-1/4 pr-3">
                     <div className="border-r border-gray-200 dark:border-neutral-700 pr-3">
                       <Link href="/shop" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                         <div className="flex items-start gap-3">
@@ -269,75 +286,118 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                     </div>
                   </div>
                   
-                  {/* Right Panel - Shop Subcategories */}
-                  <div className="w-1/2 pl-3">
-                    <div className="space-y-2">
-                      <Link href="/shop/products" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
-                        <div className="flex items-start gap-3">
-                          <div className="mt-0.5 text-blue-600 dark:text-blue-400">
-                            <FaBox className="w-4 h-4" />
+                  {/* Middle Panel - Inventory Section */}
+                  <div className="w-1/4 px-3">
+                    <div className="mb-2">
+                      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Inventory</h3>
+                      <div className="space-y-2">
+                        <Link href="/shop/products" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                          <div className="flex items-start gap-3">
+                            <div className="mt-0.5 text-blue-600 dark:text-blue-400">
+                              <FaBox className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="font-medium text-gray-900 dark:text-white">Products</div>
+                              <div className="text-xs text-gray-600 dark:text-gray-400">Manage product catalog</div>
+                            </div>
                           </div>
-                          <div>
-                            <div className="font-medium text-gray-900 dark:text-white">Products</div>
-                            <div className="text-xs text-gray-600 dark:text-gray-400">Manage product catalog</div>
+                        </Link>
+                        <Link href="/shop/categories" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                          <div className="flex items-start gap-3">
+                            <div className="mt-0.5 text-purple-600 dark:text-purple-400">
+                              <FaTags className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="font-medium text-gray-900 dark:text-white">Categories</div>
+                              <div className="text-xs text-gray-600 dark:text-gray-400">Organize product categories</div>
+                            </div>
                           </div>
-                        </div>
-                      </Link>
-                      <Link href="/shop/categories" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
-                        <div className="flex items-start gap-3">
-                          <div className="mt-0.5 text-purple-600 dark:text-purple-400">
-                            <FaTags className="w-4 h-4" />
+                        </Link>
+                        <Link href="/shop/inventory" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                          <div className="flex items-start gap-3">
+                            <div className="mt-0.5 text-orange-600 dark:text-orange-400">
+                              <FaWarehouse className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="font-medium text-gray-900 dark:text-white">Inventory</div>
+                              <div className="text-xs text-gray-600 dark:text-gray-400">Track stock levels and movements</div>
+                            </div>
                           </div>
-                          <div>
-                            <div className="font-medium text-gray-900 dark:text-white">Categories</div>
-                            <div className="text-xs text-gray-600 dark:text-gray-400">Organize product categories</div>
+                        </Link>
+                        <Link href="/shop/suppliers" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                          <div className="flex items-start gap-3">
+                            <div className="mt-0.5 text-green-600 dark:text-green-400">
+                              <FaStore className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="font-medium text-gray-900 dark:text-white">Suppliers</div>
+                              <div className="text-xs text-gray-600 dark:text-gray-400">Manage supplier relationships</div>
+                            </div>
                           </div>
-                        </div>
-                      </Link>
-                      <Link href="/shop/inventory" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
-                        <div className="flex items-start gap-3">
-                          <div className="mt-0.5 text-orange-600 dark:text-orange-400">
-                            <FaWarehouse className="w-4 h-4" />
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Panel - Menu Section */}
+                  <div className="w-1/4 px-3">
+                    <div className="mb-2">
+                      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Menu</h3>
+                      <div className="space-y-2">
+                        <Link href="/shop/menu" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                          <div className="flex items-start gap-3">
+                            <div className="mt-0.5 text-red-600 dark:text-red-400">
+                              <FaUtensils className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="font-medium text-gray-900 dark:text-white">Menu</div>
+                              <div className="text-xs text-gray-600 dark:text-gray-400">Configure sale products and menu</div>
+                            </div>
                           </div>
-                          <div>
-                            <div className="font-medium text-gray-900 dark:text-white">Inventory</div>
-                            <div className="text-xs text-gray-600 dark:text-gray-400">Track stock levels and movements</div>
+                        </Link>
+                        <Link href="/shop/combo" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                          <div className="flex items-start gap-3">
+                            <div className="mt-0.5 text-emerald-600 dark:text-emerald-400">
+                              <FaUtensils className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="font-medium text-gray-900 dark:text-white">Combo</div>
+                              <div className="text-xs text-gray-600 dark:text-gray-400">AI combo builder for bundles</div>
+                            </div>
                           </div>
-                        </div>
-                      </Link>
-                      <Link href="/shop/suppliers" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
-                        <div className="flex items-start gap-3">
-                          <div className="mt-0.5 text-green-600 dark:text-green-400">
-                            <FaStore className="w-4 h-4" />
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Far Right Panel - Finance Section */}
+                  <div className="w-1/4 pl-3">
+                    <div className="mb-2">
+                      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Finance</h3>
+                      <div className="space-y-2">
+                        <Link href="/income-expense" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                          <div className="flex items-start gap-3">
+                            <div className="mt-0.5 text-orange-600 dark:text-orange-400">
+                              <FaDollarSign className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="font-medium text-gray-900 dark:text-white">Income & Expenses</div>
+                              <div className="text-xs text-gray-600 dark:text-gray-400">Track daily sales and business expenses</div>
+                            </div>
                           </div>
-                          <div>
-                            <div className="font-medium text-gray-900 dark:text-white">Suppliers</div>
-                            <div className="text-xs text-gray-600 dark:text-gray-400">Manage supplier relationships</div>
+                        </Link>
+                        <Link href="/cash-flow" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                          <div className="flex items-start gap-3">
+                            <div className="mt-0.5 text-blue-600 dark:text-blue-400">
+                              <FaChartLine className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="font-medium text-gray-900 dark:text-white">Cash Flow Analysis</div>
+                              <div className="text-xs text-gray-600 dark:text-gray-400">Financial insights and trends</div>
+                            </div>
                           </div>
-                        </div>
-                      </Link>
-                      <Link href="/shop/menu" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
-                        <div className="flex items-start gap-3">
-                          <div className="mt-0.5 text-red-600 dark:text-red-400">
-                            <FaUtensils className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <div className="font-medium text-gray-900 dark:text-white">Menu</div>
-                            <div className="text-xs text-gray-600 dark:text-gray-400">Configure sale products and menu</div>
-                          </div>
-                        </div>
-                      </Link>
-                      <Link href="/shop/combo" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
-                        <div className="flex items-start gap-3">
-                          <div className="mt-0.5 text-emerald-600 dark:text-emerald-400">
-                            <FaUtensils className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <div className="font-medium text-gray-900 dark:text-white">Combo</div>
-                            <div className="text-xs text-gray-600 dark:text-gray-400">AI combo builder for bundles</div>
-                          </div>
-                        </div>
-                      </Link>
+                        </Link>
+                      </div>
                     </div>
                   </div>
                 </div>
