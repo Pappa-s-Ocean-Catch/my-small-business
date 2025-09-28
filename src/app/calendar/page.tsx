@@ -186,10 +186,6 @@ export default function CalendarPage() {
             id: shift.id,
             start_time: shift.start_time,
             end_time: shift.end_time,
-            start_time_parsed: new Date(shift.start_time).toString(),
-            end_time_parsed: new Date(shift.end_time).toString(),
-            start_time_local: new Date(shift.start_time).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' }),
-            end_time_local: new Date(shift.end_time).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' }),
             section_id: shift.section_id,
             staff_id: shift.staff_id
           }))
@@ -216,11 +212,7 @@ export default function CalendarPage() {
   const createShift = useCallback(async (shift: Omit<Shift, 'id'>) => {
     try {
       console.log('📅 Calendar Page - Creating shift:', {
-        input_shift: shift,
-        start_time_parsed: new Date(shift.start_time).toString(),
-        end_time_parsed: new Date(shift.end_time).toString(),
-        start_time_local: new Date(shift.start_time).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' }),
-        end_time_local: new Date(shift.end_time).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' })
+        input_shift: shift
       });
       
       const supabase = getSupabaseClient();
@@ -233,11 +225,7 @@ export default function CalendarPage() {
       if (error) throw error;
       if (data) {
         console.log('📅 Calendar Page - Shift created successfully:', {
-          created_shift: data,
-          start_time_parsed: new Date(data.start_time).toString(),
-          end_time_parsed: new Date(data.end_time).toString(),
-          start_time_local: new Date(data.start_time).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' }),
-          end_time_local: new Date(data.end_time).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' })
+          created_shift: data
         });
         
         // Auto-navigate to the week containing the newly created shift

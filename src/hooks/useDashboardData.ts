@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
-import { startOfWeek, endOfWeek } from "date-fns";
+import { startOfWeek, endOfWeek, subWeeks } from "date-fns";
 import { User, Shift, BusinessStats } from "@/types/dashboard";
 
 export function useDashboardData() {
@@ -142,6 +142,31 @@ export function useDashboardData() {
               });
             }
 
+            // Calculate revenue for current week and previous week
+            const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+            const currentWeekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
+            const previousWeekStart = startOfWeek(subWeeks(new Date(), 1), { weekStartsOn: 1 });
+            const previousWeekEnd = endOfWeek(subWeeks(new Date(), 1), { weekStartsOn: 1 });
+
+            // Get current week revenue (income transactions)
+            const { data: currentWeekTransactions } = await supabase
+              .from("transactions")
+              .select("amount")
+              .eq("type", "income")
+              .gte("date", currentWeekStart.toISOString().split('T')[0])
+              .lte("date", currentWeekEnd.toISOString().split('T')[0]);
+
+            // Get previous week revenue (income transactions)
+            const { data: previousWeekTransactions } = await supabase
+              .from("transactions")
+              .select("amount")
+              .eq("type", "income")
+              .gte("date", previousWeekStart.toISOString().split('T')[0])
+              .lte("date", previousWeekEnd.toISOString().split('T')[0]);
+
+            const currentWeekRevenue = currentWeekTransactions?.reduce((sum, transaction) => sum + transaction.amount, 0) || 0;
+            const previousWeekRevenue = previousWeekTransactions?.reduce((sum, transaction) => sum + transaction.amount, 0) || 0;
+
             setBusinessStats({
               totalStaff: staffResult.count || 0,
               totalShifts: shiftsResult.count || 0,
@@ -149,7 +174,9 @@ export function useDashboardData() {
               totalProducts: productsResult.count || 0,
               totalCategories: categoriesResult.count || 0,
               totalSuppliers: suppliersResult.count || 0,
-              weeklyCost
+              weeklyCost,
+              currentWeekRevenue,
+              previousWeekRevenue
             });
           }
         }

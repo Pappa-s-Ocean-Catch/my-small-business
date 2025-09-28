@@ -24,4 +24,6 @@ export type BusinessStats = {
   totalCategories: number;
   totalSuppliers: number;
   weeklyCost: number;
+  currentWeekRevenue: number;
+  previousWeekRevenue: number;
 };

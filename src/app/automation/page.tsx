@@ -492,7 +492,7 @@ export default function AutomationPage() {
                     </div>
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400">
-                    {new Date(log.executed_at).toLocaleString()}
+                    {log.executed_at}
                   </div>
                 </div>
               ))}

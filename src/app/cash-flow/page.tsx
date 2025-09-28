@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { AdminGuard } from "@/components/AdminGuard";
 import { getSupabaseClient } from "@/lib/supabase/client";
-import { startOfWeek, endOfWeek, format, subWeeks, addWeeks, subMonths, addMonths } from "date-fns";
-import { FaChevronLeft, FaChevronRight, FaFilePdf, FaFileExcel, FaChartLine, FaDollarSign, FaArrowUp, FaArrowDown, FaCalendarAlt } from "react-icons/fa";
+import { startOfWeek, endOfWeek, format, subWeeks, addWeeks, subMonths, addMonths, startOfMonth, endOfMonth } from "date-fns";
+import { FaFilePdf, FaFileExcel, FaChartLine, FaDollarSign, FaArrowUp, FaArrowDown } from "react-icons/fa";
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -49,7 +50,7 @@ type PaymentMethodSummary = {
 };
 
 
-export default function CashFlowPage() {
+function CashFlowContent() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState(() => {
@@ -58,6 +59,30 @@ export default function CashFlowPage() {
     const end = endOfWeek(now, { weekStartsOn: 1 });
     return { start, end };
   });
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  // Handle query parameters on component mount
+  useEffect(() => {
+    const startParam = searchParams.get('start');
+    const endParam = searchParams.get('end');
+    
+    if (startParam && endParam) {
+      const startDate = new Date(startParam);
+      const endDate = new Date(endParam);
+      if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
+        setDateRange({ start: startDate, end: endDate });
+        setCustomStartDate(format(startDate, "yyyy-MM-dd"));
+        setCustomEndDate(format(endDate, "yyyy-MM-dd"));
+      }
+    } else {
+      // Initialize custom date inputs with current date range
+      setCustomStartDate(format(dateRange.start, "yyyy-MM-dd"));
+      setCustomEndDate(format(dateRange.end, "yyyy-MM-dd"));
+    }
+  }, [searchParams]);
 
   const fetchData = useCallback(async () => {
     const supabase = getSupabaseClient();
@@ -82,44 +107,91 @@ export default function CashFlowPage() {
     void fetchData();
   }, [fetchData]);
 
+
+  const goThisWeek = () => {
+    const now = new Date();
+    const start = startOfWeek(now, { weekStartsOn: 1 });
+    const end = endOfWeek(now, { weekStartsOn: 1 });
+    setDateRange({ start, end });
+    setCustomStartDate(format(start, "yyyy-MM-dd"));
+    setCustomEndDate(format(end, "yyyy-MM-dd"));
+    updateURL(start, end);
+  };
+
+
+  // Update existing functions to sync with custom date inputs
   const goPrevWeek = () => {
     const newStart = subWeeks(dateRange.start, 1);
-    setDateRange({
-      start: newStart,
-      end: endOfWeek(newStart, { weekStartsOn: 1 })
-    });
+    const start = newStart;
+    const end = endOfWeek(newStart, { weekStartsOn: 1 });
+    setDateRange({ start, end });
+    setCustomStartDate(format(start, "yyyy-MM-dd"));
+    setCustomEndDate(format(end, "yyyy-MM-dd"));
+    updateURL(start, end);
   };
 
   const goNextWeek = () => {
     const newStart = addWeeks(dateRange.start, 1);
-    setDateRange({
-      start: newStart,
-      end: endOfWeek(newStart, { weekStartsOn: 1 })
-    });
+    const start = newStart;
+    const end = endOfWeek(newStart, { weekStartsOn: 1 });
+    setDateRange({ start, end });
+    setCustomStartDate(format(start, "yyyy-MM-dd"));
+    setCustomEndDate(format(end, "yyyy-MM-dd"));
+    updateURL(start, end);
   };
 
-  const goThisWeek = () => {
+  // New preset filter functions
+  const goThisMonth = () => {
     const now = new Date();
-    setDateRange({
-      start: startOfWeek(now, { weekStartsOn: 1 }),
-      end: endOfWeek(now, { weekStartsOn: 1 })
-    });
+    const start = startOfMonth(now);
+    const end = endOfMonth(now);
+    setDateRange({ start, end });
+    setCustomStartDate(format(start, "yyyy-MM-dd"));
+    setCustomEndDate(format(end, "yyyy-MM-dd"));
+    updateURL(start, end);
   };
 
   const goPrevMonth = () => {
     const newStart = subMonths(dateRange.start, 1);
-    setDateRange({
-      start: startOfWeek(newStart, { weekStartsOn: 1 }),
-      end: endOfWeek(newStart, { weekStartsOn: 1 })
-    });
+    const start = startOfMonth(newStart);
+    const end = endOfMonth(newStart);
+    setDateRange({ start, end });
+    setCustomStartDate(format(start, "yyyy-MM-dd"));
+    setCustomEndDate(format(end, "yyyy-MM-dd"));
+    updateURL(start, end);
   };
 
   const goNextMonth = () => {
     const newStart = addMonths(dateRange.start, 1);
-    setDateRange({
-      start: startOfWeek(newStart, { weekStartsOn: 1 }),
-      end: endOfWeek(newStart, { weekStartsOn: 1 })
-    });
+    const start = startOfMonth(newStart);
+    const end = endOfMonth(newStart);
+    setDateRange({ start, end });
+    setCustomStartDate(format(start, "yyyy-MM-dd"));
+    setCustomEndDate(format(end, "yyyy-MM-dd"));
+    updateURL(start, end);
+  };
+
+
+  // Custom date range handler
+  const handleCustomDateRange = () => {
+    if (customStartDate && customEndDate) {
+      const start = new Date(customStartDate);
+      const end = new Date(customEndDate);
+      if (!isNaN(start.getTime()) && !isNaN(end.getTime()) && start <= end) {
+        setDateRange({ start, end });
+        updateURL(start, end);
+      } else {
+        toast.error("Invalid date range. Please ensure start date is before end date.");
+      }
+    }
+  };
+
+  // Update URL with query parameters
+  const updateURL = (start: Date, end: Date) => {
+    const params = new URLSearchParams();
+    params.set('start', format(start, "yyyy-MM-dd"));
+    params.set('end', format(end, "yyyy-MM-dd"));
+    router.replace(`/cash-flow?${params.toString()}`, { scroll: false });
   };
 
   // Calculate summary data
@@ -304,62 +376,102 @@ export default function CashFlowPage() {
             </p>
           </div>
           
-          <div className="flex flex-col gap-3 print:hidden w-full">
-            {/* Navigation buttons */}
-            <div className="flex items-center gap-1 sm:gap-2 flex-wrap overflow-x-auto">
-              <button
-                onClick={goPrevMonth}
-                className="flex items-center gap-1 px-2 sm:px-3 py-2 bg-white dark:bg-neutral-900 shadow-lg rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors whitespace-nowrap text-xs sm:text-sm"
-                title="Previous Month"
-              >
-                <FaChevronLeft className="w-3 h-3" /> <span className="hidden sm:inline">Prev Month</span><span className="sm:hidden">Prev M</span>
-              </button>
-              <button
-                onClick={goPrevWeek}
-                className="flex items-center gap-1 px-2 sm:px-3 py-2 bg-white dark:bg-neutral-900 shadow-lg rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors whitespace-nowrap text-xs sm:text-sm"
-                title="Previous Week"
-              >
-                <FaChevronLeft className="w-3 h-3" /> <span className="hidden sm:inline">Prev Week</span><span className="sm:hidden">Prev W</span>
-              </button>
-              <button
-                onClick={goThisWeek}
-                className="flex items-center gap-1 px-2 sm:px-3 py-2 bg-white dark:bg-neutral-900 shadow-lg rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors whitespace-nowrap text-xs sm:text-sm"
-                title="This Week"
-              >
-                <FaCalendarAlt className="w-3 h-3" /> <span className="hidden sm:inline">This Week</span><span className="sm:hidden">This W</span>
-              </button>
-              <button
-                onClick={goNextWeek}
-                className="flex items-center gap-1 px-2 sm:px-3 py-2 bg-white dark:bg-neutral-900 shadow-lg rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors whitespace-nowrap text-xs sm:text-sm"
-                title="Next Week"
-              >
-                <span className="hidden sm:inline">Next Week</span><span className="sm:hidden">Next W</span> <FaChevronRight className="w-3 h-3" />
-              </button>
-              <button
-                onClick={goNextMonth}
-                className="flex items-center gap-1 px-2 sm:px-3 py-2 bg-white dark:bg-neutral-900 shadow-lg rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors whitespace-nowrap text-xs sm:text-sm"
-                title="Next Month"
-              >
-                <span className="hidden sm:inline">Next Month</span><span className="sm:hidden">Next M</span> <FaChevronRight className="w-3 h-3" />
-              </button>
+          {/* Export buttons */}
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-end print:hidden">
+            <button
+              onClick={exportToPDF}
+              className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-xs sm:text-sm whitespace-nowrap"
+            >
+              <FaFilePdf className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Export PDF</span><span className="sm:hidden">PDF</span>
+            </button>
+            <button
+              onClick={exportToExcel}
+              className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs sm:text-sm whitespace-nowrap"
+            >
+              <FaFileExcel className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Export Excel</span><span className="sm:hidden">Excel</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Filter Bar - Second Row */}
+        <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-lg p-4 mb-6 print:hidden">
+          <div className="space-y-4">
+            {/* Preset Filter Buttons */}
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Quick Filters</h3>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={goPrevMonth}
+                  className="px-3 py-2 bg-gray-100 dark:bg-neutral-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-neutral-600 transition-colors text-sm"
+                >
+                  Prev Month
+                </button>
+                <button
+                  onClick={goPrevWeek}
+                  className="px-3 py-2 bg-gray-100 dark:bg-neutral-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-neutral-600 transition-colors text-sm"
+                >
+                  Prev Week
+                </button>
+                <button
+                  onClick={goThisWeek}
+                  className="px-3 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors text-sm font-medium"
+                >
+                  This Week
+                </button>
+                <button
+                  onClick={goThisMonth}
+                  className="px-3 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors text-sm font-medium"
+                >
+                  This Month
+                </button>
+                <button
+                  onClick={goNextWeek}
+                  className="px-3 py-2 bg-gray-100 dark:bg-neutral-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-neutral-600 transition-colors text-sm"
+                >
+                  Next Week
+                </button>
+                <button
+                  onClick={goNextMonth}
+                  className="px-3 py-2 bg-gray-100 dark:bg-neutral-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-neutral-600 transition-colors text-sm"
+                >
+                  Next Month
+                </button>
+              </div>
             </div>
 
-            {/* Export buttons */}
-            <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
-              <button
-                onClick={exportToPDF}
-                className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-xs sm:text-sm whitespace-nowrap"
-              >
-                <FaFilePdf className="w-3 h-3 sm:w-4 sm:h-4" />
-                <span className="hidden sm:inline">Export PDF</span><span className="sm:hidden">PDF</span>
-              </button>
-              <button
-                onClick={exportToExcel}
-                className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs sm:text-sm whitespace-nowrap"
-              >
-                <FaFileExcel className="w-3 h-3 sm:w-4 sm:h-4" />
-                <span className="hidden sm:inline">Export Excel</span><span className="sm:hidden">Excel</span>
-              </button>
+            {/* Custom Date Range */}
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Custom Date Range</h3>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Start Date</label>
+                  <input
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">End Date</label>
+                  <input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <button
+                    onClick={handleCustomDateRange}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                  >
+                    Apply
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -557,5 +669,19 @@ export default function CashFlowPage() {
         </div>
       </div>
     </AdminGuard>
+  );
+}
+
+export default function CashFlowPage() {
+  return (
+    <Suspense fallback={
+      <AdminGuard>
+        <div className="p-6 text-center text-gray-500">
+          Loading cash flow analysis...
+        </div>
+      </AdminGuard>
+    }>
+      <CashFlowContent />
+    </Suspense>
   );
 }

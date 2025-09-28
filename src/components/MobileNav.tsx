@@ -255,7 +255,7 @@ export function MobileNav() {
                             <FaChartPie className="w-4 h-4 mr-2 text-purple-400" />
                             Analysis & Report
                           </Link>
-                          <Link href="/reports" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                          <Link href="/reports/shift-reports" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
                             <FaFileAlt className="w-4 h-4 mr-2 text-blue-400" />
                             Weekly Shift Report
                           </Link>

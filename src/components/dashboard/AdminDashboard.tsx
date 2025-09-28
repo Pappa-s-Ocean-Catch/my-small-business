@@ -3,16 +3,27 @@
 import { FaCalendarAlt, FaUsers, FaBox, FaExclamationTriangle, FaDollarSign, FaChartLine, FaShoppingCart } from "react-icons/fa";
 import Link from "next/link";
 import { BusinessStats } from "@/types/dashboard";
+import { startOfWeek, endOfWeek, subWeeks, format } from "date-fns";
 
 interface AdminDashboardProps {
   businessStats: BusinessStats | null;
 }
 
 export function AdminDashboard({ businessStats }: AdminDashboardProps) {
+  // Calculate current week and previous week date ranges
+  const now = new Date();
+  const currentWeekStart = startOfWeek(now, { weekStartsOn: 1 });
+  const currentWeekEnd = endOfWeek(now, { weekStartsOn: 1 });
+  const previousWeekStart = startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
+  const previousWeekEnd = endOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
+
+  const currentWeekParams = `start=${format(currentWeekStart, "yyyy-MM-dd")}&end=${format(currentWeekEnd, "yyyy-MM-dd")}`;
+  const previousWeekParams = `start=${format(previousWeekStart, "yyyy-MM-dd")}&end=${format(previousWeekEnd, "yyyy-MM-dd")}`;
+
   return (
     <div className="space-y-6">
       {/* Business Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <div className="bg-white dark:bg-neutral-800 rounded-xl p-6 border border-gray-200 dark:border-neutral-700">
           <div className="flex items-center justify-between">
             <div>
@@ -43,15 +54,44 @@ export function AdminDashboard({ businessStats }: AdminDashboardProps) {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-neutral-800 rounded-xl p-6 border border-gray-200 dark:border-neutral-700">
+        <Link 
+          href={`/cash-flow?${currentWeekParams}`}
+          className="bg-white dark:bg-neutral-800 rounded-xl p-6 border border-gray-200 dark:border-neutral-700 hover:shadow-lg transition-shadow group"
+        >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Weekly Cost</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">${businessStats?.weeklyCost?.toFixed(2) || '0.00'}</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">This Week Revenue</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">${businessStats?.currentWeekRevenue?.toFixed(2) || '0.00'}</p>
+              {businessStats?.currentWeekRevenue && businessStats?.previousWeekRevenue && (
+                <p className={`text-xs font-medium ${
+                  businessStats.currentWeekRevenue > businessStats.previousWeekRevenue 
+                    ? 'text-green-600' 
+                    : businessStats.currentWeekRevenue < businessStats.previousWeekRevenue 
+                    ? 'text-red-600' 
+                    : 'text-gray-500'
+                }`}>
+                  {businessStats.currentWeekRevenue > businessStats.previousWeekRevenue ? '↗' : 
+                   businessStats.currentWeekRevenue < businessStats.previousWeekRevenue ? '↘' : '→'} 
+                  {Math.abs(((businessStats.currentWeekRevenue - businessStats.previousWeekRevenue) / businessStats.previousWeekRevenue) * 100).toFixed(1)}% vs last week
+                </p>
+              )}
             </div>
-            <FaDollarSign className="w-8 h-8 text-purple-600" />
+            <FaDollarSign className="w-8 h-8 text-green-600 group-hover:scale-110 transition-transform" />
           </div>
-        </div>
+        </Link>
+
+        <Link 
+          href={`/cash-flow?${previousWeekParams}`}
+          className="bg-white dark:bg-neutral-800 rounded-xl p-6 border border-gray-200 dark:border-neutral-700 hover:shadow-lg transition-shadow group"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Last Week Revenue</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">${businessStats?.previousWeekRevenue?.toFixed(2) || '0.00'}</p>
+            </div>
+            <FaChartLine className="w-8 h-8 text-blue-600 group-hover:scale-110 transition-transform" />
+          </div>
+        </Link>
       </div>
 
       {/* Quick Actions */}
