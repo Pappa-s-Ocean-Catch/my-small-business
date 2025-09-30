@@ -22,7 +22,7 @@ import {
   CSS 
 } from "@dnd-kit/utilities";
 import { format, addDays, startOfWeek, endOfWeek, isToday, isSameDay, addWeeks, subWeeks } from "date-fns";
-import { FaEdit, FaTrash, FaRedo, FaChevronLeft, FaChevronRight, FaHome, FaPrint, FaPlus, FaMagic, FaEnvelope, FaSave, FaLayerGroup } from "react-icons/fa";
+import { FaEdit, FaTrash, FaRedo, FaChevronLeft, FaChevronRight, FaHome, FaPrint, FaPlus, FaMagic, FaEnvelope, FaSave, FaLayerGroup, FaFilter } from "react-icons/fa";
 import { X } from "lucide-react";
 import { CalendarToolbar } from "@/components/CalendarToolbar";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
@@ -342,7 +342,9 @@ export function DragDropCalendar({
   currentWeek,
   onWeekChange
 }: DragDropCalendarProps) {
+  const [selectedStaffId, setSelectedStaffId] = useState<string | "all">("all");
   const [editingShift, setEditingShift] = useState<Shift | null>(null);
+  const [filterOpen, setFilterOpen] = useState<boolean>(false);
   const [editForm, setEditForm] = useState<{ start: string; end: string; notes: string; nonbill: string; section_id: string }>({ start: "", end: "", notes: "", nonbill: "0", section_id: "" });
   const [deleteConfirm, setDeleteConfirm] = useState<{ shift: Shift | null; isOpen: boolean }>({ shift: null, isOpen: false });
   const [assignmentModal, setAssignmentModal] = useState<{ shift: Shift | null; isOpen: boolean }>({ shift: null, isOpen: false });
@@ -725,18 +727,21 @@ export function DragDropCalendar({
   const getDailyTotal = useCallback((day: Date): number => {
     // Compare dates in Melbourne timezone to match visual grouping
     const dayKeyMel = day.toLocaleDateString('en-CA', { timeZone: 'Australia/Melbourne' });
-    return shifts
+    return (selectedStaffId === "all" ? shifts : shifts.filter(s => s.staff_id === selectedStaffId))
       .filter(s => {
         const shiftDate = new Date(s.start_time);
         const shiftKeyMel = shiftDate.toLocaleDateString('en-CA', { timeZone: 'Australia/Melbourne' });
         return shiftKeyMel === dayKeyMel;
       })
       .reduce((sum, s) => sum + calculateShiftCost(s), 0);
-  }, [shifts, calculateShiftCost]);
+  }, [shifts, calculateShiftCost, selectedStaffId]);
 
   const getWeeklyTotal = useCallback((): number => {
     return weekDays.reduce((sum, d) => sum + getDailyTotal(d), 0);
   }, [weekDays, getDailyTotal]);
+  // Apply staff filter to all rendered shifts once to ensure consistency across UI
+  const filteredShifts: Shift[] = selectedStaffId === "all" ? shifts : shifts.filter(s => s.staff_id === selectedStaffId);
+
 
   // Compute finance details for a specific shift (hours, rate, total)
   const getShiftFinance = useCallback((shift: Shift): { hours: number; rate: number; total: number } => {
@@ -1607,7 +1612,7 @@ export function DragDropCalendar({
                   key={`${section.id}-${weekDays[activeDayIndex].toISOString()}`}
                   day={weekDays[activeDayIndex]}
                   section={section}
-                  shifts={shifts.filter(s => {
+                  shifts={filteredShifts.filter(s => {
                     if (s.section_id !== section.id) return false;
                     const shiftDate = new Date(s.start_time);
                     const shiftDateMelbourne = shiftDate.toLocaleDateString('en-CA', { timeZone: 'Australia/Melbourne' });
@@ -1672,7 +1677,7 @@ export function DragDropCalendar({
                     key={`${section.id}-${day.toISOString()}`}
                     day={day}
                     section={section}
-    shifts={shifts.filter(s => {
+    shifts={filteredShifts.filter(s => {
       if (s.section_id !== section.id) return false;
       
       // Handle timezone properly by comparing dates in Melbourne timezone
@@ -1739,7 +1744,56 @@ export function DragDropCalendar({
           <div className="mx-auto max-w-7xl px-4 pb-4 pointer-events-none">
             <div className="transform translate-y-0 opacity-100 md:translate-y-6 md:opacity-0 md:group-hover:translate-y-0 md:group-hover:opacity-100 transition-all duration-200 ease-out pointer-events-auto">
               <div className="w-full bg-transparent">
-                <div className="flex md:flex-wrap flex-nowrap items-center justify-center gap-3 p-3">
+                <div className="flex md:flex-wrap flex-nowrap items-center justify-center gap-3 p-3 relative">
+                  {/* Staff Filter (icon + popover) */}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      aria-haspopup="dialog"
+                      aria-expanded={filterOpen}
+                      onClick={() => setFilterOpen((v) => !v)}
+                      className="flex items-center justify-center gap-2 px-4 py-3 md:px-4 md:py-3.5 text-base bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 rounded-lg transition-colors"
+                      title="Filter by staff"
+                    >
+                      <FaFilter className="w-5 h-5 md:w-4 md:h-4" />
+                      <span className="hidden md:inline text-sm">{selectedStaffId === 'all' ? 'All staff' : (staff.find(s => s.id === selectedStaffId)?.name || 'Staff')}</span>
+                    </button>
+                    {filterOpen && (
+                      <div
+                        role="dialog"
+                        aria-label="Filter shifts by staff"
+                        className="absolute bottom-14 md:bottom-16 left-0 z-50 w-64 md:w-72 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-700 rounded-xl shadow-xl p-3 max-h-80 overflow-y-auto"
+                      >
+                        <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 px-1 pb-2">Show shifts for</div>
+                        <div className="space-y-1">
+                          <label className="flex items-center gap-2 p-2 rounded hover:bg-gray-50 dark:hover:bg-neutral-800 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="staff-filter"
+                              value="all"
+                              checked={selectedStaffId === 'all'}
+                              onChange={() => { setSelectedStaffId('all'); setFilterOpen(false); }}
+                              className="accent-blue-600"
+                            />
+                            <span className="text-sm text-gray-900 dark:text-gray-100">All staff</span>
+                          </label>
+                          {staff.map((s) => (
+                            <label key={s.id} className="flex items-center gap-2 p-2 rounded hover:bg-gray-50 dark:hover:bg-neutral-800 cursor-pointer">
+                              <input
+                                type="radio"
+                                name="staff-filter"
+                                value={s.id}
+                                checked={selectedStaffId === s.id}
+                                onChange={() => { setSelectedStaffId(s.id); setFilterOpen(false); }}
+                                className="accent-blue-600"
+                              />
+                              <span className="text-sm text-gray-900 dark:text-gray-100 truncate">{s.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   <button
                     onClick={handlePrint}
                     className="flex items-center justify-center gap-2 px-4 py-3 md:px-5 md:py-3.5 text-base bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors"

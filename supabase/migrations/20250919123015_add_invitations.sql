@@ -68,3 +68,4 @@ $$;
 revoke all on function public.link_staff_profile(uuid) from public;
 
 
+grant execute on function public.link_staff_profile(uuid) to anon, authenticated;
