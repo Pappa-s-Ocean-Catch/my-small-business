@@ -18,7 +18,7 @@ export async function canSendMagicLink(email: string) {
       await supabase.from('profiles').upsert({
         id: existingUser.id,
         email: existingUser.email,
-        role_slug: 'admin' // Default to admin for legacy accounts
+        role_slug: 'staff' // Default to admin for legacy accounts
       });
       console.log('✅ Profile upserted for legacy user');
       return { allowed: true } as const;
