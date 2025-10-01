@@ -170,7 +170,20 @@ export async function generateProductImage({
       prompt += `Context: ${context}. `;
     }
     
-    prompt += `Create a professional, well-lit food photography image that showcases the product attractively. Style: clean, modern food photography with good composition and appetizing presentation. This should be a restaurant menu item photo - generate an actual image file, not just a description.`;
+    // Enhanced prompt for reference image usage
+    if (referenceImageBase64) {
+      prompt += `IMPORTANT: Use the provided reference image as your primary visual guide. Study the reference image carefully and create a new image that:
+      - Maintains the realistic style, composition, and visual elements from the reference
+      - Keeps the authentic look and feel of the reference image
+      - Adds creative and attractive enhancements while staying true to the reference
+      - Improves lighting, presentation, and visual appeal while preserving the core visual identity
+      - Creates a more polished, professional version that builds upon the reference image
+      - Maintains the same food item but with enhanced visual quality and attractiveness
+      
+      The reference image shows the actual product - use it as your foundation and enhance it creatively while keeping it realistic and authentic.`;
+    } else {
+      prompt += `Create a professional, well-lit food photography image that showcases the product attractively. Style: clean, modern food photography with good composition and appetizing presentation. This should be a restaurant menu item photo - generate an actual image file, not just a description.`;
+    }
     
     // Use the correct model that supports image generation
     const modelsToTry = [
@@ -199,6 +212,10 @@ export async function generateProductImage({
               mimeType: 'image/jpeg',
               data: referenceImageBase64
             }
+          });
+          // Add specific instruction about the reference image
+          parts.push({
+            text: "This is the reference image. Use it as your primary visual guide to create an enhanced, more attractive version while maintaining the realistic and authentic qualities of the original."
           });
         }
         

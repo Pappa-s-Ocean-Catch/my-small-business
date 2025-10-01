@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react';
 import { FaMagic, FaCamera, FaSpinner, FaTimes, FaImage, FaUpload } from 'react-icons/fa';
 import { toast } from 'react-toastify';
+import { ConfirmationDialog } from './ConfirmationDialog';
 
 interface AIImageGeneratorProps {
   onImageGenerated: (imageUrl: string) => void;
@@ -28,6 +29,8 @@ export function AIImageGenerator({
   const [isGenerating, setIsGenerating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [showGenerator, setShowGenerator] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'quick' | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [generatedImageBlob, setGeneratedImageBlob] = useState<string | null>(null);
   const [context, setContext] = useState('');
@@ -377,6 +380,19 @@ export function AIImageGenerator({
     }
   };
 
+  const handleConfirmDialog = () => {
+    setShowConfirmDialog(false);
+    if (pendingAction === 'quick') {
+      handleQuickGenerate();
+    }
+    setPendingAction(null);
+  };
+
+  const handleCancelDialog = () => {
+    setShowConfirmDialog(false);
+    setPendingAction(null);
+  };
+
   return (
     <div className={`space-y-3 ${className}`}>
       {/* Current Image Display */}
@@ -408,9 +424,8 @@ export function AIImageGenerator({
           onClick={() => {
             if (currentImageUrl) {
               // Show confirmation dialog when there's already an image
-              if (confirm('This will replace the current image with a new AI-generated one. Continue?')) {
-                handleQuickGenerate();
-              }
+              setPendingAction('quick');
+              setShowConfirmDialog(true);
             } else {
               handleQuickGenerate();
             }
@@ -426,14 +441,7 @@ export function AIImageGenerator({
         <button
           type="button"
           onClick={() => {
-            if (currentImageUrl) {
-              // Show confirmation dialog when there's already an image
-              if (confirm('This will replace the current image with a new AI-generated one. Continue?')) {
-                setShowGenerator(true);
-              }
-            } else {
-              setShowGenerator(!showGenerator);
-            }
+            setShowGenerator(!showGenerator);
           }}
           disabled={disabled || isGenerating}
           className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
@@ -651,6 +659,19 @@ export function AIImageGenerator({
           </div>
         </div>
       )}
+
+      {/* Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={showConfirmDialog}
+        onClose={handleCancelDialog}
+        onConfirm={handleConfirmDialog}
+        title="Replace Current Image?"
+        message="Quick Generate will immediately replace your current image with a new AI-generated one. The current image will be permanently replaced and this action cannot be undone."
+        confirmText="Quick Generate"
+        cancelText="Cancel"
+        variant="warning"
+        isLoading={isGenerating}
+      />
 
     </div>
   );
