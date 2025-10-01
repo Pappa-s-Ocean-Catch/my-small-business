@@ -64,9 +64,14 @@ export async function sendShiftReminder(
 
 export async function sendMagicLinkInvite(inviteeEmail: string) {
   try {
+    console.log('📧 Starting magic link send process for:', inviteeEmail);
+    
     if (!resend || !process.env.RESEND_API_KEY) {
+      console.error('❌ RESEND_API_KEY is not configured');
       throw new Error('RESEND_API_KEY is not configured');
     }
+
+    console.log('✅ Resend client initialized');
 
     const supabase = await createServiceRoleClient();
     // Detect existing profile
@@ -75,26 +80,44 @@ export async function sendMagicLinkInvite(inviteeEmail: string) {
       .select('id')
       .ilike('email', inviteeEmail)
       .maybeSingle();
+    
+    console.log('👤 Profile check result:', { existing: !!existing, email: inviteeEmail });
+    
     const { data, error } = await supabase.auth.admin.generateLink({
       type: 'magiclink',
       email: inviteeEmail,
       options: { redirectTo: process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000' }
     });
+    
     if (error || !data?.properties?.action_link) {
+      console.error('❌ Failed to generate magic link:', error);
       throw new Error(error?.message || 'Failed to generate magic link');
     }
 
     const actionUrl = data.properties.action_link as string;
+    console.log('🔗 Generated magic link URL:', actionUrl);
 
     // Get brand settings
     const brandSettings = await getBrandSettings();
     const businessName = brandSettings?.business_name || 'OperateFlow';
     const logoUrl = brandSettings?.logo_url;
 
+    console.log('🎨 Brand settings:', { businessName, hasLogo: !!logoUrl });
+
+    const emailSubject = existing ? `Your ${businessName} sign-in link` : `You are invited to ${businessName}`;
+    const emailFrom = process.env.EMAIL_FROM!;
+    
+    console.log('📨 Email details:', {
+      from: emailFrom,
+      to: inviteeEmail,
+      subject: emailSubject,
+      isExistingUser: Boolean(existing)
+    });
+
     const { data: sent, error: sendErr } = await resend.emails.send({
-      from: process.env.EMAIL_FROM!,
+      from: emailFrom,
       to: [inviteeEmail],
-      subject: existing ? `Your ${businessName} sign-in link` : `You are invited to ${businessName}`,
+      subject: emailSubject,
       react: MagicLinkInviteEmail({ 
         inviteeEmail, 
         actionUrl, 
@@ -105,10 +128,19 @@ export async function sendMagicLinkInvite(inviteeEmail: string) {
     });
 
     if (sendErr) {
+      console.error('❌ Email send failed:', sendErr);
       return { success: false, error: sendErr.message };
     }
+    
+    console.log('✅ Email sent successfully:', {
+      messageId: sent?.id,
+      recipient: inviteeEmail,
+      subject: emailSubject
+    });
+    
     return { success: true, messageId: sent?.id };
   } catch (error) {
+    console.error('❌ Magic link send error:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }

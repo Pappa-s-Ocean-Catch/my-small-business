@@ -3,9 +3,31 @@
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export async function canSendMagicLink(email: string) {
+  console.log('🔍 Checking magic link permission for:', email);
+  
   const supabase = await createServiceRoleClient();
 
-  // 1) Existing user in profiles can always sign in
+  // 1) Check if user exists in auth.users (this covers legacy accounts)
+  const { data: { users }, error: authError } = await supabase.auth.admin.listUsers();
+  
+  if (!authError && users) {
+    const existingUser = users.find(u => u.email?.toLowerCase() === email.toLowerCase());
+    if (existingUser) {
+      console.log('✅ Found existing user in auth.users:', { id: existingUser.id, email: existingUser.email });
+      // Ensure profile exists for this user (handles legacy accounts)
+      await supabase.from('profiles').upsert({
+        id: existingUser.id,
+        email: existingUser.email,
+        role_slug: 'admin' // Default to admin for legacy accounts
+      });
+      console.log('✅ Profile upserted for legacy user');
+      return { allowed: true } as const;
+    }
+  } else {
+    console.log('⚠️ Auth users check failed:', authError);
+  }
+
+  // 2) Check existing user in profiles table
   const { data: existingProfile, error: profileErr } = await supabase
     .from('profiles')
     .select('id')
@@ -13,10 +35,11 @@ export async function canSendMagicLink(email: string) {
     .maybeSingle();
 
   if (existingProfile) {
+    console.log('✅ Found existing profile:', existingProfile);
     return { allowed: true } as const;
   }
 
-  // 2) Otherwise, require a pending invitation
+  // 3) Check for pending invitation
   const { data: invite, error: inviteErr } = await supabase
     .from('invitations')
     .select('id')
@@ -25,9 +48,11 @@ export async function canSendMagicLink(email: string) {
     .maybeSingle();
 
   if (invite) {
+    console.log('✅ Found pending invitation:', invite);
     return { allowed: true } as const;
   }
 
+  console.log('❌ No permission found for email:', email);
   return { allowed: false, reason: 'No invitation found for this email. Please contact your admin.' } as const;
 }
 
