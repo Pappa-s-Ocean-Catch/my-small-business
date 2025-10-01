@@ -35,8 +35,10 @@ export const WeeklyRoster = ({
   businessName = 'OperateFlow',
   logoUrl
 }: WeeklyRosterProps) => {
+  const MEL_TZ = 'Australia/Melbourne';
   const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString('en-US', {
+    return new Date(dateString).toLocaleTimeString('en-AU', {
+      timeZone: MEL_TZ,
       hour: '2-digit',
       minute: '2-digit',
       hour12: true
@@ -104,8 +106,8 @@ export const WeeklyRoster = ({
             {weekDays.map((dayNum, index) => {
               const dayName = dayNames[index];
               const dayShifts = shifts.filter(shift => {
-                const shiftDate = new Date(shift.start_time);
-                return shiftDate.getDay() === dayNum;
+                const shiftWeekday = new Date(shift.start_time).toLocaleDateString('en-AU', { timeZone: MEL_TZ, weekday: 'long' });
+                return shiftWeekday === dayName;
               });
 
               return (
