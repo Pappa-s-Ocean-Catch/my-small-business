@@ -19,6 +19,7 @@ type Supplier = {
   notes: string | null;
   image_url: string | null;
   website: string | null;
+  secret_ref?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -143,6 +144,8 @@ export default function SupplierDetailsPage() {
     }
   }, [isAdmin, fetchSupplierData]);
 
+  
+
   // Filter products based on selected filter
   useEffect(() => {
     if (filterType === 'all') {
@@ -189,6 +192,8 @@ export default function SupplierDetailsPage() {
             Back to Suppliers
           </Link>
         </div>
+
+        
 
         {/* Supplier Info */}
         <Card variant="elevated" padding="lg" className="mb-6">
@@ -261,6 +266,8 @@ export default function SupplierDetailsPage() {
             </div>
           </div>
         </Card>
+
+        
 
         {/* Products Section */}
         <div className="mb-6">

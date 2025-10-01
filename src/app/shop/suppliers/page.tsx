@@ -23,6 +23,7 @@ type Supplier = {
   notes: string | null;
   image_url: string | null;
   website: string | null;
+  secret_ref?: string | null;
   created_at: string;
   updated_at: string;
   product_count?: number;
@@ -46,6 +47,12 @@ export default function SuppliersPage() {
     image_url: "",
     website: ""
   });
+  const [formTab, setFormTab] = useState<'general' | 'credentials'>('general');
+  const [credUsername, setCredUsername] = useState("");
+  const [credPassword, setCredPassword] = useState("");
+  const [savingCreds, setSavingCreds] = useState(false);
+  const [saveCredsError, setSaveCredsError] = useState<string | null>(null);
+  const [saveCredsSuccess, setSaveCredsSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -116,6 +123,12 @@ export default function SuppliersPage() {
       image_url: "",
       website: ""
     });
+    setFormTab('general');
+    setCredUsername("");
+    setCredPassword("");
+    setSavingCreds(false);
+    setSaveCredsError(null);
+    setSaveCredsSuccess(null);
   };
 
   const startEdit = (supplier: Supplier) => {
@@ -130,6 +143,9 @@ export default function SuppliersPage() {
       image_url: supplier.image_url || "",
       website: supplier.website || ""
     });
+    setFormTab('general');
+    setCredUsername("");
+    setCredPassword("");
     setFormOpen(true);
   };
 
@@ -158,6 +174,47 @@ export default function SuppliersPage() {
     setFormOpen(false);
     setEditing(null);
     resetForm();
+  };
+
+  const saveSupplierCredentials = async (): Promise<void> => {
+    setSavingCreds(true);
+    setSaveCredsError(null);
+    setSaveCredsSuccess(null);
+    try {
+      if (!editing) {
+        setSaveCredsError('Open a supplier to edit credentials');
+        setSavingCreds(false);
+        return;
+      }
+      const supabase = getSupabaseClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setSaveCredsError('Not authenticated');
+        setSavingCreds(false);
+        return;
+      }
+      const res = await fetch('/api/suppliers/save-credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentUserId: user.id,
+          supplierId: editing.id,
+          username: credUsername,
+          password: credPassword,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        setSaveCredsError(json.error || 'Failed to save credentials');
+      } else {
+        setSaveCredsSuccess('Credentials saved');
+        await fetchSuppliers();
+      }
+    } catch (err) {
+      setSaveCredsError(err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setSavingCreds(false);
+    }
   };
 
   const handleDeleteSupplier = (supplier: Supplier) => {
@@ -377,17 +434,51 @@ export default function SuppliersPage() {
               >
                 Cancel
               </button>
-              <button
-                type="submit"
-                form="supplier-form"
-                className="h-10 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-              >
-                {editing ? "Update" : "Create"} Supplier
-              </button>
+              {formTab === 'general' ? (
+                <button
+                  type="submit"
+                  form="supplier-form"
+                  className="h-10 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                >
+                  {editing ? "Update" : "Create"} Supplier
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => { void saveSupplierCredentials(); }}
+                  disabled={savingCreds}
+                  className="h-10 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-60"
+                >
+                  {savingCreds ? 'Saving…' : 'Save Credentials'}
+                </button>
+              )}
             </>
           }
         >
-          <form id="supplier-form" onSubmit={saveSupplier} className="grid gap-4">
+          {/* Tabs */}
+          <div className="mb-4 border-b border-gray-200 dark:border-neutral-800">
+            <nav className="-mb-px flex gap-6" aria-label="Tabs">
+              <button
+                className={`${formTab === 'general' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500'} whitespace-nowrap border-b-2 py-2 px-1 text-sm font-medium`}
+                onClick={() => setFormTab('general')}
+                type="button"
+              >
+                General
+              </button>
+              {editing && (
+                <button
+                  className={`${formTab === 'credentials' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500'} whitespace-nowrap border-b-2 py-2 px-1 text-sm font-medium`}
+                  onClick={() => setFormTab('credentials')}
+                  type="button"
+                >
+                  Credentials
+                </button>
+              )}
+            </nav>
+          </div>
+
+          {formTab === 'general' && (
+            <form id="supplier-form" onSubmit={saveSupplier} className="grid gap-4">
             <ImageUpload
               currentImageUrl={form.image_url}
               onImageChange={(url) => setForm(f => ({ ...f, image_url: url || "" }))}
@@ -473,7 +564,44 @@ export default function SuppliersPage() {
                 rows={3}
               />
             </label>
-          </form>
+            </form>
+          )}
+
+          {formTab === 'credentials' && editing && (
+            <div className="grid gap-4">
+              <label className="grid gap-2">
+                <span className="text-sm text-gray-700 dark:text-gray-300">Username</span>
+                <input
+                  type="text"
+                  className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
+                  value={credUsername}
+                  onChange={(e) => setCredUsername(e.target.value)}
+                  placeholder="supplier portal username"
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm text-gray-700 dark:text-gray-300">Password</span>
+                <input
+                  type="password"
+                  className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
+                  value={credPassword}
+                  onChange={(e) => setCredPassword(e.target.value)}
+                  placeholder="••••••••"
+                />
+              </label>
+              <div className="flex items-center gap-3">
+                {editing.secret_ref && (
+                  <span className="text-xs text-gray-500">Ref: {editing.secret_ref}</span>
+                )}
+              </div>
+              {saveCredsError && (
+                <div className="text-sm text-red-600">{saveCredsError}</div>
+              )}
+              {saveCredsSuccess && (
+                <div className="text-sm text-green-600">{saveCredsSuccess}</div>
+              )}
+            </div>
+          )}
         </Modal>
 
         {/* Delete Confirmation Dialog */}
