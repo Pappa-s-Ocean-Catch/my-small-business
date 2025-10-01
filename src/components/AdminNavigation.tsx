@@ -80,15 +80,14 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
         const rect = mgmtRef.current.getBoundingClientRect();
         const menuCenter = rect.left + rect.width / 2;
         const idealLeft = menuCenter - megaMenuWidth / 2;
-        const rightSpace = window.innerWidth - rect.right;
-        const leftSpace = rect.left;
         
         // Check if we have enough space on both sides for centering
         if (idealLeft >= margin && idealLeft + megaMenuWidth <= window.innerWidth - margin) {
           setMgmtOffset(idealLeft - rect.left);
         } else {
-          // Fallback to right alignment
-          setMgmtOffset(0);
+          // Fallback to right alignment - ensure menu doesn't go off screen
+          const maxOffset = window.innerWidth - rect.right - megaMenuWidth - margin;
+          setMgmtOffset(Math.max(0, maxOffset));
         }
       }
       
@@ -97,10 +96,13 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
         const menuCenter = rect.left + rect.width / 2;
         const idealLeft = menuCenter - megaMenuWidth / 2;
         
+        // Check if we have enough space on both sides for centering
         if (idealLeft >= margin && idealLeft + megaMenuWidth <= window.innerWidth - margin) {
           setReportOffset(idealLeft - rect.left);
         } else {
-          setReportOffset(0);
+          // Fallback to right alignment - ensure menu doesn't go off screen
+          const maxOffset = window.innerWidth - rect.right - megaMenuWidth - margin;
+          setReportOffset(Math.max(0, maxOffset));
         }
       }
       
@@ -109,10 +111,13 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
         const menuCenter = rect.left + rect.width / 2;
         const idealLeft = menuCenter - megaMenuWidth / 2;
         
+        // Check if we have enough space on both sides for centering
         if (idealLeft >= margin && idealLeft + megaMenuWidth <= window.innerWidth - margin) {
           setSystemOffset(idealLeft - rect.left);
         } else {
-          setSystemOffset(0);
+          // Fallback to right alignment - ensure menu doesn't go off screen
+          const maxOffset = window.innerWidth - rect.right - megaMenuWidth - margin;
+          setSystemOffset(Math.max(0, maxOffset));
         }
       }
       
@@ -121,10 +126,13 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
         const menuCenter = rect.left + rect.width / 2;
         const idealLeft = menuCenter - shopMenuWidth / 2;
         
+        // Check if we have enough space on both sides for centering
         if (idealLeft >= margin && idealLeft + shopMenuWidth <= window.innerWidth - margin) {
           setShopOffset(idealLeft - rect.left);
         } else {
-          setShopOffset(0);
+          // Fallback to right alignment - ensure menu doesn't go off screen
+          const maxOffset = window.innerWidth - rect.right - shopMenuWidth - margin;
+          setShopOffset(Math.max(0, maxOffset));
         }
       }
     }
@@ -187,7 +195,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
             </button>
             {isMgmtOpen && (
             <div className="absolute top-full mt-0.5 w-screen max-w-[640px] sm:w-[640px] rounded-xl bg-white/95 dark:bg-neutral-950/95 backdrop-blur shadow-lg z-50 p-3 overflow-hidden"
-                 style={{ left: mgmtOffset }}>
+                 style={{ left: mgmtOffset === 0 ? 'auto' : mgmtOffset, right: mgmtOffset === 0 ? '0' : 'auto' }}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <Link href="/staff" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
@@ -301,7 +309,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
             </button>
             {isShopOpen && (
             <div className="absolute top-full mt-0.5 w-screen max-w-[800px] sm:w-[800px] rounded-xl bg-white/95 dark:bg-neutral-950/95 backdrop-blur shadow-lg z-50 p-3 overflow-hidden"
-                 style={{ left: shopOffset }}>
+                 style={{ left: shopOffset === 0 ? 'auto' : shopOffset, right: shopOffset === 0 ? '0' : 'auto' }}>
                 <div className="flex">
                   {/* Left Panel - Main Shop Link */}
                   <div className="w-1/4 pr-3">
@@ -474,7 +482,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
             </button>
             {isReportOpen && (
             <div className="absolute top-full mt-0.5 w-screen max-w-[640px] sm:w-[640px] rounded-xl bg-white/95 dark:bg-neutral-950/95 backdrop-blur shadow-lg z-50 p-3 overflow-hidden"
-                 style={{ left: reportOffset }}>
+                 style={{ left: reportOffset === 0 ? 'auto' : reportOffset, right: reportOffset === 0 ? '0' : 'auto' }}>
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
                   <Link href="/reports/shift-reports" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
@@ -567,7 +575,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
             </button>
             {isSystemOpen && (
             <div className="absolute top-full mt-0.5 w-screen max-w-[640px] sm:w-[640px] rounded-xl bg-white/95 dark:bg-neutral-950/95 backdrop-blur shadow-lg z-50 p-3 overflow-hidden"
-                 style={{ left: systemOffset }}>
+                 style={{ left: systemOffset === 0 ? 'auto' : systemOffset, right: systemOffset === 0 ? '0' : 'auto' }}>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <Link href="/users" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
