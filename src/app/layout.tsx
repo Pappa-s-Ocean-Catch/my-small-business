@@ -5,6 +5,7 @@ import { SnackbarProvider } from "@/components/Snackbar";
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { Geist, Geist_Mono } from "next/font/google";
+import { Analytics } from '@vercel/analytics/react';
 import "./globals.css";
 
 const geistSans = Geist({
@@ -36,6 +37,7 @@ export default function RootLayout({
           <main>{children}</main>
           <ToastContainer position="top-right" autoClose={3500} hideProgressBar theme="colored"/>
         </SnackbarProvider>
+        <Analytics />
       </body>
     </html>
   );
