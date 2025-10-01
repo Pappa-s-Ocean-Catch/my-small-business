@@ -592,7 +592,8 @@ export function DragDropCalendar({
     staffRosters: StaffRoster[] | null;
     weekStart: Date | null;
     weekEnd: Date | null;
-  }>({ isOpen: false, staffRosters: null, weekStart: null, weekEnd: null });
+    selectedStaff: Set<string>; // Set of staff IDs that are selected to receive emails
+  }>({ isOpen: false, staffRosters: null, weekStart: null, weekEnd: null, selectedStaff: new Set() });
   const mobileEndRef = useRef<HTMLDivElement | null>(null);
 
   // Helper function to convert UTC time to Melbourne local time for display
@@ -1383,11 +1384,15 @@ export function DragDropCalendar({
       const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
       const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
       
+      // Initialize with all staff selected by default
+      const allStaffIds = new Set(staffWithEmails.map(roster => roster.staffId));
+      
       setRosterConfirmModal({
         isOpen: true,
         staffRosters: staffWithEmails,
         weekStart,
-        weekEnd
+        weekEnd,
+        selectedStaff: allStaffIds
       });
       
     } catch (error) {
@@ -1406,15 +1411,20 @@ export function DragDropCalendar({
     if (!rosterConfirmModal.staffRosters || !rosterConfirmModal.weekStart || !rosterConfirmModal.weekEnd) return;
     
     setSendingRoster(true);
-    setRosterConfirmModal({ isOpen: false, staffRosters: null, weekStart: null, weekEnd: null });
+    setRosterConfirmModal({ isOpen: false, staffRosters: null, weekStart: null, weekEnd: null, selectedStaff: new Set() });
     
     try {
       console.log('📧 Sending roster emails...');
       
+      // Filter staff rosters to only include selected staff
+      const selectedStaffRosters = rosterConfirmModal.staffRosters.filter(roster => 
+        rosterConfirmModal.selectedStaff.has(roster.staffId)
+      );
+      
       const sendResult = await sendWeeklyRoster({
         weekStart: rosterConfirmModal.weekStart,
         weekEnd: rosterConfirmModal.weekEnd,
-        staffRosters: rosterConfirmModal.staffRosters
+        staffRosters: selectedStaffRosters
       });
 
       if (!sendResult.success) {
@@ -2221,65 +2231,132 @@ export function DragDropCalendar({
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
             <div className="p-6 border-b border-gray-200 dark:border-neutral-700">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Send Roster Confirmation
-              </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                Week: {rosterConfirmModal.weekStart && rosterConfirmModal.weekEnd ? 
-                  `${format(rosterConfirmModal.weekStart, 'MMM dd')} - ${format(rosterConfirmModal.weekEnd, 'MMM dd, yyyy')}` : ''}
-              </p>
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Send Roster Confirmation
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                    Week: {rosterConfirmModal.weekStart && rosterConfirmModal.weekEnd ? 
+                      `${format(rosterConfirmModal.weekStart, 'MMM dd')} - ${format(rosterConfirmModal.weekEnd, 'MMM dd, yyyy')}` : ''}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      const allStaffIds = new Set(rosterConfirmModal.staffRosters?.map(roster => roster.staffId) || []);
+                      setRosterConfirmModal(prev => ({
+                        ...prev,
+                        selectedStaff: allStaffIds
+                      }));
+                    }}
+                    className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                  >
+                    Select All
+                  </button>
+                  <span className="text-gray-300 dark:text-gray-600">|</span>
+                  <button
+                    onClick={() => {
+                      setRosterConfirmModal(prev => ({
+                        ...prev,
+                        selectedStaff: new Set()
+                      }));
+                    }}
+                    className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                  >
+                    Unselect All
+                  </button>
+                </div>
+              </div>
             </div>
             
             <div className="p-6 max-h-96 overflow-y-auto">
               <div className="space-y-4">
                 {rosterConfirmModal.staffRosters.map((roster) => (
-                  <div key={roster.staffId} className="border border-gray-200 dark:border-neutral-600 rounded-lg p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <h4 className="font-medium text-gray-900 dark:text-white">{roster.staffName}</h4>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">{roster.staffEmail}</p>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm font-medium text-gray-900 dark:text-white">
-                          {roster.totalHours.toFixed(1)}h total
+                  <div key={roster.staffId} className={`border rounded-lg p-4 transition-colors ${
+                    rosterConfirmModal.selectedStaff.has(roster.staffId) 
+                      ? 'border-blue-300 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/20' 
+                      : 'border-gray-200 dark:border-neutral-600'
+                  }`}>
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={rosterConfirmModal.selectedStaff.has(roster.staffId)}
+                        onChange={(e) => {
+                          const newSelectedStaff = new Set(rosterConfirmModal.selectedStaff);
+                          if (e.target.checked) {
+                            newSelectedStaff.add(roster.staffId);
+                          } else {
+                            newSelectedStaff.delete(roster.staffId);
+                          }
+                          setRosterConfirmModal(prev => ({
+                            ...prev,
+                            selectedStaff: newSelectedStaff
+                          }));
+                        }}
+                        className="mt-1 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                      />
+                      <div className="flex-1">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <h4 className="font-medium text-gray-900 dark:text-white">{roster.staffName}</h4>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">{roster.staffEmail}</p>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white">
+                              {roster.totalHours.toFixed(1)}h total
+                            </div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                              {roster.totalBillableHours.toFixed(1)}h billable
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
-                          {roster.totalBillableHours.toFixed(1)}h billable
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          {roster.shifts.length} shift{roster.shifts.length !== 1 ? 's' : ''} scheduled
                         </div>
                       </div>
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {roster.shifts.length} shift{roster.shifts.length !== 1 ? 's' : ''} scheduled
                     </div>
                   </div>
                 ))}
               </div>
             </div>
             
-            <div className="p-6 border-t border-gray-200 dark:border-neutral-700 flex justify-end gap-3">
-              <button
-                onClick={() => setRosterConfirmModal({ isOpen: false, staffRosters: null, weekStart: null, weekEnd: null })}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-neutral-700 hover:bg-gray-200 dark:hover:bg-neutral-600 rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmSendRoster}
-                disabled={sendingRoster}
-                className="px-4 py-2 bg-purple-600 text-white hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center gap-2"
-              >
-                {sendingRoster ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Sending...
-                  </>
-                ) : (
-                  <>
-                    <FaEnvelope className="w-4 h-4" />
-                    Send Roster
-                  </>
+            <div className="p-6 border-t border-gray-200 dark:border-neutral-700">
+              <div className="flex justify-between items-center mb-4">
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  {rosterConfirmModal.selectedStaff.size} of {rosterConfirmModal.staffRosters?.length || 0} staff selected
+                </div>
+                {rosterConfirmModal.selectedStaff.size === 0 && (
+                  <div className="text-sm text-red-600 dark:text-red-400">
+                    Please select at least one staff member
+                  </div>
                 )}
-              </button>
+              </div>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setRosterConfirmModal({ isOpen: false, staffRosters: null, weekStart: null, weekEnd: null, selectedStaff: new Set() })}
+                  className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-neutral-700 hover:bg-gray-200 dark:hover:bg-neutral-600 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmSendRoster}
+                  disabled={sendingRoster || rosterConfirmModal.selectedStaff.size === 0}
+                  className="px-4 py-2 bg-purple-600 text-white hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center gap-2"
+                >
+                  {sendingRoster ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <FaEnvelope className="w-4 h-4" />
+                      Send Roster ({rosterConfirmModal.selectedStaff.size})
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
