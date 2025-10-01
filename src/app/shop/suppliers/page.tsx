@@ -11,6 +11,7 @@ import { FaPlus, FaEdit, FaTrash, FaTruck, FaPhone, FaEnvelope, FaMapMarkerAlt, 
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { ImageUpload } from "@/components/ImageUpload";
+import Link from "next/link";
 
 type Supplier = {
   id: string;
@@ -259,7 +260,12 @@ export default function SuppliersPage() {
                     </div>
                   )}
                   <div>
-                    <h3 className="font-medium text-gray-900 dark:text-white">{supplier.name}</h3>
+                    <Link 
+                      href={`/shop/suppliers/${supplier.id}`}
+                      className="font-medium text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+                    >
+                      {supplier.name}
+                    </Link>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
                       {supplier.product_count} product{supplier.product_count !== 1 ? 's' : ''}
                     </p>

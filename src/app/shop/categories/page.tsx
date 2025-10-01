@@ -7,7 +7,8 @@ import { AdminGuard } from "@/components/AdminGuard";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
 import Modal from "@/components/Modal";
 import Card from "@/components/Card";
-import { FaPlus, FaEdit, FaTrash, FaTags, FaFileExcel } from "react-icons/fa";
+import { FaPlus, FaEdit, FaTrash, FaTags, FaFileExcel, FaEye } from "react-icons/fa";
+import Link from "next/link";
 import * as XLSX from "xlsx";
 import { toast } from 'react-toastify';
 import { saveAs } from "file-saver";
@@ -217,13 +218,25 @@ export default function CategoriesPage() {
                     <FaTags className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                   </div>
                   <div>
-                    <h3 className="font-medium text-gray-900 dark:text-white">{category.name}</h3>
+                    <Link 
+                      href={`/shop/categories/${category.id}`}
+                      className="font-medium text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+                    >
+                      {category.name}
+                    </Link>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
                       {category.product_count} product{category.product_count !== 1 ? 's' : ''}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
+                  <Link
+                    href={`/shop/categories/${category.id}`}
+                    className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                    title="View category details"
+                  >
+                    <FaEye className="w-4 h-4" />
+                  </Link>
                   <button
                     onClick={() => startEdit(category)}
                     className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
