@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { AdminGuard } from "@/components/AdminGuard";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
-import { FaPlus, FaEdit, FaTrash, FaFileAlt, FaChevronLeft, FaChevronRight, FaFilter } from "react-icons/fa";
+import { FaPlus, FaEdit, FaTrash, FaFileAlt, FaChevronLeft, FaChevronRight, FaFilter, FaFileImport } from "react-icons/fa";
+import Link from "next/link";
 import { toast } from "react-toastify";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
 import { TransactionModal } from "@/components/TransactionModal";
@@ -290,6 +291,13 @@ export default function IncomeExpensePage() {
 
             {/* Action buttons */}
             <div className="flex items-center gap-3">
+              <Link
+                href="/income-expense/import"
+                className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
+              >
+                <FaFileImport className="w-4 h-4" />
+                Import
+              </Link>
               <button
                 onClick={() => setShowTransactionModal(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"

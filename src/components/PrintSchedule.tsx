@@ -1,6 +1,6 @@
 "use client";
 
-import { format, startOfWeek, endOfWeek } from "date-fns";
+import { startOfWeek, endOfWeek } from "date-fns";
 import { useEffect, useState } from "react";
 import { getBrandSettings } from "@/lib/brand-settings";
 
@@ -51,6 +51,17 @@ interface PrintScheduleProps {
 
 export default function PrintSchedule({ shifts, staff, staffRates, sections, currentWeek }: PrintScheduleProps) {
   const [brandSettings, setBrandSettings] = useState<{ business_name: string; logo_url: string | null; slogan: string | null } | null>(null);
+  const MEL_TZ = 'Australia/Melbourne';
+
+  const toYmd = (d: Date): string => new Date(d).toLocaleDateString('en-CA', { timeZone: MEL_TZ });
+  const toDdMm = (d: Date): string => {
+    const [y, m, day] = toYmd(d).split('-');
+    return `${day}/${m}`;
+  };
+  const toDdMmYyyyDash = (d: Date): string => {
+    const [y, m, day] = toYmd(d).split('-');
+    return `${day}-${m}-${y}`;
+  };
   
   useEffect(() => {
     const loadBrandSettings = async () => {
@@ -92,7 +103,7 @@ export default function PrintSchedule({ shifts, staff, staffRates, sections, cur
       
       <div className="print-title">SHIFT SCHEDULE</div>
       <div className="print-date-range">
-        {format(startOfThisWeek, 'dd-MM-yyyy')} - {format(endOfWeek(startOfThisWeek, { weekStartsOn: 1 }), 'dd-MM-yyyy')}
+        {toDdMmYyyyDash(startOfThisWeek)} - {toDdMmYyyyDash(endOfWeek(startOfThisWeek, { weekStartsOn: 1 }))}
       </div>
       
       <table className="print-shift-grid">
@@ -100,8 +111,8 @@ export default function PrintSchedule({ shifts, staff, staffRates, sections, cur
           <tr>
             <th className="section-header">Section</th>
             {weekDays.map((day) => (
-              <th key={day.toISOString()} className="day-header">
-                {format(day, 'EEE dd/MM')}
+              <th key={toYmd(day)} className="day-header">
+                {day.toLocaleDateString('en-AU', { timeZone: MEL_TZ, weekday: 'short' })} {toDdMm(day)}
               </th>
             ))}
           </tr>
@@ -114,27 +125,27 @@ export default function PrintSchedule({ shifts, staff, staffRates, sections, cur
               <tr key={section.id}>
                 <td className="section-header">{section.name}</td>
                 {weekDays.map((day) => {
-                  const dayKey = day.toISOString().slice(0, 10);
+                  const dayKey = toYmd(day);
                   const dayShifts = shifts.filter(s => 
-                    s.start_time.slice(0, 10) === dayKey && 
+                    new Date(s.start_time).toLocaleDateString('en-CA', { timeZone: MEL_TZ }) === dayKey && 
                     s.section_id === section.id &&
                     s.staff_id !== null // Only show assigned shifts
                   );
                   
                   return (
-                    <td key={day.toISOString()}>
+                    <td key={toYmd(day)}>
                       {dayShifts.length > 0 ? (
                         <div className="print-shift-details">
                           {dayShifts.map((shift) => {
                             const staffMember = staff.find(s => s.id === shift.staff_id);
                             const startTime = new Date(shift.start_time).toLocaleTimeString('en-AU', { 
-                              timeZone: 'Australia/Melbourne',
+                              timeZone: MEL_TZ,
                               hour: '2-digit',
                               minute: '2-digit',
                               hour12: false
                             });
                             const endTime = new Date(shift.end_time).toLocaleTimeString('en-AU', { 
-                              timeZone: 'Australia/Melbourne',
+                              timeZone: MEL_TZ,
                               hour: '2-digit',
                               minute: '2-digit',
                               hour12: false
