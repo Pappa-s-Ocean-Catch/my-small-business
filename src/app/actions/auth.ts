@@ -14,13 +14,12 @@ export async function canSendMagicLink(email: string) {
     const existingUser = users.find(u => u.email?.toLowerCase() === email.toLowerCase());
     if (existingUser) {
       console.log('✅ Found existing user in auth.users:', { id: existingUser.id, email: existingUser.email });
-      // Ensure profile exists for this user (handles legacy accounts)
-      await supabase.from('profiles').upsert({
-        id: existingUser.id,
-        email: existingUser.email,
-        role_slug: 'staff' // Default to admin for legacy accounts
-      });
-      console.log('✅ Profile upserted for legacy user');
+      // Ensure profile exists for this user without overwriting existing role
+      // Use insert with onConflict 'id' and ignore updates so existing rows keep their role_slug
+      await supabase
+        .from('profiles')
+        .upsert({ id: existingUser.id, email: existingUser.email }, { onConflict: 'id', ignoreDuplicates: true });
+      console.log('✅ Profile ensured for legacy user (no role overwrite)');
       return { allowed: true } as const;
     }
   } else {
