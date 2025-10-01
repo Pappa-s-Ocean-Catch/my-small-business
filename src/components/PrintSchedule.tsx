@@ -101,17 +101,17 @@ export default function PrintSchedule({ shifts, staff, staffRates, sections, cur
         </div>
       )}
       
-      <div className="print-title">SHIFT SCHEDULE</div>
-      <div className="print-date-range">
+      <div className="print-title" style={{ fontSize: '24px', fontWeight: 700, marginBottom: '6px' }}>SHIFT SCHEDULE</div>
+      <div className="print-date-range" style={{ fontSize: '18px' }}>
         {toDdMmYyyyDash(startOfThisWeek)} - {toDdMmYyyyDash(endOfWeek(startOfThisWeek, { weekStartsOn: 1 }))}
       </div>
       
       <table className="print-shift-grid">
         <thead>
           <tr>
-            <th className="section-header">Section</th>
+            <th className="section-header" style={{ fontSize: '16px', textAlign: 'left' }}>Section</th>
             {weekDays.map((day) => (
-              <th key={toYmd(day)} className="day-header">
+              <th key={toYmd(day)} className="day-header" style={{ fontSize: '16px' }}>
                 {day.toLocaleDateString('en-AU', { timeZone: MEL_TZ, weekday: 'short' })} {toDdMm(day)}
               </th>
             ))}
@@ -123,7 +123,7 @@ export default function PrintSchedule({ shifts, staff, staffRates, sections, cur
             .sort((a, b) => a.sort_order - b.sort_order)
             .map((section) => (
               <tr key={section.id}>
-                <td className="section-header">{section.name}</td>
+                <td className="section-header" style={{ fontSize: '16px' }}>{section.name}</td>
                 {weekDays.map((day) => {
                   const dayKey = toYmd(day);
                   const dayShifts = shifts.filter(s => 
@@ -152,15 +152,15 @@ export default function PrintSchedule({ shifts, staff, staffRates, sections, cur
                             });
                             
                             return (
-                              <div key={shift.id} style={{ marginBottom: '4px' }}>
-                                <div className="print-shift-staff">
+                              <div key={shift.id} style={{ marginBottom: '8px' }}>
+                                <div className="print-shift-staff" style={{ fontSize: '16px', fontWeight: 600 }}>
                                   {staffMember?.name}
                                 </div>
-                                <div className="print-shift-time">
+                                <div className="print-shift-time" style={{ fontSize: '15px' }}>
                                   {startTime} - {endTime}
                                 </div>
                                 {shift.notes && (
-                                  <div className="print-shift-notes">
+                                  <div className="print-shift-notes" style={{ fontSize: '14px' }}>
                                     {shift.notes}
                                   </div>
                                 )}
@@ -169,7 +169,7 @@ export default function PrintSchedule({ shifts, staff, staffRates, sections, cur
                           })}
                         </div>
                       ) : (
-                        <div className="print-shift-details" style={{ color: '#666', fontStyle: 'italic' }}>
+                        <div className="print-shift-details" style={{ color: '#666', fontStyle: 'italic', fontSize: '14px' }}>
                           No shifts
                         </div>
                       )}
