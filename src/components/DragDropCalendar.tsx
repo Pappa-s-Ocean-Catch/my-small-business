@@ -22,7 +22,7 @@ import {
   CSS 
 } from "@dnd-kit/utilities";
 import { format, addDays, startOfWeek, endOfWeek, isToday, isSameDay, addWeeks, subWeeks } from "date-fns";
-import { FaEdit, FaTrash, FaRedo, FaChevronLeft, FaChevronRight, FaHome, FaPrint, FaPlus, FaMagic, FaEnvelope, FaSave, FaLayerGroup, FaFilter } from "react-icons/fa";
+import { FaEdit, FaTrash, FaRedo, FaChevronLeft, FaChevronRight, FaHome, FaPrint, FaPlus, FaMagic, FaEnvelope, FaSave, FaLayerGroup, FaFilter, FaBars, FaCog } from "react-icons/fa";
 import { X } from "lucide-react";
 import { CalendarToolbar } from "@/components/CalendarToolbar";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
@@ -587,6 +587,9 @@ export function DragDropCalendar({
   const [sendingRoster, setSendingRoster] = useState(false);
   const [activeDayIndex, setActiveDayIndex] = useState<number>(0);
   const [mobileActionsVisible, setMobileActionsVisible] = useState(false);
+  const [showOverlayButton, setShowOverlayButton] = useState(true);
+  const [actionBarVisible, setActionBarVisible] = useState(true);
+  const [showFloatingMenu, setShowFloatingMenu] = useState(false);
   const [rosterConfirmModal, setRosterConfirmModal] = useState<{ 
     isOpen: boolean; 
     staffRosters: StaffRoster[] | null;
@@ -669,6 +672,8 @@ export function DragDropCalendar({
       (entries) => {
         const entry = entries[0];
         setMobileActionsVisible(entry.isIntersecting);
+        // Show overlay button when action bar is not visible
+        setShowOverlayButton(!entry.isIntersecting);
       },
       { root: null, rootMargin: '0px', threshold: 0.25 }
     );
@@ -677,6 +682,35 @@ export function DragDropCalendar({
       observer.disconnect();
     };
   }, []);
+
+  // Close floating menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showFloatingMenu) {
+        const target = event.target as Element;
+        if (!target.closest('.floating-menu-container')) {
+          setShowFloatingMenu(false);
+        }
+      }
+    };
+
+    if (showFloatingMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showFloatingMenu]);
+
+  // Toggle action bar visibility
+  const toggleActionBar = () => {
+    const newActionBarVisible = !actionBarVisible;
+    setActionBarVisible(newActionBarVisible);
+    setShowOverlayButton(!newActionBarVisible);
+  };
+
+  // Toggle floating menu
+  const toggleFloatingMenu = () => {
+    setShowFloatingMenu(!showFloatingMenu);
+  };
   
 
   // Finance helpers (admin only)
@@ -1747,7 +1781,7 @@ export function DragDropCalendar({
 
       {/* Fixed bottom action bar for admins */}
       {isAdmin && (
-        <div className={`fixed inset-x-0 bottom-4 md:bottom-6 z-40 print-hide group h-14 md:h-16 ${mobileActionsVisible ? '' : 'hidden md:block'}` }>
+        <div className={`fixed inset-x-0 bottom-4 md:bottom-6 z-40 print-hide group h-14 md:h-16 ${mobileActionsVisible || actionBarVisible ? '' : 'hidden md:block'}` }>
           {/* Hover catcher area (transparent, full width) */}
           <div className="absolute inset-x-0 bottom-0 h-14 md:h-16"></div>
           {/* Action bar container - always visible on mobile, hover-reveal on md+ */}
@@ -1836,6 +1870,76 @@ export function DragDropCalendar({
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating menu button */}
+      {isAdmin && (
+        <button
+          onClick={toggleFloatingMenu}
+          className="fixed bottom-4 right-4 z-50 print-hide bg-blue-600 hover:bg-blue-700 text-white rounded-full p-3 shadow-lg transition-all duration-200 ease-out opacity-75 hover:opacity-100"
+          title="Toggle floating menu"
+          aria-label="Toggle floating menu"
+        >
+          <FaCog className="w-5 h-5" />
+        </button>
+      )}
+
+      {/* Floating Action Menu */}
+      {isAdmin && showFloatingMenu && (
+        <div className="floating-menu-container fixed bottom-24 right-4 z-50 print-hide bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-2 min-w-[200px]">
+          <div className="flex flex-col gap-1">
+            <button
+              onClick={() => {
+                handleShiftCreate(new Date(), undefined);
+                setShowFloatingMenu(false);
+              }}
+              className="flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+            >
+              <FaPlus className="w-4 h-4" />
+              Add Shift
+            </button>
+            <button
+              onClick={() => {
+                openChooseAutoShift();
+                setShowFloatingMenu(false);
+              }}
+              className="flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+            >
+              <FaMagic className="w-4 h-4" />
+              Generate AI
+            </button>
+            <button
+              onClick={() => {
+                handleSendRoster();
+                setShowFloatingMenu(false);
+              }}
+              className="flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+            >
+              <FaEnvelope className="w-4 h-4" />
+              Send Roster
+            </button>
+            <button
+              onClick={() => {
+                openSaveTemplate();
+                setShowFloatingMenu(false);
+              }}
+              className="flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+            >
+              <FaSave className="w-4 h-4" />
+              Save Template
+            </button>
+            <button
+              onClick={() => {
+                handlePrint();
+                setShowFloatingMenu(false);
+              }}
+              className="flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+            >
+              <FaPrint className="w-4 h-4" />
+              Print Schedule
+            </button>
           </div>
         </div>
       )}

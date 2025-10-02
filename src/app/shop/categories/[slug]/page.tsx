@@ -25,6 +25,7 @@ type Product = {
   purchase_price: number;
   sale_price: number;
   quantity_in_stock: number;
+  unit_type: 'item' | 'kg' | 'litre' | 'piece';
   is_active: boolean;
   description: string | null;
   supplier?: { name: string } | null;
@@ -99,7 +100,7 @@ export default function CategoryDetailsPage() {
     const { data: productsData, error: productsError } = await supabase
       .from("products")
       .select(`
-        id, name, sku, image_url, purchase_price, sale_price, quantity_in_stock, is_active, description,
+        id, name, sku, image_url, purchase_price, sale_price, quantity_in_stock, unit_type, is_active, description,
         supplier:suppliers(name)
       `)
       .eq("category_id", categoryId)

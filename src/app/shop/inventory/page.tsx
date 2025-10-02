@@ -42,6 +42,7 @@ type Product = {
   full_boxes: number;
   loose_units: number;
   total_units: number;
+  unit_type: 'item' | 'kg' | 'litre' | 'piece';
   image_url: string | null;
   category: { id: string; name: string } | null;
   supplier: { name: string } | null;
@@ -63,6 +64,7 @@ type DatabaseProduct = {
   full_boxes: number;
   loose_units: number;
   total_units: number;
+  unit_type: 'item' | 'kg' | 'litre' | 'piece';
   image_url: string | null;
   category: { id: string; name: string }[] | null;
   supplier: { name: string }[] | null;
@@ -529,6 +531,7 @@ export default function EnhancedInventoryPage() {
     const unitsPerBox = product.units_per_box || 1;
     const fullBoxes = product.full_boxes || 0;
     const looseUnits = product.loose_units || 0;
+    const unitType = product.unit_type || 'item';
 
     if (unitsPerBox === 1) {
       return `${totalUnits}`;
@@ -539,14 +542,14 @@ export default function EnhancedInventoryPage() {
     }
 
     if (fullBoxes === 0) {
-      return `${looseUnits} units`;
+      return `${looseUnits} ${unitType}s`;
     }
 
     if (looseUnits === 0) {
       return `${fullBoxes} boxes`;
     }
 
-    return `${fullBoxes}b + ${looseUnits}u`;
+    return `${fullBoxes}b + ${looseUnits}${unitType.charAt(0)}`;
   };
 
   const filteredProducts = products.filter(product => {

@@ -31,6 +31,7 @@ type Product = {
   purchase_price: number;
   sale_price: number;
   quantity_in_stock: number;
+  unit_type: 'item' | 'kg' | 'litre' | 'piece';
   image_url: string | null;
   description: string | null;
   is_active: boolean;

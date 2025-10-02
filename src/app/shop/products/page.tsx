@@ -32,6 +32,7 @@ type Product = {
   full_boxes: number;
   loose_units: number;
   total_units: number;
+  unit_type: 'item' | 'kg' | 'litre' | 'piece';
   image_url: string | null;
   description: string | null;
   is_active: boolean;
@@ -88,12 +89,13 @@ function ProductsPageContent() {
     const unitsPerBox = product.units_per_box || 1;
     const fullBoxes = product.full_boxes || 0;
     const looseUnits = product.loose_units || 0;
+    const unitType = product.unit_type || 'item';
     
     if (unitsPerBox === 1) {
-      return `${totalUnits} units`;
+      return `${totalUnits} ${unitType}s`;
     }
     
-    return `${fullBoxes} boxes + ${looseUnits} units = ${totalUnits} total`;
+    return `${fullBoxes} boxes + ${looseUnits} ${unitType}s = ${totalUnits} total`;
   };
 
   // Helper function to format stock display for table (more compact)
@@ -102,6 +104,7 @@ function ProductsPageContent() {
     const unitsPerBox = product.units_per_box || 1;
     const fullBoxes = product.full_boxes || 0;
     const looseUnits = product.loose_units || 0;
+    const unitType = product.unit_type || 'item';
     
     if (unitsPerBox === 1) {
       return `${totalUnits}`;
@@ -112,14 +115,14 @@ function ProductsPageContent() {
     }
     
     if (fullBoxes === 0) {
-      return `${looseUnits} units`;
+      return `${looseUnits} ${unitType}s`;
     }
     
     if (looseUnits === 0) {
       return `${fullBoxes} boxes`;
     }
     
-    return `${fullBoxes}b + ${looseUnits}u`;
+    return `${fullBoxes}b + ${looseUnits}${unitType.charAt(0)}`;
   };
 
   const [form, setForm] = useState({
@@ -136,6 +139,7 @@ function ProductsPageContent() {
     units_per_box: "1",
     full_boxes: "0",
     loose_units: "0",
+    unit_type: "item" as 'item' | 'kg' | 'litre' | 'piece',
     description: "",
     image_url: "",
     is_active: true
@@ -277,6 +281,7 @@ function ProductsPageContent() {
       units_per_box: "1",
       full_boxes: "0",
       loose_units: "0",
+      unit_type: "item" as 'item' | 'kg' | 'litre' | 'piece',
       description: "",
       image_url: "",
       is_active: true
@@ -302,6 +307,7 @@ function ProductsPageContent() {
       units_per_box: product.units_per_box?.toString() || "1",
       full_boxes: product.full_boxes?.toString() || "0",
       loose_units: product.loose_units?.toString() || "0",
+      unit_type: product.unit_type || "item" as 'item' | 'kg' | 'litre' | 'piece',
       description: product.description || "",
       image_url: product.image_url || "",
       is_active: product.is_active
@@ -321,8 +327,8 @@ function ProductsPageContent() {
     const supabase = getSupabaseClient();
 
     try {
-      const unitsPerBox = parseInt(form.units_per_box);
-      const initialStock = parseInt(form.quantity_in_stock) || 0;
+      const unitsPerBox = parseFloat(form.units_per_box);
+      const initialStock = parseFloat(form.quantity_in_stock) || 0;
 
       const fullBoxes = Math.floor(initialStock / unitsPerBox);
       const looseUnits = initialStock % unitsPerBox;
@@ -335,12 +341,13 @@ function ProductsPageContent() {
         purchase_price: parseFloat(form.purchase_price),
         sale_price: parseFloat(form.sale_price),
         quantity_in_stock: initialStock,
-        reorder_level: parseInt(form.reorder_level),
-        warning_threshold: parseInt(form.warning_threshold),
-        alert_threshold: parseInt(form.alert_threshold),
+        reorder_level: parseFloat(form.reorder_level),
+        warning_threshold: parseFloat(form.warning_threshold),
+        alert_threshold: parseFloat(form.alert_threshold),
         units_per_box: unitsPerBox,
         full_boxes: fullBoxes,
         loose_units: looseUnits,
+        unit_type: form.unit_type,
         description: form.description || null,
         image_url: form.image_url || null,
         is_active: form.is_active
@@ -912,34 +919,57 @@ function ProductsPageContent() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <label className="grid gap-2">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Unit Type *</span>
+                    <select
+                      required
+                      className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
+                      value={form.unit_type}
+                      onChange={(e) => setForm(f => ({ ...f, unit_type: e.target.value as 'item' | 'kg' | 'litre' | 'piece' }))}
+                    >
+                      <option value="item">Item (pieces)</option>
+                      <option value="kg">Kilogram (kg)</option>
+                      <option value="litre">Litre (L)</option>
+                      <option value="piece">Piece</option>
+                    </select>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      Used for inventory management and alerts
+                    </span>
+                  </label>
+                  <label className="grid gap-2">
                     <span className="text-sm text-gray-700 dark:text-gray-300">Units per Box *</span>
                     <input
                       type="number"
-                      min="1"
+                      min="0.001"
+                      step="0.001"
                       required
                       className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
                       value={form.units_per_box}
                       onChange={(e) => setForm(f => ({ ...f, units_per_box: e.target.value }))}
-                      placeholder="How many units in one box/case"
+                      placeholder="How many units in one box/case (e.g., 2.5)"
                     />
                     <span className="text-xs text-gray-500 dark:text-gray-400">
                       Set to 1 for individual items, or the number of units per box/case
                     </span>
                   </label>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <label className="grid gap-2">
                     <span className="text-sm text-gray-700 dark:text-gray-300">Initial Stock (Units)</span>
                     <input
                       type="number"
                       min="0"
+                      step="0.001"
                       className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
                       value={form.quantity_in_stock}
                       onChange={(e) => setForm(f => ({ ...f, quantity_in_stock: e.target.value }))}
-                      placeholder="Total units to start with"
+                      placeholder="Total units to start with (e.g., 5.5)"
                     />
                     <span className="text-xs text-gray-500 dark:text-gray-400">
                       Will be automatically converted to boxes + loose units
                     </span>
                   </label>
+                  <div></div>
                 </div>
 
                 <label className="grid gap-2">
@@ -1060,9 +1090,11 @@ function ProductsPageContent() {
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <label className="grid gap-2">
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Reorder Level *</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Reorder Level ({form.unit_type}s) *</span>
                     <input
                       type="number"
+                      min="0"
+                      step="0.001"
                       required
                       className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
                       value={form.reorder_level}
@@ -1070,9 +1102,11 @@ function ProductsPageContent() {
                     />
                   </label>
                   <label className="grid gap-2">
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Warning Threshold *</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Warning Threshold ({form.unit_type}s) *</span>
                     <input
                       type="number"
+                      min="0"
+                      step="0.001"
                       required
                       className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
                       value={form.warning_threshold}
@@ -1081,9 +1115,11 @@ function ProductsPageContent() {
                     />
                   </label>
                   <label className="grid gap-2">
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Alert Threshold *</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Alert Threshold ({form.unit_type}s) *</span>
                     <input
                       type="number"
+                      min="0"
+                      step="0.001"
                       required
                       className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900"
                       value={form.alert_threshold}
