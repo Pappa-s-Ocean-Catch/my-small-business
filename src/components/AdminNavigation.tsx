@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase/client";
-import { FaUsers, FaStore, FaUserShield, FaChartPie, FaFileAlt, FaMoneyBillWave, FaPalette, FaCog, FaRobot, FaBox, FaTags, FaWarehouse, FaUtensils, FaCalendarAlt, FaDollarSign, FaChartLine } from "react-icons/fa";
+import { FaUsers, FaStore, FaUserShield, FaChartPie, FaFileAlt, FaMoneyBillWave, FaPalette, FaCog, FaRobot, FaBox, FaTags, FaWarehouse, FaUtensils, FaCalendarAlt, FaDollarSign, FaChartLine, FaGlobe } from "react-icons/fa";
 
 export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 'horizontal' | 'vertical' }) {
   const [userRole, setUserRole] = useState<'admin' | 'staff' | null>(null);
@@ -554,6 +554,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
             <div className="pl-2">
               <Link className={getLinkClasses("/users")} href="/users" aria-label="Users">Users</Link>
               <Link className={getLinkClasses("/automation")} href="/automation" aria-label="Automation">Automation</Link>
+              <Link className={getLinkClasses("/webhooks")} href="/webhooks" aria-label="Webhooks">Webhooks</Link>
               <Link className={getLinkClasses("/settings")} href="/settings" aria-label="Settings">Settings</Link>
             </div>
           </div>
@@ -576,7 +577,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
             {isSystemOpen && (
             <div className="absolute top-full mt-0.5 w-screen max-w-[640px] sm:w-[640px] rounded-xl bg-white/95 dark:bg-neutral-950/95 backdrop-blur shadow-lg z-50 p-3 overflow-hidden"
                  style={{ left: systemOffset === 0 ? 'auto' : systemOffset, right: systemOffset === 0 ? '0' : 'auto' }}>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                   <Link href="/users" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-purple-600 dark:text-purple-400">
@@ -596,6 +597,17 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                       <div>
                         <div className="font-medium text-gray-900 dark:text-white">Automation</div>
                         <div className="text-xs text-gray-600 dark:text-gray-400">Automated notifications and reminders</div>
+                      </div>
+                    </div>
+                  </Link>
+                  <Link href="/webhooks" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 text-green-600 dark:text-green-400">
+                        <FaGlobe className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white">Webhooks</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">External system integrations</div>
                       </div>
                     </div>
                   </Link>

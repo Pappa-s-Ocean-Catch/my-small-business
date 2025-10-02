@@ -61,4 +61,45 @@ export async function dopplerSetSecret(req: DopplerSetSecretRequest): Promise<Do
   }
 }
 
+export async function getDopplerSecret(secretName: string): Promise<{ success: boolean; value?: string; error?: string }> {
+  const token = getDopplerToken();
+  const baseUrl = getDopplerApiUrl();
+  const project = process.env.DOPPLER_PROJECT;
+  const config = process.env.DOPPLER_CONFIG;
+
+  if (!project || !config) {
+    return { success: false, error: "Doppler project/config not configured." };
+  }
+
+  try {
+    const url = `${baseUrl}/v3/configs/config/secrets?project=${project}&config=${config}`;
+    
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Accept': 'application/json',
+      },
+      cache: 'no-store',
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      return { success: false, error: `Doppler error (${res.status}): ${text}` };
+    }
+
+    const data = await res.json();
+    const secretValue = data.secrets?.[secretName];
+    
+    if (!secretValue) {
+      return { success: false, error: 'Secret not found' };
+    }
+
+    return { success: true, value: secretValue };
+
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown Doppler error' };
+  }
+}
+
 
