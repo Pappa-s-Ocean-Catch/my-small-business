@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { FaPlus, FaEdit, FaTrash, FaEye, FaEyeSlash, FaUtensils, FaTag, FaClock, FaBox, FaChevronDown, FaChevronRight, FaFilter, FaSave, FaTimes } from 'react-icons/fa';
+import type { SaleProduct } from '@/app/actions/sale-products';
 import Modal from '@/components/Modal';
 import { ActionButton } from '@/components/ActionButton';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
@@ -142,6 +143,24 @@ export default function MenuPage() {
       sub_categories: subCategories.filter(subCat => subCat.parent_category_id === mainCat.id)
     }));
   }, [saleCategories]);
+
+  const getCategoryNameForProduct = (product: SaleProduct): string | undefined => {
+    if (product.sub_category_id) {
+      const sub = saleCategories.find(c => c.id === product.sub_category_id);
+      if (sub?.name) return sub.name;
+    }
+    const main = saleCategories.find(c => c.id === product.sale_category_id);
+    return main?.name ?? undefined;
+  };
+
+  const toSlug = (value: string): string => {
+    return value
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-');
+  };
 
   // Filter products based on selected category and search
   const filteredProducts = useMemo(() => {
@@ -599,7 +618,12 @@ export default function MenuPage() {
                       {isAdmin && (
                         <ImageDownloadButton
                           imageUrl={product.image_url}
-                          fileName={`${product.name.replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '-').toLowerCase()}.jpg`}
+                          fileName={`${(() => {
+                            const cat = getCategoryNameForProduct(product);
+                            const catSlug = cat ? toSlug(cat) : 'uncategorized';
+                            const prodSlug = toSlug(product.name);
+                            return `${catSlug}-${prodSlug}.jpg`;
+                          })()}`}
                         />
                       )}
                     </div>
