@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from 'react';
-import { FaMagic, FaCamera, FaSpinner, FaTimes, FaImage, FaUpload } from 'react-icons/fa';
+import { FaMagic, FaCamera, FaSpinner, FaTimes, FaImage, FaUpload, FaDownload } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { ConfirmationDialog } from './ConfirmationDialog';
 
@@ -199,7 +199,65 @@ export function AIImageGenerator({
     }
   };
 
-  // Image compression utility
+  // Convert PNG to JPEG for better compression
+  const convertPngToJpeg = (file: File, maxSizeKB: number): Promise<File> => {
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+      
+      img.onload = () => {
+        // Calculate new dimensions (max 1200px width/height for higher quality)
+        const maxDimension = 1200;
+        let { width, height } = img;
+        
+        if (width > height && width > maxDimension) {
+          height = (height * maxDimension) / width;
+          width = maxDimension;
+        } else if (height > maxDimension) {
+          width = (width * maxDimension) / height;
+          height = maxDimension;
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        
+        // Draw the image
+        ctx?.drawImage(img, 0, 0, width, height);
+        
+        // Try different quality levels to achieve target size
+        const tryCompress = (quality: number): void => {
+          canvas.toBlob((blob) => {
+            if (!blob) {
+              resolve(file); // Fallback to original
+              return;
+            }
+            
+            const sizeKB = blob.size / 1024;
+            
+            if (sizeKB <= maxSizeKB || quality <= 0.1) {
+              // Create new file with compressed blob
+              const compressedFile = new File([blob], file.name.replace('.png', '.jpg'), { 
+                type: 'image/jpeg',
+                lastModified: Date.now()
+              });
+              resolve(compressedFile);
+            } else {
+              // Try with lower quality
+              tryCompress(quality - 0.1);
+            }
+          }, 'image/jpeg', quality);
+        };
+        
+        // Start with 0.9 quality for higher image quality
+        tryCompress(0.9);
+      };
+      
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
+  // Image compression utility (for JPEG files)
   const compressImage = (file: File, maxSizeKB: number): Promise<File> => {
     return new Promise((resolve) => {
       const canvas = document.createElement('canvas');
@@ -268,7 +326,7 @@ export function AIImageGenerator({
       const blob = await response.blob();
       const originalFile = new File([blob], 'ai-generated-image.jpg', { type: 'image/jpeg' });
       
-      // Compress the image to target size
+      // Compress the JPEG image
       const compressedFile = await compressImage(originalFile, maxSizeKB);
       
       console.log(`Image compressed: ${(originalFile.size / 1024).toFixed(1)}KB → ${(compressedFile.size / 1024).toFixed(1)}KB`);
@@ -328,6 +386,35 @@ export function AIImageGenerator({
     setGeneratedImageBlob(null);
     setShowPreview(false);
     setShowGenerator(true);
+  };
+
+  const handleDownloadImage = async () => {
+    if (!generatedImageBlob) return;
+
+    try {
+      // Fetch the image blob
+      const response = await fetch(generatedImageBlob);
+      const blob = await response.blob();
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${productName.replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '-').toLowerCase()}-ai-generated.jpg`;
+      
+      // Trigger download
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up
+      window.URL.revokeObjectURL(url);
+      
+      toast.success('Image downloaded successfully!');
+    } catch (error) {
+      console.error('Error downloading image:', error);
+      toast.error('Failed to download image');
+    }
   };
 
   const handleReferenceImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -491,6 +578,17 @@ export function AIImageGenerator({
             
             <button
               type="button"
+              onClick={handleDownloadImage}
+              disabled={disabled || isUploading}
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Download generated image"
+            >
+              <FaDownload className="w-4 h-4" />
+              Download
+            </button>
+            
+            <button
+              type="button"
               onClick={handleCancelPreview}
               disabled={isUploading}
               className="px-4 py-2 bg-gray-200 dark:bg-neutral-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-neutral-600 transition-colors disabled:opacity-50"
@@ -501,7 +599,7 @@ export function AIImageGenerator({
 
           {/* Info Text */}
           <div className="text-xs text-gray-500 dark:text-gray-500 text-center">
-            Review the generated image. Click &quot;Confirm & Upload&quot; to save it to your product.
+            Review the generated image. Click &quot;Confirm & Upload&quot; to save it to your product, or &quot;Download&quot; to save it locally.
           </div>
         </div>
       )}
@@ -570,7 +668,7 @@ export function AIImageGenerator({
               </div>
             </div>
             <div className="text-xs text-gray-500 dark:text-gray-500">
-              Smaller sizes = faster generation, larger sizes = higher quality. Recommended: 300-500KB for web optimization
+              Smaller sizes = faster generation, larger sizes = higher quality. Recommended: 250-300KB for optimal quality
             </div>
           </div>
 

@@ -416,6 +416,36 @@ export async function createSaleProduct(formData: {
   }
 }
 
+// Simple function to update just the image URL
+export async function updateSaleProductImage(
+  id: string,
+  imageUrl: string
+): Promise<{ data: SaleProduct | null; error: string | null }> {
+  try {
+    const supabase = await createServiceRoleClient();
+    
+    const { data: product, error } = await supabase
+      .from('sale_products')
+      .update({ image_url: imageUrl })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating sale product image:', error);
+      return { data: null, error: error.message };
+    }
+
+    return { data: product, error: null };
+  } catch (error) {
+    console.error('Error updating sale product image:', error);
+    return { 
+      data: null, 
+      error: error instanceof Error ? error.message : 'Failed to update product image' 
+    };
+  }
+}
+
 export async function updateSaleProduct(
   id: string,
   formData: {

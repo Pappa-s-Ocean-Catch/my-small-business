@@ -11,6 +11,7 @@ import { ProductSearch } from '@/components/ProductSearch';
 import { ImageUpload } from '@/components/ImageUpload';
 import { AIImageGenerator } from '@/components/AIImageGenerator';
 import { ImageDownloadButton } from '@/components/ImageDownloadButton';
+import { ImagePlaceholder } from '@/components/ImagePlaceholder';
 import { useAdmin } from '@/hooks/useAdmin';
 import { toast } from 'react-toastify';
 import { 
@@ -18,6 +19,7 @@ import {
   getSaleCategories, 
   createSaleProduct, 
   updateSaleProduct, 
+  updateSaleProductImage,
   deleteSaleProduct,
   createSaleCategory,
   updateSaleCategory,
@@ -587,7 +589,7 @@ export default function MenuPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredProducts.map((product) => (
                 <div key={product.id} className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 overflow-hidden">
-                  {product.image_url && (
+                  {product.image_url ? (
                     <div className="h-48 bg-gray-200 dark:bg-neutral-700 relative group">
                       <img
                         src={product.image_url}
@@ -601,6 +603,37 @@ export default function MenuPage() {
                         />
                       )}
                     </div>
+                  ) : (
+                    <ImagePlaceholder
+                      productName={product.name}
+                      description={product.description}
+                      ingredients={product.ingredients?.map(ing => ing.name) || []}
+                      category={product.sale_category?.name}
+                      onImageGenerated={async (imageUrl) => {
+                        try {
+                          // Update the product image in the database
+                          const { error } = await updateSaleProductImage(product.id, imageUrl);
+                          
+                          if (error) {
+                            toast.error('Failed to update product with new image');
+                            return;
+                          }
+                          
+                          // Update the local state
+                          setSaleProducts(prev => 
+                            prev.map(p => 
+                              p.id === product.id 
+                                ? { ...p, image_url: imageUrl }
+                                : p
+                            )
+                          );
+                          toast.success('Image generated and updated successfully!');
+                        } catch (error) {
+                          console.error('Error updating product:', error);
+                          toast.error('Failed to update product with new image');
+                        }
+                      }}
+                    />
                   )}
                   
                   <div className="p-4">

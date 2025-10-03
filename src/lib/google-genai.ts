@@ -180,9 +180,13 @@ export async function generateProductImage({
       - Creates a more polished, professional version that builds upon the reference image
       - Maintains the same food item but with enhanced visual quality and attractiveness
       
-      The reference image shows the actual product - use it as your foundation and enhance it creatively while keeping it realistic and authentic.`;
+      The reference image shows the actual product - use it as your foundation and enhance it creatively while keeping it realistic and authentic.
+      
+      IMPORTANT: Generate the image in JPEG format for web optimization and smaller file size.`;
     } else {
-      prompt += `Create a professional, well-lit food photography image that showcases the product attractively. Style: clean, modern food photography with good composition and appetizing presentation. This should be a restaurant menu item photo - generate an actual image file, not just a description.`;
+      prompt += `Create a professional, well-lit food photography image that showcases the product attractively. Style: clean, modern food photography with good composition and appetizing presentation. This should be a restaurant menu item photo - generate an actual image file, not just a description.
+      
+      IMPORTANT: Generate the image in JPEG format for web optimization and smaller file size.`;
     }
     
     // Use the correct model that supports image generation
@@ -209,7 +213,7 @@ export async function generateProductImage({
         if (referenceImageBase64) {
           parts.push({
             inlineData: {
-              mimeType: 'image/jpeg',
+              mimeType: 'image/png',
               data: referenceImageBase64
             }
           });
