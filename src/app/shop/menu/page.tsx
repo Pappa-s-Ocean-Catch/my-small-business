@@ -606,9 +606,12 @@ export default function MenuPage() {
                   ) : (
                     <ImagePlaceholder
                       productName={product.name}
-                      description={product.description}
-                      ingredients={product.ingredients?.map(ing => ing.name) || []}
-                      category={product.sale_category?.name}
+                      description={product.description ?? undefined}
+                      ingredients={(product.ingredients?.map((ing) => {
+                        const maybeName = (ing as unknown as { name?: string }).name;
+                        return maybeName ?? String(ing);
+                      }) || []).filter(Boolean)}
+                      category={undefined}
                       onImageGenerated={async (imageUrl) => {
                         try {
                           // Update the product image in the database

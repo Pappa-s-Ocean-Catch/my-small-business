@@ -39,10 +39,10 @@ async function authenticateIfNeeded(request: Request, secretRef: string | null):
     let parsed: { header?: { key?: string; value?: string }; query?: { key?: string; value?: string }; headerName?: string; headerValue?: string; queryParamName?: string; queryParamValue?: string };
     try {
       parsed = JSON.parse(rawSecret) as { header?: { key?: string; value?: string }; query?: { key?: string; value?: string }; headerName?: string; headerValue?: string; queryParamName?: string; queryParamValue?: string };
-    } catch (e) {
+    } catch (_parseErr) {
       // Fallback for legacy/plain secrets: treat entire value as the token
       console.warn('[webhook auth] secret JSON parse failed; using raw token fallback');
-      parsed = { headerValue: rawSecret } as any;
+      parsed = { headerValue: rawSecret } as { headerValue: string };
     }
     const expectedHeaderName = parsed.header?.key ?? parsed.headerName ?? '';
     const expectedHeaderValue = parsed.header?.value ?? parsed.headerValue ?? '';

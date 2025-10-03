@@ -4,6 +4,16 @@ import { createServiceRoleClient } from '@/lib/supabase/server';
 import { getDopplerSecret } from '@/lib/doppler';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+type WebhookRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  webhook_type: string;
+  secret_ref: string | null;
+  is_enabled: boolean;
+  created_by: string | null;
+};
+
 // GET - Retrieve webhook configuration (for testing)
 export async function GET(
   request: Request,
@@ -16,11 +26,17 @@ export async function GET(
     
     
     // Try lookup by id first
-    let { data: webhook, error } = await supabase
-      .from('webhooks')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle();
+    let webhook: WebhookRow | null = null;
+    let error: { message?: string } | null = null;
+    {
+      const byId = await supabase
+        .from('webhooks')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle<WebhookRow>();
+      webhook = byId.data ?? null;
+      error = byId.error ? { message: byId.error.message } : null;
+    }
     
 
     // Fallback: if not found by id, attempt by name using the same param
@@ -29,9 +45,9 @@ export async function GET(
         .from('webhooks')
         .select('*')
         .ilike('name', id)
-        .maybeSingle();
-      webhook = byName.data as any;
-      error = byName.error as any;
+        .maybeSingle<WebhookRow>();
+      webhook = byName.data ?? null;
+      error = byName.error ? { message: byName.error.message } : null;
       
     }
 
@@ -321,9 +337,9 @@ async function authenticateWebhook(request: Request, secretRef: string) {
     let authConfig: { header?: { key?: string; value?: string }; query?: { key?: string; value?: string }; headerName?: string; headerValue?: string; queryParamName?: string; queryParamValue?: string };
     try {
       authConfig = JSON.parse(rawSecret) as { header?: { key?: string; value?: string }; query?: { key?: string; value?: string }; headerName?: string; headerValue?: string; queryParamName?: string; queryParamValue?: string };
-    } catch {
+    } catch (_parseErr) {
       console.warn('[webhooks id POST] secret JSON parse failed; using raw token fallback');
-      authConfig = { headerValue: rawSecret } as any;
+      authConfig = { headerValue: rawSecret } as { headerValue: string };
     }
     const expectedHeaderName = authConfig.header?.key ?? authConfig.headerName ?? '';
     const expectedHeaderValue = authConfig.header?.value ?? authConfig.headerValue ?? '';
