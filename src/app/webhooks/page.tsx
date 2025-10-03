@@ -34,8 +34,11 @@ export default function WebhooksPage() {
     description: '',
     webhook_type: 'transaction' as 'transaction' | 'inventory' | 'customer' | 'order',
     is_enabled: true,
+    auth_mode: 'header' as 'header' | 'query' | 'both',
     auth_header_name: '',
-    auth_header_value: ''
+    auth_header_value: '',
+    auth_query_name: '',
+    auth_query_value: ''
   });
 
   useEffect(() => {
@@ -75,8 +78,11 @@ export default function WebhooksPage() {
       description: webhook.description || '',
       webhook_type: webhook.webhook_type,
       is_enabled: webhook.is_enabled,
+      auth_mode: 'header',
       auth_header_name: '',
-      auth_header_value: ''
+      auth_header_value: '',
+      auth_query_name: '',
+      auth_query_value: ''
     });
     setShowForm(true);
   };
@@ -88,8 +94,11 @@ export default function WebhooksPage() {
       description: '',
       webhook_type: 'transaction',
       is_enabled: true,
+      auth_mode: 'header',
       auth_header_name: '',
-      auth_header_value: ''
+      auth_header_value: '',
+      auth_query_name: '',
+      auth_query_value: ''
     });
     setShowForm(true);
   };
@@ -105,16 +114,18 @@ export default function WebhooksPage() {
     try {
       const supabase = getSupabaseClient();
 
-      // If we have auth header values, save them to Doppler first
+      // If we have auth values, save them to Doppler first
       let secretRef = null;
-      if (form.auth_header_name && form.auth_header_value) {
+      if ((form.auth_header_name && form.auth_header_value) || (form.auth_query_name && form.auth_query_value)) {
         const response = await fetch('/api/webhooks/save-secret', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             webhookId: editing?.id || 'new',
-            headerName: form.auth_header_name,
-            headerValue: form.auth_header_value
+            headerName: form.auth_header_name || undefined,
+            headerValue: form.auth_header_value || undefined,
+            queryParamName: form.auth_query_name || undefined,
+            queryParamValue: form.auth_query_value || undefined
           })
         });
 
@@ -346,13 +357,22 @@ export default function WebhooksPage() {
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button
-                            onClick={() => {
-                              const base = window.location.origin;
-                              const url = `${base}/api/webhook/${encodeURIComponent(webhook.name)}`;
-                              navigator.clipboard.writeText(url).then(() => {
+                            onClick={async () => {
+                              try {
+                                const resp = await fetch(`/api/webhooks/${encodeURIComponent(webhook.id)}`);
+                                const data = await resp.json();
+                                let url: string | undefined = data.copy_url;
+                                if (!url) {
+                                  const base = window.location.origin;
+                                  url = `${base}/api/webhook/${encodeURIComponent(webhook.name)}`;
+                                }
+                                await navigator.clipboard.writeText(url);
                                 setSuccess('Webhook URL copied');
                                 setTimeout(() => setSuccess(null), 1200);
-                              });
+                              } catch (err) {
+                                console.error('Copy URL failed', err);
+                                setError('Failed to copy URL');
+                              }
                             }}
                             className="px-2 py-1 text-xs rounded bg-gray-100 hover:bg-gray-200 dark:bg-neutral-800 dark:hover:bg-neutral-700"
                             title="Copy webhook URL"
@@ -441,7 +461,7 @@ export default function WebhooksPage() {
                   <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
                     <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-3">Authentication</h3>
                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                      Configure header-based authentication for this webhook
+                      Configure authentication via header and/or query string
                     </p>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -454,7 +474,7 @@ export default function WebhooksPage() {
                           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                           value={form.auth_header_name}
                           onChange={(e) => setForm(f => ({ ...f, auth_header_name: e.target.value }))}
-                          placeholder="X-API-Key"
+                          placeholder="X-API-Key or x-webhook-secret"
                         />
                       </div>
                       <div>
@@ -469,7 +489,34 @@ export default function WebhooksPage() {
                           placeholder="Secret value"
                         />
                       </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Query Param Name
+                        </label>
+                        <input
+                          type="text"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                          value={form.auth_query_name}
+                          onChange={(e) => setForm(f => ({ ...f, auth_query_name: e.target.value }))}
+                          placeholder="secret or api_key"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Query Param Value
+                        </label>
+                        <input
+                          type="password"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                          value={form.auth_query_value}
+                          onChange={(e) => setForm(f => ({ ...f, auth_query_value: e.target.value }))}
+                          placeholder="Secret value"
+                        />
+                      </div>
                     </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                      You can provide either header, query string, or both. If both are provided, either will authenticate.
+                    </p>
                   </div>
 
                   <div className="flex items-center">

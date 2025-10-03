@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createServiceRoleClient } from '@/lib/supabase/server';
 import { getDopplerSecret } from '@/lib/doppler';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -9,14 +10,30 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createServerSupabaseClient();
+    // Use service role for reliable access to config regardless of RLS
+    const supabase = await createServiceRoleClient();
     const { id } = await params;
     
-    const { data: webhook, error } = await supabase
+    
+    // Try lookup by id first
+    let { data: webhook, error } = await supabase
       .from('webhooks')
       .select('*')
       .eq('id', id)
-      .single();
+      .maybeSingle();
+    
+
+    // Fallback: if not found by id, attempt by name using the same param
+    if ((!webhook || error) && id) {
+      const byName = await supabase
+        .from('webhooks')
+        .select('*')
+        .ilike('name', id)
+        .maybeSingle();
+      webhook = byName.data as any;
+      error = byName.error as any;
+      
+    }
 
     if (error || !webhook) {
       return NextResponse.json({ 
@@ -32,6 +49,53 @@ export async function GET(
       }, { status: 403 });
     }
 
+    // Optionally include a resolved copy URL with query string if configured
+    let copyUrl: string | undefined = undefined;
+    try {
+      const urlObj = new URL(request.url);
+      const origin = `${urlObj.protocol}//${urlObj.host}`;
+      const base = `${origin}/api/webhook/${encodeURIComponent(webhook.name)}`;
+      
+
+      if (webhook.secret_ref) {
+        const secret = await getDopplerSecret(webhook.secret_ref);
+        
+        if (secret.success && secret.value) {
+          const unwrap = (v: unknown): string => {
+            if (typeof v === 'string') return v;
+            if (v && typeof v === 'object') {
+              const obj = v as { raw?: unknown; computed?: unknown };
+              if (typeof obj.computed === 'string') return obj.computed;
+              if (typeof obj.raw === 'string') return obj.raw;
+            }
+            return JSON.stringify(v);
+          };
+          const rawSecret = unwrap(secret.value);
+          const cfg = JSON.parse(rawSecret) as { header?: { key?: string; value?: string }; query?: { key?: string; value?: string }; headerName?: string; headerValue?: string; queryParamName?: string; queryParamValue?: string };
+          const sp = new URLSearchParams();
+          if ((cfg.query && cfg.query.key && cfg.query.value)) {
+            sp.set(cfg.query.key, cfg.query.value);
+          } else if (cfg.queryParamName && cfg.queryParamValue) {
+            sp.set(cfg.queryParamName, cfg.queryParamValue);
+          } else if (cfg.headerValue) {
+            // Fallback: use common ?secret=
+            sp.set('secret', cfg.headerValue);
+          }
+          copyUrl = sp.toString() ? `${base}?${sp.toString()}` : base;
+          
+        } else {
+          copyUrl = base;
+          
+        }
+      } else {
+        copyUrl = base;
+        
+      }
+    } catch {
+      // ignore copyUrl build errors
+      
+    }
+
     return NextResponse.json({ 
       success: true, 
       webhook: {
@@ -39,7 +103,8 @@ export async function GET(
         name: webhook.name,
         webhook_type: webhook.webhook_type,
         is_enabled: webhook.is_enabled
-      }
+      },
+      copy_url: copyUrl
     });
 
   } catch (error) {
@@ -106,11 +171,8 @@ export async function POST(
     }
 
     // Log webhook activity
-    console.log(`Webhook ${webhook.name} processed ${webhook.webhook_type}:`, {
-      webhookId: webhook.id,
-      webhookType: webhook.webhook_type,
-      result: result.data
-    });
+    // Dump full body
+    console.log(`[webhook ${webhook.name}] received body:`, body);
 
     return NextResponse.json({ 
       success: true, 
@@ -237,23 +299,75 @@ async function authenticateWebhook(request: Request, secretRef: string) {
     if (!secretResult.success || !secretResult.value) {
       return { success: false, error: 'Authentication configuration not found' };
     }
-
-    const authConfig = JSON.parse(secretResult.value);
-    const expectedHeaderName = authConfig.headerName;
-    const expectedHeaderValue = authConfig.headerValue;
-
-    // Get the header value from the request
-    const headerValue = request.headers.get(expectedHeaderName);
-    
-    if (!headerValue) {
-      return { success: false, error: `Missing authentication header: ${expectedHeaderName}` };
+    {
+      const raw = typeof secretResult.value === 'string' ? secretResult.value : JSON.stringify(secretResult.value);
+      console.log('[webhooks id POST] doppler raw secret', {
+        length: raw.length,
+        preview: raw.slice(0, 8) + '...'
+      });
     }
 
-    if (headerValue !== expectedHeaderValue) {
-      return { success: false, error: 'Invalid authentication credentials' };
+    // Normalize Doppler secret wrapper and parse inner JSON if needed
+    const unwrapDopplerValue = (v: unknown): string => {
+      if (typeof v === 'string') return v;
+      if (v && typeof v === 'object') {
+        const obj = v as { raw?: unknown; computed?: unknown };
+        if (typeof obj.computed === 'string') return obj.computed;
+        if (typeof obj.raw === 'string') return obj.raw;
+      }
+      return JSON.stringify(v);
+    };
+    const rawSecret = unwrapDopplerValue(secretResult.value);
+    let authConfig: { header?: { key?: string; value?: string }; query?: { key?: string; value?: string }; headerName?: string; headerValue?: string; queryParamName?: string; queryParamValue?: string };
+    try {
+      authConfig = JSON.parse(rawSecret) as { header?: { key?: string; value?: string }; query?: { key?: string; value?: string }; headerName?: string; headerValue?: string; queryParamName?: string; queryParamValue?: string };
+    } catch {
+      console.warn('[webhooks id POST] secret JSON parse failed; using raw token fallback');
+      authConfig = { headerValue: rawSecret } as any;
+    }
+    const expectedHeaderName = authConfig.header?.key ?? authConfig.headerName ?? '';
+    const expectedHeaderValue = authConfig.header?.value ?? authConfig.headerValue ?? '';
+    const expectedQueryParamName = authConfig.query?.key ?? authConfig.queryParamName ?? '';
+    const expectedQueryParamValue = authConfig.query?.value ?? authConfig.queryParamValue ?? '';
+
+    if (!expectedHeaderValue && !expectedQueryParamValue) {
+      return { success: false, error: 'Authentication configuration invalid' };
     }
 
-    return { success: true };
+    // 1) Header-based authentication (configured header)
+    if (expectedHeaderName && expectedHeaderValue) {
+      const actualHeaderValue = request.headers.get(expectedHeaderName) ?? '';
+      if (actualHeaderValue === expectedHeaderValue) {
+        return { success: true };
+      }
+    }
+
+    // 1a) Fallback common header name: x-webhook-secret
+    if (expectedHeaderValue) {
+      const commonHeaderValue = request.headers.get('x-webhook-secret') ?? '';
+      if (commonHeaderValue === expectedHeaderValue) {
+        return { success: true };
+      }
+    }
+
+    // 2) Query string authentication with custom param name if provided
+    const url = new URL(request.url);
+    if (expectedQueryParamName && expectedQueryParamValue) {
+      const provided = url.searchParams.get(expectedQueryParamName) ?? '';
+      if (provided === expectedQueryParamValue) {
+        return { success: true };
+      }
+    }
+
+    // 2a) Fallback common query param names: ?secret= or ?api_secret=
+    if (expectedHeaderValue) {
+      const provided = (url.searchParams.get('secret') ?? url.searchParams.get('api_secret') ?? '');
+      if (provided === expectedHeaderValue) {
+        return { success: true };
+      }
+    }
+
+    return { success: false, error: 'Invalid authentication credentials' };
 
   } catch (error) {
     console.error('Error authenticating webhook:', error);
