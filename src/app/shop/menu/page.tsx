@@ -10,6 +10,8 @@ import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 import { ProductSearch } from '@/components/ProductSearch';
 import { ImageUpload } from '@/components/ImageUpload';
 import { AIImageGenerator } from '@/components/AIImageGenerator';
+import { ImageDownloadButton } from '@/components/ImageDownloadButton';
+import { useAdmin } from '@/hooks/useAdmin';
 import { toast } from 'react-toastify';
 import { 
   getSaleProducts, 
@@ -27,6 +29,7 @@ import {
 
 export default function MenuPage() {
   const router = useRouter();
+  const { isAdmin } = useAdmin();
   const [saleProducts, setSaleProducts] = useState<SaleProductWithDetails[]>([]);
   const [saleCategories, setSaleCategories] = useState<SaleCategory[]>([]);
   const [availableProducts, setAvailableProducts] = useState<Array<{
@@ -585,12 +588,18 @@ export default function MenuPage() {
               {filteredProducts.map((product) => (
                 <div key={product.id} className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 overflow-hidden">
                   {product.image_url && (
-                    <div className="h-48 bg-gray-200 dark:bg-neutral-700">
+                    <div className="h-48 bg-gray-200 dark:bg-neutral-700 relative group">
                       <img
                         src={product.image_url}
                         alt={product.name}
                         className="w-full h-full object-cover"
                       />
+                      {isAdmin && (
+                        <ImageDownloadButton
+                          imageUrl={product.image_url}
+                          fileName={`${product.name.replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '-').toLowerCase()}.jpg`}
+                        />
+                      )}
                     </div>
                   )}
                   

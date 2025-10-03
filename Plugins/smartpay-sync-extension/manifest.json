@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "SmartPay Data Sync",
+  "version": "1.0",
+  "description": "Syncs SmartPay transaction data to your business app",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "background"
+  ],
+  "host_permissions": [
+    "https://smartpay-hub.com/*",
+    "http://localhost:3000/*",
+    "https://business.truongthings.dev/*",
+    "https://api.b2c.prod.automation.smartpay.co.nz/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://smartpay-hub.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "SmartPay Sync"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

@@ -346,6 +346,18 @@ export default function WebhooksPage() {
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button
+                            onClick={() => {
+                              const base = window.location.origin;
+                              const url = `${base}/api/webhook/${encodeURIComponent(webhook.name)}`;
+                              navigator.clipboard.writeText(url).then(() => {
+                                setSuccess('Webhook URL copied');
+                                setTimeout(() => setSuccess(null), 1200);
+                              });
+                            }}
+                            className="px-2 py-1 text-xs rounded bg-gray-100 hover:bg-gray-200 dark:bg-neutral-800 dark:hover:bg-neutral-700"
+                            title="Copy webhook URL"
+                          >Copy URL</button>
+                          <button
                             onClick={() => startEdit(webhook)}
                             className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                             title="Edit webhook"

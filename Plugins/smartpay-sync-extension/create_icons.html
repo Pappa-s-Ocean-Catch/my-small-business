@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create Extension Icons</title>
+</head>
+<body>
+    <canvas id="canvas16" width="16" height="16" style="border: 1px solid #ccc;"></canvas>
+    <canvas id="canvas48" width="48" height="48" style="border: 1px solid #ccc;"></canvas>
+    <canvas id="canvas128" width="128" height="128" style="border: 1px solid #ccc;"></canvas>
+    
+    <script>
+        function createIcon(canvasId, size) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            
+            // Create gradient background
+            const gradient = ctx.createLinearGradient(0, 0, size, size);
+            gradient.addColorStop(0, '#4F46E5');
+            gradient.addColorStop(1, '#7C3AED');
+            
+            // Draw background circle
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(size/2, size/2, size/2 - 1, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // Draw credit card
+            const cardWidth = size * 0.5;
+            const cardHeight = size * 0.3;
+            const cardX = (size - cardWidth) / 2;
+            const cardY = (size - cardHeight) / 2;
+            
+            ctx.fillStyle = 'white';
+            ctx.fillRect(cardX, cardY, cardWidth, cardHeight);
+            
+            // Draw card stripe
+            ctx.fillStyle = '#6B7280';
+            ctx.fillRect(cardX + 2, cardY + 2, cardWidth - 4, cardHeight * 0.2);
+            
+            // Draw card number
+            ctx.fillStyle = '#9CA3AF';
+            ctx.fillRect(cardX + 2, cardY + cardHeight * 0.3, cardWidth * 0.3, cardHeight * 0.1);
+            ctx.fillRect(cardX + 2, cardY + cardHeight * 0.5, cardWidth * 0.2, cardHeight * 0.1);
+            
+            // Draw sync arrows
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = size * 0.05;
+            ctx.lineCap = 'round';
+            
+            // Left arrow
+            ctx.beginPath();
+            ctx.moveTo(size * 0.2, size * 0.2);
+            ctx.lineTo(size * 0.3, size * 0.3);
+            ctx.lineTo(size * 0.2, size * 0.4);
+            ctx.stroke();
+            
+            // Right arrow
+            ctx.beginPath();
+            ctx.moveTo(size * 0.8, size * 0.2);
+            ctx.lineTo(size * 0.7, size * 0.3);
+            ctx.lineTo(size * 0.8, size * 0.4);
+            ctx.stroke();
+            
+            // Convert to data URL
+            const dataURL = canvas.toDataURL('image/png');
+            return dataURL;
+        }
+        
+        // Create all icons
+        const icon16 = createIcon('canvas16', 16);
+        const icon48 = createIcon('canvas48', 48);
+        const icon128 = createIcon('canvas128', 128);
+        
+        // Display download links
+        document.body.innerHTML += `
+            <div style="margin-top: 20px;">
+                <h3>Download Icons:</h3>
+                <p><a href="${icon16}" download="icon16.png">Download 16x16 Icon</a></p>
+                <p><a href="${icon48}" download="icon48.png">Download 48x48 Icon</a></p>
+                <p><a href="${icon128}" download="icon128.png">Download 128x128 Icon</a></p>
+            </div>
+        `;
+    </script>
+</body>
+</html>
