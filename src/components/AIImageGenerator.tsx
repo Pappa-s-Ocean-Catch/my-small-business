@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { FaMagic, FaCamera, FaSpinner, FaTimes, FaImage, FaUpload, FaDownload } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { ConfirmationDialog } from './ConfirmationDialog';
@@ -37,7 +37,24 @@ export function AIImageGenerator({
   const [referenceImage, setReferenceImage] = useState<string | null>(null);
   const [referenceImageBase64, setReferenceImageBase64] = useState<string | null>(null);
   const [maxSizeKB, setMaxSizeKB] = useState(300);
+  const [lastGenerationData, setLastGenerationData] = useState<{
+    context: string;
+    referenceImageBase64: string | null;
+    maxSizeKB: number;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Cleanup effect to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (generatedImageBlob) {
+        URL.revokeObjectURL(generatedImageBlob);
+      }
+      if (referenceImage) {
+        URL.revokeObjectURL(referenceImage);
+      }
+    };
+  }, [generatedImageBlob, referenceImage]);
 
   const handleGenerateImage = async () => {
     if (!productName.trim()) {
@@ -88,6 +105,14 @@ export function AIImageGenerator({
       setGeneratedImageBlob(imageUrl);
       setShowGenerator(false);
       setShowPreview(true);
+      
+      // Store the generation data for quick regeneration
+      setLastGenerationData({
+        context: context.trim(),
+        referenceImageBase64,
+        maxSizeKB: maxSizeKB
+      });
+      
       toast.success('AI image generated! Please review and confirm.');
 
     } catch (error) {
@@ -385,7 +410,83 @@ export function AIImageGenerator({
     }
     setGeneratedImageBlob(null);
     setShowPreview(false);
-    setShowGenerator(true);
+    setShowGenerator(false); // Don't automatically show generator after cancel
+  };
+
+  const handleQuickRegenerate = async () => {
+    if (!productName.trim()) {
+      toast.error('Product name is required for image generation');
+      return;
+    }
+
+    if (!lastGenerationData) {
+      toast.error('No previous generation data found. Please use Custom Generate first.');
+      return;
+    }
+
+    setIsGenerating(true);
+
+    try {
+      // Get the user's access token for authentication
+      const { getSupabaseClient } = await import("@/lib/supabase/client");
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        toast.error('No valid session found. Please log in again.');
+        return;
+      }
+
+      const response = await fetch('/api/ai/generate-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          productName: productName.trim(),
+          description: description?.trim(),
+          ingredients: ingredients?.filter(ing => ing.trim()),
+          category: category?.trim(),
+          context: lastGenerationData.context,
+          referenceImageBase64: lastGenerationData.referenceImageBase64,
+          maxSizeKB: lastGenerationData.maxSizeKB
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Image generation failed');
+      }
+
+      // Clean up previous blob URL
+      if (generatedImageBlob) {
+        URL.revokeObjectURL(generatedImageBlob);
+      }
+
+      // Convert base64 to blob URL for preview
+      const imageBlob = await fetch(`data:image/jpeg;base64,${result.imageBase64}`).then(r => r.blob());
+      const imageUrl = URL.createObjectURL(imageBlob);
+      
+      setGeneratedImageBlob(imageUrl);
+      setShowPreview(true);
+      
+      toast.success('AI image regenerated with same settings!');
+
+    } catch (error) {
+      console.error('Quick regeneration error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to regenerate image';
+      
+      // Show a more user-friendly message for unsupported image generation
+      if (errorMessage.includes('not currently supported') || errorMessage.includes('Unable to generate image')) {
+        toast.info('AI image generation is not available yet. Google\'s Gemini models are currently text-based. Please use the traditional image upload below.');
+      } else {
+        toast.error(errorMessage);
+      }
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleDownloadImage = async () => {
@@ -480,6 +581,23 @@ export function AIImageGenerator({
     setPendingAction(null);
   };
 
+  // Reset all generator states
+  const resetGeneratorStates = () => {
+    if (generatedImageBlob) {
+      URL.revokeObjectURL(generatedImageBlob);
+    }
+    setGeneratedImageBlob(null);
+    setShowPreview(false);
+    setShowGenerator(false);
+    setContext('');
+    setReferenceImage(null);
+    setReferenceImageBase64(null);
+    setLastGenerationData(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   return (
     <div className={`space-y-3 ${className}`}>
       {/* Current Image Display */}
@@ -528,13 +646,24 @@ export function AIImageGenerator({
         <button
           type="button"
           onClick={() => {
-            setShowGenerator(!showGenerator);
+            if (showGenerator) {
+              // If generator is open, close it and reset states
+              resetGeneratorStates();
+            } else {
+              // If generator is closed, open it and reset any existing states
+              if (generatedImageBlob) {
+                URL.revokeObjectURL(generatedImageBlob);
+                setGeneratedImageBlob(null);
+              }
+              setShowPreview(false);
+              setShowGenerator(true);
+            }
           }}
           disabled={disabled || isGenerating}
           className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <FaMagic className="w-4 h-4" />
-          {isGenerating ? 'Generating...' : currentImageUrl ? 'Custom Generate' : 'Custom Generate'}
+          {isGenerating ? 'Generating...' : showGenerator ? 'Close Generator' : 'Custom Generate'}
         </button>
       </div>
 
@@ -585,6 +714,26 @@ export function AIImageGenerator({
             >
               <FaDownload className="w-4 h-4" />
               Download
+            </button>
+            
+            <button
+              type="button"
+              onClick={handleQuickRegenerate}
+              disabled={disabled || isGenerating || isUploading || !lastGenerationData}
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Regenerate with same settings"
+            >
+              {isGenerating ? (
+                <>
+                  <FaSpinner className="w-4 h-4 animate-spin" />
+                  Regenerating...
+                </>
+              ) : (
+                <>
+                  <FaMagic className="w-4 h-4" />
+                  Regenerate
+                </>
+              )}
             </button>
             
             <button
@@ -742,7 +891,7 @@ export function AIImageGenerator({
             
             <button
               type="button"
-              onClick={() => setShowGenerator(false)}
+              onClick={resetGeneratorStates}
               disabled={isGenerating}
               className="px-4 py-2 bg-gray-200 dark:bg-neutral-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-neutral-600 transition-colors disabled:opacity-50"
             >

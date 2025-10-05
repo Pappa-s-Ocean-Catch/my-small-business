@@ -152,7 +152,26 @@ export async function generateProductImage({
     const genAI = getGoogleGenAI();
     
     // Build the prompt - be very explicit about wanting an image
-    let prompt = `Generate a high-quality, appetizing food product image for "${productName}". `;
+    let prompt = `Generate a high-quality, appetizing food product image for "${productName}". 
+    
+    IMAGE SPECIFICATIONS:
+    - Minimum resolution: 1280x720 pixels (16:9 aspect ratio)
+    - High resolution for professional use
+    - Sharp, crisp details suitable for menu display
+    - Professional food photography quality
+    - CRITICAL: Image MUST be 16:9 aspect ratio (1280x720 pixels minimum). Do NOT create square images.
+    
+      TEXT OVERLAY REQUIREMENTS:
+      - Add the product name "${productName}" as small text overlay in the top-right corner
+      - Use clean, readable font (sans-serif style)
+      - Text should be semi-transparent white or light colored with subtle shadow for visibility
+      - NO background boxes, containers, or frames - just pure text overlay
+      - Text should be small and unobtrusive, not covering the main food
+      - Position: top-right corner with small margin from edges
+      - Make text appear as if it's floating over the image naturally
+      - CRITICAL: Text must be positioned in the top-right corner only, not near the food
+      - Use dim, muted colors (light gray, off-white) to ensure text doesn't compete with food
+      - Text should be subtle and not draw attention away from the main food subject`;
     
     if (category) {
       prompt += `Category: ${category}. `;
@@ -195,37 +214,101 @@ export async function generateProductImage({
       prompt += `Context: ${context}. `;
     }
     
-    // Enhanced prompt for reference image usage
-    if (referenceImageBase64) {
-      prompt += `CRITICAL INSTRUCTIONS: You must create a COMPLETELY NEW and ENHANCED image based on the reference. Do NOT simply copy or reproduce the reference image. Instead, create a dramatically improved version with these specific transformations:
+        // Enhanced prompt for reference image usage
+        if (referenceImageBase64) {
+          prompt += `CRITICAL INSTRUCTIONS: You must create a COMPLETELY NEW and ENHANCED image based on the reference. Do NOT simply copy or reproduce the reference image. Instead, create a dramatically improved version with these specific transformations:
 
-      MANDATORY TRANSFORMATIONS:
-      - COMPLETELY REMOVE the background - replace with clean white or transparent background
-      - DRAMATICALLY ENHANCE colors - make them 3x more vibrant, saturated, and appetizing
-      - CHANGE the composition - rearrange food items for better visual balance
-      - CREATE SQUARE 1:1 format (crop/adjust from any original ratio)
-      - IMPROVE lighting - add professional studio lighting effects
-      - ENHANCE shadows and depth for 3D appearance
-      - ADD food styling improvements - garnish, plating, presentation
-      - MAKE it look like a professional restaurant menu photo
+          MANDATORY TRANSFORMATIONS:
+          - COMPLETELY REMOVE the background - replace with clean white or transparent background
+          - DRAMATICALLY ENHANCE colors - make them 3x more vibrant, saturated, and appetizing
+          - CHANGE the composition - rearrange food items for better visual balance
+          - CREATE 16:9 format (1280x720 pixels minimum) - crop/adjust from any original ratio
+          - IMPROVE lighting - add professional studio lighting effects
+          - ENHANCE shadows and depth for 3D appearance
+          - ADD food styling improvements - garnish, plating, presentation
+          - MAKE it look like a professional restaurant menu photo
+          - If lettuce is present, show it as chopped/sliced pieces, NOT full leaves
+          
+          CRITICAL: The final image MUST be 16:9 aspect ratio (1280x720 pixels minimum). Do NOT create square images.
+          
+          TEXT POSITIONING RULES:
+          - Product name text MUST be in the top-right corner only
+          - Text should be positioned away from the main food subject
+          - Use the upper-right area of the image, not near the food
+          - Ensure text doesn't overlap with or interfere with the food presentation
       
       DO NOT: Simply copy the reference image or make minor adjustments
       DO: Create a completely new, enhanced, professional food photo
       
       The result should look like it was taken by a professional food photographer with studio lighting, not a phone camera. Transform the reference into a high-end restaurant menu image.
       
-      IMPORTANT: Generate the image in JPEG format for web optimization and smaller file size.`;
-    } else {
-      prompt += `Create a professional, well-lit food photography image that showcases the product attractively. Style: clean, modern food photography with good composition and appetizing presentation. This should be a restaurant menu item photo - generate an actual image file, not just a description.
+      TEXT OVERLAY REQUIREMENTS:
+      - Add the product name "${productName}" as small text overlay in the top-right corner
+      - Use clean, readable font (sans-serif style)
+      - Text should be semi-transparent white or light colored with subtle shadow for visibility
+      - NO background boxes, containers, or frames - just pure text overlay
+      - Text should be small and unobtrusive, not covering the main food
+      - Position: top-right corner with small margin from edges
+      - Make text appear as if it's floating over the image naturally
+      - CRITICAL: Text must be positioned in the top-right corner only, not near the food
+      - Use dim, muted colors (light gray, off-white) to ensure text doesn't compete with food
+      - Text should be subtle and not draw attention away from the main food subject
       
-      FOOD PREPARATION GUIDELINES:
-      - For burgers and sandwiches: use sliced lettuce leaves, not whole lettuce heads
-      - Show ingredients in their prepared form (sliced, chopped, cooked as appropriate)
-      - Ensure all ingredients look fresh and appetizing
-      - Use proper food styling techniques for restaurant presentation
+      FINAL IMAGE REQUIREMENTS:
+      - Generate at 1280x720 pixels minimum (16:9 aspect ratio)
+      - High resolution for crisp menu display
+      - Professional quality suitable for restaurant use
+      
+      IMPORTANT: Generate the image in JPEG format for web optimization and smaller file size.`;
+        } else {
+          prompt += `Create a professional, well-lit food photography image that showcases the product attractively. Style: clean, modern food photography with good composition and appetizing presentation. This should be a restaurant menu item photo - generate an actual image file, not just a description.
+          
+          FOOD PREPARATION GUIDELINES:
+          - For burgers and sandwiches: use sliced lettuce leaves, not whole lettuce heads
+          - If lettuce is mentioned in the product description, show it as chopped/sliced lettuce, NOT full leaves
+          - Show ingredients in their prepared form (sliced, chopped, cooked as appropriate)
+          - Ensure all ingredients look fresh and appetizing
+          - Use proper food styling techniques for restaurant presentation
+          - Lettuce should always appear as chopped or sliced pieces, never as whole leaves
+          
+          TEXT POSITIONING RULES:
+          - Product name text MUST be in the top-right corner only
+          - Text should be positioned away from the main food subject
+          - Use the upper-right area of the image, not near the food
+          - Ensure text doesn't overlap with or interfere with the food presentation
+      
+      TEXT OVERLAY REQUIREMENTS:
+      - Add the product name "${productName}" as small text overlay in the top-right corner
+      - Use clean, readable font (sans-serif style)
+      - Text should be semi-transparent white or light colored with subtle shadow for visibility
+      - NO background boxes, containers, or frames - just pure text overlay
+      - Text should be small and unobtrusive, not covering the main food
+      - Position: top-right corner with small margin from edges
+      - Make text appear as if it's floating over the image naturally
+      - CRITICAL: Text must be positioned in the top-right corner only, not near the food
+      - Use dim, muted colors (light gray, off-white) to ensure text doesn't compete with food
+      - Text should be subtle and not draw attention away from the main food subject
+      
+      FINAL IMAGE REQUIREMENTS:
+      - Generate at 1280x720 pixels minimum (16:9 aspect ratio)
+      - High resolution for crisp menu display
+      - Professional quality suitable for restaurant use
+      - CRITICAL: Image MUST be 16:9 aspect ratio (1280x720 pixels minimum). Do NOT create square images.
       
       IMPORTANT: Generate the image in JPEG format for web optimization and smaller file size.`;
     }
+    
+    // Debug: Log the full prompt being sent to AI
+    console.log('🤖 AI Image Generation Prompt:', {
+      productName,
+      prompt: prompt.substring(0, 500) + '...',
+      fullPrompt: prompt,
+      category,
+      description,
+      ingredients,
+      context,
+      hasReferenceImage: !!referenceImageBase64
+    });
     
     // Use the correct model that supports image generation
     const modelsToTry = [
