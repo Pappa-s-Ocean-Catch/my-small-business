@@ -399,9 +399,9 @@ export default function MenuPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
                 <FaUtensils className="text-blue-600" />
                 Menu Management
               </h1>
@@ -409,17 +409,19 @@ export default function MenuPage() {
                 Manage your menu categories and products with sub-category support
               </p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <ActionButton
                 onClick={() => openCategoryModal()}
                 icon={<FaTag />}
                 variant="secondary"
+                className="w-full sm:w-auto"
               >
                 Add Category
               </ActionButton>
               <ActionButton
                 onClick={() => openProductModal()}
                 icon={<FaPlus />}
+                className="w-full sm:w-auto"
               >
                 Add Product
               </ActionButton>
@@ -427,9 +429,9 @@ export default function MenuPage() {
           </div>
         </div>
 
-        <div className="flex gap-6">
+        <div className="flex flex-col lg:flex-row gap-6">
           {/* Left Sidebar - Categories */}
-          <div className="w-80 flex-shrink-0">
+          <div className="w-full lg:w-80 flex-shrink-0">
             <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700">
               <div className="p-4 border-b border-gray-200 dark:border-neutral-700">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
@@ -605,7 +607,7 @@ export default function MenuPage() {
             </div>
 
             {/* Products Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
               {filteredProducts.map((product) => (
                 <div key={product.id} className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 overflow-hidden">
                   {product.image_url ? (
@@ -850,7 +852,7 @@ export default function MenuPage() {
                       type="text"
                       value={productForm.name}
                       onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
-                      className="w-1/2 h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
+                      className="w-full h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
                       placeholder="Enter product name"
                       required
                     />
@@ -984,7 +986,7 @@ export default function MenuPage() {
                     />
                   </label>
 
-                  <div className="flex items-center justify-center">
+                  <div className="flex items-center justify-start md:justify-center">
                     <label className="flex items-center space-x-3">
                       <input
                         type="checkbox"
@@ -1004,7 +1006,7 @@ export default function MenuPage() {
             {activeProductTab === 'ingredients' && (
               <div className="space-y-4">
                 {/* Ingredient-based thresholds in modal */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <label className="grid gap-1">
                     <span className="text-sm text-gray-700 dark:text-gray-300">Warning Threshold (buildable units)</span>
                     <input
@@ -1080,8 +1082,8 @@ export default function MenuPage() {
                 ) : (
                   <div className="space-y-3">
                     {productForm.ingredients.map((ingredient, index) => (
-                      <div key={index} className="grid grid-cols-1 md:grid-cols-6 gap-3 p-4 border border-gray-200 dark:border-neutral-700 rounded-lg bg-gray-50/50 dark:bg-neutral-800/50">
-                        <div className="md:col-span-3">
+                      <div key={index} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 p-4 border border-gray-200 dark:border-neutral-700 rounded-lg bg-gray-50/50 dark:bg-neutral-800/50">
+                        <div className="sm:col-span-2 lg:col-span-3">
                           <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                             Product
                           </label>
@@ -1234,7 +1236,7 @@ export default function MenuPage() {
               />
             </label>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <label className="grid gap-2">
                 <span className="text-sm text-gray-700 dark:text-gray-300">Parent Category</span>
                 <select
@@ -1263,7 +1265,7 @@ export default function MenuPage() {
               </label>
             </div>
 
-            <div className="flex items-center justify-center">
+            <div className="flex items-center justify-start">
               <label className="flex items-center space-x-3">
                 <input
                   type="checkbox"

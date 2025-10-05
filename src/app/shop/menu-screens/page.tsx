@@ -207,13 +207,44 @@ export default function MenuScreensBuilderPage() {
       const token = sessionData?.session?.access_token;
       if (!token) { toast.error('Not authenticated'); return; }
 
-      // Fetch product names for selected categories
+      // Fetch products for selected categories (name, price, image)
       const { data: productsData, error: productsError } = await supabase
         .from('sale_products')
-        .select('name, sale_category_id, sub_category_id')
-        .in('sale_category_id', selectedCategoryIds);
+        .select('id, name, sale_price, image_url, sale_category_id, sub_category_id')
+        .in('sale_category_id', selectedCategoryIds)
+        .eq('is_active', true);
       if (productsError) { toast.error(`Load products failed: ${productsError.message}`); return; }
-      const productNames = (productsData ?? []).map(p => p.name);
+      const productList = (productsData ?? []).map(p => ({
+        id: p.id as string,
+        name: p.name as string,
+        price: typeof (p as unknown as { sale_price?: number }).sale_price === 'number' ? (p as unknown as { sale_price?: number }).sale_price! : null,
+        imageUrl: (p as unknown as { image_url?: string }).image_url ?? null,
+      }));
+      if (productList.length === 0) {
+        toast.error('No active products found in selected categories');
+        return;
+      }
+
+      // Build a strict, structured context for the AI to generate a full-bleed A0 poster
+      const title = selectedScreen?.screen.name ?? 'Menu Poster';
+      const subtitle = (selectedScreen?.screen as unknown as { subtitle?: string })?.subtitle ?? '';
+      const aiContext = [
+        'Create a single full-bleed poster image suitable for professional printing.',
+        'Target size: A0 (841mm x 1189mm) portrait. Assume 300 DPI appearance. No watermarks.',
+        'Design goals: high contrast, legible from 2m, brand-friendly, appetizing visual style.',
+        'Layout requirements:',
+        `- Title: "${title}"${subtitle ? `; Subtitle: "${subtitle}"` : ''}`,
+        '- Include ALL items listed below. Do not omit any item.',
+        '- For each item: show name and a clear price with dollar symbol (e.g., $12.90).',
+        '- If an item image URL is provided, reflect its subject styling and color palette; avoid changing the dish type.',
+        '- Use a clean grid layout with clear columns and ample spacing. Avoid tiny text.',
+        '- Keep background simple; ensure text contrast. Prefer white or dark solid backgrounds with subtle accents.',
+        '- Do not invent prices; if price is missing, show “Market Price” or leave blank space for manual edit.',
+        '- Reserve 10–15mm safe margin around edges (virtual); still generate as full-bleed.',
+        '',
+        'Items JSON (name, price, image):',
+        JSON.stringify(productList, null, 2)
+      ].join('\n');
 
       const res = await fetch('/api/ai/generate-image', {
         method: 'POST',
@@ -222,12 +253,13 @@ export default function MenuScreensBuilderPage() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          productName: selectedScreen?.screen.name ?? 'Menu Poster',
-          description: 'High quality, print-ready poster for in-store display. Bright, appetizing, clean background, crisp typography placeholder, 300 DPI look.',
-          ingredients: productNames,
-          category: 'Menu',
-          context: 'Create a visually compelling poster highlighting the selected menu items. No watermarks. Center composition.' ,
-          maxSizeKB: 900
+          productName: title,
+          description: 'Full-bleed A0 menu poster with all items and clear prices.',
+          ingredients: productList.map(p => p.name),
+          category: 'MenuPoster',
+          context: aiContext,
+          // Larger size budget for higher fidelity output
+          maxSizeKB: 1600
         })
       });
       const json = await res.json();

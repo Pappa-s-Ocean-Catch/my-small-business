@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase/client";
-import { FaUsers, FaStore, FaUserShield, FaChartPie, FaFileAlt, FaMoneyBillWave, FaPalette, FaCog, FaRobot, FaBox, FaTags, FaWarehouse, FaUtensils, FaCalendarAlt, FaDollarSign, FaChartLine, FaGlobe } from "react-icons/fa";
+import { FaUsers, FaStore, FaUserShield, FaChartPie, FaFileAlt, FaMoneyBillWave, FaPalette, FaCog, FaRobot, FaBox, FaTags, FaWarehouse, FaUtensils, FaCalendarAlt, FaDollarSign, FaChartLine, FaGlobe, FaShoppingCart } from "react-icons/fa";
 
 export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 'horizontal' | 'vertical' }) {
   const [userRole, setUserRole] = useState<'admin' | 'staff' | null>(null);
@@ -457,6 +457,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
           <div className="w-full">
             <Link className={getLinkClasses("/analysis-report")} href="/analysis-report" aria-label="Analysis & Report">Analysis & Report</Link>
             <div className="pl-2">
+              <Link className={getLinkClasses("/orders")} href="/orders" aria-label="Orders">Orders</Link>
               <Link className={getLinkClasses("/reports/shift-reports")} href="/reports/shift-reports" aria-label="Weekly shift report">Weekly shift report</Link>
               <Link className={getLinkClasses("/analytics")} href="/analytics" aria-label="Analysis">Analysis</Link>
               <Link className={getLinkClasses("/wages-report")} href="/wages-report" aria-label="Wages Report">Wages Report</Link>
@@ -484,6 +485,17 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
             <div className="absolute top-full mt-0.5 w-screen max-w-[640px] sm:w-[640px] rounded-xl bg-white/95 dark:bg-neutral-950/95 backdrop-blur shadow-lg z-50 p-3 overflow-hidden"
                  style={{ left: reportOffset === 0 ? 'auto' : reportOffset, right: reportOffset === 0 ? '0' : 'auto' }}>
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                  <Link href="/orders" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 text-emerald-600 dark:text-emerald-400">
+                        <FaShoppingCart className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white">Orders</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">TryPosHub order management and tracking</div>
+                      </div>
+                    </div>
+                  </Link>
                   <Link href="/reports/shift-reports" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-blue-600 dark:text-blue-400">

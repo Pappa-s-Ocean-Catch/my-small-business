@@ -10,9 +10,9 @@ export async function POST(request: Request) {
       return Response.json({ error: "Prompt is required" }, { status: 400 });
     }
 
-    // Use Gemini 2.5 Flash Lite model
+    // Use Gemini 2.5 Flash Image model
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-2.0-flash-exp",
+      model: "gemini-2.5-flash-image",
       generationConfig: {
         temperature: 0.1, // Low temperature for consistent results
         topP: 0.8,

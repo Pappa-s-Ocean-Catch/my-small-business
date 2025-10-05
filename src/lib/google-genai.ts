@@ -61,7 +61,7 @@ export async function generateCombos({
 }): Promise<{ combos: ComboRecommendation[]; error?: string }> {
   try {
     const genAI = getGoogleGenAI();
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-image' });
 
     const schema = {
       type: 'object',
@@ -163,7 +163,32 @@ export async function generateProductImage({
     }
     
     if (ingredients && ingredients.length > 0) {
-      prompt += `Key ingredients: ${ingredients.join(', ')}. `;
+      // Process ingredients to make them more specific for food photography
+      const processedIngredients = ingredients.map(ingredient => {
+        const lowerIngredient = ingredient.toLowerCase();
+        // Make lettuce more specific for burgers
+        if (lowerIngredient.includes('lettuce')) {
+          return 'fresh sliced lettuce leaves';
+        }
+        // Make other common ingredients more appetizing
+        if (lowerIngredient.includes('tomato')) {
+          return 'ripe tomato slices';
+        }
+        if (lowerIngredient.includes('onion')) {
+          return 'thinly sliced onions';
+        }
+        if (lowerIngredient.includes('cheese')) {
+          return 'melted cheese';
+        }
+        if (lowerIngredient.includes('beef') || lowerIngredient.includes('burger')) {
+          return 'juicy beef patty';
+        }
+        if (lowerIngredient.includes('chicken')) {
+          return 'grilled chicken breast';
+        }
+        return ingredient;
+      });
+      prompt += `Key ingredients: ${processedIngredients.join(', ')}. `;
     }
     
     if (context) {
@@ -172,28 +197,42 @@ export async function generateProductImage({
     
     // Enhanced prompt for reference image usage
     if (referenceImageBase64) {
-      prompt += `IMPORTANT: Use the provided reference image as your primary visual guide. Study the reference image carefully and create a new image that:
-      - Maintains the realistic style, composition, and visual elements from the reference
-      - Keeps the authentic look and feel of the reference image
-      - Adds creative and attractive enhancements while staying true to the reference
-      - Improves lighting, presentation, and visual appeal while preserving the core visual identity
-      - Creates a more polished, professional version that builds upon the reference image
-      - Maintains the same food item but with enhanced visual quality and attractiveness
+      prompt += `CRITICAL INSTRUCTIONS: You must create a COMPLETELY NEW and ENHANCED image based on the reference. Do NOT simply copy or reproduce the reference image. Instead, create a dramatically improved version with these specific transformations:
+
+      MANDATORY TRANSFORMATIONS:
+      - COMPLETELY REMOVE the background - replace with clean white or transparent background
+      - DRAMATICALLY ENHANCE colors - make them 3x more vibrant, saturated, and appetizing
+      - CHANGE the composition - rearrange food items for better visual balance
+      - CREATE SQUARE 1:1 format (crop/adjust from any original ratio)
+      - IMPROVE lighting - add professional studio lighting effects
+      - ENHANCE shadows and depth for 3D appearance
+      - ADD food styling improvements - garnish, plating, presentation
+      - MAKE it look like a professional restaurant menu photo
       
-      The reference image shows the actual product - use it as your foundation and enhance it creatively while keeping it realistic and authentic.
+      DO NOT: Simply copy the reference image or make minor adjustments
+      DO: Create a completely new, enhanced, professional food photo
+      
+      The result should look like it was taken by a professional food photographer with studio lighting, not a phone camera. Transform the reference into a high-end restaurant menu image.
       
       IMPORTANT: Generate the image in JPEG format for web optimization and smaller file size.`;
     } else {
       prompt += `Create a professional, well-lit food photography image that showcases the product attractively. Style: clean, modern food photography with good composition and appetizing presentation. This should be a restaurant menu item photo - generate an actual image file, not just a description.
+      
+      FOOD PREPARATION GUIDELINES:
+      - For burgers and sandwiches: use sliced lettuce leaves, not whole lettuce heads
+      - Show ingredients in their prepared form (sliced, chopped, cooked as appropriate)
+      - Ensure all ingredients look fresh and appetizing
+      - Use proper food styling techniques for restaurant presentation
       
       IMPORTANT: Generate the image in JPEG format for web optimization and smaller file size.`;
     }
     
     // Use the correct model that supports image generation
     const modelsToTry = [
-      'gemini-2.5-flash-image-preview',
+      'gemini-2.5-flash-image',
       'gemini-2.0-flash-exp',
-      'gemini-1.5-pro'
+      'gemini-1.5-pro',
+      'gemini-1.5-flash'
     ];
     
     let lastError = null;
@@ -219,7 +258,7 @@ export async function generateProductImage({
           });
           // Add specific instruction about the reference image
           parts.push({
-            text: "This is the reference image. Use it as your primary visual guide to create an enhanced, more attractive version while maintaining the realistic and authentic qualities of the original."
+            text: "This is the reference image. DO NOT copy it directly. Instead, use it as inspiration to create a COMPLETELY NEW, dramatically enhanced version with professional food photography styling, background removal, enhanced colors, and square format. The result should look like a different, more professional photo."
           });
         }
         
@@ -257,7 +296,8 @@ export async function generateProductImage({
         
         // If still no image, log that no image was generated
         if (!imageData) {
-          console.log('Model returned text instead of image or no image data found');
+          console.log(`Model ${modelName} returned text instead of image or no image data found`);
+          console.log('Available models for image generation may be limited. Consider using specialized image generation services.');
         }
         
         if (imageData) {
@@ -306,7 +346,7 @@ export async function generateProductImage({
 export async function analyzeAndEnhanceImage(imageBase64: string, prompt: string): Promise<{ analysis: string; error?: string }> {
   try {
     const genAI = getGoogleGenAI();
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-image' });
     
     const result = await model.generateContent([
       {
