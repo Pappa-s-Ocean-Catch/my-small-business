@@ -1,0 +1,113 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Icon Generator</title>
+</head>
+<body>
+    <canvas id="canvas" width="128" height="128" style="border: 1px solid #ccc;"></canvas>
+    <br>
+    <button onclick="downloadIcon()">Download icon128.png</button>
+    
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const size = 128;
+        const centerX = size / 2;
+        const centerY = size / 2;
+        const radius = size * 0.4;
+        
+        // Background circle
+        const gradient = ctx.createLinearGradient(0, 0, size, size);
+        gradient.addColorStop(0, '#667eea');
+        gradient.addColorStop(1, '#764ba2');
+        
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        // White border
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = Math.max(1, size / 32);
+        ctx.stroke();
+        
+        // Robot head
+        const headWidth = size * 0.4;
+        const headHeight = size * 0.3;
+        const headX = centerX - headWidth / 2;
+        const headY = centerY - headHeight / 2 - size * 0.05;
+        
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(headX, headY, headWidth, headHeight);
+        
+        // Eyes
+        const eyeSize = Math.max(2, size / 16);
+        const eyeY = headY + headHeight * 0.3;
+        const leftEyeX = headX + headWidth * 0.25;
+        const rightEyeX = headX + headWidth * 0.75;
+        
+        ctx.fillStyle = '#667eea';
+        ctx.beginPath();
+        ctx.arc(leftEyeX, eyeY, eyeSize, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        ctx.beginPath();
+        ctx.arc(rightEyeX, eyeY, eyeSize, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        // Mouth
+        const mouthWidth = headWidth * 0.3;
+        const mouthHeight = Math.max(1, size / 32);
+        const mouthX = centerX - mouthWidth / 2;
+        const mouthY = headY + headHeight * 0.7;
+        
+        ctx.fillStyle = '#667eea';
+        ctx.fillRect(mouthX, mouthY, mouthWidth, mouthHeight);
+        
+        // Antenna
+        const antennaHeight = size * 0.1;
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = Math.max(1, size / 32);
+        ctx.beginPath();
+        ctx.moveTo(centerX, headY);
+        ctx.lineTo(centerX, headY - antennaHeight);
+        ctx.stroke();
+        
+        // Antenna ball
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(centerX, headY - antennaHeight, Math.max(1, size / 32), 0, 2 * Math.PI);
+        ctx.fill();
+        
+        // Food items
+        const foodSize = Math.max(2, size / 16);
+        const foodY = centerY + size * 0.2;
+        
+        // Green food
+        ctx.fillStyle = '#4CAF50';
+        ctx.beginPath();
+        ctx.arc(centerX - size * 0.3, foodY, foodSize, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        // Orange food
+        ctx.fillStyle = '#FF9800';
+        ctx.beginPath();
+        ctx.arc(centerX + size * 0.3, foodY, foodSize, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        // Red food
+        ctx.fillStyle = '#F44336';
+        ctx.beginPath();
+        ctx.arc(centerX, centerY + size * 0.3, foodSize * 0.8, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        function downloadIcon() {
+            const link = document.createElement('a');
+            link.download = 'icon128.png';
+            link.href = canvas.toDataURL();
+            link.click();
+        }
+    </script>
+</body>
+</html>
