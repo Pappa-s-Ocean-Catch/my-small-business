@@ -20,7 +20,8 @@ export default function PrintButton() {
             const element = document.querySelector('.print-menu-container') || 
                           document.querySelector('.menu3-clean-container') ||
                           document.querySelector('.promotional-menu-container') ||
-                          document.querySelector('.print-menu-v2');
+                          document.querySelector('.print-menu-v2') ||
+                          document.querySelector('.print-menu-v3');
       
       if (element) {
         const canvas = await html2canvas(element as HTMLElement, {

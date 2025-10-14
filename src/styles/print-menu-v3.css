@@ -1,0 +1,41 @@
+/* V3 Designer Style - Bold hero, 2-column cards, A0 tuned */
+.print-menu-v3 { background: #0b3b75; min-height: 100vh; color: #0f172a; font-family: 'Arial','Helvetica',sans-serif; }
+
+/* Hero */
+.v3-hero { display: flex; justify-content: space-between; align-items: center; padding: 1.2rem 1rem; color: #fff; background: linear-gradient(180deg,#0b3b75 0%, #0b3b75 60%, #f97316 100%); }
+.v3-hero-left { display: flex; flex-direction: column; gap: 0.5rem; }
+.v3-title { margin: 0; font-size: 2.6rem; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; }
+.v3-subtitle { font-size: 1.1rem; font-weight: 800; letter-spacing: 0.5px; }
+.v3-meta { display: flex; gap: 2rem; font-weight: 800; }
+.v3-meta-item { display: flex; align-items: center; gap: 0.5rem; }
+.v3-icon { font-size: 0.9rem; }
+.v3-hero-right { display: flex; align-items: center; }
+
+.v3-main { background: linear-gradient(180deg,#0b3b75 0%, #0b3b75 10%, #f59e0b 100%); padding: 1rem; }
+
+/* Two-column layout */
+.v3-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.v3-card { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 14px rgba(0,0,0,0.15); }
+.v3-card-head { padding: 0.8rem 1rem; color: #fff; text-align: center; font-weight: 900; font-size: 1.3rem; text-transform: uppercase; }
+.v3-card-head.blue { background: #1d4ed8; }
+.v3-card-head.amber { background: #f59e0b; }
+.v3-card-head.violet { background: #8b5cf6; }
+.v3-card-head.green { background: #22c55e; }
+.v3-card-body { padding: 0.8rem 1rem; }
+.v3-row { display: grid; grid-template-columns: 1fr auto; gap: 0.6rem; padding: 0.6rem 0; border-bottom: 1px solid #e5e7eb; }
+.v3-row:last-child { border-bottom: none; }
+.v3-name { font-weight: 900; color: #111827; text-transform: uppercase; }
+.v3-desc { color: #6b7280; font-style: italic; }
+.v3-price { font-weight: 900; color: #dc2626; white-space: nowrap; }
+
+.v3-footer { background: #f3f4f6; text-align: center; padding: 0.8rem 1rem; font-weight: 900; }
+
+@media print {
+  .v3-title { font-size: 2.2rem; }
+  .v3-columns { gap: 0.8rem; }
+  .v3-card-head { font-size: 1.1rem; padding: 0.6rem 0.8rem; }
+  .v3-card-body { padding: 0.6rem 0.8rem; }
+  .v3-row { padding: 0.4rem 0; }
+}
+
+
