@@ -52,6 +52,17 @@ export const menuPage1: MenuPage = {
         { name: "THE LOT", description: "Beef Patty, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Tomato Relish | Add Pineapple +1", price: 9.80 }
       ]
     },
+    {
+      name: "SNACK PACK",
+      color: "#16a34a",
+      items: [
+        { name: "Chicken Snack Pack", description: "", price: 16.0 },
+        { name: "Small Chicken Snack Pack", description: "", price: 10.0 },
+        { name: "Lamb Snack Pack", description: "", price: 16.0 },
+        { name: "Small Lamb Snack Pack", description: "", price: 10.0 },
+        { name: "Mix Snack Pack", description: "", price: 17.0 }
+      ]
+    },
     // 6 items
     {
       name: "CHICKEN BURGERS",
@@ -62,7 +73,8 @@ export const menuPage1: MenuPage = {
         { name: "PERI PERI CHICKEN", description: "Breast Fillet Schnitzel, Jalapenos, Cheese, Tomato, Red Onion, Lettuce, & Peri Peri Mayo", price: 8.9 },
         { name: "TRADITIONAL CHICKEN SCHNITZEL", description: "Crumbed Breast Fillet Schnitzel, Lettuce & Mayo", price: 8.50 },
         { name: "HAWAIIAN CHICKEN", description: "Breast Fillet Schnitzel, Bacon, Pineapple, Cheese, Lettuce, & Mayo", price: 9.5 },
-        { name: "CHICKEN BURGER WITH THE LOT", description: "Breast Fillet Schnitzel, Bacon, Egg, Cheese, Onion Tomato, Lettuce, & Mayo", price: 9.9 }
+        { name: "CHICKEN BURGER WITH THE LOT", description: "Breast Fillet Schnitzel, Bacon, Egg, Cheese, Onion Tomato, Lettuce, & Mayo", price: 9.9 },
+        { name: "KIDS CHICKEN BURGER", description: "Crumbed chicken patty, lettuce & tomato sauce", price: 6.99 }
       ]
     },
     // 2 items
@@ -83,8 +95,13 @@ export const menuPage1: MenuPage = {
         { name: "CHICKEN SOUVLAKI", description: "Breast Fillet Pieces, Lettuce, Tomato, Red Onion, & Tzatziki", price: 12.50 },
         { name: "MIX SOUVLAKI", description: "Lamb Yiros Meat & Breast Fillet Pieces, Lettuce, Tomato, Red Onion, & Tzatziki", price: 13.00 },
         { name: "FISH SOUVLAKI", description: "Flake (Grilled or Fried), Lettuce, Tomato, Red Onion, & Tartare Sauce", price: 13.00 },
+        { name: "GRILLED FISH SOUVLAKI", description: "Grilled flake, lettuce, tomato, red onion, & tartare sauce", price: 13.50 },
         { name: "SOUVA WITH THE LOT", description: "Lamb Yiros Meat, Egg, Bacon, Cheese, Lettuce, Tomato Red Onion, & Tzatziki", price: 16.00 },
-        { name: "VEGETABLE SOUVLAKI", description: "Gourmet Vegetable Patty, Lettuce, Tomato, Red Onion, & Mayo", price: 10.00 }
+        { name: "SOUVA LOT CHICKEN", description: "Chicken, egg, bacon, cheese, lettuce, tomato, red onion, & tzatziki", price: 16.00 },
+        { name: "SOUVA LOT FRIED FISH", description: "Fried fish, egg, bacon, cheese, lettuce, tomato, red onion, & tartare", price: 16.00 },
+        { name: "SOUVA LOT MIX", description: "Mix meat, egg, bacon, cheese, lettuce, tomato, red onion, & tzatziki", price: 17.00 },
+        { name: "VEGETABLE SOUVLAKI", description: "Gourmet Vegetable Patty, Lettuce, Tomato, Red Onion, & Mayo", price: 10.00 },
+        { name: "EXTRA MEAT", description: "Add extra meat to any souvlaki", price: 4.50 }
       ]
     },
     // 3 items
@@ -111,7 +128,7 @@ export const menuPage1: MenuPage = {
       name: "MAKE A COMBO",
       color: "#16a34a",
       items: [
-        { name: "$4.0", description: "3.00 CHIPS + A CAN", price: 4.0 }
+        { name: "$5.30", description: "3.00 CHIPS + A CAN", price: 5.3 }
       ]
     }
   ]

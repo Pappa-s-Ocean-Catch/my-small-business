@@ -2,6 +2,7 @@
 
 import { storeInfo } from '@/data/print-menu-data';
 import { FaCoffee, FaMapMarkerAlt, FaPhone, FaGlobe } from 'react-icons/fa';
+import { useEffect, useRef } from 'react';
 
 interface PrintMenuLayoutProps {
   children: React.ReactNode;
@@ -14,6 +15,33 @@ export default function PrintMenuLayout({
   pageTitle, 
   showHeader = true 
 }: PrintMenuLayoutProps) {
+  const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function generateQrCode() {
+      try {
+        const QRCode = (await import('qrcode')).default;
+        const urlToEncode: string = storeInfo.website;
+        if (qrCanvasRef.current && urlToEncode && isMounted) {
+          await QRCode.toCanvas(qrCanvasRef.current, urlToEncode, {
+            width: 140,
+            margin: 1,
+            color: { dark: '#000000', light: '#ffffff' },
+            errorCorrectionLevel: 'M',
+          });
+        }
+      } catch (err) {
+        // If QR generation fails, we leave the placeholder empty
+        // so the header layout remains stable.
+        console.error('QR generation failed', err);
+      }
+    }
+    generateQrCode();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
   return (
     <div className="print-menu-container">
       {showHeader && (
@@ -43,7 +71,7 @@ export default function PrintMenuLayout({
             <div className="header-right-section">
               <FaCoffee className="coffee-icon right" />
               <div className="qr-code-placeholder">
-                <div className="qr-code-text">QR CODE</div>
+                <canvas ref={qrCanvasRef} width={140} height={140} />
                 <div className="qr-code-subtitle">Scan to Order</div>
               </div>
             </div>
