@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase/client";
-import { FaUsers, FaStore, FaUserShield, FaChartPie, FaFileAlt, FaMoneyBillWave, FaPalette, FaCog, FaRobot, FaBox, FaTags, FaWarehouse, FaUtensils, FaCalendarAlt, FaDollarSign, FaChartLine, FaGlobe, FaShoppingCart } from "react-icons/fa";
+import { FaUsers, FaStore, FaUserShield, FaChartPie, FaFileAlt, FaMoneyBillWave, FaPalette, FaCog, FaRobot, FaBox, FaTags, FaWarehouse, FaUtensils, FaCalendarAlt, FaDollarSign, FaChartLine, FaGlobe, FaShoppingCart, FaGoogle } from "react-icons/fa";
 
 export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 'horizontal' | 'vertical' }) {
   const [userRole, setUserRole] = useState<'admin' | 'staff' | null>(null);
@@ -280,6 +280,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                 <div className="pl-2 space-y-1">
                   <Link className={getLinkClasses("/shop/menu")} href="/shop/menu" aria-label="Menu">Menu</Link>
                   <Link className={getLinkClasses("/shop/combo")} href="/shop/combo" aria-label="Combo">Combo</Link>
+                  <Link className={getLinkClasses("/shop/google-business-sync")} href="/shop/google-business-sync" aria-label="Google Business Sync">Google Business Sync</Link>
                 </div>
               </div>
               <div className="pl-2 mt-2">
@@ -405,6 +406,17 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                             <div>
                               <div className="font-medium text-gray-900 dark:text-white">Combo</div>
                               <div className="text-xs text-gray-600 dark:text-gray-400">AI combo builder for bundles</div>
+                            </div>
+                          </div>
+                        </Link>
+                        <Link href="/shop/google-business-sync" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                          <div className="flex items-start gap-3">
+                            <div className="mt-0.5 text-blue-600 dark:text-blue-400">
+                              <FaGoogle className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="font-medium text-gray-900 dark:text-white">Google Business Sync</div>
+                              <div className="text-xs text-gray-600 dark:text-gray-400">Sync menu to Google Business Profile</div>
                             </div>
                           </div>
                         </Link>
