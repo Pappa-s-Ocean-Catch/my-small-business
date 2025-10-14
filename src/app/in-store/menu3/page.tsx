@@ -28,7 +28,7 @@ export default function MenuPage3() {
             {/* Left Column - Promotional Items */}
             <div className="menu3-left-column">
               {promotionalCategories.map((category) => (
-                <div key={category.name} className={`menu3-category promo-${category.color === '#dc2626' ? 'red' : 'green'}`}>
+                <div key={category.name} className={`menu3-category promo-${category.color === '#dc2626' ? 'red' : category.color === '#f59e0b' ? 'amber' : category.color === '#8b5cf6' ? 'violet' : category.color === '#ec4899' ? 'pink' : category.color === '#06b6d4' ? 'cyan' : 'green'}`}>
                   <div className="menu3-category-header">
                     <h2 className="menu3-category-title">{category.name}</h2>
                     {category.name === 'NEW ITEMS' && <span className="new-badge">NEW!</span>}
@@ -55,7 +55,7 @@ export default function MenuPage3() {
             {/* Right Column - Regular Items */}
             <div className="menu3-right-column">
               {regularCategories.map((category) => (
-                <div key={category.name} className={`menu3-category category-${category.color === '#dc2626' ? 'red' : category.color === '#f97316' ? 'orange' : category.color === '#16a34a' ? 'green' : 'gray'}`}>
+                <div key={category.name} className={`menu3-category category-${category.color === '#dc2626' ? 'red' : category.color === '#f97316' ? 'orange' : category.color === '#16a34a' ? 'green' : category.color === '#f59e0b' ? 'amber' : category.color === '#8b5cf6' ? 'violet' : category.color === '#ec4899' ? 'pink' : category.color === '#06b6d4' ? 'cyan' : category.color === '#84cc16' ? 'lime' : 'gray'}`}>
                   <div className="menu3-category-header">
                     <h2 className="menu3-category-title">{category.name}</h2>
                   </div>

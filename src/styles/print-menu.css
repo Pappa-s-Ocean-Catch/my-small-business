@@ -12,7 +12,7 @@
 .print-menu-header {
   background: #1e3a8a;
   color: white;
-  padding: 1.5rem 2rem;
+  padding: 1.5rem 1rem;
   text-align: center;
 }
 
@@ -20,7 +20,7 @@
 .simple-menu-header {
   background: #1e3a8a;
   color: white;
-  padding: 2rem;
+  padding: 2rem 1rem;
   text-align: center;
   margin-bottom: 0;
 }
@@ -149,7 +149,7 @@
 /* Trading Hours Section - Yellow Background */
 .trading-hours {
   background: #fbbf24;
-  padding: 0.8rem 2rem;
+  padding: 0.8rem 1rem;
   text-align: center;
 }
 
@@ -175,25 +175,25 @@
 
 /* Main Content */
 .print-menu-main {
-  padding: 1.5rem 2rem;
+  padding: 1.5rem 1rem;
   background: white;
-  margin: 0 2rem;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 /* Category Styles */
 .menu-category {
-  margin-bottom: 2.5rem;
+  margin-bottom: 0.8rem;
   background: white;
-  border-radius: 12px;
+  border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .category-header {
-  padding: 1.2rem 2rem;
-  font-size: 1.8rem;
+  padding: 0.6rem 1rem;
+  font-size: 1.4rem;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -202,14 +202,14 @@
 }
 
 .category-items {
-  padding: 1.5rem 2rem;
+  padding: 0.8rem 1rem;
 }
 
 .menu-item {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  padding: 1rem 0;
+  padding: 0.6rem 0;
   border-bottom: 1px solid #e5e7eb;
   gap: 1rem;
 }
@@ -227,42 +227,52 @@
 }
 
 .item-info {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0; /* allow wrapping instead of forcing overflow */
 }
 
 .item-name {
-  font-size: 1.4rem;
+  font-size: 1.2rem;
   font-weight: 700;
   color: #1f2937;
-  margin-bottom: 0.3rem;
+  margin-bottom: 0.2rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  hyphens: auto;
 }
 
 .item-description {
-  font-size: 1.1rem;
+  font-size: 1rem;
   color: #6b7280;
   line-height: 1.3;
   font-style: italic;
+  white-space: normal;
+  overflow-wrap: anywhere; /* break long ingredient lists */
+  word-break: break-word;
+  hyphens: auto;
 }
 
 .item-price {
-  font-size: 1.6rem;
+  font-size: 1.4rem;
   font-weight: 800;
   color: #dc2626;
   white-space: nowrap;
   text-align: right;
   min-width: 80px;
+  flex: 0 0 auto; /* keep price from shrinking while text wraps */
 }
 
 /* Footer */
 .print-menu-footer {
   background: #f3f4f6;
   color: #1a1a1a;
-  padding: 0.8rem 2rem;
+  padding: 0.8rem 1rem;
   text-align: center;
-  margin: 0 2rem;
-  border-radius: 0 0 8px 8px;
+  margin: 0;
+  border-radius: 0;
 }
 
 .footer-content {
@@ -276,8 +286,24 @@
 .menu-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
+  gap: 0.8rem;
   max-width: 100%;
+}
+
+/* Custom Layout for Menu1 - Specific Column Control */
+.menu1-custom-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem;
+  max-width: 100%;
+  padding-right: 1rem; /* Add slight right padding so content isn't flush with edge */
+}
+
+.menu1-left-column,
+.menu1-right-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem; /* Very small gap between categories in same column */
 }
 
 /* Special Layout for Menu2 - PACKS on left (60%), others on right (40%) */
@@ -438,6 +464,42 @@
   background: #16a34a;
 }
 
+.category-brown .category-header {
+  background: #7c2d12;
+}
+
+.category-cyan .category-header {
+  background: #0891b2;
+}
+
+.category-pink .category-header {
+  background: #be185d;
+}
+
+.category-emerald .category-header {
+  background: #059669;
+}
+
+.category-sky-blue .category-header {
+  background: #0ea5e9;
+}
+
+.category-amber .category-header {
+  background: #f59e0b;
+}
+
+.category-violet .category-header {
+  background: #8b5cf6;
+}
+
+.category-rose .category-header {
+  background: #e11d48;
+}
+
+.category-lime .category-header {
+  background: #84cc16;
+}
+
 .category-gray .category-header {
   background: #374151;
 }
@@ -510,6 +572,10 @@
     height: 100vh;
     margin: 0;
     padding: 0;
+  }
+  /* Ensure right margin on menu1 when printing */
+  .menu1-custom-layout {
+    padding-right: 0.8rem !important;
   }
   
   .print-menu-header {
@@ -1056,13 +1122,13 @@
 .menu3-clean-container {
   min-height: 100vh;
   background: linear-gradient(135deg, #fef3c7 0%, #fde68a 50%, #fbbf24 100%);
-  padding: 0.5rem;
+  padding: 1rem;
 }
 
 .menu3-header {
   text-align: center;
   margin-bottom: 1rem;
-  padding: 1rem;
+  padding: 1rem 0;
   background: linear-gradient(135deg, #dc2626 0%, #ef4444 50%, #f97316 100%);
   border-radius: 8px;
   color: white;
@@ -1223,7 +1289,7 @@
 .menu3-footer {
   background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
   color: white;
-  padding: 0.8rem;
+  padding: 0.8rem 0;
   border-radius: 6px;
   text-align: center;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);

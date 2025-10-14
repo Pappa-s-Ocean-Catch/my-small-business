@@ -3,6 +3,7 @@ export interface MenuItem {
   description?: string;
   price: number;
   highlight?: boolean;
+  priceRange?: string;
 }
 
 export interface MenuCategory {
@@ -20,7 +21,7 @@ export interface MenuPage {
 // Store Information
 export const storeInfo = {
   name: "PAPPA'S OCEAN CATCH BURGERS, FISH AND CHIPS",
-  address: "87 UNITT ST, MELTON VIC 3337",
+  address: "2/87 UNITT ST, MELTON VIC 3337",
   phone: "PHONE ORDERS 9743 8150",
   website: "https://pappasoceancatch-ea.com.au/",
   hours: "TRADING HOURS: MON-SUN 11AM-8:30PM (FRI-9PM)",
@@ -54,7 +55,7 @@ export const menuPage1: MenuPage = {
     // 6 items
     {
       name: "CHICKEN BURGERS",
-      color: "#dc2626",
+      color: "#f97316",
       items: [
         { name: "PLAIN CHICKEN", description: "Breast Fillet Schnitzel, Lettuce, & Mayo", price: 6.5 },
         { name: "CHICKEN BLT", description: "Breast Fillet Schnitzel, Bacon, Lettuce, Tomato, Cheese, & Mayo", price: 8.9 },
@@ -64,10 +65,19 @@ export const menuPage1: MenuPage = {
         { name: "CHICKEN BURGER WITH THE LOT", description: "Breast Fillet Schnitzel, Bacon, Egg, Cheese, Onion Tomato, Lettuce, & Mayo", price: 9.9 }
       ]
     },
+    // 2 items
+    {
+      name: "FISH BURGERS",
+      color: "#0891b2",
+      items: [
+        { name: "PLAIN FISH", description: "Flake (Grilled Or Fried), Lettuce, & Tartare", price: 11.00 },
+        { name: "CLASSIC FISH", description: "Flake (Grilled Or Fried), Cheese, Tomato, Lettuce, & Tartare", price: 11.50 }
+      ]
+    },
     // 6 items
     {
       name: "SOUVLAKI",
-      color: "#dc2626",
+      color: "#16a34a",
       items: [
         { name: "LAMB SOUVLAKI", description: "Lamb Yiros Meat, Lettuce, Tomato, Red Onion, & Tzatziki", price: 12.50 },
         { name: "CHICKEN SOUVLAKI", description: "Breast Fillet Pieces, Lettuce, Tomato, Red Onion, & Tzatziki", price: 12.50 },
@@ -80,7 +90,7 @@ export const menuPage1: MenuPage = {
     // 3 items
     {
       name: "STEAK SANDWICHES",
-      color: "#dc2626",
+      color: "#7c2d12",
       items: [
         { name: "PLAIN STEAK", description: "Gourmet Steak, Lettuce, & Tomato Sauce", price: 9.50 },
         { name: "CLASSIC STEAK", description: "Gourmet Steak, Lettuce, Tomato Sauce, Cheese, Tomato, & Red Onion", price: 10.00 },
@@ -89,17 +99,8 @@ export const menuPage1: MenuPage = {
     },
     // 2 items
     {
-      name: "FISH BURGERS",
-      color: "#f97316",
-      items: [
-        { name: "PLAIN FISH", description: "Flake (Grilled Or Fried), Lettuce, & Tartare", price: 11.00 },
-        { name: "CLASSIC FISH", description: "Flake (Grilled Or Fried), Cheese, Tomato, Lettuce, & Tartare", price: 11.50 }
-      ]
-    },
-    // 2 items
-    {
       name: "VEGETARIAN BURGERS",
-      color: "#dc2626",
+      color: "#be185d",
       items: [
         { name: "PLAIN VEGGIE", description: "Gourmet Vegetable Patty, Lettuce, & Tomato Sauce", price: 8.50 },
         { name: "CLASSIC VEGGIE", description: "Gourmet Vegetable Patty, Cheese, Tomato, Red Onion, Lettuce, Mayo, & Tomato Relish", price: 10.00 }
@@ -136,12 +137,28 @@ export const menuPage2: MenuPage = {
         { name: "Salt & Pepper Squid Pack", description: "8 Salt & Pepper Squid, & Small Chips", price: 12.0, highlight: true },
         { name: "Fisherman's Catch", description: "1 Flake, 1 Scallop, 1 Seafood Stick, 2 Calamari Rings, 3.00 Chips & can", price: 21.5, highlight: true },
         { name: "Kids Snack Pack", description: "2 Flathead Fillets, & Small Chips", price: 11.0, highlight: true },
-        { name: "KIDS PACK", description: "1 Fish Bite, 1 Potato Cake, 1 Dim Sim and 3.00 Chips", price: 10.5, highlight: true }
+        { name: "KIDS PACK", description: "1 Fish Bite, 1 Potato Cake, 1 Dim Sim and 3.00 Chips", price: 10.5, highlight: true },
+        { name: "NUGGET N CHIP PACK", description: "4 Nuggets + 200g Chips", price: 0, highlight: true, priceRange: "NA" },
+        { name: "VEGETABLES PACK", description: "1 Vegetables Dim Sim, 1 Vegie Patty, 3 Falafel, $3 Chips", price: 0, highlight: true, priceRange: "NA" }
+      ]
+    },
+    {
+      name: "FISH",
+      color: "#0ea5e9",
+      items: [
+        { name: "Flake", description: "Grilled Or Fried", price: 9.0 },
+        { name: "Blue Grenadier", description: "Grilled Or Fried", price: 9.0 },
+        { name: "Flathead", description: "3 Fillets Fried Only", price: 9.0 },
+        { name: "Barramundi", description: "Grilled Or Fried", price: 9.0 },
+        { name: "Whiting", description: "Grilled Or Fried", price: 9.0 },
+        { name: "Butter Fish", description: "Grilled Or Fried", price: 9.0 },
+        { name: "Barracouta", description: "Fried", price: 11.0 },
+        { name: "Any Grilled Fish Add $0.50", description: "", price: 0.5 }
       ]
     },
     {
       name: "SIDES",
-      color: "#374151",
+      color: "#059669",
       items: [
         { name: "Dim Sim", description: "Steamed or Fried", price: 1.8 },
         { name: "Potato Cake", description: "", price: 1.8 },
@@ -160,32 +177,19 @@ export const menuPage2: MenuPage = {
       ]
     },
     {
-      name: "FISH",
-      color: "#16a34a",
-      items: [
-        { name: "Flake", description: "Grilled Or Fried", price: 9.0 },
-        { name: "Blue Grenadier", description: "Grilled Or Fried", price: 9.0 },
-        { name: "Flathead", description: "3 Fillets Fried Only", price: 9.0 },
-        { name: "Barramundi", description: "Grilled Or Fried", price: 9.0 },
-        { name: "Whiting", description: "Grilled Or Fried", price: 9.0 },
-        { name: "Butter Fish", description: "Grilled Or Fried", price: 9.0 },
-        { name: "Barracouta", description: "Fried", price: 11.0 },
-        { name: "Any Grilled Fish Add $0.50", description: "", price: 0.5 }
-      ]
-    },
-    {
       name: "CHIPS",
-      color: "#374151",
+      color: "#f59e0b",
       items: [
         { name: "Small", description: "Serves 1-2", price: 5.50 },
-        { name: "Medium", description: "Serves 2-3", price: 7.10 },
+        { name: "Medium", description: "Serves 2-3", price: 7.70 },
         { name: "Large", description: "Serves 3-4", price: 9.90 },
-        { name: "Extra Large", description: "Serves 4-5", price: 12.20 }
+        { name: "Extra Large", description: "Serves 4-5", price: 12.20 },
+        { name: "Custom Amount", description: "Order any amount between $4-$10", price: 4.0, priceRange: "$4.00 - $10.00" }
       ]
     },
     {
       name: "SEAFOOD SIDES",
-      color: "#374151",
+      color: "#8b5cf6",
       items: [
         { name: "Seafood Stick", description: "", price: 1.8 },
         { name: "Fish Bite", description: "", price: 4.5 },
@@ -199,7 +203,7 @@ export const menuPage2: MenuPage = {
     },
     {
       name: "CHICKEN BREAST NUGGETS",
-      color: "#f97316",
+      color: "#e11d48",
       items: [
         { name: "4 Nuggets", description: "", price: 4.0 },
         { name: "8 Nuggets", description: "", price: 9.0 },
@@ -208,11 +212,21 @@ export const menuPage2: MenuPage = {
     },
     {
       name: "SWEET",
-      color: "#374151",
+      color: "#f97316",
       items: [
-        { name: "Pineapple, Banana Fritter", description: "", price: 3.5 },
-        { name: "Mars/Snickers In Batter", description: "", price: 3.5 },
-        { name: "Hot Jam Donuts/ 6 For", description: "", price: 1.0 }
+        { name: "Pineapple Fritter", description: "", price: 3.5 },
+        { name: "Banana Fritter", description: "", price: 3.5 },
+        { name: "Mars In Batter", description: "", price: 3.5 },
+        { name: "Snickers In Batter", description: "", price: 3.5 },
+        { name: "Hot Jam Donut", description: "Single", price: 1.0 },
+        { name: "Hot Jam Donuts", description: "6 for $5", price: 5.0 }
+      ]
+    },
+    {
+      name: "SPECIAL COMBO",
+      color: "#dc2626",
+      items: [
+        { name: "COMBO FLAKE PACK FOR 1 + CAN", description: "1 Flake, 1 Potato Cake, 1 Dim Sim, Small Chips + Can", price: 17.5, highlight: true }
       ]
     }
   ]
@@ -246,7 +260,7 @@ export const menuPage3: MenuPage = {
     },
     {
       name: "NEW ITEMS",
-      color: "#dc2626",
+      color: "#f59e0b",
       items: [
         { name: "SNACK PACK (LAMB/CHICKEN)", description: "choice of meat (lamb or chicken), chips, garlic sauce, bbq sauce, and hot chilli.", price: 16.0, highlight: true },
         { name: "KIDS CHICKEN BURGER", description: "Crumbed chicken patty, tomato sauce, cheese, and lettuce.", price: 6.99, highlight: true },
@@ -258,15 +272,15 @@ export const menuPage3: MenuPage = {
     },
     {
       name: "CHIPS & GRAVY",
-      color: "#dc2626",
+      color: "#8b5cf6",
       items: [
-        { name: "(SMALL) CHIPS & GRAVY", description: "now available", price: 5.0, highlight: true },
-        { name: "(LARGE) CHIPS & GRAVY", description: "now available", price: 7.0, highlight: true }
+        { name: "(SMALL) CHIPS & GRAVY", description: "", price: 5.0, highlight: true },
+        { name: "(LARGE) CHIPS & GRAVY", description: "", price: 7.0, highlight: true }
       ]
     },
     {
       name: "TUBS",
-      color: "#dc2626",
+      color: "#ec4899",
       items: [
         { name: "Small TUB", description: "", price: 3.0 },
         { name: "medium TUB", description: "", price: 4.50, highlight: true },
@@ -275,19 +289,20 @@ export const menuPage3: MenuPage = {
     },
     {
       name: "MEAL FOR ONE",
-      color: "#dc2626",
+      color: "#06b6d4",
       items: [
         { name: "MEAL FOR ONE", description: "1 FRIED FLAKE, 2 POTATO CAKE, 2 DIM SIM, HALF SERVE CHIPS + 1 CAN", price: 19.0, highlight: true }
       ]
     },
     {
       name: "DRINKS",
-      color: "#16a34a",
+      color: "#84cc16",
       items: [
         { name: "Any Can", description: "Soft drinks, energy drinks", price: 2.8 },
-        { name: "600ml Bottle", description: "Soft drinks, water, juice", price: 5.0 },
-        { name: "1.25L Bottle", description: "Soft drinks, water", price: 6.0 },
-        { name: "2L Bottle", description: "Soft drinks, water", price: 8.0 }
+        { name: "Water Bottle", description: "", price: 3.0 },
+        { name: "600ml Bottle", description: "Soft drinks, water, juice", price: 4.0 },
+        { name: "1.25L Bottle", description: "Soft drinks, water", price: 5.0 },
+        { name: "2L Bottle", description: "Soft drinks, water", price: 6.0 }
       ]
     }
   ]
