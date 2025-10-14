@@ -128,7 +128,7 @@ export const menuPage1: MenuPage = {
       name: "MAKE A COMBO",
       color: "#16a34a",
       items: [
-        { name: "$5.30", description: "3.00 CHIPS + A CAN", price: 5.3 }
+        { name: "$5.30", description: "$3.00 CHIPS + A CAN", price: 5.3 }
       ]
     }
   ]
@@ -155,8 +155,8 @@ export const menuPage2: MenuPage = {
         { name: "Fisherman's Catch", description: "1 Flake, 1 Scallop, 1 Seafood Stick, 2 Calamari Rings, 3.00 Chips & can", price: 21.5, highlight: true },
         { name: "Kids Snack Pack", description: "2 Flathead Fillets, & Small Chips", price: 11.0, highlight: true },
         { name: "KIDS PACK", description: "1 Fish Bite, 1 Potato Cake, 1 Dim Sim and 3.00 Chips", price: 10.5, highlight: true },
-        { name: "NUGGET N CHIP PACK", description: "4 Nuggets + 200g Chips", price: 0, highlight: true, priceRange: "NA" },
-        { name: "VEGETABLES PACK", description: "1 Vegetables Dim Sim, 1 Vegie Patty, 3 Falafel, $3 Chips", price: 0, highlight: true, priceRange: "NA" }
+        { name: "NUGGET N CHIP PACK", description: "4 Nuggets + 200g Chips", price: 6.90, highlight: true, priceRange: "NA" },
+        { name: "VEGETABLES PACK", description: "1 Vegetables Dim Sim, 1 Vegie Patty, 3 Falafel, $3 Chips", price: 12.95, highlight: true, priceRange: "NA" }
       ]
     },
     {
@@ -315,11 +315,13 @@ export const menuPage3: MenuPage = {
       name: "DRINKS",
       color: "#84cc16",
       items: [
-        { name: "Any Can", description: "Soft drinks, energy drinks", price: 2.8 },
+        { name: "Any Can", description: "Soft drinks, juice, fanta, sprite, coke, etc", price: 2.8 },
         { name: "Water Bottle", description: "", price: 3.0 },
         { name: "600ml Bottle", description: "Soft drinks, water, juice", price: 4.0 },
         { name: "1.25L Bottle", description: "Soft drinks, water", price: 5.0 },
-        { name: "2L Bottle", description: "Soft drinks, water", price: 6.0 }
+        { name: "2L Bottle", description: "Soft drinks, water", price: 6.0 },
+        { name: "Monster Energy", description: "", price: 3.5 },
+        { name: "Powerade Lon4", description: "Red or Blue", price: 3.5 }
       ]
     }
   ]
