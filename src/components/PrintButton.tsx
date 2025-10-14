@@ -19,7 +19,8 @@ export default function PrintButton() {
             // Try to find the appropriate container (menu3 uses different class)
             const element = document.querySelector('.print-menu-container') || 
                           document.querySelector('.menu3-clean-container') ||
-                          document.querySelector('.promotional-menu-container');
+                          document.querySelector('.promotional-menu-container') ||
+                          document.querySelector('.print-menu-v2');
       
       if (element) {
         const canvas = await html2canvas(element as HTMLElement, {
