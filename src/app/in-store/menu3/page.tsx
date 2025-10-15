@@ -7,10 +7,10 @@ import '@/styles/print-menu.css';
 export default function MenuPage3() {
   // Separate promotional items from regular items
   const promotionalCategories = menuPage3.categories.filter(cat => 
-    ['NEW ITEMS', 'CHIPS & GRAVY', 'TUBS', 'MEAL FOR ONE'].includes(cat.name)
+    ['NEW ITEMS', 'FOR VEGETARIANS', 'CHIPS & GRAVY', 'MEAL FOR ONE'].includes(cat.name)
   );
   const regularCategories = menuPage3.categories.filter(cat => 
-    !['NEW ITEMS', 'CHIPS & GRAVY', 'TUBS', 'MEAL FOR ONE'].includes(cat.name)
+    !['NEW ITEMS', 'FOR VEGETARIANS', 'CHIPS & GRAVY', 'MEAL FOR ONE'].includes(cat.name)
   );
 
   return (

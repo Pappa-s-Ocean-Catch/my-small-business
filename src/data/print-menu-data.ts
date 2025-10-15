@@ -100,7 +100,6 @@ export const menuPage1: MenuPage = {
         { name: "SOUVA LOT CHICKEN", description: "Chicken, egg, bacon, cheese, lettuce, tomato, red onion, & tzatziki", price: 16.00 },
         { name: "SOUVA LOT FRIED FISH", description: "Fried fish, egg, bacon, cheese, lettuce, tomato, red onion, & tartare", price: 16.00 },
         { name: "SOUVA LOT MIX", description: "Mix meat, egg, bacon, cheese, lettuce, tomato, red onion, & tzatziki", price: 17.00 },
-        { name: "VEGETABLE SOUVLAKI", description: "Gourmet Vegetable Patty, Lettuce, Tomato, Red Onion, & Mayo", price: 10.00 },
         { name: "EXTRA MEAT", description: "Add extra meat to any souvlaki", price: 4.50 }
       ]
     },
@@ -114,21 +113,12 @@ export const menuPage1: MenuPage = {
         { name: "CLASSIC STEAK LOT", description: "Gourmet Steak, Lettuce, Tomato Sauce, Cheese, Egg, Bacon Tomato, & Red Onion", price: 13.00 }
       ]
     },
-    // 2 items
-    {
-      name: "VEGETARIAN BURGERS",
-      color: "#be185d",
-      items: [
-        { name: "PLAIN VEGGIE", description: "Gourmet Vegetable Patty, Lettuce, & Tomato Sauce", price: 8.50 },
-        { name: "CLASSIC VEGGIE", description: "Gourmet Vegetable Patty, Cheese, Tomato, Red Onion, Lettuce, Mayo, & Tomato Relish", price: 10.00 }
-      ]
-    },
     // 1 item - shortest category
     {
       name: "MAKE A COMBO",
       color: "#16a34a",
       items: [
-        { name: "$5.30", description: "$3.00 CHIPS + A CAN", price: 5.3 }
+        { name: "Chips & Can", description: "$3.00 CHIPS + A CAN", price: 5.3 }
       ]
     }
   ]
@@ -145,7 +135,8 @@ export const menuPage2: MenuPage = {
       items: [
         { name: "FLAKE PACK FOR ONE", description: "1 Flake, 1 Potato Cake, 1 Dim Sim, & Small Chips", price: 15.0, highlight: true },
         { name: "FLAKE PACK FOR TWO", description: "2 Flake, 2 Potato Cakes, 2 Dim Sims, & Small Chips", price: 27.0, highlight: true },
-        { name: "FAMILY FLAKE PACK", description: "4 Flake, 4 Potato Cakes, 4 Dim Sims, & Medium Chips", price: 54.0, highlight: true },
+        { name: "FLAKE PACK FOR 3", description: "3 butterfish, 3 dimsims, 3 potato cake, & medium chip", price: 42.0, highlight: true },
+        { name: "FAMILY FLAKE PACK", description: "4 Flake, 4 Potato Cakes, 4 Dim Sims, & Medium Chips", price: 57.5, highlight: true },
         { name: "DINNER BOX", description: "2 Flake, 2 Fish Bites, 4 Potato Cakes, 4 Dim Sims, Small chips and 1.25L Drink", price: 46.0, highlight: true },
         { name: "FLATHEAD PACK", description: "6 Flathead fillets, & Medium Chips", price: 22.0, highlight: true },
         { name: "DIM & CAKE PACK", description: "2 Potato Cakes, 2 Dim Sims, & Small Chips", price: 11.5, highlight: true },
@@ -156,7 +147,7 @@ export const menuPage2: MenuPage = {
         { name: "Kids Snack Pack", description: "2 Flathead Fillets, & Small Chips", price: 11.0, highlight: true },
         { name: "KIDS PACK", description: "1 Fish Bite, 1 Potato Cake, 1 Dim Sim and 3.00 Chips", price: 10.5, highlight: true },
         { name: "NUGGET N CHIP PACK", description: "4 Nuggets + 200g Chips", price: 6.90, highlight: true, priceRange: "NA" },
-        { name: "VEGETABLES PACK", description: "1 Vegetables Dim Sim, 1 Vegie Patty, 3 Falafel, $3 Chips", price: 12.95, highlight: true, priceRange: "NA" }
+        { name: "Add Panko", description: "", price: 1, highlight: true, priceRange: "NA" }
       ]
     },
     {
@@ -185,12 +176,12 @@ export const menuPage2: MenuPage = {
         { name: "Chicken Breast Nugget", description: "", price: 1.2 },
         { name: "Frankfurt In Batter", description: "", price: 4.5 },
         { name: "Burger In Batter", description: "", price: 5.0 },
-        { name: "Vegie Dim Sim", description: "", price: 2.0 },
         { name: "Pickled Onion", description: "", price: 2.0 },
         { name: "South Melbourne Dim Sim", description: "", price: 3.0 },
         { name: "Cheese Kransky In Batter", description: "", price: 4.5 },
         { name: "Dim Sim In Batter", description: "", price: 2.5 },
-        { name: "Cheese & Bacon Potato Cake", description: "", price: 5.0 }
+        { name: "Cheese & Bacon Potato Cake", description: "", price: 5.0 },
+        { name: "DINO NUGGETS", description: "", price: 1.10, highlight: true }
       ]
     },
     {
@@ -281,10 +272,20 @@ export const menuPage3: MenuPage = {
       items: [
         { name: "SNACK PACK (LAMB/CHICKEN)", description: "choice of meat (lamb or chicken), chips, garlic sauce, bbq sauce, and hot chilli.", price: 16.0, highlight: true },
         { name: "KIDS CHICKEN BURGER", description: "Crumbed chicken patty, tomato sauce, cheese, and lettuce.", price: 6.99, highlight: true },
+        { name: "ONION RINGS", description: "", price: 0.80, highlight: true }
+      ]
+    },
+    {
+      name: "FOR VEGETARIANS",
+      color: "#10b981",
+      items: [
+        { name: "VEGETABLES PACK", description: "1 Vegetables Dim Sim, 1 Vegie Patty, 3 Falafel, $3 Chips", price: 12.95, highlight: true },
+        { name: "CLASSIC VEGGIE BURGER", description: "Gourmet Vegetable Patty, Cheese, Tomato, Red Onion, Lettuce, Mayo, & Tomato Relish", price: 10.00, highlight: true },
+        { name: "VEGETABLE SOUVLAKI", description: "Gourmet Vegetable Patty, Lettuce, Tomato, Red Onion, & Mayo", price: 10.00, highlight: true },
+        { name: "PLAIN VEGGIE BURGER", description: "Gourmet Vegetable Patty, Lettuce, & Tomato Sauce", price: 8.50, highlight: true },
         { name: "SWEET POTATO CHIPS", description: "", price: 6.0, highlight: true },
         { name: "VEGETARIAN SPRING ROLL", description: "", price: 3.50, highlight: true },
-        { name: "DINO NUGGETS", description: "", price: 1.10, highlight: true },
-        { name: "ONION RINGS", description: "", price: 0.80, highlight: true }
+        { name: "VEGIE DIM SIM", description: "", price: 2.0, highlight: true },
       ]
     },
     {
@@ -292,16 +293,10 @@ export const menuPage3: MenuPage = {
       color: "#8b5cf6",
       items: [
         { name: "(SMALL) CHIPS & GRAVY", description: "", price: 5.0, highlight: true },
-        { name: "(LARGE) CHIPS & GRAVY", description: "", price: 7.0, highlight: true }
-      ]
-    },
-    {
-      name: "TUBS",
-      color: "#ec4899",
-      items: [
-        { name: "Small TUB", description: "", price: 3.0 },
-        { name: "medium TUB", description: "", price: 4.50, highlight: true },
-        { name: "Large TUB", description: "", price: 6.50 }
+        { name: "(LARGE) CHIPS & GRAVY", description: "", price: 7.0, highlight: true },
+        { name: "Small Extras Gravy Tub", description: "", price: 3.0 },
+        { name: "Medium Extras Gravy Tub", description: "", price: 4.50, highlight: true },
+        { name: "Large Extras Gravy Tub", description: "", price: 6.50 }
       ]
     },
     {

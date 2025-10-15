@@ -21,18 +21,19 @@ function head(color?: string): string {
 }
 
 export default function Menu2V3() {
-  // Arrange for portrait balance: PACKS + SIDES left; FISH + CHIPS + others right
-  const leftNames = ['PACKS', 'SIDES', 'CHICKEN BREAST NUGGETS'];
-  const rightNames = menuPage2.categories
+  // Use same column layout as v1 for consistency
+  const leftColumnOrder = ['PACKS', 'SIDES', 'CHICKEN BREAST NUGGETS'];
+  const rightColumnOrder = menuPage2.categories
     .map((c) => c.name)
-    .filter((n) => !leftNames.includes(n));
+    .filter((n) => !leftColumnOrder.includes(n));
 
-  const left = leftNames
-    .map((n) => menuPage2.categories.find((c) => c.name === n)!)
-    .filter(Boolean);
-  const right = rightNames
-    .map((n) => menuPage2.categories.find((c) => c.name === n)!)
-    .filter(Boolean);
+  const left = leftColumnOrder
+    .map((name) => menuPage2.categories.find((cat) => cat.name === name))
+    .filter((cat): cat is typeof menuPage2.categories[number] => Boolean(cat));
+
+  const right = rightColumnOrder
+    .map((name) => menuPage2.categories.find((cat) => cat.name === name))
+    .filter((cat): cat is typeof menuPage2.categories[number] => Boolean(cat));
 
   return (
     <>

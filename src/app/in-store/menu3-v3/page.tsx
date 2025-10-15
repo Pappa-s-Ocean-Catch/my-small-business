@@ -7,20 +7,19 @@ import '@/styles/print-menu-v3.css';
 import '@/styles/print-menu.css';
 
 export default function Menu3V3() {
-  // Order MEAL FOR ONE first and show as MEALS
-  const mealIdx = menuPage3.categories.findIndex((c) => c.name === 'MEAL FOR ONE');
-  const ordered = [...menuPage3.categories];
-  if (mealIdx > 0) {
-    const [meal] = ordered.splice(mealIdx, 1);
-    ordered.unshift(meal);
-  }
+  // Use same column layout as v1 for consistency
+  const leftColumnOrder = ['NEW ITEMS', 'FOR VEGETARIANS', 'CHIPS & GRAVY', 'MEAL FOR ONE'];
+  const rightColumnOrder = menuPage3.categories
+    .map((c) => c.name)
+    .filter((n) => !leftColumnOrder.includes(n));
 
-  // Distribute for requested order: Left top -> NEW ITEMS, TUBS, then MEALS, CHIPS & GRAVY; Right -> remaining
-  const leftOrder = ['NEW ITEMS', 'TUBS', 'DRINKS', 'MEAL FOR ONE'];
-  const leftCats = leftOrder
-    .map((name) => ordered.find((c) => c.name === name))
-    .filter((c): c is typeof ordered[number] => Boolean(c));
-  const rightCats = ordered.filter((c) => !leftOrder.includes(c.name));
+  const leftCats = leftColumnOrder
+    .map((name) => menuPage3.categories.find((cat) => cat.name === name))
+    .filter((cat): cat is typeof menuPage3.categories[number] => Boolean(cat));
+
+  const rightCats = rightColumnOrder
+    .map((name) => menuPage3.categories.find((cat) => cat.name === name))
+    .filter((cat): cat is typeof menuPage3.categories[number] => Boolean(cat));
 
   const headClass = (name: string) =>
     name === 'NEW ITEMS' ? 'amber' :

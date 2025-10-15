@@ -21,44 +21,71 @@ function colorToClass(color?: string): string {
 }
 
 export default function Menu2V2() {
+  // Use same column layout as v1 for consistency
+  const leftColumnOrder = ['PACKS', 'SIDES', 'CHICKEN BREAST NUGGETS'];
+  const rightColumnOrder = menuPage2.categories
+    .map((c) => c.name)
+    .filter((n) => !leftColumnOrder.includes(n));
+
+  const leftCats = leftColumnOrder
+    .map((name) => menuPage2.categories.find((cat) => cat.name === name))
+    .filter((cat): cat is typeof menuPage2.categories[number] => Boolean(cat));
+
+  const rightCats = rightColumnOrder
+    .map((name) => menuPage2.categories.find((cat) => cat.name === name))
+    .filter((cat): cat is typeof menuPage2.categories[number] => Boolean(cat));
+
   return (
     <>
       <PrintButton />
       <PrintMenuLayoutV2 pageTitle="FISH & CHIPS & SIDES" subtitle="Packs • Fish • Sides">
-        {(() => {
-          // Make a copy and ensure CHIPS comes before SIDES to balance columns
-          const ordered = [...menuPage2.categories];
-          const chipsIdx = ordered.findIndex((c) => c.name === 'CHIPS');
-          const sidesIdx = ordered.findIndex((c) => c.name === 'SIDES');
-          if (chipsIdx !== -1 && sidesIdx !== -1 && chipsIdx > sidesIdx) {
-            const tmp = ordered[chipsIdx];
-            ordered[chipsIdx] = ordered[sidesIdx];
-            ordered[sidesIdx] = tmp;
-          }
-          return (
-            <div className="v2-masonry">
-              {ordered.map((category) => {
-            const key = colorToClass(category.color);
-            return (
-              <section key={category.name} className={`v2-card v2-accent-${key}`}>
-                <div className={`v2-card-header v2-header-${key}`}>{category.name}</div>
-                <div className="v2-card-body">
-                  {category.items.map((item, idx) => (
-                    <div key={idx} className="v2-item">
-                      <div>
-                        <div className="v2-item-name">{item.name}</div>
-                        {item.description && <div className="v2-item-desc">{item.description}</div>}
+        <div className="v2-columns">
+          {/* Left Column */}
+          <div className="v2-left-column">
+            {leftCats.map((category) => {
+              const key = colorToClass(category.color);
+              return (
+                <section key={category.name} className={`v2-card v2-accent-${key}`}>
+                  <div className={`v2-card-header v2-header-${key}`}>{category.name}</div>
+                  <div className="v2-card-body">
+                    {category.items.map((item, idx) => (
+                      <div key={idx} className="v2-item">
+                        <div>
+                          <div className="v2-item-name">{item.name}</div>
+                          {item.description && <div className="v2-item-desc">{item.description}</div>}
+                        </div>
+                        <div className="v2-item-price">{item.priceRange || `$${item.price.toFixed(2)}`}</div>
                       </div>
-                      <div className="v2-item-price">{item.priceRange || `$${item.price.toFixed(2)}`}</div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            );
-              })}
-            </div>
-          );
-        })()}
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+          
+          {/* Right Column */}
+          <div className="v2-right-column">
+            {rightCats.map((category) => {
+              const key = colorToClass(category.color);
+              return (
+                <section key={category.name} className={`v2-card v2-accent-${key}`}>
+                  <div className={`v2-card-header v2-header-${key}`}>{category.name}</div>
+                  <div className="v2-card-body">
+                    {category.items.map((item, idx) => (
+                      <div key={idx} className="v2-item">
+                        <div>
+                          <div className="v2-item-name">{item.name}</div>
+                          {item.description && <div className="v2-item-desc">{item.description}</div>}
+                        </div>
+                        <div className="v2-item-price">{item.priceRange || `$${item.price.toFixed(2)}`}</div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        </div>
       </PrintMenuLayoutV2>
     </>
   );

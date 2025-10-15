@@ -19,18 +19,17 @@ function colorHeadClass(color?: string): string {
 }
 
 export default function Menu1V3() {
-  // Split into two portrait columns intentionally
-  const leftNames = ['BEEF BURGERS', 'CHICKEN BURGERS', 'FISH BURGERS'];
-  const rightNames = menuPage1.categories
-    .map((c) => c.name)
-    .filter((n) => !leftNames.includes(n));
+  // Use same column layout as v1 for consistency
+  const leftColumnOrder = ['BEEF BURGERS', 'SOUVLAKI'];
+  const rightColumnOrder = ['CHICKEN BURGERS', 'FISH BURGERS', 'VEGETARIAN BURGERS', 'STEAK SANDWICHES', 'MAKE A COMBO'];
 
-  const leftCats = leftNames
-    .map((n) => menuPage1.categories.find((c) => c.name === n)!)
-    .filter(Boolean);
-  const rightCats = rightNames
-    .map((n) => menuPage1.categories.find((c) => c.name === n)!)
-    .filter(Boolean);
+  const leftCats = leftColumnOrder
+    .map((name) => menuPage1.categories.find((cat) => cat.name === name))
+    .filter((cat): cat is typeof menuPage1.categories[number] => Boolean(cat));
+
+  const rightCats = rightColumnOrder
+    .map((name) => menuPage1.categories.find((cat) => cat.name === name))
+    .filter((cat): cat is typeof menuPage1.categories[number] => Boolean(cat));
 
   return (
     <>
