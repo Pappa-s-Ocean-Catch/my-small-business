@@ -178,7 +178,7 @@ export const menuPage2: MenuPage = {
         { name: "Burger In Batter", description: "", price: 5.0 },
         { name: "Pickled Onion", description: "", price: 2.0 },
         { name: "South Melbourne Dim Sim", description: "", price: 3.0 },
-        { name: "Cheese Kransky In Batter", description: "", price: 4.5 },
+        { name: "Cheese Kransky In Batter", description: "", price: 5.0 },
         { name: "Dim Sim In Batter", description: "", price: 2.5 },
         { name: "Cheese & Bacon Potato Cake", description: "", price: 5.0 },
         { name: "DINO NUGGETS", description: "", price: 1.10, highlight: true }
