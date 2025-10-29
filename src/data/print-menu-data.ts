@@ -135,7 +135,7 @@ export const menuPage2: MenuPage = {
       items: [
         { name: "FLAKE PACK FOR ONE", description: "1 Flake, 1 Potato Cake, 1 Dim Sim, & Small Chips", price: 15.0, highlight: true },
         { name: "FLAKE PACK FOR TWO", description: "2 Flake, 2 Potato Cakes, 2 Dim Sims, & Small Chips", price: 27.0, highlight: true },
-        { name: "FLAKE PACK FOR 3", description: "3 butterfish, 3 dimsims, 3 potato cake, & medium chip", price: 42.0, highlight: true },
+        { name: "PACK FOR 3", description: "3 butterfish, 3 dimsims, 3 potato cake, & medium chip", price: 42.0, highlight: true },
         { name: "FAMILY FLAKE PACK", description: "4 Flake, 4 Potato Cakes, 4 Dim Sims, & Medium Chips", price: 57.5, highlight: true },
         { name: "DINNER BOX", description: "2 Flake, 2 Fish Bites, 4 Potato Cakes, 4 Dim Sims, Small chips and 1.25L Drink", price: 46.0, highlight: true },
         { name: "FLATHEAD PACK", description: "6 Flathead fillets, & Medium Chips", price: 22.0, highlight: true },
@@ -188,6 +188,7 @@ export const menuPage2: MenuPage = {
       name: "CHIPS",
       color: "#f59e0b",
       items: [
+        { name: "Half Serve chip", description: "", price: 3.0 },
         { name: "Small", description: "Serves 1-2", price: 5.50 },
         { name: "Medium", description: "Serves 2-3", price: 7.70 },
         { name: "Large", description: "Serves 3-4", price: 9.90 },
@@ -205,6 +206,7 @@ export const menuPage2: MenuPage = {
         { name: "Fish Cake", description: "", price: 3.5 },
         { name: "Calamari Ring", description: "Panko Crumbed", price: 1.5 },
         { name: "Scallop", description: "", price: 3.2 },
+        { name: "Mussels in batter", description: "", price: 2.5 },
         { name: "Salt & Pepper Squid", description: "Serve of 8", price: 7.2 },
         { name: "Prawn In Batter", description: "", price: 3.0 }
       ]
