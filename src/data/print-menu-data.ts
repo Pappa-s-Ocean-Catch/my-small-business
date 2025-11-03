@@ -68,12 +68,12 @@ export const menuPage1: MenuPage = {
       name: "CHICKEN BURGERS",
       color: "#f97316",
       items: [
-        { name: "PLAIN CHICKEN", description: "Breast Fillet Schnitzel, Lettuce, & Mayo", price: 6.5 },
-        { name: "CHICKEN BLT", description: "Breast Fillet Schnitzel, Bacon, Lettuce, Tomato, Cheese, & Mayo", price: 8.9 },
-        { name: "PERI PERI CHICKEN", description: "Breast Fillet Schnitzel, Jalapenos, Cheese, Tomato, Red Onion, Lettuce, & Peri Peri Mayo", price: 8.9 },
+        { name: "PLAIN CHICKEN", description: "Chicken patty, Lettuce, & Mayo", price: 6.5 },
+        { name: "CHICKEN BLT", description: "Chicken patty, Bacon, Lettuce, Tomato, Cheese, & Mayo", price: 8.9 },
+        { name: "PERI PERI CHICKEN", description: "Chicken patty, Jalapenos, Cheese, Tomato, Red Onion, Lettuce, & Peri Peri Mayo", price: 8.9 },
         { name: "TRADITIONAL CHICKEN SCHNITZEL", description: "Crumbed Breast Fillet Schnitzel, Lettuce & Mayo", price: 8.50 },
-        { name: "HAWAIIAN CHICKEN", description: "Breast Fillet Schnitzel, Bacon, Pineapple, Cheese, Lettuce, & Mayo", price: 9.5 },
-        { name: "CHICKEN BURGER WITH THE LOT", description: "Breast Fillet Schnitzel, Bacon, Egg, Cheese, Onion Tomato, Lettuce, & Mayo", price: 9.9 },
+        { name: "HAWAIIAN CHICKEN", description: "Chicken patty, Bacon, Pineapple, Cheese, Lettuce, & Mayo", price: 9.5 },
+        { name: "CHICKEN BURGER WITH THE LOT", description: "Chicken patty, Bacon, Egg, Cheese, Onion Tomato, Lettuce, & Mayo", price: 9.9 },
         { name: "KIDS CHICKEN BURGER", description: "Crumbed chicken patty, lettuce & tomato sauce", price: 6.99 }
       ]
     },
