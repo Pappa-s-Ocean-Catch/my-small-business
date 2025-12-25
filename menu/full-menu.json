@@ -499,8 +499,8 @@
       },
       {
         "name": "Calamari Ring",
-        "description": "Panko crumbed",
-        "price": 1.80
+        "description": "",
+        "price": 1.65
       },
       {
         "name": "Scallop",
@@ -510,7 +510,7 @@
       {
         "name": "Salt & Pepper Squid",
         "description": "Serve of 8",
-        "price": 11.60
+        "price": 10.00
       }
     ]
   },
@@ -595,7 +595,7 @@
       {
         "name": "Pickled Onion",
         "description": "",
-        "price": 2.50
+        "price": 2.00
       },
       {
         "name": "Onion rings",
