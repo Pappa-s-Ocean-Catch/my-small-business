@@ -4,9 +4,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-.playwright-mcp
+.playwright-mcp/
 # Next.js
 .next/
+.next-agent/
 out/
 
 # Environment variables
@@ -32,14 +33,3 @@ build/
 coverage/
 tmp/
 temp/
-
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-.env.development
-.env.test
-.env.production
-
-.next-agent/

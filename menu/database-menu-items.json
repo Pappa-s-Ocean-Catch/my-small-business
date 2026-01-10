@@ -1,0 +1,961 @@
+[
+  {
+    "id": "9726db2b-b23c-44df-b380-83c85b43009f",
+    "name": "6s Hot Jam Donut",
+    "description": null,
+    "sale_price": 6,
+    "category": "SWEET"
+  },
+  {
+    "id": "58694e39-368f-4090-8f90-5574963165cf",
+    "name": "Banana Fritter",
+    "description": null,
+    "sale_price": 4,
+    "category": "SWEET"
+  },
+  {
+    "id": "5be1df50-91f1-433a-93df-bf5b3ab24ad6",
+    "name": "Barracouta",
+    "description": null,
+    "sale_price": 14.5,
+    "category": "FISH"
+  },
+  {
+    "id": "16f97b56-429b-4ffe-ba1d-9f1c1e6bd50f",
+    "name": "Barramundi",
+    "description": "Grilled or fried",
+    "sale_price": 10.5,
+    "category": "FISH"
+  },
+  {
+    "id": "8d5700e9-322d-4c34-a537-913954ad564f",
+    "name": "BBQ Cheese Burger",
+    "description": "Beef Patty, Bacon, Cheese, Tomato, Lettuce, Mayo, & Tomato Sauce",
+    "sale_price": 9.8,
+    "category": "BEEF BURGERS"
+  },
+  {
+    "id": "858dbd70-56c6-45be-bc18-39cc8f7ce9c3",
+    "name": "Blt Cheese Burger",
+    "description": "Beef Patty, Bacon, Cheese, Tomato, Lettuce, Mayo, & Tomato Sauce",
+    "sale_price": 9.7,
+    "category": "BEEF BURGERS"
+  },
+  {
+    "id": "15cd0dca-14f9-4447-bd15-afe4529a0155",
+    "name": "Blue Grenadier",
+    "description": null,
+    "sale_price": 9.5,
+    "category": "FISH"
+  },
+  {
+    "id": "77316b9e-0a22-4486-9d49-ae1eaea213d8",
+    "name": "Burger In Batter",
+    "description": null,
+    "sale_price": 5.2,
+    "category": "SIDES"
+  },
+  {
+    "id": "7a84357c-97f7-44e0-b651-93644eba55cf",
+    "name": "Butter Fish",
+    "description": null,
+    "sale_price": 9.5,
+    "category": "FISH"
+  },
+  {
+    "id": "f9680bc2-fcb7-4e0d-a1a5-fe110ae977d3",
+    "name": "Calamari Pack",
+    "description": "4 x Panko Crumbed Calamari, & Small Chips",
+    "sale_price": 12.2,
+    "category": "PACKS"
+  },
+  {
+    "id": "df5657a8-33ae-454b-a614-8fa34038ff2b",
+    "name": "Calamari Ring",
+    "description": "Panko crumbed",
+    "sale_price": 1.95,
+    "category": "SEAFOOD SIDES"
+  },
+  {
+    "id": "56256c3d-d168-4fe7-81ef-459bb718b777",
+    "name": "Cheese & Bacon Potato Cake",
+    "description": null,
+    "sale_price": 5.5,
+    "category": "SIDES"
+  },
+  {
+    "id": "25938d31-0693-4e05-a21b-530f0b15bf02",
+    "name": "Cheese Burger",
+    "description": "Beef Patty, Cheese, Lettuce, & Tomato Sauce",
+    "sale_price": 8.3,
+    "category": "BEEF BURGERS"
+  },
+  {
+    "id": "633abbc3-ecee-40a3-9473-85b1f65092d7",
+    "name": "Cheese Kransky In Batter",
+    "description": "",
+    "sale_price": 4.95,
+    "category": "SIDES"
+  },
+  {
+    "id": "c375919e-378e-4d2a-bd16-09ade8849329",
+    "name": "Chicken Bit Burger",
+    "description": "Breaded fillet schmaltz, bacon, lettuce, tomato, cheese, & mayo",
+    "sale_price": 10,
+    "category": "CHICKEN BURGERS"
+  },
+  {
+    "id": "47adbcfb-a4da-4dad-861f-b7e4b9979faa",
+    "name": "Chicken Breast Nugget (Single)",
+    "description": null,
+    "sale_price": 1.2,
+    "category": "SIDES"
+  },
+  {
+    "id": "4f6534f9-ba27-4ddb-acd0-e3b95d26daf0",
+    "name": "Chicken Breast Nuggets - 12 Nugget",
+    "description": null,
+    "sale_price": 13,
+    "category": "PACKS"
+  },
+  {
+    "id": "d46f5dec-27f3-4dcc-a880-518eed68bbd2",
+    "name": "Chicken Breast Nuggets - 8 Nuggets",
+    "description": null,
+    "sale_price": 8.5,
+    "category": "PACKS"
+  },
+  {
+    "id": "28af2ceb-8a1c-4301-8349-0cb911e138ae",
+    "name": "Chicken Burger With The Lot",
+    "description": "Breaded fillet schmaltz, bacon, egg, cheese, tomato, lettuce, & mayo",
+    "sale_price": 12,
+    "category": "CHICKEN BURGERS"
+  },
+  {
+    "id": "1f6b5dd2-4ec3-4bc9-a252-6fdedf33fdb8",
+    "name": "Chicken Snack Pack",
+    "description": "Delicious chicken yiros meat with chips and cheese, topped with chilli, barbecue and homemade garlic sauce.",
+    "sale_price": 17.95,
+    "category": "CHICKEN/LAMB SNACK PACK"
+  },
+  {
+    "id": "8fb30f7f-e5b8-45f3-82dc-fc55876b58f7",
+    "name": "Chicken Souvlaki",
+    "description": "Chicken Yiros meat, lettuce, tomato, red onion, & garlic sauce",
+    "sale_price": 13.95,
+    "category": "SOUVLAKI"
+  },
+  {
+    "id": "1fa86639-3bf9-481d-a761-f094fcdd5429",
+    "name": "Chiko Roll",
+    "description": null,
+    "sale_price": 4.2,
+    "category": "SIDES"
+  },
+  {
+    "id": "1ce75894-365a-45a3-b2ad-5f49cfcc4371",
+    "name": "Classic Fish Burger",
+    "description": "Flake (grilled or fried), cheese, tomato, lettuce, & tartare",
+    "sale_price": 13.5,
+    "category": "FISH BURGERS"
+  },
+  {
+    "id": "4b8c2f2c-78e2-41f8-bc8c-868cd2c958d5",
+    "name": "Classic Steak Lot",
+    "description": "Gourmet steak, lettuce, tomato sauce, cheese, egg, bacon, tomato & red onion",
+    "sale_price": 14.5,
+    "category": "STEAK SANDWICHES"
+  },
+  {
+    "id": "295bf874-5b4b-4d92-a7c8-ae770a0cc94c",
+    "name": "Classic Steak Sandwich",
+    "description": "Gourmet steak, lettuce, tomato sauce, cheese, tomato, & red onion",
+    "sale_price": 11,
+    "category": "STEAK SANDWICHES"
+  },
+  {
+    "id": "ebcfa12d-57e4-47d0-88ba-6379690497b0",
+    "name": "Classic Veggie Burger",
+    "description": "Gourmet vegetable patty, cheese, tomato, red onion, lettuce, mayo, & tomato relish",
+    "sale_price": 11,
+    "category": "VEGETARIAN BURGERS"
+  },
+  {
+    "id": "c2f7aebb-96f7-4b84-8905-59cd048ec7b5",
+    "name": "Coke (1.25L)",
+    "description": null,
+    "sale_price": 5.5,
+    "category": "DRINKS"
+  },
+  {
+    "id": "73573003-8cf5-4f48-8f67-b6021333e35f",
+    "name": "Coke (2L)",
+    "description": "",
+    "sale_price": 6.5,
+    "category": "DRINKS"
+  },
+  {
+    "id": "cfd217d5-95a9-4860-9cfa-1918df586e1f",
+    "name": "Coke (600ml)",
+    "description": "",
+    "sale_price": 4.4,
+    "category": "DRINKS"
+  },
+  {
+    "id": "5dc7eb88-6b92-46bb-801b-9028bacc6a80",
+    "name": "Coke (Can)",
+    "description": null,
+    "sale_price": 3.3,
+    "category": "DRINKS"
+  },
+  {
+    "id": "0f304282-d16c-4052-a92b-7b4f672c620f",
+    "name": "Coke Vanilla (600ml)",
+    "description": null,
+    "sale_price": 4.4,
+    "category": "DRINKS"
+  },
+  {
+    "id": "a5d92a47-6f77-46bb-aeec-42ae51790c00",
+    "name": "Coke Vanilla (Can)",
+    "description": null,
+    "sale_price": 3.3,
+    "category": "DRINKS"
+  },
+  {
+    "id": "0393e9dc-c33a-4a2a-890d-925fd957da39",
+    "name": "Coke Vanilla Zero (Can)",
+    "description": null,
+    "sale_price": 3.3,
+    "category": "DRINKS"
+  },
+  {
+    "id": "102276e2-2709-4f3f-8f91-e86923e46d89",
+    "name": "Coke Zero (1.25L)",
+    "description": "",
+    "sale_price": 5.5,
+    "category": "DRINKS"
+  },
+  {
+    "id": "517b1107-b9aa-446b-bbd7-6a66a6ae3bd3",
+    "name": "Coke Zero (2L)",
+    "description": "",
+    "sale_price": 6.5,
+    "category": "DRINKS"
+  },
+  {
+    "id": "05475433-d156-4d9e-886f-2f935314c0e8",
+    "name": "Coke Zero (600ml)",
+    "description": "",
+    "sale_price": 4.4,
+    "category": "DRINKS"
+  },
+  {
+    "id": "3241f4be-96e0-4dd3-adbb-aacf5e6d0e4a",
+    "name": "Coke Zero (Can)",
+    "description": null,
+    "sale_price": 3.3,
+    "category": "DRINKS"
+  },
+  {
+    "id": "fe26e3aa-c2e8-4bb4-94fe-097df26deef7",
+    "name": "Coke Zero Vanilla (600ml)",
+    "description": "",
+    "sale_price": 4.4,
+    "category": "DRINKS"
+  },
+  {
+    "id": "7ce0d890-0419-4b95-beee-060abf014ab2",
+    "name": "Corn Jack",
+    "description": null,
+    "sale_price": 4.2,
+    "category": "SIDES"
+  },
+  {
+    "id": "4d5f788b-2eaf-4b14-94ae-d46a3a9c2097",
+    "name": "Dim & Cake Pack",
+    "description": "2 x Potato Cakes, 2 x Dim Sims, & Small Chips",
+    "sale_price": 12.7,
+    "category": "PACKS"
+  },
+  {
+    "id": "8ae02e9f-9733-4089-8f1a-3ef8fcd9f8f8",
+    "name": "Dim Sim - Fried",
+    "description": "",
+    "sale_price": 1.8,
+    "category": "SIDES"
+  },
+  {
+    "id": "a635acce-f279-4d65-bee5-1c748c5c3261",
+    "name": "Dim Sim - Steamed",
+    "description": "",
+    "sale_price": 1.8,
+    "category": "SIDES"
+  },
+  {
+    "id": "efb3effa-ee3c-4c3f-9e0f-608732e4ecac",
+    "name": "Dimm Sim In Batter",
+    "description": "",
+    "sale_price": 2.85,
+    "category": "SIDES"
+  },
+  {
+    "id": "afdc71ce-4cd2-408a-9a5e-9c83e5ebbe33",
+    "name": "Dino Nuggets",
+    "description": null,
+    "sale_price": 1.1,
+    "category": "SIDES"
+  },
+  {
+    "id": "da86debe-0d44-4f57-97fc-a7050264abee",
+    "name": "Double Cheese Burger",
+    "description": "Two Beef Patties, Double Cheese, Lettuce, & Tomato Sauce",
+    "sale_price": 13.4,
+    "category": "BEEF BURGERS"
+  },
+  {
+    "id": "0995adbc-7d6b-42f9-870f-215cd757cc25",
+    "name": "Egg And Bacon Bun",
+    "description": "2 pieces of bacon with fried egg wrapped with tomato sauce in a delicious bun",
+    "sale_price": 6.5,
+    "category": "ALL DAY BREAKFAST"
+  },
+  {
+    "id": "b482964d-3383-4f94-ac72-6f16ae479302",
+    "name": "Egg And Bacon Sandwich",
+    "description": "2 pieces of bacon with fried egg and tomato sauce in super thick white bread",
+    "sale_price": 6.5,
+    "category": "ALL DAY BREAKFAST"
+  },
+  {
+    "id": "21242346-2415-4fc9-8c06-36b8c55e5501",
+    "name": "Extra Large Chips",
+    "description": "Serves 4-5",
+    "sale_price": 12.5,
+    "category": "CHIPS"
+  },
+  {
+    "id": "79777f92-3bd7-47aa-b253-028fd95cbeef",
+    "name": "Family Flake Pack",
+    "description": "4 x Flake, 4 x Potato Cakes, 4 x Dim Sims, & Medium Chips",
+    "sale_price": 57,
+    "category": "PACKS"
+  },
+  {
+    "id": "9f4bf85a-51a6-470a-aeb2-158a189c67f6",
+    "name": "Fanta (1.25L)",
+    "description": null,
+    "sale_price": 5.5,
+    "category": "DRINKS"
+  },
+  {
+    "id": "523e9c4b-ac77-4eb2-87f0-a086bc920622",
+    "name": "Fanta (2L)",
+    "description": "",
+    "sale_price": 6.5,
+    "category": "DRINKS"
+  },
+  {
+    "id": "c4e20b2c-3815-4434-92ce-2606f5266c8f",
+    "name": "Fanta (600ml)",
+    "description": "",
+    "sale_price": 4.4,
+    "category": "DRINKS"
+  },
+  {
+    "id": "2b2b5cf8-0f0a-4141-a9a2-d2543c5eb48c",
+    "name": "Fanta (Can)",
+    "description": "generate the can only on white blur background, this is 250ml can , keep it look real as possible with actual image in australia for this can",
+    "sale_price": 3.3,
+    "category": "DRINKS"
+  },
+  {
+    "id": "73848088-66b8-4213-b56f-7accd6660ada",
+    "name": "Fish Bite",
+    "description": null,
+    "sale_price": 4.6,
+    "category": "SEAFOOD SIDES"
+  },
+  {
+    "id": "3d464e47-38b5-4221-ac1c-82514cff5607",
+    "name": "Fish Cake",
+    "description": null,
+    "sale_price": 3.75,
+    "category": "SEAFOOD SIDES"
+  },
+  {
+    "id": "13b14fd5-ba81-4d61-b50a-d86442a1e512",
+    "name": "Fish Souvlaki",
+    "description": "Flake (grilled or fried), lettuce, tomato, red onion, & tartare sauce",
+    "sale_price": 14.5,
+    "category": "SOUVLAKI"
+  },
+  {
+    "id": "6a1f11df-1a2c-4971-bf6f-4ab6f7696625",
+    "name": "Fishermans Catch",
+    "description": "1 Flake, 1 scallop, 1 seafood stick, 2 calamari rings, half serve chips and 375ml can",
+    "sale_price": 23,
+    "category": "PACKS"
+  },
+  {
+    "id": "9c23f431-a827-4017-aaa7-14e15f96e9bb",
+    "name": "Flake (Australian)",
+    "description": "Grilled or fried",
+    "sale_price": 9.2,
+    "category": "FISH"
+  },
+  {
+    "id": "d7e366f0-e6fa-4cd9-8cef-4c14fc166555",
+    "name": "Flake Pack For One",
+    "description": "1 x Flake, 1 x Potato Cake, 1 x Dim Sim, & Small Chips",
+    "sale_price": 15.5,
+    "category": "PACKS"
+  },
+  {
+    "id": "93f8f1a7-a11f-4ca4-8f15-c2a282a7ba87",
+    "name": "Flake Pack For Two",
+    "description": "2 x Flake, 2 x Potato Cakes, 2 x Dim Sims, & Small Chips",
+    "sale_price": 27.75,
+    "category": "PACKS"
+  },
+  {
+    "id": "d1db0392-d5f8-4499-8052-68386a5ba116",
+    "name": "Flathead",
+    "description": "3 fillets fried only",
+    "sale_price": 9.5,
+    "category": "FISH"
+  },
+  {
+    "id": "6e5b3da9-f30d-4755-862f-3bb082218af6",
+    "name": "Flathead Pack",
+    "description": "6 x Flathead filets, & Medium Chips",
+    "sale_price": 24,
+    "category": "PACKS"
+  },
+  {
+    "id": "77a3d5b0-644a-4971-94fd-1a84bbf50757",
+    "name": "Frankfurt In Batter",
+    "description": "",
+    "sale_price": 4.75,
+    "category": "SIDES"
+  },
+  {
+    "id": "a89a30e9-66b4-42a5-a8ce-791657c2f141",
+    "name": "Garlic Aioli",
+    "description": null,
+    "sale_price": 2,
+    "category": "SAUCES"
+  },
+  {
+    "id": "564564e1-f296-421c-8e75-ad97e01da469",
+    "name": "Garlic Chicken Balls",
+    "description": "Great tasting chicken balls filled with garlic butter centre and parsley.",
+    "sale_price": 2.2,
+    "category": "SIDES"
+  },
+  {
+    "id": "ac496270-c284-4724-bd17-ecf5ad9cc642",
+    "name": "Gravy Large",
+    "description": "",
+    "sale_price": 7.5,
+    "category": "SIDES"
+  },
+  {
+    "id": "f783c28d-9560-4307-8fa2-48a40d55ddf2",
+    "name": "Gravy Medium",
+    "description": "",
+    "sale_price": 5.5,
+    "category": "SIDES"
+  },
+  {
+    "id": "fe003dc8-2fa9-4989-a122-edad591aa779",
+    "name": "Gravy Small",
+    "description": "",
+    "sale_price": 3.5,
+    "category": "SIDES"
+  },
+  {
+    "id": "6bc31095-6db2-4b42-9319-c9f48fee5151",
+    "name": "Half Serve Chips",
+    "description": "",
+    "sale_price": 3,
+    "category": "CHIPS"
+  },
+  {
+    "id": "a0085a0e-80f4-4c6c-9ab8-08d11d507d60",
+    "name": "Hash Brown",
+    "description": "",
+    "sale_price": 2,
+    "category": "SIDES"
+  },
+  {
+    "id": "7c7ca9c7-ed7f-418b-b44d-9f995f1a224d",
+    "name": "Hawaiian Chicken Burger",
+    "description": "Breaded fillet schmaltz, bacon, pineapple, cheese, lettuce, & mayo",
+    "sale_price": 11,
+    "category": "CHICKEN BURGERS"
+  },
+  {
+    "id": "9817307b-a4e3-4bbf-8fa9-0465495f5b76",
+    "name": "Hot Jam Donut",
+    "description": "",
+    "sale_price": 1.5,
+    "category": "SWEET"
+  },
+  {
+    "id": "0cd1c256-44c5-4e63-9bd4-9a5fd0283b10",
+    "name": "Ketchup",
+    "description": null,
+    "sale_price": 2,
+    "category": "SAUCES"
+  },
+  {
+    "id": "accfe092-f65a-4188-b9d0-6188ea24fff4",
+    "name": "Kids Chicken Burger",
+    "description": "Crumbled chicken patty, lettuce and tomato sauce",
+    "sale_price": 7,
+    "category": "CHICKEN BURGERS"
+  },
+  {
+    "id": "4e635f29-674c-45f9-88d8-caa10585c870",
+    "name": "Kids Pack",
+    "description": "1 fish bite, 1 potato cake, 1 dim sim and $2.00 of chips.",
+    "sale_price": 11,
+    "category": "PACKS"
+  },
+  {
+    "id": "4a578502-7502-401a-9059-054a78595957",
+    "name": "Kids Snack Pack",
+    "description": "2 x Flathead Fillets, & Small Chips",
+    "sale_price": 12.2,
+    "category": "PACKS"
+  },
+  {
+    "id": "048ecf56-3dfd-439e-b006-0c25754ce8ce",
+    "name": "Kirks Creaming Soda (1.25L)",
+    "description": "",
+    "sale_price": 5.5,
+    "category": "DRINKS"
+  },
+  {
+    "id": "63fff1fe-3cc5-4eb5-80c9-1bdfd597b714",
+    "name": "Kirks Creaming Soda (Can)",
+    "description": null,
+    "sale_price": 3.3,
+    "category": "DRINKS"
+  },
+  {
+    "id": "d540217c-6291-4843-847c-70fef9c43796",
+    "name": "Kirks Paisto (1.25L)",
+    "description": "",
+    "sale_price": 5.5,
+    "category": "DRINKS"
+  },
+  {
+    "id": "efb86c01-3dd4-4861-a978-4ff093f55d8c",
+    "name": "Kirks Paisto (Can)",
+    "description": null,
+    "sale_price": 3.3,
+    "category": "DRINKS"
+  },
+  {
+    "id": "47b03b82-e7b4-457c-802d-82a7ab4cbe72",
+    "name": "Lamb Snack Pack",
+    "description": "Delicious Lamb yiros meat with chips and cheese, topped with chilli, barbecue and homemade garlic sauce.",
+    "sale_price": 17.95,
+    "category": "CHICKEN/LAMB SNACK PACK"
+  },
+  {
+    "id": "d8e4eee1-2d30-4862-8e3c-106eca077662",
+    "name": "Lamb Souvlaki",
+    "description": "Lamb yiros meat, lettuce, tomato, red onion, & garlic sauce",
+    "sale_price": 13.95,
+    "category": "SOUVLAKI"
+  },
+  {
+    "id": "d14d1b1d-4cb2-420b-8a1e-f0036c14f608",
+    "name": "Large Chips",
+    "description": "Serves 3-4",
+    "sale_price": 10.5,
+    "category": "CHIPS"
+  },
+  {
+    "id": "e2bd43c9-b782-4cb9-b8f6-667da6f625ff",
+    "name": "Large chips and gravy",
+    "description": "",
+    "sale_price": 7.7,
+    "category": "Chips And Gravy"
+  },
+  {
+    "id": "bf6284fb-0ade-41dd-983d-647b8524d0fb",
+    "name": "Mars Bar In Batter",
+    "description": "",
+    "sale_price": 3.5,
+    "category": "SWEET"
+  },
+  {
+    "id": "241ff112-d000-42e7-95d4-70fca4243a4b",
+    "name": "Medium Chips",
+    "description": "Serves 2-3",
+    "sale_price": 8,
+    "category": "CHIPS"
+  },
+  {
+    "id": "2e412321-cb14-49ff-8e83-614c99b6c921",
+    "name": "Mexican Burger",
+    "description": "Beef Patty, Jalapenos, Cheese, Tomato, Red Onion, Lettuce, & Peri Peri Mayo",
+    "sale_price": 10.2,
+    "category": "BEEF BURGERS"
+  },
+  {
+    "id": "4db21299-693e-4fd0-a389-5e0df3a66fb2",
+    "name": "Mix Snack Pack",
+    "description": "Delicious chicken and lamb yiros meat with chips and cheese, topped with chilli, barbecue and homemade garlic sauce.",
+    "sale_price": 19.95,
+    "category": "CHICKEN/LAMB SNACK PACK"
+  },
+  {
+    "id": "1e51d5b8-967f-4b8a-8adf-9ed5b302ebab",
+    "name": "Mix Souvlaki",
+    "description": "Lamb and Chicken yiros meat, lettuce, tomato, red onion, & garlic sauce",
+    "sale_price": 15.5,
+    "category": "SOUVLAKI"
+  },
+  {
+    "id": "d81108e4-5307-44d2-a33c-6351044327d7",
+    "name": "Monster (Can)",
+    "description": null,
+    "sale_price": 3.8,
+    "category": "DRINKS"
+  },
+  {
+    "id": "bd92c5e0-2a7c-46e7-b584-83b8b9fe91bc",
+    "name": "Monster can Zero (Can)",
+    "description": null,
+    "sale_price": 3.8,
+    "category": "DRINKS"
+  },
+  {
+    "id": "1475b3f6-d02a-439a-9751-a62f8753319b",
+    "name": "Mountain Dew (1.25L)",
+    "description": null,
+    "sale_price": 5.5,
+    "category": "DRINKS"
+  },
+  {
+    "id": "c475eb47-f46c-4897-b9db-e883c8f3f977",
+    "name": "Mountain Dew (2L)",
+    "description": "",
+    "sale_price": 6.5,
+    "category": "DRINKS"
+  },
+  {
+    "id": "b17e2f16-b83d-4900-8172-47e4923375c2",
+    "name": "Mussell In Batter",
+    "description": null,
+    "sale_price": 2.75,
+    "category": "SEAFOOD SIDES"
+  },
+  {
+    "id": "50ea6dd8-1f49-4b05-87a8-89e07c54ca73",
+    "name": "Nuggets And Chips Pack",
+    "description": "",
+    "sale_price": 6.9,
+    "category": "PACKS"
+  },
+  {
+    "id": "0590be44-05ae-457c-8344-310ca8421306",
+    "name": "Pack for 3",
+    "description": "3 Butter fish, 3 potato cakes, 3 dim sims and medium chips.",
+    "sale_price": 42,
+    "category": "PACKS"
+  },
+  {
+    "id": "74260ddc-d5b0-483b-b739-4984ee0b6bcb",
+    "name": "Party Pack",
+    "description": "8 x Potato Cakes, 8 x Dim Sims, & Extra Large Chips",
+    "sale_price": 42,
+    "category": "PACKS"
+  },
+  {
+    "id": "6604089b-84f6-4860-8c2e-22f44bc98f0b",
+    "name": "Pepsi Max (Can)",
+    "description": null,
+    "sale_price": 3.3,
+    "category": "DRINKS"
+  },
+  {
+    "id": "834ed7f2-7d56-43a6-82a9-c89ef3b6aa7b",
+    "name": "Peri Peri Chicken Burger",
+    "description": "Breaded fillet schmaltz, jalapenos, cheese, tomato, red onion, lettuce, & peri peri mayo",
+    "sale_price": 10,
+    "category": "CHICKEN BURGERS"
+  },
+  {
+    "id": "af05f112-de30-4a80-8cd4-edb7eef57219",
+    "name": "Peri Peri Sauce",
+    "description": null,
+    "sale_price": 2,
+    "category": "SAUCES"
+  },
+  {
+    "id": "b1611d8d-14a0-4475-8663-f87339ccf163",
+    "name": "Pickled Onion",
+    "description": null,
+    "sale_price": 2,
+    "category": "SIDES"
+  },
+  {
+    "id": "f7cd9d0f-2809-48b5-8afb-fc376cfcdd0c",
+    "name": "Pineapple Fritter",
+    "description": null,
+    "sale_price": 4,
+    "category": "SWEET"
+  },
+  {
+    "id": "922b1c2c-5726-4224-8d6a-7f7c4b65959e",
+    "name": "Plain Beef Burger",
+    "description": "Beef Patty, Lettuce, & Tomato Sauce",
+    "sale_price": 7.5,
+    "category": "BEEF BURGERS"
+  },
+  {
+    "id": "67433bc9-f77c-4f22-b5c0-26f6a53bf695",
+    "name": "Plain Chicken Burger",
+    "description": "Breaded fillet schmaltz, lettuce, & mayo",
+    "sale_price": 7.95,
+    "category": "CHICKEN BURGERS"
+  },
+  {
+    "id": "170f2ad3-d8a3-449f-93b4-9141e25c99a6",
+    "name": "Plain Fish Burger",
+    "description": "Flake (grilled or fried), lettuce, & tartare",
+    "sale_price": 12.2,
+    "category": "FISH BURGERS"
+  },
+  {
+    "id": "4eff0277-9706-4c85-9f81-1eaddaf44641",
+    "name": "Plain Steak Sandwich",
+    "description": "Gourmet steak, lettuce, & tomato sauce",
+    "sale_price": 11,
+    "category": "STEAK SANDWICHES"
+  },
+  {
+    "id": "3262d41c-7c6b-4924-93fb-5349ee989fc7",
+    "name": "Plain Veggie Burger",
+    "description": "Gourmet vegetable patty, lettuce, & tomato sauce",
+    "sale_price": 9.5,
+    "category": "VEGETARIAN BURGERS"
+  },
+  {
+    "id": "d4d42722-bad7-435d-bd48-7c3dfefc92ce",
+    "name": "Potato Cake",
+    "description": "",
+    "sale_price": 1.8,
+    "category": "SIDES"
+  },
+  {
+    "id": "30350598-2f55-4a24-bba8-1f8f5b4a9975",
+    "name": "Powerade Blue",
+    "description": "",
+    "sale_price": 4.95,
+    "category": "DRINKS"
+  },
+  {
+    "id": "458c7b9a-39fa-4328-9cef-afa21bd3bfb0",
+    "name": "Powerade Red",
+    "description": "",
+    "sale_price": 4.95,
+    "category": "DRINKS"
+  },
+  {
+    "id": "00d72065-ecab-437c-8595-1bcda80c28e5",
+    "name": "Prawn Cutlet",
+    "description": null,
+    "sale_price": 2.95,
+    "category": "SEAFOOD SIDES"
+  },
+  {
+    "id": "9612b6fc-ea7a-4bbf-9fac-615b79f23464",
+    "name": "Prawn In Batter",
+    "description": null,
+    "sale_price": 3.95,
+    "category": "SEAFOOD SIDES"
+  },
+  {
+    "id": "8551aec8-a88c-4edb-aa7b-2657426032f6",
+    "name": "Royale With Cheese Burger",
+    "description": "Beef Patty, Double Cheese, Red Onion, Pickles, Tomato Relish & Mustard",
+    "sale_price": 10.1,
+    "category": "BEEF BURGERS"
+  },
+  {
+    "id": "458fc2fa-03c3-4d0a-bd1f-6100f7962015",
+    "name": "Salt & Pepper Squid",
+    "description": "Serve of 8",
+    "sale_price": 8.5,
+    "category": "SEAFOOD SIDES"
+  },
+  {
+    "id": "83609a71-ccb7-4831-8b2b-dc3bef635d87",
+    "name": "Salt & Pepper Squid Pack",
+    "description": "8 x Salt & Pepper Squid, & Small Chips",
+    "sale_price": 13.8,
+    "category": "PACKS"
+  },
+  {
+    "id": "9518e01e-ddab-45e1-b7d9-3d9eac6f2c80",
+    "name": "Scallop",
+    "description": null,
+    "sale_price": 3.6,
+    "category": "SEAFOOD SIDES"
+  },
+  {
+    "id": "e38a9a9c-8362-4700-9e3d-0d781e94aa5e",
+    "name": "Seafood Stick",
+    "description": null,
+    "sale_price": 2,
+    "category": "SEAFOOD SIDES"
+  },
+  {
+    "id": "b70b1fe5-fe69-4491-b927-569622367fae",
+    "name": "Small Chips",
+    "description": "Serves 1",
+    "sale_price": 5.5,
+    "category": "CHIPS"
+  },
+  {
+    "id": "9735db8a-ab30-4e9c-ab45-389bcac7a4da",
+    "name": "Small chips and gravy",
+    "description": "",
+    "sale_price": 5.5,
+    "category": "Chips And Gravy"
+  },
+  {
+    "id": "11359ea9-d6c0-4215-87f1-0b9fab86eb04",
+    "name": "Snickers In Batter",
+    "description": "",
+    "sale_price": 3.8,
+    "category": "SWEET"
+  },
+  {
+    "id": "6a2a6606-9bbd-416b-ada5-52c93c75719f",
+    "name": "South Melbourne Dim Sim",
+    "description": "",
+    "sale_price": 3.4,
+    "category": "SIDES"
+  },
+  {
+    "id": "f80d3ca6-c7db-4b12-ae3c-5349f080429b",
+    "name": "Souva With The Lot",
+    "description": "Lamb yiros meat, egg, bacon, cheese, lettuce, tomato, red onion & tzatziki.",
+    "sale_price": 18.5,
+    "category": "SOUVLAKI"
+  },
+  {
+    "id": "fc2ed03f-3737-49bc-a3ab-20d5796dc6ab",
+    "name": "Spring Roll",
+    "description": null,
+    "sale_price": 4.2,
+    "category": "SIDES"
+  },
+  {
+    "id": "f52d8125-ffd5-4021-9e7e-a33d73c8aea2",
+    "name": "Sprite (1.25L)",
+    "description": null,
+    "sale_price": 5.5,
+    "category": "DRINKS"
+  },
+  {
+    "id": "ecb76533-3723-421b-b3c2-32435a331c84",
+    "name": "Sprite (2L)",
+    "description": "",
+    "sale_price": 6.5,
+    "category": "DRINKS"
+  },
+  {
+    "id": "f613d212-7375-422c-aa4a-1aa5e006bcbb",
+    "name": "Sprite (Can)",
+    "description": null,
+    "sale_price": 3.3,
+    "category": "DRINKS"
+  },
+  {
+    "id": "dec0009b-5a34-4a40-bff4-53e02f81f853",
+    "name": "Sweet Potato Cake",
+    "description": "",
+    "sale_price": 2.6,
+    "category": "SIDES"
+  },
+  {
+    "id": "30875bf0-2123-447e-992a-a16ac1ea43ce",
+    "name": "Sweet Potato Chips",
+    "description": "A serve of Sweet Potato chips seasoned with salt and choice of sauce.",
+    "sale_price": 7.3,
+    "category": "CHIPS"
+  },
+  {
+    "id": "e41db379-a357-4d1d-b611-5945f711e022",
+    "name": "Tartare Sauce",
+    "description": null,
+    "sale_price": 2,
+    "category": "SAUCES"
+  },
+  {
+    "id": "246e6660-3996-4d04-805b-f1c17ae43a0e",
+    "name": "The Aussie Burger",
+    "description": "Beef Patty, Egg, Bacon, Cheese, Beetroot, Tomato, Red Onion, Lettuce, BBQ Sauce, & Tomato Sauce",
+    "sale_price": 12.2,
+    "category": "BEEF BURGERS"
+  },
+  {
+    "id": "996e4c8e-dad3-4389-8d3a-4f4eb7fb2c6f",
+    "name": "The Lot Burger",
+    "description": "Beef Patty, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Tomato Relish",
+    "sale_price": 11.2,
+    "category": "BEEF BURGERS"
+  },
+  {
+    "id": "93f2c0d1-5fab-454f-8b98-916cf73e3783",
+    "name": "Traditional Chicken Schmaltz",
+    "description": "crumbed breaded fillet schmaltz, lettuce and mayo",
+    "sale_price": 10,
+    "category": "CHICKEN BURGERS"
+  },
+  {
+    "id": "514b27d0-0fb3-4df9-b192-c75bd05cba16",
+    "name": "Tropical Burger",
+    "description": "Beef Patty, Bacon, Pineapple, Cheese, Lettuce, Mayo, & Tomato Relish",
+    "sale_price": 10.3,
+    "category": "BEEF BURGERS"
+  },
+  {
+    "id": "0e230883-4231-441e-a009-b9593bb9fc2c",
+    "name": "Vegetable Souvlaki",
+    "description": "Gourmet vegetable patty, lettuce, tomato, beetroot, red onion, & mayo",
+    "sale_price": 11,
+    "category": "SOUVLAKI"
+  },
+  {
+    "id": "8f31a077-3267-4272-9ce8-4648bc416857",
+    "name": "Vegie Dim Sim",
+    "description": null,
+    "sale_price": 2.2,
+    "category": "SIDES"
+  },
+  {
+    "id": "bc993020-8205-4db7-88a1-8101a65a3341",
+    "name": "Water 600ml",
+    "description": null,
+    "sale_price": 2.2,
+    "category": "DRINKS"
+  },
+  {
+    "id": "194af418-0537-4d0c-8a49-7194d172270c",
+    "name": "Whiting",
+    "description": "Grilled or fried",
+    "sale_price": 9.5,
+    "category": "FISH"
+  }
+]
