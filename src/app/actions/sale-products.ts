@@ -26,6 +26,7 @@ export interface SaleProduct {
   sale_category_id: string | null;
   sub_category_id: string | null;
   is_active: boolean;
+  is_featured: boolean;
   preparation_time_minutes: number;
   created_at: string;
   updated_at: string;
@@ -350,6 +351,7 @@ export async function createSaleProduct(formData: {
   image_url?: string;
   sale_category_id?: string;
   sub_category_id?: string;
+  is_featured?: boolean;
   preparation_time_minutes?: number;
   warning_threshold_units?: number | null;
   alert_threshold_units?: number | null;
@@ -374,6 +376,7 @@ export async function createSaleProduct(formData: {
         image_url: formData.image_url || null,
         sale_category_id: formData.sale_category_id || null,
         sub_category_id: formData.sub_category_id || null,
+        is_featured: formData.is_featured || false,
         preparation_time_minutes: formData.preparation_time_minutes || 0,
         warning_threshold_units: formData.warning_threshold_units ?? null,
         alert_threshold_units: formData.alert_threshold_units ?? null
@@ -455,6 +458,7 @@ export async function updateSaleProduct(
     image_url?: string;
     sale_category_id?: string;
     sub_category_id?: string;
+    is_featured?: boolean;
     preparation_time_minutes?: number;
     is_active?: boolean;
     warning_threshold_units?: number | null;
@@ -481,6 +485,7 @@ export async function updateSaleProduct(
         image_url: formData.image_url || null,
         sale_category_id: formData.sale_category_id || null,
         sub_category_id: formData.sub_category_id || null,
+        is_featured: formData.is_featured ?? false,
         preparation_time_minutes: formData.preparation_time_minutes || 0,
         is_active: formData.is_active !== undefined ? formData.is_active : true,
         warning_threshold_units: formData.warning_threshold_units ?? null,

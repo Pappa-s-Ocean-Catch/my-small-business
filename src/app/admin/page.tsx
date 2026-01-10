@@ -1,23 +1,23 @@
 "use client";
 
 import { LoadingPage } from "@/components/Loading";
-import { UserDashboard } from "@/components/dashboard/UserDashboard";
+import { AdminDashboard } from "@/components/dashboard/AdminDashboard";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-export default function StaffPage() {
+export default function AdminPage() {
   const router = useRouter();
-  const { user, loading, staffShifts } = useDashboardData();
+  const { user, loading, businessStats } = useDashboardData();
 
   useEffect(() => {
     if (!loading && !user) {
       // No authenticated user, redirect to login
-      router.push('/login?redirect=/staff');
-    } else if (!loading && user && user.role_slug !== 'staff') {
-      // User is not staff, redirect to appropriate page
-      if (user.role_slug === 'admin') {
-        router.push('/admin');
+      router.push('/login?redirect=/admin');
+    } else if (!loading && user && user.role_slug !== 'admin') {
+      // User is not admin, redirect to appropriate page
+      if (user.role_slug === 'staff') {
+        router.push('/staff');
       } else {
         router.push('/');
       }
@@ -28,8 +28,8 @@ export default function StaffPage() {
     return <LoadingPage message="Loading dashboard..." />;
   }
 
-  // If no user or not staff, we're redirecting, so don't render anything
-  if (!user || user.role_slug !== 'staff') {
+  // If no user or not admin, we're redirecting, so don't render anything
+  if (!user || user.role_slug !== 'admin') {
     return null;
   }
 
@@ -42,11 +42,11 @@ export default function StaffPage() {
             Welcome back, {user.email.split('@')[0]}!
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
-            Here are your upcoming shifts
+            Here&apos;s your business overview
           </p>
         </div>
 
-        <UserDashboard shifts={staffShifts} />
+        <AdminDashboard businessStats={businessStats} />
       </div>
     </div>
   );

@@ -61,9 +61,9 @@ function ResetPasswordForm() {
         throw new Error(updateError.message);
       }
 
-      setMessage("Password updated successfully! Redirecting to dashboard...");
+      setMessage("Password updated successfully! Redirecting to login...");
       setTimeout(() => {
-        router.push('/');
+        router.push('/login');
       }, 2000);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update password';

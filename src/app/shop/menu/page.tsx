@@ -71,6 +71,7 @@ export default function MenuPage() {
     sub_category_id: '',
     preparation_time_minutes: 0,
     is_active: true,
+    is_featured: false,
     warning_threshold_units: '' as string | number,
     alert_threshold_units: '' as string | number,
     ingredients: [] as Array<{
@@ -225,6 +226,7 @@ export default function MenuPage() {
         sub_category_id: product.sub_category_id || '',
         preparation_time_minutes: product.preparation_time_minutes,
         is_active: product.is_active,
+        is_featured: (product as unknown as { is_featured?: boolean }).is_featured ?? false,
         warning_threshold_units: (product as unknown as { warning_threshold_units?: number | null }).warning_threshold_units ?? '',
         alert_threshold_units: (product as unknown as { alert_threshold_units?: number | null }).alert_threshold_units ?? '',
         ingredients: product.ingredients.map(ing => ({
@@ -246,6 +248,7 @@ export default function MenuPage() {
         sub_category_id: selectedSubCategoryId || '',
         preparation_time_minutes: 0,
         is_active: true,
+        is_featured: false,
         warning_threshold_units: '',
         alert_threshold_units: '',
         ingredients: []
@@ -986,7 +989,7 @@ export default function MenuPage() {
                     />
                   </label>
 
-                  <div className="flex items-center justify-start md:justify-center">
+                  <div className="flex flex-col gap-3">
                     <label className="flex items-center space-x-3">
                       <input
                         type="checkbox"
@@ -996,6 +999,17 @@ export default function MenuPage() {
                       />
                       <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                         Product is active
+                      </span>
+                    </label>
+                    <label className="flex items-center space-x-3">
+                      <input
+                        type="checkbox"
+                        checked={productForm.is_featured}
+                        onChange={(e) => setProductForm({ ...productForm, is_featured: e.target.checked })}
+                        className="rounded border-gray-300 text-rose-600 focus:ring-rose-500 h-4 w-4"
+                      />
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Featured on home page
                       </span>
                     </label>
                   </div>

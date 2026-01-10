@@ -25,7 +25,25 @@ export default function LoginPage() {
       const supabase = getSupabaseClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        router.push('/');
+        // Get user role and redirect accordingly
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role_slug")
+          .eq("id", user.id)
+          .single();
+        
+        const redirectPath = typeof window !== 'undefined' 
+          ? new URLSearchParams(window.location.search).get('redirect')
+          : null;
+        if (redirectPath) {
+          router.push(redirectPath);
+        } else if (profile?.role_slug === 'admin') {
+          router.push('/admin');
+        } else if (profile?.role_slug === 'staff') {
+          router.push('/staff');
+        } else {
+          router.push('/');
+        }
       }
     };
     checkAuth();
@@ -72,11 +90,37 @@ export default function LoginPage() {
           }
         }
         
-        // Successful login - redirect to dashboard
+        // Successful login - redirect based on role
         setMessage("Login successful! Redirecting...");
-        setTimeout(() => {
-          router.push('/');
-        }, 1000);
+        
+        // Get user role
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (authUser) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("role_slug")
+            .eq("id", authUser.id)
+            .single();
+          
+          const redirectPath = typeof window !== 'undefined'
+            ? new URLSearchParams(window.location.search).get('redirect')
+            : null;
+          setTimeout(() => {
+            if (redirectPath) {
+              router.push(redirectPath);
+            } else if (profile?.role_slug === 'admin') {
+              router.push('/admin');
+            } else if (profile?.role_slug === 'staff') {
+              router.push('/staff');
+            } else {
+              router.push('/');
+            }
+          }, 1000);
+        } else {
+          setTimeout(() => {
+            router.push('/');
+          }, 1000);
+        }
       }
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 

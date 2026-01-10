@@ -6,6 +6,7 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from '@vercel/analytics/react';
+import { homeMetadata } from "./metadata";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -18,10 +19,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "OperateFlow",
-  description: "Modern staff & shift management",
-};
+export const metadata: Metadata = homeMetadata;
 
 export default function RootLayout({
   children,

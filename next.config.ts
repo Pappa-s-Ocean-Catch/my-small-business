@@ -4,7 +4,18 @@ const channel = process.env.BUILD_CHANNEL?.trim();
 
 const nextConfig: NextConfig = {
   distDir: channel ? `.next-${channel}` : ".next",
-  /* config options here */
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**',
+      },
+      {
+        protocol: 'http',
+        hostname: '**',
+      },
+    ],
+  },
 };
 
 export default nextConfig;
