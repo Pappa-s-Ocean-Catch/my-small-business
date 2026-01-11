@@ -29,6 +29,7 @@ import {
   type SaleProductWithDetails,
   type SaleCategory
 } from '@/app/actions/sale-products';
+import { getAddonGroups, getSaleProductAddonGroups, type AddonGroupWithItems } from '@/app/actions/addons';
 
 export default function MenuPage() {
   const router = useRouter();
@@ -44,6 +45,7 @@ export default function MenuPage() {
     total_units: number;
     units_per_box: number;
   }>>([]);
+  const [addonGroups, setAddonGroups] = useState<AddonGroupWithItems[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -80,11 +82,12 @@ export default function MenuPage() {
       unit_of_measure: string;
       is_optional: boolean;
       notes: string;
-    }>
+    }>,
+    addon_group_ids: [] as string[]
   });
 
   // Tab state for product form
-  const [activeProductTab, setActiveProductTab] = useState<'overview' | 'ingredients'>('overview');
+  const [activeProductTab, setActiveProductTab] = useState<'overview' | 'ingredients' | 'addons'>('overview');
 
   const [categoryForm, setCategoryForm] = useState({
     name: '',
@@ -102,10 +105,11 @@ export default function MenuPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [productsResult, categoriesResult, availableProductsResult] = await Promise.all([
+      const [productsResult, categoriesResult, availableProductsResult, addonGroupsResult] = await Promise.all([
         getSaleProducts(),
         getSaleCategories(),
-        getAvailableProducts()
+        getAvailableProducts(),
+        getAddonGroups()
       ]);
 
       if (productsResult.error) {
@@ -123,9 +127,15 @@ export default function MenuPage() {
         return;
       }
 
+      if (addonGroupsResult.error) {
+        console.error('Error loading add-on groups:', addonGroupsResult.error);
+        // Don't fail the whole page if add-ons fail to load
+      }
+
       setSaleProducts(productsResult.data || []);
       setSaleCategories(categoriesResult.data || []);
       setAvailableProducts(availableProductsResult.data || []);
+      setAddonGroups(addonGroupsResult.data || []);
     } catch (err) {
       setError('Failed to load data');
       console.error('Error loading data:', err);
@@ -214,9 +224,13 @@ export default function MenuPage() {
   };
 
   // Modal handlers
-  const openProductModal = (product?: SaleProductWithDetails) => {
+  const openProductModal = async (product?: SaleProductWithDetails) => {
     if (product) {
       setEditingProduct(product);
+      // Load add-on groups for this product
+      const addonGroupsResult = await getSaleProductAddonGroups(product.id);
+      const selectedAddonGroupIds = addonGroupsResult.data?.map(g => g.id) || [];
+      
       setProductForm({
         name: product.name,
         description: product.description || '',
@@ -235,7 +249,8 @@ export default function MenuPage() {
           unit_of_measure: ing.unit_of_measure,
           is_optional: ing.is_optional,
           notes: ing.notes || ''
-        }))
+        })),
+        addon_group_ids: selectedAddonGroupIds
       });
     } else {
       setEditingProduct(null);
@@ -251,7 +266,8 @@ export default function MenuPage() {
         is_featured: false,
         warning_threshold_units: '',
         alert_threshold_units: '',
-        ingredients: []
+        ingredients: [],
+        addon_group_ids: []
       });
     }
     setActiveProductTab('overview'); // Reset to overview tab
@@ -295,6 +311,7 @@ export default function MenuPage() {
           ...productForm,
           warning_threshold_units: productForm.warning_threshold_units === '' ? null : Number(productForm.warning_threshold_units),
           alert_threshold_units: productForm.alert_threshold_units === '' ? null : Number(productForm.alert_threshold_units),
+          addon_group_ids: productForm.addon_group_ids,
         });
         if (result.error) {
           toast.error(result.error);
@@ -306,6 +323,7 @@ export default function MenuPage() {
           ...productForm,
           warning_threshold_units: productForm.warning_threshold_units === '' ? null : Number(productForm.warning_threshold_units),
           alert_threshold_units: productForm.alert_threshold_units === '' ? null : Number(productForm.alert_threshold_units),
+          addon_group_ids: productForm.addon_group_ids,
         });
         if (result.error) {
           toast.error(result.error);
@@ -842,6 +860,18 @@ export default function MenuPage() {
                   <FaBox className="w-4 h-4 inline mr-2" />
                   Ingredients
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveProductTab('addons')}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    activeProductTab === 'addons'
+                      ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                  }`}
+                >
+                  <FaTag className="w-4 h-4 inline mr-2" />
+                  Add-ons
+                </button>
               </nav>
             </div>
 
@@ -1186,6 +1216,92 @@ export default function MenuPage() {
                           </button>
                         </div>
                       </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeProductTab === 'addons' && (
+              <div className="space-y-4">
+                <div className="mb-4">
+                  <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Select Add-on Groups
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-500 mb-4">
+                    Choose which add-on groups customers can select from when ordering this item
+                  </p>
+                </div>
+
+                {addonGroups.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                    <FaTag className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                    <h4 className="text-lg font-medium mb-2">No add-on groups available</h4>
+                    <p className="text-sm mb-4">Create add-on groups first to attach them to menu items</p>
+                    <Link
+                      href="/shop/addons"
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      <FaTag className="w-4 h-4" />
+                      Go to Add-ons Management
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {addonGroups.map((group) => (
+                      <label
+                        key={group.id}
+                        className="flex items-start gap-3 p-4 border border-gray-200 dark:border-neutral-700 rounded-lg bg-gray-50/50 dark:bg-neutral-800/50 hover:bg-gray-100/50 dark:hover:bg-neutral-700/50 transition-colors cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={productForm.addon_group_ids.includes(group.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setProductForm({
+                                ...productForm,
+                                addon_group_ids: [...productForm.addon_group_ids, group.id]
+                              });
+                            } else {
+                              setProductForm({
+                                ...productForm,
+                                addon_group_ids: productForm.addon_group_ids.filter(id => id !== group.id)
+                              });
+                            }
+                          }}
+                          className="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-medium text-gray-900 dark:text-white">
+                              {group.name}
+                            </span>
+                            {group.is_required && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+                                Required
+                              </span>
+                            )}
+                            {!group.is_active && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
+                                Inactive
+                              </span>
+                            )}
+                          </div>
+                          {group.description && (
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                              {group.description}
+                            </p>
+                          )}
+                          <div className="text-xs text-gray-500 dark:text-gray-500">
+                            {group.items.length} item{group.items.length !== 1 ? 's' : ''}
+                            {group.items.length > 0 && (
+                              <span className="ml-2">
+                                ({group.items.filter(i => i.is_active).map(i => i.name).join(', ')})
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </label>
                     ))}
                   </div>
                 )}

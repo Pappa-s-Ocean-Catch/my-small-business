@@ -10,6 +10,7 @@ import { PublicNavigation } from "./PublicNavigation";
 const PUBLIC_ROUTES = [
   "/", // Home page
   "/menu", // Menu page
+  "/order", // Order page
 ];
 
 // Check if a pathname is a public route
@@ -24,6 +25,7 @@ function isPublicRoute(pathname: string | null): boolean {
   // Routes that start with these paths
   if (
     pathname.startsWith("/menu/") ||
+    pathname.startsWith("/order/") ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/reset-password")
   ) {

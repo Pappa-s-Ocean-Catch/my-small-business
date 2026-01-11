@@ -362,6 +362,7 @@ export async function createSaleProduct(formData: {
     is_optional: boolean;
     notes?: string;
   }>;
+  addon_group_ids?: string[];
 }): Promise<{ data: SaleProduct | null; error: string | null }> {
   try {
     const supabase = await createServiceRoleClient();
@@ -409,6 +410,25 @@ export async function createSaleProduct(formData: {
         // Rollback: delete the created product
         await supabase.from('sale_products').delete().eq('id', product.id);
         return { data: null, error: ingredientsError.message };
+      }
+    }
+
+    // Create add-on group relationships
+    if (formData.addon_group_ids && formData.addon_group_ids.length > 0) {
+      const addonRelationships = formData.addon_group_ids.map(addon_group_id => ({
+        sale_product_id: product.id,
+        addon_group_id
+      }));
+
+      const { error: addonError } = await supabase
+        .from('sale_product_addon_groups')
+        .insert(addonRelationships);
+
+      if (addonError) {
+        console.error('Error creating add-on group relationships:', addonError);
+        // Rollback: delete the created product
+        await supabase.from('sale_products').delete().eq('id', product.id);
+        return { data: null, error: addonError.message };
       }
     }
 
@@ -470,6 +490,7 @@ export async function updateSaleProduct(
       is_optional: boolean;
       notes?: string;
     }>;
+    addon_group_ids?: string[];
   }
 ): Promise<{ data: SaleProduct | null; error: string | null }> {
   try {
@@ -529,6 +550,34 @@ export async function updateSaleProduct(
       if (ingredientsError) {
         console.error('Error creating new ingredients:', ingredientsError);
         return { data: null, error: ingredientsError.message };
+      }
+    }
+
+    // Update add-on group relationships (delete all and recreate)
+    const { error: deleteAddonError } = await supabase
+      .from('sale_product_addon_groups')
+      .delete()
+      .eq('sale_product_id', id);
+
+    if (deleteAddonError) {
+      console.error('Error deleting old add-on group relationships:', deleteAddonError);
+      return { data: null, error: deleteAddonError.message };
+    }
+
+    // Create new add-on group relationships
+    if (formData.addon_group_ids && formData.addon_group_ids.length > 0) {
+      const addonRelationships = formData.addon_group_ids.map(addon_group_id => ({
+        sale_product_id: id,
+        addon_group_id
+      }));
+
+      const { error: addonError } = await supabase
+        .from('sale_product_addon_groups')
+        .insert(addonRelationships);
+
+      if (addonError) {
+        console.error('Error creating add-on group relationships:', addonError);
+        return { data: null, error: addonError.message };
       }
     }
 

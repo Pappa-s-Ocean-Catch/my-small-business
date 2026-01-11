@@ -194,6 +194,13 @@ export default function Home() {
                 View Our Menu
               </Link>
               <Link
+                href="/order"
+                className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white/10 backdrop-blur-sm text-white rounded-lg font-semibold text-lg hover:bg-white/20 transition-colors border-2 border-white/30"
+              >
+                Pickup Order
+                <FaArrowRight className="w-5 h-5" />
+              </Link>
+              <Link
                 href="https://pappasoceancatch-ea.com.au/"
                 target="_blank"
                 rel="noopener noreferrer"

@@ -17,6 +17,7 @@ import {
   FaUtensils,
   FaBox,
   FaTags,
+  FaTag,
   FaWarehouse,
   FaShoppingBag,
   FaMoneyBillWave,
@@ -213,6 +214,10 @@ export function MobileNav() {
                           <Link href="/shop/menu" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
                             <FaUtensils className="w-4 h-4 mr-2 text-red-400" />
                             Menu
+                          </Link>
+                          <Link href="/shop/addons" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                            <FaTag className="w-4 h-4 mr-2 text-blue-400" />
+                            Add-ons
                           </Link>
                           <Link href="/shop/combo" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
                             <FaUtensils className="w-4 h-4 mr-2 text-emerald-400" />
