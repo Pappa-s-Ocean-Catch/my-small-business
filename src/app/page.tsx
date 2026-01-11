@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import Link from "next/link";
-import { FaUtensils, FaArrowRight, FaPhone, FaClock, FaEnvelope } from "react-icons/fa";
+import { FaUtensils, FaArrowRight, FaPhone, FaClock, FaEnvelope, FaMapMarkerAlt } from "react-icons/fa";
 import Image from "next/image";
 import Script from "next/script";
 import { TypewriterText } from "@/components/TypewriterText";
@@ -509,6 +509,79 @@ export default function Home() {
                   {contactLoading ? "Sending..." : "Send Message"}
                 </button>
               </form>
+            </div>
+          </div>
+        </section>
+
+        {/* Map Section */}
+        <section className="py-20 px-4 bg-gradient-to-b from-white to-gray-50">
+          <div className="max-w-6xl mx-auto">
+            <div className="text-center mb-12">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-rose-100 rounded-full mb-4">
+                <FaMapMarkerAlt className="w-8 h-8 text-rose-600" />
+              </div>
+              <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+                Find Us
+              </h2>
+              <p className="text-xl text-gray-600">
+                Visit us at our location in Melton
+              </p>
+            </div>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Address Card */}
+              <div className="bg-white rounded-lg shadow-lg p-8">
+                <h3 className="text-2xl font-bold text-gray-900 mb-4">Our Location</h3>
+                <div className="space-y-4">
+                  <div className="flex items-start gap-3">
+                    <FaMapMarkerAlt className="w-5 h-5 text-rose-600 mt-1 flex-shrink-0" />
+                    <div>
+                      <p className="text-lg font-semibold text-gray-900">Pappa&apos;s Ocean Catch</p>
+                      <p className="text-gray-600">
+                        2/87 Unitt Street<br />
+                        Melton VIC 3337<br />
+                        Australia
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <FaPhone className="w-5 h-5 text-rose-600 mt-1 flex-shrink-0" />
+                    <div>
+                      <p className="text-gray-600">
+                        <a href="tel:+61397438150" className="hover:text-rose-600 transition-colors">
+                          (03) 9743 8150
+                        </a>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-6">
+                  <a
+                    href="https://www.google.com/maps/dir/?api=1&destination=-37.682364,144.580813"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-rose-600 text-white rounded-lg font-semibold hover:bg-rose-700 transition-colors shadow-lg hover:shadow-xl"
+                  >
+                    <FaArrowRight className="w-4 h-4" />
+                    Get Directions
+                  </a>
+                </div>
+              </div>
+
+              {/* Google Maps Embed */}
+              <div className="rounded-lg shadow-lg overflow-hidden">
+                <iframe
+                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3144.1234567890123!2d144.580813!3d-37.682364!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x6ad6ed3df5090b31%3A0xc1552fd45e7cd665!2sPappa%27s%20Ocean%20Catch!5e0!3m2!1sen!2sau!4v1234567890123!5m2!1sen!2sau"
+                  width="100%"
+                  height="100%"
+                  style={{ minHeight: "400px", border: 0 }}
+                  allowFullScreen
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                  title="Pappa's Ocean Catch Location - 2/87 Unitt Street, Melton VIC 3337"
+                  className="w-full"
+                />
+              </div>
             </div>
           </div>
         </section>
