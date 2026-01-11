@@ -147,27 +147,18 @@ export default function Home() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
       <div className="min-h-screen bg-white">
-        {/* Hero Section with Video Background */}
+        {/* Hero Section with Image Background */}
         <section className="relative h-screen flex items-center justify-center overflow-hidden">
-          {/* Video Background */}
+          {/* Image Background */}
           <div className="absolute inset-0 z-0">
-            <video
-              autoPlay
-              loop
-              muted
-              playsInline
-              className="w-full h-full object-cover"
-              poster="/hero-poster.jpg"
-              onError={(e) => {
-                // Hide video if it fails to load and show fallback
-                const target = e.target as HTMLVideoElement;
-                target.style.display = 'none';
-              }}
-            >
-              <source src="/hero-video.mp4" type="video/mp4" />
-            </video>
-            {/* Fallback gradient background if video doesn't load */}
-            <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-rose-100 via-orange-50 to-amber-100" />
+            <Image
+              src="/hero.png"
+              alt="Pappa's Ocean Catch"
+              fill
+              className="object-cover"
+              priority
+              unoptimized
+            />
             {/* Overlay for better text readability */}
             <div className="absolute inset-0 bg-black/40" />
           </div>
