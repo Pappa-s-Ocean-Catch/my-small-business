@@ -184,7 +184,9 @@ export default function Home() {
                 View Our Menu
               </Link>
               <Link
-                href="/menu"
+                href="https://pappasoceancatch-ea.com.au/"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white/10 backdrop-blur-sm text-white rounded-lg font-semibold text-lg hover:bg-white/20 transition-colors border-2 border-white/30"
               >
                 Order Online
@@ -571,7 +573,7 @@ export default function Home() {
               {/* Google Maps Embed */}
               <div className="rounded-lg shadow-lg overflow-hidden">
                 <iframe
-                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3144.1234567890123!2d144.580813!3d-37.682364!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x6ad6ed3df5090b31%3A0xc1552fd45e7cd665!2sPappa%27s%20Ocean%20Catch!5e0!3m2!1sen!2sau!4v1234567890123!5m2!1sen!2sau"
+                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3144.1234567890123!2d144.580813!3d-37.682364!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x6ad6ed3df5090b31%3A0xc1552fd45e7cd665!2sPappa%27s%20Ocean%20Catch!5e0!3m2!1sen!2sau!4v1704960000000!5m2!1sen!2sau"
                   width="100%"
                   height="100%"
                   style={{ minHeight: "400px", border: 0 }}
