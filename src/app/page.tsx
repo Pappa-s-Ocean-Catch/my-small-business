@@ -151,11 +151,21 @@ export default function Home() {
         <section className="relative h-screen flex items-center justify-center overflow-hidden">
           {/* Image Background */}
           <div className="absolute inset-0 z-0">
+            {/* Desktop Image */}
             <Image
               src="/hero.png"
               alt="Pappa's Ocean Catch"
               fill
-              className="object-cover"
+              className="object-cover hidden md:block"
+              priority
+              unoptimized
+            />
+            {/* Mobile Image */}
+            <Image
+              src="/hero-mobile.png"
+              alt="Pappa's Ocean Catch"
+              fill
+              className="object-cover md:hidden"
               priority
               unoptimized
             />
