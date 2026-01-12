@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { OrderHeader } from '@/components/OrderHeader';
 import { getOrder, getOrderByNumber } from '@/app/actions/orders';
@@ -9,7 +9,7 @@ import Link from 'next/link';
 import { LoadingSpinner } from '@/components/Loading';
 import type { Order } from '@/app/actions/orders';
 
-export default function OrderConfirmationPage() {
+function OrderConfirmationContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const orderNumber = searchParams.get('order');
@@ -334,5 +334,17 @@ export default function OrderConfirmationPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function OrderConfirmationPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 dark:bg-neutral-900 flex items-center justify-center">
+        <LoadingSpinner size="lg" />
+      </div>
+    }>
+      <OrderConfirmationContent />
+    </Suspense>
   );
 }

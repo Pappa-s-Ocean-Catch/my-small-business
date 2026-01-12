@@ -344,7 +344,11 @@ export async function getSaleProductAddonGroups(sale_product_id: string): Promis
       return { data: null, error: error.message };
     }
 
-    const groups = data?.map(item => item.addon_groups as AddonGroup) || [];
+    const groups = data?.map(item => {
+      // Handle the case where addon_groups might be an array or object
+      const group = Array.isArray(item.addon_groups) ? item.addon_groups[0] : item.addon_groups;
+      return group as AddonGroup;
+    }).filter((group): group is AddonGroup => group !== null && group !== undefined) || [];
     return { data: groups, error: null };
   } catch (error) {
     console.error('Unexpected error fetching sale product addon groups:', error);

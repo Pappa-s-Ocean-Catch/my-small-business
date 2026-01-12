@@ -96,6 +96,7 @@ export async function getOrCreateCart(sessionId: string): Promise<{ data: CartDa
           base_price: Number(item.base_price),
           quantity: item.quantity,
           subtotal: Number(item.subtotal),
+          comment: item.comment || null,
           addons: (addons || []).map(addon => ({
             addon_group_id: addon.addon_group_id,
             addon_group_name: addon.addon_group_name,
