@@ -92,11 +92,18 @@ export async function sendMagicLinkInvite(inviteeEmail: string) {
       ? 'http://localhost:3000/auth/callback'
       : `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`;
     
-    console.log('🔗 Using redirect URL:', redirectUrl);
-    console.log('🔍 Environment check:', {
+    console.log('🔗 [MagicLink] Using redirect URL:', redirectUrl);
+    console.log('🔍 [MagicLink] Environment check:', {
       NODE_ENV: process.env.NODE_ENV,
       NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
-      isDevelopment
+      isDevelopment,
+      redirectUrl
+    });
+    
+    console.log('🔍 [MagicLink] Calling Supabase generateLink with:', {
+      type: 'magiclink',
+      email: inviteeEmail,
+      redirectTo: redirectUrl
     });
     
     const { data, error } = await supabase.auth.admin.generateLink({
@@ -108,26 +115,64 @@ export async function sendMagicLinkInvite(inviteeEmail: string) {
     });
     
     if (error || !data?.properties?.action_link) {
-      console.error('❌ Failed to generate magic link:', error);
+      console.error('❌ [MagicLink] Failed to generate magic link:', error);
+      console.error('❌ [MagicLink] Error details:', {
+        message: error?.message,
+        status: error?.status,
+        name: error?.name
+      });
       throw new Error(error?.message || 'Failed to generate magic link');
     }
 
     let actionUrl = data.properties.action_link as string;
-    console.log('🔗 Generated magic link URL:', actionUrl);
+    console.log('🔗 [MagicLink] Generated magic link URL:', actionUrl);
+    console.log('🔍 [MagicLink] Full action link data:', {
+      hasActionLink: !!data.properties.action_link,
+      actionLinkLength: actionUrl.length,
+      actionLinkPrefix: actionUrl.substring(0, 100) + '...'
+    });
     
     // Check if the generated URL contains the production domain instead of localhost
-    const urlObj = new URL(actionUrl);
-    const redirectParam = urlObj.searchParams.get('redirect_to');
-    console.log('🔍 Redirect parameter in generated link:', redirectParam);
-    
-    // If the redirect_to doesn't match what we want, manually fix it
-    if (redirectParam && !redirectParam.includes('localhost') && isDevelopment) {
-      console.warn('⚠️ Generated link has wrong redirect URL, fixing...');
-      urlObj.searchParams.set('redirect_to', redirectUrl);
-      actionUrl = urlObj.toString(); // Update actionUrl with the fixed URL
-      console.log('✅ Fixed magic link URL:', actionUrl);
-      // Also update the data object for consistency
-      data.properties.action_link = actionUrl;
+    try {
+      const urlObj = new URL(actionUrl);
+      const redirectParam = urlObj.searchParams.get('redirect_to');
+      console.log('🔍 [MagicLink] Redirect parameter in generated link:', redirectParam);
+      console.log('🔍 [MagicLink] Full URL breakdown:', {
+        protocol: urlObj.protocol,
+        host: urlObj.host,
+        hostname: urlObj.hostname,
+        pathname: urlObj.pathname,
+        search: urlObj.search,
+        hash: urlObj.hash,
+        redirectToParam: redirectParam
+      });
+      
+      // If the redirect_to doesn't match what we want, manually fix it
+      if (redirectParam && !redirectParam.includes('localhost') && isDevelopment) {
+        console.warn('⚠️ [MagicLink] Generated link has wrong redirect URL, fixing...');
+        console.warn('⚠️ [MagicLink] Expected localhost but got:', redirectParam);
+        urlObj.searchParams.set('redirect_to', redirectUrl);
+        actionUrl = urlObj.toString(); // Update actionUrl with the fixed URL
+        console.log('✅ [MagicLink] Fixed magic link URL:', actionUrl);
+        // Also update the data object for consistency
+        data.properties.action_link = actionUrl;
+      } else if (redirectParam && redirectParam !== redirectUrl) {
+        console.warn('⚠️ [MagicLink] Redirect URL mismatch detected:', {
+          expected: redirectUrl,
+          actual: redirectParam,
+          isDevelopment
+        });
+        // Fix it even in production if it doesn't match
+        urlObj.searchParams.set('redirect_to', redirectUrl);
+        actionUrl = urlObj.toString();
+        console.log('✅ [MagicLink] Fixed redirect URL to match expected:', actionUrl);
+        data.properties.action_link = actionUrl;
+      } else {
+        console.log('✅ [MagicLink] Redirect URL is correct:', redirectParam);
+      }
+    } catch (urlError) {
+      console.error('❌ [MagicLink] Error parsing URL:', urlError);
+      console.error('❌ [MagicLink] Action URL that failed to parse:', actionUrl);
     }
 
     // Get brand settings
