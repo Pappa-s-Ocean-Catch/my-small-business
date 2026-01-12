@@ -83,10 +83,28 @@ export async function sendMagicLinkInvite(inviteeEmail: string) {
     
     console.log('👤 Profile check result:', { existing: !!existing, email: inviteeEmail });
     
+    // Determine the correct redirect URL based on environment
+    // In development, always use localhost; in production, use the configured URL
+    const isDevelopment = process.env.NODE_ENV === 'development' || 
+                         !process.env.NEXT_PUBLIC_SITE_URL || 
+                         process.env.NEXT_PUBLIC_SITE_URL.includes('localhost');
+    const redirectUrl = isDevelopment 
+      ? 'http://localhost:3000/auth/callback'
+      : `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`;
+    
+    console.log('🔗 Using redirect URL:', redirectUrl);
+    console.log('🔍 Environment check:', {
+      NODE_ENV: process.env.NODE_ENV,
+      NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
+      isDevelopment
+    });
+    
     const { data, error } = await supabase.auth.admin.generateLink({
       type: 'magiclink',
       email: inviteeEmail,
-      options: { redirectTo: process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000' }
+      options: { 
+        redirectTo: redirectUrl
+      }
     });
     
     if (error || !data?.properties?.action_link) {
@@ -94,8 +112,23 @@ export async function sendMagicLinkInvite(inviteeEmail: string) {
       throw new Error(error?.message || 'Failed to generate magic link');
     }
 
-    const actionUrl = data.properties.action_link as string;
+    let actionUrl = data.properties.action_link as string;
     console.log('🔗 Generated magic link URL:', actionUrl);
+    
+    // Check if the generated URL contains the production domain instead of localhost
+    const urlObj = new URL(actionUrl);
+    const redirectParam = urlObj.searchParams.get('redirect_to');
+    console.log('🔍 Redirect parameter in generated link:', redirectParam);
+    
+    // If the redirect_to doesn't match what we want, manually fix it
+    if (redirectParam && !redirectParam.includes('localhost') && isDevelopment) {
+      console.warn('⚠️ Generated link has wrong redirect URL, fixing...');
+      urlObj.searchParams.set('redirect_to', redirectUrl);
+      actionUrl = urlObj.toString(); // Update actionUrl with the fixed URL
+      console.log('✅ Fixed magic link URL:', actionUrl);
+      // Also update the data object for consistency
+      data.properties.action_link = actionUrl;
+    }
 
     // Get brand settings
     const brandSettings = await getBrandSettings();

@@ -31,7 +31,14 @@ export async function sendPasswordResetEmail(email: string) {
     }
 
     // Use Supabase's built-in reset (this will send its own email)
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    // Determine the correct redirect URL based on environment
+    const isDevelopment = process.env.NODE_ENV === 'development' || 
+                         !process.env.NEXT_PUBLIC_SITE_URL || 
+                         process.env.NEXT_PUBLIC_SITE_URL.includes('localhost');
+    const baseUrl = isDevelopment 
+      ? 'http://localhost:3000'
+      : (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000');
+    
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${baseUrl}/reset-password?type=recovery`,
     });

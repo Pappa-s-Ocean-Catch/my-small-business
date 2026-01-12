@@ -4,12 +4,14 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FaShoppingCart, FaTimes, FaPlus, FaMinus, FaTrash, FaChevronRight, FaEdit, FaComment } from 'react-icons/fa';
 import { useCart } from '@/contexts/CartContext';
+import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 
 export function CartSidebar() {
   const { items, removeItem, updateQuantity, updateItem, getTotal, getItemCount, clearCart } = useCart();
   const [isOpen, setIsOpen] = useState(false);
   const [editingCommentItemId, setEditingCommentItemId] = useState<string | null>(null);
   const [commentText, setCommentText] = useState<string>('');
+  const [itemToRemove, setItemToRemove] = useState<string | null>(null);
   const router = useRouter();
 
   const handleCheckout = () => {
@@ -212,7 +214,7 @@ export function CartSidebar() {
                               ${item.subtotal.toFixed(2)}
                             </span>
                             <button
-                              onClick={() => removeItem(item.id)}
+                              onClick={() => setItemToRemove(item.id)}
                               className="p-1 text-red-600 hover:text-red-700 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                               aria-label="Remove item"
                             >
@@ -240,7 +242,7 @@ export function CartSidebar() {
                   onClick={handleCheckout}
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
                 >
-                  Proceed to Checkout
+                  Shopping Cart
                   <FaChevronRight className="w-4 h-4" />
                 </button>
                 <button
@@ -254,6 +256,23 @@ export function CartSidebar() {
           </div>
         </>
       )}
+
+      {/* Remove Item Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={itemToRemove !== null}
+        onClose={() => setItemToRemove(null)}
+        onConfirm={() => {
+          if (itemToRemove) {
+            removeItem(itemToRemove);
+            setItemToRemove(null);
+          }
+        }}
+        title="Remove Item"
+        message={`Are you sure you want to remove "${items.find(item => item.id === itemToRemove)?.name || 'this item'}" from your cart?`}
+        confirmText="Remove"
+        cancelText="Cancel"
+        variant="warning"
+      />
     </>
   );
 }

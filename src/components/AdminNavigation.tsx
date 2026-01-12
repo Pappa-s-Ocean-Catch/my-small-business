@@ -278,6 +278,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
               <div className="pl-2 mt-2">
                 <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Menu</div>
                 <div className="pl-2 space-y-1">
+                  <Link className={getLinkClasses("/admin/orders")} href="/admin/orders" aria-label="Orders">Orders</Link>
                   <Link className={getLinkClasses("/shop/menu")} href="/shop/menu" aria-label="Menu">Menu</Link>
                   <Link className={getLinkClasses("/shop/addons")} href="/shop/addons" aria-label="Add-ons">Add-ons</Link>
                   <Link className={getLinkClasses("/shop/combo")} href="/shop/combo" aria-label="Combo">Combo</Link>
@@ -388,6 +389,17 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                     <div className="mb-2">
                       <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Menu</h3>
                       <div className="space-y-2">
+                        <Link href="/admin/orders" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                          <div className="flex items-start gap-3">
+                            <div className="mt-0.5 text-green-600 dark:text-green-400">
+                              <FaShoppingCart className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="font-medium text-gray-900 dark:text-white">Orders</div>
+                              <div className="text-xs text-gray-600 dark:text-gray-400">View and manage customer orders</div>
+                            </div>
+                          </div>
+                        </Link>
                         <Link href="/shop/menu" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                           <div className="flex items-start gap-3">
                             <div className="mt-0.5 text-red-600 dark:text-red-400">

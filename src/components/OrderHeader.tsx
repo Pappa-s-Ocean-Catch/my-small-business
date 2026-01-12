@@ -1,9 +1,65 @@
 'use client';
 
+import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
-import { FaUtensils, FaHome } from 'react-icons/fa';
+import { useRouter } from 'next/navigation';
+import { FaUtensils, FaHome, FaUser, FaSignOutAlt, FaHistory, FaLock } from 'react-icons/fa';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 export function OrderHeader() {
+  const [email, setEmail] = useState<string | null>(null);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setEmail(user?.email ?? null);
+    };
+    checkAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      checkAuth();
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  const getUserInitials = (email: string) => {
+    return email
+      .split('@')[0]
+      .split('.')
+      .map(part => part.charAt(0).toUpperCase())
+      .slice(0, 2)
+      .join('');
+  };
+
+  const handleLogout = async () => {
+    const supabase = getSupabaseClient();
+    await supabase.auth.signOut();
+    setEmail(null);
+    setIsDropdownOpen(false);
+    router.push('/');
+  };
+
   return (
     <header className="bg-white dark:bg-neutral-800 shadow-sm sticky top-0 z-30 border-b border-gray-200 dark:border-neutral-700">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -45,6 +101,73 @@ export function OrderHeader() {
               <FaUtensils className="w-4 h-4" />
               <span className="hidden sm:inline">Menu</span>
             </Link>
+
+            {/* User Menu */}
+            {email ? (
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                  className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
+                  aria-label="User menu"
+                >
+                  {getUserInitials(email)}
+                </button>
+
+                {isDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-neutral-900 rounded-lg shadow-lg border border-gray-200 dark:border-neutral-700 py-1 z-50">
+                    <div className="px-3 py-2 border-b border-gray-200 dark:border-neutral-700">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate" title={email}>
+                        {email}
+                      </p>
+                    </div>
+                    
+                    <Link
+                      href="/order/history"
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800"
+                      onClick={() => setIsDropdownOpen(false)}
+                    >
+                      <FaHistory className="w-4 h-4" />
+                      Order History
+                    </Link>
+                    
+                    <Link
+                      href="/profile"
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800"
+                      onClick={() => setIsDropdownOpen(false)}
+                    >
+                      <FaUser className="w-4 h-4" />
+                      Profile
+                    </Link>
+                    
+                    <Link
+                      href="/profile"
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800"
+                      onClick={() => setIsDropdownOpen(false)}
+                    >
+                      <FaLock className="w-4 h-4" />
+                      Change Password
+                    </Link>
+                    
+                    <div className="border-t border-gray-200 dark:border-neutral-700 my-1"></div>
+                    
+                    <button
+                      onClick={handleLogout}
+                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                    >
+                      <FaSignOutAlt className="w-4 h-4" />
+                      Sign out
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <Link
+                href="/login"
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-neutral-700 rounded-lg transition-colors border border-gray-300 dark:border-neutral-600"
+              >
+                Sign In
+              </Link>
+            )}
           </nav>
         </div>
       </div>

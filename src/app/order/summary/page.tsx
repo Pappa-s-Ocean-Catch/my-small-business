@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/contexts/CartContext';
 import { OrderHeader } from '@/components/OrderHeader';
@@ -266,16 +265,13 @@ export default function OrderSummaryPage() {
               </div>
 
               <div className="space-y-3">
-                <button
-                  onClick={() => {
-                    // Placeholder for payment integration
-                    alert('Payment integration will be implemented later');
-                  }}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                <Link
+                  href="/order/checkout"
+                  className="block w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
                 >
                   <FaDollarSign className="w-4 h-4" />
-                  Proceed to Payment
-                </button>
+                  Checkout
+                </Link>
                 <Link
                   href="/order"
                   className="block w-full text-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white py-2 transition-colors"

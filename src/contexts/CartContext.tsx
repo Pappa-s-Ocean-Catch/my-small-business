@@ -65,6 +65,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [sessionId, setSessionId] = useState<string>('');
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // Initialize session ID and load cart on mount
   useEffect(() => {
@@ -109,7 +110,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
               image_url: item.product_image_url,
               quantity: item.quantity,
               addon_groups: Array.from(addonGroupsMap.values()),
-              subtotal: item.subtotal
+              subtotal: item.subtotal,
+              comment: item.comment || null
             };
           });
           
@@ -119,11 +121,49 @@ export function CartProvider({ children }: { children: ReactNode }) {
         console.error('Error loading cart:', error);
       } finally {
         setIsLoading(false);
+        setIsInitialLoad(false);
       }
     };
     
     initSession();
   }, []);
+
+  // Sync cart to database when items or sessionId changes (debounced)
+  useEffect(() => {
+    // Don't save during initial load
+    if (isInitialLoad || !sessionId || items.length === 0) {
+      return;
+    }
+
+    // Debounce the save operation
+    const timeoutId = setTimeout(() => {
+      const cartData: CartItemData[] = items.map(item => ({
+        product_id: item.product_id,
+        product_name: item.name,
+        product_description: item.description,
+        product_image_url: item.image_url,
+        base_price: item.base_price,
+        quantity: item.quantity,
+        subtotal: item.subtotal,
+        comment: item.comment || null,
+        addons: item.addon_groups.flatMap(group =>
+          group.selected_items.map(addonItem => ({
+            addon_group_id: group.id,
+            addon_group_name: group.name,
+            addon_item_id: addonItem.id,
+            addon_item_name: addonItem.name,
+            addon_item_price: addonItem.extra_price
+          }))
+        )
+      }));
+
+      saveCart(sessionId, cartData).catch(err => {
+        console.error('Error saving cart:', err);
+      });
+    }, 500); // 500ms debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [items, sessionId, isInitialLoad]);
 
   const calculateSubtotal = useCallback((item: Omit<CartItem, 'id' | 'subtotal'>): number => {
     const baseTotal = item.base_price * item.quantity;
@@ -167,152 +207,53 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, [sessionId, items]);
 
-  const addItem = useCallback(async (item: Omit<CartItem, 'id' | 'subtotal'>) => {
+  const addItem = useCallback((item: Omit<CartItem, 'id' | 'subtotal'>) => {
     const subtotal = calculateSubtotal(item);
     const newItem: CartItem = {
       ...item,
       id: `${item.product_id}-${Date.now()}-${Math.random()}`,
       subtotal
     };
-    setItems(prev => {
-      const updated = [...prev, newItem];
-      // Sync to database asynchronously
-      if (sessionId) {
-        const cartData: CartItemData[] = updated.map(cartItem => ({
-          product_id: cartItem.product_id,
-          product_name: cartItem.name,
-          product_description: cartItem.description,
-          product_image_url: cartItem.image_url,
-          base_price: cartItem.base_price,
-          quantity: cartItem.quantity,
-          subtotal: cartItem.subtotal,
-          comment: cartItem.comment || null,
-          addons: cartItem.addon_groups.flatMap(group =>
-            group.selected_items.map(addonItem => ({
-              addon_group_id: group.id,
-              addon_group_name: group.name,
-              addon_item_id: addonItem.id,
-              addon_item_name: addonItem.name,
-              addon_item_price: addonItem.extra_price
-            }))
-          )
-        }));
-        saveCart(sessionId, cartData).catch(err => console.error('Error saving cart:', err));
-      }
-      return updated;
-    });
-  }, [calculateSubtotal, sessionId]);
+    setItems(prev => [...prev, newItem]);
+  }, [calculateSubtotal]);
 
   const removeItem = useCallback((id: string) => {
-    setItems(prev => {
-      const updated = prev.filter(item => item.id !== id);
-      // Sync to database asynchronously
-      if (sessionId) {
-        const cartData: CartItemData[] = updated.map(cartItem => ({
-          product_id: cartItem.product_id,
-          product_name: cartItem.name,
-          product_description: cartItem.description,
-          product_image_url: cartItem.image_url,
-          base_price: cartItem.base_price,
-          quantity: cartItem.quantity,
-          subtotal: cartItem.subtotal,
-          comment: cartItem.comment || null,
-          addons: cartItem.addon_groups.flatMap(group =>
-            group.selected_items.map(addonItem => ({
-              addon_group_id: group.id,
-              addon_group_name: group.name,
-              addon_item_id: addonItem.id,
-              addon_item_name: addonItem.name,
-              addon_item_price: addonItem.extra_price
-            }))
-          )
-        }));
-        saveCart(sessionId, cartData).catch(err => console.error('Error saving cart:', err));
-      }
-      return updated;
-    });
-  }, [sessionId]);
+    setItems(prev => prev.filter(item => item.id !== id));
+  }, []);
+
+  // Internal function to remove item without confirmation (used when quantity goes to 0)
+  const removeItemSilently = useCallback((id: string) => {
+    setItems(prev => prev.filter(item => item.id !== id));
+  }, []);
 
   const updateQuantity = useCallback((id: string, quantity: number) => {
     if (quantity <= 0) {
-      removeItem(id);
+      removeItemSilently(id);
       return;
     }
-    setItems(prev => {
-      const updated = prev.map(item => {
-        if (item.id === id) {
-          const updatedItem = { ...item, quantity };
-          updatedItem.subtotal = calculateSubtotal(updatedItem);
-          return updatedItem;
-        }
-        return item;
-      });
-      // Sync to database asynchronously
-      if (sessionId) {
-        const cartData: CartItemData[] = updated.map(cartItem => ({
-          product_id: cartItem.product_id,
-          product_name: cartItem.name,
-          product_description: cartItem.description,
-          product_image_url: cartItem.image_url,
-          base_price: cartItem.base_price,
-          quantity: cartItem.quantity,
-          subtotal: cartItem.subtotal,
-          comment: cartItem.comment || null,
-          addons: cartItem.addon_groups.flatMap(group =>
-            group.selected_items.map(addonItem => ({
-              addon_group_id: group.id,
-              addon_group_name: group.name,
-              addon_item_id: addonItem.id,
-              addon_item_name: addonItem.name,
-              addon_item_price: addonItem.extra_price
-            }))
-          )
-        }));
-        saveCart(sessionId, cartData).catch(err => console.error('Error saving cart:', err));
+    setItems(prev => prev.map(item => {
+      if (item.id === id) {
+        const updatedItem = { ...item, quantity };
+        updatedItem.subtotal = calculateSubtotal(updatedItem);
+        return updatedItem;
       }
-      return updated;
-    });
-  }, [removeItem, calculateSubtotal, sessionId]);
+      return item;
+    }));
+  }, [removeItemSilently, calculateSubtotal]);
 
   const updateItem = useCallback((id: string, updates: Partial<CartItem>) => {
-    setItems(prev => {
-      const updated = prev.map(item => {
-        if (item.id === id) {
-          const updatedItem = { ...item, ...updates };
-          // Recalculate subtotal if quantity or addons changed
-          if (updates.quantity !== undefined || updates.addon_groups !== undefined) {
-            updatedItem.subtotal = calculateSubtotal(updatedItem);
-          }
-          return updatedItem;
+    setItems(prev => prev.map(item => {
+      if (item.id === id) {
+        const updatedItem = { ...item, ...updates };
+        // Recalculate subtotal if quantity or addons changed
+        if (updates.quantity !== undefined || updates.addon_groups !== undefined) {
+          updatedItem.subtotal = calculateSubtotal(updatedItem);
         }
-        return item;
-      });
-      // Sync to database asynchronously
-      if (sessionId) {
-        const cartData: CartItemData[] = updated.map(cartItem => ({
-          product_id: cartItem.product_id,
-          product_name: cartItem.name,
-          product_description: cartItem.description,
-          product_image_url: cartItem.image_url,
-          base_price: cartItem.base_price,
-          quantity: cartItem.quantity,
-          subtotal: cartItem.subtotal,
-          comment: cartItem.comment || null,
-          addons: cartItem.addon_groups.flatMap(group =>
-            group.selected_items.map(addonItem => ({
-              addon_group_id: group.id,
-              addon_group_name: group.name,
-              addon_item_id: addonItem.id,
-              addon_item_name: addonItem.name,
-              addon_item_price: addonItem.extra_price
-            }))
-          )
-        }));
-        saveCart(sessionId, cartData).catch(err => console.error('Error saving cart:', err));
+        return updatedItem;
       }
-      return updated;
-    });
-  }, [calculateSubtotal, sessionId]);
+      return item;
+    }));
+  }, [calculateSubtotal]);
 
   const clearCart = useCallback(async () => {
     setItems([]);
