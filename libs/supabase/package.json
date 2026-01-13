@@ -3,6 +3,16 @@
   "version": "1.0.0",
   "main": "./client.ts",
   "types": "./client.ts",
+  "exports": {
+    "./client": {
+      "types": "./client.ts",
+      "default": "./client.ts"
+    },
+    "./server": {
+      "types": "./server.ts",
+      "default": "./server.ts"
+    }
+  },
   "private": true,
   "dependencies": {
     "@supabase/ssr": "^0.7.0",

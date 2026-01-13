@@ -3,6 +3,20 @@
   "version": "1.0.0",
   "main": "./index.ts",
   "types": "./index.ts",
+  "exports": {
+    ".": {
+      "types": "./index.ts",
+      "default": "./index.ts"
+    },
+    "./order": {
+      "types": "./order.ts",
+      "default": "./order.ts"
+    },
+    "./dashboard": {
+      "types": "./dashboard.ts",
+      "default": "./dashboard.ts"
+    }
+  },
   "private": true,
   "scripts": {
     "type-check": "tsc --noEmit"

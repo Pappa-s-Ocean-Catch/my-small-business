@@ -543,7 +543,11 @@ function CashFlowContent() {
                 />
                 <YAxis />
                 <Tooltip 
-                  formatter={(value: number, name: string) => [`$${value.toFixed(2)}`, name]}
+                  formatter={(value: number | undefined, name: string | undefined) => {
+                    const formattedValue = value === undefined ? '$0.00' : `$${value.toFixed(2)}`;
+                    const formattedName = name ?? '';
+                    return [formattedValue, formattedName];
+                  }}
                   labelFormatter={(value) => format(new Date(value), "MMM dd, yyyy")}
                 />
                 <Legend />
@@ -587,7 +591,10 @@ function CashFlowContent() {
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value: number) => [`$${value.toFixed(2)}`, '']} />
+                <Tooltip formatter={(value: number | undefined) => {
+                  const formattedValue = value === undefined ? '$0.00' : `$${value.toFixed(2)}`;
+                  return [formattedValue, ''];
+                }} />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -600,7 +607,10 @@ function CashFlowContent() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="category" angle={-45} textAnchor="end" height={80} />
                 <YAxis />
-                <Tooltip formatter={(value: number) => [`$${value.toFixed(2)}`, '']} />
+                <Tooltip formatter={(value: number | undefined) => {
+                  const formattedValue = value === undefined ? '$0.00' : `$${value.toFixed(2)}`;
+                  return [formattedValue, ''];
+                }} />
                 <Legend />
                 <Bar dataKey="income" fill="#10B981" name="Income" />
                 <Bar dataKey="expenses" fill="#EF4444" name="Expenses" />
@@ -616,7 +626,10 @@ function CashFlowContent() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="method" />
                 <YAxis />
-                <Tooltip formatter={(value: number) => [`$${value.toFixed(2)}`, '']} />
+                <Tooltip formatter={(value: number | undefined) => {
+                  const formattedValue = value === undefined ? '$0.00' : `$${value.toFixed(2)}`;
+                  return [formattedValue, ''];
+                }} />
                 <Legend />
                 <Bar dataKey="income" fill="#10B981" name="Income" />
                 <Bar dataKey="expenses" fill="#EF4444" name="Expenses" />

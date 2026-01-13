@@ -1,5 +1,3 @@
-'use server';
-
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createServiceRoleClient } from '@my-small-business/supabase/server';

@@ -7,6 +7,8 @@ import type {
   OrderItem,
   OrderItemAddon,
   DeliveryAddressInput,
+  OrderStatus,
+  PaymentStatus,
 } from '@my-small-business/types';
 
 // Extend OrderInput to include CartItemData for web app
@@ -35,13 +37,9 @@ export interface OrderInput {
   reward_points_value?: number;
 }
 
-// Re-export types for backward compatibility
-export type {
-  Order,
-  OrderItem,
-  OrderItemAddon,
-  DeliveryAddressInput,
-};
+// Note: Types are no longer re-exported here
+// Import types directly from @my-small-business/types instead
+// This prevents runtime evaluation issues with type-only exports
 
 // Create a new order from cart
 export async function createOrder(input: OrderInput): Promise<{ data: Order | null; error: string | null }> {
@@ -428,7 +426,7 @@ export async function getAllOrders(filters?: {
 // Update order status
 export async function updateOrderStatus(
   orderId: string,
-  status: Order['order_status']
+  status: OrderStatus
 ): Promise<{ data: Order | null; error: string | null }> {
   try {
     const supabase = await createServiceRoleClient();
@@ -459,7 +457,7 @@ export async function updateOrderStatus(
 // Update payment status
 export async function updatePaymentStatus(
   orderId: string,
-  paymentStatus: Order['payment_status']
+  paymentStatus: PaymentStatus
 ): Promise<{ data: Order | null; error: string | null }> {
   try {
     const supabase = await createServiceRoleClient();

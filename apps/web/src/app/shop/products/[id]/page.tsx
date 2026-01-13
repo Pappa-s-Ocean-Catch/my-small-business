@@ -371,10 +371,12 @@ export default function ProductDetailsPage() {
                             borderRadius: '8px',
                             color: 'var(--color-text)'
                           }}
-                          formatter={(value: number, name: string) => {
-                            if (name === 'stock') return [value, 'Stock Level'];
-                            if (name === 'movement') return [value > 0 ? `+${value}` : value, 'Movement'];
-                            return [value, name];
+                          formatter={(value: number | undefined, name: string | undefined) => {
+                            if (value === undefined) return ['0', name ?? ''];
+                            const formattedName = name ?? '';
+                            if (formattedName === 'stock') return [value, 'Stock Level'];
+                            if (formattedName === 'movement') return [value > 0 ? `+${value}` : value, 'Movement'];
+                            return [value, formattedName];
                           }}
                           labelFormatter={(label) => `Date: ${label}`}
                         />

@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { OrderHeader } from '@/components/OrderHeader';
-import { getCustomerOrders, type Order } from '@/app/actions/orders';
+import { getCustomerOrders } from '@/app/actions/orders';
+import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { useCart } from '@/contexts/CartContext';
 import { FaClock, FaCheckCircle, FaUtensils, FaSpinner, FaTimesCircle, FaShoppingCart, FaPrint } from 'react-icons/fa';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
@@ -44,7 +45,7 @@ export default function OrderHistoryPage() {
     checkAuthAndLoadOrders();
   }, [router]);
 
-  const getStatusIcon = (status: Order['order_status']) => {
+  const getStatusIcon = (status: OrderStatus) => {
     switch (status) {
       case 'pending':
         return <FaClock className="w-4 h-4 text-yellow-500" />;
@@ -62,7 +63,7 @@ export default function OrderHistoryPage() {
     }
   };
 
-  const getStatusColor = (status: Order['order_status']) => {
+  const getStatusColor = (status: OrderStatus) => {
     switch (status) {
       case 'pending':
         return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400';
@@ -80,7 +81,7 @@ export default function OrderHistoryPage() {
     }
   };
 
-  const getPaymentStatusColor = (status: Order['payment_status']) => {
+  const getPaymentStatusColor = (status: PaymentStatus) => {
     switch (status) {
       case 'paid':
         return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';

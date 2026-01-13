@@ -9,7 +9,7 @@ import { useCart } from '@/contexts/CartContext';
 import { FaCheckCircle, FaPrint, FaArrowLeft, FaShoppingBag, FaGift } from 'react-icons/fa';
 import Link from 'next/link';
 import { LoadingSpinner } from '@/components/Loading';
-import type { Order } from '@/app/actions/orders';
+import type { Order } from '@my-small-business/types';
 
 function OrderConfirmationContent() {
   const searchParams = useSearchParams();

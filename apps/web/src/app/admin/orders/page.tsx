@@ -1,15 +1,13 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { getAllOrders, updateOrderStatus, updatePaymentStatus, getOrder, type Order } from '@/app/actions/orders';
+import { getAllOrders, updateOrderStatus, updatePaymentStatus, getOrder } from '@/app/actions/orders';
 import { LoadingSpinner } from '@/components/Loading';
 import { AdminGuard } from '@/components/AdminGuard';
 import { FaPrint, FaEye, FaCheckCircle, FaTimesCircle, FaClock, FaSpinner, FaFilter, FaPlay, FaCheck, FaShoppingBag, FaChevronLeft, FaChevronRight, FaCalendar } from 'react-icons/fa';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
-
-type OrderStatus = Order['order_status'];
-type PaymentStatus = Order['payment_status'];
+import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 
 // Sound notification for new orders
 const playNewOrderSound = () => {
