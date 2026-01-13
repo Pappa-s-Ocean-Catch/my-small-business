@@ -141,8 +141,8 @@ Each workspace has its own `tsconfig.json` with path mappings to shared librarie
 After moving to monorepo, Vercel needs to be configured. See [VERCEL_SETUP.md](./VERCEL_SETUP.md) for detailed instructions.
 
 Quick setup:
-1. The `vercel.json` file in the root is already configured
-2. In Vercel Dashboard → Settings → General:
-   - Set **Root Directory** to: `apps/web`
+1. The `vercel.json` file in the root is already configured (build commands)
+2. **IMPORTANT**: In Vercel Dashboard → Settings → General:
+   - Set **Root Directory** to: `apps/web` (REQUIRED - cannot be set in vercel.json)
    - Set **Package Manager** to: `pnpm`
-   - Build command will use `pnpm --filter web build:agent`
+   - Build command will use `pnpm --filter web build:agent` (from vercel.json)

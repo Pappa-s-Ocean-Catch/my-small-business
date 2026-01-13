@@ -2,6 +2,5 @@
   "buildCommand": "pnpm --filter web build:agent",
   "outputDirectory": ".next",
   "installCommand": "pnpm install",
-  "framework": "nextjs",
-  "rootDirectory": "apps/web"
+  "framework": "nextjs"
 }

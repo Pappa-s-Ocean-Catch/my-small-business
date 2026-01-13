@@ -2,25 +2,26 @@
 
 After restructuring to a monorepo, Vercel needs to be configured to build from the `apps/web` directory.
 
-## Option 1: Using vercel.json (Recommended)
+## Option 1: Using vercel.json + Dashboard Settings (Required)
 
-A `vercel.json` file has been created in the root directory with the correct configuration. This will automatically configure Vercel when you deploy.
+A `vercel.json` file has been created in the root directory with build configuration. However, **you must also set the Root Directory in the Vercel Dashboard** (see Option 2 below).
 
-The configuration:
-- Sets `rootDirectory` to `apps/web`
+The `vercel.json` configuration:
 - Uses pnpm for installation
 - Builds the web workspace using pnpm filters
+- Note: `rootDirectory` must be set in Vercel Dashboard (not in vercel.json)
 
-## Option 2: Vercel Dashboard Settings
+## Option 2: Vercel Dashboard Settings (REQUIRED)
 
-If you prefer to configure via the Vercel dashboard:
+**IMPORTANT**: You must configure the Root Directory in the Vercel Dashboard. This cannot be set in `vercel.json`.
 
 1. Go to your project in [Vercel Dashboard](https://vercel.com/dashboard)
 2. Navigate to **Settings** → **General**
 3. Update the following settings:
 
-### Root Directory
+### Root Directory (REQUIRED)
 - Set **Root Directory** to: `apps/web`
+- This tells Vercel where your Next.js app is located in the monorepo
 
 ### Build & Development Settings
 - **Framework Preset**: Next.js
@@ -90,12 +91,15 @@ After updating the configuration:
 - This is normal for monorepos as pnpm installs all workspace dependencies
 - Consider using Vercel's build cache to speed up subsequent builds
 
-## Alternative: Using Vercel's Monorepo Support
+## Why Root Directory Must Be in Dashboard
 
-Vercel has built-in monorepo support. You can also:
+The `rootDirectory` property is **not supported** in `vercel.json` schema. It must be configured in the Vercel Dashboard under Settings → General → Root Directory.
 
-1. Keep the root directory as the repository root
-2. Set **Root Directory** to `apps/web` in Vercel settings
-3. Vercel will automatically detect it's a monorepo and handle it correctly
+The `vercel.json` file handles:
+- Build command configuration
+- Install command (pnpm)
+- Framework detection
 
-The `vercel.json` file provides explicit configuration, but Vercel's automatic detection should also work.
+The Dashboard handles:
+- Root directory path (`apps/web`)
+- Package manager preference (can also be set via `.npmrc`)
