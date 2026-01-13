@@ -25,10 +25,12 @@ The `vercel.json` configuration:
 
 ### Build & Development Settings
 - **Framework Preset**: Next.js
-- **Build Command**: `pnpm --filter web build`
+- **Build Command**: `pnpm --filter web build` (normal build, not build:agent)
 - **Output Directory**: `.next` (or leave default)
 - **Install Command**: `pnpm install`
 - **Node.js Version**: 18.x or higher
+
+**Note**: The `build:agent` command is for CI/agent workflows. Vercel should use the normal `build` command for production deployments.
 
 ### Environment Variables
 Make sure all environment variables are still set:

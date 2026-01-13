@@ -5,7 +5,7 @@
   "scripts": {
     "stripe":"stripe listen --forward-to https://localhost:3000/api/webhooks/stripe",
     "dev": "pnpm --filter web dev",
-    "build": "pnpm --filter web build:agent",
+    "build": "pnpm --filter web build",
     "build:agent": "pnpm --filter web build:agent",
     "start": "pnpm --filter web start",
     "lint": "pnpm --filter web lint",

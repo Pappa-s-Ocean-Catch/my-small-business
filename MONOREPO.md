@@ -145,4 +145,4 @@ Quick setup:
 2. **IMPORTANT**: In Vercel Dashboard → Settings → General:
    - Set **Root Directory** to: `apps/web` (REQUIRED - cannot be set in vercel.json)
    - Set **Package Manager** to: `pnpm`
-   - Build command will use `pnpm --filter web build:agent` (from vercel.json)
+   - Build command will use `pnpm --filter web build` (from vercel.json)
