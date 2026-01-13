@@ -1,14 +1,48 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getAllOrders, updateOrderStatus, updatePaymentStatus, getOrder, type Order } from '@/app/actions/orders';
 import { LoadingSpinner } from '@/components/Loading';
 import { AdminGuard } from '@/components/AdminGuard';
-import { FaPrint, FaEye, FaCheckCircle, FaTimesCircle, FaClock, FaSpinner, FaFilter } from 'react-icons/fa';
+import { FaPrint, FaEye, FaCheckCircle, FaTimesCircle, FaClock, FaSpinner, FaFilter, FaPlay, FaCheck, FaShoppingBag } from 'react-icons/fa';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 type OrderStatus = Order['order_status'];
 type PaymentStatus = Order['payment_status'];
+
+// Sound notification for new orders
+const playNewOrderSound = () => {
+  try {
+    // Create a simple beep sound using Web Audio API
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+
+    oscillator.frequency.value = 800; // Higher pitch for alert
+    oscillator.type = 'sine';
+
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.5);
+
+    // Also try to play a notification sound if available
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('New Order Received!', {
+        body: 'A new order has been placed',
+        icon: '/favicon.ico',
+        tag: 'new-order'
+      });
+    }
+  } catch (error) {
+    console.error('Error playing sound:', error);
+  }
+};
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -21,13 +55,106 @@ export default function OrdersPage() {
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [showStatusDialog, setShowStatusDialog] = useState(false);
   const [statusToUpdate, setStatusToUpdate] = useState<{ orderId: string; status: OrderStatus } | null>(null);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [refreshCountdown, setRefreshCountdown] = useState<number>(0);
+  const previousOrderIdsRef = useRef<Set<string>>(new Set());
+  const lastOrderIdRef = useRef<string | null>(null);
+  const subscriptionRef = useRef<any>(null);
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Request notification permission on mount
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
 
   useEffect(() => {
     loadOrders();
-    // Refresh orders every 30 seconds for live updates
-    const interval = setInterval(loadOrders, 30000);
-    return () => clearInterval(interval);
+
+    // Set up Supabase realtime subscription for orders
+    const supabase = getSupabaseClient();
+    
+    // Subscribe to order changes
+    subscriptionRef.current = supabase
+      .channel('orders-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'orders'
+        },
+        (payload) => {
+          console.log('🔔 [Orders] Realtime event received:', payload.eventType);
+          
+          if (payload.eventType === 'INSERT') {
+            // New order received
+            const newOrder = payload.new as { id: string; order_number: string; created_at: string };
+            console.log('🆕 [Orders] New order detected via realtime:', {
+              id: newOrder.id,
+              orderNumber: newOrder.order_number,
+              createdAt: newOrder.created_at
+            });
+            
+            // Check if this is actually a new order (not already in our list)
+            if (lastOrderIdRef.current !== newOrder.id && soundEnabled) {
+              console.log('🔔 [Orders] Playing notification for realtime new order');
+              playNewOrderSound();
+            }
+            
+            // Update last order ID immediately to prevent duplicate notifications
+            lastOrderIdRef.current = newOrder.id;
+            
+            // Reload orders to get the new one
+            loadOrders();
+          } else if (payload.eventType === 'UPDATE') {
+            // Order updated
+            console.log('🔄 [Orders] Order updated:', payload.new);
+            // Reload orders to get updated data
+            loadOrders();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      // Cleanup subscription
+      if (subscriptionRef.current) {
+        supabase.removeChannel(subscriptionRef.current);
+      }
+    };
   }, [statusFilter, paymentFilter]);
+
+  // Detect new orders and play sound (backup detection if realtime doesn't fire)
+  useEffect(() => {
+    if (orders.length > 0 && previousOrderIdsRef.current.size > 0) {
+      const currentOrderIds = new Set(orders.map(o => o.id));
+      const newOrderIds = [...currentOrderIds].filter(id => !previousOrderIdsRef.current.has(id));
+      
+      if (newOrderIds.length > 0 && soundEnabled) {
+        console.log('🆕 [Orders] New orders detected via polling:', newOrderIds);
+        // Only play sound if we haven't already played it via realtime
+        // The realtime subscription will handle most cases
+        const newOrders = orders.filter(o => newOrderIds.includes(o.id));
+        const veryRecentOrders = newOrders.filter(o => {
+          const orderTime = new Date(o.created_at).getTime();
+          const now = Date.now();
+          return (now - orderTime) < 10000; // Within last 10 seconds
+        });
+        
+        if (veryRecentOrders.length > 0) {
+          playNewOrderSound();
+        }
+      }
+      
+      previousOrderIdsRef.current = currentOrderIds;
+    } else if (orders.length > 0) {
+      // First load - initialize the set
+      previousOrderIdsRef.current = new Set(orders.map(o => o.id));
+    }
+  }, [orders, soundEnabled]);
 
   const loadOrders = async () => {
     try {
@@ -43,7 +170,46 @@ export default function OrdersPage() {
       if (result.error) {
         setError(result.error);
       } else {
-        setOrders(result.data || []);
+        const newOrders = result.data || [];
+        
+        // Check for new orders by comparing the most recent order ID
+        if (newOrders.length > 0) {
+          const mostRecentOrder = newOrders[0]; // Orders are sorted by created_at DESC
+          const currentLastOrderId = mostRecentOrder.id;
+          const currentLastOrderTime = new Date(mostRecentOrder.created_at).getTime();
+          
+          // If we have a previous last order ID and it's different, we have a new order
+          if (lastOrderIdRef.current) {
+            if (lastOrderIdRef.current !== currentLastOrderId) {
+              console.log('🆕 [Orders] New order detected by ID comparison:', {
+                previousLastId: lastOrderIdRef.current,
+                currentLastId: currentLastOrderId,
+                orderNumber: mostRecentOrder.order_number
+              });
+              
+              // Check if this order was created recently (within last 2 minutes)
+              const twoMinutesAgo = Date.now() - (2 * 60 * 1000);
+              if (currentLastOrderTime > twoMinutesAgo && soundEnabled) {
+                console.log('🔔 [Orders] Playing notification for new order:', {
+                  orderId: currentLastOrderId,
+                  orderNumber: mostRecentOrder.order_number,
+                  created: new Date(mostRecentOrder.created_at).toLocaleString()
+                });
+                playNewOrderSound();
+              }
+            }
+          } else {
+            // First load - just set the last order ID without playing sound
+            console.log('📋 [Orders] Initial load, setting last order ID:', currentLastOrderId);
+          }
+          
+          // Update the last order ID
+          lastOrderIdRef.current = currentLastOrderId;
+        }
+        
+        setOrders(newOrders);
+        setLastUpdated(new Date());
+        setRefreshCountdown(30); // Reset countdown to 30 seconds
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load orders');
@@ -51,6 +217,34 @@ export default function OrdersPage() {
       setLoading(false);
     }
   };
+
+  // Countdown timer for refresh button
+  useEffect(() => {
+    if (refreshCountdown > 0) {
+      countdownIntervalRef.current = setInterval(() => {
+        setRefreshCountdown((prev) => {
+          if (prev <= 1) {
+            // Auto-refresh when countdown reaches 0
+            loadOrders();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+    }
+
+    return () => {
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshCountdown]);
 
   const handleViewOrder = async (orderId: string) => {
     try {
@@ -110,6 +304,48 @@ export default function OrdersPage() {
       setError(err instanceof Error ? err.message : 'Failed to update payment status');
     } finally {
       setUpdatingStatus(null);
+    }
+  };
+
+  // Quick action handlers for status progression
+  const handleQuickAction = async (orderId: string, action: 'prepare' | 'ready' | 'completed') => {
+    const statusMap: Record<string, OrderStatus> = {
+      prepare: 'preparing',
+      ready: 'ready',
+      completed: 'completed'
+    };
+
+    const newStatus = statusMap[action];
+    if (!newStatus) return;
+
+    try {
+      setUpdatingStatus(orderId);
+      const result = await updateOrderStatus(orderId, newStatus);
+      if (result.error) {
+        setError(result.error);
+      } else {
+        await loadOrders();
+        if (selectedOrder && selectedOrder.id === orderId) {
+          setSelectedOrder(result.data);
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update status');
+    } finally {
+      setUpdatingStatus(null);
+    }
+  };
+
+  const getNextQuickAction = (currentStatus: OrderStatus): { action: string; label: string; icon: React.ReactNode } | null => {
+    switch (currentStatus) {
+      case 'confirmed':
+        return { action: 'prepare', label: 'Start Preparing', icon: <FaPlay className="w-3 h-3" /> };
+      case 'preparing':
+        return { action: 'ready', label: 'Mark Ready', icon: <FaCheckCircle className="w-3 h-3" /> };
+      case 'ready':
+        return { action: 'completed', label: 'Complete', icon: <FaCheck className="w-3 h-3" /> };
+      default:
+        return null;
     }
   };
 
@@ -251,12 +487,40 @@ export default function OrdersPage() {
                   <option value="refunded">Refunded</option>
                 </select>
               </div>
-              <button
-                onClick={loadOrders}
-                className="ml-auto px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
-              >
-                Refresh
-              </button>
+              <div className="flex items-center gap-2 ml-auto">
+                {lastUpdated && (
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    Last updated: {lastUpdated.toLocaleTimeString()}
+                  </span>
+                )}
+                <button
+                  onClick={() => setSoundEnabled(!soundEnabled)}
+                  className={`px-3 py-1 rounded-lg text-sm transition-colors ${
+                    soundEnabled
+                      ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
+                      : 'bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-gray-400'
+                  }`}
+                  title={soundEnabled ? 'Sound enabled' : 'Sound disabled'}
+                >
+                  {soundEnabled ? '🔔 On' : '🔕 Off'}
+                </button>
+                <button
+                  onClick={loadOrders}
+                  disabled={loading}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg transition-colors text-sm disabled:cursor-not-allowed"
+                >
+                  {loading ? (
+                    <>
+                      <FaSpinner className="inline-block w-3 h-3 mr-1 animate-spin" />
+                      Refreshing...
+                    </>
+                  ) : refreshCountdown > 0 ? (
+                    `Refresh in ${refreshCountdown}s`
+                  ) : (
+                    'Refresh'
+                  )}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -327,19 +591,32 @@ export default function OrdersPage() {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <select
-                            value={order.order_status}
-                            onChange={(e) => handleStatusUpdate(order.id, e.target.value as OrderStatus)}
-                            disabled={updatingStatus === order.id}
-                            className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(order.order_status)} border-0 cursor-pointer disabled:opacity-50`}
-                          >
-                            <option value="pending">Pending</option>
-                            <option value="confirmed">Confirmed</option>
-                            <option value="preparing">Preparing</option>
-                            <option value="ready">Ready</option>
-                            <option value="completed">Completed</option>
-                            <option value="cancelled">Cancelled</option>
-                          </select>
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={order.order_status}
+                              onChange={(e) => handleStatusUpdate(order.id, e.target.value as OrderStatus)}
+                              disabled={updatingStatus === order.id}
+                              className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(order.order_status)} border-0 cursor-pointer disabled:opacity-50`}
+                            >
+                              <option value="pending">Pending</option>
+                              <option value="confirmed">Confirmed</option>
+                              <option value="preparing">Preparing</option>
+                              <option value="ready">Ready</option>
+                              <option value="completed">Completed</option>
+                              <option value="cancelled">Cancelled</option>
+                            </select>
+                            {getNextQuickAction(order.order_status) && (
+                              <button
+                                onClick={() => handleQuickAction(order.id, getNextQuickAction(order.order_status)!.action as 'prepare' | 'ready' | 'completed')}
+                                disabled={updatingStatus === order.id}
+                                className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                title={getNextQuickAction(order.order_status)!.label}
+                              >
+                                {getNextQuickAction(order.order_status)!.icon}
+                                <span className="hidden sm:inline">{getNextQuickAction(order.order_status)!.label}</span>
+                              </button>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <select

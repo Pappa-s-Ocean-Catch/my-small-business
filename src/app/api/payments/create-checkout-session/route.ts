@@ -123,7 +123,7 @@ export async function POST(request: Request) {
         service_fee: serviceFee.toFixed(2),
         total: totalAmount.toFixed(2),
       },
-      billing_address_collection: 'required',
+      billing_address_collection: 'auto', // 'auto' = optional (shown but not required), 'required' = forced
       phone_number_collection: {
         enabled: true,
       },

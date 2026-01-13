@@ -33,7 +33,7 @@ This Chrome extension automatically syncs transaction data from SmartPay to your
 
 1. Go to your app's webhook configuration page:
    - **Development**: `http://localhost:3000/webhooks`
-   - **Production**: `https://business.truongthings.dev/webhooks`
+   - **Production**: `https://pappasfishnchips.com.au/webhooks`
 
 2. Create a new webhook with these settings:
    - **Name**: SmartPay Sync
@@ -41,7 +41,7 @@ This Chrome extension automatically syncs transaction data from SmartPay to your
    - **Authentication**: Configure header-based auth (optional)
    - **Enabled**: Yes
 
-3. Copy the webhook URL (format: `http://localhost:3000/api/webhooks/[webhook-id]` or `https://business.truongthings.dev/api/webhooks/[webhook-id]`)
+3. Copy the webhook URL (format: `http://localhost:3000/api/webhooks/[webhook-id]` or `https://pappasfishnchips.com.au/api/webhooks/[webhook-id]`)
 
 ### 2. Configure Extension
 

@@ -296,9 +296,14 @@ function OrderConfirmationContent() {
           </h3>
           {order.payment_method === 'online' ? (
             order.payment_status === 'paid' ? (
-              <p className="text-sm text-blue-800 dark:text-blue-200">
-                Your payment has been successfully processed. We'll notify you when your order is ready for pickup.
-              </p>
+              <div className="text-sm text-blue-800 dark:text-blue-200 space-y-2">
+                <p>
+                  Your payment has been successfully processed. We'll notify you when your order is ready for pickup.
+                </p>
+                <p className="font-medium">
+                  Usually your order will be ready for pickup at the store after 10 minutes. Please allow us extra 5-10 minutes during peak hours from 5-7pm, especially on Friday nights.
+                </p>
+              </div>
             ) : order.payment_status === 'failed' ? (
               <p className="text-sm text-red-800 dark:text-red-200">
                 Your payment could not be processed. Please contact us or try placing your order again.
@@ -309,9 +314,14 @@ function OrderConfirmationContent() {
               </p>
             )
           ) : (
-            <p className="text-sm text-blue-800 dark:text-blue-200">
-              Please pay for your order when you pick it up at the store. We'll notify you when your order is ready.
-            </p>
+            <div className="text-sm text-blue-800 dark:text-blue-200 space-y-2">
+              <p>
+                Please pay for your order when you pick it up at the store. We'll notify you when your order is ready.
+              </p>
+              <p className="font-medium">
+                Usually your order will be ready for pickup at the store after 10 minutes. Please allow us extra 5-10 minutes during peak hours from 5-7pm, especially on Friday nights.
+              </p>
+            </div>
           )}
         </div>
 

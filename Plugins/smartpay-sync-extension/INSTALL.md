@@ -28,14 +28,14 @@
    - **Enabled**: Yes
 4. Copy the webhook URL (e.g., `http://localhost:3000/api/webhooks/abc123`)
 
-#### Production (business.truongthings.dev)
-1. Go to `https://business.truongthings.dev/webhooks`
+#### Production (pappasfishnchips.com.au)
+1. Go to `https://pappasfishnchips.com.au/webhooks`
 2. Click "Add Webhook"
 3. Fill in:
    - **Name**: SmartPay Sync
    - **Type**: Transaction
    - **Enabled**: Yes
-4. Copy the webhook URL (e.g., `https://business.truongthings.dev/api/webhooks/abc123`)
+4. Copy the webhook URL (e.g., `https://pappasfishnchips.com.au/api/webhooks/abc123`)
 
 ### 3. Configure Extension
 
