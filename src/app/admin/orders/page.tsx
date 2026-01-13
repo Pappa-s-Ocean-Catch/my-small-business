@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { getAllOrders, updateOrderStatus, updatePaymentStatus, getOrder, type Order } from '@/app/actions/orders';
 import { LoadingSpinner } from '@/components/Loading';
 import { AdminGuard } from '@/components/AdminGuard';
-import { FaPrint, FaEye, FaCheckCircle, FaTimesCircle, FaClock, FaSpinner, FaFilter, FaPlay, FaCheck, FaShoppingBag } from 'react-icons/fa';
+import { FaPrint, FaEye, FaCheckCircle, FaTimesCircle, FaClock, FaSpinner, FaFilter, FaPlay, FaCheck, FaShoppingBag, FaChevronLeft, FaChevronRight, FaCalendar } from 'react-icons/fa';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 import { getSupabaseClient } from '@/lib/supabase/client';
 
@@ -45,6 +45,12 @@ const playNewOrderSound = () => {
 };
 
 export default function OrdersPage() {
+  // Get current date in YYYY-MM-DD format for default
+  const getTodayDateString = () => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
+
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +58,7 @@ export default function OrdersPage() {
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [paymentFilter, setPaymentFilter] = useState<string>('all');
+  const [selectedDate, setSelectedDate] = useState<string>(getTodayDateString());
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [showStatusDialog, setShowStatusDialog] = useState(false);
   const [statusToUpdate, setStatusToUpdate] = useState<{ orderId: string; status: OrderStatus } | null>(null);
@@ -98,22 +105,30 @@ export default function OrdersPage() {
               createdAt: newOrder.created_at
             });
             
-            // Check if this is actually a new order (not already in our list)
-            if (lastOrderIdRef.current !== newOrder.id && soundEnabled) {
-              console.log('🔔 [Orders] Playing notification for realtime new order');
-              playNewOrderSound();
+            // Only notify if the order is for the selected date
+            const orderDate = new Date(newOrder.created_at).toISOString().split('T')[0];
+            if (orderDate === selectedDate) {
+              // Check if this is actually a new order (not already in our list)
+              if (lastOrderIdRef.current !== newOrder.id && soundEnabled) {
+                console.log('🔔 [Orders] Playing notification for realtime new order');
+                playNewOrderSound();
+              }
+              
+              // Update last order ID immediately to prevent duplicate notifications
+              lastOrderIdRef.current = newOrder.id;
+              
+              // Reload orders to get the new one
+              loadOrders();
             }
-            
-            // Update last order ID immediately to prevent duplicate notifications
-            lastOrderIdRef.current = newOrder.id;
-            
-            // Reload orders to get the new one
-            loadOrders();
           } else if (payload.eventType === 'UPDATE') {
-            // Order updated
-            console.log('🔄 [Orders] Order updated:', payload.new);
-            // Reload orders to get updated data
-            loadOrders();
+            // Order updated - check if it's for the selected date
+            const updatedOrder = payload.new as { created_at: string };
+            const orderDate = new Date(updatedOrder.created_at).toISOString().split('T')[0];
+            if (orderDate === selectedDate) {
+              console.log('🔄 [Orders] Order updated:', payload.new);
+              // Reload orders to get updated data
+              loadOrders();
+            }
           }
         }
       )
@@ -125,7 +140,7 @@ export default function OrdersPage() {
         supabase.removeChannel(subscriptionRef.current);
       }
     };
-  }, [statusFilter, paymentFilter]);
+  }, [statusFilter, paymentFilter, selectedDate]);
 
   // Detect new orders and play sound (backup detection if realtime doesn't fire)
   useEffect(() => {
@@ -137,7 +152,10 @@ export default function OrdersPage() {
         console.log('🆕 [Orders] New orders detected via polling:', newOrderIds);
         // Only play sound if we haven't already played it via realtime
         // The realtime subscription will handle most cases
-        const newOrders = orders.filter(o => newOrderIds.includes(o.id));
+        const newOrders = orders.filter(o => {
+          const orderDate = new Date(o.created_at).toISOString().split('T')[0];
+          return newOrderIds.includes(o.id) && orderDate === selectedDate;
+        });
         const veryRecentOrders = newOrders.filter(o => {
           const orderTime = new Date(o.created_at).getTime();
           const now = Date.now();
@@ -154,17 +172,20 @@ export default function OrdersPage() {
       // First load - initialize the set
       previousOrderIdsRef.current = new Set(orders.map(o => o.id));
     }
-  }, [orders, soundEnabled]);
+  }, [orders, soundEnabled, selectedDate]);
 
   const loadOrders = async () => {
     try {
       setLoading(true);
-      const filters: { status?: string; payment_status?: string } = {};
+      const filters: { status?: string; payment_status?: string; date?: string } = {};
       if (statusFilter !== 'all') {
         filters.status = statusFilter;
       }
       if (paymentFilter !== 'all') {
         filters.payment_status = paymentFilter;
+      }
+      if (selectedDate) {
+        filters.date = selectedDate;
       }
       const result = await getAllOrders(filters);
       if (result.error) {
@@ -445,8 +466,66 @@ export default function OrdersPage() {
               Order Management
             </h1>
             <p className="text-gray-600 dark:text-gray-400">
-              View and manage customer orders
+              View and manage customer orders for {new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
             </p>
+          </div>
+
+          {/* Date Navigation */}
+          <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-4 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Orders by Date</h2>
+            </div>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => {
+                  const date = new Date(selectedDate);
+                  date.setDate(date.getDate() - 1);
+                  setSelectedDate(date.toISOString().split('T')[0]);
+                }}
+                className="p-2 rounded-lg bg-gray-100 dark:bg-neutral-700 hover:bg-gray-200 dark:hover:bg-neutral-600 text-gray-700 dark:text-gray-300 transition-colors"
+                title="Previous day"
+              >
+                <FaChevronLeft className="w-4 h-4" />
+              </button>
+              
+              <div className="flex items-center gap-2 flex-1">
+                <FaCalendar className="text-gray-500" />
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-white text-sm font-medium"
+                />
+                {selectedDate === getTodayDateString() && (
+                  <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">(Today)</span>
+                )}
+              </div>
+              
+              <button
+                onClick={() => {
+                  const date = new Date(selectedDate);
+                  date.setDate(date.getDate() + 1);
+                  const today = new Date();
+                  const maxDate = new Date(today);
+                  maxDate.setDate(maxDate.getDate() + 1); // Allow tomorrow
+                  if (date <= maxDate) {
+                    setSelectedDate(date.toISOString().split('T')[0]);
+                  }
+                }}
+                disabled={new Date(selectedDate) >= new Date(getTodayDateString())}
+                className="p-2 rounded-lg bg-gray-100 dark:bg-neutral-700 hover:bg-gray-200 dark:hover:bg-neutral-600 text-gray-700 dark:text-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Next day"
+              >
+                <FaChevronRight className="w-4 h-4" />
+              </button>
+              
+              <button
+                onClick={() => setSelectedDate(getTodayDateString())}
+                className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors"
+              >
+                Today
+              </button>
+            </div>
           </div>
 
           {/* Filters */}
@@ -538,7 +617,14 @@ export default function OrdersPage() {
             </div>
           ) : orders.length === 0 ? (
             <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-12 text-center">
-              <p className="text-gray-600 dark:text-gray-400">No orders found</p>
+              <FaShoppingBag className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-600 dark:text-gray-400 text-lg font-medium mb-2">No orders found</p>
+              <p className="text-gray-500 dark:text-gray-500 text-sm">
+                {selectedDate === getTodayDateString() 
+                  ? "No orders for today yet."
+                  : `No orders found for ${new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`
+                }
+              </p>
             </div>
           ) : (
             <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 overflow-hidden">

@@ -415,6 +415,7 @@ export async function getAllOrders(filters?: {
   status?: string;
   payment_status?: string;
   limit?: number;
+  date?: string; // ISO date string (YYYY-MM-DD)
 }): Promise<{ data: Order[] | null; error: string | null }> {
   try {
     const supabase = await createServiceRoleClient();
@@ -430,6 +431,19 @@ export async function getAllOrders(filters?: {
 
     if (filters?.payment_status) {
       query = query.eq('payment_status', filters.payment_status);
+    }
+
+    if (filters?.date) {
+      // Filter by date - get all orders for the selected date (start of day to end of day)
+      const selectedDate = new Date(filters.date);
+      const startOfDay = new Date(selectedDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(selectedDate);
+      endOfDay.setHours(23, 59, 59, 999);
+      
+      query = query
+        .gte('created_at', startOfDay.toISOString())
+        .lte('created_at', endOfDay.toISOString());
     }
 
     if (filters?.limit) {

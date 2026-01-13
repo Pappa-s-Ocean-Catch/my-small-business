@@ -8,7 +8,8 @@ import { ItemCustomizationModal } from '@/components/ItemCustomizationModal';
 import { CartSidebar } from '@/components/CartSidebar';
 import { OrderHeader } from '@/components/OrderHeader';
 import { getFeatureFlags } from '@/app/actions/feature-flags';
-import { FaUtensils, FaSearch, FaTag } from 'react-icons/fa';
+import { getTopSellingProducts, getFeaturedProducts } from '@/app/actions/top-sellers';
+import { FaUtensils, FaSearch, FaTag, FaFire, FaStar } from 'react-icons/fa';
 import type { CartAddonGroup } from '@/contexts/CartContext';
 
 interface MenuProduct {
@@ -28,15 +29,20 @@ interface MenuCategory {
   sort_order: number;
 }
 
+type FilterType = 'all' | 'category' | 'top-sellers' | 'featured';
+
 export default function OrderPage() {
   const router = useRouter();
   const { addItem, isLoading: cartLoading } = useCart();
   const [products, setProducts] = useState<MenuProduct[]>([]);
+  const [topSellers, setTopSellers] = useState<MenuProduct[]>([]);
+  const [featuredProducts, setFeaturedProducts] = useState<MenuProduct[]>([]);
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [filterType, setFilterType] = useState<FilterType>('all');
   const [customizingProduct, setCustomizingProduct] = useState<MenuProduct | null>(null);
 
   // Check feature flag
@@ -64,7 +70,7 @@ export default function OrderPage() {
       setLoading(true);
       const supabase = getSupabaseClient();
       
-      const [productsResult, categoriesResult] = await Promise.all([
+      const [productsResult, categoriesResult, topSellersResult, featuredResult] = await Promise.all([
         supabase
           .from('sale_products')
           .select('id, name, description, sale_price, image_url, sale_category_id, sub_category_id')
@@ -74,7 +80,9 @@ export default function OrderPage() {
           .from('sale_categories')
           .select('id, name, parent_category_id, sort_order')
           .eq('is_active', true)
-          .order('sort_order')
+          .order('sort_order'),
+        getTopSellingProducts(20),
+        getFeaturedProducts()
       ]);
 
       if (productsResult.error) {
@@ -89,6 +97,32 @@ export default function OrderPage() {
 
       setProducts(productsResult.data || []);
       setCategories(categoriesResult.data || []);
+      
+      // Convert top sellers to MenuProduct format
+      if (topSellersResult.data) {
+        setTopSellers(topSellersResult.data.map(p => ({
+          id: p.id,
+          name: p.name,
+          description: p.description,
+          sale_price: p.sale_price,
+          image_url: p.image_url,
+          sale_category_id: p.sale_category_id,
+          sub_category_id: p.sub_category_id
+        })));
+      }
+      
+      // Convert featured products to MenuProduct format
+      if (featuredResult.data) {
+        setFeaturedProducts(featuredResult.data.map(p => ({
+          id: p.id,
+          name: p.name,
+          description: p.description,
+          sale_price: p.sale_price,
+          image_url: p.image_url,
+          sale_category_id: p.sale_category_id,
+          sub_category_id: p.sub_category_id
+        })));
+      }
     } catch (err) {
       setError('Failed to load menu');
       console.error('Error loading menu:', err);
@@ -108,21 +142,31 @@ export default function OrderPage() {
   }, [categories]);
 
   const filteredProducts = useMemo(() => {
-    let filtered = products;
+    let filtered: MenuProduct[] = [];
 
-    // Filter by category
-    if (selectedCategoryId) {
+    // Determine which product list to use based on filter type
+    if (filterType === 'top-sellers') {
+      filtered = topSellers;
+    } else if (filterType === 'featured') {
+      filtered = featuredProducts;
+    } else if (filterType === 'category' && selectedCategoryId) {
+      // Filter by category
       const category = categories.find(c => c.id === selectedCategoryId);
       if (category) {
         const subCategoryIds = categories
           .filter(c => c.parent_category_id === category.id)
           .map(c => c.id);
         
-        filtered = filtered.filter(product => 
+        filtered = products.filter(product => 
           product.sale_category_id === selectedCategoryId ||
           (product.sub_category_id && subCategoryIds.includes(product.sub_category_id))
         );
+      } else {
+        filtered = products;
       }
+    } else {
+      // All products
+      filtered = products;
     }
 
     // Filter by search term
@@ -134,7 +178,7 @@ export default function OrderPage() {
     }
 
     return filtered;
-  }, [products, selectedCategoryId, searchTerm, categories]);
+  }, [products, topSellers, featuredProducts, selectedCategoryId, searchTerm, categories, filterType]);
 
   const handleAddToCart = (customizations: CartAddonGroup[], comment?: string | null) => {
     if (!customizingProduct) return;
@@ -214,24 +258,59 @@ export default function OrderPage() {
             />
           </div>
 
-          {/* Category Filter */}
+          {/* Filter Buttons */}
           <div className="flex flex-wrap gap-2">
             <button
-              onClick={() => setSelectedCategoryId(null)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                selectedCategoryId === null
+              onClick={() => {
+                setFilterType('all');
+                setSelectedCategoryId(null);
+              }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                filterType === 'all' && selectedCategoryId === null
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-200 dark:bg-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-neutral-600'
               }`}
             >
+              <FaUtensils className="w-3 h-3" />
               All Items
+            </button>
+            <button
+              onClick={() => {
+                setFilterType('top-sellers');
+                setSelectedCategoryId(null);
+              }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                filterType === 'top-sellers'
+                  ? 'bg-orange-600 text-white'
+                  : 'bg-gray-200 dark:bg-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-neutral-600'
+              }`}
+            >
+              <FaFire className="w-3 h-3" />
+              Top Sellers
+            </button>
+            <button
+              onClick={() => {
+                setFilterType('featured');
+                setSelectedCategoryId(null);
+              }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                filterType === 'featured'
+                  ? 'bg-yellow-600 text-white'
+                  : 'bg-gray-200 dark:bg-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-neutral-600'
+              }`}
+            >
+              <FaStar className="w-3 h-3" />
+              Featured
             </button>
             {categoryHierarchy.map(category => (
               <button
                 key={category.id}
-                onClick={() => setSelectedCategoryId(category.id)}
+                onClick={() => {
+                  setFilterType('category');
+                  setSelectedCategoryId(category.id);
+                }}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  selectedCategoryId === category.id
+                  filterType === 'category' && selectedCategoryId === category.id
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-200 dark:bg-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-neutral-600'
                 }`}
@@ -252,43 +331,66 @@ export default function OrderPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredProducts.map(product => (
-              <div
-                key={product.id}
-                className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 overflow-hidden hover:shadow-md transition-shadow"
-              >
-                {product.image_url && (
-                  <div className="aspect-video bg-gray-200 dark:bg-neutral-700 relative">
-                    <img
-                      src={product.image_url}
-                      alt={product.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                )}
-                <div className="p-4">
-                  <h3 className="font-semibold text-gray-900 dark:text-white mb-1">
-                    {product.name}
-                  </h3>
-                  {product.description && (
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">
-                      {product.description}
-                    </p>
+            {filteredProducts.map(product => {
+              const isTopSeller = topSellers.some(p => p.id === product.id);
+              const isFeatured = featuredProducts.some(p => p.id === product.id);
+              
+              return (
+                <div
+                  key={product.id}
+                  className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 overflow-hidden hover:shadow-md transition-shadow relative"
+                >
+                  {/* Badges */}
+                  {(isTopSeller || isFeatured) && (
+                    <div className="absolute top-2 right-2 flex gap-1 z-10">
+                      {isTopSeller && (
+                        <span className="px-2 py-1 bg-orange-500 text-white text-xs font-semibold rounded-full flex items-center gap-1">
+                          <FaFire className="w-2 h-2" />
+                          Top Seller
+                        </span>
+                      )}
+                      {isFeatured && (
+                        <span className="px-2 py-1 bg-yellow-500 text-white text-xs font-semibold rounded-full flex items-center gap-1">
+                          <FaStar className="w-2 h-2" />
+                          Featured
+                        </span>
+                      )}
+                    </div>
                   )}
-                  <div className="flex items-center justify-between">
-                    <span className="text-lg font-bold text-green-600 dark:text-green-400">
-                      ${product.sale_price.toFixed(2)}
-                    </span>
-                    <button
-                      onClick={() => handleQuickAdd(product)}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
-                    >
-                      Add to Cart
-                    </button>
+                  
+                  {product.image_url && (
+                    <div className="aspect-video bg-gray-200 dark:bg-neutral-700 relative">
+                      <img
+                        src={product.image_url}
+                        alt={product.name}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
+                  <div className="p-4">
+                    <h3 className="font-semibold text-gray-900 dark:text-white mb-1">
+                      {product.name}
+                    </h3>
+                    {product.description && (
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">
+                        {product.description}
+                      </p>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <span className="text-lg font-bold text-green-600 dark:text-green-400">
+                        ${product.sale_price.toFixed(2)}
+                      </span>
+                      <button
+                        onClick={() => handleQuickAdd(product)}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+                      >
+                        Add to Cart
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
