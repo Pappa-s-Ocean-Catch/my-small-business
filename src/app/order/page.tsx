@@ -42,7 +42,7 @@ export default function OrderPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
-  const [filterType, setFilterType] = useState<FilterType>('all');
+  const [filterType, setFilterType] = useState<FilterType>('top-sellers');
   const [customizingProduct, setCustomizingProduct] = useState<MenuProduct | null>(null);
 
   // Check feature flag
