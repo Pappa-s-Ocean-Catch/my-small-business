@@ -31,6 +31,7 @@ interface CreateCheckoutSessionBody {
   subtotal: number;
   tax: number;
   deliveryFee: number;
+  rewardPointsDiscount?: number;
   currency?: string;
 }
 
@@ -64,8 +65,9 @@ export async function POST(request: Request) {
     const currency = (body.currency || 'aud').toLowerCase();
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
-    // Calculate service fee
-    const baseAmount = body.subtotal + body.tax + body.deliveryFee;
+    // Calculate service fee (on amount after reward points discount)
+    const rewardPointsDiscount = body.rewardPointsDiscount || 0;
+    const baseAmount = body.subtotal + body.tax + body.deliveryFee - rewardPointsDiscount;
     const serviceFee = baseAmount * STRIPE_PERCENT_FEE + STRIPE_FIXED_FEE;
     const totalAmount = baseAmount + serviceFee;
 

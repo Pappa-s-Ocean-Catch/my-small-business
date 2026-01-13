@@ -1,10 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/contexts/CartContext';
 import { OrderHeader } from '@/components/OrderHeader';
-import { FaShoppingCart, FaArrowLeft, FaCheck, FaDollarSign, FaEdit, FaComment } from 'react-icons/fa';
+import { OrderTypeSelector, type OrderType } from '@/components/OrderTypeSelector';
+import { DeliveryAddressForm, type DeliveryAddressInput } from '@/components/DeliveryAddressForm';
+import { getFeatureFlags } from '@/app/actions/feature-flags';
+import { getSupabaseClient } from '@/lib/supabase/client';
+import { FaShoppingCart, FaArrowLeft, FaCheck, FaDollarSign, FaEdit, FaComment, FaTruck, FaClock, FaSpinner } from 'react-icons/fa';
 import Link from 'next/link';
 
 export default function OrderSummaryPage() {
@@ -12,13 +16,119 @@ export default function OrderSummaryPage() {
   const router = useRouter();
   const [editingCommentItemId, setEditingCommentItemId] = useState<string | null>(null);
   const [commentText, setCommentText] = useState<string>('');
+  
+  // Order type and delivery state
+  const [orderType, setOrderType] = useState<OrderType | null>(null);
+  const [enableDelivery, setEnableDelivery] = useState(false);
+  const [deliveryAddress, setDeliveryAddress] = useState<DeliveryAddressInput | null>(null);
+  const [deliveryQuote, setDeliveryQuote] = useState<{
+    quote_id: string;
+    fee: number;
+    currency: string;
+    expires_at: string;
+    estimated_duration_minutes: number;
+  } | null>(null);
+  const [loadingQuote, setLoadingQuote] = useState(false);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   const subtotal = getTotal();
-  // Placeholder for future fees
-  const deliveryFee = 0;
+  const deliveryFee = deliveryQuote?.fee || 0;
   const serviceFee = 0;
   const tax = 0;
   const total = subtotal + deliveryFee + serviceFee + tax;
+
+  // Check feature flags and auth status
+  useEffect(() => {
+    const checkFlags = async () => {
+      try {
+        const flags = await getFeatureFlags();
+        setEnableDelivery(flags.enable_online_delivery);
+        
+        // Check if user is authenticated
+        const supabase = getSupabaseClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        setIsAuthenticated(!!user);
+      } catch (error) {
+        console.error('Error checking feature flags:', error);
+      }
+    };
+    void checkFlags();
+  }, []);
+
+  // Get delivery quote when address is provided
+  useEffect(() => {
+    if (orderType === 'delivery' && deliveryAddress && !deliveryQuote) {
+      getDeliveryQuote();
+    }
+  }, [orderType, deliveryAddress]);
+
+  const getDeliveryQuote = async () => {
+    if (!deliveryAddress) return;
+
+    setLoadingQuote(true);
+    setQuoteError(null);
+
+    try {
+      const response = await fetch('/api/delivery/quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pickup_address: {
+            address_line1: process.env.NEXT_PUBLIC_STORE_ADDRESS_LINE1 || '123 Main Street',
+            city: process.env.NEXT_PUBLIC_STORE_CITY || 'Melton',
+            state: process.env.NEXT_PUBLIC_STORE_STATE || 'VIC',
+            postcode: process.env.NEXT_PUBLIC_STORE_POSTCODE || '3337',
+            country: 'AU',
+          },
+          dropoff_address: deliveryAddress,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to get delivery quote');
+      }
+
+      setDeliveryQuote(data.data);
+    } catch (error) {
+      console.error('Error getting delivery quote:', error);
+      setQuoteError(error instanceof Error ? error.message : 'Failed to get delivery quote');
+    } finally {
+      setLoadingQuote(false);
+    }
+  };
+
+  const handleOrderTypeSelect = (type: OrderType) => {
+    setOrderType(type);
+    if (type === 'pickup') {
+      setDeliveryAddress(null);
+      setDeliveryQuote(null);
+      setQuoteError(null);
+    }
+  };
+
+  const handleAddressSelect = (address: DeliveryAddressInput) => {
+    setDeliveryAddress(address);
+    setDeliveryQuote(null); // Reset quote to get new one
+    setQuoteError(null);
+  };
+
+  const handleProceedToCheckout = () => {
+    // Store order type and delivery info in sessionStorage to pass to checkout
+    if (orderType === 'delivery' && deliveryAddress && deliveryQuote) {
+      sessionStorage.setItem('orderType', 'delivery');
+      sessionStorage.setItem('deliveryAddress', JSON.stringify(deliveryAddress));
+      sessionStorage.setItem('deliveryQuote', JSON.stringify(deliveryQuote));
+    } else if (orderType === 'pickup') {
+      sessionStorage.setItem('orderType', 'pickup');
+      sessionStorage.removeItem('deliveryAddress');
+      sessionStorage.removeItem('deliveryQuote');
+    }
+    
+    router.push('/order/checkout');
+  };
 
   if (isLoading) {
     return (
@@ -78,6 +188,120 @@ export default function OrderSummaryPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Order Items */}
           <div className="lg:col-span-2 space-y-4">
+            {/* Order Type Selection */}
+            {!orderType && (
+              <OrderTypeSelector
+                onSelect={handleOrderTypeSelect}
+                selectedType={orderType}
+                enableDelivery={enableDelivery}
+              />
+            )}
+
+            {/* Delivery Address Form */}
+            {orderType === 'delivery' && (
+              <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-6">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                  <FaTruck className="w-5 h-5 text-green-600" />
+                  Delivery Address
+                </h2>
+                <DeliveryAddressForm
+                  onAddressSelect={handleAddressSelect}
+                  allowSave={isAuthenticated}
+                  isAuthenticated={isAuthenticated}
+                />
+                
+                {/* Delivery Quote Display */}
+                {loadingQuote && (
+                  <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center gap-3">
+                    <FaSpinner className="w-5 h-5 text-blue-600 animate-spin" />
+                    <span className="text-sm text-blue-700 dark:text-blue-300">Getting delivery quote...</span>
+                  </div>
+                )}
+
+                {quoteError && (
+                  <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                    <p className="text-sm text-red-700 dark:text-red-300">{quoteError}</p>
+                    <button
+                      onClick={getDeliveryQuote}
+                      className="mt-2 text-sm text-red-600 dark:text-red-400 hover:underline"
+                    >
+                      Try again
+                    </button>
+                  </div>
+                )}
+
+                {deliveryQuote && !loadingQuote && (
+                  <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                          <FaTruck className="w-4 h-4 text-green-600" />
+                          Delivery Quote
+                        </h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          Estimated delivery time
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-bold text-green-600 dark:text-green-400">
+                          ${deliveryQuote.fee.toFixed(2)}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-500">
+                          {deliveryQuote.currency}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 mt-3 pt-3 border-t border-green-200 dark:border-green-800">
+                      <FaClock className="w-4 h-4 text-green-600" />
+                      <span>Estimated delivery: {deliveryQuote.estimated_duration_minutes} minutes</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setDeliveryQuote(null);
+                        getDeliveryQuote();
+                      }}
+                      className="mt-3 text-sm text-green-600 dark:text-green-400 hover:underline"
+                    >
+                      Refresh quote
+                    </button>
+                  </div>
+                )}
+
+                {/* Change order type */}
+                <button
+                  onClick={() => {
+                    setOrderType(null);
+                    setDeliveryAddress(null);
+                    setDeliveryQuote(null);
+                    setQuoteError(null);
+                  }}
+                  className="mt-4 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                >
+                  Change to pickup order
+                </button>
+              </div>
+            )}
+
+            {/* Pickup Order Confirmation */}
+            {orderType === 'pickup' && (
+              <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-6">
+                <div className="flex items-center gap-3 mb-2">
+                  <FaCheck className="w-5 h-5 text-blue-600" />
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    Pickup Order Selected
+                  </h2>
+                </div>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  Your order will be ready for pickup at the store. We'll notify you when it's ready.
+                </p>
+                <button
+                  onClick={() => setOrderType(null)}
+                  className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                >
+                  Change to delivery order
+                </button>
+              </div>
+            )}
             <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-6">
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
                 Order Items
@@ -234,10 +458,18 @@ export default function OrderSummaryPage() {
                   <span>Subtotal</span>
                   <span>${subtotal.toFixed(2)}</span>
                 </div>
-                {deliveryFee > 0 && (
+                {orderType === 'delivery' && deliveryFee > 0 && (
                   <div className="flex justify-between text-gray-600 dark:text-gray-400">
-                    <span>Delivery Fee</span>
+                    <span className="flex items-center gap-2">
+                      <FaTruck className="w-4 h-4" />
+                      Delivery Fee
+                    </span>
                     <span>${deliveryFee.toFixed(2)}</span>
+                  </div>
+                )}
+                {orderType === 'delivery' && deliveryQuote && (
+                  <div className="text-xs text-gray-500 dark:text-gray-500 pl-6">
+                    Estimated {deliveryQuote.estimated_duration_minutes} min delivery
                   </div>
                 )}
                 {serviceFee > 0 && (
@@ -265,13 +497,14 @@ export default function OrderSummaryPage() {
               </div>
 
               <div className="space-y-3">
-                <Link
-                  href="/order/checkout"
-                  className="block w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                <button
+                  onClick={handleProceedToCheckout}
+                  disabled={!orderType || (orderType === 'delivery' && (!deliveryAddress || !deliveryQuote))}
+                  className="block w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
                 >
                   <FaDollarSign className="w-4 h-4" />
-                  Checkout
-                </Link>
+                  {!orderType ? 'Select Order Type First' : orderType === 'delivery' && (!deliveryAddress || !deliveryQuote) ? 'Complete Delivery Info' : 'Checkout'}
+                </button>
                 <Link
                   href="/order"
                   className="block w-full text-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white py-2 transition-colors"

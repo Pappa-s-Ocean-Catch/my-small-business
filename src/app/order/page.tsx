@@ -1,11 +1,13 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { useCart } from '@/contexts/CartContext';
 import { ItemCustomizationModal } from '@/components/ItemCustomizationModal';
 import { CartSidebar } from '@/components/CartSidebar';
 import { OrderHeader } from '@/components/OrderHeader';
+import { getFeatureFlags } from '@/app/actions/feature-flags';
 import { FaUtensils, FaSearch, FaTag } from 'react-icons/fa';
 import type { CartAddonGroup } from '@/contexts/CartContext';
 
@@ -27,6 +29,7 @@ interface MenuCategory {
 }
 
 export default function OrderPage() {
+  const router = useRouter();
   const { addItem, isLoading: cartLoading } = useCart();
   const [products, setProducts] = useState<MenuProduct[]>([]);
   const [categories, setCategories] = useState<MenuCategory[]>([]);
@@ -35,6 +38,22 @@ export default function OrderPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [customizingProduct, setCustomizingProduct] = useState<MenuProduct | null>(null);
+
+  // Check feature flag
+  useEffect(() => {
+    const checkFeatureFlag = async () => {
+      try {
+        const flags = await getFeatureFlags();
+        if (!flags.enable_pickup_order) {
+          // Redirect to home if pickup orders are disabled
+          router.push('/');
+        }
+      } catch (error) {
+        console.error('Error checking feature flag:', error);
+      }
+    };
+    void checkFeatureFlag();
+  }, [router]);
 
   useEffect(() => {
     loadMenuData();

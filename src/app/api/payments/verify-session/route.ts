@@ -116,6 +116,35 @@ export async function POST(request: Request) {
         // Payment status update succeeded, so we'll still return success
       }
 
+      // Award reward points if user is logged in and order is paid
+      // Points are earned only on food subtotal, not on fees, tax, or delivery
+      if (paymentResult.data?.user_id && paymentResult.data?.payment_status === 'paid') {
+        try {
+          const { earnRewardPoints } = await import('@/app/actions/reward-points');
+          // Use subtotal (food price only) instead of total (which includes fees/tax/delivery)
+          const foodSubtotal = parseFloat(paymentResult.data.subtotal.toString());
+          const pointsResult = await earnRewardPoints(
+            paymentResult.data.user_id,
+            orderId,
+            foodSubtotal
+          );
+
+          if (pointsResult.success) {
+            console.log('[Stripe Verify] Reward points awarded:', {
+              userId: paymentResult.data.user_id,
+              orderId,
+              foodSubtotal,
+              pointsEarned: pointsResult.pointsEarned,
+            });
+          } else {
+            console.error('[Stripe Verify] Failed to award reward points:', pointsResult.error);
+          }
+        } catch (error) {
+          console.error('[Stripe Verify] Error awarding reward points:', error);
+          // Don't fail the verification if points fail
+        }
+      }
+
       console.log('[Stripe] Order updated successfully:', {
         orderId,
         paymentStatus: 'paid',

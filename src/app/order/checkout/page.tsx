@@ -7,7 +7,9 @@ import { OrderHeader } from '@/components/OrderHeader';
 import { createOrder, type OrderInput } from '@/app/actions/orders';
 import { signUpCustomer } from '@/app/actions/customer-auth';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { FaShoppingCart, FaArrowLeft, FaCreditCard, FaStore, FaUser, FaLock, FaCheckCircle, FaExclamationCircle } from 'react-icons/fa';
+import { getFeatureFlags } from '@/app/actions/feature-flags';
+import { getUserRewardPoints, useRewardPoints as useRewardPointsAction, getRewardPointsSettings } from '@/app/actions/reward-points';
+import { FaShoppingCart, FaArrowLeft, FaCreditCard, FaStore, FaUser, FaLock, FaCheckCircle, FaExclamationCircle, FaGift, FaChevronDown, FaChevronUp } from 'react-icons/fa';
 import Link from 'next/link';
 import { LoadingSpinner } from '@/components/Loading';
 type PaymentMethod = 'online' | 'store';
@@ -40,12 +42,133 @@ export default function CheckoutPage() {
   const [currentUser, setCurrentUser] = useState<{ id: string; email: string; full_name?: string; phone?: string } | null>(null);
   const [isLoggedInNonCustomer, setIsLoggedInNonCustomer] = useState(false);
 
+  // Order type and delivery state (from summary page)
+  const [orderType, setOrderType] = useState<'pickup' | 'delivery' | null>(null);
+  const [deliveryAddress, setDeliveryAddress] = useState<any>(null);
+  const [deliveryQuote, setDeliveryQuote] = useState<any>(null);
+  const [deliveryAddressEditable, setDeliveryAddressEditable] = useState(false);
+
+  // Reward points state
+  const [userRewardPoints, setUserRewardPoints] = useState<{ current_balance: number } | null>(null);
+  const [rewardPointsSettings, setRewardPointsSettings] = useState({ dollars_per_point: 0.001, enabled: true });
+  const [useRewardPoints, setUseRewardPoints] = useState(false);
+  const [rewardPointsToUse, setRewardPointsToUse] = useState(0);
+  const [loadingRewardPoints, setLoadingRewardPoints] = useState(false);
+  const [showRewardPointsSection, setShowRewardPointsSection] = useState(false);
+
   const subtotal = getTotal();
   const tax = 0; // Placeholder
-  const deliveryFee = 0; // Placeholder
+  const [deliveryFee, setDeliveryFee] = useState(0);
   const [serviceFee, setServiceFee] = useState(0);
   const [isRedirecting, setIsRedirecting] = useState(false);
-  const total = subtotal + tax + deliveryFee + serviceFee;
+  const [featureFlags, setFeatureFlags] = useState({
+    enable_online_payment: true,
+    enable_instore_payment: true,
+  });
+  
+  // Calculate reward points discount
+  const rewardPointsDiscount = useRewardPoints && rewardPointsToUse > 0 
+    ? rewardPointsToUse * rewardPointsSettings.dollars_per_point 
+    : 0;
+
+  // Eligible amount for earning points: food subtotal minus any part paid with points
+  const eligibleAmountForPoints = Math.max(0, subtotal - rewardPointsDiscount);
+  const estimatedPointsEarned = rewardPointsSettings.enabled
+    ? Math.floor(eligibleAmountForPoints * (rewardPointsSettings as { points_per_dollar?: number }).points_per_dollar!)
+    : 0;
+  const estimatedPointsValue = estimatedPointsEarned * rewardPointsSettings.dollars_per_point;
+  
+  const total = subtotal + tax + deliveryFee + serviceFee - rewardPointsDiscount;
+
+  // Load order type and delivery info from sessionStorage
+  useEffect(() => {
+    const storedOrderType = sessionStorage.getItem('orderType') as 'pickup' | 'delivery' | null;
+    const storedDeliveryAddress = sessionStorage.getItem('deliveryAddress');
+    const storedDeliveryQuote = sessionStorage.getItem('deliveryQuote');
+
+    if (storedOrderType) {
+      setOrderType(storedOrderType);
+    }
+
+    if (storedDeliveryAddress) {
+      try {
+        setDeliveryAddress(JSON.parse(storedDeliveryAddress));
+      } catch (e) {
+        console.error('Error parsing delivery address:', e);
+      }
+    }
+
+    if (storedDeliveryQuote) {
+      try {
+        const quote = JSON.parse(storedDeliveryQuote);
+        setDeliveryQuote(quote);
+        setDeliveryFee(quote.fee || 0);
+      } catch (e) {
+        console.error('Error parsing delivery quote:', e);
+      }
+    }
+  }, []);
+
+  // Load feature flags
+  useEffect(() => {
+    const loadFeatureFlags = async () => {
+      try {
+        const flags = await getFeatureFlags();
+        setFeatureFlags(flags);
+      } catch (error) {
+        console.error('Error loading feature flags:', error);
+      }
+    };
+    void loadFeatureFlags();
+  }, []);
+
+  // Load reward points if user is authenticated
+  useEffect(() => {
+    const loadRewardPoints = async () => {
+      if (!isAuthenticated || !currentUser) return;
+      
+      try {
+        setLoadingRewardPoints(true);
+        const [pointsResult, settingsResult] = await Promise.all([
+          getUserRewardPoints(),
+          getRewardPointsSettings(),
+        ]);
+
+        if (pointsResult.data) {
+          setUserRewardPoints(pointsResult.data);
+        }
+
+        if (settingsResult) {
+          setRewardPointsSettings(settingsResult);
+        }
+      } catch (error) {
+        console.error('Error loading reward points:', error);
+      } finally {
+        setLoadingRewardPoints(false);
+      }
+    };
+
+    if (isAuthenticated && currentUser) {
+      void loadRewardPoints();
+    }
+  }, [isAuthenticated, currentUser]);
+
+  // Calculate max points that can be used
+  const maxPointsToUse = userRewardPoints?.current_balance || 0;
+  const maxDollarDiscount = maxPointsToUse * rewardPointsSettings.dollars_per_point;
+  const maxPointsForOrder = Math.min(maxPointsToUse, Math.floor(total / rewardPointsSettings.dollars_per_point));
+
+  // Auto-suggest using reward points if available
+  useEffect(() => {
+    if (userRewardPoints && userRewardPoints.current_balance > 0 && !useRewardPoints && rewardPointsSettings.enabled) {
+      // Suggest using points if balance is significant
+      const suggestedDiscount = Math.min(maxDollarDiscount, total * 0.5); // Suggest up to 50% of order
+      if (suggestedDiscount >= 1) { // Only suggest if discount is at least $1
+        setUseRewardPoints(true);
+        setRewardPointsToUse(Math.min(maxPointsToUse, Math.floor(suggestedDiscount / rewardPointsSettings.dollars_per_point)));
+      }
+    }
+  }, [userRewardPoints, total, rewardPointsSettings.enabled]);
 
   // Check if user is already authenticated
   useEffect(() => {
@@ -469,12 +592,27 @@ export default function CheckoutPage() {
         throw new Error('Please sign in or create an account to pay at store');
       }
 
+      // Validate delivery order requirements
+      if (orderType === 'delivery') {
+        if (!deliveryAddress) {
+          throw new Error('Delivery address is required');
+        }
+        if (!deliveryQuote) {
+          throw new Error('Delivery quote is required');
+        }
+        // Delivery orders can only use online payment
+        if (paymentMethod !== 'online') {
+          throw new Error('Delivery orders must be paid online');
+        }
+      }
+
       // Prepare order input
       const orderInput: OrderInput = {
         customer_email: customerEmail,
         customer_phone: customerPhone,
         customer_name: customerName || undefined,
         payment_method: paymentMethod,
+        order_type: orderType || 'pickup',
         user_id: currentUser?.id,
         special_instructions: specialInstructions || undefined,
         items: items.map(item => ({
@@ -503,6 +641,32 @@ export default function CheckoutPage() {
         total
       };
 
+      // Add reward points if being used
+      if (useRewardPoints && rewardPointsToUse > 0 && currentUser?.id) {
+        orderInput.reward_points_used = rewardPointsToUse;
+        orderInput.reward_points_value = rewardPointsDiscount;
+        // Note: Points will be deducted when order is created via useRewardPoints action
+      }
+
+      // Add delivery fields if order type is delivery
+      if (orderType === 'delivery' && deliveryAddress && deliveryQuote) {
+        orderInput.delivery_address = {
+          address_line1: deliveryAddress.address_line1,
+          address_line2: deliveryAddress.address_line2,
+          city: deliveryAddress.city,
+          state: deliveryAddress.state,
+          postcode: deliveryAddress.postcode,
+          country: deliveryAddress.country || 'AU',
+          latitude: deliveryAddress.latitude,
+          longitude: deliveryAddress.longitude,
+        };
+        orderInput.delivery_quote_id = deliveryQuote.quote_id;
+        orderInput.delivery_quote_amount = deliveryQuote.fee;
+        orderInput.delivery_quote_currency = deliveryQuote.currency;
+        orderInput.delivery_quote_expires_at = deliveryQuote.expires_at;
+        orderInput.delivery_eta_minutes = deliveryQuote.estimated_duration_minutes;
+      }
+
       // Create order first (for both payment methods)
       const result = await createOrder(orderInput);
 
@@ -512,6 +676,23 @@ export default function CheckoutPage() {
 
       if (!result.data) {
         throw new Error('Failed to create order');
+      }
+
+      // Deduct reward points if they were used
+      if (useRewardPoints && rewardPointsToUse > 0 && currentUser?.id) {
+        console.log(`[Checkout] Deducting ${rewardPointsToUse} reward points for order ${result.data.id}`);
+        const pointsResult = await useRewardPointsAction(
+          currentUser.id,
+          result.data.id,
+          rewardPointsToUse
+        );
+        if (!pointsResult.success) {
+          console.error('[Checkout] Failed to deduct reward points:', pointsResult.error);
+          // Don't fail the order if points deduction fails, but log it
+          // The order will still proceed, but points won't be deducted
+        } else {
+          console.log(`[Checkout] Successfully deducted ${rewardPointsToUse} reward points ($${pointsResult.dollarValue?.toFixed(2)})`);
+        }
       }
 
       // For pay online, redirect to Stripe Checkout
@@ -545,6 +726,7 @@ export default function CheckoutPage() {
             subtotal,
             tax,
             deliveryFee,
+            rewardPointsDiscount: rewardPointsDiscount,
             currency: 'aud'
           })
         });
@@ -616,39 +798,86 @@ export default function CheckoutPage() {
         </h1>
 
         <form onSubmit={handleSubmitOrder} className="space-y-6">
+          {/* Order Type Display */}
+          {orderType && (
+            <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-6 mb-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-gray-900 dark:text-white mb-1">
+                    {orderType === 'delivery' ? 'Online Delivery' : 'Pickup Order'}
+                  </h3>
+                  {orderType === 'delivery' && deliveryAddress && (
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      {deliveryAddress.address_line1}, {deliveryAddress.city}, {deliveryAddress.state} {deliveryAddress.postcode}
+                    </p>
+                  )}
+                  {orderType === 'delivery' && deliveryQuote && (
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                      Delivery Fee: ${deliveryQuote.fee.toFixed(2)} • Est. {deliveryQuote.estimated_duration_minutes} min
+                    </p>
+                  )}
+                </div>
+                <Link
+                  href="/order/summary"
+                  className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  Change
+                </Link>
+              </div>
+            </div>
+          )}
+
           {/* Payment Method Selection */}
           {!paymentMethod && (
             <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-6">
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
                 Select Payment Method
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <button
-                  type="button"
-                  onClick={() => handlePaymentMethodSelect('online')}
-                  className="p-6 border-2 border-gray-200 dark:border-neutral-700 rounded-lg hover:border-blue-600 dark:hover:border-blue-500 transition-colors text-left"
-                >
-                  <FaCreditCard className="w-8 h-8 text-blue-600 mb-3" />
-                  <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
-                    Pay Online
-                  </h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Pay securely online. No account required, but we recommend creating one for faster checkout.
+              {orderType === 'delivery' ? (
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg mb-4">
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    Delivery orders must be paid online for security and tracking purposes.
                   </p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handlePaymentMethodSelect('store')}
-                  className="p-6 border-2 border-gray-200 dark:border-neutral-700 rounded-lg hover:border-blue-600 dark:hover:border-blue-500 transition-colors text-left"
-                >
-                  <FaStore className="w-8 h-8 text-green-600 mb-3" />
-                  <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
-                    Pay at Store
-                  </h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Pay when you pick up your order. Requires a customer account.
-                  </p>
-                </button>
+                </div>
+              ) : null}
+              <div className={`grid gap-4 ${orderType === 'delivery' ? 'grid-cols-1' : featureFlags.enable_online_payment && featureFlags.enable_instore_payment ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'}`}>
+                {featureFlags.enable_online_payment && (
+                  <button
+                    type="button"
+                    onClick={() => handlePaymentMethodSelect('online')}
+                    className="p-6 border-2 border-gray-200 dark:border-neutral-700 rounded-lg hover:border-blue-600 dark:hover:border-blue-500 transition-colors text-left"
+                  >
+                    <FaCreditCard className="w-8 h-8 text-blue-600 mb-3" />
+                    <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
+                      Pay Online
+                    </h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Pay securely online. No account required, but we recommend creating one for faster checkout.
+                    </p>
+                  </button>
+                )}
+                {orderType !== 'delivery' && featureFlags.enable_instore_payment && (
+                  <button
+                    type="button"
+                    onClick={() => handlePaymentMethodSelect('store')}
+                    className="p-6 border-2 border-gray-200 dark:border-neutral-700 rounded-lg hover:border-blue-600 dark:hover:border-blue-500 transition-colors text-left"
+                  >
+                    <FaStore className="w-8 h-8 text-green-600 mb-3" />
+                    <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
+                      Pay at Store
+                    </h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Pay when you pick up your order. Requires a customer account.
+                    </p>
+                  </button>
+                )}
+                {!featureFlags.enable_online_payment && !featureFlags.enable_instore_payment && (
+                  <div className="p-6 border-2 border-gray-200 dark:border-neutral-700 rounded-lg text-center">
+                    <p className="text-gray-600 dark:text-gray-400">
+                      Payment options are currently unavailable. Please contact the store for assistance.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -716,25 +945,6 @@ export default function CheckoutPage() {
                     className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-white disabled:bg-gray-100 dark:disabled:bg-neutral-800"
                     placeholder="John Doe"
                   />
-                </div>
-              </div>
-
-              {/* Trust Messaging */}
-              <div className="mt-6 pt-6 border-t border-gray-200 dark:border-neutral-700">
-                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                  <div className="flex items-start gap-3">
-                    <FaLock className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-1">
-                        Secure Payment Processing
-                      </h4>
-                      <p className="text-xs text-blue-800 dark:text-blue-300">
-                        We do not store your card information. All payments are securely processed by Stripe, 
-                        a trusted third-party payment provider used by millions of businesses worldwide. 
-                        Your payment details are encrypted and never touch our servers.
-                      </p>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
@@ -1038,6 +1248,15 @@ export default function CheckoutPage() {
                   <span>Subtotal</span>
                   <span>${subtotal.toFixed(2)}</span>
                 </div>
+                {rewardPointsDiscount > 0 && (
+                  <div className="flex justify-between text-green-600 dark:text-green-400 font-medium">
+                    <span className="flex items-center gap-2">
+                      <FaGift className="w-4 h-4" />
+                      Reward Points Discount
+                    </span>
+                    <span>-${rewardPointsDiscount.toFixed(2)}</span>
+                  </div>
+                )}
                 {tax > 0 && (
                   <div className="flex justify-between text-gray-600 dark:text-gray-400">
                     <span>Tax</span>
@@ -1065,6 +1284,121 @@ export default function CheckoutPage() {
                       ${total.toFixed(2)}
                     </span>
                   </div>
+                </div>
+                {rewardPointsSettings.enabled && estimatedPointsEarned > 0 && (
+                  <div className="mt-2 flex items-start gap-2 text-xs text-gray-600 dark:text-gray-400 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
+                    <FaGift className="w-4 h-4 text-yellow-600 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-gray-800 dark:text-gray-100">
+                        {isAuthenticated
+                          ? `You will earn approximately ${estimatedPointsEarned.toLocaleString()} points for this order.`
+                          : `Sign in or create an account to earn approximately ${estimatedPointsEarned.toLocaleString()} points for this order.`}
+                      </p>
+                      <p className="mt-1">
+                        This is worth about ${estimatedPointsValue.toFixed(2)} off a future order.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Reward Points Section - Compact & Collapsible */}
+          {paymentMethod && isAuthenticated && userRewardPoints && userRewardPoints.current_balance > 0 && rewardPointsSettings.enabled && (
+            <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowRewardPointsSection(!showRewardPointsSection)}
+                className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-neutral-700 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <FaGift className="w-4 h-4 text-yellow-600" />
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    Use Reward Points
+                  </span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    ({userRewardPoints.current_balance.toLocaleString()} pts = ${(userRewardPoints.current_balance * rewardPointsSettings.dollars_per_point).toFixed(2)})
+                  </span>
+                </div>
+                {showRewardPointsSection ? (
+                  <FaChevronUp className="w-4 h-4 text-gray-400" />
+                ) : (
+                  <FaChevronDown className="w-4 h-4 text-gray-400" />
+                )}
+              </button>
+              
+              {showRewardPointsSection && (
+                <div className="px-4 pb-4 border-t border-gray-200 dark:border-neutral-700 pt-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={useRewardPoints}
+                        onChange={(e) => {
+                          setUseRewardPoints(e.target.checked);
+                          if (!e.target.checked) {
+                            setRewardPointsToUse(0);
+                          } else {
+                            setRewardPointsToUse(Math.min(maxPointsToUse, maxPointsForOrder));
+                          }
+                        }}
+                        className="w-4 h-4 rounded border-gray-300 text-yellow-600 focus:ring-yellow-500"
+                      />
+                      <span className="text-sm text-gray-700 dark:text-gray-300">
+                        Apply points discount
+                      </span>
+                    </label>
+                  </div>
+
+                  {useRewardPoints && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min="0"
+                          max={maxPointsToUse}
+                          step="1"
+                          value={rewardPointsToUse}
+                          onChange={(e) => {
+                            const value = Math.min(Math.max(0, parseInt(e.target.value) || 0), maxPointsToUse);
+                            setRewardPointsToUse(value);
+                          }}
+                          className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
+                          placeholder="0"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setRewardPointsToUse(maxPointsToUse)}
+                          className="px-3 py-2 text-xs bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition-colors whitespace-nowrap"
+                        >
+                          Use All
+                        </button>
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Discount: ${(rewardPointsToUse * rewardPointsSettings.dollars_per_point).toFixed(2)}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Trust Messaging - show before proceeding to secure payment */}
+          {paymentMethod === 'online' && (
+            <div className="bg-slate-900 border border-blue-600 rounded-lg p-4 mt-4">
+              <div className="flex items-start gap-3">
+                <FaLock className="w-6 h-6 text-blue-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h4 className="text-base font-semibold text-blue-100 mb-1">
+                    Secure Payment Processing
+                  </h4>
+                  <p className="text-sm text-blue-200">
+                    We do not store your card information. All payments are securely processed by Stripe,
+                    a trusted third-party payment provider used by millions of businesses worldwide.
+                    Your payment details are encrypted and never touch our servers.
+                  </p>
                 </div>
               </div>
             </div>

@@ -84,7 +84,7 @@ export function MobileNav() {
                 <h3 className="text-xs font-semibold text-gray-300 mb-2 uppercase tracking-wider">Quick Actions</h3>
                 <div className="grid grid-cols-4 gap-2 bg-neutral-800/30">
                   <Link 
-                    href="/" 
+                    href="/admin" 
                     onClick={closeMenu} 
                     className="p-3 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200 active:scale-95 flex flex-col items-center gap-1"
                   >

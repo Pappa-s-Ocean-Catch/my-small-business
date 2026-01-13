@@ -7,6 +7,7 @@ import { FaUtensils, FaArrowRight, FaPhone, FaClock, FaEnvelope, FaMapMarkerAlt 
 import Image from "next/image";
 import Script from "next/script";
 import { TypewriterText } from "@/components/TypewriterText";
+import { getFeatureFlags } from "@/app/actions/feature-flags";
 
 interface FeaturedProduct {
   id: string;
@@ -35,9 +36,10 @@ export default function Home() {
   });
   const [contactLoading, setContactLoading] = useState(false);
   const [contactMessage, setContactMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [enablePickupOrder, setEnablePickupOrder] = useState(true);
 
   useEffect(() => {
-    const fetchFeaturedProducts = async () => {
+    const fetchData = async () => {
       try {
         const supabase = getSupabaseClient();
         // Fetch featured products marked with is_featured flag
@@ -55,14 +57,18 @@ export default function Home() {
         } else {
           setFeaturedProducts(data || []);
         }
+
+        // Fetch feature flags
+        const flags = await getFeatureFlags();
+        setEnablePickupOrder(flags.enable_pickup_order);
       } catch (error) {
-        console.error("Error fetching featured products:", error);
+        console.error("Error fetching data:", error);
       } finally {
         setLoading(false);
       }
     };
 
-    void fetchFeaturedProducts();
+    void fetchData();
   }, []);
 
   // Structured data for SEO
@@ -193,13 +199,15 @@ export default function Home() {
                 <FaUtensils className="w-5 h-5" />
                 View Our Menu
               </Link>
-              <Link
-                href="/order"
-                className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white/10 backdrop-blur-sm text-white rounded-lg font-semibold text-lg hover:bg-white/20 transition-colors border-2 border-white/30"
-              >
-                Pickup Order
-                <FaArrowRight className="w-5 h-5" />
-              </Link>
+              {enablePickupOrder && (
+                <Link
+                  href="/order"
+                  className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white/10 backdrop-blur-sm text-white rounded-lg font-semibold text-lg hover:bg-white/20 transition-colors border-2 border-white/30"
+                >
+                  Pickup Order
+                  <FaArrowRight className="w-5 h-5" />
+                </Link>
+              )}
               <Link
                 href="https://pappasoceancatch-ea.com.au/"
                 target="_blank"

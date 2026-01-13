@@ -76,6 +76,35 @@ export async function POST(request: Request) {
         );
       }
 
+      // Award reward points if user is logged in and order is paid
+      // Points are earned only on food subtotal, not on fees, tax, or delivery
+      if (order.user_id && order.payment_status === 'paid') {
+        try {
+          const { earnRewardPoints } = await import('@/app/actions/reward-points');
+          // Use subtotal (food price only) instead of total (which includes fees/tax/delivery)
+          const foodSubtotal = parseFloat(order.subtotal.toString());
+          const pointsResult = await earnRewardPoints(
+            order.user_id,
+            order.id,
+            foodSubtotal
+          );
+
+          if (pointsResult.success) {
+            console.log('[Stripe Webhook] Reward points awarded:', {
+              userId: order.user_id,
+              orderId: order.id,
+              foodSubtotal,
+              pointsEarned: pointsResult.pointsEarned,
+            });
+          } else {
+            console.error('[Stripe Webhook] Failed to award reward points:', pointsResult.error);
+          }
+        } catch (error) {
+          console.error('[Stripe Webhook] Error awarding reward points:', error);
+          // Don't fail the webhook if points fail
+        }
+      }
+
       console.log('[Stripe Webhook] Order updated successfully:', {
         orderId: order.id,
         orderNumber: order.order_number,

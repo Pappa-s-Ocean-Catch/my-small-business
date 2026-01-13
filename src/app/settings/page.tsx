@@ -5,6 +5,8 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 import { AdminGuard } from "@/components/AdminGuard";
 import { ImageUpload } from "@/components/ImageUpload";
 import { toast } from 'react-toastify';
+import { getFeatureFlags, updateFeatureFlags, type FeatureFlags } from "@/app/actions/feature-flags";
+import { getRewardPointsSettings, updateRewardPointsSettings, type RewardPointsSettings } from "@/app/actions/reward-points";
 
 type Defaults = {
   pay_rate: number;
@@ -38,6 +40,19 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingBrand, setSavingBrand] = useState(false);
+  const [featureFlags, setFeatureFlags] = useState<FeatureFlags>({
+    enable_pickup_order: true,
+    enable_online_payment: true,
+    enable_instore_payment: true,
+    enable_online_delivery: false,
+  });
+  const [savingFlags, setSavingFlags] = useState(false);
+  const [rewardPointsSettings, setRewardPointsSettings] = useState<RewardPointsSettings>({
+    points_per_dollar: 10,
+    dollars_per_point: 0.001,
+    enabled: true,
+  });
+  const [savingRewardPoints, setSavingRewardPoints] = useState(false);
 
   const load = async () => {
     const supabase = getSupabaseClient();
@@ -58,6 +73,14 @@ export default function SettingsPage() {
     if (brandData) {
       setBrandSettings(brandData);
     }
+
+    // Load feature flags
+    const flags = await getFeatureFlags();
+    setFeatureFlags(flags);
+
+    // Load reward points settings
+    const rewardSettings = await getRewardPointsSettings();
+    setRewardPointsSettings(rewardSettings);
     
     setLoading(false);
   };
@@ -117,6 +140,42 @@ export default function SettingsPage() {
       toast.error("Failed to save brand settings. Please try again.");
     } finally {
       setSavingBrand(false);
+    }
+  };
+
+  const saveFeatureFlags = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingFlags(true);
+    try {
+      const result = await updateFeatureFlags(featureFlags);
+      if (result.success) {
+        toast.success("Feature flags saved successfully!");
+      } else {
+        toast.error(result.error || "Failed to save feature flags. Please try again.");
+      }
+    } catch (error) {
+      console.error("Error saving feature flags:", error);
+      toast.error("Failed to save feature flags. Please try again.");
+    } finally {
+      setSavingFlags(false);
+    }
+  };
+
+  const saveRewardPoints = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingRewardPoints(true);
+    try {
+      const result = await updateRewardPointsSettings(rewardPointsSettings);
+      if (result.success) {
+        toast.success("Reward points settings saved successfully!");
+      } else {
+        toast.error(result.error || "Failed to save reward points settings. Please try again.");
+      }
+    } catch (error) {
+      console.error("Error saving reward points settings:", error);
+      toast.error("Failed to save reward points settings. Please try again.");
+    } finally {
+      setSavingRewardPoints(false);
     }
   };
 
@@ -256,6 +315,177 @@ export default function SettingsPage() {
             className="h-10 px-4 rounded-xl bg-black text-white dark:bg-white dark:text-black w-fit disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {savingBrand ? "Saving Brand Settings..." : "Save Brand Settings"}
+          </button>
+        </form>
+
+        {/* Feature Flags */}
+        <form onSubmit={saveFeatureFlags} className="mt-12 grid gap-6">
+          <div className="grid gap-4">
+            <h2 className="text-lg font-medium">Order System Feature Flags</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Enable or disable order system features. These settings control what options are available to customers.
+            </p>
+            
+            <div className="grid gap-4">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="w-5 h-5 rounded border-gray-300 text-black focus:ring-black"
+                  checked={featureFlags.enable_pickup_order}
+                  onChange={(e) => setFeatureFlags(prev => ({ ...prev, enable_pickup_order: e.target.checked }))}
+                />
+                <div className="flex-1">
+                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100">Enable Pickup Orders</span>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Allow customers to place orders for pickup at the store
+                  </p>
+                </div>
+              </label>
+
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="w-5 h-5 rounded border-gray-300 text-black focus:ring-black"
+                  checked={featureFlags.enable_online_payment}
+                  onChange={(e) => setFeatureFlags(prev => ({ ...prev, enable_online_payment: e.target.checked }))}
+                />
+                <div className="flex-1">
+                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100">Enable Online Payment</span>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Allow customers to pay online using Stripe (credit card, Google Pay, Apple Pay)
+                  </p>
+                </div>
+              </label>
+
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="w-5 h-5 rounded border-gray-300 text-black focus:ring-black"
+                  checked={featureFlags.enable_instore_payment}
+                  onChange={(e) => setFeatureFlags(prev => ({ ...prev, enable_instore_payment: e.target.checked }))}
+                />
+                <div className="flex-1">
+                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100">Enable In-Store Payment</span>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Allow customers to place orders and pay at the store when picking up
+                  </p>
+                </div>
+              </label>
+
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="w-5 h-5 rounded border-gray-300 text-black focus:ring-black"
+                  checked={featureFlags.enable_online_delivery}
+                  onChange={(e) => setFeatureFlags(prev => ({ ...prev, enable_online_delivery: e.target.checked }))}
+                />
+                <div className="flex-1">
+                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100">Enable Online Delivery</span>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Allow customers to place orders for delivery (future feature)
+                  </p>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <button 
+            type="submit"
+            disabled={savingFlags}
+            className="h-10 px-4 rounded-xl bg-black text-white dark:bg-white dark:text-black w-fit disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {savingFlags ? "Saving Feature Flags..." : "Save Feature Flags"}
+          </button>
+        </form>
+
+        {/* Reward Points Settings */}
+        <form onSubmit={saveRewardPoints} className="mt-12 grid gap-6">
+          <div className="grid gap-4">
+            <h2 className="text-lg font-medium">Reward Points System</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Configure how customers earn and redeem reward points.
+            </p>
+            
+            <div className="grid gap-4">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="w-5 h-5 rounded border-gray-300 text-black focus:ring-black"
+                  checked={rewardPointsSettings.enabled}
+                  onChange={(e) => setRewardPointsSettings(prev => ({ ...prev, enabled: e.target.checked }))}
+                />
+                <div className="flex-1">
+                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100">Enable Reward Points</span>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Allow customers to earn and use reward points
+                  </p>
+                </div>
+              </label>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Points per Dollar (Earning)
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
+                    value={rewardPointsSettings.points_per_dollar}
+                    onChange={(e) => setRewardPointsSettings(prev => ({ 
+                      ...prev, 
+                      points_per_dollar: parseFloat(e.target.value) || 0 
+                    }))}
+                    placeholder="10"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    How many points customers earn per $1 spent (e.g., 10 = $1 = 10 points)
+                  </p>
+                </label>
+
+                <label className="grid gap-2">
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Dollars per Point (Redemption)
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.0001"
+                    className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
+                    value={rewardPointsSettings.dollars_per_point}
+                    onChange={(e) => setRewardPointsSettings(prev => ({ 
+                      ...prev, 
+                      dollars_per_point: parseFloat(e.target.value) || 0 
+                    }))}
+                    placeholder="0.001"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Dollar value per point (e.g., 0.001 = 1000 points = $1)
+                  </p>
+                </label>
+              </div>
+
+              {/* Example calculation */}
+              {rewardPointsSettings.points_per_dollar > 0 && rewardPointsSettings.dollars_per_point > 0 && (
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                  <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Example:</h4>
+                  <ul className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                    <li>• Customer spends $50 → earns {Math.floor(50 * rewardPointsSettings.points_per_dollar)} points</li>
+                    <li>• Customer has 1000 points → worth ${(1000 * rewardPointsSettings.dollars_per_point).toFixed(2)}</li>
+                    <li>• Customer can use 1000 points to pay ${(1000 * rewardPointsSettings.dollars_per_point).toFixed(2)} of their order</li>
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <button 
+            type="submit"
+            disabled={savingRewardPoints}
+            className="h-10 px-4 rounded-xl bg-black text-white dark:bg-white dark:text-black w-fit disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {savingRewardPoints ? "Saving Reward Points Settings..." : "Save Reward Points Settings"}
           </button>
         </form>
       </div>

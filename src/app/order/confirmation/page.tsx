@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { OrderHeader } from '@/components/OrderHeader';
 import { getOrder, getOrderByNumber } from '@/app/actions/orders';
-import { FaCheckCircle, FaPrint, FaArrowLeft, FaShoppingBag } from 'react-icons/fa';
+import { getOrderRewardPoints, type OrderRewardPointsSummary } from '@/app/actions/reward-points';
+import { useCart } from '@/contexts/CartContext';
+import { FaCheckCircle, FaPrint, FaArrowLeft, FaShoppingBag, FaGift } from 'react-icons/fa';
 import Link from 'next/link';
 import { LoadingSpinner } from '@/components/Loading';
 import type { Order } from '@/app/actions/orders';
@@ -12,12 +14,15 @@ import type { Order } from '@/app/actions/orders';
 function OrderConfirmationContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { clearCart } = useCart();
   const orderNumber = searchParams.get('order');
   const orderId = searchParams.get('order_id');
   const sessionId = searchParams.get('session_id');
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [rewardSummary, setRewardSummary] = useState<OrderRewardPointsSummary | null>(null);
+  const clearedCartRef = useRef(false);
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -43,17 +48,24 @@ function OrderConfirmationContent() {
         }
 
         // If we have order_id from Stripe redirect, use that
-        if (orderId) {
-          const result = await getOrder(orderId);
-          if (result.error || !result.data) {
-            setError(result.error || 'Order not found');
+          if (orderId) {
+            const result = await getOrder(orderId);
+            if (result.error || !result.data) {
+              setError(result.error || 'Order not found');
+              setLoading(false);
+              return;
+            }
+            setOrder(result.data);
+
+            // Load reward points earned for this order (concrete value at order time)
+            const rewards = await getOrderRewardPoints(orderId);
+            if (rewards.data) {
+              setRewardSummary(rewards.data);
+            }
+
             setLoading(false);
             return;
           }
-          setOrder(result.data);
-          setLoading(false);
-          return;
-        }
 
         // Otherwise, try to get by order number
         if (orderNumber) {
@@ -64,6 +76,12 @@ function OrderConfirmationContent() {
             return;
           }
           setOrder(result.data);
+
+          const rewards = await getOrderRewardPoints(result.data.id);
+          if (rewards.data) {
+            setRewardSummary(rewards.data);
+          }
+
           setLoading(false);
           return;
         }
@@ -86,6 +104,15 @@ function OrderConfirmationContent() {
 
     fetchOrder();
   }, [orderNumber, orderId, sessionId]);
+
+  // Clear cart once we have a confirmed order (so shopping cart empties after success)
+  useEffect(() => {
+    if (order && !clearedCartRef.current) {
+      // Consider the order placed if it exists; for online we clear after confirmation
+      clearCart();
+      clearedCartRef.current = true;
+    }
+  }, [order, clearCart]);
 
   const handlePrint = () => {
     window.print();
@@ -280,12 +307,41 @@ function OrderConfirmationContent() {
                 <span className="text-gray-900 dark:text-white">${order.service_fee.toFixed(2)}</span>
               </div>
             )}
+            {order.reward_points_used && order.reward_points_used > 0 && order.reward_points_value && order.reward_points_value > 0 && (
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-gray-600 dark:text-gray-400">
+                  Reward Points Used ({order.reward_points_used.toLocaleString()} pts)
+                </span>
+                <span className="text-gray-900 dark:text-white">
+                  -${order.reward_points_value.toFixed(2)}
+                </span>
+              </div>
+            )}
             <div className="flex justify-between items-center pt-4 border-t border-gray-200 dark:border-neutral-700">
               <span className="text-xl font-semibold text-gray-900 dark:text-white">Total</span>
               <span className="text-2xl font-bold text-green-600 dark:text-green-400">
                 ${order.total.toFixed(2)}
               </span>
             </div>
+
+            {rewardSummary && rewardSummary.pointsEarned > 0 && (
+              <div className="mt-4 flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                <FaGift className="w-5 h-5 text-yellow-600 mt-0.5" />
+                <div>
+                  <p className="font-medium text-gray-900 dark:text-white">
+                    Reward Points Earned
+                  </p>
+                  <p>
+                    You earned <span className="font-semibold">{rewardSummary.pointsEarned.toLocaleString()}</span>{' '}
+                    points on this order, worth{' '}
+                    <span className="font-semibold">
+                      ${rewardSummary.dollarValue.toFixed(2)}
+                    </span>{' '}
+                    towards future orders.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

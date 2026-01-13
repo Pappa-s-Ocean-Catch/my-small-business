@@ -4,21 +4,24 @@ import { useEffect, useState } from "react";
 import { AdminGuard } from "@/components/AdminGuard";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
 import { LoadingPage } from "@/components/Loading";
-import { FaUser, FaUserShield, FaUserCog, FaTrash, FaEdit, FaSync } from "react-icons/fa";
+import { FaUser, FaUserShield, FaUserCog, FaTrash, FaEdit, FaSync, FaShoppingCart } from "react-icons/fa";
 import { getAllUsers, updateUserRole, deleteUser } from "@/app/actions/user-management";
 
 type User = {
   id: string;
   email: string;
-  role_slug: 'admin' | 'staff';
+  role_slug: 'admin' | 'staff' | 'customer';
   created_at: string;
 };
+
+type FilterType = 'all' | 'staff-admin' | 'customers';
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<FilterType>('all');
   const [deleteConfirm, setDeleteConfirm] = useState<{ user: User | null; isOpen: boolean }>({ user: null, isOpen: false });
   const [roleChangeConfirm, setRoleChangeConfirm] = useState<{ user: User | null; newRole: 'admin' | 'staff' | null; isOpen: boolean }>({ user: null, newRole: null, isOpen: false });
 
@@ -70,6 +73,13 @@ export default function UsersPage() {
         setError("Current user ID not available");
         return;
       }
+      
+      // Prevent customers from being made admin
+      if (user.role_slug === 'customer' && newRole === 'admin') {
+        setError("Customers cannot be made admin");
+        return;
+      }
+      
       const result = await updateUserRole(user.id, newRole, currentUserId);
       console.log("updateUserRole result:", result);
       
@@ -117,6 +127,8 @@ export default function UsersPage() {
         return <FaUserShield className="w-4 h-4 text-red-500" />;
       case 'staff':
         return <FaUserCog className="w-4 h-4 text-blue-500" />;
+      case 'customer':
+        return <FaShoppingCart className="w-4 h-4 text-green-500" />;
       default:
         return <FaUser className="w-4 h-4 text-gray-500" />;
     }
@@ -128,10 +140,20 @@ export default function UsersPage() {
         return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
       case 'staff':
         return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+      case 'customer':
+        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
       default:
         return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
     }
   };
+
+  // Filter users based on selected filter
+  const filteredUsers = users.filter((user) => {
+    if (filter === 'all') return true;
+    if (filter === 'staff-admin') return user.role_slug === 'admin' || user.role_slug === 'staff';
+    if (filter === 'customers') return user.role_slug === 'customer';
+    return true;
+  });
 
   if (loading) {
     return (
@@ -162,6 +184,40 @@ export default function UsersPage() {
                 Refresh
               </button>
             </div>
+          </div>
+
+          {/* Filter Buttons */}
+          <div className="mb-6 flex gap-2">
+            <button
+              onClick={() => setFilter('all')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                filter === 'all'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white dark:bg-neutral-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-neutral-700 hover:bg-gray-50 dark:hover:bg-neutral-700'
+              }`}
+            >
+              All Users ({users.length})
+            </button>
+            <button
+              onClick={() => setFilter('staff-admin')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                filter === 'staff-admin'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white dark:bg-neutral-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-neutral-700 hover:bg-gray-50 dark:hover:bg-neutral-700'
+              }`}
+            >
+              Staff & Admin ({users.filter(u => u.role_slug === 'admin' || u.role_slug === 'staff').length})
+            </button>
+            <button
+              onClick={() => setFilter('customers')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                filter === 'customers'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white dark:bg-neutral-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-neutral-700 hover:bg-gray-50 dark:hover:bg-neutral-700'
+              }`}
+            >
+              Customers ({users.filter(u => u.role_slug === 'customer').length})
+            </button>
           </div>
 
           {/* Error Display */}
@@ -206,7 +262,7 @@ export default function UsersPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-neutral-700">
-                  {users.map((user) => (
+                  {filteredUsers.map((user) => (
                     <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-neutral-800">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
@@ -238,23 +294,25 @@ export default function UsersPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex items-center gap-2">
-                          {/* Role Change Buttons */}
-                          {user.role_slug === 'admin' ? (
-                            <button
-                              onClick={() => setRoleChangeConfirm({ user, newRole: 'staff', isOpen: true })}
-                              className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-xs"
-                            >
-                              <FaEdit className="w-3 h-3" />
-                              Make Staff
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => setRoleChangeConfirm({ user, newRole: 'admin', isOpen: true })}
-                              className="flex items-center gap-1 px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-xs"
-                            >
-                              <FaUserShield className="w-3 h-3" />
-                              Make Admin
-                            </button>
+                          {/* Role Change Buttons - Only show for admin/staff, not customers */}
+                          {user.role_slug !== 'customer' && (
+                            user.role_slug === 'admin' ? (
+                              <button
+                                onClick={() => setRoleChangeConfirm({ user, newRole: 'staff', isOpen: true })}
+                                className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-xs"
+                              >
+                                <FaEdit className="w-3 h-3" />
+                                Make Staff
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => setRoleChangeConfirm({ user, newRole: 'admin', isOpen: true })}
+                                className="flex items-center gap-1 px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-xs"
+                              >
+                                <FaUserShield className="w-3 h-3" />
+                                Make Admin
+                              </button>
+                            )
                           )}
                           
                           {/* Delete Button */}
@@ -275,12 +333,17 @@ export default function UsersPage() {
           </div>
 
           {/* Empty State */}
-          {users.length === 0 && !loading && (
+          {filteredUsers.length === 0 && !loading && (
             <div className="text-center py-12">
               <FaUser className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No users found</h3>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                {users.length === 0 ? 'No users found' : `No ${filter === 'staff-admin' ? 'staff or admin' : filter === 'customers' ? 'customer' : ''} users found`}
+              </h3>
               <p className="text-gray-600 dark:text-gray-400">
-                There are no users in the system yet.
+                {users.length === 0 
+                  ? 'There are no users in the system yet.'
+                  : `Try selecting a different filter to see more users.`
+                }
               </p>
             </div>
           )}

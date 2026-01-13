@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FaUtensils, FaHome, FaUser, FaSignOutAlt, FaHistory, FaLock } from 'react-icons/fa';
+import { FaUtensils, FaHome, FaUser, FaSignOutAlt, FaHistory, FaLock, FaGift } from 'react-icons/fa';
 import { getSupabaseClient } from '@/lib/supabase/client';
 
 export function OrderHeader() {
@@ -128,6 +128,15 @@ export function OrderHeader() {
                     >
                       <FaHistory className="w-4 h-4" />
                       Order History
+                    </Link>
+                    
+                    <Link
+                      href="/rewards"
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800"
+                      onClick={() => setIsDropdownOpen(false)}
+                    >
+                      <FaGift className="w-4 h-4" />
+                      Reward Points
                     </Link>
                     
                     <Link

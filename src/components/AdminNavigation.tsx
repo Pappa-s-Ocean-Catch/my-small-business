@@ -159,7 +159,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
   return (
     <nav className={orientation === 'vertical' ? "flex flex-col items-stretch h-auto bg-white dark:bg-neutral-950 rounded-lg shadow divide-y divide-gray-200 dark:divide-neutral-800" : "flex items-center h-full"}>
       {/* Home/Dashboard - visible to all authenticated users */}
-      <Link className={getLinkClasses("/")} href="/" aria-label="Dashboard">Dashboard</Link>
+      <Link className={getLinkClasses("/admin")} href="/admin" aria-label="Dashboard">Dashboard</Link>
       
       {/* Work shift (Calendar) - visible to authenticated users only, second item */}
       <Link className={getLinkClasses("/calendar")} href="/calendar" aria-label="Work shift">Work shift</Link>

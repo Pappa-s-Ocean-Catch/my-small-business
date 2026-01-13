@@ -3,11 +3,23 @@
 import { createServiceRoleClient, createServerSupabaseClient } from '@/lib/supabase/server';
 import { CartItemData } from './cart';
 
+export interface DeliveryAddressInput {
+  address_line1: string;
+  address_line2?: string;
+  city: string;
+  state: string;
+  postcode: string;
+  country?: string;
+  latitude?: number;
+  longitude?: number;
+}
+
 export interface OrderInput {
   customer_email: string;
   customer_phone: string;
   customer_name?: string;
   payment_method: 'online' | 'store';
+  order_type: 'pickup' | 'delivery';
   user_id?: string; // Optional: for logged-in customers
   special_instructions?: string;
   items: CartItemData[];
@@ -16,6 +28,17 @@ export interface OrderInput {
   delivery_fee?: number;
   service_fee?: number;
   total: number;
+  // Delivery fields
+  delivery_address_id?: string; // If using saved address
+  delivery_address?: DeliveryAddressInput; // If entering new address
+  delivery_quote_id?: string;
+  delivery_quote_amount?: number;
+  delivery_quote_currency?: string;
+  delivery_quote_expires_at?: string;
+  delivery_eta_minutes?: number;
+  // Reward points
+  reward_points_used?: number;
+  reward_points_value?: number;
 }
 
 export interface OrderItem {
@@ -52,6 +75,7 @@ export interface Order {
   customer_phone: string;
   customer_name: string | null;
   payment_method: 'online' | 'store';
+  order_type: 'pickup' | 'delivery';
   payment_status: 'pending' | 'paid' | 'failed' | 'refunded';
   order_status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'completed' | 'cancelled';
   subtotal: number;
@@ -59,7 +83,31 @@ export interface Order {
   delivery_fee: number;
   service_fee: number;
   total: number;
+  // Reward points on this order
+  reward_points_used: number | null;
+  reward_points_value: number | null;
   special_instructions: string | null;
+  // Delivery fields
+  delivery_address_id: string | null;
+  delivery_address_line1: string | null;
+  delivery_address_line2: string | null;
+  delivery_city: string | null;
+  delivery_state: string | null;
+  delivery_postcode: string | null;
+  delivery_country: string | null;
+  delivery_latitude: number | null;
+  delivery_longitude: number | null;
+  delivery_quote_id: string | null;
+  delivery_quote_amount: number | null;
+  delivery_quote_currency: string | null;
+  delivery_quote_expires_at: string | null;
+  delivery_eta_minutes: number | null;
+  uber_delivery_id: string | null;
+  delivery_status: string | null;
+  delivery_tracking_url: string | null;
+  delivery_driver_name: string | null;
+  delivery_driver_phone: string | null;
+  delivery_vehicle_info: string | null;
   created_at: string;
   updated_at: string;
   items?: OrderItem[];
@@ -80,23 +128,57 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
     }
 
     // Create order
+    const orderData: any = {
+      user_id: input.user_id || null,
+      customer_email: input.customer_email,
+      customer_phone: input.customer_phone,
+      customer_name: input.customer_name || null,
+      payment_method: input.payment_method,
+      order_type: input.order_type,
+      payment_status: input.payment_method === 'online' ? 'pending' : 'pending', // Will be updated when payment is processed
+      order_status: 'pending',
+      subtotal: input.subtotal,
+      tax: input.tax || 0,
+      delivery_fee: input.delivery_fee || 0,
+      service_fee: input.service_fee || 0,
+      total: input.total,
+      reward_points_used: input.reward_points_used ?? null,
+      reward_points_value: input.reward_points_value ?? null,
+      special_instructions: input.special_instructions || null,
+    };
+
+    // Add delivery fields if order type is delivery
+    if (input.order_type === 'delivery') {
+      if (input.delivery_address_id) {
+        orderData.delivery_address_id = input.delivery_address_id;
+      }
+      
+      if (input.delivery_address) {
+        orderData.delivery_address_line1 = input.delivery_address.address_line1;
+        orderData.delivery_address_line2 = input.delivery_address.address_line2 || null;
+        orderData.delivery_city = input.delivery_address.city;
+        orderData.delivery_state = input.delivery_address.state;
+        orderData.delivery_postcode = input.delivery_address.postcode;
+        orderData.delivery_country = input.delivery_address.country || 'AU';
+        orderData.delivery_latitude = input.delivery_address.latitude || null;
+        orderData.delivery_longitude = input.delivery_address.longitude || null;
+      }
+
+      if (input.delivery_quote_id) {
+        orderData.delivery_quote_id = input.delivery_quote_id;
+        orderData.delivery_quote_amount = input.delivery_quote_amount || null;
+        orderData.delivery_quote_currency = input.delivery_quote_currency || 'AUD';
+        orderData.delivery_quote_expires_at = input.delivery_quote_expires_at || null;
+        orderData.delivery_eta_minutes = input.delivery_eta_minutes || null;
+      }
+
+      // Set initial delivery status
+      orderData.delivery_status = 'pending';
+    }
+
     const { data: order, error: orderError } = await supabase
       .from('orders')
-      .insert({
-        user_id: input.user_id || null,
-        customer_email: input.customer_email,
-        customer_phone: input.customer_phone,
-        customer_name: input.customer_name || null,
-        payment_method: input.payment_method,
-        payment_status: input.payment_method === 'online' ? 'pending' : 'pending', // Will be updated when payment is processed
-        order_status: 'pending',
-        subtotal: input.subtotal,
-        tax: input.tax || 0,
-        delivery_fee: input.delivery_fee || 0,
-        service_fee: input.service_fee || 0,
-        total: input.total,
-        special_instructions: input.special_instructions || null
-      })
+      .insert(orderData)
       .select()
       .single();
 

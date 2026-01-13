@@ -11,6 +11,7 @@ const PUBLIC_ROUTES = [
   "/", // Home page
   "/menu", // Menu page
   "/order", // Order page
+  "/rewards", // Public rewards page (customer rewards)
 ];
 
 // Check if a pathname is a public route
@@ -26,6 +27,7 @@ function isPublicRoute(pathname: string | null): boolean {
   if (
     pathname.startsWith("/menu/") ||
     pathname.startsWith("/order/") ||
+    pathname.startsWith("/rewards") ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/reset-password")
   ) {

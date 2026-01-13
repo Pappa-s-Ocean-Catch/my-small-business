@@ -85,6 +85,22 @@ export async function updateUserRole(userId: string, newRole: 'admin' | 'staff',
       return { success: false, error: "Cannot change your own role" };
     }
 
+    // Get the current user's role to check if they're a customer
+    const { data: userToUpdate, error: userError } = await supabase
+      .from("profiles")
+      .select("role_slug")
+      .eq("id", userId)
+      .single();
+
+    if (userError) {
+      return { success: false, error: "Failed to check user role" };
+    }
+
+    // Prevent customers from being made admin
+    if (userToUpdate?.role_slug === 'customer' && newRole === 'admin') {
+      return { success: false, error: "Customers cannot be made admin" };
+    }
+
     // If demoting an admin to staff, check if this would be the last admin
     if (newRole === 'staff') {
       const { data: adminCount, error: countError } = await supabase
