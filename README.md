@@ -1,57 +1,68 @@
-# OperateFlow
+# My Small Business - Monorepo
 
-A comprehensive small business management platform built with Next.js, Supabase, and Tailwind CSS. OperateFlow helps you manage staff, shifts, inventory, and business operations all in one place.
+A monorepo for managing a small business with web and mobile applications.
 
-## Features
+## Structure
 
-- **Staff Management**: Register and manage staff with roles, availability, and pay rates
-- **Shift Scheduling**: Weekly calendar view with drag-and-drop shift assignment
-- **Inventory Management**: Track products, categories, suppliers, and stock levels
-- **Business Analytics**: Financial reports, cost tracking, and business insights
-- **User Management**: Role-based access control (Admin/Staff)
-- **Email Notifications**: Automated shift reminders and low stock alerts
-- **Modern UI**: Responsive design with dark mode support
-
-## Tech Stack
-
-- **Frontend**: Next.js 15, React 19, TypeScript
-- **Backend**: Supabase (PostgreSQL, Auth, RLS)
-- **Styling**: Tailwind CSS
-- **Email**: Resend with React Email
-- **Charts**: Recharts
-- **Icons**: React Icons
+- **apps/web**: Next.js web application for business management
+- **apps/pappas-order-management**: React Native (Expo) app for kitchen tablet order management
+- **libs/types**: Shared TypeScript type definitions
+- **libs/supabase**: Shared Supabase client configurations
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18+
+- pnpm 9+
+
+### Installation
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# Install pnpm if not already installed
+npm install -g pnpm
+
+# Install all dependencies
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Development
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+# Run web app
+pnpm dev
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# Run mobile app
+pnpm mobile:dev
+```
 
-## Learn More
+### Building
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+# Build web app
+pnpm build
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# Build mobile app
+pnpm mobile:ios    # iOS
+pnpm mobile:android  # Android
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Workspace Scripts
 
-## Deploy on Vercel
+- `pnpm dev` - Start web app development server
+- `pnpm build` - Build web app
+- `pnpm mobile:dev` - Start mobile app development server
+- `pnpm mobile:ios` - Build iOS app
+- `pnpm mobile:android` - Build Android app
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Documentation
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [Monorepo Structure](./MONOREPO.md) - Detailed monorepo documentation
+- [Mobile App Setup](./apps/pappas-order-management/SETUP.md) - Mobile app setup guide
+
+## Workspaces
+
+This project uses pnpm workspaces. Each app and library is a separate workspace:
+
+- `@my-small-business/types` - Shared types
+- `@my-small-business/supabase` - Shared Supabase configs

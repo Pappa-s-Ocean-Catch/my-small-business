@@ -1,0 +1,14 @@
+{
+  "name": "@my-small-business/supabase",
+  "version": "1.0.0",
+  "main": "./client.ts",
+  "types": "./client.ts",
+  "private": true,
+  "dependencies": {
+    "@supabase/ssr": "^0.7.0",
+    "@supabase/supabase-js": "^2.57.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}

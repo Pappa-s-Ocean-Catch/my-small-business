@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "Pappas Order Management",
+    "slug": "pappas-order-management",
+    "version": "1.0.0",
+    "orientation": "landscape",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.pappas.orderManagement"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.pappas.ordermanagement"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-av",
+        {
+          "microphonePermission": false
+        }
+      ]
+    ],
+    "scheme": "pappas-order",
+    "extra": {
+      "supabaseUrl": "${EXPO_PUBLIC_SUPABASE_URL}",
+      "supabaseAnonKey": "${EXPO_PUBLIC_SUPABASE_ANON_KEY}"
+    }
+  }
+}

@@ -1,0 +1,100 @@
+---
+alwaysApply: true
+---
+
+# Monorepo Structure and Conventions
+
+This project is a **pnpm monorepo** with multiple applications and shared libraries.
+
+## Project Structure
+
+```
+my-small-business/
+├── apps/
+│   ├── web/                          # Next.js web application (main business app)
+│   │   └── src/                      # All web app source code
+│   │
+│   └── pappas-order-management/      # React Native (Expo) mobile app
+│       ├── app/                      # Expo router screens
+│       └── lib/                      # Mobile-specific utilities
+│
+├── libs/                              # SHARED libraries (used by both apps)
+│   ├── types/                         # Shared TypeScript types
+│   │   ├── order.ts                   # Order, OrderItem, OrderInput, etc.
+│   │   ├── dashboard.ts               # Dashboard types
+│   │   └── index.ts                    # Exports all shared types
+│   │
+│   └── supabase/                      # Shared Supabase configuration
+│       ├── client.ts                  # Browser/client Supabase client
+│       └── server.ts                  # Server-side Supabase client
+```
+
+## Critical Import Paths
+
+### ✅ CORRECT - Use Shared Libraries
+
+```typescript
+// Import shared types
+import type { Order, OrderItem, OrderStatus } from '@my-small-business/types';
+import type { User, BusinessStats } from '@my-small-business/types/dashboard';
+
+// Import shared Supabase clients
+import { getSupabaseClient } from '@my-small-business/supabase/client';
+import { createServerSupabaseClient } from '@my-small-business/supabase/server';
+```
+
+### ❌ WRONG - Old Paths (Don't Use)
+
+```typescript
+// ❌ OLD - These paths no longer exist
+import { getSupabaseClient } from '@/lib/supabase/client';
+import type { Order } from '@/types/order';
+```
+
+## Where to Define Shared Types
+
+**ALWAYS define shared types in `libs/types/`**, not in individual apps:
+
+1. **Create or edit** file in `libs/types/`:
+   ```typescript
+   // libs/types/order.ts
+   export interface Order { ... }
+   ```
+
+2. **Export from index**:
+   ```typescript
+   // libs/types/index.ts
+   export * from './order';
+   ```
+
+3. **Use in both apps**:
+   ```typescript
+   import type { Order } from '@my-small-business/types';
+   ```
+
+## Order Features - Keep Web and Mobile in Sync
+
+**CRITICAL**: When updating order-related features on the web app, ensure the mobile app stays in sync:
+
+1. **Order Types**: Always update `libs/types/order.ts` (shared between both apps)
+2. **Order Status Flow**: Both apps use the same status values from shared types
+3. **Order API**: Web app has server actions in `apps/web/src/app/actions/orders.ts`
+4. **Mobile App**: Uses shared types from `@my-small-business/types` and has its own API in `apps/pappas-order-management/lib/orders.ts`
+
+**When adding/updating order features:**
+- ✅ Update shared types in `libs/types/order.ts`
+- ✅ Update web app in `apps/web/src/app/actions/orders.ts`
+- ✅ Update mobile app in `apps/pappas-order-management/lib/orders.ts` if needed
+- ✅ Both apps import from `@my-small-business/types` - they stay in sync automatically
+
+## Workspace Packages
+
+- **@my-small-business/types**: Shared TypeScript type definitions
+- **@my-small-business/supabase**: Shared Supabase client configurations
+
+## Common Mistakes to Avoid
+
+1. ❌ **Don't create duplicate types** - Use shared types from `@my-small-business/types`
+2. ❌ **Don't import from old paths** - Use `@my-small-business/*` packages
+3. ❌ **Don't put shared code in apps/** - Put it in `libs/`
+4. ❌ **Don't forget to sync** - When updating order features, check both web and mobile apps
