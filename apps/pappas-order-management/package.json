@@ -4,9 +4,12 @@
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
+    "android": "expo start --android --device",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "generate-assets": "node scripts/generate-assets.js",
+    "ios:tablet": "expo start --ios --device",
+    "android:tablet": "expo start --android --device"
   },
   "dependencies": {
     "@my-small-business/types": "workspace:*",
@@ -26,6 +29,7 @@
   "devDependencies": {
     "@babel/core": "^7.24.0",
     "@types/react": "~18.2.79",
+    "sharp": "^0.34.5",
     "typescript": "^5.3.3"
   },
   "private": true

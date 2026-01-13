@@ -23,7 +23,8 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.pappas.ordermanagement"
+      "package": "com.pappas.ordermanagement",
+      "supportsTablet": true
     },
     "web": {
       "favicon": "./assets/favicon.png"

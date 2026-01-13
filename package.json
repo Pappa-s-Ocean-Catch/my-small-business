@@ -11,7 +11,9 @@
     "lint": "pnpm --filter web lint",
     "mobile:dev": "pnpm --filter pappas-order-management start",
     "mobile:ios": "pnpm --filter pappas-order-management ios",
-    "mobile:android": "pnpm --filter pappas-order-management android"
+    "mobile:android": "pnpm --filter pappas-order-management android",
+    "mobile:ios:tablet": "pnpm --filter pappas-order-management ios:tablet",
+    "mobile:android:tablet": "pnpm --filter pappas-order-management android:tablet"
   },
   "devDependencies": {
     "pnpm": "^9.0.0",
