@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { FaPrint, FaUtensils, FaFish, FaGift } from 'react-icons/fa';
 import { storeInfo } from '@/data/print-menu-data';
+import { Icon } from '@/components/Icon';
 import '@/styles/print-menu.css';
 
 export default function InStoreMenuIndex() {
@@ -60,18 +61,17 @@ export default function InStoreMenuIndex() {
         
         <div className="menu-selection-grid">
           {menuPages.map((page) => {
-            const IconComponent = page.icon;
             return (
               <Link key={page.id} href={page.href} className="menu-page-card">
                 <div className={`card-icon ${page.color}`}>
-                  <IconComponent className="icon" />
+                  <Icon icon={page.icon} className="icon" />
                 </div>
                 <div className="card-content">
                   <h3 className="card-title">{page.title}</h3>
                   <p className="card-description">{page.description}</p>
                 </div>
                 <div className="card-action">
-                  <FaPrint className="print-icon" />
+                  <Icon icon={FaPrint} className="print-icon" />
                   <span>View & Print</span>
                 </div>
               </Link>

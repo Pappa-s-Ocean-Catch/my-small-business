@@ -4,7 +4,7 @@ import { FaCalendarAlt, FaUsers, FaBox, FaExclamationTriangle, FaDollarSign, FaC
 import Link from "next/link";
 import { BusinessStats } from "@my-small-business/types/dashboard";
 import { startOfWeek, endOfWeek, subWeeks, format } from "date-fns";
-
+import { Icon } from "@/components/Icon";
 interface AdminDashboardProps {
   businessStats: BusinessStats | null;
 }
@@ -30,7 +30,7 @@ export function AdminDashboard({ businessStats }: AdminDashboardProps) {
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Staff</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{businessStats?.totalStaff || 0}</p>
             </div>
-            <FaUsers className="w-8 h-8 text-blue-600" />
+            <Icon icon={FaUsers} className="w-8 h-8 text-blue-600" />
           </div>
         </div>
 
@@ -40,7 +40,7 @@ export function AdminDashboard({ businessStats }: AdminDashboardProps) {
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Products</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{businessStats?.totalProducts || 0}</p>
             </div>
-            <FaBox className="w-8 h-8 text-green-600" />
+            <Icon icon={FaBox} className="w-8 h-8 text-green-600" />
           </div>
         </div>
 
@@ -50,7 +50,7 @@ export function AdminDashboard({ businessStats }: AdminDashboardProps) {
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Low Stock Alert</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{businessStats?.lowStockProducts || 0}</p>
             </div>
-            <FaExclamationTriangle className="w-8 h-8 text-red-600" />
+            <Icon icon={FaExclamationTriangle} className="w-8 h-8 text-red-600" />
           </div>
         </div>
 
@@ -76,7 +76,7 @@ export function AdminDashboard({ businessStats }: AdminDashboardProps) {
                 </p>
               )}
             </div>
-            <FaDollarSign className="w-8 h-8 text-green-600 group-hover:scale-110 transition-transform" />
+            <Icon icon={FaDollarSign} className="w-8 h-8 text-green-600 group-hover:scale-110 transition-transform" />
           </div>
         </Link>
 
@@ -89,7 +89,7 @@ export function AdminDashboard({ businessStats }: AdminDashboardProps) {
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Last Week Revenue</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">${businessStats?.previousWeekRevenue?.toFixed(2) || '0.00'}</p>
             </div>
-            <FaChartLine className="w-8 h-8 text-blue-600 group-hover:scale-110 transition-transform" />
+            <Icon icon={FaChartLine} className="w-8 h-8 text-blue-600 group-hover:scale-110 transition-transform" />
           </div>
         </Link>
       </div>
@@ -101,7 +101,7 @@ export function AdminDashboard({ businessStats }: AdminDashboardProps) {
           className="bg-white dark:bg-neutral-800 rounded-xl p-6 border border-gray-200 dark:border-neutral-700 hover:shadow-lg transition-shadow group"
         >
           <div className="flex items-center gap-4">
-            <FaCalendarAlt className="w-8 h-8 text-blue-600 group-hover:scale-110 transition-transform" />
+            <Icon icon={FaCalendarAlt} className="w-8 h-8 text-blue-600 group-hover:scale-110 transition-transform" />
             <div>
               <h3 className="font-semibold text-gray-900 dark:text-white">Schedule</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400">Manage shifts</p>
@@ -114,7 +114,7 @@ export function AdminDashboard({ businessStats }: AdminDashboardProps) {
           className="bg-white dark:bg-neutral-800 rounded-xl p-6 border border-gray-200 dark:border-neutral-700 hover:shadow-lg transition-shadow group"
         >
           <div className="flex items-center gap-4">
-            <FaUsers className="w-8 h-8 text-green-600 group-hover:scale-110 transition-transform" />
+            <Icon icon={FaUsers} className="w-8 h-8 text-green-600 group-hover:scale-110 transition-transform" />
             <div>
               <h3 className="font-semibold text-gray-900 dark:text-white">Staff</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400">Manage team</p>
@@ -127,7 +127,7 @@ export function AdminDashboard({ businessStats }: AdminDashboardProps) {
           className="bg-white dark:bg-neutral-800 rounded-xl p-6 border border-gray-200 dark:border-neutral-700 hover:shadow-lg transition-shadow group"
         >
           <div className="flex items-center gap-4">
-            <FaShoppingCart className="w-8 h-8 text-purple-600 group-hover:scale-110 transition-transform" />
+            <Icon icon={FaShoppingCart} className="w-8 h-8 text-purple-600 group-hover:scale-110 transition-transform" />
             <div>
               <h3 className="font-semibold text-gray-900 dark:text-white">Shop</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400">Inventory & products</p>
@@ -140,7 +140,7 @@ export function AdminDashboard({ businessStats }: AdminDashboardProps) {
           className="bg-white dark:bg-neutral-800 rounded-xl p-6 border border-gray-200 dark:border-neutral-700 hover:shadow-lg transition-shadow group"
         >
           <div className="flex items-center gap-4">
-            <FaChartLine className="w-8 h-8 text-orange-600 group-hover:scale-110 transition-transform" />
+            <Icon icon={FaChartLine} className="w-8 h-8 text-orange-600 group-hover:scale-110 transition-transform" />
             <div>
               <h3 className="font-semibold text-gray-900 dark:text-white">Analytics</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400">Business insights</p>
@@ -153,7 +153,7 @@ export function AdminDashboard({ businessStats }: AdminDashboardProps) {
           className="bg-white dark:bg-neutral-800 rounded-xl p-6 border border-gray-200 dark:border-neutral-700 hover:shadow-lg transition-shadow group"
         >
           <div className="flex items-center gap-4">
-            <FaChartLine className="w-8 h-8 text-indigo-600 group-hover:scale-110 transition-transform" />
+            <Icon icon={FaChartLine} className="w-8 h-8 text-indigo-600 group-hover:scale-110 transition-transform" />
             <div>
               <h3 className="font-semibold text-gray-900 dark:text-white">Reports</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400">Financial reports</p>
@@ -166,7 +166,7 @@ export function AdminDashboard({ businessStats }: AdminDashboardProps) {
       {businessStats && businessStats.lowStockProducts > 0 && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-6">
           <div className="flex items-center gap-4">
-            <FaExclamationTriangle className="w-8 h-8 text-red-600" />
+            <Icon icon={FaExclamationTriangle} className="w-8 h-8 text-red-600" />
             <div>
               <h3 className="font-semibold text-red-800 dark:text-red-200">Low Stock Alert</h3>
               <p className="text-red-700 dark:text-red-300">
@@ -186,7 +186,7 @@ export function AdminDashboard({ businessStats }: AdminDashboardProps) {
       {/* Alerts - Ingredient Level (badge to notifications page; counts will be shown there) */}
       <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-6">
         <div className="flex items-center gap-4">
-          <FaExclamationTriangle className="w-8 h-8 text-amber-600" />
+          <Icon icon={FaExclamationTriangle} className="w-8 h-8 text-amber-600" />
           <div>
             <h3 className="font-semibold text-amber-800 dark:text-amber-200">Ingredient Availability</h3>
             <p className="text-amber-700 dark:text-amber-300">

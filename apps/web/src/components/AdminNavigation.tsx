@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { getSupabaseClient } from "@my-small-business/supabase/client";
 import { FaUsers, FaStore, FaUserShield, FaChartPie, FaFileAlt, FaMoneyBillWave, FaPalette, FaCog, FaRobot, FaBox, FaTags, FaTag, FaWarehouse, FaUtensils, FaCalendarAlt, FaDollarSign, FaChartLine, FaGlobe, FaShoppingCart, FaGoogle } from "react-icons/fa";
+import { Icon } from "@/components/Icon";
 
 export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 'horizontal' | 'vertical' }) {
   const [userRole, setUserRole] = useState<'admin' | 'staff' | null>(null);
@@ -200,7 +201,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                   <Link href="/staff" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-blue-600 dark:text-blue-400">
-                        <FaUsers className="w-5 h-5" />
+                        <Icon icon={FaUsers} className="w-5 h-5" />
                       </div>
                       <div>
                         <div className="font-medium text-gray-900 dark:text-white">Staff</div>
@@ -211,7 +212,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                   <Link href="/sections" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-orange-600 dark:text-orange-400">
-                        <FaPalette className="w-5 h-5" />
+                        <Icon icon={FaPalette} className="w-5 h-5" />
                       </div>
                       <div>
                         <div className="font-medium text-gray-900 dark:text-white">Sections</div>
@@ -222,7 +223,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                   <Link href="/shop/menu-screens" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-red-600 dark:text-red-400">
-                        <FaUtensils className="w-5 h-5" />
+                        <Icon icon={FaUtensils} className="w-5 h-5" />
                       </div>
                       <div>
                         <div className="font-medium text-gray-900 dark:text-white">Menu Builder</div>
@@ -233,7 +234,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                   <Link href="/planner" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-purple-600 dark:text-purple-400">
-                        <FaRobot className="w-5 h-5" />
+                        <Icon icon={FaRobot} className="w-5 h-5" />
                       </div>
                       <div>
                         <div className="font-medium text-gray-900 dark:text-white">AI Planner</div>
@@ -244,7 +245,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                   <Link href="/holidays" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-green-600 dark:text-green-400">
-                        <FaCalendarAlt className="w-5 h-5" />
+                        <Icon icon={FaCalendarAlt} className="w-5 h-5" />
                       </div>
                       <div>
                         <div className="font-medium text-gray-900 dark:text-white">Public Holidays</div>
@@ -320,7 +321,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                       <Link href="/shop" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                         <div className="flex items-start gap-3">
                           <div className="mt-0.5 text-emerald-600 dark:text-emerald-400">
-                            <FaStore className="w-5 h-5" />
+                            <Icon icon={FaStore} className="w-5 h-5" />
                           </div>
                           <div>
                             <div className="font-medium text-gray-900 dark:text-white">Shop Overview</div>
@@ -339,7 +340,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                         <Link href="/shop/products" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                           <div className="flex items-start gap-3">
                             <div className="mt-0.5 text-blue-600 dark:text-blue-400">
-                              <FaBox className="w-4 h-4" />
+                              <Icon icon={FaBox} className="w-4 h-4" />
                             </div>
                             <div>
                               <div className="font-medium text-gray-900 dark:text-white">Products</div>
@@ -350,7 +351,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                         <Link href="/shop/categories" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                           <div className="flex items-start gap-3">
                             <div className="mt-0.5 text-purple-600 dark:text-purple-400">
-                              <FaTags className="w-4 h-4" />
+                              <Icon icon={FaTags} className="w-4 h-4" />
                             </div>
                             <div>
                               <div className="font-medium text-gray-900 dark:text-white">Categories</div>
@@ -361,7 +362,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                         <Link href="/shop/inventory" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                           <div className="flex items-start gap-3">
                             <div className="mt-0.5 text-orange-600 dark:text-orange-400">
-                              <FaWarehouse className="w-4 h-4" />
+                              <Icon icon={FaWarehouse} className="w-4 h-4" />
                             </div>
                             <div>
                               <div className="font-medium text-gray-900 dark:text-white">Inventory</div>
@@ -372,7 +373,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                         <Link href="/shop/suppliers" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                           <div className="flex items-start gap-3">
                             <div className="mt-0.5 text-green-600 dark:text-green-400">
-                              <FaStore className="w-4 h-4" />
+                              <Icon icon={FaStore} className="w-4 h-4" />
                             </div>
                             <div>
                               <div className="font-medium text-gray-900 dark:text-white">Suppliers</div>
@@ -392,7 +393,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                         <Link href="/admin/orders" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                           <div className="flex items-start gap-3">
                             <div className="mt-0.5 text-green-600 dark:text-green-400">
-                              <FaShoppingCart className="w-4 h-4" />
+                              <Icon icon={FaShoppingCart} className="w-4 h-4" />
                             </div>
                             <div>
                               <div className="font-medium text-gray-900 dark:text-white">Orders</div>
@@ -403,7 +404,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                         <Link href="/shop/menu" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                           <div className="flex items-start gap-3">
                             <div className="mt-0.5 text-red-600 dark:text-red-400">
-                              <FaUtensils className="w-4 h-4" />
+                              <Icon icon={FaUtensils} className="w-4 h-4" />
                             </div>
                             <div>
                               <div className="font-medium text-gray-900 dark:text-white">Menu</div>
@@ -414,7 +415,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                         <Link href="/shop/addons" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                           <div className="flex items-start gap-3">
                             <div className="mt-0.5 text-blue-600 dark:text-blue-400">
-                              <FaTag className="w-4 h-4" />
+                              <Icon icon={FaTag} className="w-4 h-4" />
                             </div>
                             <div>
                               <div className="font-medium text-gray-900 dark:text-white">Add-ons</div>
@@ -425,7 +426,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                         <Link href="/shop/combo" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                           <div className="flex items-start gap-3">
                             <div className="mt-0.5 text-emerald-600 dark:text-emerald-400">
-                              <FaUtensils className="w-4 h-4" />
+                              <Icon icon={FaUtensils} className="w-4 h-4" />
                             </div>
                             <div>
                               <div className="font-medium text-gray-900 dark:text-white">Combo</div>
@@ -436,7 +437,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                         <Link href="/shop/google-business-sync" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                           <div className="flex items-start gap-3">
                             <div className="mt-0.5 text-blue-600 dark:text-blue-400">
-                              <FaGoogle className="w-4 h-4" />
+                              <Icon icon={FaGoogle} className="w-4 h-4" />
                             </div>
                             <div>
                               <div className="font-medium text-gray-900 dark:text-white">Google Business Sync</div>
@@ -456,7 +457,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                         <Link href="/income-expense" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                           <div className="flex items-start gap-3">
                             <div className="mt-0.5 text-orange-600 dark:text-orange-400">
-                              <FaDollarSign className="w-4 h-4" />
+                              <Icon icon={FaDollarSign} className="w-4 h-4" />
                             </div>
                             <div>
                               <div className="font-medium text-gray-900 dark:text-white">Income & Expenses</div>
@@ -467,7 +468,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                         <Link href="/cash-flow" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                           <div className="flex items-start gap-3">
                             <div className="mt-0.5 text-blue-600 dark:text-blue-400">
-                              <FaChartLine className="w-4 h-4" />
+                              <Icon icon={FaChartLine} className="w-4 h-4" />
                             </div>
                             <div>
                               <div className="font-medium text-gray-900 dark:text-white">Cash Flow Analysis</div>
@@ -524,7 +525,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                   <Link href="/orders" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-emerald-600 dark:text-emerald-400">
-                        <FaShoppingCart className="w-5 h-5" />
+                        <Icon icon={FaShoppingCart} className="w-5 h-5" />
                       </div>
                       <div>
                         <div className="font-medium text-gray-900 dark:text-white">Orders</div>
@@ -535,7 +536,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                   <Link href="/reports/shift-reports" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-blue-600 dark:text-blue-400">
-                        <FaFileAlt className="w-5 h-5" />
+                        <Icon icon={FaFileAlt} className="w-5 h-5" />
                       </div>
                       <div>
                         <div className="font-medium text-gray-900 dark:text-white">Weekly shift allocation report</div>
@@ -546,7 +547,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                   <Link href="/analytics" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-emerald-600 dark:text-emerald-400">
-                        <FaChartPie className="w-5 h-5" />
+                        <Icon icon={FaChartPie} className="w-5 h-5" />
                       </div>
                       <div>
                         <div className="font-medium text-gray-900 dark:text-white">Analysis</div>
@@ -557,7 +558,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                   <Link href="/wages-report" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-purple-600 dark:text-purple-400">
-                        <FaMoneyBillWave className="w-5 h-5" />
+                        <Icon icon={FaMoneyBillWave} className="w-5 h-5" />
                       </div>
                       <div>
                         <div className="font-medium text-gray-900 dark:text-white">Wages Report</div>
@@ -568,7 +569,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                   <Link href="/payment-report" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-green-600 dark:text-green-400">
-                        <FaMoneyBillWave className="w-5 h-5" />
+                        <Icon icon={FaMoneyBillWave} className="w-5 h-5" />
                       </div>
                       <div>
                         <div className="font-medium text-gray-900 dark:text-white">Payment Report</div>
@@ -579,7 +580,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                   <Link href="/paid-payments" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-blue-600 dark:text-blue-400">
-                        <FaMoneyBillWave className="w-5 h-5" />
+                        <Icon icon={FaMoneyBillWave} className="w-5 h-5" />
                       </div>
                       <div>
                         <div className="font-medium text-gray-900 dark:text-white">Paid Payments</div>
@@ -629,7 +630,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                   <Link href="/users" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-purple-600 dark:text-purple-400">
-                        <FaUserShield className="w-5 h-5" />
+                        <Icon icon={FaUserShield} className="w-5 h-5" />
                       </div>
                       <div>
                         <div className="font-medium text-gray-900 dark:text-white">Users</div>
@@ -640,7 +641,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                   <Link href="/automation" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-orange-600 dark:text-orange-400">
-                        <FaRobot className="w-5 h-5" />
+                        <Icon icon={FaRobot} className="w-5 h-5" />
                       </div>
                       <div>
                         <div className="font-medium text-gray-900 dark:text-white">Automation</div>
@@ -651,7 +652,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                   <Link href="/webhooks" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-green-600 dark:text-green-400">
-                        <FaGlobe className="w-5 h-5" />
+                        <Icon icon={FaGlobe} className="w-5 h-5" />
                       </div>
                       <div>
                         <div className="font-medium text-gray-900 dark:text-white">Webhooks</div>
@@ -662,7 +663,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                   <Link href="/settings" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-gray-600 dark:text-gray-400">
-                        <FaCog className="w-5 h-5" />
+                        <Icon icon={FaCog} className="w-5 h-5" />
                       </div>
                       <div>
                         <div className="font-medium text-gray-900 dark:text-white">Settings</div>

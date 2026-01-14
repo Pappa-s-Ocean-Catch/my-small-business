@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FaUtensils, FaHome, FaUser, FaSignOutAlt, FaHistory, FaLock, FaGift } from 'react-icons/fa';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
+import {Icon} from "@/components/Icon";
+
 
 export function OrderHeader() {
   const [email, setEmail] = useState<string | null>(null);
@@ -72,7 +74,7 @@ export function OrderHeader() {
             <div className="relative">
               <div className="absolute inset-0 blur-xl bg-gradient-to-tr from-rose-500/40 to-orange-500/40 rounded-xl" />
               <div className="relative grid place-items-center h-10 w-10 rounded-xl bg-gradient-to-tr from-rose-600 to-orange-500 text-white">
-                <FaUtensils className="w-5 h-5" />
+                <Icon icon={FaUtensils} className="w-5 h-5" />
               </div>
             </div>
             <div className="flex flex-col">
@@ -91,14 +93,14 @@ export function OrderHeader() {
               href="/"
               className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-neutral-700 rounded-lg transition-colors"
             >
-              <FaHome className="w-4 h-4" />
+              <Icon icon={FaHome} className="w-4 h-4" />
               <span className="hidden sm:inline">Home</span>
             </Link>
             <Link
               href="/menu"
               className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-neutral-700 rounded-lg transition-colors"
             >
-              <FaUtensils className="w-4 h-4" />
+              <Icon icon={FaUtensils} className="w-4 h-4" />
               <span className="hidden sm:inline">Menu</span>
             </Link>
 
@@ -126,7 +128,7 @@ export function OrderHeader() {
                       className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800"
                       onClick={() => setIsDropdownOpen(false)}
                     >
-                      <FaHistory className="w-4 h-4" />
+                      <Icon icon={FaHistory} className="w-4 h-4" />
                       Order History
                     </Link>
                     
@@ -135,7 +137,7 @@ export function OrderHeader() {
                       className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800"
                       onClick={() => setIsDropdownOpen(false)}
                     >
-                      <FaGift className="w-4 h-4" />
+                      <Icon icon={FaGift} className="w-4 h-4" />
                       Reward Points
                     </Link>
                     
@@ -144,7 +146,7 @@ export function OrderHeader() {
                       className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800"
                       onClick={() => setIsDropdownOpen(false)}
                     >
-                      <FaUser className="w-4 h-4" />
+                      <Icon icon={FaUser} className="w-4 h-4" />
                       Profile
                     </Link>
                     
@@ -153,7 +155,7 @@ export function OrderHeader() {
                       className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800"
                       onClick={() => setIsDropdownOpen(false)}
                     >
-                      <FaLock className="w-4 h-4" />
+                      <Icon icon={FaLock} className="w-4 h-4" />
                       Change Password
                     </Link>
                     
@@ -163,7 +165,7 @@ export function OrderHeader() {
                       onClick={handleLogout}
                       className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
                     >
-                      <FaSignOutAlt className="w-4 h-4" />
+                      <Icon icon={FaSignOutAlt} className="w-4 h-4" />
                       Sign out
                     </button>
                   </div>

@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { getSupabaseClient } from "@my-small-business/supabase/client";
 import Link from "next/link";
 import { FaUser, FaSignOutAlt, FaBell } from "react-icons/fa";
-
+import { Icon } from "@/components/Icon";
 export function HeaderAuth() {
   const [email, setEmail] = useState<string | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -77,7 +77,7 @@ export function HeaderAuth() {
             className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800"
             onClick={() => setIsDropdownOpen(false)}
           >
-            <FaUser className="w-4 h-4" />
+            <Icon icon={FaUser} className="w-4 h-4" />
             Profile
           </Link>
           
@@ -85,7 +85,7 @@ export function HeaderAuth() {
             className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800"
             onClick={() => setIsDropdownOpen(false)}
           >
-            <FaBell className="w-4 h-4" />
+            <Icon icon={FaBell} className="w-4 h-4" />
             Notifications
             <span className="ml-auto text-xs text-gray-500">Soon</span>
           </button>
@@ -96,7 +96,7 @@ export function HeaderAuth() {
             onClick={handleLogout}
             className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
           >
-            <FaSignOutAlt className="w-4 h-4" />
+            <Icon icon={FaSignOutAlt} className="w-4 h-4" />
             Sign out
           </button>
         </div>

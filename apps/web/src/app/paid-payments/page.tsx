@@ -5,7 +5,9 @@ import { useCallback, useEffect, useState } from "react";
 import { AdminGuard } from "@/components/AdminGuard";
 import { getSupabaseClient } from "@my-small-business/supabase/client";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
-import { FaChevronLeft, FaChevronRight, FaEye } from "react-icons/fa";
+import { FaChevronLeft, FaChevronRight } from "react-icons/fa";
+import { FaEye } from "react-icons/fa6";
+import { Icon } from "@/components/Icon";
 import { toast } from "react-toastify";
 
 type PaidPayment = {
@@ -156,7 +158,7 @@ export default function PaidPaymentsPage() {
               className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-neutral-900 shadow-lg rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
               title="Previous Week"
             >
-              <FaChevronLeft className="w-4 h-4" /> Prev
+              <Icon icon={FaChevronLeft} className="w-4 h-4" /> Prev
             </button>
             <button
               onClick={goThisWeek}
@@ -170,7 +172,7 @@ export default function PaidPaymentsPage() {
               className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-neutral-900 shadow-lg rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
               title="Next Week"
             >
-              Next <FaChevronRight className="w-4 h-4" />
+              Next <Icon icon={FaChevronRight} className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -250,7 +252,7 @@ export default function PaidPaymentsPage() {
                           onClick={() => setSelectedPayment(payment)}
                           className="flex items-center gap-1 px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition-colors"
                         >
-                          <FaEye className="w-3 h-3" />
+                          <Icon icon={FaEye} className="w-3 h-3" />
                           View Details
                         </button>
                       </td>

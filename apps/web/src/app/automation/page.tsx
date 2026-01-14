@@ -30,6 +30,7 @@ import {
   FaTimes,
   FaSave
 } from "react-icons/fa";
+import { Icon } from "@/components/Icon";
 import { toast } from 'react-toastify';
 import type { AutomationSchedule, CreateScheduleRequest } from "@/lib/qstash";
 
@@ -312,13 +313,13 @@ export default function AutomationPage() {
   const getJobTypeIcon = (jobType: string) => {
     switch (jobType) {
       case 'shift_reminder':
-        return <FaBell className="w-5 h-5 text-blue-600" />;
+        return <Icon icon={FaBell} className="w-5 h-5 text-blue-600" />;
       case 'low_stock_notification':
-        return <FaExclamationTriangle className="w-5 h-5 text-orange-600" />;
+        return <Icon icon={FaExclamationTriangle} className="w-5 h-5 text-orange-600" />;
       case 'missing_shift_allocation':
-        return <FaCalendarAlt className="w-5 h-5 text-red-600" />;
+        return <Icon icon={FaCalendarAlt} className="w-5 h-5 text-red-600" />;
       default:
-        return <FaClock className="w-5 h-5 text-gray-600" />;
+        return <Icon icon={FaClock} className="w-5 h-5 text-gray-600" />;
     }
   };
 
@@ -369,7 +370,7 @@ export default function AutomationPage() {
               onClick={() => setShowLogs(!showLogs)}
               className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
             >
-              <FaHistory className="w-4 h-4" />
+              <Icon icon={FaHistory} className="w-4 h-4" />
               {showLogs ? 'Hide' : 'Show'} Logs
             </button>
             <ActionButton
@@ -380,7 +381,7 @@ export default function AutomationPage() {
               }}
               variant="primary"
               size="md"
-              icon={<FaPlus className="w-4 h-4" />}
+              icon={<Icon icon={FaPlus} className="w-4 h-4" />}
             >
               Add Schedule
             </ActionButton>
@@ -405,7 +406,7 @@ export default function AutomationPage() {
                   onClick={async () => handleToggle(schedule)}
                   variant="secondary"
                   size="sm"
-                  icon={schedule.is_enabled ? <FaToggleOn className="w-4 h-4" /> : <FaToggleOff className="w-4 h-4" />}
+                  icon={schedule.is_enabled ? <Icon icon={FaToggleOn} className="w-4 h-4" /> : <Icon icon={FaToggleOff} className="w-4 h-4" />}
                   loadingText={schedule.is_enabled ? 'Disabling...' : 'Enabling...'}
                   title={schedule.is_enabled ? 'Disable' : 'Enable'}
                   className={`${
@@ -425,7 +426,7 @@ export default function AutomationPage() {
               )}
 
               <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-4">
-                <FaCalendarAlt className="w-4 h-4" />
+                <Icon icon={FaCalendarAlt} className="w-4 h-4" />
                 <span>{formatSchedule(schedule)}</span>
               </div>
 
@@ -443,7 +444,7 @@ export default function AutomationPage() {
                     onClick={async () => handleTriggerNow(schedule)}
                     variant="secondary"
                     size="sm"
-                    icon={<FaPlay className="w-4 h-4" />}
+                    icon={<Icon icon={FaPlay} className="w-4 h-4" />}
                     loadingText="Triggering..."
                     title="Trigger Now"
                     className="text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
@@ -455,14 +456,14 @@ export default function AutomationPage() {
                     className="p-2 text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
                     title="Edit"
                   >
-                    <FaEdit className="w-4 h-4" />
+                    <Icon icon={FaEdit} className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => setDeleteConfirm({ schedule, isOpen: true })}
                     className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                     title="Delete"
                   >
-                    <FaTrash className="w-4 h-4" />
+                    <Icon icon={FaTrash} className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -522,14 +523,14 @@ export default function AutomationPage() {
                 }}
                 className="flex items-center gap-2 h-10 px-4 rounded-lg border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
               >
-                <FaTimes className="w-4 h-4" />
+                <Icon icon={FaTimes} className="w-4 h-4" />
                 <span>Cancel</span>
               </button>
               <ActionButton
                 onClick={handleSubmit}
                 variant="primary"
                 size="md"
-                icon={<FaSave className="w-4 h-4" />}
+                icon={<Icon icon={FaSave} className="w-4 h-4" />}
                 loadingText={editing ? 'Updating...' : 'Creating...'}
               >
                 {editing ? 'Update' : 'Create'}

@@ -3,6 +3,7 @@
 import { storeInfo } from '@/data/print-menu-data';
 import { FaMapMarkerAlt, FaGlobe } from 'react-icons/fa';
 import { useEffect, useRef } from 'react';
+import { Icon } from '@/components/Icon';
 
 interface PrintMenuLayoutV3Props {
   children: React.ReactNode;
@@ -39,8 +40,8 @@ export default function PrintMenuLayoutV3({ children, pageTitle, subtitle }: Pri
           <h1 className="v3-title">{pageTitle}</h1>
           {subtitle && <div className="v3-subtitle">{subtitle}</div>}
           <div className="v3-meta">
-            <div className="v3-meta-item"><FaMapMarkerAlt className="v3-icon" /><span>{storeInfo.address}</span></div>
-            <div className="v3-meta-item"><FaGlobe className="v3-icon" /><span>{storeInfo.website}</span></div>
+            <div className="v3-meta-item"><Icon icon={FaMapMarkerAlt} className="v3-icon" /><span>{storeInfo.address}</span></div>
+            <div className="v3-meta-item"><Icon icon={FaGlobe} className="v3-icon" /><span>{storeInfo.website}</span></div>
           </div>
         </div>
         <div className="v3-hero-right">

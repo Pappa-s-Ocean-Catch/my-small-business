@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { FaMagic, FaCamera, FaSpinner, FaTimes, FaImage, FaUpload, FaDownload } from 'react-icons/fa';
+import { Icon } from './Icon';
 import { toast } from 'react-toastify';
 import { ConfirmationDialog } from './ConfirmationDialog';
 
@@ -615,7 +616,7 @@ export function AIImageGenerator({
               className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
               title="Remove image"
             >
-              <FaTimes className="w-3 h-3" />
+              <Icon icon={FaTimes} className="w-3 h-3" />
             </button>
           )}
         </div>
@@ -638,7 +639,7 @@ export function AIImageGenerator({
           disabled={disabled || isGenerating}
           className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
         >
-          <FaMagic className="w-4 h-4" />
+          <Icon icon={FaMagic} className="w-4 h-4" />
           {isGenerating ? 'Generating...' : 'Quick Generate'}
         </button>
 
@@ -662,7 +663,7 @@ export function AIImageGenerator({
           disabled={disabled || isGenerating}
           className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <FaMagic className="w-4 h-4" />
+          <Icon icon={FaMagic} className="w-4 h-4" />
           {isGenerating ? 'Generating...' : showGenerator ? 'Close Generator' : 'Custom Generate'}
         </button>
       </div>
@@ -671,7 +672,7 @@ export function AIImageGenerator({
       {showPreview && generatedImageBlob && (
         <div className="border border-gray-200 dark:border-neutral-700 rounded-lg p-4 space-y-4 bg-gray-50 dark:bg-neutral-800">
           <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-            <FaImage className="w-4 h-4 text-green-600" />
+            <Icon icon={FaImage} className="w-4 h-4 text-green-600" />
             AI Generated Image Preview
           </div>
 
@@ -694,12 +695,12 @@ export function AIImageGenerator({
             >
               {isUploading ? (
                 <>
-                  <FaSpinner className="w-4 h-4 animate-spin" />
+                  <Icon icon={FaSpinner} className="w-4 h-4 animate-spin" />
                   Uploading...
                 </>
               ) : (
                 <>
-                  <FaUpload className="w-4 h-4" />
+                  <Icon icon={FaUpload} className="w-4 h-4" />
                   Confirm & Upload
                 </>
               )}
@@ -712,7 +713,7 @@ export function AIImageGenerator({
               className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               title="Download generated image"
             >
-              <FaDownload className="w-4 h-4" />
+              <Icon icon={FaDownload} className="w-4 h-4" />
               Download
             </button>
             
@@ -725,12 +726,12 @@ export function AIImageGenerator({
             >
               {isGenerating ? (
                 <>
-                  <FaSpinner className="w-4 h-4 animate-spin" />
+                  <Icon icon={FaSpinner} className="w-4 h-4 animate-spin" />
                   Regenerating...
                 </>
               ) : (
                 <>
-                  <FaMagic className="w-4 h-4" />
+                  <Icon icon={FaMagic} className="w-4 h-4" />
                   Regenerate
                 </>
               )}
@@ -757,7 +758,7 @@ export function AIImageGenerator({
       {showGenerator && !showPreview && (
         <div className="border border-gray-200 dark:border-neutral-700 rounded-lg p-4 space-y-4 bg-gray-50 dark:bg-neutral-800">
           <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-            <FaMagic className="w-4 h-4 text-purple-600" />
+            <Icon icon={FaMagic} className="w-4 h-4 text-purple-600" />
             AI Image Generator
           </div>
 
@@ -840,7 +841,7 @@ export function AIImageGenerator({
                   className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
                   title="Remove reference image"
                 >
-                  <FaTimes className="w-2 h-2" />
+                  <Icon icon={FaTimes} className="w-2 h-2" />
                 </button>
               </div>
             ) : (
@@ -848,7 +849,7 @@ export function AIImageGenerator({
                 onClick={() => !disabled && !isGenerating && fileInputRef.current?.click()}
                 className="border-2 border-dashed border-gray-300 dark:border-neutral-600 rounded-lg p-4 text-center cursor-pointer hover:border-gray-400 dark:hover:border-neutral-500 transition-colors"
               >
-                <FaCamera className="w-6 h-6 text-gray-400 mx-auto mb-2" />
+                <Icon icon={FaCamera} className="w-6 h-6 text-gray-400 mx-auto mb-2" />
                 <div className="text-sm text-gray-600 dark:text-gray-400">
                   Click to add reference image
                 </div>
@@ -878,12 +879,12 @@ export function AIImageGenerator({
             >
               {isGenerating ? (
                 <>
-                  <FaSpinner className="w-4 h-4 animate-spin" />
+                  <Icon icon={FaSpinner} className="w-4 h-4 animate-spin" />
                   Generating...
                 </>
               ) : (
                 <>
-                  <FaMagic className="w-4 h-4" />
+                  <Icon icon={FaMagic} className="w-4 h-4" />
                   Generate Image
                 </>
               )}

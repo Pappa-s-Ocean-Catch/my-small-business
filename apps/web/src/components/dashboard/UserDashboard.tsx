@@ -3,7 +3,7 @@
 import { FaCalendarAlt, FaClock, FaUser } from "react-icons/fa";
 import { format, isToday, isFuture } from "date-fns";
 import { Shift } from "@my-small-business/types/dashboard";
-
+import { Icon } from "@/components/Icon";
 interface UserDashboardProps {
   shifts: Shift[];
 }
@@ -19,7 +19,7 @@ export function UserDashboard({ shifts }: UserDashboardProps) {
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">This Week&apos;s Shifts</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{shifts.length}</p>
             </div>
-            <FaCalendarAlt className="w-8 h-8 text-blue-600" />
+            <Icon icon={FaCalendarAlt} className="w-8 h-8 text-blue-600" />
           </div>
         </div>
         
@@ -31,7 +31,7 @@ export function UserDashboard({ shifts }: UserDashboardProps) {
                 {shifts.filter(shift => isFuture(new Date(shift.date))).length}
               </p>
             </div>
-            <FaClock className="w-8 h-8 text-green-600" />
+            <Icon icon={FaClock} className="w-8 h-8 text-green-600" />
           </div>
         </div>
 
@@ -43,7 +43,7 @@ export function UserDashboard({ shifts }: UserDashboardProps) {
                 {shifts.filter(shift => isToday(new Date(shift.date))).length}
               </p>
             </div>
-            <FaUser className="w-8 h-8 text-purple-600" />
+            <Icon icon={FaUser} className="w-8 h-8 text-purple-600" />
           </div>
         </div>
       </div>
@@ -56,7 +56,7 @@ export function UserDashboard({ shifts }: UserDashboardProps) {
         <div className="p-6">
           {shifts.length === 0 ? (
             <div className="text-center py-8">
-              <FaCalendarAlt className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <Icon icon={FaCalendarAlt} className="w-12 h-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No shifts scheduled</h3>
               <p className="text-gray-600 dark:text-gray-400">You don&apos;t have any shifts scheduled for this week.</p>
             </div>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { FaEnvelope } from "react-icons/fa";
+import { Icon } from "./Icon";
 import { sendShiftReminder } from "@/app/actions/email";
 import { LoadingSpinner } from "./Loading";
 import { format } from "date-fns";
@@ -85,7 +86,7 @@ export function CalendarToolbar({ day, shifts, isAdmin }: CalendarToolbarProps) 
           {isLoading ? (
             <LoadingSpinner size="sm" />
           ) : (
-            <FaEnvelope className="w-3 h-3" />
+            <Icon icon={FaEnvelope} className="w-3 h-3" />
           )}
           Send Reminders
         </button>

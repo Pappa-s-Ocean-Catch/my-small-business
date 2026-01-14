@@ -5,6 +5,7 @@ import { getSupabaseClient } from "@my-small-business/supabase/client";
 import { ensureProfile } from "@/app/actions/profile";
 import { AdminGuard } from "@/components/AdminGuard";
 import { FaFilePdf, FaFileExcel } from "react-icons/fa";
+import { Icon } from "@/components/Icon";
 import { format, startOfWeek, endOfWeek, isWithinInterval } from "date-fns";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -467,14 +468,14 @@ export default function ReportsPage() {
               onClick={exportToPDF}
               className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
             >
-              <FaFilePdf className="w-4 h-4" />
+              <Icon icon={FaFilePdf} className="w-4 h-4" />
               Export PDF
             </button>
             <button
               onClick={exportToExcel}
               className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
             >
-              <FaFileExcel className="w-4 h-4" />
+              <Icon icon={FaFileExcel} className="w-4 h-4" />
               Export Excel
             </button>
           </div>

@@ -10,6 +10,7 @@ import { getSupabaseClient } from '@my-small-business/supabase/client';
 import { getFeatureFlags } from '@/app/actions/feature-flags';
 import { getUserRewardPoints, useRewardPoints as useRewardPointsAction, getRewardPointsSettings } from '@/app/actions/reward-points';
 import { FaShoppingCart, FaArrowLeft, FaCreditCard, FaStore, FaUser, FaLock, FaCheckCircle, FaExclamationCircle, FaGift, FaChevronDown, FaChevronUp } from 'react-icons/fa';
+import { Icon } from '@/components/Icon';
 import Link from 'next/link';
 import { LoadingSpinner } from '@/components/Loading';
 type PaymentMethod = 'online' | 'store';
@@ -291,7 +292,7 @@ export default function CheckoutPage() {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-neutral-900 flex items-center justify-center">
         <div className="text-center">
-          <FaShoppingCart className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+          <Icon icon={FaShoppingCart} className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
             Your cart is empty
           </h2>
@@ -302,7 +303,7 @@ export default function CheckoutPage() {
             href="/order"
             className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
           >
-            <FaArrowLeft className="w-4 h-4" />
+            <Icon icon={FaArrowLeft} className="w-4 h-4" />
             Back to Menu
           </Link>
         </div>
@@ -765,7 +766,7 @@ export default function CheckoutPage() {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-neutral-900 flex items-center justify-center">
         <div className="text-center max-w-md mx-auto px-4">
-          <FaCheckCircle className="w-20 h-20 text-green-600 mx-auto mb-4" />
+          <Icon icon={FaCheckCircle} className="w-20 h-20 text-green-600 mx-auto mb-4" />
           <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
             Order Placed Successfully!
           </h2>
@@ -789,7 +790,7 @@ export default function CheckoutPage() {
           href="/order/summary"
           className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-6"
         >
-          <FaArrowLeft className="w-4 h-4" />
+          <Icon icon={FaArrowLeft} className="w-4 h-4" />
           Back to Summary
         </Link>
 
@@ -847,7 +848,7 @@ export default function CheckoutPage() {
                     onClick={() => handlePaymentMethodSelect('online')}
                     className="p-6 border-2 border-gray-200 dark:border-neutral-700 rounded-lg hover:border-blue-600 dark:hover:border-blue-500 transition-colors text-left"
                   >
-                    <FaCreditCard className="w-8 h-8 text-blue-600 mb-3" />
+                    <Icon icon={FaCreditCard} className="w-8 h-8 text-blue-600 mb-3" />
                     <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
                       Pay Online
                     </h3>
@@ -862,7 +863,7 @@ export default function CheckoutPage() {
                     onClick={() => handlePaymentMethodSelect('store')}
                     className="p-6 border-2 border-gray-200 dark:border-neutral-700 rounded-lg hover:border-blue-600 dark:hover:border-blue-500 transition-colors text-left"
                   >
-                    <FaStore className="w-8 h-8 text-green-600 mb-3" />
+                    <Icon icon={FaStore} className="w-8 h-8 text-green-600 mb-3" />
                     <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
                       Pay at Store
                     </h3>
@@ -886,7 +887,7 @@ export default function CheckoutPage() {
           {paymentMethod === 'online' && (
             <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-6">
               <div className="flex items-center gap-3 mb-4">
-                <FaCreditCard className="w-6 h-6 text-blue-600" />
+                <Icon icon={FaCreditCard} className="w-6 h-6 text-blue-600" />
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                   Pay Online
                 </h2>
@@ -894,12 +895,12 @@ export default function CheckoutPage() {
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
                 {isAuthenticated ? (
                   <span className="flex items-center gap-2 text-green-600">
-                    <FaCheckCircle className="w-4 h-4" />
+                    <Icon icon={FaCheckCircle} className="w-4 h-4" />
                     You're signed in as {currentUser?.email}
                   </span>
                 ) : (
                   <span className="flex items-center gap-2 text-blue-600">
-                    <FaUser className="w-4 h-4" />
+                    <Icon icon={FaUser} className="w-4 h-4" />
                     No account required, but creating one makes checkout faster next time!
                   </span>
                 )}
@@ -954,7 +955,7 @@ export default function CheckoutPage() {
           {paymentMethod === 'store' && !isAuthenticated && (
             <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-6">
               <div className="flex items-center gap-3 mb-4">
-                <FaStore className="w-6 h-6 text-green-600" />
+                <Icon icon={FaStore} className="w-6 h-6 text-green-600" />
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                   Customer Account Required
                 </h2>
@@ -963,7 +964,7 @@ export default function CheckoutPage() {
               {/* Error Message for Login/Signup - Display prominently */}
               {error && (
                 <div className="mb-6 bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded-lg p-4 flex items-start gap-3 animate-in fade-in">
-                  <FaExclamationCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                  <Icon icon={FaExclamationCircle} className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
                     <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-1">
                       Error
@@ -1205,13 +1206,13 @@ export default function CheckoutPage() {
           {paymentMethod === 'store' && isAuthenticated && (
             <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-6">
               <div className="flex items-center gap-3 mb-4">
-                <FaStore className="w-6 h-6 text-green-600" />
+                <Icon icon={FaStore} className="w-6 h-6 text-green-600" />
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                   Pay at Store
                 </h2>
               </div>
               <div className="flex items-center gap-2 text-green-600 mb-4">
-                <FaCheckCircle className="w-5 h-5" />
+                <Icon icon={FaCheckCircle} className="w-5 h-5" />
                 <span>Signed in as {currentUser?.email}</span>
               </div>
               <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -1251,7 +1252,7 @@ export default function CheckoutPage() {
                 {rewardPointsDiscount > 0 && (
                   <div className="flex justify-between text-green-600 dark:text-green-400 font-medium">
                     <span className="flex items-center gap-2">
-                      <FaGift className="w-4 h-4" />
+                      <Icon icon={FaGift} className="w-4 h-4" />
                       Reward Points Discount
                     </span>
                     <span>-${rewardPointsDiscount.toFixed(2)}</span>
@@ -1287,7 +1288,7 @@ export default function CheckoutPage() {
                 </div>
                 {rewardPointsSettings.enabled && estimatedPointsEarned > 0 && (
                   <div className="mt-2 flex items-start gap-2 text-xs text-gray-600 dark:text-gray-400 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
-                    <FaGift className="w-4 h-4 text-yellow-600 mt-0.5" />
+                    <Icon icon={FaGift} className="w-4 h-4 text-yellow-600 mt-0.5" />
                     <div>
                       <p className="font-medium text-gray-800 dark:text-gray-100">
                         {isAuthenticated
@@ -1313,7 +1314,7 @@ export default function CheckoutPage() {
                 className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-neutral-700 transition-colors"
               >
                 <div className="flex items-center gap-2">
-                  <FaGift className="w-4 h-4 text-yellow-600" />
+                  <Icon icon={FaGift} className="w-4 h-4 text-yellow-600" />
                   <span className="text-sm font-medium text-gray-900 dark:text-white">
                     Use Reward Points
                   </span>
@@ -1322,9 +1323,9 @@ export default function CheckoutPage() {
                   </span>
                 </div>
                 {showRewardPointsSection ? (
-                  <FaChevronUp className="w-4 h-4 text-gray-400" />
+                  <Icon icon={FaChevronUp} className="w-4 h-4 text-gray-400" />
                 ) : (
-                  <FaChevronDown className="w-4 h-4 text-gray-400" />
+                  <Icon icon={FaChevronDown} className="w-4 h-4 text-gray-400" />
                 )}
               </button>
               
@@ -1389,7 +1390,7 @@ export default function CheckoutPage() {
           {paymentMethod === 'online' && (
             <div className="bg-slate-900 border border-blue-600 rounded-lg p-4 mt-4">
               <div className="flex items-start gap-3">
-                <FaLock className="w-6 h-6 text-blue-400 flex-shrink-0 mt-0.5" />
+                <Icon icon={FaLock} className="w-6 h-6 text-blue-400 flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <h4 className="text-base font-semibold text-blue-100 mb-1">
                     Secure Payment Processing
@@ -1407,7 +1408,7 @@ export default function CheckoutPage() {
           {/* Error Message - Display prominently */}
           {error && (
             <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded-lg p-4 flex items-start gap-3 animate-in fade-in">
-              <FaExclamationCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+              <Icon icon={FaExclamationCircle} className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
                 <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-1">
                   Error
@@ -1446,7 +1447,7 @@ export default function CheckoutPage() {
                 </>
               ) : (
                 <>
-                  <FaLock className="w-5 h-5" />
+                  <Icon icon={FaLock} className="w-5 h-5" />
                   {paymentMethod === 'online' ? 'Proceed to Secure Payment' : 'Place Order'}
                 </>
               )}

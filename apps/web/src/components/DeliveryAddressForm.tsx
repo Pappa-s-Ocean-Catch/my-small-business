@@ -5,6 +5,7 @@ import { FaMapMarkerAlt, FaSave, FaTrash, FaEdit, FaCheck } from 'react-icons/fa
 import { getDeliveryAddresses, createDeliveryAddress, deleteDeliveryAddress, type DeliveryAddress } from '@/app/actions/delivery-addresses';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
 import { AddressAutocomplete } from '@/components/AddressAutocomplete';
+import { Icon } from '@/components/Icon';
 
 export interface DeliveryAddressInput {
   address_line1: string;
@@ -190,7 +191,7 @@ export function DeliveryAddressForm({
                     className="text-red-600 hover:text-red-700 p-1"
                     title="Delete address"
                   >
-                    <FaTrash className="w-4 h-4" />
+                    <Icon icon={FaTrash} className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -203,7 +204,7 @@ export function DeliveryAddressForm({
       {showNewAddressForm || savedAddresses.length === 0 ? (
         <div className="space-y-4">
           <div className="flex items-center gap-2 mb-4">
-            <FaMapMarkerAlt className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            <Icon icon={FaMapMarkerAlt} className="w-5 h-5 text-gray-600 dark:text-gray-400" />
             <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
               {savedAddresses.length === 0 ? 'Delivery Address' : 'New Address'}
             </h3>

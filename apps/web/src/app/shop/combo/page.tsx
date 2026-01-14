@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import { FaMagic } from "react-icons/fa";
+import { Icon } from "@/components/Icon";
 
 type ConstraintsForm = {
   numCombos: number;
@@ -265,7 +266,7 @@ export default function ComboBuilderPage() {
             disabled={submitting}
             className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-colors disabled:opacity-50"
           >
-            <FaMagic className="w-4 h-4" />
+            <Icon icon={FaMagic} className="w-4 h-4" />
             {submitting ? 'Generating...' : 'Generate Combos'}
           </button>
         </div>

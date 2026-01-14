@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { FaArrowLeft, FaUtensils, FaClock, FaBox, FaExclamationTriangle, FaCheckCircle, FaTag } from 'react-icons/fa';
+import { Icon } from '@/components/Icon';
 import Card from '@/components/Card';
 import { toast } from 'react-toastify';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
@@ -416,14 +417,14 @@ export default function SaleProductDetailsPage() {
       <div className="min-h-screen bg-gray-50 dark:bg-neutral-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center">
-            <FaExclamationTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+            <Icon icon={FaExclamationTriangle} className="w-12 h-12 text-red-500 mx-auto mb-4" />
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Product Not Found</h1>
             <p className="text-gray-600 dark:text-gray-400 mb-6">{error || 'The requested product could not be found.'}</p>
             <button
               onClick={() => router.back()}
               className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
-              <FaArrowLeft className="w-4 h-4" />
+              <Icon icon={FaArrowLeft} className="w-4 h-4" />
               Go Back
             </button>
           </div>
@@ -441,7 +442,7 @@ export default function SaleProductDetailsPage() {
             onClick={() => router.back()}
             className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors mb-4"
           >
-            <FaArrowLeft className="w-4 h-4" />
+            <Icon icon={FaArrowLeft} className="w-4 h-4" />
             Back to Menu
           </button>
           
@@ -455,7 +456,7 @@ export default function SaleProductDetailsPage() {
             <div className="flex items-center gap-2">
               {saleProduct.is_active ? (
                 <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
-                  <FaCheckCircle className="w-3 h-3" />
+                  <Icon icon={FaCheckCircle} className="w-3 h-3" />
                   Active
                 </span>
               ) : (
@@ -487,7 +488,7 @@ export default function SaleProductDetailsPage() {
             <Card>
               <div className="p-6">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                  <FaUtensils className="w-5 h-5 text-blue-600" />
+                  <Icon icon={FaUtensils} className="w-5 h-5 text-blue-600" />
                   Recipe & Ingredients
                 </h2>
 
@@ -539,7 +540,7 @@ export default function SaleProductDetailsPage() {
                 
                 {ingredients.length === 0 ? (
                   <div className="text-center py-8">
-                    <FaUtensils className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <Icon icon={FaUtensils} className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                     <p className="text-gray-600 dark:text-gray-400">No ingredients defined for this product.</p>
                   </div>
                 ) : (
@@ -599,7 +600,7 @@ export default function SaleProductDetailsPage() {
             <Card>
               <div className="p-6">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                  <FaBox className="w-5 h-5 text-green-600" />
+                  <Icon icon={FaBox} className="w-5 h-5 text-green-600" />
                   Production Capacity
                 </h2>
                 
@@ -617,7 +618,7 @@ export default function SaleProductDetailsPage() {
                     {productionCapacity.limiting_ingredient && (
                       <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
                         <div className="flex items-center gap-2 mb-1">
-                          <FaExclamationTriangle className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
+                          <Icon icon={FaExclamationTriangle} className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
                           <span className="text-sm font-medium text-yellow-800 dark:text-yellow-200">Limited by:</span>
                         </div>
                         <p className="text-sm text-yellow-700 dark:text-yellow-300">
@@ -629,7 +630,7 @@ export default function SaleProductDetailsPage() {
                     {!productionCapacity.can_make_any && (
                       <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
                         <div className="flex items-center gap-2 mb-1">
-                          <FaExclamationTriangle className="w-4 h-4 text-red-600 dark:text-red-400" />
+                          <Icon icon={FaExclamationTriangle} className="w-4 h-4 text-red-600 dark:text-red-400" />
                           <span className="text-sm font-medium text-red-800 dark:text-red-200">Cannot make any</span>
                         </div>
                         <p className="text-sm text-red-700 dark:text-red-300">
@@ -646,7 +647,7 @@ export default function SaleProductDetailsPage() {
             <Card>
               <div className="p-6">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                  <FaTag className="w-5 h-5 text-purple-600" />
+                  <Icon icon={FaTag} className="w-5 h-5 text-purple-600" />
                   Product Details
                 </h2>
                 
@@ -675,7 +676,7 @@ export default function SaleProductDetailsPage() {
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600 dark:text-gray-400">Prep Time:</span>
                     <span className="font-medium text-gray-900 dark:text-white flex items-center gap-1">
-                      <FaClock className="w-3 h-3" />
+                      <Icon icon={FaClock} className="w-3 h-3" />
                       {saleProduct.preparation_time_minutes} min
                     </span>
                   </div>

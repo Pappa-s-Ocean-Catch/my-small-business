@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { FaTimes } from "react-icons/fa";
+import { Icon } from '@/components/Icon';
 
 interface ShiftModalProps {
   isOpen: boolean;
@@ -220,7 +221,7 @@ export function ShiftModal({
             onClick={onClose}
             className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-800 text-gray-600 dark:text-gray-300 transition-colors"
           >
-            <FaTimes className="w-4 h-4" />
+            <Icon icon={FaTimes} className="w-4 h-4" />
           </button>
         </div>
 

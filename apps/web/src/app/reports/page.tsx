@@ -2,6 +2,7 @@
 
 import { AdminGuard } from "@/components/AdminGuard";
 import { FaFileAlt, FaChartLine, FaDollarSign, FaUsers, FaCalendarAlt, FaShoppingCart } from "react-icons/fa";
+import { Icon } from "@/components/Icon";
 import Link from "next/link";
 
 export default function ReportsPage() {
@@ -25,7 +26,7 @@ export default function ReportsPage() {
             >
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                  <FaUsers className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+                  <Icon icon={FaUsers} className="w-8 h-8 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div className="flex-1">
                   <h3 className="font-semibold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
@@ -45,7 +46,7 @@ export default function ReportsPage() {
             >
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                  <FaChartLine className="w-8 h-8 text-green-600 dark:text-green-400" />
+                  <Icon icon={FaChartLine} className="w-8 h-8 text-green-600 dark:text-green-400" />
                 </div>
                 <div className="flex-1">
                   <h3 className="font-semibold text-gray-900 dark:text-white group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors">
@@ -65,7 +66,7 @@ export default function ReportsPage() {
             >
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-                  <FaDollarSign className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+                  <Icon icon={FaDollarSign} className="w-8 h-8 text-purple-600 dark:text-purple-400" />
                 </div>
                 <div className="flex-1">
                   <h3 className="font-semibold text-gray-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
@@ -85,7 +86,7 @@ export default function ReportsPage() {
             >
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-                  <FaFileAlt className="w-8 h-8 text-orange-600 dark:text-orange-400" />
+                  <Icon icon={FaFileAlt} className="w-8 h-8 text-orange-600 dark:text-orange-400" />
                 </div>
                 <div className="flex-1">
                   <h3 className="font-semibold text-gray-900 dark:text-white group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">
@@ -105,7 +106,7 @@ export default function ReportsPage() {
             >
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
-                  <FaCalendarAlt className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
+                  <Icon icon={FaCalendarAlt} className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
                 </div>
                 <div className="flex-1">
                   <h3 className="font-semibold text-gray-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
@@ -125,7 +126,7 @@ export default function ReportsPage() {
             >
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-teal-100 dark:bg-teal-900/30 rounded-lg">
-                  <FaShoppingCart className="w-8 h-8 text-teal-600 dark:text-teal-400" />
+                  <Icon icon={FaShoppingCart} className="w-8 h-8 text-teal-600 dark:text-teal-400" />
                 </div>
                 <div className="flex-1">
                   <h3 className="font-semibold text-gray-900 dark:text-white group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
@@ -148,7 +149,7 @@ export default function ReportsPage() {
                 className="bg-white dark:bg-neutral-800 rounded-lg p-4 border border-gray-200 dark:border-neutral-700 hover:shadow-md transition-shadow group"
               >
                 <div className="flex items-center gap-3">
-                  <FaChartLine className="w-5 h-5 text-blue-600" />
+                  <Icon icon={FaChartLine} className="w-5 h-5 text-blue-600" />
                   <span className="font-medium text-gray-900 dark:text-white group-hover:text-blue-600 transition-colors">
                     Analytics
                   </span>
@@ -160,7 +161,7 @@ export default function ReportsPage() {
                 className="bg-white dark:bg-neutral-800 rounded-lg p-4 border border-gray-200 dark:border-neutral-700 hover:shadow-md transition-shadow group"
               >
                 <div className="flex items-center gap-3">
-                  <FaFileAlt className="w-5 h-5 text-green-600" />
+                  <Icon icon={FaFileAlt} className="w-5 h-5 text-green-600" />
                   <span className="font-medium text-gray-900 dark:text-white group-hover:text-green-600 transition-colors">
                     All Reports
                   </span>
@@ -172,7 +173,7 @@ export default function ReportsPage() {
                 className="bg-white dark:bg-neutral-800 rounded-lg p-4 border border-gray-200 dark:border-neutral-700 hover:shadow-md transition-shadow group"
               >
                 <div className="flex items-center gap-3">
-                  <FaDollarSign className="w-5 h-5 text-purple-600" />
+                  <Icon icon={FaDollarSign} className="w-5 h-5 text-purple-600" />
                   <span className="font-medium text-gray-900 dark:text-white group-hover:text-purple-600 transition-colors">
                     Cash Flow
                   </span>
@@ -184,7 +185,7 @@ export default function ReportsPage() {
                 className="bg-white dark:bg-neutral-800 rounded-lg p-4 border border-gray-200 dark:border-neutral-700 hover:shadow-md transition-shadow group"
               >
                 <div className="flex items-center gap-3">
-                  <FaShoppingCart className="w-5 h-5 text-orange-600" />
+                  <Icon icon={FaShoppingCart} className="w-5 h-5 text-orange-600" />
                   <span className="font-medium text-gray-900 dark:text-white group-hover:text-orange-600 transition-colors">
                     Transactions
                   </span>

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { FaStore, FaTruck, FaArrowRight } from 'react-icons/fa';
-
+import { Icon } from '@/components/Icon';
 export type OrderType = 'pickup' | 'delivery';
 
 interface OrderTypeSelectorProps {
@@ -28,7 +28,7 @@ export function OrderTypeSelector({ onSelect, selectedType, enableDelivery = tru
           }`}
         >
           <div className="flex items-center gap-3 mb-3">
-            <FaStore className={`w-8 h-8 ${selectedType === 'pickup' ? 'text-blue-600' : 'text-gray-600 dark:text-gray-400'}`} />
+            <Icon icon={FaStore} className={`w-8 h-8 ${selectedType === 'pickup' ? 'text-blue-600' : 'text-gray-600 dark:text-gray-400'}`} />
             <h3 className="font-semibold text-gray-900 dark:text-white">
               Pickup Order
             </h3>
@@ -39,7 +39,7 @@ export function OrderTypeSelector({ onSelect, selectedType, enableDelivery = tru
           {selectedType === 'pickup' && (
             <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 text-sm font-medium">
               <span>Selected</span>
-              <FaArrowRight className="w-4 h-4" />
+              <Icon icon={FaArrowRight} className="w-4 h-4" />
             </div>
           )}
         </button>
@@ -55,7 +55,7 @@ export function OrderTypeSelector({ onSelect, selectedType, enableDelivery = tru
             }`}
           >
             <div className="flex items-center gap-3 mb-3">
-              <FaTruck className={`w-8 h-8 ${selectedType === 'delivery' ? 'text-green-600' : 'text-gray-600 dark:text-gray-400'}`} />
+              <Icon icon={FaTruck} className={`w-8 h-8 ${selectedType === 'delivery' ? 'text-green-600' : 'text-gray-600 dark:text-gray-400'}`} />
               <h3 className="font-semibold text-gray-900 dark:text-white">
                 Online Delivery
               </h3>
@@ -66,7 +66,7 @@ export function OrderTypeSelector({ onSelect, selectedType, enableDelivery = tru
             {selectedType === 'delivery' && (
               <div className="flex items-center gap-2 text-green-600 dark:text-green-400 text-sm font-medium">
                 <span>Selected</span>
-                <FaArrowRight className="w-4 h-4" />
+                <Icon icon={FaArrowRight} className="w-4 h-4" />
               </div>
             )}
           </button>

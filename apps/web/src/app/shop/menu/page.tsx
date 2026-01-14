@@ -3,7 +3,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { FaPlus, FaEdit, FaTrash, FaEye, FaEyeSlash, FaUtensils, FaTag, FaClock, FaBox, FaChevronDown, FaChevronRight, FaFilter, FaSave, FaTimes } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaUtensils, FaTag, FaClock, FaBox, FaChevronDown, FaChevronRight, FaFilter, FaSave, FaTimes } from 'react-icons/fa';
+import { FaEye, FaEyeSlash } from 'react-icons/fa6';
+import { Icon } from '@/components/Icon';
 import type { SaleProduct } from '@/app/actions/sale-products';
 import Modal from '@/components/Modal';
 import { ActionButton } from '@/components/ActionButton';
@@ -423,7 +425,7 @@ export default function MenuPage() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-                <FaUtensils className="text-blue-600" />
+                <Icon icon={FaUtensils} className="text-blue-600" />
                 Menu Management
               </h1>
               <p className="text-gray-600 dark:text-gray-400 mt-2">
@@ -433,7 +435,7 @@ export default function MenuPage() {
             <div className="flex flex-col sm:flex-row gap-3">
               <ActionButton
                 onClick={() => openCategoryModal()}
-                icon={<FaTag />}
+                icon={<Icon icon={FaTag} />}
                 variant="secondary"
                 className="w-full sm:w-auto"
               >
@@ -441,7 +443,7 @@ export default function MenuPage() {
               </ActionButton>
               <ActionButton
                 onClick={() => openProductModal()}
-                icon={<FaPlus />}
+                icon={<Icon icon={FaPlus} />}
                 className="w-full sm:w-auto"
               >
                 Add Product
@@ -456,7 +458,7 @@ export default function MenuPage() {
             <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700">
               <div className="p-4 border-b border-gray-200 dark:border-neutral-700">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                  <FaFilter className="text-blue-600" />
+                  <Icon icon={FaFilter} className="text-blue-600" />
                   Categories
                 </h2>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
@@ -506,8 +508,8 @@ export default function MenuPage() {
                             <div className="flex items-center gap-2">
                               {category.sub_categories.length > 0 && (
                                 expandedCategories.has(category.id) ? 
-                                  <FaChevronDown className="h-3 w-3" /> : 
-                                  <FaChevronRight className="h-3 w-3" />
+                                  <Icon icon={FaChevronDown} className="h-3 w-3" /> : 
+                                  <Icon icon={FaChevronRight} className="h-3 w-3" />
                               )}
                               <span className="font-medium">{category.name}</span>
                             </div>
@@ -528,7 +530,7 @@ export default function MenuPage() {
                               className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
                               title="Edit category"
                             >
-                              <FaEdit className="h-3 w-3" />
+                              <Icon icon={FaEdit} className="h-3 w-3" />
                             </button>
                             <button
                               onClick={(e) => {
@@ -538,7 +540,7 @@ export default function MenuPage() {
                               className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
                               title="Delete category"
                             >
-                              <FaTrash className="h-3 w-3" />
+                              <Icon icon={FaTrash} className="h-3 w-3" />
                             </button>
                           </div>
                         </div>
@@ -576,7 +578,7 @@ export default function MenuPage() {
                                     className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
                                     title="Edit sub-category"
                                   >
-                                    <FaEdit className="h-3 w-3" />
+                                    <Icon icon={FaEdit} className="h-3 w-3" />
                                   </button>
                                   <button
                                     onClick={(e) => {
@@ -586,7 +588,7 @@ export default function MenuPage() {
                                     className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
                                     title="Delete sub-category"
                                   >
-                                    <FaTrash className="h-3 w-3" />
+                                    <Icon icon={FaTrash} className="h-3 w-3" />
                                   </button>
                                 </div>
                               </div>
@@ -623,7 +625,7 @@ export default function MenuPage() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
                 />
-                <FaUtensils className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <Icon icon={FaUtensils} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               </div>
             </div>
 
@@ -699,21 +701,21 @@ export default function MenuPage() {
                           className="p-2 text-gray-500 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors"
                           title="View details"
                         >
-                          <FaEye className="h-4 w-4" />
+                          <Icon icon={FaEye} className="h-4 w-4" />
                         </Link>
                         <button
                           onClick={() => openProductModal(product)}
                           className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
                           title="Edit product"
                         >
-                          <FaEdit className="h-4 w-4" />
+                          <Icon icon={FaEdit} className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => openDeleteDialog('product', product.id, product.name)}
                           className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                           title="Delete product"
                         >
-                          <FaTrash className="h-4 w-4" />
+                          <Icon icon={FaTrash} className="h-4 w-4" />
                         </button>
                       </div>
                     </div>
@@ -727,7 +729,7 @@ export default function MenuPage() {
                     {/* Category Info */}
                     <div className="mb-3">
                       <div className="flex items-center gap-2 text-sm">
-                        <FaTag className="text-blue-600" />
+                        <Icon icon={FaTag} className="text-blue-600" />
                         <span className="text-gray-700 dark:text-gray-300">
                           {product.category_name}
                           {product.sub_category_name && (
@@ -749,7 +751,7 @@ export default function MenuPage() {
                         </div>
                         {product.preparation_time_minutes > 0 && (
                           <div className="flex items-center gap-1">
-                            <FaClock className="text-orange-600" />
+                            <Icon icon={FaClock} className="text-orange-600" />
                             <span>{product.preparation_time_minutes}m</span>
                           </div>
                         )}
@@ -758,12 +760,12 @@ export default function MenuPage() {
                       <div className="flex items-center gap-2">
                         {product.is_available ? (
                           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                            <FaEye className="h-3 w-3 mr-1" />
+                            <Icon icon={FaEye} className="h-3 w-3 mr-1" />
                             Available
                           </span>
                         ) : (
                           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
-                            <FaEyeSlash className="h-3 w-3 mr-1" />
+                            <Icon icon={FaEyeSlash} className="h-3 w-3 mr-1" />
                             Unavailable
                           </span>
                         )}
@@ -777,7 +779,7 @@ export default function MenuPage() {
             {/* Empty State */}
             {filteredProducts.length === 0 && (
               <div className="text-center py-12">
-                <FaUtensils className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                <Icon icon={FaUtensils} className="mx-auto h-12 w-12 text-gray-400 mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
                   No products found
                 </h3>
@@ -792,7 +794,7 @@ export default function MenuPage() {
                     onClick={() => openProductModal()}
                     className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
                   >
-                    <FaPlus className="h-4 w-4 mr-2" />
+                    <Icon icon={FaPlus} className="h-4 w-4 mr-2" />
                     Add Product
                   </button>
                 )}
@@ -815,7 +817,7 @@ export default function MenuPage() {
                 onClick={() => setShowProductModal(false)}
                 className="flex items-center gap-2 h-10 px-4 rounded-lg border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
               >
-                <FaTimes className="w-4 h-4" />
+                <Icon icon={FaTimes} className="w-4 h-4" />
                 <span>Cancel</span>
               </button>
               <ActionButton
@@ -824,7 +826,7 @@ export default function MenuPage() {
                 }}
                 variant="primary"
                 size="md"
-                icon={editingProduct ? <FaSave className="w-4 h-4" /> : <FaPlus className="w-4 h-4" />}
+                icon={editingProduct ? <Icon icon={FaSave} className="w-4 h-4" /> : <Icon icon={FaPlus} className="w-4 h-4" />}
                 loadingText={editingProduct ? 'Updating...' : 'Creating...'}
               >
                 {editingProduct ? 'Update Product' : 'Create Product'}
@@ -845,7 +847,7 @@ export default function MenuPage() {
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
                   }`}
                 >
-                  <FaUtensils className="w-4 h-4 inline mr-2" />
+                  <Icon icon={FaUtensils} className="w-4 h-4 inline mr-2" />
                   Overview
                 </button>
                 <button
@@ -857,7 +859,7 @@ export default function MenuPage() {
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
                   }`}
                 >
-                  <FaBox className="w-4 h-4 inline mr-2" />
+                  <Icon icon={FaBox} className="w-4 h-4 inline mr-2" />
                   Ingredients
                 </button>
                 <button
@@ -869,7 +871,7 @@ export default function MenuPage() {
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
                   }`}
                 >
-                  <FaTag className="w-4 h-4 inline mr-2" />
+                  <Icon icon={FaTag} className="w-4 h-4 inline mr-2" />
                   Add-ons
                 </button>
               </nav>
@@ -932,7 +934,7 @@ export default function MenuPage() {
                           onClick={() => setProductForm({ ...productForm, image_url: '' })}
                           className="absolute top-2 right-2 p-1 bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors"
                         >
-                          <FaTrash className="h-3 w-3" />
+                          <Icon icon={FaTrash} className="h-3 w-3" />
                         </button>
                       </div>
                     )}
@@ -1095,14 +1097,14 @@ export default function MenuPage() {
                     })}
                     className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                   >
-                    <FaPlus className="w-4 h-4" />
+                    <Icon icon={FaPlus} className="w-4 h-4" />
                     Add Ingredient
                   </button>
                 </div>
 
                 {productForm.ingredients.length === 0 ? (
                   <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-                    <FaBox className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                    <Icon icon={FaBox} className="w-16 h-16 mx-auto mb-4 opacity-50" />
                     <h4 className="text-lg font-medium mb-2">No ingredients added yet</h4>
                     <p className="text-sm mb-4">Build your recipe by adding ingredients from your inventory</p>
                     <button
@@ -1119,7 +1121,7 @@ export default function MenuPage() {
                       })}
                       className="flex items-center gap-2 px-4 py-2 mx-auto text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                     >
-                      <FaPlus className="w-4 h-4" />
+                      <Icon icon={FaPlus} className="w-4 h-4" />
                       Add First Ingredient
                     </button>
                   </div>
@@ -1212,7 +1214,7 @@ export default function MenuPage() {
                             className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                             title="Remove ingredient"
                           >
-                            <FaTrash className="w-4 h-4" />
+                            <Icon icon={FaTrash} className="w-4 h-4" />
                           </button>
                         </div>
                       </div>
@@ -1235,14 +1237,14 @@ export default function MenuPage() {
 
                 {addonGroups.length === 0 ? (
                   <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-                    <FaTag className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                    <Icon icon={FaTag} className="w-16 h-16 mx-auto mb-4 opacity-50" />
                     <h4 className="text-lg font-medium mb-2">No add-on groups available</h4>
                     <p className="text-sm mb-4">Create add-on groups first to attach them to menu items</p>
                     <Link
                       href="/shop/addons"
                       className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                     >
-                      <FaTag className="w-4 h-4" />
+                      <Icon icon={FaTag} className="w-4 h-4" />
                       Go to Add-ons Management
                     </Link>
                   </div>
@@ -1325,7 +1327,7 @@ export default function MenuPage() {
                 onClick={() => setShowCategoryModal(false)}
                 className="flex items-center gap-2 h-10 px-4 rounded-lg border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
               >
-                <FaTimes className="w-4 h-4" />
+                <Icon icon={FaTimes} className="w-4 h-4" />
                 <span>Cancel</span>
               </button>
               <ActionButton
@@ -1334,7 +1336,7 @@ export default function MenuPage() {
                 }}
                 variant="primary"
                 size="md"
-                icon={editingCategory ? <FaSave className="w-4 h-4" /> : <FaTag className="w-4 h-4" />}
+                icon={editingCategory ? <Icon icon={FaSave} className="w-4 h-4" /> : <Icon icon={FaTag} className="w-4 h-4" />}
                 loadingText={editingCategory ? 'Updating...' : 'Creating...'}
               >
                 {editingCategory ? 'Update Category' : 'Create Category'}

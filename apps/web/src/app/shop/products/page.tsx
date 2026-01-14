@@ -9,6 +9,7 @@ import { ConfirmationDialog } from "@/components/ConfirmationDialog";
 import Modal from "@/components/Modal";
 import Card from "@/components/Card";
 import { FaPlus, FaEdit, FaTrash, FaBox, FaExclamationTriangle, FaSearch, FaFileExcel, FaTh, FaThLarge, FaSave, FaTimes } from "react-icons/fa";
+import { Icon } from "@/components/Icon";
 import * as XLSX from "xlsx";
 import { toast } from 'react-toastify';
 import { saveAs } from "file-saver";
@@ -520,7 +521,7 @@ function ProductsPageContent() {
                 }`}
                 title="Card View"
               >
-                <FaThLarge className="w-4 h-4" />
+                <Icon icon={FaThLarge} className="w-4 h-4" />
               </button>
               <button
                 onClick={() => toggleViewMode('table')}
@@ -531,21 +532,21 @@ function ProductsPageContent() {
                 }`}
                 title="Table View"
               >
-                <FaTh className="w-4 h-4" />
+                <Icon icon={FaTh} className="w-4 h-4" />
               </button>
             </div>
             <button
               onClick={exportToExcel}
               className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
             >
-              <FaFileExcel className="w-4 h-4" />
+              <Icon icon={FaFileExcel} className="w-4 h-4" />
               Export Excel
             </button>
             <button
               onClick={() => { resetForm(); setEditing(null); setFormOpen(true); }}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
-              <FaPlus className="w-4 h-4" />
+              <Icon icon={FaPlus} className="w-4 h-4" />
               Add Product
             </button>
           </div>
@@ -556,7 +557,7 @@ function ProductsPageContent() {
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
               <div className="relative">
-                <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Icon icon={FaSearch} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <input
                   type="text"
                   placeholder="Search products..."
@@ -607,7 +608,8 @@ function ProductsPageContent() {
                     <p className="text-sm text-gray-600 dark:text-gray-400">SKU: {product.sku}</p>
                   </div>
                   {getStockStatus(product).status !== 'good' && (
-                    <FaExclamationTriangle 
+                    <Icon 
+                      icon={FaExclamationTriangle} 
                       className={`w-4 h-4 flex-shrink-0 ml-2 ${
                         getStockStatus(product).status === 'critical' 
                           ? 'text-red-500' 
@@ -668,14 +670,14 @@ function ProductsPageContent() {
                     onClick={() => startEdit(product)}
                     className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-sm bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-neutral-700 transition-colors"
                   >
-                    <FaEdit className="w-3 h-3" />
+                    <Icon icon={FaEdit} className="w-3 h-3" />
                     Edit
                   </button>
                   <button
                     onClick={() => handleDeleteProduct(product)}
                     className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-sm bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
                   >
-                    <FaTrash className="w-3 h-3" />
+                    <Icon icon={FaTrash} className="w-3 h-3" />
                     Delete
                   </button>
                 </div>
@@ -746,7 +748,7 @@ function ProductsPageContent() {
                             {formatStockDisplayTable(product)}
                           </span>
                           {(product.total_units || product.quantity_in_stock) <= product.reorder_level && (
-                            <FaExclamationTriangle className="w-3 h-3 text-red-500 ml-1 flex-shrink-0" title="Low Stock" />
+                            <Icon icon={FaExclamationTriangle} className="w-3 h-3 text-red-500 ml-1 flex-shrink-0" title="Low Stock" />
                           )}
                         </div>
                       </td>
@@ -774,14 +776,14 @@ function ProductsPageContent() {
                             className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
                             title="Edit"
                           >
-                            <FaEdit className="w-4 h-4" />
+                            <Icon icon={FaEdit} className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleDeleteProduct(product)}
                             className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
                             title="Delete"
                           >
-                            <FaTrash className="w-4 h-4" />
+                            <Icon icon={FaTrash} className="w-4 h-4" />
                           </button>
                         </div>
                       </td>
@@ -795,7 +797,7 @@ function ProductsPageContent() {
 
         {filteredProducts.length === 0 && (
           <div className="text-center py-12">
-            <FaBox className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <Icon icon={FaBox} className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No products found</h3>
             <p className="text-gray-600 dark:text-gray-400 mb-4">
               {searchTerm || filterCategory !== "all" || filterStock !== "all" 
@@ -807,7 +809,7 @@ function ProductsPageContent() {
                 onClick={() => { resetForm(); setEditing(null); setFormOpen(true); }}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors mx-auto"
               >
-                <FaPlus className="w-4 h-4" />
+                <Icon icon={FaPlus} className="w-4 h-4" />
                 Add Product
               </button>
             )}
@@ -828,7 +830,7 @@ function ProductsPageContent() {
                 onClick={() => setFormOpen(false)}
                 className="h-10 px-4 rounded-lg border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors flex items-center gap-2"
               >
-                <FaTimes className="w-4 h-4" />
+                <Icon icon={FaTimes} className="w-4 h-4" />
                 Cancel
               </button>
               <button
@@ -836,7 +838,7 @@ function ProductsPageContent() {
                 form="product-form"
                 className="h-10 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center gap-2"
               >
-                {editing ? <FaSave className="w-4 h-4" /> : <FaPlus className="w-4 h-4" />}
+                {editing ? <Icon icon={FaSave} className="w-4 h-4" /> : <Icon icon={FaPlus} className="w-4 h-4" />}
                 {editing ? "Update Product" : "Create Product"}
               </button>
             </>

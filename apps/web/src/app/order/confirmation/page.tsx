@@ -7,6 +7,7 @@ import { getOrder, getOrderByNumber } from '@/app/actions/orders';
 import { getOrderRewardPoints, type OrderRewardPointsSummary } from '@/app/actions/reward-points';
 import { useCart } from '@/contexts/CartContext';
 import { FaCheckCircle, FaPrint, FaArrowLeft, FaShoppingBag, FaGift } from 'react-icons/fa';
+import { Icon } from '@/components/Icon';
 import Link from 'next/link';
 import { LoadingSpinner } from '@/components/Loading';
 import type { Order } from '@my-small-business/types';
@@ -137,7 +138,7 @@ function OrderConfirmationContent() {
             href="/order"
             className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
           >
-            <FaArrowLeft className="w-4 h-4" />
+            <Icon icon={FaArrowLeft} className="w-4 h-4" />
             Back to Menu
           </Link>
         </div>
@@ -152,7 +153,7 @@ function OrderConfirmationContent() {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Success Header */}
         <div className="text-center mb-8">
-          <FaCheckCircle className="w-20 h-20 text-green-600 mx-auto mb-4" />
+          <Icon icon={FaCheckCircle} className="w-20 h-20 text-green-600 mx-auto mb-4" />
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
             Order Confirmed!
           </h1>
@@ -174,7 +175,7 @@ function OrderConfirmationContent() {
               onClick={handlePrint}
               className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-neutral-700 hover:bg-gray-200 dark:hover:bg-neutral-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
             >
-              <FaPrint className="w-4 h-4" />
+              <Icon icon={FaPrint} className="w-4 h-4" />
               Print
             </button>
           </div>
@@ -326,7 +327,7 @@ function OrderConfirmationContent() {
 
             {rewardSummary && rewardSummary.pointsEarned > 0 && (
               <div className="mt-4 flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-                <FaGift className="w-5 h-5 text-yellow-600 mt-0.5" />
+                <Icon icon={FaGift} className="w-5 h-5 text-yellow-600 mt-0.5" />
                 <div>
                   <p className="font-medium text-gray-900 dark:text-white">
                     Reward Points Earned
@@ -387,14 +388,14 @@ function OrderConfirmationContent() {
             href="/order"
             className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
           >
-            <FaShoppingBag className="w-4 h-4" />
+            <Icon icon={FaShoppingBag} className="w-4 h-4" />
             Place Another Order
           </Link>
           <Link
             href="/"
             className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gray-200 dark:bg-neutral-700 hover:bg-gray-300 dark:hover:bg-neutral-600 text-gray-900 dark:text-white font-semibold rounded-lg transition-colors"
           >
-            <FaArrowLeft className="w-4 h-4" />
+            <Icon icon={FaArrowLeft} className="w-4 h-4" />
             Back to Home
           </Link>
         </div>

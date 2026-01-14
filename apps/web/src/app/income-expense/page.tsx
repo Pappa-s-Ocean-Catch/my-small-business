@@ -5,6 +5,7 @@ import { AdminGuard } from "@/components/AdminGuard";
 import { getSupabaseClient } from "@my-small-business/supabase/client";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
 import { FaPlus, FaEdit, FaTrash, FaFileAlt, FaChevronLeft, FaChevronRight, FaFilter, FaFileImport } from "react-icons/fa";
+import { Icon } from "@/components/Icon";
 import Link from "next/link";
 import { toast } from "react-toastify";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
@@ -271,7 +272,7 @@ export default function IncomeExpensePage() {
                 className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-neutral-900 shadow-lg rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
                 title="Previous Week"
               >
-                <FaChevronLeft className="w-4 h-4" /> Prev
+                <Icon icon={FaChevronLeft} className="w-4 h-4" /> Prev
               </button>
               <button
                 onClick={goThisWeek}
@@ -285,7 +286,7 @@ export default function IncomeExpensePage() {
                 className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-neutral-900 shadow-lg rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
                 title="Next Week"
               >
-                Next <FaChevronRight className="w-4 h-4" />
+                Next <Icon icon={FaChevronRight} className="w-4 h-4" />
               </button>
             </div>
 
@@ -295,21 +296,21 @@ export default function IncomeExpensePage() {
                 href="/income-expense/import"
                 className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
               >
-                <FaFileImport className="w-4 h-4" />
+                <Icon icon={FaFileImport} className="w-4 h-4" />
                 Import
               </Link>
               <button
                 onClick={() => setShowTransactionModal(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
-                <FaPlus className="w-4 h-4" />
+                <Icon icon={FaPlus} className="w-4 h-4" />
                 Add Transaction
               </button>
               <button
                 onClick={() => setShowCategoryModal(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
               >
-                <FaPlus className="w-4 h-4" />
+                <Icon icon={FaPlus} className="w-4 h-4" />
                 Manage Categories
               </button>
             </div>
@@ -337,7 +338,7 @@ export default function IncomeExpensePage() {
         {/* Filters */}
         <div className="bg-white dark:bg-neutral-900 rounded-lg shadow-lg p-4 mb-6">
           <div className="flex items-center gap-4 flex-wrap">
-            <FaFilter className="w-4 h-4 text-gray-500" />
+            <Icon icon={FaFilter} className="w-4 h-4 text-gray-500" />
             <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
               <select
                 value={filters.type}
@@ -442,7 +443,7 @@ export default function IncomeExpensePage() {
                               className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
                               title="View Document"
                             >
-                              <FaFileAlt className="w-4 h-4" />
+                              <Icon icon={FaFileAlt} className="w-4 h-4" />
                             </a>
                           )}
                           <button
@@ -453,14 +454,14 @@ export default function IncomeExpensePage() {
                             className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
                             title="Edit Transaction"
                           >
-                            <FaEdit className="w-4 h-4" />
+                            <Icon icon={FaEdit} className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => setDeleteConfirm({ isOpen: true, id: transaction.id, type: 'transaction' })}
                             className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
                             title="Delete Transaction"
                           >
-                            <FaTrash className="w-4 h-4" />
+                            <Icon icon={FaTrash} className="w-4 h-4" />
                           </button>
                         </div>
                       </td>

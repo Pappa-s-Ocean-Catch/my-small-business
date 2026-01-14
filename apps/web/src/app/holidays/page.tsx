@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { FaPlus, FaCopy, FaEdit, FaTrash, FaCalendarAlt } from "react-icons/fa";
+import { Icon } from "@/components/Icon";
 import { AdminGuard } from "@/components/AdminGuard";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
 import { useSnackbar } from "@/components/Snackbar";
@@ -186,7 +187,7 @@ export default function HolidaysPage() {
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-                  <FaCalendarAlt className="text-blue-600 dark:text-blue-400" />
+                  <Icon icon={FaCalendarAlt} className="text-blue-600 dark:text-blue-400" />
                   Public Holidays Management
                 </h1>
                 <p className="mt-2 text-gray-600 dark:text-gray-400">
@@ -206,14 +207,14 @@ export default function HolidaysPage() {
                 <ActionButton
                   onClick={() => setShowCloneModal(true)}
                   variant="success"
-                  icon={<FaCopy className="w-4 h-4" />}
+                  icon={<Icon icon={FaCopy} className="w-4 h-4" />}
                 >
                   Clone to {selectedYear + 1}
                 </ActionButton>
                 <ActionButton
                   onClick={() => setShowCreateModal(true)}
                   variant="primary"
-                  icon={<FaPlus className="w-4 h-4" />}
+                  icon={<Icon icon={FaPlus} className="w-4 h-4" />}
                 >
                   Add Holiday
                 </ActionButton>
@@ -230,7 +231,7 @@ export default function HolidaysPage() {
               </div>
             ) : holidays.length === 0 ? (
               <div className="p-8 text-center">
-                <FaCalendarAlt className="mx-auto h-12 w-12 text-gray-400" />
+                <Icon icon={FaCalendarAlt} className="mx-auto h-12 w-12 text-gray-400" />
                 <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No holidays</h3>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                   No public holidays found for {selectedYear}.
@@ -239,7 +240,7 @@ export default function HolidaysPage() {
                   <ActionButton
                     onClick={() => setShowCreateModal(true)}
                     variant="primary"
-                    icon={<FaPlus className="w-4 h-4" />}
+                    icon={<Icon icon={FaPlus} className="w-4 h-4" />}
                   >
                     Add Holiday
                   </ActionButton>
@@ -289,14 +290,14 @@ export default function HolidaysPage() {
                               className="p-2 text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-colors"
                               title="Edit holiday"
                             >
-                              <FaEdit className="w-4 h-4" />
+                              <Icon icon={FaEdit} className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => openDeleteDialog(holiday)}
                               className="p-2 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
                               title="Delete holiday"
                             >
-                              <FaTrash className="w-4 h-4" />
+                              <Icon icon={FaTrash} className="w-4 h-4" />
                             </button>
                           </div>
                         </td>
@@ -381,7 +382,7 @@ export default function HolidaysPage() {
                 await handleCreateHoliday({ preventDefault: () => {} } as React.FormEvent);
               }}
               variant="primary"
-              icon={<FaPlus className="w-4 h-4" />}
+              icon={<Icon icon={FaPlus} className="w-4 h-4" />}
             >
               Create Holiday
             </ActionButton>
@@ -460,7 +461,7 @@ export default function HolidaysPage() {
                 await handleUpdateHoliday({ preventDefault: () => {} } as React.FormEvent);
               }}
               variant="primary"
-              icon={<FaEdit className="w-4 h-4" />}
+              icon={<Icon icon={FaEdit} className="w-4 h-4" />}
             >
               Update Holiday
             </ActionButton>
@@ -491,7 +492,7 @@ export default function HolidaysPage() {
             <ActionButton
               onClick={handleCloneHolidays}
               variant="success"
-              icon={<FaCopy className="w-4 h-4" />}
+              icon={<Icon icon={FaCopy} className="w-4 h-4" />}
             >
               Clone Holidays
             </ActionButton>

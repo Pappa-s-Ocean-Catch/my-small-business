@@ -5,6 +5,7 @@ import { getSupabaseClient } from "@my-small-business/supabase/client";
 import { ensureProfile } from "@/app/actions/profile";
 import { AdminGuard } from "@/components/AdminGuard";
 import { FaExclamationTriangle, FaCheck, FaBell } from "react-icons/fa";
+import { Icon } from "@/components/Icon";
 import Link from "next/link";
 import { format } from "date-fns";
 
@@ -219,7 +220,7 @@ export default function NotificationsPage() {
           {mode === 'product' ? (
             filteredNotifications.length === 0 ? (
             <div className="text-center py-12">
-              <FaBell className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <Icon icon={FaBell} className="w-12 h-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
                 {activeTab === 'active' ? 'No active alerts' : 'No resolved alerts'}
               </h3>
@@ -239,9 +240,9 @@ export default function NotificationsPage() {
                   <div className="flex items-start gap-3">
                     <div className="flex-shrink-0 mt-1">
                       {notification.is_resolved ? (
-                        <FaCheck className="w-5 h-5 text-green-600" />
+                        <Icon icon={FaCheck} className="w-5 h-5 text-green-600" />
                       ) : (
-                        <FaExclamationTriangle className="w-5 h-5 text-red-600" />
+                        <Icon icon={FaExclamationTriangle} className="w-5 h-5 text-red-600" />
                       )}
                     </div>
                     <div className="flex-1">
@@ -318,7 +319,7 @@ export default function NotificationsPage() {
           ) : (
             filteredIngredientNotifications.length === 0 ? (
               <div className="text-center py-12">
-                <FaBell className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <Icon icon={FaBell} className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
                   {activeTab === 'active' ? 'No active ingredient alerts' : 'No resolved ingredient alerts'}
                 </h3>
@@ -336,9 +337,9 @@ export default function NotificationsPage() {
                     <div className="flex items-start gap-3">
                       <div className="flex-shrink-0 mt-1">
                         {n.is_resolved ? (
-                          <FaCheck className="w-5 h-5 text-green-600" />
+                          <Icon icon={FaCheck} className="w-5 h-5 text-green-600" />
                         ) : (
-                          <FaExclamationTriangle className="w-5 h-5 text-red-600" />
+                          <Icon icon={FaExclamationTriangle} className="w-5 h-5 text-red-600" />
                         )}
                       </div>
                       <div className="flex-1">
@@ -405,7 +406,7 @@ export default function NotificationsPage() {
         <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="p-4 bg-white dark:bg-neutral-900 rounded-lg border">
             <div className="flex items-center gap-3">
-              <FaExclamationTriangle className="w-8 h-8 text-red-600 dark:text-red-400" />
+              <Icon icon={FaExclamationTriangle} className="w-8 h-8 text-red-600 dark:text-red-400" />
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Active Alerts</p>
                 <p className="text-2xl font-bold text-red-600 dark:text-red-400">
@@ -419,7 +420,7 @@ export default function NotificationsPage() {
           
           <div className="p-4 bg-white dark:bg-neutral-900 rounded-lg border">
             <div className="flex items-center gap-3">
-              <FaCheck className="w-8 h-8 text-green-600 dark:text-green-400" />
+              <Icon icon={FaCheck} className="w-8 h-8 text-green-600 dark:text-green-400" />
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Resolved</p>
                 <p className="text-2xl font-bold text-green-600 dark:text-green-400">
@@ -431,7 +432,7 @@ export default function NotificationsPage() {
           
           <div className="p-4 bg-white dark:bg-neutral-900 rounded-lg border">
             <div className="flex items-center gap-3">
-              <FaBell className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+              <Icon icon={FaBell} className="w-8 h-8 text-blue-600 dark:text-blue-400" />
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Total Alerts</p>
                 <p className="text-2xl font-bold text-gray-900 dark:text-white">

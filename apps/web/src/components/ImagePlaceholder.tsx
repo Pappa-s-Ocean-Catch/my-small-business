@@ -4,7 +4,7 @@ import { useState } from "react";
 import { FaMagic, FaSpinner } from "react-icons/fa";
 import { toast } from "react-toastify";
 import { useAdmin } from "@/hooks/useAdmin";
-
+import { Icon } from '@/components/Icon';
 interface ImagePlaceholderProps {
   productName: string;
   description?: string;
@@ -247,12 +247,12 @@ export function ImagePlaceholder({
       <div className="flex flex-col items-center justify-center h-full text-gray-400 dark:text-gray-500">
         {isGenerating ? (
           <>
-            <FaSpinner className="w-8 h-8 animate-spin mb-2" />
+            <Icon icon={FaSpinner} className="w-8 h-8 animate-spin mb-2" />
             <span className="text-sm">Generating...</span>
           </>
         ) : (
           <>
-            <FaMagic className="w-8 h-8 mb-2" />
+            <Icon icon={FaMagic} className="w-8 h-8 mb-2" />
             <span className="text-sm text-center px-4">
               {isAdmin ? 'Click to generate AI image' : 'No image available'}
             </span>

@@ -2,7 +2,7 @@
 
 import { FaDownload, FaPrint } from 'react-icons/fa';
 import { useState } from 'react';
-
+import { Icon } from '@/components/Icon';
 export default function PrintButton() {
   const [isLoading, setIsLoading] = useState(false);
 
@@ -65,7 +65,7 @@ export default function PrintButton() {
         className="print-btn print-btn-primary"
         title="Print Menu"
       >
-        <FaPrint className="btn-icon" />
+        <Icon icon={FaPrint} className="btn-icon" />
         <span>Print</span>
       </button>
       
@@ -75,7 +75,7 @@ export default function PrintButton() {
         className="print-btn print-btn-secondary"
         title="Download as PNG"
       >
-        <FaDownload className="btn-icon" />
+        <Icon icon={FaDownload} className="btn-icon" />
         <span>{isLoading ? 'Generating...' : 'Save PNG'}</span>
       </button>
     </div>

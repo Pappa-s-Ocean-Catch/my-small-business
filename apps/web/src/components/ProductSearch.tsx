@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { FaSearch, FaCheck, FaBox, FaDollarSign, FaWarehouse } from 'react-icons/fa';
-
+import { Icon } from '@/components/Icon';
 interface Product {
   id: string;
   name: string;
@@ -137,7 +137,7 @@ export function ProductSearch({
       {/* Search Input */}
       <div className="relative">
         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <FaSearch className="h-4 w-4 text-gray-400" />
+          <Icon icon={FaSearch} className="h-4 w-4 text-gray-400" />
         </div>
         <input
           ref={inputRef}
@@ -152,7 +152,7 @@ export function ProductSearch({
         />
         {selectedProduct && (
           <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-            <FaCheck className="h-4 w-4 text-green-600" />
+            <Icon icon={FaCheck} className="h-4 w-4 text-green-600" />
           </div>
         )}
       </div>
@@ -174,7 +174,7 @@ export function ProductSearch({
               onClick={() => onProductSelect('')}
               className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200"
             >
-              <FaCheck className="h-4 w-4" />
+              <Icon icon={FaCheck} className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -213,7 +213,7 @@ export function ProductSearch({
                           {product.name}
                         </div>
                         {isSelected && (
-                          <FaCheck className="h-3 w-3 text-green-600 flex-shrink-0" />
+                          <Icon icon={FaCheck} className="h-3 w-3 text-green-600 flex-shrink-0" />
                         )}
                       </div>
                       <div className="text-sm text-gray-600 dark:text-gray-400">
@@ -224,7 +224,7 @@ export function ProductSearch({
                     <div className="flex items-center gap-4 text-sm">
                       {/* Unit Price */}
                       <div className="flex items-center gap-1">
-                        <FaDollarSign className="h-3 w-3 text-gray-400" />
+                        <Icon icon={FaDollarSign} className="h-3 w-3 text-gray-400" />
                         <span className="font-medium text-gray-900 dark:text-white">
                           {product.unit_price.toFixed(3)}
                         </span>
@@ -233,7 +233,7 @@ export function ProductSearch({
 
                       {/* Stock Status */}
                       <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${stockStatus.bg}`}>
-                        <FaWarehouse className={`h-3 w-3 ${stockStatus.color}`} />
+                        <Icon icon={FaWarehouse} className={`h-3 w-3 ${stockStatus.color}`} />
                         <span className={stockStatus.color}>
                           {product.total_units} units
                         </span>
@@ -244,7 +244,7 @@ export function ProductSearch({
                   {/* Additional Info */}
                   <div className="mt-2 flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
                     <div className="flex items-center gap-1">
-                      <FaBox className="h-3 w-3" />
+                      <Icon icon={FaBox} className="h-3 w-3" />
                       <span>Box: ${product.purchase_price.toFixed(2)} ({product.units_per_box} units)</span>
                     </div>
                   </div>

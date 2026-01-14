@@ -7,7 +7,9 @@ import { AdminGuard } from "@/components/AdminGuard";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
 import Modal from "@/components/Modal";
 import Card from "@/components/Card";
-import { FaPlus, FaEdit, FaTrash, FaTags, FaFileExcel, FaEye } from "react-icons/fa";
+import { FaPlus, FaEdit, FaTrash, FaTags, FaFileExcel } from "react-icons/fa";
+import { FaEye } from "react-icons/fa6";
+import { Icon } from "@/components/Icon";
 import Link from "next/link";
 import * as XLSX from "xlsx";
 import { toast } from 'react-toastify';
@@ -195,14 +197,14 @@ export default function CategoriesPage() {
               onClick={exportToExcel}
               className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
             >
-              <FaFileExcel className="w-4 h-4" />
+              <Icon icon={FaFileExcel} className="w-4 h-4" />
               Export Excel
             </button>
             <button
               onClick={() => { resetForm(); setEditing(null); setFormOpen(true); }}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
-              <FaPlus className="w-4 h-4" />
+              <Icon icon={FaPlus} className="w-4 h-4" />
               Add Category
             </button>
           </div>
@@ -215,7 +217,7 @@ export default function CategoriesPage() {
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
-                    <FaTags className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    <Icon icon={FaTags} className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                   </div>
                   <div>
                     <Link 
@@ -235,21 +237,21 @@ export default function CategoriesPage() {
                     className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                     title="View category details"
                   >
-                    <FaEye className="w-4 h-4" />
+                    <Icon icon={FaEye} className="w-4 h-4" />
                   </Link>
                   <button
                     onClick={() => startEdit(category)}
                     className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                     title="Edit category"
                   >
-                    <FaEdit className="w-4 h-4" />
+                    <Icon icon={FaEdit} className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => handleDeleteCategory(category)}
                     className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
                     title="Delete category"
                   >
-                    <FaTrash className="w-4 h-4" />
+                    <Icon icon={FaTrash} className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -269,7 +271,7 @@ export default function CategoriesPage() {
 
         {categories.length === 0 && (
           <div className="text-center py-12">
-            <FaTags className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <Icon icon={FaTags} className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No categories found</h3>
             <p className="text-gray-600 dark:text-gray-400 mb-4">
               Get started by creating your first product category
@@ -278,7 +280,7 @@ export default function CategoriesPage() {
               onClick={() => { resetForm(); setEditing(null); setFormOpen(true); }}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors mx-auto"
             >
-              <FaPlus className="w-4 h-4" />
+              <Icon icon={FaPlus} className="w-4 h-4" />
               Add Category
             </button>
           </div>

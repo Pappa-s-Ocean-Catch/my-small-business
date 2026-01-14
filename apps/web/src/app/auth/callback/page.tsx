@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
 import { LoadingSpinner } from '@/components/Loading';
 import { FaCheckCircle, FaExclamationCircle } from 'react-icons/fa';
+import { Icon } from '@/components/Icon';
 
 function AuthCallbackContent() {
   const router = useRouter();
@@ -274,7 +275,7 @@ function AuthCallbackContent() {
 
         {status === 'success' && (
           <>
-            <FaCheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
+            <Icon icon={FaCheckCircle} className="w-16 h-16 text-green-500 mx-auto mb-4" />
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
               Success!
             </h2>
@@ -284,7 +285,7 @@ function AuthCallbackContent() {
 
         {status === 'error' && (
           <>
-            <FaExclamationCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+            <Icon icon={FaExclamationCircle} className="w-16 h-16 text-red-500 mx-auto mb-4" />
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
               Authentication Failed
             </h2>

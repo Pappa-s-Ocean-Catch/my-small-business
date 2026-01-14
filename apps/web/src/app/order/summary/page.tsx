@@ -9,6 +9,7 @@ import { DeliveryAddressForm, type DeliveryAddressInput } from '@/components/Del
 import { getFeatureFlags } from '@/app/actions/feature-flags';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
 import { FaShoppingCart, FaArrowLeft, FaCheck, FaDollarSign, FaEdit, FaComment, FaTruck, FaClock, FaSpinner } from 'react-icons/fa';
+import { Icon } from '@/components/Icon';
 import Link from 'next/link';
 
 export default function OrderSummaryPage() {
@@ -145,7 +146,7 @@ export default function OrderSummaryPage() {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-neutral-900 flex items-center justify-center">
         <div className="text-center">
-          <FaShoppingCart className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+          <Icon icon={FaShoppingCart} className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
             Your cart is empty
           </h2>
@@ -156,7 +157,7 @@ export default function OrderSummaryPage() {
             href="/order"
             className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
           >
-            <FaArrowLeft className="w-4 h-4" />
+            <Icon icon={FaArrowLeft} className="w-4 h-4" />
             Back to Menu
           </Link>
         </div>
@@ -176,11 +177,11 @@ export default function OrderSummaryPage() {
             href="/order"
             className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-4"
           >
-            <FaArrowLeft className="w-4 h-4" />
+            <Icon icon={FaArrowLeft} className="w-4 h-4" />
             Back to Menu
           </Link>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-            <FaShoppingCart className="text-blue-600" />
+            <Icon icon={FaShoppingCart} className="text-blue-600" />
             Order Summary
           </h1>
         </div>
@@ -201,7 +202,7 @@ export default function OrderSummaryPage() {
             {orderType === 'delivery' && (
               <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-6">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                  <FaTruck className="w-5 h-5 text-green-600" />
+                  <Icon icon={FaTruck} className="w-5 h-5 text-green-600" />
                   Delivery Address
                 </h2>
                 <DeliveryAddressForm
@@ -213,7 +214,7 @@ export default function OrderSummaryPage() {
                 {/* Delivery Quote Display */}
                 {loadingQuote && (
                   <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center gap-3">
-                    <FaSpinner className="w-5 h-5 text-blue-600 animate-spin" />
+                    <Icon icon={FaSpinner} className="w-5 h-5 text-blue-600 animate-spin" />
                     <span className="text-sm text-blue-700 dark:text-blue-300">Getting delivery quote...</span>
                   </div>
                 )}
@@ -235,7 +236,7 @@ export default function OrderSummaryPage() {
                     <div className="flex items-start justify-between mb-2">
                       <div>
                         <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                          <FaTruck className="w-4 h-4 text-green-600" />
+                          <Icon icon={FaTruck} className="w-4 h-4 text-green-600" />
                           Delivery Quote
                         </h3>
                         <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
@@ -252,7 +253,7 @@ export default function OrderSummaryPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 mt-3 pt-3 border-t border-green-200 dark:border-green-800">
-                      <FaClock className="w-4 h-4 text-green-600" />
+                      <Icon icon={FaClock} className="w-4 h-4 text-green-600" />
                       <span>Estimated delivery: {deliveryQuote.estimated_duration_minutes} minutes</span>
                     </div>
                     <button
@@ -286,7 +287,7 @@ export default function OrderSummaryPage() {
             {orderType === 'pickup' && (
               <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-6">
                 <div className="flex items-center gap-3 mb-2">
-                  <FaCheck className="w-5 h-5 text-blue-600" />
+                  <Icon icon={FaCheck} className="w-5 h-5 text-blue-600" />
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                     Pickup Order Selected
                   </h2>
@@ -398,7 +399,7 @@ export default function OrderSummaryPage() {
                         <div className="mt-3">
                           {item.comment ? (
                             <div className="flex items-start gap-2 p-2 bg-gray-50 dark:bg-neutral-700 rounded-lg">
-                              <FaComment className="w-4 h-4 text-gray-500 dark:text-gray-400 mt-0.5 flex-shrink-0" />
+                              <Icon icon={FaComment} className="w-4 h-4 text-gray-500 dark:text-gray-400 mt-0.5 flex-shrink-0" />
                               <p className="text-sm text-gray-700 dark:text-gray-300 flex-1">{item.comment}</p>
                               <button
                                 onClick={() => {
@@ -408,7 +409,7 @@ export default function OrderSummaryPage() {
                                 className="p-1 text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 rounded hover:bg-gray-100 dark:hover:bg-neutral-600 transition-colors"
                                 aria-label="Edit comment"
                               >
-                                <FaEdit className="w-4 h-4" />
+                                <Icon icon={FaEdit} className="w-4 h-4" />
                               </button>
                             </div>
                           ) : (
@@ -419,7 +420,7 @@ export default function OrderSummaryPage() {
                               }}
                               className="text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 flex items-center gap-2"
                             >
-                              <FaComment className="w-4 h-4" />
+                              <Icon icon={FaComment} className="w-4 h-4" />
                               Add special instructions
                             </button>
                           )}
@@ -461,7 +462,7 @@ export default function OrderSummaryPage() {
                 {orderType === 'delivery' && deliveryFee > 0 && (
                   <div className="flex justify-between text-gray-600 dark:text-gray-400">
                     <span className="flex items-center gap-2">
-                      <FaTruck className="w-4 h-4" />
+                      <Icon icon={FaTruck} className="w-4 h-4" />
                       Delivery Fee
                     </span>
                     <span>${deliveryFee.toFixed(2)}</span>
@@ -502,7 +503,7 @@ export default function OrderSummaryPage() {
                   disabled={!orderType || (orderType === 'delivery' && (!deliveryAddress || !deliveryQuote))}
                   className="block w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
                 >
-                  <FaDollarSign className="w-4 h-4" />
+                  <Icon icon={FaDollarSign} className="w-4 h-4" />
                   {!orderType ? 'Select Order Type First' : orderType === 'delivery' && (!deliveryAddress || !deliveryQuote) ? 'Complete Delivery Info' : 'Checkout'}
                 </button>
                 <Link
@@ -515,7 +516,7 @@ export default function OrderSummaryPage() {
 
               <div className="mt-6 pt-6 border-t border-gray-200 dark:border-neutral-700">
                 <div className="flex items-start gap-2 text-sm text-gray-500 dark:text-gray-500">
-                  <FaCheck className="w-4 h-4 text-green-600 mt-0.5" />
+                  <Icon icon={FaCheck} className="w-4 h-4 text-green-600 mt-0.5" />
                   <div>
                     <p className="font-medium mb-1">Secure Checkout</p>
                     <p className="text-xs">Your payment information is secure and encrypted</p>

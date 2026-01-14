@@ -5,6 +5,7 @@ import { OrderHeader } from '@/components/OrderHeader';
 import { getUserRewardPoints, getUserRewardPointTransactions, getRewardPointsSettings } from '@/app/actions/reward-points';
 import type { UserRewardPoints, RewardPointTransaction } from '@/app/actions/reward-points';
 import { FaGift, FaArrowUp, FaArrowDown, FaClock, FaShoppingCart } from 'react-icons/fa';
+import { Icon } from '@/components/Icon';
 import Link from 'next/link';
 
 export default function RewardsPage() {
@@ -51,13 +52,13 @@ export default function RewardsPage() {
   const getTransactionIcon = (type: string) => {
     switch (type) {
       case 'earned':
-        return <FaArrowUp className="w-5 h-5 text-green-600" />;
+        return <Icon icon={FaArrowUp} className="w-5 h-5 text-green-600" />;
       case 'used':
-        return <FaArrowDown className="w-5 h-5 text-red-600" />;
+        return <Icon icon={FaArrowDown} className="w-5 h-5 text-red-600" />;
       case 'expired':
-        return <FaClock className="w-5 h-5 text-gray-600" />;
+        return <Icon icon={FaClock} className="w-5 h-5 text-gray-600" />;
       default:
-        return <FaGift className="w-5 h-5 text-blue-600" />;
+        return <Icon icon={FaGift} className="w-5 h-5 text-blue-600" />;
     }
   };
 
@@ -92,7 +93,7 @@ export default function RewardsPage() {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-            <FaGift className="text-yellow-500" />
+            <Icon icon={FaGift} className="text-yellow-500" />
             My Reward Points
           </h1>
         </div>
@@ -106,7 +107,7 @@ export default function RewardsPage() {
                 {userPoints?.current_balance.toLocaleString() || 0} Points
               </h2>
             </div>
-            <FaGift className="w-16 h-16 text-yellow-200 opacity-50" />
+            <Icon icon={FaGift} className="w-16 h-16 text-yellow-200 opacity-50" />
           </div>
           <div className="border-t border-yellow-300 pt-4">
             <p className="text-yellow-100 text-sm">
@@ -122,7 +123,7 @@ export default function RewardsPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-4">
             <div className="flex items-center gap-3 mb-2">
-              <FaArrowUp className="w-5 h-5 text-green-600" />
+              <Icon icon={FaArrowUp} className="w-5 h-5 text-green-600" />
               <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Total Earned</h3>
             </div>
             <p className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -135,7 +136,7 @@ export default function RewardsPage() {
 
           <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-4">
             <div className="flex items-center gap-3 mb-2">
-              <FaArrowDown className="w-5 h-5 text-red-600" />
+              <Icon icon={FaArrowDown} className="w-5 h-5 text-red-600" />
               <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Total Used</h3>
             </div>
             <p className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -148,7 +149,7 @@ export default function RewardsPage() {
 
           <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-4">
             <div className="flex items-center gap-3 mb-2">
-              <FaShoppingCart className="w-5 h-5 text-blue-600" />
+              <Icon icon={FaShoppingCart} className="w-5 h-5 text-blue-600" />
               <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Available</h3>
             </div>
             <p className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -168,7 +169,7 @@ export default function RewardsPage() {
 
           {transactions.length === 0 ? (
             <div className="text-center py-12">
-              <FaGift className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+              <Icon icon={FaGift} className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
               <p className="text-gray-600 dark:text-gray-400 mb-2">No transactions yet</p>
               <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">
                 Start earning points by placing orders!
@@ -177,7 +178,7 @@ export default function RewardsPage() {
                 href="/order"
                 className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
               >
-                <FaShoppingCart className="w-4 h-4" />
+                <Icon icon={FaShoppingCart} className="w-4 h-4" />
                 Start Shopping
               </Link>
             </div>

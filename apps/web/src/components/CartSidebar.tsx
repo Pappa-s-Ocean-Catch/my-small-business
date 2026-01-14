@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FaShoppingCart, FaTimes, FaPlus, FaMinus, FaTrash, FaChevronRight, FaEdit, FaComment } from 'react-icons/fa';
+import { Icon } from '@/components/Icon';
 import { useCart } from '@/contexts/CartContext';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 
@@ -27,7 +28,7 @@ export function CartSidebar() {
         aria-label="Open cart"
       >
         <div className="relative">
-          <FaShoppingCart className="w-6 h-6" />
+          <Icon icon={FaShoppingCart} className="w-6 h-6" />
           {getItemCount() > 0 && (
             <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
               {getItemCount()}
@@ -47,7 +48,7 @@ export function CartSidebar() {
         aria-label="Open cart"
       >
         <div className="relative">
-          <FaShoppingCart className="w-6 h-6" />
+          <Icon icon={FaShoppingCart} className="w-6 h-6" />
           {getItemCount() > 0 && (
             <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
               {getItemCount()}
@@ -70,7 +71,7 @@ export function CartSidebar() {
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-neutral-700">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <FaShoppingCart className="text-blue-600" />
+                <Icon icon={FaShoppingCart} className="text-blue-600" />
                 Your Cart
               </h2>
               <button
@@ -78,7 +79,7 @@ export function CartSidebar() {
                 className="p-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
                 aria-label="Close cart"
               >
-                <FaTimes className="w-5 h-5" />
+                <Icon icon={FaTimes} className="w-5 h-5" />
               </button>
             </div>
 
@@ -86,7 +87,7 @@ export function CartSidebar() {
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {items.length === 0 ? (
                 <div className="text-center py-12">
-                  <FaShoppingCart className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+                  <Icon icon={FaShoppingCart} className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
                   <p className="text-gray-500 dark:text-gray-400">Your cart is empty</p>
                 </div>
               ) : (
@@ -160,7 +161,7 @@ export function CartSidebar() {
                           <div className="mt-2">
                             {item.comment ? (
                               <div className="flex items-start gap-2">
-                                <FaComment className="w-3 h-3 text-gray-500 dark:text-gray-400 mt-0.5 flex-shrink-0" />
+                                <Icon icon={FaComment} className="w-3 h-3 text-gray-500 dark:text-gray-400 mt-0.5 flex-shrink-0" />
                                 <p className="text-xs text-gray-600 dark:text-gray-400 flex-1">{item.comment}</p>
                                 <button
                                   onClick={() => {
@@ -170,7 +171,7 @@ export function CartSidebar() {
                                   className="p-1 text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 rounded hover:bg-gray-100 dark:hover:bg-neutral-700 transition-colors"
                                   aria-label="Edit comment"
                                 >
-                                  <FaEdit className="w-3 h-3" />
+                                  <Icon icon={FaEdit} className="w-3 h-3" />
                                 </button>
                               </div>
                             ) : (
@@ -181,7 +182,7 @@ export function CartSidebar() {
                                 }}
                                 className="text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 flex items-center gap-1"
                               >
-                                <FaComment className="w-3 h-3" />
+                                <Icon icon={FaComment} className="w-3 h-3" />
                                 Add comment
                               </button>
                             )}
@@ -196,7 +197,7 @@ export function CartSidebar() {
                               className="p-1 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded hover:bg-gray-200 dark:hover:bg-neutral-700 transition-colors"
                               aria-label="Decrease quantity"
                             >
-                              <FaMinus className="w-3 h-3" />
+                              <Icon icon={FaMinus} className="w-3 h-3" />
                             </button>
                             <span className="text-sm font-medium text-gray-900 dark:text-white w-8 text-center">
                               {item.quantity}
@@ -206,7 +207,7 @@ export function CartSidebar() {
                               className="p-1 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded hover:bg-gray-200 dark:hover:bg-neutral-700 transition-colors"
                               aria-label="Increase quantity"
                             >
-                              <FaPlus className="w-3 h-3" />
+                              <Icon icon={FaPlus} className="w-3 h-3" />
                             </button>
                           </div>
                           <div className="flex items-center gap-2">
@@ -218,7 +219,7 @@ export function CartSidebar() {
                               className="p-1 text-red-600 hover:text-red-700 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                               aria-label="Remove item"
                             >
-                              <FaTrash className="w-4 h-4" />
+                              <Icon icon={FaTrash} className="w-4 h-4" />
                             </button>
                           </div>
                         </div>
@@ -243,7 +244,7 @@ export function CartSidebar() {
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
                 >
                   Shopping Cart
-                  <FaChevronRight className="w-4 h-4" />
+                  <Icon icon={FaChevronRight} className="w-4 h-4" />
                 </button>
                 <button
                   onClick={clearCart}

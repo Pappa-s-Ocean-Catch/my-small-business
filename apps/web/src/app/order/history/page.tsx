@@ -7,6 +7,7 @@ import { getCustomerOrders } from '@/app/actions/orders';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { useCart } from '@/contexts/CartContext';
 import { FaClock, FaCheckCircle, FaUtensils, FaSpinner, FaTimesCircle, FaShoppingCart, FaPrint } from 'react-icons/fa';
+import { Icon } from '@/components/Icon';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
 import Link from 'next/link';
 
@@ -48,18 +49,18 @@ export default function OrderHistoryPage() {
   const getStatusIcon = (status: OrderStatus) => {
     switch (status) {
       case 'pending':
-        return <FaClock className="w-4 h-4 text-yellow-500" />;
+        return <Icon icon={FaClock} className="w-4 h-4 text-yellow-500" />;
       case 'confirmed':
       case 'preparing':
-        return <FaSpinner className="w-4 h-4 text-blue-500 animate-spin" />;
+        return <Icon icon={FaSpinner} className="w-4 h-4 text-blue-500 animate-spin" />;
       case 'ready':
-        return <FaCheckCircle className="w-4 h-4 text-green-500" />;
+        return <Icon icon={FaCheckCircle} className="w-4 h-4 text-green-500" />;
       case 'completed':
-        return <FaCheckCircle className="w-4 h-4 text-green-600" />;
+        return <Icon icon={FaCheckCircle} className="w-4 h-4 text-green-600" />;
       case 'cancelled':
-        return <FaTimesCircle className="w-4 h-4 text-red-500" />;
+        return <Icon icon={FaTimesCircle} className="w-4 h-4 text-red-500" />;
       default:
-        return <FaClock className="w-4 h-4 text-gray-500" />;
+        return <Icon icon={FaClock} className="w-4 h-4 text-gray-500" />;
     }
   };
 
@@ -261,7 +262,7 @@ export default function OrderHistoryPage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div className="flex items-center justify-center min-h-[400px]">
               <div className="text-center">
-                <FaSpinner className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
+                <Icon icon={FaSpinner} className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
                 <p className="text-gray-600 dark:text-gray-400">Loading your orders...</p>
               </div>
             </div>
@@ -298,14 +299,14 @@ export default function OrderHistoryPage() {
 
           {orders.length === 0 ? (
             <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-8 text-center">
-              <FaUtensils className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <Icon icon={FaUtensils} className="w-12 h-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No orders yet</h3>
               <p className="text-gray-600 dark:text-gray-400 mb-4">Start ordering to see your order history here</p>
               <Link
                 href="/order"
                 className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
-                <FaShoppingCart className="w-4 h-4" />
+                <Icon icon={FaShoppingCart} className="w-4 h-4" />
                 Start Ordering
               </Link>
             </div>
@@ -347,7 +348,7 @@ export default function OrderHistoryPage() {
                           className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-neutral-700 rounded-lg transition-colors"
                           title="Print order"
                         >
-                          <FaPrint className="w-4 h-4" />
+                          <Icon icon={FaPrint} className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleReorder(order)}
@@ -356,12 +357,12 @@ export default function OrderHistoryPage() {
                         >
                           {reorderingOrderId === order.id ? (
                             <>
-                              <FaSpinner className="w-4 h-4 animate-spin" />
+                              <Icon icon={FaSpinner} className="w-4 h-4 animate-spin" />
                               Adding...
                             </>
                           ) : (
                             <>
-                              <FaShoppingCart className="w-4 h-4" />
+                              <Icon icon={FaShoppingCart} className="w-4 h-4" />
                               Reorder
                             </>
                           )}

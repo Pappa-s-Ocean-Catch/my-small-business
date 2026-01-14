@@ -5,6 +5,7 @@ import Card from '@/components/Card';
 import { ActionButton } from '@/components/ActionButton';
 import { Loading } from '@/components/Loading';
 import { useSnackbar } from '@/components/Snackbar';
+import { Icon } from '@/components/Icon';
 import { 
   FaGoogle, 
   FaSync, 
@@ -218,15 +219,15 @@ export default function GoogleBusinessProfileSync() {
   const getStatusIcon = () => {
     switch (syncStatus.status) {
       case 'syncing':
-        return <FaSync className="animate-spin text-blue-500" />;
+        return <Icon icon={FaSync} className="animate-spin text-blue-500" />;
       case 'success':
-        return <FaCheckCircle className="text-green-500" />;
+        return <Icon icon={FaCheckCircle} className="text-green-500" />;
       case 'error':
-        return <FaExclamationTriangle className="text-red-500" />;
+        return <Icon icon={FaExclamationTriangle} className="text-red-500" />;
       default:
         return syncStatus.connected ? 
-          <FaCheckCircle className="text-green-500" /> : 
-          <FaExclamationTriangle className="text-gray-400" />;
+          <Icon icon={FaCheckCircle} className="text-green-500" /> : 
+          <Icon icon={FaExclamationTriangle} className="text-gray-400" />;
     }
   };
 
@@ -243,7 +244,7 @@ export default function GoogleBusinessProfileSync() {
       <Card>
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-3">
-            <FaGoogle className="text-blue-500 text-2xl" />
+            <Icon icon={FaGoogle} className="text-blue-500 text-2xl" />
             <div>
               <h2 className="text-xl font-semibold">Google Business Profile Sync</h2>
               <p className="text-gray-600">Sync your menu products and categories to Google Business Profile</p>
@@ -257,7 +258,7 @@ export default function GoogleBusinessProfileSync() {
 
         {!syncStatus.connected ? (
           <div className="text-center py-8">
-            <FaGoogle className="text-6xl text-gray-300 mx-auto mb-4" />
+            <Icon icon={FaGoogle} className="text-6xl text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-medium mb-2">Connect to Google Business Profile</h3>
             <p className="text-gray-600 mb-6">
               Connect your Google Business Profile to sync your menu products and categories automatically.
@@ -266,7 +267,7 @@ export default function GoogleBusinessProfileSync() {
               onClick={handleConnect}
               className="bg-blue-600 hover:bg-blue-700"
             >
-              <FaGoogle className="mr-2" />
+              <Icon icon={FaGoogle} className="mr-2" />
               Connect to Google Business Profile
             </ActionButton>
           </div>
@@ -303,7 +304,7 @@ export default function GoogleBusinessProfileSync() {
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
                 >
-                  <FaSync className="inline mr-2" />
+                  <Icon icon={FaSync} className="inline mr-2" />
                   Sync Operations
                 </button>
                 <button
@@ -314,7 +315,7 @@ export default function GoogleBusinessProfileSync() {
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
                 >
-                  <FaCog className="inline mr-2" />
+                  <Icon icon={FaCog} className="inline mr-2" />
                   Category Mapping
                 </button>
                 <button
@@ -325,7 +326,7 @@ export default function GoogleBusinessProfileSync() {
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
                 >
-                  <FaHistory className="inline mr-2" />
+                  <Icon icon={FaHistory} className="inline mr-2" />
                   Sync History
                 </button>
               </nav>
@@ -339,7 +340,7 @@ export default function GoogleBusinessProfileSync() {
                     onClick={handleSyncCategories}
                     className="bg-green-600 hover:bg-green-700"
                   >
-                    <FaSync className="mr-2" />
+                    <Icon icon={FaSync} className="mr-2" />
                     Sync Categories
                   </ActionButton>
                   
@@ -347,7 +348,7 @@ export default function GoogleBusinessProfileSync() {
                     onClick={handleSyncProducts}
                     className="bg-blue-600 hover:bg-blue-700"
                   >
-                    <FaSync className="mr-2" />
+                    <Icon icon={FaSync} className="mr-2" />
                     Sync Products
                   </ActionButton>
                   
@@ -355,7 +356,7 @@ export default function GoogleBusinessProfileSync() {
                     onClick={handleSyncAll}
                     className="bg-purple-600 hover:bg-purple-700"
                   >
-                    <FaSync className="mr-2" />
+                    <Icon icon={FaSync} className="mr-2" />
                     Sync All
                   </ActionButton>
                 </div>
@@ -371,7 +372,7 @@ export default function GoogleBusinessProfileSync() {
             {/* Category Mapping Tab */}
             {activeTab === 'mapping' && (
               <div className="text-center py-8">
-                <FaCog className="text-4xl text-gray-300 mx-auto mb-4" />
+                <Icon icon={FaCog} className="text-4xl text-gray-300 mx-auto mb-4" />
                 <h3 className="text-lg font-medium mb-2">Category Mapping</h3>
                 <p className="text-gray-600 mb-4">
                   Configure how your local categories map to Google Business categories.
@@ -385,7 +386,7 @@ export default function GoogleBusinessProfileSync() {
             {/* Sync History Tab */}
             {activeTab === 'history' && (
               <div className="text-center py-8">
-                <FaHistory className="text-4xl text-gray-300 mx-auto mb-4" />
+                <Icon icon={FaHistory} className="text-4xl text-gray-300 mx-auto mb-4" />
                 <h3 className="text-lg font-medium mb-2">Sync History</h3>
                 <p className="text-gray-600 mb-4">
                   View your sync history and status.

@@ -4,8 +4,9 @@ import { useState, useEffect, useRef } from 'react';
 import { getAllOrders, updateOrderStatus, updatePaymentStatus, getOrder } from '@/app/actions/orders';
 import { LoadingSpinner } from '@/components/Loading';
 import { AdminGuard } from '@/components/AdminGuard';
-import { FaPrint, FaEye, FaCheckCircle, FaTimesCircle, FaClock, FaSpinner, FaFilter, FaPlay, FaCheck, FaShoppingBag, FaChevronLeft, FaChevronRight, FaCalendar } from 'react-icons/fa';
+import { FaEye,FaPrint, FaCheckCircle, FaTimesCircle, FaClock, FaSpinner, FaFilter, FaPlay, FaCheck, FaShoppingBag, FaChevronLeft, FaChevronRight, FaCalendar } from 'react-icons/fa';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
+import { Icon } from '@/components/Icon';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 
@@ -358,11 +359,11 @@ export default function OrdersPage() {
   const getNextQuickAction = (currentStatus: OrderStatus): { action: string; label: string; icon: React.ReactNode } | null => {
     switch (currentStatus) {
       case 'confirmed':
-        return { action: 'prepare', label: 'Start Preparing', icon: <FaPlay className="w-3 h-3" /> };
+        return { action: 'prepare', label: 'Start Preparing', icon: <Icon icon={FaPlay} className="w-3 h-3" /> };
       case 'preparing':
-        return { action: 'ready', label: 'Mark Ready', icon: <FaCheckCircle className="w-3 h-3" /> };
+        return { action: 'ready', label: 'Mark Ready', icon: <Icon icon={FaCheckCircle} className="w-3 h-3" /> };
       case 'ready':
-        return { action: 'completed', label: 'Complete', icon: <FaCheck className="w-3 h-3" /> };
+        return { action: 'completed', label: 'Complete', icon: <Icon icon={FaCheck} className="w-3 h-3" /> };
       default:
         return null;
     }
@@ -483,11 +484,11 @@ export default function OrdersPage() {
                 className="p-2 rounded-lg bg-gray-100 dark:bg-neutral-700 hover:bg-gray-200 dark:hover:bg-neutral-600 text-gray-700 dark:text-gray-300 transition-colors"
                 title="Previous day"
               >
-                <FaChevronLeft className="w-4 h-4" />
+                <Icon icon={FaChevronLeft} className="w-4 h-4" />
               </button>
               
               <div className="flex items-center gap-2 flex-1">
-                <FaCalendar className="text-gray-500" />
+                <Icon icon={FaCalendar} className="text-gray-500" />
                 <input
                   type="date"
                   value={selectedDate}
@@ -514,7 +515,7 @@ export default function OrdersPage() {
                 className="p-2 rounded-lg bg-gray-100 dark:bg-neutral-700 hover:bg-gray-200 dark:hover:bg-neutral-600 text-gray-700 dark:text-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Next day"
               >
-                <FaChevronRight className="w-4 h-4" />
+                <Icon icon={FaChevronRight} className="w-4 h-4" />
               </button>
               
               <button
@@ -530,7 +531,7 @@ export default function OrdersPage() {
           <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-4 mb-6">
             <div className="flex flex-wrap gap-4 items-center">
               <div className="flex items-center gap-2">
-                <FaFilter className="text-gray-500" />
+                <Icon icon={FaFilter} className="text-gray-500" />
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   Status:
                 </label>
@@ -588,7 +589,7 @@ export default function OrdersPage() {
                 >
                   {loading ? (
                     <>
-                      <FaSpinner className="inline-block w-3 h-3 mr-1 animate-spin" />
+                      <Icon icon={FaSpinner} className="inline-block w-3 h-3 mr-1 animate-spin" />
                       Refreshing...
                     </>
                   ) : refreshCountdown > 0 ? (
@@ -615,7 +616,7 @@ export default function OrdersPage() {
             </div>
           ) : orders.length === 0 ? (
             <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-12 text-center">
-              <FaShoppingBag className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <Icon icon={FaShoppingBag} className="w-12 h-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-600 dark:text-gray-400 text-lg font-medium mb-2">No orders found</p>
               <p className="text-gray-500 dark:text-gray-500 text-sm">
                 {selectedDate === getTodayDateString() 
@@ -725,14 +726,14 @@ export default function OrdersPage() {
                               className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
                               title="View Details"
                             >
-                              <FaEye className="w-4 h-4" />
+                              <Icon icon={FaEye} className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handlePrint(order)}
                               className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300"
                               title="Print"
                             >
-                              <FaPrint className="w-4 h-4" />
+                              <Icon icon={FaPrint} className="w-4 h-4" />
                             </button>
                           </div>
                         </td>
@@ -758,7 +759,7 @@ export default function OrdersPage() {
                         onClick={() => handlePrint(selectedOrder)}
                         className="px-4 py-2 bg-gray-100 dark:bg-neutral-700 hover:bg-gray-200 dark:hover:bg-neutral-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors flex items-center gap-2"
                       >
-                        <FaPrint className="w-4 h-4" />
+                        <Icon icon={FaPrint} className="w-4 h-4" />
                         Print
                       </button>
                       <button

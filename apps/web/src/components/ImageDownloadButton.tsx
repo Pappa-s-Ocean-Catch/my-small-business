@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { FaDownload, FaSpinner } from "react-icons/fa";
-
+import { Icon } from '@/components/Icon';
 interface ImageDownloadButtonProps {
   imageUrl: string;
   fileName: string;
@@ -57,9 +57,9 @@ export function ImageDownloadButton({ imageUrl, fileName, className = "" }: Imag
       title="Download image"
     >
       {downloading ? (
-        <FaSpinner className="w-4 h-4 animate-spin" />
+        <Icon icon={FaSpinner} className="w-4 h-4 animate-spin" />
       ) : (
-        <FaDownload className="w-4 h-4" />
+        <Icon icon={FaDownload} className="w-4 h-4" />
       )}
     </button>
   );

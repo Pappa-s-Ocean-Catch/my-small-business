@@ -8,6 +8,7 @@ import { AdminGuard } from "@/components/AdminGuard";
 import { ActionButton } from "@/components/ActionButton";
 import Card from "@/components/Card";
 import { FaWarehouse, FaArrowUp, FaArrowDown, FaHistory, FaSearch, FaFilter, FaFileExcel, FaChartLine, FaShoppingCart, FaBoxOpen, FaDollarSign, FaTh, FaList } from "react-icons/fa";
+import { Icon } from "@/components/Icon";
 import * as XLSX from "xlsx";
 import { toast } from 'react-toastify';
 import { saveAs } from "file-saver";
@@ -510,10 +511,10 @@ export default function EnhancedInventoryPage() {
 
   const getMovementIcon = (type: string) => {
     switch (type) {
-      case 'received': return <FaShoppingCart className="w-4 h-4 text-green-600" />;
-      case 'consume': return <FaBoxOpen className="w-4 h-4 text-red-600" />;
-      case 'adjustment': return <FaHistory className="w-4 h-4 text-blue-600" />;
-      default: return <FaHistory className="w-4 h-4 text-gray-600" />;
+      case 'received': return <Icon icon={FaShoppingCart} className="w-4 h-4 text-green-600" />;
+      case 'consume': return <Icon icon={FaBoxOpen} className="w-4 h-4 text-red-600" />;
+      case 'adjustment': return <Icon icon={FaHistory} className="w-4 h-4 text-blue-600" />;
+      default: return <Icon icon={FaHistory} className="w-4 h-4 text-gray-600" />;
     }
   };
 
@@ -699,7 +700,7 @@ export default function EnhancedInventoryPage() {
                 onClick={exportCurrentStockToExcel}
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
               >
-                <FaFileExcel className="w-4 h-4" />
+                <Icon icon={FaFileExcel} className="w-4 h-4" />
                 Export Stock
               </button>
             )}
@@ -708,7 +709,7 @@ export default function EnhancedInventoryPage() {
                 onClick={exportMovementsToExcel}
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
               >
-                <FaFileExcel className="w-4 h-4" />
+                <Icon icon={FaFileExcel} className="w-4 h-4" />
                 Export Movements
               </button>
             )}
@@ -717,7 +718,7 @@ export default function EnhancedInventoryPage() {
                 onClick={exportFinancialToExcel}
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
               >
-                <FaFileExcel className="w-4 h-4" />
+                <Icon icon={FaFileExcel} className="w-4 h-4" />
                 Export Financial
               </button>
             )}
@@ -736,7 +737,7 @@ export default function EnhancedInventoryPage() {
                     : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-neutral-600'
                 }`}
               >
-                <FaWarehouse className={`w-4 h-4 mr-2 ${activeTab === 'current' ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'}`} />
+                <Icon icon={FaWarehouse} className={`w-4 h-4 mr-2 ${activeTab === 'current' ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'}`} />
                 Current Stock
               </button>
               <button
@@ -747,7 +748,7 @@ export default function EnhancedInventoryPage() {
                     : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-neutral-600'
                 }`}
               >
-                <FaHistory className={`w-4 h-4 mr-2 ${activeTab === 'movements' ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'}`} />
+                <Icon icon={FaHistory} className={`w-4 h-4 mr-2 ${activeTab === 'movements' ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'}`} />
                 Movements
               </button>
               <button
@@ -758,7 +759,7 @@ export default function EnhancedInventoryPage() {
                     : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-neutral-600'
                 }`}
               >
-                <FaDollarSign className={`w-4 h-4 mr-2 ${activeTab === 'financial' ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'}`} />
+                <Icon icon={FaDollarSign} className={`w-4 h-4 mr-2 ${activeTab === 'financial' ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'}`} />
                 Financial
               </button>
               <button
@@ -769,7 +770,7 @@ export default function EnhancedInventoryPage() {
                     : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-neutral-600'
                 }`}
               >
-                <FaChartLine className={`w-4 h-4 mr-2 ${activeTab === 'charts' ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'}`} />
+                <Icon icon={FaChartLine} className={`w-4 h-4 mr-2 ${activeTab === 'charts' ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'}`} />
                 Charts
               </button>
             </nav>
@@ -784,7 +785,7 @@ export default function EnhancedInventoryPage() {
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
               <div className="relative">
-                <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Icon icon={FaSearch} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <input
                   type="text"
                   placeholder="Search products..."
@@ -817,7 +818,7 @@ export default function EnhancedInventoryPage() {
                         : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-neutral-700'
                     }`}
                   >
-                    <FaTh className="w-4 h-4" />
+                    <Icon icon={FaTh} className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => setViewMode('table')}
@@ -827,7 +828,7 @@ export default function EnhancedInventoryPage() {
                         : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-neutral-700'
                     }`}
                   >
-                    <FaList className="w-4 h-4" />
+                    <Icon icon={FaList} className="w-4 h-4" />
                   </button>
                 </div>
               </>
@@ -869,7 +870,7 @@ export default function EnhancedInventoryPage() {
           <div>
             {filteredProducts.length === 0 ? (
               <div className="text-center py-12">
-                <FaWarehouse className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <Icon icon={FaWarehouse} className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
                   {products.length === 0 ? 'No products found' : 'No products match your search'}
                 </h3>
@@ -896,7 +897,7 @@ export default function EnhancedInventoryPage() {
                     ) : (
                       <div className="mb-4">
                         <div className="w-full h-32 bg-gray-100 dark:bg-neutral-800 rounded-lg border border-gray-200 dark:border-neutral-700 flex items-center justify-center">
-                          <FaBoxOpen className="w-8 h-8 text-gray-400" />
+                          <Icon icon={FaBoxOpen} className="w-8 h-8 text-gray-400" />
                         </div>
                       </div>
                     )}
@@ -930,7 +931,7 @@ export default function EnhancedInventoryPage() {
                         onClick={() => handleMovementModalOpen(product, 'received')}
                         className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
                       >
-                        <FaArrowUp className="w-3 h-3" />
+                        <Icon icon={FaArrowUp} className="w-3 h-3" />
                         Received
                       </button>
                       <button
@@ -942,7 +943,7 @@ export default function EnhancedInventoryPage() {
                             : 'bg-red-600 text-white hover:bg-red-700'
                         }`}
                       >
-                        <FaArrowDown className="w-3 h-3" />
+                        <Icon icon={FaArrowDown} className="w-3 h-3" />
                         Consume
                       </button>
                     </div>
@@ -951,7 +952,7 @@ export default function EnhancedInventoryPage() {
                         onClick={() => setEndOfDayModal({ isOpen: true, product })}
                         className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
                       >
-                        <FaHistory className="w-3 h-3" />
+                        <Icon icon={FaHistory} className="w-3 h-3" />
                         End of Day Adjustment
                       </button>
                     </div>
@@ -989,7 +990,7 @@ export default function EnhancedInventoryPage() {
                                 />
                               ) : (
                                 <div className="w-12 h-12 bg-gray-100 dark:bg-neutral-800 rounded-lg border border-gray-200 dark:border-neutral-700 flex items-center justify-center flex-shrink-0">
-                                  <FaBoxOpen className="w-5 h-5 text-gray-400" />
+                                  <Icon icon={FaBoxOpen} className="w-5 h-5 text-gray-400" />
                                 </div>
                               )}
                               
@@ -1066,7 +1067,7 @@ export default function EnhancedInventoryPage() {
           <div>
             {filteredMovements.length === 0 ? (
               <div className="text-center py-12">
-                <FaHistory className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <Icon icon={FaHistory} className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
                   {movements.length === 0 ? 'No inventory movements found' : 'No movements match your search'}
                 </h3>
@@ -1391,7 +1392,7 @@ export default function EnhancedInventoryPage() {
                     onClick={handleMovementSubmit}
                     variant="primary"
                     size="md"
-                    icon={<FaHistory className="w-4 h-4" />}
+                    icon={<Icon icon={FaHistory} className="w-4 h-4" />}
                     loadingText="Recording..."
                     className="flex-1"
                   >
@@ -1528,7 +1529,7 @@ export default function EnhancedInventoryPage() {
                     onClick={handleEndOfDaySubmit}
                     variant="primary"
                     size="md"
-                    icon={<FaHistory className="w-4 h-4" />}
+                    icon={<Icon icon={FaHistory} className="w-4 h-4" />}
                     loadingText="Adjusting..."
                     className="flex-1"
                   >

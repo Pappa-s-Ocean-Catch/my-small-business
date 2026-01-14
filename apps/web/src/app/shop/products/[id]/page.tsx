@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import Card from '@/components/Card';
 import { Loading } from '@/components/Loading';
 import { FaArrowLeft, FaBox, FaWarehouse, FaChartLine, FaHistory, FaShoppingCart, FaCalendarAlt, FaExclamationTriangle } from 'react-icons/fa';
+import { Icon } from '@/components/Icon';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 interface Product {
@@ -144,10 +145,10 @@ export default function ProductDetailsPage() {
 
   const getMovementIcon = (type: string) => {
     switch (type) {
-      case 'received': return <FaBox className="w-4 h-4 text-green-600" />;
-      case 'consume': return <FaShoppingCart className="w-4 h-4 text-red-600" />;
-      case 'adjustment': return <FaWarehouse className="w-4 h-4 text-blue-600" />;
-      default: return <FaHistory className="w-4 h-4 text-gray-600" />;
+      case 'received': return <Icon icon={FaBox} className="w-4 h-4 text-green-600" />;
+      case 'consume': return <Icon icon={FaShoppingCart} className="w-4 h-4 text-red-600" />;
+      case 'adjustment': return <Icon icon={FaWarehouse} className="w-4 h-4 text-blue-600" />;
+      default: return <Icon icon={FaHistory} className="w-4 h-4 text-gray-600" />;
     }
   };
 
@@ -185,11 +186,11 @@ export default function ProductDetailsPage() {
 
   const getStockStatus = (product: Product) => {
     if (product.total_units === 0) {
-      return { status: 'Out of Stock', color: 'text-red-600 bg-red-50 dark:bg-red-900/20', icon: <FaExclamationTriangle className="w-4 h-4" /> };
+      return { status: 'Out of Stock', color: 'text-red-600 bg-red-50 dark:bg-red-900/20', icon: <Icon icon={FaExclamationTriangle} className="w-4 h-4" /> };
     } else if (product.total_units <= product.reorder_level) {
-      return { status: 'Low Stock', color: 'text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20', icon: <FaExclamationTriangle className="w-4 h-4" /> };
+      return { status: 'Low Stock', color: 'text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20', icon: <Icon icon={FaExclamationTriangle} className="w-4 h-4" /> };
     } else {
-      return { status: 'In Stock', color: 'text-green-600 bg-green-50 dark:bg-green-900/20', icon: <FaWarehouse className="w-4 h-4" /> };
+      return { status: 'In Stock', color: 'text-green-600 bg-green-50 dark:bg-green-900/20', icon: <Icon icon={FaWarehouse} className="w-4 h-4" /> };
     }
   };
 
@@ -247,7 +248,7 @@ export default function ProductDetailsPage() {
               onClick={() => router.back()}
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700"
             >
-              <FaArrowLeft className="w-4 h-4 mr-2" />
+              <Icon icon={FaArrowLeft} className="w-4 h-4 mr-2" />
               Go Back
             </button>
           </div>
@@ -266,7 +267,7 @@ export default function ProductDetailsPage() {
               onClick={() => router.back()}
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700"
             >
-              <FaArrowLeft className="w-4 h-4 mr-2" />
+              <Icon icon={FaArrowLeft} className="w-4 h-4 mr-2" />
               Go Back
             </button>
           </div>
@@ -286,7 +287,7 @@ export default function ProductDetailsPage() {
             onClick={() => router.back()}
             className="inline-flex items-center text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-4"
           >
-            <FaArrowLeft className="w-4 h-4 mr-2" />
+            <Icon icon={FaArrowLeft} className="w-4 h-4 mr-2" />
             Back to Products
           </button>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{product.name}</h1>
@@ -348,7 +349,7 @@ export default function ProductDetailsPage() {
               <Card>
                 <div className="p-6">
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                    <FaChartLine className="w-5 h-5 mr-2" />
+                    <Icon icon={FaChartLine} className="w-5 h-5 mr-2" />
                     Stock Movement Trend
                   </h2>
                   <div className="h-80">
@@ -511,14 +512,14 @@ export default function ProductDetailsPage() {
                     onClick={() => router.push(`/shop/inventory?product=${product.id}`)}
                     className="w-full flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700"
                   >
-                    <FaWarehouse className="w-4 h-4 mr-2" />
+                    <Icon icon={FaWarehouse} className="w-4 h-4 mr-2" />
                     Manage Stock
                   </button>
                   <button
                     onClick={() => router.push(`/shop/products?edit=${product.id}`)}
                     className="w-full flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 dark:bg-neutral-800 dark:text-gray-300 dark:border-neutral-600 dark:hover:bg-neutral-700"
                   >
-                    <FaBox className="w-4 h-4 mr-2" />
+                    <Icon icon={FaBox} className="w-4 h-4 mr-2" />
                     Edit Product
                   </button>
                 </div>

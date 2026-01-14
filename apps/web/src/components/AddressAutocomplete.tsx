@@ -2,6 +2,7 @@
 
 import { useRef, useEffect, useState } from 'react';
 import { FaMapMarkerAlt, FaSpinner } from 'react-icons/fa';
+import { Icon } from './Icon';
 
 // Type declarations for Google Maps API
 declare global {
@@ -204,9 +205,9 @@ export function AddressAutocomplete({
           className={`w-full px-3 py-2 pr-10 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white ${className}`}
           autoComplete="off"
         />
-        <FaMapMarkerAlt className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+        <Icon icon={FaMapMarkerAlt} className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
         {loading && (
-          <FaSpinner className="absolute right-10 top-1/2 transform -translate-y-1/2 w-4 h-4 text-blue-600 animate-spin" />
+          <Icon icon={FaSpinner} className="absolute right-10 top-1/2 transform -translate-y-1/2 w-4 h-4 text-blue-600 animate-spin" />
         )}
       </div>
       {error && (

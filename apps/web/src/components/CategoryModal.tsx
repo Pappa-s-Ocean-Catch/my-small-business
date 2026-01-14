@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { getSupabaseClient } from "@my-small-business/supabase/client";
 import { toast } from "react-toastify";
 import { FaTimes, FaEdit, FaTrash } from "react-icons/fa";
+import { Icon } from "./Icon";
 
 type TransactionCategory = {
   id: string;
@@ -151,7 +152,7 @@ export function CategoryModal({ isOpen, onClose, onSave, categories }: CategoryM
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
           >
-            <FaTimes className="w-5 h-5" />
+            <Icon icon={FaTimes} className="w-5 h-5" />
           </button>
         </div>
 
@@ -219,15 +220,22 @@ export function CategoryModal({ isOpen, onClose, onSave, categories }: CategoryM
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Icon
                   </label>
-                  <select
-                    value={formData.icon}
-                    onChange={(e) => setFormData(prev => ({ ...prev, icon: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100"
-                  >
-                    {ICON_OPTIONS.map(icon => (
-                      <option key={icon} value={icon}>{icon}</option>
-                    ))}
-                  </select>
+                  <div className="flex items-center gap-3">
+                    <select
+                      value={formData.icon}
+                      onChange={(e) => setFormData(prev => ({ ...prev, icon: e.target.value }))}
+                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100"
+                    >
+                      {ICON_OPTIONS.map(icon => (
+                        <option key={icon} value={icon}>{icon}</option>
+                      ))}
+                    </select>
+                    {formData.icon && (
+                      <div className="w-10 h-10 rounded-lg flex items-center justify-center border border-gray-300 dark:border-neutral-600">
+                        <Icon icon={formData.icon} className="w-5 h-5" />
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -269,6 +277,9 @@ export function CategoryModal({ isOpen, onClose, onSave, categories }: CategoryM
                       className="w-4 h-4 rounded-full"
                       style={{ backgroundColor: category.color }}
                     />
+                    {category.icon && (
+                      <Icon icon={category.icon} className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                    )}
                     <span className="font-medium text-gray-900 dark:text-white">
                       {category.name}
                     </span>
@@ -287,14 +298,14 @@ export function CategoryModal({ isOpen, onClose, onSave, categories }: CategoryM
                       className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
                       title="Edit Category"
                     >
-                      <FaEdit className="w-4 h-4" />
+                      <Icon icon={FaEdit} className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleDelete(category)}
                       className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
                       title="Delete Category"
                     >
-                      <FaTrash className="w-4 h-4" />
+                      <Icon icon={FaTrash} className="w-4 h-4" />
                     </button>
                   </div>
                 </div>

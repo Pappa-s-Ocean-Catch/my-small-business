@@ -5,6 +5,7 @@ import { AdminGuard } from "@/components/AdminGuard";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
 import { LoadingPage } from "@/components/Loading";
 import { FaUser, FaUserShield, FaUserCog, FaTrash, FaEdit, FaSync, FaShoppingCart } from "react-icons/fa";
+import { Icon } from "@/components/Icon";
 import { getAllUsers, updateUserRole, deleteUser } from "@/app/actions/user-management";
 
 type User = {
@@ -124,13 +125,13 @@ export default function UsersPage() {
   const getRoleIcon = (role: string) => {
     switch (role) {
       case 'admin':
-        return <FaUserShield className="w-4 h-4 text-red-500" />;
+        return <Icon icon={FaUserShield} className="w-4 h-4 text-red-500" />;
       case 'staff':
-        return <FaUserCog className="w-4 h-4 text-blue-500" />;
+        return <Icon icon={FaUserCog} className="w-4 h-4 text-blue-500" />;
       case 'customer':
-        return <FaShoppingCart className="w-4 h-4 text-green-500" />;
+        return <Icon icon={FaShoppingCart} className="w-4 h-4 text-green-500" />;
       default:
-        return <FaUser className="w-4 h-4 text-gray-500" />;
+        return <Icon icon={FaUser} className="w-4 h-4 text-gray-500" />;
     }
   };
 
@@ -180,7 +181,7 @@ export default function UsersPage() {
                 onClick={fetchUsers}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
-                <FaSync className="w-4 h-4" />
+                <Icon icon={FaSync} className="w-4 h-4" />
                 Refresh
               </button>
             </div>
@@ -225,7 +226,7 @@ export default function UsersPage() {
             <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
               <div className="flex items-center gap-3">
                 <div className="text-red-600 dark:text-red-400">
-                  <FaUser className="w-5 h-5" />
+                  <Icon icon={FaUser} className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="text-sm font-medium text-red-800 dark:text-red-200">Error</h3>
@@ -268,7 +269,7 @@ export default function UsersPage() {
                         <div className="flex items-center">
                           <div className="flex-shrink-0 h-10 w-10">
                             <div className="h-10 w-10 rounded-full bg-gray-300 dark:bg-neutral-600 flex items-center justify-center">
-                              <FaUser className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                              <Icon icon={FaUser} className="w-5 h-5 text-gray-600 dark:text-gray-400" />
                             </div>
                           </div>
                           <div className="ml-4">
@@ -301,7 +302,7 @@ export default function UsersPage() {
                                 onClick={() => setRoleChangeConfirm({ user, newRole: 'staff', isOpen: true })}
                                 className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-xs"
                               >
-                                <FaEdit className="w-3 h-3" />
+                                <Icon icon={FaEdit} className="w-3 h-3" />
                                 Make Staff
                               </button>
                             ) : (
@@ -309,7 +310,7 @@ export default function UsersPage() {
                                 onClick={() => setRoleChangeConfirm({ user, newRole: 'admin', isOpen: true })}
                                 className="flex items-center gap-1 px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-xs"
                               >
-                                <FaUserShield className="w-3 h-3" />
+                                <Icon icon={FaUserShield} className="w-3 h-3" />
                                 Make Admin
                               </button>
                             )
@@ -320,7 +321,7 @@ export default function UsersPage() {
                             onClick={() => setDeleteConfirm({ user, isOpen: true })}
                             className="flex items-center gap-1 px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-xs"
                           >
-                            <FaTrash className="w-3 h-3" />
+                            <Icon icon={FaTrash} className="w-3 h-3" />
                             Delete
                           </button>
                         </div>
@@ -335,7 +336,7 @@ export default function UsersPage() {
           {/* Empty State */}
           {filteredUsers.length === 0 && !loading && (
             <div className="text-center py-12">
-              <FaUser className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <Icon icon={FaUser} className="w-12 h-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
                 {users.length === 0 ? 'No users found' : `No ${filter === 'staff-admin' ? 'staff or admin' : filter === 'customers' ? 'customer' : ''} users found`}
               </h3>

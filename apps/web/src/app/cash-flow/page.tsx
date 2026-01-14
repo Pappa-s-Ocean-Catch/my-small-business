@@ -6,6 +6,7 @@ import { AdminGuard } from "@/components/AdminGuard";
 import { getSupabaseClient } from "@my-small-business/supabase/client";
 import { startOfWeek, endOfWeek, format, subWeeks, addWeeks, subMonths, addMonths, startOfMonth, endOfMonth } from "date-fns";
 import { FaFilePdf, FaFileExcel, FaChartLine, FaDollarSign, FaArrowUp, FaArrowDown } from "react-icons/fa";
+import { Icon } from "@/components/Icon";
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -368,7 +369,7 @@ function CashFlowContent() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
           <div>
             <div className="flex items-center gap-3">
-              <FaChartLine className="w-6 h-6 text-blue-600" />
+              <Icon icon={FaChartLine} className="w-6 h-6 text-blue-600" />
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Cash Flow Analysis</h1>
             </div>
             <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -382,14 +383,14 @@ function CashFlowContent() {
               onClick={exportToPDF}
               className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-xs sm:text-sm whitespace-nowrap"
             >
-              <FaFilePdf className="w-3 h-3 sm:w-4 sm:h-4" />
+              <Icon icon={FaFilePdf} className="w-3 h-3 sm:w-4 sm:h-4" />
               <span className="hidden sm:inline">Export PDF</span><span className="sm:hidden">PDF</span>
             </button>
             <button
               onClick={exportToExcel}
               className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs sm:text-sm whitespace-nowrap"
             >
-              <FaFileExcel className="w-3 h-3 sm:w-4 sm:h-4" />
+              <Icon icon={FaFileExcel} className="w-3 h-3 sm:w-4 sm:h-4" />
               <span className="hidden sm:inline">Export Excel</span><span className="sm:hidden">Excel</span>
             </button>
           </div>
@@ -481,7 +482,7 @@ function CashFlowContent() {
           <div className="p-4 bg-white dark:bg-neutral-900 rounded-lg shadow-lg">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                <FaArrowUp className="w-5 h-5 text-green-600 dark:text-green-400" />
+                <Icon icon={FaArrowUp} className="w-5 h-5 text-green-600 dark:text-green-400" />
               </div>
               <div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">Total Income</div>
@@ -493,7 +494,7 @@ function CashFlowContent() {
           <div className="p-4 bg-white dark:bg-neutral-900 rounded-lg shadow-lg">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                <FaArrowDown className="w-5 h-5 text-red-600 dark:text-red-400" />
+                <Icon icon={FaArrowDown} className="w-5 h-5 text-red-600 dark:text-red-400" />
               </div>
               <div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">Total Expenses</div>
@@ -505,7 +506,7 @@ function CashFlowContent() {
           <div className="p-4 bg-white dark:bg-neutral-900 rounded-lg shadow-lg">
             <div className="flex items-center gap-3">
               <div className={`p-2 rounded-lg ${netCashFlow >= 0 ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'}`}>
-                <FaDollarSign className={`w-5 h-5 ${netCashFlow >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`} />
+                <Icon icon={FaDollarSign} className={`w-5 h-5 ${netCashFlow >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`} />
               </div>
               <div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">Net Cash Flow</div>
@@ -519,7 +520,7 @@ function CashFlowContent() {
           <div className="p-4 bg-white dark:bg-neutral-900 rounded-lg shadow-lg">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <FaChartLine className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                <Icon icon={FaChartLine} className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">Transactions</div>
@@ -539,7 +540,7 @@ function CashFlowContent() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis 
                   dataKey="date" 
-                  tickFormatter={(value) => format(new Date(value), "MMM dd")}
+                  tickFormatter={(value: string | number) => format(new Date(value), "MMM dd")}
                 />
                 <YAxis />
                 <Tooltip 
@@ -548,7 +549,7 @@ function CashFlowContent() {
                     const formattedName = name ?? '';
                     return [formattedValue, formattedName];
                   }}
-                  labelFormatter={(value) => format(new Date(value), "MMM dd, yyyy")}
+                  labelFormatter={(value: string | number) => format(new Date(value), "MMM dd, yyyy")}
                 />
                 <Legend />
                 <Area 

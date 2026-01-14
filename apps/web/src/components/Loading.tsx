@@ -1,7 +1,7 @@
 "use client";
 
 import { FaSpinner } from "react-icons/fa";
-
+import { Icon } from "@/components/Icon";
 interface LoadingProps {
   message?: string;
   size?: "sm" | "md" | "lg";
@@ -48,7 +48,7 @@ export function Loading({
 
   const content = (
     <div className={`flex flex-col items-center justify-center ${sizeClasses.container} ${className}`}>
-      <FaSpinner className={`${sizeClasses.spinner} text-blue-600 animate-spin mb-3`} />
+      <Icon icon={FaSpinner} className={`${sizeClasses.spinner} text-blue-600 animate-spin mb-3`} />
       <p className={`${sizeClasses.text} text-gray-600 dark:text-gray-400 font-medium`}>
         {message}
       </p>
@@ -82,7 +82,7 @@ export function LoadingSpinner({ size = "sm", className = "" }: { size?: "sm" | 
   };
 
   return (
-    <FaSpinner className={`${getSizeClasses()} text-blue-600 animate-spin ${className}`} />
+    <Icon icon={FaSpinner} className={`${getSizeClasses()} text-blue-600 animate-spin ${className}`} />
   );
 }
 

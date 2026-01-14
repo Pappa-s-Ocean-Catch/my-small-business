@@ -1,4 +1,5 @@
 "use client";
+import { Icon } from '@/components/Icon';
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { 
@@ -216,7 +217,7 @@ function DraggableShift({ shift, staff, isAdmin, onEdit, onDelete, onAssign, for
               className="p-1.5 md:p-1 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900 rounded"
               title="Edit shift"
             >
-              <FaEdit className="w-4 h-4 md:w-3 md:h-3" />
+              <Icon icon={FaEdit} className="w-4 h-4 md:w-3 md:h-3" />
             </button>
             <button
               onClick={(e) => {
@@ -226,7 +227,7 @@ function DraggableShift({ shift, staff, isAdmin, onEdit, onDelete, onAssign, for
               className="p-1.5 md:p-1 text-green-600 hover:bg-green-100 dark:hover:bg-green-900 rounded"
               title="Assign staff"
             >
-              <FaRedo className="w-4 h-4 md:w-3 md:h-3" />
+              <Icon icon={FaRedo} className="w-4 h-4 md:w-3 md:h-3" />
             </button>
             <button
               onClick={(e) => {
@@ -236,7 +237,7 @@ function DraggableShift({ shift, staff, isAdmin, onEdit, onDelete, onAssign, for
               className="p-1.5 md:p-1 text-red-600 hover:bg-red-100 dark:hover:bg-red-900 rounded"
               title="Delete shift"
             >
-              <FaTrash className="w-4 h-4 md:w-3 md:h-3" />
+              <Icon icon={FaTrash} className="w-4 h-4 md:w-3 md:h-3" />
             </button>
           </div>
         )}
@@ -291,7 +292,7 @@ function SectionDayCell({ day, section, shifts, staff, isAdmin, isCtrlPressed, o
           className="absolute top-1 right-1 w-6 h-6 md:w-7 md:h-7 bg-blue-600 text-white rounded-full flex items-center justify-center text-[10px] md:text-xs hover:bg-blue-700 transition-colors z-10"
           title="Add shift"
         >
-          <FaPlus className="w-3 h-3" />
+          <Icon icon={FaPlus} className="w-3 h-3" />
         </button>
       )}
       
@@ -1560,14 +1561,14 @@ export function DragDropCalendar({
             onClick={() => onWeekChange(addDays(currentWeek, -7))}
             className="flex items-center justify-center gap-1 px-3 py-2 text-sm bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 rounded-lg transition-colors flex-1 sm:flex-initial"
           >
-            <FaChevronLeft className="w-3 h-3" />
+            <Icon icon={FaChevronLeft} className="w-3 h-3" />
             Prev
           </button>
           <button
             onClick={() => onWeekChange(new Date())}
             className="flex items-center justify-center gap-1 px-3 py-2 text-sm bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 rounded-lg transition-colors flex-1 sm:flex-initial"
           >
-            <FaHome className="w-3 h-3" />
+            <Icon icon={FaHome} className="w-3 h-3" />
             Today
           </button>
           <button
@@ -1575,7 +1576,7 @@ export function DragDropCalendar({
             className="flex items-center justify-center gap-1 px-3 py-2 text-sm bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 rounded-lg transition-colors flex-1 sm:flex-initial"
           >
             Next
-            <FaChevronRight className="w-3 h-3" />
+            <Icon icon={FaChevronRight} className="w-3 h-3" />
           </button>
           {isAdmin && null}
         </div>
@@ -1799,7 +1800,7 @@ export function DragDropCalendar({
                       className="flex items-center justify-center gap-2 px-4 py-3 md:px-4 md:py-3.5 text-base bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 rounded-lg transition-colors"
                       title="Filter by staff"
                     >
-                      <FaFilter className="w-5 h-5 md:w-4 md:h-4" />
+                      <Icon icon={FaFilter} className="w-5 h-5 md:w-4 md:h-4" />
                       <span className="hidden md:inline text-sm">{selectedStaffId === 'all' ? 'All staff' : (staff.find(s => s.id === selectedStaffId)?.name || 'Staff')}</span>
                     </button>
                     {filterOpen && (
@@ -1842,7 +1843,7 @@ export function DragDropCalendar({
                     onClick={handlePrint}
                     className="flex items-center justify-center gap-2 px-4 py-3 md:px-5 md:py-3.5 text-base bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors"
                   >
-                    <FaPrint className="w-5 h-5 md:w-4 md:h-4" />
+                    <Icon icon={FaPrint} className="w-5 h-5 md:w-4 md:h-4" />
                     <span className="hidden md:inline">Print</span>
                   </button>
                   <button
@@ -1850,21 +1851,21 @@ export function DragDropCalendar({
                     disabled={sendingRoster}
                     className="flex items-center justify-center gap-2 px-4 py-3 md:px-5 md:py-3.5 text-base bg-purple-600 text-white hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed rounded-lg transition-colors"
                   >
-                    <FaEnvelope className="w-5 h-5 md:w-4 md:h-4" />
+                    <Icon icon={FaEnvelope} className="w-5 h-5 md:w-4 md:h-4" />
                     <span className="hidden md:inline">{sendingRoster ? 'Sending...' : 'Send Roster'}</span>
                   </button>
                   <button
                     onClick={openSaveTemplate}
                     className="flex items-center justify-center gap-2 px-4 py-3 md:px-5 md:py-3.5 text-base bg-amber-600 text-white hover:bg-amber-700 rounded-lg transition-colors"
                   >
-                    <FaSave className="w-5 h-5 md:w-4 md:h-4" />
+                    <Icon icon={FaSave} className="w-5 h-5 md:w-4 md:h-4" />
                     <span className="hidden md:inline">Save as Template</span>
                   </button>
                   <button
                     onClick={openChooseAutoShift}
                     className="flex items-center justify-center gap-2 px-4 py-3 md:px-5 md:py-3.5 text-base bg-green-600 text-white hover:bg-green-700 rounded-lg transition-colors"
                   >
-                    <FaMagic className="w-5 h-5 md:w-4 md:h-4" />
+                    <Icon icon={FaMagic} className="w-5 h-5 md:w-4 md:h-4" />
                     <span className="hidden md:inline">Auto Shift</span>
                   </button>
                 </div>
@@ -1882,7 +1883,7 @@ export function DragDropCalendar({
           title="Toggle floating menu"
           aria-label="Toggle floating menu"
         >
-          <FaCog className="w-5 h-5" />
+          <Icon icon={FaCog} className="w-5 h-5" />
         </button>
       )}
 
@@ -1897,7 +1898,7 @@ export function DragDropCalendar({
               }}
               className="flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
             >
-              <FaPlus className="w-4 h-4" />
+              <Icon icon={FaPlus} className="w-4 h-4" />
               Add Shift
             </button>
             <button
@@ -1907,7 +1908,7 @@ export function DragDropCalendar({
               }}
               className="flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
             >
-              <FaMagic className="w-4 h-4" />
+              <Icon icon={FaMagic} className="w-4 h-4" />
               Generate AI
             </button>
             <button
@@ -1917,7 +1918,7 @@ export function DragDropCalendar({
               }}
               className="flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
             >
-              <FaEnvelope className="w-4 h-4" />
+              <Icon icon={FaEnvelope} className="w-4 h-4" />
               Send Roster
             </button>
             <button
@@ -1927,7 +1928,7 @@ export function DragDropCalendar({
               }}
               className="flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
             >
-              <FaSave className="w-4 h-4" />
+              <Icon icon={FaSave} className="w-4 h-4" />
               Save Template
             </button>
             <button
@@ -1937,7 +1938,7 @@ export function DragDropCalendar({
               }}
               className="flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
             >
-              <FaPrint className="w-4 h-4" />
+              <Icon icon={FaPrint} className="w-4 h-4" />
               Print Schedule
             </button>
           </div>
@@ -2251,7 +2252,7 @@ export function DragDropCalendar({
                 onClick={() => { setChooseAutoShiftModal({ isOpen: false }); void (async () => { await handleAutoShift(); })(); }}
                 className="w-full flex items-center gap-3 p-3 border border-gray-200 dark:border-neutral-700 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
               >
-                <FaMagic className="w-4 h-4 text-green-600" />
+                <Icon icon={FaMagic} className="w-4 h-4 text-green-600" />
                 <div className="text-left">
                   <div className="font-medium text-gray-900 dark:text-white">Copy from Previous Week</div>
                   <div className="text-sm text-gray-600 dark:text-gray-400">Uses the same shifts from last week</div>
@@ -2260,7 +2261,7 @@ export function DragDropCalendar({
 
               <div className="pt-2">
                 <div className="flex items-center gap-2 mb-2">
-                  <FaLayerGroup className="w-3 h-3 text-gray-500" />
+                  <Icon icon={FaLayerGroup} className="w-3 h-3 text-gray-500" />
                   <div className="text-sm font-semibold text-gray-800 dark:text-gray-200">Saved Templates</div>
                 </div>
                 {loadingTemplates && (
@@ -2455,7 +2456,7 @@ export function DragDropCalendar({
                     </>
                   ) : (
                     <>
-                      <FaEnvelope className="w-4 h-4" />
+                      <Icon icon={FaEnvelope} className="w-4 h-4" />
                       Send Roster ({rosterConfirmModal.selectedStaff.size})
                     </>
                   )}

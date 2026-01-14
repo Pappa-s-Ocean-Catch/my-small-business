@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import { getSupabaseClient } from "@my-small-business/supabase/client";
 import { ensureProfile } from "@/app/actions/profile";
 import { AdminGuard } from "@/components/AdminGuard";
-import { FaBox, FaTags, FaTruck, FaWarehouse, FaExclamationTriangle, FaPlus, FaChartLine, FaUtensils, FaEye } from "react-icons/fa";
+import { FaBox, FaTags, FaTruck, FaWarehouse, FaExclamationTriangle, FaPlus, FaChartLine, FaUtensils } from "react-icons/fa";
+import { FaEye } from "react-icons/fa6";
+import { Icon } from "@/components/Icon";
 import Link from "next/link";
 import { LoadingPage } from "@/components/Loading";
 
@@ -137,7 +139,7 @@ export default function ShopPage() {
                 <p className="text-sm text-gray-600 dark:text-gray-400">Total Products</p>
                 <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalProducts}</p>
               </div>
-              <FaBox className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+              <Icon icon={FaBox} className="w-8 h-8 text-blue-600 dark:text-blue-400" />
             </div>
           </div>
 
@@ -147,7 +149,7 @@ export default function ShopPage() {
                 <p className="text-sm text-gray-600 dark:text-gray-400">Low Stock</p>
                 <p className="text-2xl font-bold text-red-600 dark:text-red-400">{stats.lowStockProducts}</p>
               </div>
-              <FaExclamationTriangle className="w-8 h-8 text-red-600 dark:text-red-400" />
+              <Icon icon={FaExclamationTriangle} className="w-8 h-8 text-red-600 dark:text-red-400" />
             </div>
           </div>
 
@@ -157,7 +159,7 @@ export default function ShopPage() {
                 <p className="text-sm text-gray-600 dark:text-gray-400">Categories</p>
                 <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalCategories}</p>
               </div>
-              <FaTags className="w-8 h-8 text-green-600 dark:text-green-400" />
+              <Icon icon={FaTags} className="w-8 h-8 text-green-600 dark:text-green-400" />
             </div>
           </div>
 
@@ -167,7 +169,7 @@ export default function ShopPage() {
                 <p className="text-sm text-gray-600 dark:text-gray-400">Suppliers</p>
                 <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalSuppliers}</p>
               </div>
-              <FaTruck className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+              <Icon icon={FaTruck} className="w-8 h-8 text-purple-600 dark:text-purple-400" />
             </div>
           </div>
         </div>
@@ -181,7 +183,7 @@ export default function ShopPage() {
               className="p-4 bg-white dark:bg-neutral-900 rounded-lg border hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
             >
               <div className="flex items-center gap-3">
-                <FaBox className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                <Icon icon={FaBox} className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                 <div>
                   <h3 className="font-medium text-gray-900 dark:text-white">Products</h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Manage inventory</p>
@@ -194,7 +196,7 @@ export default function ShopPage() {
               className="p-4 bg-white dark:bg-neutral-900 rounded-lg border hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
             >
               <div className="flex items-center gap-3">
-                <FaTags className="w-6 h-6 text-green-600 dark:text-green-400" />
+                <Icon icon={FaTags} className="w-6 h-6 text-green-600 dark:text-green-400" />
                 <div>
                   <h3 className="font-medium text-gray-900 dark:text-white">Categories</h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Organize products</p>
@@ -207,7 +209,7 @@ export default function ShopPage() {
               className="p-4 bg-white dark:bg-neutral-900 rounded-lg border hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
             >
               <div className="flex items-center gap-3">
-                <FaTruck className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+                <Icon icon={FaTruck} className="w-6 h-6 text-purple-600 dark:text-purple-400" />
                 <div>
                   <h3 className="font-medium text-gray-900 dark:text-white">Suppliers</h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Manage vendors</p>
@@ -220,7 +222,7 @@ export default function ShopPage() {
       className="p-4 bg-white dark:bg-neutral-900 rounded-lg border hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
     >
               <div className="flex items-center gap-3">
-                <FaWarehouse className="w-6 h-6 text-orange-600 dark:text-orange-400" />
+                <Icon icon={FaWarehouse} className="w-6 h-6 text-orange-600 dark:text-orange-400" />
                 <div>
                   <h3 className="font-medium text-gray-900 dark:text-white">Inventory Management</h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Track stock, movements, COGS & analytics</p>
@@ -233,7 +235,7 @@ export default function ShopPage() {
               className="p-4 bg-white dark:bg-neutral-900 rounded-lg border hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
             >
               <div className="flex items-center gap-3">
-                <FaUtensils className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
+                <Icon icon={FaUtensils} className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
                 <div>
                   <h3 className="font-medium text-gray-900 dark:text-white">Menu</h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Sale products & categories</p>
@@ -246,7 +248,7 @@ export default function ShopPage() {
               className="p-4 bg-white dark:bg-neutral-900 rounded-lg border hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
             >
               <div className="flex items-center gap-3">
-                <FaEye className="w-6 h-6 text-pink-600 dark:text-pink-400" />
+                <Icon icon={FaEye} className="w-6 h-6 text-pink-600 dark:text-pink-400" />
                 <div>
                   <h3 className="font-medium text-gray-900 dark:text-white">Menu Builder</h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Design in-store screens</p>
@@ -259,7 +261,7 @@ export default function ShopPage() {
               className="p-4 bg-white dark:bg-neutral-900 rounded-lg border hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
             >
               <div className="flex items-center gap-3">
-                <FaExclamationTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
+                <Icon icon={FaExclamationTriangle} className="w-6 h-6 text-red-600 dark:text-red-400" />
                 <div>
                   <h3 className="font-medium text-gray-900 dark:text-white">Notifications</h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Low stock alerts</p>
@@ -273,7 +275,7 @@ export default function ShopPage() {
         {stats.lowStockProducts > 0 && (
           <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
             <div className="flex items-center gap-3">
-              <FaExclamationTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+              <Icon icon={FaExclamationTriangle} className="w-5 h-5 text-red-600 dark:text-red-400" />
               <div>
                 <h3 className="font-medium text-red-800 dark:text-red-200">
                   Low Stock Alert

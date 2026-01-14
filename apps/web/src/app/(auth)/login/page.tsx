@@ -7,7 +7,7 @@ import { LoadingSpinner } from "@/components/Loading";
 import { canSendMagicLink } from "@/app/actions/auth";
 import { sendMagicLinkInvite } from "@/app/actions/email";
 import { sendPasswordResetEmail } from "@/app/actions/password-reset";
-import { FaEye, FaEyeSlash } from "react-icons/fa";
+import { FaEye, FaEyeSlash } from "react-icons/fa6";
 
 export default function LoginPage() {
   const router = useRouter();

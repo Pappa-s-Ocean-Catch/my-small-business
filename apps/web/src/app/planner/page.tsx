@@ -5,6 +5,7 @@ import { getSupabaseClient } from "@my-small-business/supabase/client";
 import { AdminGuard } from "@/components/AdminGuard";
 import Card from "@/components/Card";
 import { FaRobot, FaCalendarAlt, FaUsers, FaDollarSign, FaSave, FaTrash, FaPlus, FaMinus } from "react-icons/fa";
+import { Icon } from "@/components/Icon";
 import { toast } from 'react-toastify';
 
 type Staff = {
@@ -426,7 +427,7 @@ Return ONLY a JSON array of assignments in this exact format:
               onClick={() => setShowResourceGrid(!showResourceGrid)}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
-              <FaCalendarAlt className="w-4 h-4" />
+              <Icon icon={FaCalendarAlt} className="w-4 h-4" />
               {showResourceGrid ? 'Hide' : 'Show'} Resource Planning
             </button>
             <button
@@ -434,7 +435,7 @@ Return ONLY a JSON array of assignments in this exact format:
               disabled={loading}
               className="flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
             >
-              <FaRobot className="w-4 h-4" />
+              <Icon icon={FaRobot} className="w-4 h-4" />
               {loading ? 'Generating...' : 'Generate AI Schedule'}
             </button>
           </div>
@@ -474,7 +475,7 @@ Return ONLY a JSON array of assignments in this exact format:
                   }}
                   className="flex items-center gap-1 px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
                 >
-                  <FaSave className="w-3 h-3" />
+                  <Icon icon={FaSave} className="w-3 h-3" />
                   Save
                 </button>
                 {selectedPreset && (
@@ -482,7 +483,7 @@ Return ONLY a JSON array of assignments in this exact format:
                     onClick={() => deletePreset(selectedPreset)}
                     className="flex items-center gap-1 px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
                   >
-                    <FaTrash className="w-3 h-3" />
+                    <Icon icon={FaTrash} className="w-3 h-3" />
                     Delete
                   </button>
                 )}
@@ -527,7 +528,7 @@ Return ONLY a JSON array of assignments in this exact format:
                                     }}
                                     className="w-5 h-5 flex items-center justify-center bg-gray-200 dark:bg-neutral-700 rounded text-xs hover:bg-gray-300 dark:hover:bg-neutral-600"
                                   >
-                                    <FaMinus className="w-2 h-2" />
+                                    <Icon icon={FaMinus} className="w-2 h-2" />
                                   </button>
                                   <span className="w-8 text-center text-sm font-medium">
                                     {getResourceRequirement(section.id, day, timeSlot.id)}
@@ -540,7 +541,7 @@ Return ONLY a JSON array of assignments in this exact format:
                                     }}
                                     className="w-5 h-5 flex items-center justify-center bg-gray-200 dark:bg-neutral-700 rounded text-xs hover:bg-gray-300 dark:hover:bg-neutral-600"
                                   >
-                                    <FaPlus className="w-2 h-2" />
+                                    <Icon icon={FaPlus} className="w-2 h-2" />
                                   </button>
                                 </div>
                               </div>
@@ -569,7 +570,7 @@ Return ONLY a JSON array of assignments in this exact format:
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <Card>
                 <div className="flex items-center gap-3">
-                  <FaDollarSign className="w-8 h-8 text-green-600" />
+                  <Icon icon={FaDollarSign} className="w-8 h-8 text-green-600" />
                   <div>
                     <div className="text-2xl font-bold text-gray-900 dark:text-white">
                       ${results.totalCost.toFixed(2)}
@@ -581,7 +582,7 @@ Return ONLY a JSON array of assignments in this exact format:
               
               <Card>
                 <div className="flex items-center gap-3">
-                  <FaCalendarAlt className="w-8 h-8 text-blue-600" />
+                  <Icon icon={FaCalendarAlt} className="w-8 h-8 text-blue-600" />
                   <div>
                     <div className="text-2xl font-bold text-gray-900 dark:text-white">
                       {results.assignments.length}
@@ -593,7 +594,7 @@ Return ONLY a JSON array of assignments in this exact format:
               
               <Card>
                 <div className="flex items-center gap-3">
-                  <FaUsers className="w-8 h-8 text-purple-600" />
+                  <Icon icon={FaUsers} className="w-8 h-8 text-purple-600" />
                   <div>
                     <div className="text-2xl font-bold text-gray-900 dark:text-white">
                       {results.staffSummary.length}

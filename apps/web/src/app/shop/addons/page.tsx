@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { FaPlus, FaEdit, FaTrash, FaChevronDown, FaChevronRight, FaTag, FaDollarSign, FaCheck, FaTimes } from 'react-icons/fa';
+import { Icon } from '@/components/Icon';
 import Modal from '@/components/Modal';
 import { ActionButton } from '@/components/ActionButton';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
@@ -282,7 +283,7 @@ export default function AddonsPage() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-                <FaTag className="text-blue-600" />
+                <Icon icon={FaTag} className="text-blue-600" />
                 Add-ons Management
               </h1>
               <p className="text-gray-600 dark:text-gray-400 mt-2">
@@ -291,7 +292,7 @@ export default function AddonsPage() {
             </div>
             <ActionButton
               onClick={() => openGroupModal()}
-              icon={<FaPlus />}
+              icon={<Icon icon={FaPlus} />}
             >
               Add Group
             </ActionButton>
@@ -302,7 +303,7 @@ export default function AddonsPage() {
         <div className="space-y-4">
           {addonGroups.length === 0 ? (
             <div className="text-center py-12 bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700">
-              <FaTag className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+              <Icon icon={FaTag} className="mx-auto h-12 w-12 text-gray-400 mb-4" />
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
                 No add-on groups yet
               </h3>
@@ -313,7 +314,7 @@ export default function AddonsPage() {
                 onClick={() => openGroupModal()}
                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
               >
-                <FaPlus className="h-4 w-4 mr-2" />
+                <Icon icon={FaPlus} className="h-4 w-4 mr-2" />
                 Add Group
               </button>
             </div>
@@ -332,9 +333,9 @@ export default function AddonsPage() {
                         className="p-1 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded transition-colors"
                       >
                         {expandedGroups.has(group.id) ? (
-                          <FaChevronDown className="h-4 w-4 text-gray-500" />
+                          <Icon icon={FaChevronDown} className="h-4 w-4 text-gray-500" />
                         ) : (
-                          <FaChevronRight className="h-4 w-4 text-gray-500" />
+                          <Icon icon={FaChevronRight} className="h-4 w-4 text-gray-500" />
                         )}
                       </button>
                       <div className="flex-1">
@@ -369,21 +370,21 @@ export default function AddonsPage() {
                         className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
                         title="Add item"
                       >
-                        <FaPlus className="h-4 w-4" />
+                        <Icon icon={FaPlus} className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => openGroupModal(group)}
                         className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
                         title="Edit group"
                       >
-                        <FaEdit className="h-4 w-4" />
+                        <Icon icon={FaEdit} className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => openDeleteDialog('group', group.id, group.name)}
                         className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                         title="Delete group"
                       >
-                        <FaTrash className="h-4 w-4" />
+                        <Icon icon={FaTrash} className="h-4 w-4" />
                       </button>
                     </div>
                   </div>
@@ -423,7 +424,7 @@ export default function AddonsPage() {
                                 </div>
                                 <div className="flex items-center gap-4 mt-1 text-sm text-gray-600 dark:text-gray-400">
                                   <span className="flex items-center gap-1">
-                                    <FaDollarSign className="h-3 w-3" />
+                                    <Icon icon={FaDollarSign} className="h-3 w-3" />
                                     {item.extra_price.toFixed(2)}
                                   </span>
                                 </div>
@@ -435,14 +436,14 @@ export default function AddonsPage() {
                                 className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
                                 title="Edit item"
                               >
-                                <FaEdit className="h-4 w-4" />
+                                <Icon icon={FaEdit} className="h-4 w-4" />
                               </button>
                               <button
                                 onClick={() => openDeleteDialog('item', item.id, item.name)}
                                 className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                                 title="Delete item"
                               >
-                                <FaTrash className="h-4 w-4" />
+                                <Icon icon={FaTrash} className="h-4 w-4" />
                               </button>
                             </div>
                           </div>
@@ -470,12 +471,12 @@ export default function AddonsPage() {
                 onClick={() => setShowGroupModal(false)}
                 className="flex items-center gap-2 h-10 px-4 rounded-lg border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
               >
-                <FaTimes className="h-4 w-4" />
+                <Icon icon={FaTimes} className="h-4 w-4" />
                 Cancel
               </button>
               <ActionButton
                 onClick={handleGroupSubmit}
-                icon={<FaCheck />}
+                icon={<Icon icon={FaCheck} />}
               >
                 {editingGroup ? 'Update' : 'Create'}
               </ActionButton>
@@ -570,12 +571,12 @@ export default function AddonsPage() {
                 onClick={() => setShowItemModal(false)}
                 className="flex items-center gap-2 h-10 px-4 rounded-lg border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
               >
-                <FaTimes className="h-4 w-4" />
+                <Icon icon={FaTimes} className="h-4 w-4" />
                 Cancel
               </button>
               <ActionButton
                 onClick={handleItemSubmit}
-                icon={<FaCheck />}
+                icon={<Icon icon={FaCheck} />}
               >
                 {editingItem ? 'Update' : 'Create'}
               </ActionButton>

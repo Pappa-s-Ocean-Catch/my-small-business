@@ -5,6 +5,7 @@ import { AdminGuard } from "@/components/AdminGuard";
 import { getSupabaseClient } from "@my-small-business/supabase/client";
 import { startOfWeek, endOfWeek, addWeeks, subWeeks, format, isSameDay } from "date-fns";
 import { FaFilePdf, FaFileExcel, FaChevronLeft, FaChevronRight } from "react-icons/fa";
+import { Icon } from "@/components/Icon";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
@@ -331,7 +332,7 @@ export default function WagesReportPage() {
                 className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-neutral-900 shadow-lg rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
                 title="Previous Week"
               >
-                <FaChevronLeft className="w-4 h-4" /> Prev
+                <Icon icon={FaChevronLeft} className="w-4 h-4" /> Prev
               </button>
               <button
                 onClick={goThisWeek}
@@ -345,7 +346,7 @@ export default function WagesReportPage() {
                 className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-neutral-900 shadow-lg rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
                 title="Next Week"
               >
-                Next <FaChevronRight className="w-4 h-4" />
+                Next <Icon icon={FaChevronRight} className="w-4 h-4" />
               </button>
             </div>
 
@@ -355,13 +356,13 @@ export default function WagesReportPage() {
                 onClick={exportPdf}
                 className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
               >
-                <FaFilePdf className="w-4 h-4" /> Export PDF
+                <Icon icon={FaFilePdf} className="w-4 h-4" /> Export PDF
               </button>
               <button
                 onClick={exportExcel}
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
               >
-                <FaFileExcel className="w-4 h-4" /> Export Excel
+                <Icon icon={FaFileExcel} className="w-4 h-4" /> Export Excel
               </button>
             </div>
           </div>

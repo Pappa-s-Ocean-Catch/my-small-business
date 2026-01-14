@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getSupabaseClient } from "@my-small-business/supabase/client";
 import { LoadingSpinner } from "@/components/Loading";
-import { FaEye, FaEyeSlash } from "react-icons/fa";
+import { FaEye, FaEyeSlash } from "react-icons/fa6";
 
 function ResetPasswordForm() {
   const router = useRouter();

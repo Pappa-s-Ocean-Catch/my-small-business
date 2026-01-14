@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { getSupabaseClient } from "@my-small-business/supabase/client";
 import Link from "next/link";
 import { FaUtensils, FaArrowRight, FaPhone, FaClock, FaEnvelope, FaMapMarkerAlt } from "react-icons/fa";
+import { Icon } from "@/components/Icon";
 import Image from "next/image";
-import Script from "next/script";
 import { TypewriterText } from "@/components/TypewriterText";
 import { getFeatureFlags } from "@/app/actions/feature-flags";
 
@@ -145,13 +145,22 @@ export default function Home() {
     }
   };
 
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.id = 'restaurant-structured-data';
+    script.type = 'application/ld+json';
+    script.text = JSON.stringify(structuredData);
+    document.head.appendChild(script);
+    return () => {
+      const existingScript = document.getElementById('restaurant-structured-data');
+      if (existingScript) {
+        existingScript.remove();
+      }
+    };
+  }, [structuredData]);
+
   return (
     <>
-      <Script
-        id="restaurant-structured-data"
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
-      />
       <div className="min-h-screen bg-white">
         {/* Hero Section with Image Background */}
         <section className="relative h-screen flex items-center justify-center overflow-hidden">
@@ -196,7 +205,7 @@ export default function Home() {
                 href="/menu"
                 className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-rose-600 text-white rounded-lg font-semibold text-lg hover:bg-rose-700 transition-colors shadow-lg hover:shadow-xl"
               >
-                <FaUtensils className="w-5 h-5" />
+                <Icon icon={FaUtensils} className="w-5 h-5" />
                 View Our Menu
               </Link>
               {enablePickupOrder && (
@@ -205,7 +214,7 @@ export default function Home() {
                   className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white/10 backdrop-blur-sm text-white rounded-lg font-semibold text-lg hover:bg-white/20 transition-colors border-2 border-white/30"
                 >
                   Pickup Order
-                  <FaArrowRight className="w-5 h-5" />
+                  <Icon icon={FaArrowRight} className="w-5 h-5" />
                 </Link>
               )}
               <Link
@@ -215,7 +224,7 @@ export default function Home() {
                 className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white/10 backdrop-blur-sm text-white rounded-lg font-semibold text-lg hover:bg-white/20 transition-colors border-2 border-white/30"
               >
                 Order Online
-                <FaArrowRight className="w-5 h-5" />
+                <Icon icon={FaArrowRight} className="w-5 h-5" />
               </Link>
             </div>
           </div>
@@ -232,7 +241,7 @@ export default function Home() {
         <section className="py-20 px-4 bg-gradient-to-br from-rose-50 via-orange-50 to-amber-50">
           <div className="max-w-4xl mx-auto text-center">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-rose-600 rounded-full mb-4">
-              <FaPhone className="w-8 h-8 text-white" />
+              <Icon icon={FaPhone} className="w-8 h-8 text-white" />
             </div>
             <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
               Order by Phone
@@ -330,7 +339,7 @@ export default function Home() {
                         />
                       ) : (
                         <div className="w-full h-full bg-gradient-to-br from-rose-100 to-orange-100 flex items-center justify-center">
-                          <FaUtensils className="w-16 h-16 text-rose-300" />
+                          <Icon icon={FaUtensils} className="w-16 h-16 text-rose-300" />
                         </div>
                       )}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -353,7 +362,7 @@ export default function Home() {
                           className="text-rose-600 hover:text-rose-700 font-semibold flex items-center gap-1"
                         >
                           View Details
-                          <FaArrowRight className="w-4 h-4" />
+                          <Icon icon={FaArrowRight} className="w-4 h-4" />
                         </Link>
                       </div>
                     </div>
@@ -374,7 +383,7 @@ export default function Home() {
                 className="inline-flex items-center gap-2 px-8 py-4 bg-rose-600 text-white rounded-lg font-semibold text-lg hover:bg-rose-700 transition-colors shadow-lg"
               >
                 View Full Menu
-                <FaArrowRight className="w-5 h-5" />
+                <Icon icon={FaArrowRight} className="w-5 h-5" />
               </Link>
             </div>
           </div>
@@ -404,7 +413,7 @@ export default function Home() {
           <div className="max-w-4xl mx-auto">
             <div className="text-center mb-12">
               <div className="inline-flex items-center justify-center w-16 h-16 bg-rose-100 rounded-full mb-4">
-                <FaClock className="w-8 h-8 text-rose-600" />
+                <Icon icon={FaClock} className="w-8 h-8 text-rose-600" />
               </div>
               <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
                 Opening Hours
@@ -441,7 +450,7 @@ export default function Home() {
           <div className="max-w-4xl mx-auto">
             <div className="text-center mb-12">
               <div className="inline-flex items-center justify-center w-16 h-16 bg-rose-100 rounded-full mb-4">
-                <FaEnvelope className="w-8 h-8 text-rose-600" />
+                <Icon icon={FaEnvelope} className="w-8 h-8 text-rose-600" />
               </div>
               <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
                 Get in Touch
@@ -545,7 +554,7 @@ export default function Home() {
           <div className="max-w-6xl mx-auto">
             <div className="text-center mb-12">
               <div className="inline-flex items-center justify-center w-16 h-16 bg-rose-100 rounded-full mb-4">
-                <FaMapMarkerAlt className="w-8 h-8 text-rose-600" />
+                <Icon icon={FaMapMarkerAlt} className="w-8 h-8 text-rose-600" />
               </div>
               <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
                 Find Us
@@ -561,7 +570,7 @@ export default function Home() {
                 <h3 className="text-2xl font-bold text-gray-900 mb-4">Our Location</h3>
                 <div className="space-y-4">
                   <div className="flex items-start gap-3">
-                    <FaMapMarkerAlt className="w-5 h-5 text-rose-600 mt-1 flex-shrink-0" />
+                    <Icon icon={FaMapMarkerAlt} className="w-5 h-5 text-rose-600 mt-1 flex-shrink-0" />
                     <div>
                       <p className="text-lg font-semibold text-gray-900">Pappa&apos;s Ocean Catch</p>
                       <p className="text-gray-600">
@@ -572,7 +581,7 @@ export default function Home() {
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
-                    <FaPhone className="w-5 h-5 text-rose-600 mt-1 flex-shrink-0" />
+                    <Icon icon={FaPhone} className="w-5 h-5 text-rose-600 mt-1 flex-shrink-0" />
                     <div>
                       <p className="text-gray-600">
                         <a href="tel:+61397438150" className="hover:text-rose-600 transition-colors">
@@ -589,7 +598,7 @@ export default function Home() {
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 px-6 py-3 bg-rose-600 text-white rounded-lg font-semibold hover:bg-rose-700 transition-colors shadow-lg hover:shadow-xl"
                   >
-                    <FaArrowRight className="w-4 h-4" />
+                    <Icon icon={FaArrowRight} className="w-4 h-4" />
                     Get Directions
                   </a>
                 </div>

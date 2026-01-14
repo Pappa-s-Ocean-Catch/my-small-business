@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-toastify';
-import { FaPlus, FaSave, FaTrash, FaGripVertical, FaEye, FaEyeSlash, FaExternalLinkAlt, FaMagic } from 'react-icons/fa';
+import { FaPlus, FaSave, FaTrash, FaGripVertical, FaExternalLinkAlt, FaMagic } from 'react-icons/fa';
+import { FaEye, FaEyeSlash } from 'react-icons/fa6';
+import { Icon } from '@/components/Icon';
 import { 
   listMenuScreens,
   createMenuScreen,
@@ -281,7 +283,7 @@ export default function MenuScreensBuilderPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Menu Screens</h1>
         <button onClick={handleCreate} className="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-          <FaPlus /> New Screen
+          <Icon icon={FaPlus} /> New Screen
         </button>
       </div>
 
@@ -332,7 +334,7 @@ export default function MenuScreensBuilderPage() {
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                       >
-                        <FaExternalLinkAlt /> Preview
+                        <Icon icon={FaExternalLinkAlt} /> Preview
                       </a>
                     )}
                     <button
@@ -345,13 +347,13 @@ export default function MenuScreensBuilderPage() {
                       })}
                       className="inline-flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700"
                     >
-                      <FaSave /> Save Basics
+                      <Icon icon={FaSave} /> Save Basics
                     </button>
                     <button
                       onClick={() => setShowDeleteDialog({ open: true, id: selectedScreen!.screen.id, name: selectedScreen!.screen.name })}
                       className="inline-flex items-center gap-2 px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700"
                     >
-                      <FaTrash /> Delete
+                      <Icon icon={FaTrash} /> Delete
                     </button>
                   </div>
                 </div>
@@ -419,7 +421,7 @@ export default function MenuScreensBuilderPage() {
                       <li key={cat.id} className={`flex items-center justify-between px-3 py-2 rounded shadow-sm ${usageCounts[cat.id] ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-white dark:bg-neutral-800'}`}>
                         <span>{cat.name}</span>
                         <button className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 disabled:opacity-60" onClick={() => addCategory(cat.id)}>
-                          <FaPlus className="w-4 h-4" /> Add
+                          <Icon icon={FaPlus} className="w-4 h-4" /> Add
                         </button>
                       </li>
                     ))}
@@ -439,10 +441,10 @@ export default function MenuScreensBuilderPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <button onClick={() => void saveLayout()} className="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-                        <FaSave /> Save Layout
+                        <Icon icon={FaSave} /> Save Layout
                       </button>
                       <button onClick={() => void generateAiPoster()} disabled={aiGenerating || selectedCategoryIds.length === 0} className="inline-flex items-center gap-2 px-3 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-60">
-                        <FaMagic /> {aiGenerating ? 'Generating…' : 'AI Poster'}
+                        <Icon icon={FaMagic} /> {aiGenerating ? 'Generating…' : 'AI Poster'}
                       </button>
                     </div>
                   </div>
@@ -467,11 +469,11 @@ export default function MenuScreensBuilderPage() {
                                   onDragEnd={onDragEnd}
                                   className="flex items-center justify-between px-3 py-2 rounded bg-white dark:bg-neutral-800 shadow-sm">
                                 <div className="flex items-center gap-3">
-                                  <FaGripVertical className="text-gray-400" />
+                                  <Icon icon={FaGripVertical} className="text-gray-400" />
                                   <span>{cat.name}</span>
                                 </div>
                                 <button className="text-red-600 hover:text-red-700" onClick={() => removeCategory(cat.id)}>
-                                  <FaTrash />
+                                  <Icon icon={FaTrash} />
                                 </button>
                               </li>
                           ))}

@@ -6,6 +6,7 @@ import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 import Modal from '@/components/Modal';
 import Card from '@/components/Card';
 import { FaPlus, FaEdit, FaTrash, FaPalette, FaTimes, FaSave, FaToggleOn, FaToggleOff, FaGripVertical } from 'react-icons/fa';
+import { Icon } from '@/components/Icon';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
 import { 
   DndContext, 
@@ -263,7 +264,7 @@ export default function SectionsPage() {
                 className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
                 title="Drag to reorder"
               >
-                <FaGripVertical className="w-4 h-4 text-gray-400" />
+                <Icon icon={FaGripVertical} className="w-4 h-4 text-gray-400" />
               </div>
               
               <div
@@ -304,12 +305,12 @@ export default function SectionsPage() {
               >
                 {section.active ? (
                   <>
-                    <FaToggleOff className="w-3 h-3" />
+                    <Icon icon={FaToggleOff} className="w-3 h-3" />
                     <span>Deactivate</span>
                   </>
                 ) : (
                   <>
-                    <FaToggleOn className="w-3 h-3" />
+                    <Icon icon={FaToggleOn} className="w-3 h-3" />
                     <span>Activate</span>
                   </>
                 )}
@@ -318,14 +319,14 @@ export default function SectionsPage() {
                 onClick={() => startEdit(section)}
                 className="flex items-center gap-2 px-3 py-1 text-sm bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/40 rounded transition-colors"
               >
-                <FaEdit className="w-3 h-3" />
+                <Icon icon={FaEdit} className="w-3 h-3" />
                 <span>Edit</span>
               </button>
               <button
                 onClick={() => setShowDeleteDialog(section)}
                 className="flex items-center gap-2 px-3 py-1 text-sm bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40 rounded transition-colors"
               >
-                <FaTrash className="w-3 h-3" />
+                <Icon icon={FaTrash} className="w-3 h-3" />
                 <span>Delete</span>
               </button>
             </div>
@@ -369,7 +370,7 @@ export default function SectionsPage() {
             }}
             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
-            <FaPlus className="w-4 h-4" />
+            <Icon icon={FaPlus} className="w-4 h-4" />
             Add Section
           </button>
         </div>
@@ -399,7 +400,7 @@ export default function SectionsPage() {
 
         {sections.length === 0 && (
           <div className="text-center py-12">
-            <FaPalette className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <Icon icon={FaPalette} className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
               No sections found
             </h3>
@@ -413,7 +414,7 @@ export default function SectionsPage() {
               }}
               className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
-              <FaPlus className="w-4 h-4" />
+              <Icon icon={FaPlus} className="w-4 h-4" />
               Add Section
             </button>
           </div>
@@ -439,7 +440,7 @@ export default function SectionsPage() {
                 }}
                 className="flex items-center gap-2 h-10 px-4 rounded-lg border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
               >
-                <FaTimes className="w-4 h-4" />
+                <Icon icon={FaTimes} className="w-4 h-4" />
                 <span>Cancel</span>
               </button>
               <button
@@ -447,7 +448,7 @@ export default function SectionsPage() {
                 form="section-form"
                 className="flex items-center gap-2 h-10 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
               >
-                <FaSave className="w-4 h-4" />
+                <Icon icon={FaSave} className="w-4 h-4" />
                 <span>{editingSection ? 'Update' : 'Create'}</span>
               </button>
             </>

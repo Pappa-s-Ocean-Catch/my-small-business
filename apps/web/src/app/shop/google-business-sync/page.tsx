@@ -6,6 +6,7 @@ import { AdminGuard } from '@/components/AdminGuard';
 import { AppHeader } from '@/components/AppHeader';
 import GoogleBusinessProfileSync from '@/components/GoogleBusinessProfileSync';
 import { FaArrowLeft, FaGoogle } from 'react-icons/fa';
+import { Icon } from '@/components/Icon';
 
 export default function GoogleBusinessSyncPage() {
   const router = useRouter();
@@ -24,13 +25,13 @@ export default function GoogleBusinessSyncPage() {
                 onClick={() => router.back()}
                 className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
               >
-                <FaArrowLeft className="mr-2" />
+                <Icon icon={FaArrowLeft} className="mr-2" />
                 Back
               </button>
             </div>
             
             <div className="flex items-center space-x-3">
-              <FaGoogle className="text-blue-500 text-3xl" />
+              <Icon icon={FaGoogle} className="text-blue-500 text-3xl" />
               <div>
                 <h1 className="text-3xl font-bold text-gray-900">
                   Google Business Profile Sync

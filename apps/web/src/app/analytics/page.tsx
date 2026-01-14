@@ -16,6 +16,7 @@ import {
   FaArrowUp,
   FaArrowDown
 } from "react-icons/fa";
+import { Icon } from "@/components/Icon";
 import { 
   LineChart, 
   Line, 
@@ -318,7 +319,7 @@ export default function AnalyticsPage() {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-neutral-900 flex items-center justify-center">
         <div className="text-center">
-          <FaChartLine className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <Icon icon={FaChartLine} className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No Analytics Data</h3>
           <p className="text-gray-600 dark:text-gray-400">Start using the system to see analytics.</p>
         </div>
@@ -363,16 +364,16 @@ export default function AnalyticsPage() {
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">${analyticsData.totalRevenue}</p>
                   <div className="flex items-center mt-1">
                     {analyticsData.revenueGrowth >= 0 ? (
-                      <FaArrowUp className="w-4 h-4 text-green-500 mr-1" />
+                      <Icon icon={FaArrowUp} className="w-4 h-4 text-green-500 mr-1" />
                     ) : (
-                      <FaArrowDown className="w-4 h-4 text-red-500 mr-1" />
+                      <Icon icon={FaArrowDown} className="w-4 h-4 text-red-500 mr-1" />
                     )}
                     <span className={`text-sm ${analyticsData.revenueGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                       {analyticsData.revenueGrowth >= 0 ? '+' : ''}{analyticsData.revenueGrowth}%
                     </span>
                   </div>
                 </div>
-                <FaDollarSign className="w-8 h-8 text-green-600" />
+                <Icon icon={FaDollarSign} className="w-8 h-8 text-green-600" />
               </div>
             </div>
 
@@ -386,7 +387,7 @@ export default function AnalyticsPage() {
                     {analyticsData.laborCostPercentage}% of revenue
                   </p>
                 </div>
-                <FaUsers className="w-8 h-8 text-blue-600" />
+                <Icon icon={FaUsers} className="w-8 h-8 text-blue-600" />
               </div>
             </div>
 
@@ -400,7 +401,7 @@ export default function AnalyticsPage() {
                     {analyticsData.totalProducts} products
                   </p>
                 </div>
-                <FaBox className="w-8 h-8 text-purple-600" />
+                <Icon icon={FaBox} className="w-8 h-8 text-purple-600" />
               </div>
             </div>
 
@@ -414,7 +415,7 @@ export default function AnalyticsPage() {
                     {analyticsData.totalHoursWorked}h worked
                   </p>
                 </div>
-                <FaClock className="w-8 h-8 text-orange-600" />
+                <Icon icon={FaClock} className="w-8 h-8 text-orange-600" />
               </div>
             </div>
           </div>

@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { getMenuScreenBySlug, getMenuScreenWithCategories } from '@/app/actions/menu-screens';
 import { getSaleCategories, getSaleProducts, type SaleCategory, type SaleProductWithDetails } from '@/app/actions/sale-products';
 import { FaExpand, FaCompress } from 'react-icons/fa';
+import { Icon } from '@/components/Icon';
 
 export default function PublicMenuScreenPage() {
   const params = useParams<{ slug: string }>();
@@ -122,7 +123,7 @@ export default function PublicMenuScreenPage() {
           }}
           className="fixed bottom-4 right-4 z-50 inline-flex items-center justify-center w-14 h-14 rounded-lg bg-transparent text-neutral-800/80 hover:text-neutral-900 hover:bg-neutral-900/5 backdrop-blur transition-colors"
         >
-          {isFullscreen ? <FaCompress className="w-7 h-7" /> : <FaExpand className="w-7 h-7" />}
+          {isFullscreen ? <Icon icon={FaCompress} className="w-7 h-7" /> : <Icon icon={FaExpand} className="w-7 h-7" />}
         </button>
         <div className="mb-6 text-center">
           <h1 className="text-4xl font-extrabold tracking-tight" style={{ color: '#ff6363' }}>{screen.name}</h1>

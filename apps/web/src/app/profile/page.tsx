@@ -4,7 +4,9 @@ import { useState, useEffect } from "react";
 import { getSupabaseClient } from "@my-small-business/supabase/client";
 import { LoadingSpinner } from "@/components/Loading";
 import { toast } from "react-toastify";
-import { FaEye, FaEyeSlash, FaUser, FaEnvelope, FaShieldAlt } from "react-icons/fa";
+import { FaEye, FaEyeSlash } from "react-icons/fa6";
+import { FaUser, FaEnvelope, FaShieldAlt } from "react-icons/fa";
+import { Icon } from "@/components/Icon";
 
 interface Profile {
   id: string;
@@ -161,7 +163,7 @@ export default function ProfilePage() {
         {/* Profile Information */}
         <div className="rounded-lg bg-white dark:bg-neutral-900 p-6 shadow-lg">
           <div className="flex items-center gap-3 mb-6">
-            <FaUser className="text-2xl text-gray-600 dark:text-gray-400" />
+            <Icon icon={FaUser} className="text-2xl text-gray-600 dark:text-gray-400" />
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
               Profile Information
             </h2>
@@ -217,7 +219,7 @@ export default function ProfilePage() {
         {/* Password Management */}
         <div className="rounded-lg bg-white dark:bg-neutral-900 p-6 shadow-lg">
           <div className="flex items-center gap-3 mb-6">
-            <FaShieldAlt className="text-2xl text-gray-600 dark:text-gray-400" />
+            <Icon icon={FaShieldAlt} className="text-2xl text-gray-600 dark:text-gray-400" />
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
               Password Management
             </h2>
@@ -251,14 +253,14 @@ export default function ProfilePage() {
                       onClick={() => setShowCurrentPassword(!showCurrentPassword)}
                       className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                     >
-                      {showCurrentPassword ? <FaEyeSlash /> : <FaEye />}
+                      {showCurrentPassword ? <Icon icon={FaEyeSlash} /> : <Icon icon={FaEye} />}
                     </button>
                   </div>
                 </div>
               ) : (
                 <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                   <div className="flex items-center gap-2 mb-2">
-                    <FaEnvelope className="text-blue-600 dark:text-blue-400" />
+                    <Icon icon={FaEnvelope} className="text-blue-600 dark:text-blue-400" />
                     <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
                       Magic Link User
                     </span>
@@ -287,7 +289,7 @@ export default function ProfilePage() {
                     onClick={() => setShowNewPassword(!showNewPassword)}
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                   >
-                    {showNewPassword ? <FaEyeSlash /> : <FaEye />}
+                    {showNewPassword ? <Icon icon={FaEyeSlash} /> : <Icon icon={FaEye} />}
                   </button>
                 </div>
               </div>
@@ -310,7 +312,7 @@ export default function ProfilePage() {
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                   >
-                    {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
+                    {showConfirmPassword ? <Icon icon={FaEyeSlash} /> : <Icon icon={FaEye} />}
                   </button>
                 </div>
               </div>

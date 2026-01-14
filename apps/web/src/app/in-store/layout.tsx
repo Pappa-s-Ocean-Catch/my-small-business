@@ -11,7 +11,7 @@ export default function InStoreLayout({
     <div className="in-store-layout">
       <SnackbarProvider>
         <main>{children}</main>
-        <ToastContainer position="top-right" autoClose={3500} hideProgressBar theme="colored"/>
+        <ToastContainer position="top-right" autoClose={3500} hideProgressBar theme="colored" aria-label="Notifications"/>
       </SnackbarProvider>
     </div>
   );

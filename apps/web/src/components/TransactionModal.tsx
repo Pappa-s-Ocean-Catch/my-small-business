@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { getSupabaseClient } from "@my-small-business/supabase/client";
 import { toast } from "react-toastify";
 import { FaTimes, FaUpload, FaFileAlt } from "react-icons/fa";
-
+import { Icon } from "@/components/Icon";
 type Transaction = {
   id: string;
   date: string;
@@ -181,7 +181,7 @@ export function TransactionModal({ isOpen, onClose, onSave, transaction, categor
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
           >
-            <FaTimes className="w-5 h-5" />
+            <Icon icon={FaTimes} className="w-5 h-5" />
           </button>
         </div>
 
@@ -317,7 +317,7 @@ export function TransactionModal({ isOpen, onClose, onSave, transaction, categor
                   uploading ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
-                <FaUpload className="w-4 h-4" />
+                <Icon icon={FaUpload} className="w-4 h-4" />
                 {uploading ? 'Uploading...' : 'Upload Document'}
               </label>
               {formData.document_url && (
@@ -327,7 +327,7 @@ export function TransactionModal({ isOpen, onClose, onSave, transaction, categor
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
                 >
-                  <FaFileAlt className="w-4 h-4" />
+                  <Icon icon={FaFileAlt} className="w-4 h-4" />
                   View Document
                 </a>
               )}

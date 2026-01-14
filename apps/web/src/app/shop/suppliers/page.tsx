@@ -11,6 +11,7 @@ import { FaPlus, FaEdit, FaTrash, FaTruck, FaPhone, FaEnvelope, FaMapMarkerAlt, 
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { ImageUpload } from "@/components/ImageUpload";
+import { Icon } from "@/components/Icon";
 import Link from "next/link";
 
 type Supplier = {
@@ -286,14 +287,14 @@ export default function SuppliersPage() {
               onClick={exportToExcel}
               className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
             >
-              <FaFileExcel className="w-4 h-4" />
+              <Icon icon={FaFileExcel} className="w-4 h-4" />
               Export Excel
             </button>
             <button
               onClick={() => { resetForm(); setEditing(null); setFormOpen(true); }}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
-              <FaPlus className="w-4 h-4" />
+              <Icon icon={FaPlus} className="w-4 h-4" />
               Add Supplier
             </button>
           </div>
@@ -313,7 +314,7 @@ export default function SuppliersPage() {
                     />
                   ) : (
                     <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
-                      <FaTruck className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                      <Icon icon={FaTruck} className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                     </div>
                   )}
                   <div>
@@ -334,14 +335,14 @@ export default function SuppliersPage() {
                     className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                     title="Edit supplier"
                   >
-                    <FaEdit className="w-4 h-4" />
+                    <Icon icon={FaEdit} className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => handleDeleteSupplier(supplier)}
                     className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
                     title="Delete supplier"
                   >
-                    <FaTrash className="w-4 h-4" />
+                    <Icon icon={FaTrash} className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -349,25 +350,25 @@ export default function SuppliersPage() {
               <div className="space-y-2 mb-4">
                 {supplier.contact_person && (
                   <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                    <FaPhone className="w-3 h-3" />
+                    <Icon icon={FaPhone} className="w-3 h-3" />
                     <span>{supplier.contact_person}</span>
                   </div>
                 )}
                 {supplier.phone && (
                   <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                    <FaPhone className="w-3 h-3" />
+                    <Icon icon={FaPhone} className="w-3 h-3" />
                     <span>{supplier.phone}</span>
                   </div>
                 )}
                 {supplier.email && (
                   <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                    <FaEnvelope className="w-3 h-3" />
+                    <Icon icon={FaEnvelope} className="w-3 h-3" />
                     <span>{supplier.email}</span>
                   </div>
                 )}
                 {supplier.website && (
                   <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                    <FaGlobe className="w-3 h-3" />
+                    <Icon icon={FaGlobe} className="w-3 h-3" />
                     <a 
                       href={supplier.website} 
                       target="_blank" 
@@ -380,7 +381,7 @@ export default function SuppliersPage() {
                 )}
                 {supplier.address && (
                   <div className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
-                    <FaMapMarkerAlt className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                    <Icon icon={FaMapMarkerAlt} className="w-3 h-3 mt-0.5 flex-shrink-0" />
                     <span>{supplier.address}</span>
                   </div>
                 )}
@@ -403,7 +404,7 @@ export default function SuppliersPage() {
 
         {suppliers.length === 0 && (
           <div className="text-center py-12">
-            <FaTruck className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <Icon icon={FaTruck} className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No suppliers found</h3>
             <p className="text-gray-600 dark:text-gray-400 mb-4">
               Get started by adding your first supplier
@@ -412,7 +413,7 @@ export default function SuppliersPage() {
               onClick={() => { resetForm(); setEditing(null); setFormOpen(true); }}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors mx-auto"
             >
-              <FaPlus className="w-4 h-4" />
+              <Icon icon={FaPlus} className="w-4 h-4" />
               Add Supplier
             </button>
           </div>

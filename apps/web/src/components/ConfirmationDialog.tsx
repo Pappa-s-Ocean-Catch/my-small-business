@@ -2,6 +2,7 @@
 
 import { FaExclamationTriangle, FaCheckCircle, FaInfoCircle, FaTimes } from "react-icons/fa";
 import { LoadingSpinner } from "./Loading";
+import { Icon } from "./Icon";
 
 interface ConfirmationDialogProps {
   isOpen: boolean;
@@ -83,8 +84,6 @@ export function ConfirmationDialog({
     }
   };
 
-  const IconComponent = styles.icon;
-
   return (
     <div 
       className="fixed inset-0 bg-black/50 backdrop-blur-md grid place-items-center p-4 z-50 animate-in fade-in duration-200"
@@ -99,7 +98,7 @@ export function ConfirmationDialog({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className={`w-12 h-12 rounded-2xl ${styles.iconBg} flex items-center justify-center shadow-lg`}>
-                <IconComponent className={`w-6 h-6 ${styles.iconColor}`} />
+                <Icon icon={styles.icon} className={`w-6 h-6 ${styles.iconColor}`} />
               </div>
               <div>
                 <h3 className="text-xl font-bold text-gray-900 dark:text-white">
@@ -115,7 +114,7 @@ export function ConfirmationDialog({
               disabled={isLoading}
               className="w-8 h-8 rounded-full bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 flex items-center justify-center transition-colors disabled:opacity-50"
             >
-              <FaTimes className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+              <Icon icon={FaTimes} className="w-4 h-4 text-gray-500 dark:text-gray-400" />
             </button>
           </div>
         </div>
@@ -131,7 +130,7 @@ export function ConfirmationDialog({
             <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
               <div className="flex items-start gap-3">
                 <div className="flex-shrink-0 w-5 h-5 rounded-full bg-red-100 dark:bg-red-900/40 flex items-center justify-center mt-0.5">
-                  <FaExclamationTriangle className="w-3 h-3 text-red-600 dark:text-red-400" />
+                  <Icon icon={FaExclamationTriangle} className="w-3 h-3 text-red-600 dark:text-red-400" />
                 </div>
                 <div>
                   <h4 className="text-sm font-semibold text-red-800 dark:text-red-200 mb-1">

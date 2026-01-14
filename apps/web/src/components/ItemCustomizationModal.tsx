@@ -7,7 +7,7 @@ import { ActionButton } from './ActionButton';
 import type { AddonGroupWithItems, AddonItem } from '@/app/actions/addons';
 import type { CartAddonGroup, CartAddonItem } from '@/contexts/CartContext';
 import { getSaleProductAddonGroups, getAddonGroup } from '@/app/actions/addons';
-
+import { Icon } from '@/components/Icon';
 interface ItemCustomizationModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -165,12 +165,12 @@ export function ItemCustomizationModal({
               onClick={onClose}
               className="flex items-center gap-2 h-10 px-4 rounded-lg border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
             >
-              <FaTimes className="h-4 w-4" />
+              <Icon icon={FaTimes} className="h-4 w-4" />
               Cancel
             </button>
             <ActionButton
               onClick={handleAddToCart}
-              icon={<FaCheck />}
+              icon={<Icon icon={FaCheck} />}
             >
               Add to Cart
             </ActionButton>

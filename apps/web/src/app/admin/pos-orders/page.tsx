@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Card from "@/components/Card";
 import { FiShoppingCart, FiClock, FiCheckCircle, FiXCircle, FiUser } from "react-icons/fi";
+import { Icon } from "@/components/Icon";
 import { format } from "date-fns";
 
 interface Order {
@@ -95,13 +96,13 @@ export default function OrdersPage() {
   const getStatusIcon = (status: string) => {
     switch (status.toLowerCase()) {
       case "completed":
-        return <FiCheckCircle className="text-green-500" />;
+        return <Icon icon={FiCheckCircle} className="text-green-500" />;
       case "pending":
-        return <FiClock className="text-yellow-500" />;
+        return <Icon icon={FiClock} className="text-yellow-500" />;
       case "cancelled":
-        return <FiXCircle className="text-red-500" />;
+        return <Icon icon={FiXCircle} className="text-red-500" />;
       default:
-        return <FiShoppingCart className="text-blue-500" />;
+        return <Icon icon={FiShoppingCart} className="text-blue-500" />;
     }
   };
 
@@ -177,7 +178,7 @@ export default function OrdersPage() {
         {orders.length === 0 ? (
           <Card>
             <div className="text-center py-12">
-              <FiShoppingCart className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+              <Icon icon={FiShoppingCart} className="mx-auto h-12 w-12 text-gray-400 mb-4" />
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
                 No orders found
               </h3>
@@ -222,7 +223,7 @@ export default function OrdersPage() {
                 {order.customer && (
                   <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                     <div className="flex items-center gap-2 mb-2">
-                      <FiUser className="text-gray-500" />
+                      <Icon icon={FiUser} className="text-gray-500" />
                       <span className="font-medium text-gray-900 dark:text-white">
                         Customer Information
                       </span>

@@ -2,6 +2,7 @@
 
 import { ReactNode } from "react";
 import { X, AlertCircle, CheckCircle, AlertTriangle, Check, X as XIcon } from "lucide-react";
+import { Icon } from "./Icon";
 
 type ModalVariant = 'success' | 'warning' | 'error';
 

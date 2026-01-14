@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { FaUpload, FaTimes, FaImage, FaSpinner } from 'react-icons/fa';
 import { toast } from 'react-toastify';
-
+import { Icon } from '@/components/Icon';
 interface ImageUploadProps {
   currentImageUrl?: string;
   onImageChange: (url: string | null) => void;
@@ -239,7 +239,7 @@ export function ImageUpload({
               className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
               title="Remove image"
             >
-              <FaTimes className="w-3 h-3" />
+              <Icon icon={FaTimes} className="w-3 h-3" />
             </button>
           )}
         </div>
@@ -261,9 +261,9 @@ export function ImageUpload({
         >
           <div className="space-y-2">
             {uploading ? (
-              <FaSpinner className="w-8 h-8 text-gray-400 mx-auto animate-spin" />
+              <Icon icon={FaSpinner} className="w-8 h-8 text-gray-400 mx-auto animate-spin" />
             ) : (
-              <FaImage className="w-8 h-8 text-gray-400 mx-auto" />
+              <Icon icon={FaImage} className="w-8 h-8 text-gray-400 mx-auto" />
             )}
             
             <div className="text-sm text-gray-600 dark:text-gray-400">
@@ -294,7 +294,7 @@ export function ImageUpload({
           disabled={uploading}
           className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-neutral-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-neutral-600 transition-colors disabled:opacity-50"
         >
-          <FaUpload className="w-4 h-4" />
+          <Icon icon={FaUpload} className="w-4 h-4" />
           {uploading ? 'Uploading...' : 'Change Image'}
         </button>
       )}

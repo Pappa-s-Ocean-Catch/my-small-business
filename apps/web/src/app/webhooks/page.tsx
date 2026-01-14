@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
 import { AdminGuard } from '@/components/AdminGuard';
 import { FaPlus, FaEdit, FaTrash, FaToggleOn, FaToggleOff, FaKey, FaGlobe } from 'react-icons/fa';
+import { Icon } from '@/components/Icon';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 
 type Webhook = {
@@ -250,7 +251,7 @@ export default function WebhooksPage() {
             onClick={startAdd}
             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
-            <FaPlus className="w-4 h-4" />
+            <Icon icon={FaPlus} className="w-4 h-4" />
             Add Webhook
           </button>
         </div>
@@ -259,7 +260,7 @@ export default function WebhooksPage() {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
           {webhooks.length === 0 ? (
             <div className="p-8 text-center">
-              <FaGlobe className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <Icon icon={FaGlobe} className="w-12 h-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No webhooks configured</h3>
               <p className="text-gray-600 dark:text-gray-400 mb-4">
                 Create your first webhook to start receiving transaction data from external systems.
@@ -268,7 +269,7 @@ export default function WebhooksPage() {
                 onClick={startAdd}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
-                <FaPlus className="w-4 h-4" />
+                <Icon icon={FaPlus} className="w-4 h-4" />
                 Add Webhook
               </button>
             </div>
@@ -333,12 +334,12 @@ export default function WebhooksPage() {
                         >
                           {webhook.is_enabled ? (
                             <>
-                              <FaToggleOn className="w-3 h-3" />
+                              <Icon icon={FaToggleOn} className="w-3 h-3" />
                               Enabled
                             </>
                           ) : (
                             <>
-                              <FaToggleOff className="w-3 h-3" />
+                              <Icon icon={FaToggleOff} className="w-3 h-3" />
                               Disabled
                             </>
                           )}
@@ -347,7 +348,7 @@ export default function WebhooksPage() {
                       <td className="px-6 py-4">
                         {webhook.secret_ref ? (
                           <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400">
-                            <FaKey className="w-3 h-3" />
+                            <Icon icon={FaKey} className="w-3 h-3" />
                             <span className="text-xs">Secured</span>
                           </span>
                         ) : (
@@ -382,14 +383,14 @@ export default function WebhooksPage() {
                             className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                             title="Edit webhook"
                           >
-                            <FaEdit className="w-4 h-4" />
+                            <Icon icon={FaEdit} className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => setDeleteConfirm({ webhook, isOpen: true })}
                             className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
                             title="Delete webhook"
                           >
-                            <FaTrash className="w-4 h-4" />
+                            <Icon icon={FaTrash} className="w-4 h-4" />
                           </button>
                         </div>
                       </td>

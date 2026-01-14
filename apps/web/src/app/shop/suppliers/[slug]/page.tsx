@@ -6,7 +6,9 @@ import { getSupabaseClient } from "@my-small-business/supabase/client";
 import { ensureProfile } from "@/app/actions/profile";
 import { AdminGuard } from "@/components/AdminGuard";
 import Card from "@/components/Card";
-import { FaTruck, FaPhone, FaEnvelope, FaMapMarkerAlt, FaGlobe, FaBox, FaArrowLeft, FaTag, FaFilter, FaEye, FaDollarSign, FaWarehouse, FaLayerGroup, FaTh, FaList } from "react-icons/fa";
+import { FaTruck, FaPhone, FaEnvelope, FaMapMarkerAlt, FaGlobe, FaBox, FaArrowLeft, FaTag, FaFilter, FaDollarSign, FaWarehouse, FaLayerGroup, FaTh, FaList } from "react-icons/fa";
+import { FaEye } from "react-icons/fa6";
+import { Icon } from "@/components/Icon";
 import Link from "next/link";
 
 type Supplier = {
@@ -189,7 +191,7 @@ export default function SupplierDetailsPage() {
             href="/shop/suppliers"
             className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
           >
-            <FaArrowLeft className="w-4 h-4" />
+            <Icon icon={FaArrowLeft} className="w-4 h-4" />
             Back to Suppliers
           </Link>
         </div>
@@ -207,7 +209,7 @@ export default function SupplierDetailsPage() {
               />
             ) : (
               <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
-                <FaTruck className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+                <Icon icon={FaTruck} className="w-8 h-8 text-purple-600 dark:text-purple-400" />
               </div>
             )}
             <div className="flex-1">
@@ -218,19 +220,19 @@ export default function SupplierDetailsPage() {
                 <div className="space-y-2">
                   {supplier.contact_person && (
                     <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                      <FaPhone className="w-3 h-3" />
+                      <Icon icon={FaPhone} className="w-3 h-3" />
                       <span>{supplier.contact_person}</span>
                     </div>
                   )}
                   {supplier.phone && (
                     <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                      <FaPhone className="w-3 h-3" />
+                      <Icon icon={FaPhone} className="w-3 h-3" />
                       <span>{supplier.phone}</span>
                     </div>
                   )}
                   {supplier.email && (
                     <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                      <FaEnvelope className="w-3 h-3" />
+                      <Icon icon={FaEnvelope} className="w-3 h-3" />
                       <span>{supplier.email}</span>
                     </div>
                   )}
@@ -238,7 +240,7 @@ export default function SupplierDetailsPage() {
                 <div className="space-y-2">
                   {supplier.website && (
                     <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                      <FaGlobe className="w-3 h-3" />
+                      <Icon icon={FaGlobe} className="w-3 h-3" />
                       <a 
                         href={supplier.website} 
                         target="_blank" 
@@ -251,7 +253,7 @@ export default function SupplierDetailsPage() {
                   )}
                   {supplier.address && (
                     <div className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
-                      <FaMapMarkerAlt className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                      <Icon icon={FaMapMarkerAlt} className="w-3 h-3 mt-0.5 flex-shrink-0" />
                       <span>{supplier.address}</span>
                     </div>
                   )}
@@ -295,7 +297,7 @@ export default function SupplierDetailsPage() {
                         : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                     }`}
                   >
-                    <FaTh className="w-3 h-3" />
+                    <Icon icon={FaTh} className="w-3 h-3" />
                     Cards
                   </button>
                   <button
@@ -306,7 +308,7 @@ export default function SupplierDetailsPage() {
                         : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                     }`}
                   >
-                    <FaList className="w-3 h-3" />
+                    <Icon icon={FaList} className="w-3 h-3" />
                     Table
                   </button>
                 </div>
@@ -353,7 +355,7 @@ export default function SupplierDetailsPage() {
 
           {filteredProducts.length === 0 ? (
             <Card variant="elevated" padding="lg" className="text-center">
-              <FaBox className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <Icon icon={FaBox} className="w-12 h-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
                 {products.length === 0 ? 'No products found' : 'No products match the filter'}
               </h3>
@@ -379,7 +381,7 @@ export default function SupplierDetailsPage() {
                         />
                       ) : (
                         <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
-                          <FaBox className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                          <Icon icon={FaBox} className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
@@ -396,7 +398,7 @@ export default function SupplierDetailsPage() {
                         ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
                         : 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
                     }`}>
-                      <FaTag className="w-3 h-3" />
+                      <Icon icon={FaTag} className="w-3 h-3" />
                       {product.supplier_type === 'primary' ? 'Primary' : 'Alternative'}
                     </span>
                   </div>
@@ -405,7 +407,7 @@ export default function SupplierDetailsPage() {
                   <div className="grid grid-cols-2 gap-3 mb-4">
                     <div className="bg-gray-50 dark:bg-neutral-800 rounded-lg p-3">
                       <div className="flex items-center gap-2 mb-1">
-                        <FaDollarSign className="w-3 h-3 text-green-600 dark:text-green-400" />
+                        <Icon icon={FaDollarSign} className="w-3 h-3 text-green-600 dark:text-green-400" />
                         <span className="text-xs text-gray-600 dark:text-gray-400">Purchase</span>
                       </div>
                       <p className="font-semibold text-gray-900 dark:text-white">
@@ -415,7 +417,7 @@ export default function SupplierDetailsPage() {
                     
                     <div className="bg-gray-50 dark:bg-neutral-800 rounded-lg p-3">
                       <div className="flex items-center gap-2 mb-1">
-                        <FaDollarSign className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                        <Icon icon={FaDollarSign} className="w-3 h-3 text-blue-600 dark:text-blue-400" />
                         <span className="text-xs text-gray-600 dark:text-gray-400">Sale</span>
                       </div>
                       <p className="font-semibold text-gray-900 dark:text-white">
@@ -425,7 +427,7 @@ export default function SupplierDetailsPage() {
                     
                     <div className="bg-gray-50 dark:bg-neutral-800 rounded-lg p-3">
                       <div className="flex items-center gap-2 mb-1">
-                        <FaWarehouse className="w-3 h-3 text-orange-600 dark:text-orange-400" />
+                        <Icon icon={FaWarehouse} className="w-3 h-3 text-orange-600 dark:text-orange-400" />
                         <span className="text-xs text-gray-600 dark:text-gray-400">Stock</span>
                       </div>
                       <p className={`font-semibold ${
@@ -440,7 +442,7 @@ export default function SupplierDetailsPage() {
                     {product.category && (
                       <div className="bg-gray-50 dark:bg-neutral-800 rounded-lg p-3">
                         <div className="flex items-center gap-2 mb-1">
-                          <FaLayerGroup className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+                          <Icon icon={FaLayerGroup} className="w-3 h-3 text-purple-600 dark:text-purple-400" />
                           <span className="text-xs text-gray-600 dark:text-gray-400">Category</span>
                         </div>
                         <p className="font-semibold text-gray-900 dark:text-white text-xs">
@@ -465,7 +467,7 @@ export default function SupplierDetailsPage() {
                       href={`/shop/products/${product.id}`}
                       className="inline-flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors group-hover:underline"
                     >
-                      <FaEye className="w-3 h-3" />
+                      <Icon icon={FaEye} className="w-3 h-3" />
                       View Product Details
                     </Link>
                   </div>
@@ -515,7 +517,7 @@ export default function SupplierDetailsPage() {
                               />
                             ) : (
                               <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center mr-3">
-                                <FaBox className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                                <Icon icon={FaBox} className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                               </div>
                             )}
                             <div>
@@ -534,7 +536,7 @@ export default function SupplierDetailsPage() {
                               ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
                               : 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
                           }`}>
-                            <FaTag className="w-3 h-3" />
+                            <Icon icon={FaTag} className="w-3 h-3" />
                             {product.supplier_type === 'primary' ? 'Primary' : 'Alternative'}
                           </span>
                         </td>
@@ -561,7 +563,7 @@ export default function SupplierDetailsPage() {
                             href={`/shop/products/${product.id}`}
                             className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors inline-flex items-center gap-1"
                           >
-                            <FaEye className="w-3 h-3" />
+                            <Icon icon={FaEye} className="w-3 h-3" />
                             View
                           </Link>
                         </td>
