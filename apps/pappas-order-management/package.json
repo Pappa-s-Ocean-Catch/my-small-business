@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "scripts": {
+    "prestart": "node scripts/generate-sound-assets.js",
+    "preandroid": "node scripts/generate-sound-assets.js",
+    "preios": "node scripts/generate-sound-assets.js",
+    "preweb": "node scripts/generate-sound-assets.js",
     "start": "expo start",
     "android": "expo start --android --device",
     "ios": "expo start --ios",
@@ -12,25 +16,37 @@
     "android:tablet": "expo start --android --device"
   },
   "dependencies": {
+    "@expo/metro-runtime": "^6.1.2",
     "@my-small-business/types": "workspace:*",
-    "@react-navigation/native": "^6.1.9",
+    "@react-native-async-storage/async-storage": "^2.2.0",
+    "@react-navigation/native": "^7.1.8",
     "@supabase/supabase-js": "^2.57.4",
-    "expo": "~51.0.0",
-    "expo-av": "~14.0.7",
-    "expo-constants": "~16.0.0",
-    "expo-print": "~13.0.0",
-    "expo-router": "~3.5.0",
-    "expo-status-bar": "~1.12.0",
-    "react": "18.2.0",
-    "react-native": "0.74.5",
-    "react-native-safe-area-context": "4.10.1",
-    "react-native-screens": "~3.31.1"
+    "expo": "~54.0.0",
+    "expo-av": "~16.0.8",
+    "expo-constants": "~18.0.13",
+    "expo-linking": "~8.0.11",
+    "expo-print": "~15.0.8",
+    "expo-router": "~6.0.21",
+    "expo-status-bar": "~3.0.9",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-paper": "^5.14.5",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-vector-icons": "^10.3.0"
   },
   "devDependencies": {
-    "@babel/core": "^7.24.0",
-    "@types/react": "~18.2.79",
+    "@babel/core": "^7.25.0",
+    "@types/react": "~19.1.10",
     "sharp": "^0.34.5",
     "typescript": "^5.3.3"
   },
-  "private": true
+  "private": true,
+  "expo": {
+    "install": {
+      "exclude": [
+        "@react-navigation/native"
+      ]
+    }
+  }
 }

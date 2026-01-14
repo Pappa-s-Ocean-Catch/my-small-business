@@ -1,7 +1,8 @@
 import { Tabs } from 'expo-router';
-import { TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { useRouter } from 'expo-router';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { Appbar } from 'react-native-paper';
 
 export default function TabsLayout() {
   const router = useRouter();
@@ -13,7 +14,7 @@ export default function TabsLayout() {
 
   return (
     <Tabs
-      screenOptions={{
+      screenOptions={({ route }) => ({
         headerStyle: {
           backgroundColor: '#2563eb',
         },
@@ -22,10 +23,19 @@ export default function TabsLayout() {
           fontWeight: 'bold',
         },
         headerRight: () => (
-          <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-            <Text style={styles.logoutText}>Logout</Text>
-          </TouchableOpacity>
+          <Appbar.Action icon="logout" onPress={handleLogout} iconColor="#fff" />
         ),
+        tabBarIcon: ({ color, size, focused }) => {
+          const name =
+            route.name === 'orders'
+              ? focused
+                ? 'receipt'
+                : 'receipt-outline'
+              : focused
+                ? 'settings'
+                : 'settings-outline';
+          return <Ionicons name={name as any} size={size} color={color} />;
+        },
         tabBarStyle: {
           backgroundColor: '#fff',
           borderTopWidth: 1,
@@ -33,7 +43,7 @@ export default function TabsLayout() {
         },
         tabBarActiveTintColor: '#2563eb',
         tabBarInactiveTintColor: '#666',
-      }}
+      })}
     >
       <Tabs.Screen
         name="orders"
@@ -42,21 +52,13 @@ export default function TabsLayout() {
           tabBarLabel: 'Orders',
         }}
       />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: 'Settings',
+          tabBarLabel: 'Settings',
+        }}
+      />
     </Tabs>
   );
 }
-
-const styles = StyleSheet.create({
-  logoutButton: {
-    marginRight: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  logoutText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-});

@@ -1,45 +1,117 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
-  Text,
-  TextInput,
-  TouchableOpacity,
+  Image,
   StyleSheet,
-  Alert,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from 'react-native';
+import { Banner, Button, Text, TextInput } from 'react-native-paper';
 import { supabase } from '../lib/supabase';
+import { isAdminUser } from '../lib/auth';
 import { useRouter } from 'expo-router';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [initError, setInitError] = useState<string | null>(null);
   const router = useRouter();
+
+  // Check if Supabase is initialized correctly
+  useEffect(() => {
+    try {
+      const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
+      const key = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+
+      if (!url || !key) {
+        setInitError(
+          'Configuration Error: Missing Supabase environment variables.\n\n' +
+          'Please ensure .env file exists with:\n' +
+          '- EXPO_PUBLIC_SUPABASE_URL\n' +
+          '- EXPO_PUBLIC_SUPABASE_ANON_KEY\n\n' +
+          'Current status:\n' +
+          `- URL: ${url ? '✓ Set' : '✗ Missing'}\n` +
+          `- Key: ${key ? '✓ Set' : '✗ Missing'}\n\n` +
+          'Restart the Expo dev server after creating/updating .env file.'
+        );
+      } else {
+        // Test connection
+        supabase.auth.getSession().catch((err) => {
+          setInitError(
+            `Connection Error: Failed to connect to Supabase.\n\n` +
+            `Error: ${err instanceof Error ? err.message : 'Unknown error'}\n\n` +
+            `Please check:\n` +
+            `- Your internet connection\n` +
+            `- Supabase URL is correct\n` +
+            `- Supabase service is running`
+          );
+        });
+      }
+    } catch (err) {
+      setInitError(
+        `Initialization Error: ${err instanceof Error ? err.message : 'Unknown error'}\n\n` +
+        'Please check your configuration and restart the app.'
+      );
+    }
+  }, []);
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please enter both email and password');
+      setError('Please enter both email and password');
       return;
     }
 
+    setError(null);
     setLoading(true);
+
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { data, error: loginError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) {
-        Alert.alert('Login Failed', error.message);
+      if (loginError) {
+        setError(`Login Failed: ${loginError.message}\n\nPlease check your credentials and try again.`);
       } else if (data.session) {
+        const userId = data.session.user?.id;
+        if (!userId) {
+          await supabase.auth.signOut();
+          setError('Login failed: Missing user id. Please try again.');
+          return;
+        }
+
+        let isAdmin = false;
+        try {
+          isAdmin = await isAdminUser(userId);
+        } catch (roleErr) {
+          await supabase.auth.signOut();
+          setError(
+            `Login Failed: Unable to verify access.\n\n` +
+            `${roleErr instanceof Error ? roleErr.message : 'Unknown error'}`
+          );
+          return;
+        }
+
+        if (!isAdmin) {
+          await supabase.auth.signOut();
+          setError('Not authorized: this app is currently restricted to admin users.');
+          return;
+        }
+
         router.replace('/(tabs)/orders');
+      } else {
+        setError('Login failed: No session created. Please try again.');
       }
-    } catch (error) {
-      Alert.alert('Error', 'An unexpected error occurred');
-      console.error('Login error:', error);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(
+        `Unexpected Error: ${errorMessage}\n\n` +
+        'Please check your connection and try again.'
+      );
+      console.error('Login error:', err);
     } finally {
       setLoading(false);
     }
@@ -48,48 +120,77 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View style={styles.content}>
-        <Text style={styles.title}>Pappas Order Management</Text>
-        <Text style={styles.subtitle}>Kitchen Tablet</Text>
-
-        <View style={styles.form}>
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            placeholderTextColor="#999"
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            autoComplete="email"
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
+        <View style={styles.content}>
+          <Image
+            source={require('../assets/icon.png')}
+            style={styles.logo}
+            resizeMode="contain"
+            accessibilityLabel="App logo"
           />
+          <Text style={styles.title}>Pappas Order Management</Text>
 
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            placeholderTextColor="#999"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            autoCapitalize="none"
-            autoComplete="password"
-          />
+          {(initError || error) && (
+            <Banner
+              visible
+              icon={initError ? 'alert-circle' : 'alert'}
+              style={styles.banner}
+              actions={[]}
+            >
+              {initError ?? error}
+            </Banner>
+          )}
 
-          <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={handleLogin}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>Sign In</Text>
-            )}
-          </TouchableOpacity>
+          <View style={styles.form}>
+            <TextInput
+              mode="outlined"
+              label="Email"
+              value={email}
+              onChangeText={(text) => {
+                setEmail(text);
+                setError(null);
+              }}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              autoComplete="email"
+              editable={!loading && !initError}
+              style={styles.paperInput}
+            />
+
+            <TextInput
+              mode="outlined"
+              label="Password"
+              value={password}
+              onChangeText={(text) => {
+                setPassword(text);
+                setError(null);
+              }}
+              secureTextEntry
+              autoCapitalize="none"
+              autoComplete="password"
+              editable={!loading && !initError}
+              style={styles.paperInput}
+            />
+
+            <Button
+              mode="contained"
+              onPress={handleLogin}
+              disabled={loading || !!initError}
+              loading={loading}
+              contentStyle={styles.signInButtonContent}
+              style={styles.signInButton}
+            >
+              Sign In
+            </Button>
+          </View>
         </View>
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -99,49 +200,43 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingVertical: 24,
+  },
   content: {
-    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#1a1a1a',
-    marginBottom: 8,
+  logo: {
+    width: 84,
+    height: 84,
+    marginBottom: 16,
   },
-  subtitle: {
-    fontSize: 18,
-    color: '#666',
-    marginBottom: 40,
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  banner: {
+    width: '100%',
+    maxWidth: 420,
+    marginBottom: 16,
   },
   form: {
     width: '100%',
     maxWidth: 400,
   },
-  input: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 16,
-    fontSize: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#ddd',
+  paperInput: {
+    marginBottom: 12,
   },
-  button: {
-    backgroundColor: '#2563eb',
-    borderRadius: 8,
-    padding: 16,
-    alignItems: 'center',
-    marginTop: 8,
+  signInButton: {
+    marginTop: 4,
   },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+  signInButtonContent: {
+    paddingVertical: 10,
   },
 });

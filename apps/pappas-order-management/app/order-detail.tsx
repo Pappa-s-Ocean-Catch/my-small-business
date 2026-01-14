@@ -1,13 +1,12 @@
 import { useState, useEffect } from 'react';
 import {
   View,
-  Text,
   ScrollView,
   StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
   Alert,
+  useWindowDimensions,
 } from 'react-native';
+import { ActivityIndicator, Button, Card, Text } from 'react-native-paper';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getOrder, updateOrderStatus } from '../lib/orders';
 import type { Order, OrderStatus } from '@my-small-business/types';
@@ -37,6 +36,9 @@ export default function OrderDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const router = useRouter();
+  const { width, height } = useWindowDimensions();
+  const isPortrait = height >= width;
+  const isNarrow = width < 420;
 
   useEffect(() => {
     loadOrder();
@@ -44,7 +46,7 @@ export default function OrderDetailScreen() {
 
   const loadOrder = async () => {
     if (!orderId) return;
-    
+
     try {
       setLoading(true);
       const result = await getOrder(orderId);
@@ -96,10 +98,10 @@ export default function OrderDetailScreen() {
 
   const generatePrintHTML = (order: Order): string => {
     const itemsHTML = order.items?.map(item => {
-      const addonsHTML = item.addons?.map(addon => 
+      const addonsHTML = item.addons?.map(addon =>
         `<li>+ ${addon.addon_item_name} (${addon.addon_group_name}) - $${addon.addon_item_price.toFixed(2)}</li>`
       ).join('') || '';
-      
+
       return `
         <tr>
           <td>${item.quantity}x ${item.product_name}</td>
@@ -169,7 +171,7 @@ export default function OrderDetailScreen() {
   if (loading) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#2563eb" />
+        <ActivityIndicator size="large" />
         <Text style={styles.loadingText}>Loading order...</Text>
       </View>
     );
@@ -179,9 +181,9 @@ export default function OrderDetailScreen() {
     return (
       <View style={styles.centerContainer}>
         <Text style={styles.errorText}>Order not found</Text>
-        <TouchableOpacity style={styles.button} onPress={() => router.back()}>
-          <Text style={styles.buttonText}>Go Back</Text>
-        </TouchableOpacity>
+        <Button mode="contained" onPress={() => router.back()} style={styles.paperButton}>
+          Go Back
+        </Button>
       </View>
     );
   }
@@ -191,188 +193,187 @@ export default function OrderDetailScreen() {
 
   return (
     <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <View>
+      <View style={[styles.header, isPortrait && styles.headerPortrait, isNarrow && styles.headerNarrow]}>
+        <View style={styles.headerMain}>
           <Text style={styles.orderNumber}>Order #{order.order_number}</Text>
           <Text style={styles.customerName}>
             {order.customer_name || order.customer_email}
           </Text>
-          <Text style={styles.customerPhone}>{order.customer_phone}</Text>
+          <Text style={styles.customerPhone} numberOfLines={2}>
+            {order.customer_phone}
+          </Text>
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
+        <View style={[styles.statusBadge, isPortrait && styles.statusBadgePortrait, { backgroundColor: statusColor }]}>
           <Text style={styles.statusText}>{statusLabel}</Text>
         </View>
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Order Information</Text>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Type:</Text>
-          <Text style={styles.infoValue}>
-            {order.order_type === 'delivery' ? '🚚 Delivery' : '🏪 Pickup'}
-          </Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Payment:</Text>
-          <Text style={styles.infoValue}>
-            {order.payment_method === 'online' ? 'Online' : 'Store'} - {order.payment_status}
-          </Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Time:</Text>
-          <Text style={styles.infoValue}>
-            {new Date(order.created_at).toLocaleString()}
-          </Text>
-        </View>
-        {order.order_type === 'delivery' && order.delivery_address_line1 && (
-          <View style={styles.deliveryAddress}>
-            <Text style={styles.infoLabel}>Delivery Address:</Text>
+      <Card style={styles.sectionCard}>
+        <Card.Content>
+          <Text style={styles.sectionTitle}>Order Information</Text>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Type:</Text>
             <Text style={styles.infoValue}>
-              {order.delivery_address_line1}
-              {order.delivery_address_line2 && `\n${order.delivery_address_line2}`}
-              {`\n${order.delivery_city}, ${order.delivery_state} ${order.delivery_postcode}`}
+              {order.order_type === 'delivery' ? '🚚 Delivery' : '🏪 Pickup'}
             </Text>
           </View>
-        )}
-        {order.special_instructions && (
-          <View style={styles.specialInstructions}>
-            <Text style={styles.infoLabel}>Special Instructions:</Text>
-            <Text style={styles.infoValue}>{order.special_instructions}</Text>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Payment:</Text>
+            <Text style={styles.infoValue}>
+              {order.payment_method === 'online' ? 'Online' : 'Store'} - {order.payment_status}
+            </Text>
           </View>
-        )}
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Items</Text>
-        {order.items?.map((item) => (
-          <View key={item.id} style={styles.itemCard}>
-            <View style={styles.itemHeader}>
-              <Text style={styles.itemName}>
-                {item.quantity}x {item.product_name}
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Time:</Text>
+            <Text style={styles.infoValue}>
+              {new Date(order.created_at).toLocaleString()}
+            </Text>
+          </View>
+          {order.order_type === 'delivery' && order.delivery_address_line1 && (
+            <View style={styles.deliveryAddress}>
+              <Text style={styles.infoLabel}>Delivery Address:</Text>
+              <Text style={styles.infoValue}>
+                {order.delivery_address_line1}
+                {order.delivery_address_line2 && `\n${order.delivery_address_line2}`}
+                {`\n${order.delivery_city}, ${order.delivery_state} ${order.delivery_postcode}`}
               </Text>
-              <Text style={styles.itemPrice}>${item.subtotal.toFixed(2)}</Text>
             </View>
-            {item.comment && (
-              <Text style={styles.itemComment}>Note: {item.comment}</Text>
-            )}
-            {item.addons && item.addons.length > 0 && (
-              <View style={styles.addonsContainer}>
-                {item.addons.map((addon) => (
-                  <Text key={addon.id} style={styles.addonText}>
-                    + {addon.addon_item_name} ({addon.addon_group_name}) - ${addon.addon_item_price.toFixed(2)}
-                  </Text>
-                ))}
-              </View>
-            )}
-          </View>
-        ))}
-      </View>
+          )}
+          {order.special_instructions && (
+            <View style={styles.specialInstructions}>
+              <Text style={styles.infoLabel}>Special Instructions:</Text>
+              <Text style={styles.infoValue}>{order.special_instructions}</Text>
+            </View>
+          )}
+        </Card.Content>
+      </Card>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Total</Text>
-        <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>Subtotal:</Text>
-          <Text style={styles.totalValue}>${order.subtotal.toFixed(2)}</Text>
-        </View>
-        {order.tax > 0 && (
+      <Card style={styles.sectionCard}>
+        <Card.Content>
+          <Text style={styles.sectionTitle}>Items</Text>
+          {order.items?.map((item) => (
+            <View key={item.id} style={styles.itemCard}>
+              <View style={styles.itemHeader}>
+                <Text style={styles.itemName}>
+                  {item.quantity}x {item.product_name}
+                </Text>
+                <Text style={styles.itemPrice}>${item.subtotal.toFixed(2)}</Text>
+              </View>
+              {item.comment && (
+                <Text style={styles.itemComment}>Note: {item.comment}</Text>
+              )}
+              {item.addons && item.addons.length > 0 && (
+                <View style={styles.addonsContainer}>
+                  {item.addons.map((addon) => (
+                    <Text key={addon.id} style={styles.addonText}>
+                      + {addon.addon_item_name} ({addon.addon_group_name}) - ${addon.addon_item_price.toFixed(2)}
+                    </Text>
+                  ))}
+                </View>
+              )}
+            </View>
+          ))}
+        </Card.Content>
+      </Card>
+
+      <Card style={styles.sectionCard}>
+        <Card.Content>
+          <Text style={styles.sectionTitle}>Total</Text>
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Tax:</Text>
-            <Text style={styles.totalValue}>${order.tax.toFixed(2)}</Text>
+            <Text style={styles.totalLabel}>Subtotal:</Text>
+            <Text style={styles.totalValue}>${order.subtotal.toFixed(2)}</Text>
           </View>
-        )}
-        {order.delivery_fee > 0 && (
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Delivery Fee:</Text>
-            <Text style={styles.totalValue}>${order.delivery_fee.toFixed(2)}</Text>
+          {order.tax > 0 && (
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Tax:</Text>
+              <Text style={styles.totalValue}>${order.tax.toFixed(2)}</Text>
+            </View>
+          )}
+          {order.delivery_fee > 0 && (
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Delivery Fee:</Text>
+              <Text style={styles.totalValue}>${order.delivery_fee.toFixed(2)}</Text>
+            </View>
+          )}
+          {order.service_fee > 0 && (
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Service Fee:</Text>
+              <Text style={styles.totalValue}>${order.service_fee.toFixed(2)}</Text>
+            </View>
+          )}
+          <View style={[styles.totalRow, styles.finalTotal]}>
+            <Text style={styles.finalTotalLabel}>Total:</Text>
+            <Text style={styles.finalTotalValue}>${order.total.toFixed(2)}</Text>
           </View>
-        )}
-        {order.service_fee > 0 && (
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Service Fee:</Text>
-            <Text style={styles.totalValue}>${order.service_fee.toFixed(2)}</Text>
-          </View>
-        )}
-        <View style={[styles.totalRow, styles.finalTotal]}>
-          <Text style={styles.finalTotalLabel}>Total:</Text>
-          <Text style={styles.finalTotalValue}>${order.total.toFixed(2)}</Text>
-        </View>
-      </View>
+
+        </Card.Content>
+      </Card>
 
       <View style={styles.actions}>
-        <TouchableOpacity
-          style={[styles.actionButton, styles.printButton]}
-          onPress={handlePrint}
-        >
-          <Text style={styles.actionButtonText}>Print Order</Text>
-        </TouchableOpacity>
+        <Button mode="outlined" onPress={handlePrint} style={styles.paperButton}>
+          Print Order
+        </Button>
 
         {order.order_status === 'pending' && (
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: '#3b82f6' }]}
+          <Button
+            mode="contained"
             onPress={() => handleStatusChange('confirmed')}
             disabled={updating}
+            loading={updating}
+            style={styles.paperButton}
           >
-            <Text style={styles.actionButtonText}>
-              {updating ? 'Updating...' : 'Confirm Order'}
-            </Text>
-          </TouchableOpacity>
+            Confirm Order
+          </Button>
         )}
         {order.order_status === 'confirmed' && (
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: '#8b5cf6' }]}
+          <Button
+            mode="contained"
             onPress={() => handleStatusChange('preparing')}
             disabled={updating}
+            loading={updating}
+            style={styles.paperButton}
           >
-            <Text style={styles.actionButtonText}>
-              {updating ? 'Updating...' : 'Start Preparing'}
-            </Text>
-          </TouchableOpacity>
+            Start Preparing
+          </Button>
         )}
         {order.order_status === 'preparing' && (
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: '#10b981' }]}
+          <Button
+            mode="contained"
             onPress={() => handleStatusChange('ready')}
             disabled={updating}
+            loading={updating}
+            style={styles.paperButton}
           >
-            <Text style={styles.actionButtonText}>
-              {updating ? 'Updating...' : 'Mark Ready'}
-            </Text>
-          </TouchableOpacity>
+            Mark Ready
+          </Button>
         )}
         {order.order_status === 'ready' && (
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: '#6b7280' }]}
+          <Button
+            mode="contained"
             onPress={() => handleStatusChange('completed')}
             disabled={updating}
+            loading={updating}
+            style={styles.paperButton}
           >
-            <Text style={styles.actionButtonText}>
-              {updating ? 'Updating...' : 'Complete Order'}
-            </Text>
-          </TouchableOpacity>
+            Complete Order
+          </Button>
         )}
         {order.order_status !== 'cancelled' && order.order_status !== 'completed' && (
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: '#ef4444' }]}
+          <Button
+            mode="contained"
+            buttonColor="#ef4444"
             onPress={() => {
-              Alert.alert(
-                'Cancel Order',
-                'Are you sure you want to cancel this order?',
-                [
-                  { text: 'No', style: 'cancel' },
-                  {
-                    text: 'Yes',
-                    style: 'destructive',
-                    onPress: () => handleStatusChange('cancelled'),
-                  },
-                ]
-              );
+              Alert.alert('Cancel Order', 'Are you sure you want to cancel this order?', [
+                { text: 'No', style: 'cancel' },
+                { text: 'Yes', style: 'destructive', onPress: () => handleStatusChange('cancelled') },
+              ]);
             }}
             disabled={updating}
+            loading={updating}
+            style={styles.paperButton}
           >
-            <Text style={styles.actionButtonText}>
-              {updating ? 'Updating...' : 'Cancel Order'}
-            </Text>
-          </TouchableOpacity>
+            Cancel Order
+          </Button>
         )}
       </View>
     </ScrollView>
@@ -409,6 +410,17 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e5e5e5',
   },
+  headerMain: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  headerPortrait: {
+    flexDirection: 'column',
+    gap: 12,
+  },
+  headerNarrow: {
+    padding: 14,
+  },
   orderNumber: {
     fontSize: 24,
     fontWeight: 'bold',
@@ -419,15 +431,20 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#333',
     marginBottom: 4,
+    flexWrap: 'wrap',
   },
   customerPhone: {
     fontSize: 16,
     color: '#666',
+    flexWrap: 'wrap',
   },
   statusBadge: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
+  },
+  statusBadgePortrait: {
+    alignSelf: 'flex-start',
   },
   statusText: {
     color: '#fff',
@@ -439,6 +456,9 @@ const styles = StyleSheet.create({
     marginTop: 12,
     padding: 20,
   },
+  sectionCard: {
+    marginTop: 12,
+  },
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
@@ -449,15 +469,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 12,
+    gap: 12,
   },
   infoLabel: {
     fontSize: 16,
     color: '#666',
     fontWeight: '500',
+    flexShrink: 0,
   },
   infoValue: {
     fontSize: 16,
     color: '#1a1a1a',
+    flex: 1,
+    flexWrap: 'wrap',
+    textAlign: 'right',
   },
   deliveryAddress: {
     marginTop: 12,
@@ -542,28 +567,7 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 12,
   },
-  actionButton: {
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  printButton: {
-    backgroundColor: '#6b7280',
-  },
-  actionButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  button: {
-    backgroundColor: '#2563eb',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+  paperButton: {
+    alignSelf: 'stretch',
   },
 });
