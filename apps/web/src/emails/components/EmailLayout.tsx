@@ -1,10 +1,11 @@
 import * as React from 'react';
+import type { ReactNode } from 'react';
 import { Html, Head, Preview, Body, Container, Section, Text, Img } from '@react-email/components';
 import { Tailwind } from '@react-email/tailwind';
 
 type EmailLayoutProps = {
   title: string;
-  children: React.ReactNode;
+  children: ReactNode;
   companyName?: string;
   logoUrl?: string;
   footerText?: string;
