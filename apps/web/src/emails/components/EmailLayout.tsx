@@ -1,11 +1,10 @@
 import * as React from 'react';
-import type { ReactNode } from 'react';
 import { Html, Head, Preview, Body, Container, Section, Text, Img } from '@react-email/components';
 import { Tailwind } from '@react-email/tailwind';
 
 type EmailLayoutProps = {
   title: string;
-  children: ReactNode;
+  children: React.ReactNode;
   companyName?: string;
   logoUrl?: string;
   footerText?: string;
@@ -44,7 +43,11 @@ export function EmailLayout({
             </Section>
 
             <Section className="p-6">
-              {children}
+              {/* Type assertion needed due to TypeScript type resolution issue with pnpm.
+                  @react-email/components 1.0.4+ supports React 19 at runtime, but TypeScript
+                  sees conflicting React type definitions from different package resolutions.
+                  This is safe as the runtime behavior is correct. */}
+              {children as any}
             </Section>
 
             <Section className="bg-gray-50 p-4 text-center">
