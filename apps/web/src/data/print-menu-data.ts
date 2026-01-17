@@ -41,15 +41,15 @@ export const menuPage1: MenuPage = {
       color: "#dc2626",
       items: [
         { name: "PLAIN BEEF", description: "Beef Patty, Lettuce, & Tomato Sauce", price: 7.5 },
+        { name: "THE LOT BEEF", description: "Beef Patty, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Tomato Relish", price: 11.2 },
         { name: "CHEESE BURGER", description: "Beef Patty, Cheese, Lettuce, & Tomato Sauce", price: 8.3 },
+        { name: "DOUBLE BEEF CHEESE", description: "Two Beef Patties, Double Cheese, Lettuce, & Tomato Sauce", price: 13.4 },
         { name: "MEXICAN", description: "Beef Patty, Jalapenos, Cheese, Tomato, Red Onion, Lettuce, & Peri Peri Mayo", price: 10.2 },
         { name: "TROPICAL", description: "Beef Patty, Bacon, Pineapple, Cheese, Lettuce, Mayo, & Tomato Relish", price: 10.3 },
         { name: "BLT CHEESE", description: "Beef Patty, Bacon, Cheese, Tomato, Lettuce, Mayo, & Tomato Sauce", price: 9.7 },
         { name: "BBQ CHEESE", description: "Beef Patty, Bacon, Cheese, Red Onion, Lettuce, & BBQ Sauce", price: 9.8 },
         { name: "THE AUSSIE", description: "Beef Patty, Egg, Bacon, Cheese, Beetroot, Tomato, Red Onion, Lettuce, BBQ Sauce, & Tomato Sauce", price: 12.2 },
-        { name: "ROYALE WITH CHEESE", description: "Beef Patty, Double Cheese, Red Onion, Pickles, Tomato Relish & Mustard", price: 10.1 },
-        { name: "DOUBLE BEEF CHEESE", description: "Two Beef Patties, Double Cheese, Lettuce, & Tomato Sauce", price: 13.4 },
-        { name: "THE LOT BEEF", description: "Beef Patty, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Tomato Relish", price: 11.2 },
+        { name: "ROYALE WITH CHEESE", description: "Beef Patty, Double Cheese, Red Onion, Pickles, Tomato Relish & Mustard", price: 10.1 }
       ]
     },
     // 6 items
@@ -58,12 +58,12 @@ export const menuPage1: MenuPage = {
       color: "#f97316",
       items: [
         { name: "PLAIN CHICKEN", description: "Chicken Patty, Lettuce, & Mayo", price: 9.2 },
+        { name: "CHICKEN BURGER WITH THE LOT", description: "Chicken Patty, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Mayo", price: 12.9 },
         { name: "CHICKEN BLT", description: "Chicken Patty, Bacon, Cheese, Tomato, Lettuce, & Mayo", price: 11.4 },
         { name: "PERI PERI CHICKEN", description: "Chicken Patty, Jalapenos, Cheese, Tomato, Red Onion, Lettuce, & Peri Peri Mayo", price: 11.9 },
-        { name: "TRADITIONAL CHICKEN SCHNITZEL", description: "Crumbed Breast Fillet Schnitzel, Lettuce, & Mayo", price: 8.5 },
         { name: "HAWAIIAN CHICKEN", description: "Chicken Patty, Bacon, Pineapple, Cheese, Lettuce, & Mayo", price: 12.5 },
-        { name: "CHICKEN BURGER WITH THE LOT", description: "Chicken Patty, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Mayo", price: 12.9 },
-        { name: "KIDS CHICKEN BURGER", description: "Crumbed Chicken Patty, Cheese, Lettuce, & Tomato Sauce", price: 6.0 },
+        { name: "TRADITIONAL CHICKEN SCHNITZEL", description: "Crumbed Breast Fillet Schnitzel, Lettuce, & Mayo", price: 8.5 },
+        { name: "KIDS CHICKEN BURGER", description: "Crumbed Chicken Patty, Cheese, Lettuce, & Tomato Sauce", price: 6.0 }
       ]
     },
     // 3 items
