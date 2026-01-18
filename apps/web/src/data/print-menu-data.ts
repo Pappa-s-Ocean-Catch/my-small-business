@@ -76,6 +76,14 @@ export const menuPage1: MenuPage = {
         { name: "THE LOT FISH BURGER", description: "Fried Flake, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Tartare Sauce", price: 15.4 }
       ]
     },
+    {
+      name: "VEGGIE BURGERS",
+      color: "#10b981",
+      items: [
+        { name: "PLAIN VEGGIE BURGER", description: "Gourmet Vegetable Patty, Lettuce, & Tomato Sauce", price: 6.9, highlight: true },
+        { name: "CLASSIC VEGGIE BURGER", description: "Gourmet Vegetable Patty, Cheese, Tomato, Red Onion, Lettuce, Mayo, & Tomato Relish", price: 8.6, highlight: true },
+      ]
+    },
     // 7 items
     {
       name: "BURGERS ADD-ONS",
@@ -282,7 +290,7 @@ export const menuPage3: MenuPage = {
         { name: "FLAKE PACK FOR ONE", description: "1 Flake, 1 Potato Cake, 1 Dim Sim, & Small Chips", price: 16.8, highlight: true },
         { name: "FLAKE PACK FOR TWO", description: "2 Flakes, 2 Potato Cakes, 2 Dim Sims, & Small Chips", price: 28.2, highlight: true },
         { name: "FAMILY FLAKE PACK", description: "4 Flakes, 4 Potato Cakes, 4 Dim Sims, & Medium Chips", price: 53.4, highlight: true },
-        { name: "DINNER BOX", description: "2 Flakes, 2 Fish Bites, 4 Potato Cakes, 4 Dim Sims, & Small Chips with1.25L Drink", price: 46.0, highlight: true },
+        { name: "DINNER BOX", description: "2 Flakes, 2 Fish Bites, 4 Potato Cakes, 4 Dim Sims, & Small Chips with 1.25L Drink", price: 46.0, highlight: true },
         { name: "FLATHEAD PACK", description: "6 Flathead Fillets, & Small Chips", price: 24.7, highlight: true },
         { name: "DIM & CAKE PACK", description: "2 Potato Cakes, 2 Dim Sims, & Small Chips", price: 10.1, highlight: true },
         { name: "PARTY PACK", description: "8 Potato Cakes, 8 Dim Sims, & Extra Large Chips", price: 32.9, highlight: true },
