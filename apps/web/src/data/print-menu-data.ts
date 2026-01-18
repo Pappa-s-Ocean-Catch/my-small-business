@@ -185,7 +185,7 @@ export const menuPage2: MenuPage = {
         { name: "Medium", description: "Serves 2-3", price: 8.5 },
         { name: "Large", description: "Serves 3-4", price: 11.5 },
         { name: "Extra Large", description: "Serves 4-5", price: 15.3 },
-        { name: "Custom Amount", description: "Order any amount between $4-$15", priceRange: "$4.00 - $15.00" },
+        { name: "Custom Amount", description: "Order any amount between $4-$15", price: 4.0, priceRange: "$4.00 - $15.00" },
         { name: "Sweet Potato Chip", description: "", price: 6.0 }
       ]
     },
