@@ -2,7 +2,7 @@
 
 import PrintMenuLayoutV2 from '@/components/PrintMenuLayoutV2';
 import PrintButton from '@/components/PrintButton';
-import { menuPage3 } from '@/data/print-menu-data';
+import { inStoreCategoryLayouts, menuPage3, splitCategoriesByLayout } from '@/data/print-menu-data';
 import '@/styles/print-menu-v2.css';
 import '@/styles/print-menu.css';
 
@@ -21,19 +21,7 @@ function colorToClass(color?: string): string {
 }
 
 export default function Menu3V2() {
-  // Use same column layout as v1 for consistency
-  const leftColumnOrder = ['NEW ITEMS', 'FOR VEGETARIANS', 'CHIPS & GRAVY', 'MEAL FOR ONE'];
-  const rightColumnOrder = menuPage3.categories
-    .map((c) => c.name)
-    .filter((n) => !leftColumnOrder.includes(n));
-
-  const leftCats = leftColumnOrder
-    .map((name) => menuPage3.categories.find((cat) => cat.name === name))
-    .filter((cat): cat is typeof menuPage3.categories[number] => Boolean(cat));
-
-  const rightCats = rightColumnOrder
-    .map((name) => menuPage3.categories.find((cat) => cat.name === name))
-    .filter((cat): cat is typeof menuPage3.categories[number] => Boolean(cat));
+  const { leftCategories: leftCats, rightCategories: rightCats } = splitCategoriesByLayout(menuPage3, inStoreCategoryLayouts.menu3);
 
   return (
     <>
@@ -62,7 +50,7 @@ export default function Menu3V2() {
               );
             })}
           </div>
-          
+
           {/* Right Column */}
           <div className="v2-right-column">
             {rightCats.map((category) => {

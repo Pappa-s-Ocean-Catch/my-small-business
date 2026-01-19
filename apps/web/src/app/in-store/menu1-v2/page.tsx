@@ -2,7 +2,7 @@
 
 import PrintMenuLayoutV2 from '@/components/PrintMenuLayoutV2';
 import PrintButton from '@/components/PrintButton';
-import { menuPage1 } from '@/data/print-menu-data';
+import { inStoreCategoryLayouts, menuPage1, splitCategoriesByLayout } from '@/data/print-menu-data';
 import '@/styles/print-menu-v2.css';
 import '@/styles/print-menu.css';
 
@@ -19,17 +19,7 @@ function colorToClass(color?: string): string {
 }
 
 export default function Menu1V2() {
-  // Use same column layout as v1 for consistency
-  const leftColumnOrder = ['BEEF BURGERS', 'SOUVLAKI'];
-  const rightColumnOrder = ['CHICKEN BURGERS', 'FISH BURGERS', 'VEGETARIAN BURGERS', 'STEAK SANDWICHES', 'MAKE A COMBO'];
-
-  const leftColumnCategories = leftColumnOrder
-    .map((name) => menuPage1.categories.find((cat) => cat.name === name))
-    .filter((cat): cat is typeof menuPage1.categories[number] => Boolean(cat));
-
-  const rightColumnCategories = rightColumnOrder
-    .map((name) => menuPage1.categories.find((cat) => cat.name === name))
-    .filter((cat): cat is typeof menuPage1.categories[number] => Boolean(cat));
+  const { leftCategories, rightCategories } = splitCategoriesByLayout(menuPage1, inStoreCategoryLayouts.menu1);
 
   return (
     <>
@@ -38,7 +28,7 @@ export default function Menu1V2() {
         <div className="v2-columns">
           {/* Left Column */}
           <div className="v2-left-column">
-            {leftColumnCategories.map((category) => {
+            {leftCategories.map((category) => {
               const key = colorToClass(category.color);
               return (
                 <section key={category.name} className={`v2-card v2-accent-${key}`}>
@@ -58,10 +48,10 @@ export default function Menu1V2() {
               );
             })}
           </div>
-          
+
           {/* Right Column */}
           <div className="v2-right-column">
-            {rightColumnCategories.map((category) => {
+            {rightCategories.map((category) => {
               const key = colorToClass(category.color);
               return (
                 <section key={category.name} className={`v2-card v2-accent-${key}`}>

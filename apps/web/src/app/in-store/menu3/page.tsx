@@ -1,16 +1,13 @@
 'use client';
 
 import PrintButton from '@/components/PrintButton';
-import { menuPage3 } from '@/data/print-menu-data';
+import { inStoreCategoryLayouts, menuPage3, splitCategoriesByLayout } from '@/data/print-menu-data';
 import '@/styles/print-menu.css';
 
 export default function MenuPage3() {
-  // Separate promotional items from regular items
-  const promotionalCategories = menuPage3.categories.filter(cat => 
-    ['NEW ITEMS', 'FOR VEGETARIANS', 'CHIPS & GRAVY', 'MEAL FOR ONE'].includes(cat.name)
-  );
-  const regularCategories = menuPage3.categories.filter(cat => 
-    !['NEW ITEMS', 'FOR VEGETARIANS', 'CHIPS & GRAVY', 'MEAL FOR ONE'].includes(cat.name)
+  const { leftCategories: promotionalCategories, rightCategories: regularCategories } = splitCategoriesByLayout(
+    menuPage3,
+    inStoreCategoryLayouts.menu3
   );
 
   return (
@@ -18,10 +15,10 @@ export default function MenuPage3() {
       <PrintButton />
       <div className="menu3-clean-container">
         {/* Clean Header */}
-              <header className="menu3-header">
-                <h1 className="menu3-title">🔥 SPECIALS & NEW ITEMS 🔥</h1>
-                <p className="menu3-subtitle">Fresh & Delicious</p>
-              </header>
+        <header className="menu3-header">
+          <h1 className="menu3-title">🔥 SPECIALS & NEW ITEMS 🔥</h1>
+          <p className="menu3-subtitle">Fresh & Delicious</p>
+        </header>
 
         <main className="menu3-main">
           <div className="menu3-layout">

@@ -18,6 +18,72 @@ export interface MenuPage {
   categories: MenuCategory[];
 }
 
+export interface TwoColumnCategoryLayout {
+  left: string[];
+  /** If omitted, right column is computed as "all remaining categories" in page order. */
+  right?: string[];
+}
+
+function normalizeCategoryName(name: string): string {
+  return name
+    .trim()
+    .toUpperCase()
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/\s+/g, ' ');
+}
+
+export function splitCategoriesByLayout(page: MenuPage, layout: TwoColumnCategoryLayout): {
+  leftCategories: MenuCategory[];
+  rightCategories: MenuCategory[];
+  missing: { left: string[]; right: string[] };
+} {
+  const normalizedToCategory = new Map<string, MenuCategory>();
+  for (const category of page.categories) {
+    normalizedToCategory.set(normalizeCategoryName(category.name), category);
+  }
+
+  const leftNames = layout.left;
+  const leftNormalized = new Set(leftNames.map(normalizeCategoryName));
+
+  let rightNames: string[];
+  if (layout.right && layout.right.length > 0) {
+    const explicitRightNormalized = new Set(layout.right.map(normalizeCategoryName));
+    const remainingRightNames = page.categories
+      .map((c) => c.name)
+      .filter((n) => !leftNormalized.has(normalizeCategoryName(n)) && !explicitRightNormalized.has(normalizeCategoryName(n)));
+    rightNames = [...layout.right, ...remainingRightNames];
+  } else {
+    rightNames = page.categories
+      .map((c) => c.name)
+      .filter((n) => !leftNormalized.has(normalizeCategoryName(n)));
+  }
+
+  const missingLeft: string[] = [];
+  const missingRight: string[] = [];
+
+  const leftCategories: MenuCategory[] = leftNames
+    .map((name) => {
+      const category = normalizedToCategory.get(normalizeCategoryName(name));
+      if (!category) missingLeft.push(name);
+      return category;
+    })
+    .filter((category): category is MenuCategory => Boolean(category));
+
+  const rightCategories: MenuCategory[] = rightNames
+    .map((name) => {
+      const category = normalizedToCategory.get(normalizeCategoryName(name));
+      if (!category) missingRight.push(name);
+      return category;
+    })
+    .filter((category): category is MenuCategory => Boolean(category));
+
+  return {
+    leftCategories,
+    rightCategories,
+    missing: { left: missingLeft, right: missingRight }
+  };
+}
+
 // Store Information
 export const storeInfo = {
   name: "PAPPA'S OCEAN CATCH BURGERS, FISH AND CHIPS",
@@ -28,6 +94,20 @@ export const storeInfo = {
   payment: "EFTPOS AVAILABLE, ONLINE AVAILABLE",
   social: "LIKE US ON FACEBOOK"
 };
+
+// In-store menu column layouts (source of truth for v1/v2/v3)
+export const inStoreCategoryLayouts = {
+  menu1: {
+    left: ['BEEF BURGERS', 'SOUVLAKI', 'BURGERS ADD-ONS'],
+    right: ['CHICKEN BURGERS', 'FISH BURGERS', 'VEGGIE BURGERS', 'STEAK SANDWICHES']
+  },
+  menu2: {
+    left: ['PACKS', 'SIDES', 'CHICKEN BREAST NUGGETS']
+  },
+  menu3: {
+    left: ['NEW ITEMS', 'FOR VEGETARIANS', 'CHIPS & GRAVY', 'MEAL FOR ONE']
+  }
+} satisfies Record<string, TwoColumnCategoryLayout>;
 
 // Menu Page 1 - Main Menu (Burgers, Fish, Packs)
 // Categories sorted by number of items to balance heights
@@ -89,7 +169,7 @@ export const menuPage1: MenuPage = {
       name: "BURGERS ADD-ONS",
       color: "#16a34a",
       items: [
-        { name: "Make a meal / combo", description: "Half Serve Chip & a Can", price: 5.3},
+        { name: "Make a meal / combo", description: "Half Serve Chip & a Can", price: 5.3 },
         { name: "Add Egg / Bacon / Pineapple / Jalapenos", description: "", price: 1.0 },
         { name: "Add Cheese / Beetroot", description: "", price: 0.8 },
         { name: "Add Lettuce / Tomato", description: "", price: 0.4 },
@@ -118,7 +198,7 @@ export const menuPage1: MenuPage = {
         { name: "CLASSIC STEAK LOT", description: "Gourmet Steak, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Butter, Tomato Sauce", price: 13.8 }
       ]
     },
-      // 6 items
+    // 6 items
     {
       name: "SOUVLAKI",
       color: "#16a34a",
@@ -181,7 +261,7 @@ export const menuPage2: MenuPage = {
         { name: "Barracouta", description: "Fried", price: 9.0 },
         { name: "Any Grilled Fish Add $0.50", description: "", price: 0.5 },
         { name: "Add Panko", description: "", price: 1.0 }
-        
+
       ]
     },
     {
@@ -197,7 +277,7 @@ export const menuPage2: MenuPage = {
         { name: "Sweet Potato Chip", description: "", price: 6.0 }
       ]
     },
-     {
+    {
       name: "CHIPS & GRAVY",
       color: "#8b5cf6",
       items: [

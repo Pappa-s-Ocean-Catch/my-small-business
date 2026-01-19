@@ -1,26 +1,25 @@
 'use client';
 
-import PrintMenuLayout from '@/components/PrintMenuLayout';
 import PrintButton from '@/components/PrintButton';
-import { menuPage2 } from '@/data/print-menu-data';
+import { inStoreCategoryLayouts, menuPage2, splitCategoriesByLayout } from '@/data/print-menu-data';
 import '@/styles/print-menu.css';
 
 export default function MenuPage2() {
-        // Separate PACKS, SIDES, and CHICKEN BREAST NUGGETS categories for left side, others for right side
-        const packsCategory = menuPage2.categories.find(cat => cat.name === 'PACKS');
-        const sidesCategory = menuPage2.categories.find(cat => cat.name === 'SIDES');
-        const chickenCategory = menuPage2.categories.find(cat => cat.name === 'CHICKEN BREAST NUGGETS');
-        const otherCategories = menuPage2.categories.filter(cat => cat.name !== 'PACKS' && cat.name !== 'SIDES' && cat.name !== 'CHICKEN BREAST NUGGETS');
+  const { leftCategories, rightCategories } = splitCategoriesByLayout(menuPage2, inStoreCategoryLayouts.menu2);
+  const packsCategory = leftCategories.find(cat => cat.name === 'PACKS');
+  const sidesCategory = leftCategories.find(cat => cat.name === 'SIDES');
+  const chickenCategory = leftCategories.find(cat => cat.name === 'CHICKEN BREAST NUGGETS');
+  const otherCategories = rightCategories;
 
   return (
     <>
       <PrintButton />
       <div className="print-menu-container">
-              {/* Simple Menu Header */}
-              <header className="simple-menu-header">
-                <h1 className="simple-title">FISH & CHIPS & SIDES</h1>
-              </header>
-        
+        {/* Simple Menu Header */}
+        <header className="simple-menu-header">
+          <h1 className="simple-title">FISH & CHIPS & SIDES</h1>
+        </header>
+
         <main className="print-menu-main">
           <div className="menu2-special-layout">
             {/* Left side - PACKS and SIDES categories (60% width) */}
@@ -47,54 +46,54 @@ export default function MenuPage2() {
                   </div>
                 </div>
               )}
-              
-                    {sidesCategory && (
-                      <div className={`menu-category category-${sidesCategory.color === '#dc2626' ? 'red' : sidesCategory.color === '#f97316' ? 'orange' : sidesCategory.color === '#16a34a' ? 'green' : sidesCategory.color === '#059669' ? 'emerald' : 'gray'}`}>
-                        <div className="category-header">
-                          {sidesCategory.name}
-                        </div>
-                        <div className="category-items">
-                          {sidesCategory.items.map((item, itemIndex) => (
-                            <div key={itemIndex} className="menu-item">
-                              <div className="item-info">
-                                <div className="item-name">{item.name}</div>
-                                {item.description && (
-                                  <div className="item-description">{item.description}</div>
-                                )}
-                              </div>
-                              <div className="item-price">
-                                {item.priceRange || `$${item.price.toFixed(2)}`}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
 
-                    {chickenCategory && (
-                      <div className={`menu-category category-${chickenCategory.color === '#dc2626' ? 'red' : chickenCategory.color === '#f97316' ? 'orange' : chickenCategory.color === '#16a34a' ? 'green' : chickenCategory.color === '#e11d48' ? 'rose' : 'gray'}`}>
-                        <div className="category-header">
-                          {chickenCategory.name}
+              {sidesCategory && (
+                <div className={`menu-category category-${sidesCategory.color === '#dc2626' ? 'red' : sidesCategory.color === '#f97316' ? 'orange' : sidesCategory.color === '#16a34a' ? 'green' : sidesCategory.color === '#059669' ? 'emerald' : 'gray'}`}>
+                  <div className="category-header">
+                    {sidesCategory.name}
+                  </div>
+                  <div className="category-items">
+                    {sidesCategory.items.map((item, itemIndex) => (
+                      <div key={itemIndex} className="menu-item">
+                        <div className="item-info">
+                          <div className="item-name">{item.name}</div>
+                          {item.description && (
+                            <div className="item-description">{item.description}</div>
+                          )}
                         </div>
-                        <div className="category-items">
-                          {chickenCategory.items.map((item, itemIndex) => (
-                            <div key={itemIndex} className="menu-item">
-                              <div className="item-info">
-                                <div className="item-name">{item.name}</div>
-                                {item.description && (
-                                  <div className="item-description">{item.description}</div>
-                                )}
-                              </div>
-                              <div className="item-price">
-                                {item.priceRange || `$${item.price.toFixed(2)}`}
-                              </div>
-                            </div>
-                          ))}
+                        <div className="item-price">
+                          {item.priceRange || `$${item.price.toFixed(2)}`}
                         </div>
                       </div>
-                    )}
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {chickenCategory && (
+                <div className={`menu-category category-${chickenCategory.color === '#dc2626' ? 'red' : chickenCategory.color === '#f97316' ? 'orange' : chickenCategory.color === '#16a34a' ? 'green' : chickenCategory.color === '#e11d48' ? 'rose' : 'gray'}`}>
+                  <div className="category-header">
+                    {chickenCategory.name}
+                  </div>
+                  <div className="category-items">
+                    {chickenCategory.items.map((item, itemIndex) => (
+                      <div key={itemIndex} className="menu-item">
+                        <div className="item-info">
+                          <div className="item-name">{item.name}</div>
+                          {item.description && (
+                            <div className="item-description">{item.description}</div>
+                          )}
+                        </div>
+                        <div className="item-price">
+                          {item.priceRange || `$${item.price.toFixed(2)}`}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-            
+
             {/* Right side - Other categories (40% width) */}
             <div className="menu2-right-column">
               {otherCategories.map((category) => (
@@ -122,7 +121,7 @@ export default function MenuPage2() {
             </div>
           </div>
         </main>
-        
+
         <footer className="print-menu-footer">
           <div className="footer-content">
             EFTPOS AVAILABLE • DINE IN AVAILABLE

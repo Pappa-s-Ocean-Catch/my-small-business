@@ -2,7 +2,7 @@
 
 import PrintMenuLayoutV3 from '@/components/PrintMenuLayoutV3';
 import PrintButton from '@/components/PrintButton';
-import { menuPage1 } from '@/data/print-menu-data';
+import { inStoreCategoryLayouts, menuPage1, splitCategoriesByLayout } from '@/data/print-menu-data';
 import '@/styles/print-menu-v3.css';
 import '@/styles/print-menu.css';
 
@@ -19,17 +19,7 @@ function colorHeadClass(color?: string): string {
 }
 
 export default function Menu1V3() {
-  // Use same column layout as v1 for consistency
-  const leftColumnOrder = ['BEEF BURGERS', 'SOUVLAKI'];
-  const rightColumnOrder = ['CHICKEN BURGERS', 'FISH BURGERS', 'VEGETARIAN BURGERS', 'STEAK SANDWICHES', 'MAKE A COMBO'];
-
-  const leftCats = leftColumnOrder
-    .map((name) => menuPage1.categories.find((cat) => cat.name === name))
-    .filter((cat): cat is typeof menuPage1.categories[number] => Boolean(cat));
-
-  const rightCats = rightColumnOrder
-    .map((name) => menuPage1.categories.find((cat) => cat.name === name))
-    .filter((cat): cat is typeof menuPage1.categories[number] => Boolean(cat));
+  const { leftCategories: leftCats, rightCategories: rightCats } = splitCategoriesByLayout(menuPage1, inStoreCategoryLayouts.menu1);
 
   return (
     <>
