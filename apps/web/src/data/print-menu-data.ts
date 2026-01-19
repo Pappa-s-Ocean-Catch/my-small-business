@@ -98,25 +98,6 @@ export const menuPage1: MenuPage = {
         { name: "Add Meat Patty", description: "", price: 3.5 }
       ]
     },
-    // 6 items
-    {
-      name: "SOUVLAKI",
-      color: "#16a34a",
-      items: [
-        { name: "LAMB SOUVLAKI", description: "Lamb Yiros Meat, Tomato, Red Onion, Lettuce, & Garlic Sauce", price: 12.8 },
-        { name: "LAMB SOUVA WITH THE LOT", description: "Lamb Yiros Meat, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Garlic Sauce", price: 15.6 },
-        { name: "CHICKEN SOUVLAKI", description: "Chicken Yiros Meat, Tomato, Red Onion, Lettuce, & Garlic Sauce", price: 11.5 },
-        { name: "CHICKEN SOUVA WITH THE LOT", description: "Chicken Yiros Meat, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Garlic Sauce", price: 14.3 },
-        { name: "MIX SOUVLAKI", description: "Lamb & Chicken Yiros Meat, Tomato, Red Onion, Lettuce, & Garlic sauce", price: 12.2 },
-        { name: "MIX SOUVA WITH THE LOT", description: "Lamb & Chicken Yiros Meat, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Garlic Sauce", price: 15.0 },
-        { name: "FISH SOUVLAKI", description: "Fried Flake, Tomato, Red Onion, Lettuce, & Tartare Sauce", price: 12.2 },
-        { name: "SOUVA LOT FISH", description: "Fried Flake, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Tartare Sauce", price: 15.0 },
-        { name: "GRILLED FISH SOUVLAKI", description: "Grilled Flake, Tomato, Red Onion, Lettuce, & Tartare Sauce", price: 12.7 },
-        { name: "SOUVA LOT GRILLED FISH", description: "Grilled Flake, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Tartare Sauce", price: 15.5 },
-        { name: "EXTRA LAMB MEAT", description: "Add extra lamb meat to any souvlaki", price: 4.0 },
-        { name: "EXTRA CHICKEN MEAT", description: "Add extra chicken meat to any souvlaki", price: 3.0 }
-      ]
-    },
     // 3 items
     {
       name: "SNACK PACK",
@@ -135,6 +116,25 @@ export const menuPage1: MenuPage = {
         { name: "PLAIN STEAK", description: "Gourmet Steak, Lettuce, & Butter, Tomato Sauce", price: 10.1 },
         { name: "CLASSIC STEAK", description: "Gourmet Steak, Cheese, Tomato, Red Onion, Lettuce, & Butter, Tomato Sauce", price: 11.8 },
         { name: "CLASSIC STEAK LOT", description: "Gourmet Steak, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Butter, Tomato Sauce", price: 13.8 }
+      ]
+    },
+      // 6 items
+    {
+      name: "SOUVLAKI",
+      color: "#16a34a",
+      items: [
+        { name: "LAMB SOUVLAKI", description: "Lamb Yiros Meat, Tomato, Red Onion, Lettuce, & Garlic Sauce", price: 12.8 },
+        { name: "LAMB SOUVA WITH THE LOT", description: "Lamb Yiros Meat, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Garlic Sauce", price: 15.6 },
+        { name: "CHICKEN SOUVLAKI", description: "Chicken Yiros Meat, Tomato, Red Onion, Lettuce, & Garlic Sauce", price: 11.5 },
+        { name: "CHICKEN SOUVA WITH THE LOT", description: "Chicken Yiros Meat, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Garlic Sauce", price: 14.3 },
+        { name: "MIX SOUVLAKI", description: "Lamb & Chicken Yiros Meat, Tomato, Red Onion, Lettuce, & Garlic sauce", price: 12.2 },
+        { name: "MIX SOUVA WITH THE LOT", description: "Lamb & Chicken Yiros Meat, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Garlic Sauce", price: 15.0 },
+        { name: "FISH SOUVLAKI", description: "Fried Flake, Tomato, Red Onion, Lettuce, & Tartare Sauce", price: 12.2 },
+        { name: "SOUVA LOT FISH", description: "Fried Flake, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Tartare Sauce", price: 15.0 },
+        { name: "GRILLED FISH SOUVLAKI", description: "Grilled Flake, Tomato, Red Onion, Lettuce, & Tartare Sauce", price: 12.7 },
+        { name: "SOUVA LOT GRILLED FISH", description: "Grilled Flake, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Tartare Sauce", price: 15.5 },
+        { name: "EXTRA LAMB MEAT", description: "Add extra lamb meat to any souvlaki", price: 4.0 },
+        { name: "EXTRA CHICKEN MEAT", description: "Add extra chicken meat to any souvlaki", price: 3.0 }
       ]
     }
   ]
@@ -294,23 +294,12 @@ export const menuPage3: MenuPage = {
         { name: "FLATHEAD PACK", description: "6 Flathead Fillets, & Small Chips", price: 24.7, highlight: true },
         { name: "DIM & CAKE PACK", description: "2 Potato Cakes, 2 Dim Sims, & Small Chips", price: 10.1, highlight: true },
         { name: "PARTY PACK", description: "8 Potato Cakes, 8 Dim Sims, & Extra Large Chips", price: 32.9, highlight: true },
-        { name: "4 Nuggets", description: "", price: 4.0 },
         { name: "8 Nuggets", description: "", price: 9.0 },
         { name: "12 Nuggets", description: "", price: 13.0 },
         { name: "Calamari Pack", description: "4 Calamari, & Small Chips", price: 11.6, highlight: true },
         { name: "Salt & Pepper Squid Pack", description: "8 Salt & Pepper Squids, & Small Chips", price: 16.2, highlight: true },
         { name: "Fisherman's Catch", description: "1 Flake, 1 Scallop, 1 Seafood Stick, 2 Calamari Rings, & Half Chips with 375ml Can", price: 22.3, highlight: true },
-        { name: "Kids Snack Pack", description: "2 Flathead Fillets, & Small Chips", price: 12.9, highlight: true },
         { name: "KIDS PACK", description: "1 Fish Bite, 1 Potato Cake, 1 Dim Sim, & Half Chips", price: 9.5, highlight: true }
-      ]
-    },
-    {
-      name: "NEW ITEMS",
-      color: "#f59e0b",
-      items: [
-        { name: "SNACK PACK (LAMB/CHICKEN)", description: "choice of meat (lamb or chicken), chips, garlic sauce, bbq sauce, and hot chilli.", price: 16.0, highlight: true },
-        { name: "KIDS CHICKEN BURGER", description: "Crumbed Chicken Patty, Cheese, Lettuce, & Tomato Sauce", price: 7.0, highlight: true },
-        { name: "ONION RINGS", description: "", price: 0.80, highlight: true }
       ]
     },
     {
