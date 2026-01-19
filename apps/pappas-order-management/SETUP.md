@@ -2,14 +2,9 @@
 
 ## Quick Start
 
-1. **Navigate to the app directory:**
+1. **Install dependencies (from repo root):**
    ```bash
-   cd apps/pappas-order-management
-   ```
-
-2. **Install dependencies:**
-   ```bash
-   npm install
+   pnpm install
    ```
 
 3. **Set up environment variables:**
@@ -21,21 +16,27 @@
    
    You can find these values in your Supabase project settings under API.
 
-4. **Start the development server:**
-   ```bash
-   npm start
-   ```
+4. **Create a Dev Client build (required):**
 
-5. **Run on your device:**
-   - Install Expo Go app on your tablet
-   - Scan the QR code shown in the terminal
-   - The app will load on your device
+   This app uses native modules (ESC/POS printer), so **Expo Go will not work**.
+
+   ```bash
+   # Generate native projects
+   npm run app:prebuild
+
+   # Build + install dev client
+   npm run app:run:android   # or: npm run app:run:ios
+
+   # Start Metro for dev client
+   npm run app:dev-client
+   ```
 
 ## Prerequisites
 
 - Node.js 18 or higher
-- npm or yarn
-- Expo Go app installed on your tablet (for development)
+- pnpm (workspace uses pnpm)
+- Android Studio (Android emulator/device)
+- Xcode (iOS simulator/device)
 - Supabase account with orders table set up
 
 ## Supabase Setup
@@ -108,9 +109,8 @@ Ensure your Supabase project has:
 - For production, add a `notification.mp3` file in `assets/sounds/`
 
 ### Print functionality not working
-- Ensure device has printing capabilities
-- Check printer connection
-- On iOS, ensure AirPrint is available
+- For ESC/POS printing, you must use a Dev Client or production build (not Expo Go)
+- Ensure Bluetooth/Wi-Fi permissions are granted on the device
 
 ## Next Steps
 

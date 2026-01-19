@@ -13,7 +13,22 @@
     "mobile:ios": "pnpm --filter pappas-order-management ios",
     "mobile:android": "pnpm --filter pappas-order-management android",
     "mobile:ios:tablet": "pnpm --filter pappas-order-management ios:tablet",
-    "mobile:android:tablet": "pnpm --filter pappas-order-management android:tablet"
+    "mobile:android:tablet": "pnpm --filter pappas-order-management android:tablet",
+    "app:prebuild": "pnpm --filter pappas-order-management exec expo prebuild",
+    "app:prebuild:clean": "pnpm --filter pappas-order-management exec expo prebuild --clean",
+    "app:run:android": "pnpm --filter pappas-order-management exec expo run:android",
+    "app:run:ios": "pnpm --filter pappas-order-management exec expo run:ios",
+    "app:dev-client": "pnpm --filter pappas-order-management exec expo start --dev-client",
+    "ocean-catch:dev": "pnpm --filter pappas-ocean-catch start",
+    "ocean-catch:ios": "pnpm --filter pappas-ocean-catch ios",
+    "ocean-catch:android": "pnpm --filter pappas-ocean-catch android",
+    "ocean-catch:ios:tablet": "pnpm --filter pappas-ocean-catch ios:tablet",
+    "ocean-catch:android:tablet": "pnpm --filter pappas-ocean-catch android:tablet",
+    "ocean-catch:prebuild": "pnpm --filter pappas-ocean-catch exec expo prebuild",
+    "ocean-catch:prebuild:clean": "pnpm --filter pappas-ocean-catch exec expo prebuild --clean",
+    "ocean-catch:run:android": "pnpm --filter pappas-ocean-catch exec expo run:android",
+    "ocean-catch:run:ios": "pnpm --filter pappas-ocean-catch exec expo run:ios",
+    "ocean-catch:dev-client": "pnpm --filter pappas-ocean-catch exec expo start --dev-client"
   },
   "devDependencies": {
     "pnpm": "^9.0.0",

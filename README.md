@@ -32,8 +32,8 @@ pnpm install
 # Run web app
 pnpm dev
 
-# Run mobile app
-pnpm mobile:dev
+# Run mobile app (dev client)
+npm run app:dev-client
 ```
 
 ### Building
@@ -51,9 +51,35 @@ pnpm mobile:android  # Android
 
 - `pnpm dev` - Start web app development server
 - `pnpm build` - Build web app
-- `pnpm mobile:dev` - Start mobile app development server
-- `pnpm mobile:ios` - Build iOS app
-- `pnpm mobile:android` - Build Android app
+- `pnpm mobile:dev` - Start mobile app Metro server (JS only)
+- `npm run app:prebuild` - Generate native projects for the mobile app (required for dev client)
+- `npm run app:run:android` - Build & install dev client on Android emulator/device
+- `npm run app:run:ios` - Build & install dev client on iOS simulator/device
+- `npm run app:dev-client` - Start Metro for the dev client (`expo start --dev-client`)
+
+### Mobile (important)
+
+This repo includes native modules (e.g. ESC/POS printer support). That means:
+
+- Expo Go will NOT work for the mobile app when those native modules are enabled.
+- Use a Development Build (Dev Client) instead.
+
+Quick flow:
+
+```bash
+pnpm install
+
+# Generate native projects (applies permissions + Info.plist)
+npm run app:prebuild
+
+# Build/install the Dev Client app once
+npm run app:run:android   # or: npm run app:run:ios
+
+# Start Metro in dev-client mode
+npm run app:dev-client
+```
+
+If you change native dependencies or app config/plugins, re-run `npm run app:prebuild` and rebuild the dev client.
 
 ## Documentation
 

@@ -11,6 +11,8 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getOrder, updateOrderStatus } from '../lib/orders';
 import type { Order, OrderStatus } from '@my-small-business/types';
 import * as Print from 'expo-print';
+import { loadAppSettings } from '../lib/settings';
+import { epsonPrintKitchenReceipt } from '../lib/epson-epos';
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
   pending: '#f59e0b',
@@ -88,6 +90,35 @@ export default function OrderDetailScreen() {
     if (!order) return;
 
     try {
+      const s = await loadAppSettings();
+      if (s.printerEnabled && s.printerUrl.trim()) {
+        try {
+          await epsonPrintKitchenReceipt(order, {
+            printerUrl: s.printerUrl,
+            printerCopies: s.printerCopies,
+            printerDeviceId: s.printerDeviceId,
+            printerTimeoutMs: s.printerTimeoutMs,
+          });
+          return;
+        } catch (epsonError) {
+          Alert.alert(
+            'Printer error',
+            epsonError instanceof Error ? epsonError.message : 'Failed to print to Epson printer',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'System Print',
+                onPress: async () => {
+                  const html = generatePrintHTML(order);
+                  await Print.printAsync({ html });
+                },
+              },
+            ]
+          );
+          return;
+        }
+      }
+
       const html = generatePrintHTML(order);
       await Print.printAsync({ html });
     } catch (error) {

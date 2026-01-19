@@ -31,6 +31,7 @@ import * as Print from 'expo-print';
 import { ConfirmationDialog } from '../../lib/ConfirmationDialog';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
+import { escposPrintKitchenReceipt } from '../../lib/escpos-printer';
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
   pending: '#f59e0b',
@@ -91,6 +92,8 @@ export default function OrdersScreen() {
   const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
 
   const lastOrderIdRef = useRef<string | null>(null);
+  const autoPrintedOrderIdsRef = useRef<Set<string>>(new Set());
+  const lastPrinterAlertAtRef = useRef<number>(0);
   const subscriptionRef = useRef<any>(null);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const appSettingsRef = useRef<AppSettings>(DEFAULT_APP_SETTINGS);
@@ -207,6 +210,40 @@ export default function OrdersScreen() {
             if (orderDate === selectedDate && s.soundEnabled && lastOrderIdRef.current !== newOrder.id) {
               playNewOrderSound({ soundId: s.soundId, repeatCount: s.soundRepeatCount, delayMs: 2000 });
               lastOrderIdRef.current = newOrder.id;
+            }
+
+            if (
+              orderDate === selectedDate &&
+              s.printerEnabled &&
+              s.printerAutoPrint &&
+              !!s.printerSelectedTarget &&
+              !autoPrintedOrderIdsRef.current.has(newOrder.id)
+            ) {
+              autoPrintedOrderIdsRef.current.add(newOrder.id);
+
+              getOrder(newOrder.id)
+                .then(async (result) => {
+                  if (result.error || !result.data) {
+                    throw new Error(result.error || 'Failed to load order for printing');
+                  }
+
+                  const selected = s.printerSaved.find((p) => p.target === s.printerSelectedTarget) || null;
+                  if (!selected) {
+                    throw new Error('Printer not selected');
+                  }
+
+                  await escposPrintKitchenReceipt(result.data, selected, s.printerCopies);
+                })
+                .catch((err) => {
+                  autoPrintedOrderIdsRef.current.delete(newOrder.id);
+                  console.error('Auto print error:', err);
+
+                  const now = Date.now();
+                  if (now - lastPrinterAlertAtRef.current > 30000) {
+                    lastPrinterAlertAtRef.current = now;
+                    Alert.alert('Printer error', err instanceof Error ? err.message : 'Auto print failed');
+                  }
+                });
             }
           }
           loadOrders();
@@ -365,6 +402,31 @@ export default function OrdersScreen() {
 
   const handlePrint = async (order: Order) => {
     try {
+      const s = appSettingsRef.current;
+      const selected = s.printerSaved.find((p) => p.target === s.printerSelectedTarget) || null;
+      if (s.printerEnabled && selected) {
+        try {
+          await escposPrintKitchenReceipt(order, selected, s.printerCopies);
+          return;
+        } catch (printerError) {
+          Alert.alert(
+            'Printer error',
+            printerError instanceof Error ? printerError.message : 'Failed to print to printer',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'System Print',
+                onPress: async () => {
+                  const html = generatePrintHTML(order);
+                  await Print.printAsync({ html });
+                },
+              },
+            ]
+          );
+          return;
+        }
+      }
+
       const html = generatePrintHTML(order);
       await Print.printAsync({ html });
     } catch (error) {

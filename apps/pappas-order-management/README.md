@@ -16,19 +16,19 @@ A React Native app built with Expo for managing orders in the kitchen on tablets
 ### Prerequisites
 
 - Node.js 18+ installed
-- Expo CLI installed globally: `npm install -g expo-cli`
+- pnpm installed (workspace uses pnpm)
 - Supabase project with orders table
+
+**Platform tooling (for native builds / dev client):**
+
+- Android emulator/device: Android Studio + SDKs
+- iOS simulator/device: Xcode
 
 ### Installation
 
-1. Navigate to the app directory:
+1. Install dependencies from repo root:
 ```bash
-cd apps/pappas-order-management
-```
-
-2. Install dependencies:
-```bash
-npm install
+pnpm install
 ```
 
 3. Create a `.env` file in the app root:
@@ -39,25 +39,49 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 
 4. Start the development server:
 ```bash
-npm start
+npm run app:dev-client
 ```
 
-### Running on Device
+### Running (Emulator / Simulator)
 
-- **iOS**: Scan the QR code with Camera app (iOS) or Expo Go app
-- **Android**: Scan the QR code with Expo Go app
-- **Web**: Press `w` in the terminal to open in browser
+This app includes native modules (e.g. ESC/POS printer). Expo Go will not work.
+
+1) Generate native projects:
+```bash
+npm run app:prebuild
+```
+
+2) Build + install Dev Client:
+```bash
+npm run app:run:android
+# or
+npm run app:run:ios
+```
+
+3) Start Metro for Dev Client:
+```bash
+npm run app:dev-client
+```
+
+Then open the installed app in the emulator/simulator.
+
+### Running on a Real Device
+
+Yes — for real device testing you must install the Dev Client (or a production build) onto the device.
+
+- Local install via USB: `npm run app:run:android` / `npm run app:run:ios`
+- Or build with EAS and install via TestFlight/APK
 
 ### Building for Production
 
-For iOS:
-```bash
-expo build:ios
-```
+Use EAS build:
 
-For Android:
 ```bash
-expo build:android
+npm install -g eas-cli
+cd apps/pappas-order-management
+eas build:configure
+eas build --platform ios
+eas build --platform android
 ```
 
 ## App Structure

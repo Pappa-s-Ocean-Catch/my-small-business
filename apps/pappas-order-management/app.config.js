@@ -34,12 +34,14 @@ module.exports = {
     },
     plugins: [
       'expo-router',
+      'expo-dev-client',
       [
         'expo-av',
         {
           microphonePermission: false,
         },
       ],
+      './plugins/withEscPosPrinterPermissions',
     ],
     scheme: 'pappas-order',
   },
