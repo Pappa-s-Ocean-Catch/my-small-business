@@ -102,8 +102,8 @@ export const inStoreCategoryLayouts = {
     right: ['FOR VEGETARIANS','SNACK PACK', 'SOUVLAKI', 'STEAK SANDWICHES']
   },
   menu2: {
-    left: ['PACKS', 'SPECIAL COMBO', 'SIDES'],
-    right: ['FISH', 'CHIPS', 'CHIPS AND GRAVY', 'SEAFOOD SIDES', 'SWEETS']
+    left: ['FISH', 'CHIPS', 'CHIPS AND GRAVY', 'SIDES'],
+    right: ['PACKS', 'SPECIAL COMBO', 'SEAFOOD SIDES', 'SWEETS']
   },
   menu3: {
     left: ['PACKS', 'BURGERS'],
