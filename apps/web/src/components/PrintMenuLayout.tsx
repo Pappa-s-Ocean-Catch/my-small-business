@@ -1,97 +1,94 @@
 'use client';
 
 import { storeInfo } from '@/data/print-menu-data';
-import { FaCoffee, FaMapMarkerAlt, FaPhone, FaGlobe } from 'react-icons/fa';
-import { useEffect, useRef } from 'react';
+import { FaMapMarkerAlt, FaPhone, FaClock } from 'react-icons/fa';
 import { Icon } from '@/components/Icon';
+
 interface PrintMenuLayoutProps {
   children: React.ReactNode;
   pageTitle: string;
   showHeader?: boolean;
 }
 
-export default function PrintMenuLayout({ 
-  children, 
-  pageTitle, 
-  showHeader = true 
-}: PrintMenuLayoutProps) {
-  const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
+function formatHours(hours: string): string {
+  return hours.replace(/^TRADING HOURS:\s*/i, 'OPEN 7 DAYS: ');
+}
 
-  useEffect(() => {
-    let isMounted = true;
-    async function generateQrCode() {
-      try {
-        const QRCode = (await import('qrcode')).default;
-        const urlToEncode: string = storeInfo.website;
-        if (qrCanvasRef.current && urlToEncode && isMounted) {
-          await QRCode.toCanvas(qrCanvasRef.current, urlToEncode, {
-            width: 140,
-            margin: 1,
-            color: { dark: '#000000', light: '#ffffff' },
-            errorCorrectionLevel: 'M',
-          });
-        }
-      } catch (err) {
-        // If QR generation fails, we leave the placeholder empty
-        // so the header layout remains stable.
-        console.error('QR generation failed', err);
-      }
-    }
-    generateQrCode();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+function formatPhoneNumbers(phone: string): string {
+  const numbers = phone.match(/\d+/g) ?? [];
+  if (numbers.length === 0) return phone;
+
+  const formatted = numbers.map((n) => {
+    if (n.length === 8) return `${n.slice(0, 4)} ${n.slice(4)}`;
+    if (n.length === 10) return `${n.slice(0, 4)} ${n.slice(4, 7)} ${n.slice(7)}`;
+    return n;
+  });
+
+  return formatted.join(' or ');
+}
+
+export default function PrintMenuLayout({
+  children,
+  pageTitle,
+  showHeader = true
+}: PrintMenuLayoutProps) {
+  // pageTitle is intentionally used by the content pages (children);
+  // the header is a consistent brand header for all print menus.
+  void pageTitle;
+
+  const hoursText = formatHours(storeInfo.hours);
+  const phoneText = formatPhoneNumbers(storeInfo.phone);
+
   return (
     <div className="print-menu-container">
       {showHeader && (
-        <header className="print-menu-header">
-          <div className="header-content">
-            <Icon icon={FaCoffee} className="coffee-icon left" />
-            <div className="store-info">
-              <h1 className="store-name">PAPPA&apos;S OCEAN CATCH</h1>
-              <p className="store-tagline">BURGERS • FISH AND CHIPS</p>
-              <div className="contact-info">
-                <div className="contact-item">
-                  <Icon icon={FaMapMarkerAlt} className="contact-icon" />
-                  <span>{storeInfo.address}</span>
-                </div>
-                <div className="contact-item phone-promotion">
-                  <Icon icon={FaPhone} className="contact-icon" />
-                  <span className="phone-text">{storeInfo.phone}</span>
-                </div>
-                <div className="contact-item website-link">
-                  <Icon icon={FaGlobe} className="contact-icon" />
-                  <span className="website-text">
-                    {storeInfo.website}
-                  </span>
-                </div>
+        <header className="print-menu-header menu-hero">
+          <div className="menu-hero-inner">
+            <div className="menu-hero-left">
+              <div className="menu-hero-logo-wrap">
+                <img
+                  src="/logo.png"
+                  alt="Pappa's Ocean Catch logo"
+                  width={140}
+                  height={140}
+                  className="menu-hero-logo"
+                  loading="eager"
+                  decoding="async"
+                />
+              </div>
+
+              <div className="menu-hero-titles">
+                <div className="menu-hero-name">PAPPA&apos;S OCEAN CATCH</div>
+                <div className="menu-hero-subtitle">FISH, CHIPS &amp; VALUE PACKS</div>
+                <div className="menu-hero-slogan">Serving fresh and high quality food</div>
               </div>
             </div>
-            <div className="header-right-section">
-              <Icon icon={FaCoffee} className="coffee-icon right" />
-              <div className="qr-code-placeholder">
-                <canvas ref={qrCanvasRef} width={140} height={140} />
-                <div className="qr-code-subtitle">Scan to Order</div>
+
+            <div className="menu-hero-right">
+              <div className="menu-hero-meta">
+                <div className="menu-hero-meta-item">
+                  <Icon icon={FaMapMarkerAlt} className="menu-hero-meta-icon" />
+                  <span>{storeInfo.address}</span>
+                </div>
+                <div className="menu-hero-meta-item">
+                  <Icon icon={FaClock} className="menu-hero-meta-icon" />
+                  <span>{hoursText}</span>
+                </div>
+              </div>
+
+              <div className="menu-hero-phone-pill" aria-label="Phone orders">
+                <Icon icon={FaPhone} className="menu-hero-phone-icon" />
+                <span className="menu-hero-phone-text">{phoneText}</span>
               </div>
             </div>
           </div>
         </header>
       )}
-      
-      {showHeader && (
-        <div className="trading-hours">
-          <div className="hours-content">
-            <span className="hours-label">TRADING HOURS</span>
-            <span className="hours-time">MON-SUN 11AM-8:30PM • FRI-9PM</span>
-          </div>
-        </div>
-      )}
-      
+
       <main className="print-menu-main">
         {children}
       </main>
-      
+
       <footer className="print-menu-footer">
         <div className="footer-content">
           EFTPOS AVAILABLE • DINE IN AVAILABLE

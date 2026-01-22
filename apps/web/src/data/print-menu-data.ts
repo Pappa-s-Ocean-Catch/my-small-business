@@ -99,11 +99,11 @@ export const storeInfo = {
 export const inStoreCategoryLayouts = {
   menu1: {
     left: ['BEEF BURGERS', 'CHICKEN BURGERS', 'FISH BURGERS', 'BURGERS ADD-ONS'],
-    right: ['FOR VEGETARIANS','SNACK PACK', 'SOUVLAKI', 'STEAK SANDWICHES']
+    right: ['FOR VEGETARIANS', 'SNACK PACK', 'SOUVLAKI', 'STEAK SANDWICHES']
   },
   menu2: {
-    left: ['FISH', 'CHIPS', 'CHIPS AND GRAVY', 'SIDES'],
-    right: ['PACKS', 'SPECIAL COMBO', 'SEAFOOD SIDES', 'SWEETS']
+    left: ['FISH', 'CHIPS', 'CHIPS & GRAVY', 'SIDES'],
+    right: ['PACKS', 'SPECIAL COMBO', 'SEAFOOD SIDES', 'SWEET']
   },
   menu3: {
     left: ['PACKS', 'BURGERS'],
@@ -180,7 +180,7 @@ export const menuPage1: MenuPage = {
         { name: "Add Meat Patty", description: "", price: 3.5 }
       ]
     },
-        {
+    {
       name: "FOR VEGETARIANS",
       color: "#10b981",
       items: [
@@ -249,10 +249,10 @@ export const menuPage2: MenuPage = {
         { name: "FLAKE PACK FOR 3", description: "3 Flakes, 3 Potato Cakes, 3 Dim Sims, & Medium Chips", price: 42.0 },
         { name: "FAMILY FLAKE PACK", description: "4 Flakes, 4 Potato Cakes, 4 Dim Sims, & Medium Chips", price: 54.0 },
         { name: "DINNER BOX", description: "2 Flakes, 2 Fish Bites, 4 Potato Cakes, 4 Dim Sims, & Small Chips with 1.25L Drink", price: 46.0 },
-        { name: "FLATHEAD PACK", description: "6 Flathead Fillets, & Small Chips", price: 22.0},
+        { name: "FLATHEAD PACK", description: "6 Flathead Fillets, & Small Chips", price: 22.0 },
         { name: "DIM & CAKE PACK", description: "2 Potato Cakes, 2 Dim Sims, & Small Chips", price: 11.5 },
         { name: "PARTY PACK", description: "8 Potato Cakes, 8 Dim Sims, & Extra Large Chips", price: 35.0 },
-        { name: "CALAMARI PACK", description: "4 Calamari, & Small Chips", price: 11.6},
+        { name: "CALAMARI PACK", description: "4 Calamari, & Small Chips", price: 11.6 },
         { name: "SALT & PEPPER SQUID PACK", description: "8 Salt & Pepper Squids, & Small Chips", price: 13.2 },
         { name: "FISHERMAN'S CATCH", description: "1 Flake, 1 Scallop, 1 Seafood Stick, 2 Calamari Rings, & Half Chips with 375ml Can", price: 22.8 },
         { name: "KIDS SNACK PACK", description: "2 Flathead Fillets, & Small Chips", price: 11.1 },
@@ -397,7 +397,7 @@ export const menuPage3: MenuPage = {
         { name: "KIDS PACK", description: "1 Fish Bite, 1 Potato Cake, 1 Dim Sim, & Half Chips", price: 9.5 }
       ]
     },
-     {
+    {
       name: "BURGERS",
       color: "#dc2626",
       items: [
@@ -406,7 +406,7 @@ export const menuPage3: MenuPage = {
         { name: "TROPICAL", description: "Beef Patty, Bacon, Pineapple, Cheese, Lettuce, Mayo, & Tomato Relish", price: 10.3 },
         { name: "BLT CHEESE", description: "Beef Patty, Bacon, Cheese, Tomato, Lettuce, Mayo, & Tomato Sauce", price: 9.7 },
         { name: "THE AUSSIE", description: "Beef Patty, Egg, Bacon, Cheese, Beetroot, Tomato, Red Onion, Lettuce, BBQ Sauce, & Tomato Sauce", price: 12.2 },
-            { name: "CHICKEN BURGER WITH THE LOT", description: "Chicken Patty, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Mayo", price: 12.9 },
+        { name: "CHICKEN BURGER WITH THE LOT", description: "Chicken Patty, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Mayo", price: 12.9 },
         { name: "CHICKEN BLT", description: "Chicken Patty, Bacon, Cheese, Tomato, Lettuce, & Mayo", price: 11.4 },
         { name: "PERI PERI CHICKEN", description: "Chicken Patty, Jalapenos, Cheese, Tomato, Red Onion, Lettuce, & Peri Peri Mayo", price: 11.9 },
         { name: "HAWAIIAN CHICKEN", description: "Chicken Patty, Bacon, Pineapple, Cheese, Lettuce, & Mayo", price: 12.5 },
@@ -436,7 +436,7 @@ export const menuPage3: MenuPage = {
         { name: "Potato Cake", description: "", price: 1.8 },
         { name: "Cheese & Bacon Potato Cake", description: "", price: 5.0 },
         { name: "Spring Roll", description: "", price: 4.0 },
-         { name: "Vietnamese Spring Roll", description: "Serve of 4", price: 5.0, highlight: true },
+        { name: "Vietnamese Spring Roll", description: "Serve of 4", price: 5.0, highlight: true },
         { name: "Chiko Roll", description: "", price: 4.0 },
         { name: "Corn Jack", description: "", price: 4.0 },
         { name: "Chicken Breast Nugget", description: "", price: 1.0 },

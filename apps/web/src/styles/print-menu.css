@@ -39,6 +39,136 @@
   gap: 1rem;
 }
 
+/* Hero Header (matches banner-style design) */
+.print-menu-header.menu-hero {
+  padding: 0;
+  text-align: left;
+  background: #ffffff;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.12);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+}
+
+.menu-hero-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+  padding: 1.4rem 1.6rem;
+}
+
+.menu-hero-left {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
+.menu-hero-logo-wrap {
+  flex: 0 0 auto;
+  width: 120px;
+  height: 120px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.15);
+}
+
+.menu-hero-logo {
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+}
+
+.menu-hero-titles {
+  min-width: 0;
+}
+
+.menu-hero-name {
+  font-size: 3rem;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  color: #0f172a;
+  line-height: 1.05;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.menu-hero-subtitle {
+  margin-top: 0.35rem;
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: 0.35em;
+  color: #1ea7ff;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.menu-hero-slogan {
+  margin-top: 0.4rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.78);
+  letter-spacing: 0.06em;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.menu-hero-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.9rem;
+  flex: 0 0 auto;
+}
+
+.menu-hero-meta {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  color: rgba(15, 23, 42, 0.75);
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.menu-hero-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  white-space: nowrap;
+}
+
+.menu-hero-meta-icon {
+  font-size: 1.05rem;
+  color: #35a3ff;
+}
+
+.menu-hero-phone-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1.15rem;
+  border-radius: 12px;
+  background: rgba(251, 191, 36, 0.18);
+  border: 2px solid rgba(245, 158, 11, 0.55);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.14);
+}
+
+.menu-hero-phone-icon {
+  font-size: 1.25rem;
+  color: #f59e0b;
+}
+
+.menu-hero-phone-text {
+  font-size: 1.6rem;
+  font-weight: 900;
+  color: #b45309;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .coffee-icon {
   font-size: 2rem;
   color: white;
@@ -130,7 +260,7 @@
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .qr-code-text {
@@ -182,6 +312,7 @@
   box-shadow: none;
 }
 
+
 /* Category Styles */
 .menu-category {
   margin-bottom: 0.8rem;
@@ -190,6 +321,7 @@
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
+
 
 .category-header {
   padding: 0.6rem 1rem;
@@ -201,9 +333,11 @@
   text-align: center;
 }
 
+
 .category-items {
   padding: 0.8rem 1rem;
 }
+
 
 .menu-item {
   display: flex;
@@ -213,6 +347,7 @@
   border-bottom: 1px solid #e5e7eb;
   gap: 1rem;
 }
+
 
 .menu-item:last-child {
   border-bottom: none;
@@ -228,7 +363,8 @@
 
 .item-info {
   flex: 1 1 auto;
-  min-width: 0; /* allow wrapping instead of forcing overflow */
+  min-width: 0;
+  /* allow wrapping instead of forcing overflow */
 }
 
 .item-name {
@@ -244,16 +380,19 @@
   hyphens: auto;
 }
 
+
 .item-description {
   font-size: 1rem;
   color: #6b7280;
   line-height: 1.3;
   font-style: italic;
   white-space: normal;
-  overflow-wrap: anywhere; /* break long ingredient lists */
+  overflow-wrap: anywhere;
+  /* break long ingredient lists */
   word-break: break-word;
   hyphens: auto;
 }
+
 
 .item-price {
   font-size: 1.4rem;
@@ -262,8 +401,10 @@
   white-space: nowrap;
   text-align: right;
   min-width: 80px;
-  flex: 0 0 auto; /* keep price from shrinking while text wraps */
+  flex: 0 0 auto;
+  /* keep price from shrinking while text wraps */
 }
+
 
 /* Footer */
 .print-menu-footer {
@@ -274,6 +415,7 @@
   margin: 0;
   border-radius: 0;
 }
+
 
 .footer-content {
   font-size: 0.9rem;
@@ -296,14 +438,16 @@
   grid-template-columns: 1fr 1fr;
   gap: 0.8rem;
   max-width: 100%;
-  padding-right: 1rem; /* Add slight right padding so content isn't flush with edge */
+  padding-right: 1rem;
+  /* Add slight right padding so content isn't flush with edge */
 }
 
 .menu1-left-column,
 .menu1-right-column {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem; /* Very small gap between categories in same column */
+  gap: 0.3rem;
+  /* Very small gap between categories in same column */
 }
 
 /* Special Layout for Menu2 - PACKS on left (60%), others on right (40%) */
@@ -573,59 +717,91 @@
     margin: 0;
     padding: 0;
   }
+
   /* Ensure right margin on menu1 when printing */
   .menu1-custom-layout {
     padding-right: 0.8rem !important;
   }
-  
+
   .print-menu-header {
     padding: 1.2rem 1.5rem;
   }
-  
+
+  .print-menu-header.menu-hero {
+    padding: 0;
+  }
+
+  .menu-hero-inner {
+    padding: 1.1rem 1.3rem;
+  }
+
+  .menu-hero-logo-wrap,
+  .menu-hero-logo {
+    width: 110px;
+    height: 110px;
+  }
+
+  .menu-hero-name {
+    font-size: 2.6rem;
+  }
+
+  .menu-hero-subtitle {
+    font-size: 1rem;
+    letter-spacing: 0.32em;
+  }
+
+  .menu-hero-slogan {
+    font-size: 0.85rem;
+  }
+
+  .menu-hero-phone-text {
+    font-size: 1.4rem;
+  }
+
   .store-name {
     font-size: 2.2rem;
   }
-  
+
   .print-menu-main {
     padding: 1rem 1.5rem;
   }
-  
+
   .page-title {
     font-size: 1.8rem;
     margin-bottom: 1.5rem;
   }
-  
+
   .menu-grid {
     grid-template-columns: 1fr 1fr;
     gap: 1.2rem;
   }
-  
+
   .category-header {
     font-size: 1.2rem;
     padding: 0.6rem 1rem;
   }
-  
+
   .category-items {
     padding: 0.8rem 1rem;
   }
-  
+
   .menu-item {
     padding: 0.4rem 0;
   }
-  
+
   .item-name {
     font-size: 1rem;
   }
-  
+
   .item-description {
     font-size: 0.8rem;
   }
-  
+
   .item-price {
     font-size: 1.1rem;
     min-width: 50px;
   }
-  
+
   .menu-category {
     margin-bottom: 1rem;
   }
@@ -748,25 +924,25 @@
   .store-info {
     gap: 2rem;
   }
-  
+
   .payment-info {
     gap: 1.5rem;
   }
-  
+
   .menu-grid {
     grid-template-columns: 1fr;
     gap: 1rem;
   }
-  
+
   .menu2-special-layout {
     grid-template-columns: 1fr;
     gap: 1.5rem;
   }
-  
+
   .packs-special-card {
     position: static;
   }
-  
+
   .menu-selection-grid {
     grid-template-columns: 1fr;
   }
@@ -777,7 +953,7 @@
   .menu-grid {
     gap: 1.2rem;
   }
-  
+
   .menu-category {
     margin-bottom: 1.2rem;
   }
@@ -787,30 +963,30 @@
   .print-menu-header {
     padding: 1.5rem 1rem;
   }
-  
+
   .store-name {
     font-size: 2rem;
   }
-  
+
   .store-info {
     flex-direction: column;
     gap: 1rem;
   }
-  
+
   .payment-info {
     flex-direction: column;
     gap: 1rem;
   }
-  
+
   .print-menu-main {
     padding: 1rem;
   }
-  
+
   .menu-item {
     flex-direction: column;
     gap: 0.5rem;
   }
-  
+
   .item-price {
     text-align: left;
   }
@@ -845,20 +1021,27 @@
   left: -50%;
   width: 200%;
   height: 200%;
-  background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
   animation: shimmer 3s ease-in-out infinite;
 }
 
 @keyframes shimmer {
-  0%, 100% { transform: translateX(-100%) translateY(-100%) rotate(0deg); }
-  50% { transform: translateX(100%) translateY(100%) rotate(180deg); }
+
+  0%,
+  100% {
+    transform: translateX(-100%) translateY(-100%) rotate(0deg);
+  }
+
+  50% {
+    transform: translateX(100%) translateY(100%) rotate(180deg);
+  }
 }
 
 .promo-title {
   font-size: 2.5rem;
   font-weight: 900;
   margin: 0;
-  text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
   position: relative;
   z-index: 1;
 }
@@ -888,7 +1071,7 @@
   background: white;
   border-radius: 15px;
   padding: 1.5rem;
-  box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
   border: 3px solid;
   position: relative;
   overflow: hidden;
@@ -931,8 +1114,15 @@
 }
 
 @keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
+
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.05);
+  }
 }
 
 .promo-items {
@@ -947,8 +1137,8 @@
   align-items: flex-start;
   padding: 1rem;
   border-radius: 10px;
-  background: rgba(255,255,255,0.7);
-  border: 1px solid rgba(0,0,0,0.1);
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(0, 0, 0, 0.1);
   transition: all 0.3s ease;
 }
 
@@ -961,7 +1151,7 @@
 
 .promo-item:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
 }
 
 .promo-item-content {
@@ -993,7 +1183,7 @@
   background: white;
   border-radius: 15px;
   padding: 2rem;
-  box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
 }
 
 .regular-title {
@@ -1053,7 +1243,7 @@
   margin-bottom: 0.8rem;
   text-align: center;
   padding: 0.5rem;
-  background: rgba(0,0,0,0.05);
+  background: rgba(0, 0, 0, 0.05);
   border-radius: 5px;
 }
 
@@ -1105,7 +1295,7 @@
   border-radius: 15px;
   text-align: center;
   margin-top: 2rem;
-  box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
 }
 
 .footer-banner p {
@@ -1139,7 +1329,7 @@
   font-size: 1.8rem;
   font-weight: 900;
   margin: 0;
-  text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .menu3-subtitle {
@@ -1170,7 +1360,7 @@
   background: white;
   border-radius: 6px;
   padding: 0.8rem;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   border-left: 4px solid;
   position: relative;
 }
@@ -1292,7 +1482,7 @@
   padding: 0.8rem 0;
   border-radius: 6px;
   text-align: center;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .menu3-footer-content p {
@@ -1409,11 +1599,11 @@
     grid-template-columns: 1fr;
     gap: 0.8rem;
   }
-  
+
   .menu3-title {
     font-size: 1.5rem;
   }
-  
+
   .menu3-subtitle {
     font-size: 0.9rem;
   }
@@ -1423,19 +1613,19 @@
   .menu3-clean-container {
     padding: 0.3rem;
   }
-  
+
   .menu3-header {
     padding: 0.8rem;
   }
-  
+
   .menu3-title {
     font-size: 1.3rem;
   }
-  
+
   .menu3-category {
     padding: 0.6rem;
   }
-  
+
   .menu3-category-title {
     font-size: 1rem;
   }
