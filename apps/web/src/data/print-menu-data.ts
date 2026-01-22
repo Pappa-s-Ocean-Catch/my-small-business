@@ -436,6 +436,7 @@ export const menuPage3: MenuPage = {
         { name: "Potato Cake", description: "", price: 1.8 },
         { name: "Cheese & Bacon Potato Cake", description: "", price: 5.0 },
         { name: "Spring Roll", description: "", price: 4.0 },
+         { name: "Vietnamese Spring Roll", description: "Serve of 4", price: 5.0, highlight: true },
         { name: "Chiko Roll", description: "", price: 4.0 },
         { name: "Corn Jack", description: "", price: 4.0 },
         { name: "Chicken Breast Nugget", description: "", price: 1.0 },
