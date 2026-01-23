@@ -33,11 +33,11 @@ import { ImageDownloadButton } from '@/components/ImageDownloadButton';
 import { ImagePlaceholder } from '@/components/ImagePlaceholder';
 import { useAdmin } from '@/hooks/useAdmin';
 import { toast } from 'react-toastify';
-import { 
-  getSaleProducts, 
-  getSaleCategories, 
-  createSaleProduct, 
-  updateSaleProduct, 
+import {
+  getSaleProducts,
+  getSaleCategories,
+  createSaleProduct,
+  updateSaleProduct,
   updateSaleProductImage,
   deleteSaleProduct,
   createSaleCategory,
@@ -123,13 +123,13 @@ export default function MenuPage() {
   const [savingMainCategoryOrder, setSavingMainCategoryOrder] = useState(false);
   const [savingSubCategoryOrderByParent, setSavingSubCategoryOrderByParent] = useState<Record<string, boolean>>({});
   const [savingProductOrderByGroup, setSavingProductOrderByGroup] = useState<Record<string, boolean>>({});
-  
+
   // Filter states
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedSubCategoryId, setSelectedSubCategoryId] = useState<string | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState('');
-  
+
   // Modal states
   const [showProductModal, setShowProductModal] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
@@ -394,7 +394,7 @@ export default function MenuPage() {
 
     // Filter by search term
     if (searchTerm) {
-      filtered = filtered.filter(product => 
+      filtered = filtered.filter(product =>
         product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         product.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         product.category_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -436,7 +436,7 @@ export default function MenuPage() {
       // Load add-on groups for this product
       const addonGroupsResult = await getSaleProductAddonGroups(product.id);
       const selectedAddonGroupIds = addonGroupsResult.data?.map(g => g.id) || [];
-      
+
       setProductForm({
         name: product.name,
         description: product.description || '',
@@ -591,7 +591,7 @@ export default function MenuPage() {
 
   const handleDelete = async () => {
     if (!deletingItem) return;
-    
+
     try {
       let result;
       if (deletingItem.type === 'product') {
@@ -599,12 +599,12 @@ export default function MenuPage() {
       } else {
         result = await deleteSaleCategory(deletingItem.id);
       }
-      
+
       if (result.error) {
         toast.error(result.error);
         return;
       }
-      
+
       toast.success(`${deletingItem.type === 'product' ? 'Product' : 'Category'} deleted successfully`);
       setShowDeleteDialog(false);
       loadData();
@@ -628,7 +628,7 @@ export default function MenuPage() {
         <div className="text-center">
           <h2 className="text-2xl font-bold text-red-600 mb-4">Error Loading Menu</h2>
           <p className="text-gray-600 mb-4">{error}</p>
-          <button 
+          <button
             onClick={loadData}
             className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
           >
@@ -846,16 +846,15 @@ export default function MenuPage() {
                   {filteredProducts.length} products
                 </p>
               </div>
-              
+
               <div className="p-4">
                 {/* All Products Filter */}
                 <button
                   onClick={() => handleCategorySelect(null)}
-                  className={`w-full text-left p-3 rounded-lg mb-2 transition-colors ${
-                    !selectedCategoryId 
-                      ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' 
+                  className={`w-full text-left p-3 rounded-lg mb-2 transition-colors ${!selectedCategoryId
+                      ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
                       : 'hover:bg-gray-100 dark:hover:bg-neutral-700 text-gray-700 dark:text-gray-300'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-medium">All Products</span>
@@ -889,11 +888,10 @@ export default function MenuPage() {
                                       handleCategorySelect(category.id);
                                     }
                                   }}
-                                  className={`flex-1 text-left p-3 pr-12 rounded-lg mb-1 transition-colors ${
-                                    selectedCategoryId === category.id && !selectedSubCategoryId
+                                  className={`flex-1 text-left p-3 pr-12 rounded-lg mb-1 transition-colors ${selectedCategoryId === category.id && !selectedSubCategoryId
                                       ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
                                       : 'hover:bg-gray-100 dark:hover:bg-neutral-700 text-gray-700 dark:text-gray-300'
-                                  }`}
+                                    }`}
                                 >
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
@@ -971,11 +969,10 @@ export default function MenuPage() {
                                           </div>
                                           <button
                                             onClick={() => handleCategorySelect(category.id, subCategory.id)}
-                                            className={`flex-1 text-left p-2 pr-12 rounded-lg transition-colors ${
-                                              selectedSubCategoryId === subCategory.id
+                                            className={`flex-1 text-left p-2 pr-12 rounded-lg transition-colors ${selectedSubCategoryId === subCategory.id
                                                 ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
                                                 : 'hover:bg-gray-100 dark:hover:bg-neutral-700 text-gray-600 dark:text-gray-400'
-                                            }`}
+                                              }`}
                                           >
                                             <div className="flex items-center justify-between">
                                               <div className="flex items-center gap-2">
@@ -1114,7 +1111,7 @@ export default function MenuPage() {
                   No products found
                 </h3>
                 <p className="text-gray-600 dark:text-gray-400 mb-4">
-                  {searchTerm || selectedCategoryId 
+                  {searchTerm || selectedCategoryId
                     ? 'Try adjusting your search or filter criteria'
                     : 'Get started by adding your first product'
                   }
@@ -1152,7 +1149,7 @@ export default function MenuPage() {
               </button>
               <ActionButton
                 onClick={async () => {
-                  await handleProductSubmit({ preventDefault: () => {} } as React.FormEvent);
+                  await handleProductSubmit({ preventDefault: () => { } } as React.FormEvent);
                 }}
                 variant="primary"
                 size="md"
@@ -1171,11 +1168,10 @@ export default function MenuPage() {
                 <button
                   type="button"
                   onClick={() => setActiveProductTab('overview')}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                    activeProductTab === 'overview'
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${activeProductTab === 'overview'
                       ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-                  }`}
+                    }`}
                 >
                   <Icon icon={FaUtensils} className="w-4 h-4 inline mr-2" />
                   Overview
@@ -1183,11 +1179,10 @@ export default function MenuPage() {
                 <button
                   type="button"
                   onClick={() => setActiveProductTab('ingredients')}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                    activeProductTab === 'ingredients'
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${activeProductTab === 'ingredients'
                       ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-                  }`}
+                    }`}
                 >
                   <Icon icon={FaBox} className="w-4 h-4 inline mr-2" />
                   Ingredients
@@ -1195,11 +1190,10 @@ export default function MenuPage() {
                 <button
                   type="button"
                   onClick={() => setActiveProductTab('addons')}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                    activeProductTab === 'addons'
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${activeProductTab === 'addons'
                       ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-                  }`}
+                    }`}
                 >
                   <Icon icon={FaTag} className="w-4 h-4 inline mr-2" />
                   Add-ons
@@ -1222,7 +1216,7 @@ export default function MenuPage() {
                       required
                     />
                   </label>
-                  
+
                   <label className="grid gap-2">
                     <span className="text-sm text-gray-700 dark:text-gray-300">Price</span>
                     <input
@@ -1280,7 +1274,7 @@ export default function MenuPage() {
                         </button>
                       </div>
                     )}
-                    
+
                     {/* AI Image Generator */}
                     <AIImageGenerator
                       onImageGenerated={(url) => setProductForm({ ...productForm, image_url: url || '' })}
@@ -1299,7 +1293,7 @@ export default function MenuPage() {
                       }).filter(Boolean)}
                       className="w-full"
                     />
-                    
+
                     {/* Traditional Image Upload */}
                     <div className="border-t border-gray-200 dark:border-neutral-700 pt-3">
                       <div className="text-xs text-gray-500 dark:text-gray-500 mb-2">Or upload your own image:</div>
@@ -1674,7 +1668,7 @@ export default function MenuPage() {
               </button>
               <ActionButton
                 onClick={async () => {
-                  await handleCategorySubmit({ preventDefault: () => {} } as React.FormEvent);
+                  await handleCategorySubmit({ preventDefault: () => { } } as React.FormEvent);
                 }}
                 variant="primary"
                 size="md"

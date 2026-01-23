@@ -66,7 +66,7 @@ export interface SaleProductWithDetails extends SaleProduct {
 export async function getSaleCategories(): Promise<{ data: SaleCategory[] | null; error: string | null }> {
   try {
     const supabase = await createServiceRoleClient();
-    
+
     // Fetch all categories with hierarchy information
     const { data, error } = await supabase
       .from('sale_categories')
@@ -103,7 +103,7 @@ export async function createSaleCategory(formData: {
 }): Promise<{ data: SaleCategory | null; error: string | null }> {
   try {
     const supabase = await createServiceRoleClient();
-    
+
     const { data, error } = await supabase
       .from('sale_categories')
       .insert([{
@@ -140,7 +140,7 @@ export async function updateSaleCategory(
 ): Promise<{ data: SaleCategory | null; error: string | null }> {
   try {
     const supabase = await createServiceRoleClient();
-    
+
     const { data, error } = await supabase
       .from('sale_categories')
       .update({
@@ -169,7 +169,7 @@ export async function updateSaleCategory(
 export async function deleteSaleCategory(id: string): Promise<{ error: string | null }> {
   try {
     const supabase = await createServiceRoleClient();
-    
+
     const { error } = await supabase
       .from('sale_categories')
       .delete()
@@ -219,7 +219,7 @@ export async function setSaleCategorySortOrders(
 export async function getSaleProducts(): Promise<{ data: SaleProductWithDetails[] | null; error: string | null }> {
   try {
     const supabase = await createServiceRoleClient();
-    
+
     // Get sale products with category and sub-category names
     const { data: products, error: productsError } = await supabase
       .from('sale_products')
@@ -260,7 +260,7 @@ export async function getSaleProducts(): Promise<{ data: SaleProductWithDetails[
     // Combine data and calculate costs
     const productsWithDetails: SaleProductWithDetails[] = products.map(product => {
       const productIngredients = ingredients?.filter(ing => ing.sale_product_id === product.id) || [];
-      
+
       // Calculate cost of goods
       const costOfGoods = productIngredients.reduce((total, ing) => {
         const product = ing.products as { purchase_price: number } | null;
@@ -300,7 +300,7 @@ export async function getSaleProducts(): Promise<{ data: SaleProductWithDetails[
 export async function getSaleProduct(id: string): Promise<{ data: SaleProductWithDetails | null; error: string | null }> {
   try {
     const supabase = await createServiceRoleClient();
-    
+
     // Get sale product with category
     const { data: product, error: productError } = await supabase
       .from('sale_products')
@@ -334,7 +334,7 @@ export async function getSaleProduct(id: string): Promise<{ data: SaleProductWit
     const costOfGoods = ingredients?.reduce((total, ing) => {
       const product = ing.products as { purchase_price: number; units_per_box: number } | null;
       if (!product) return total;
-      
+
       // Calculate unit price: box price / units per box
       const unitPrice = product.purchase_price / (product.units_per_box || 1);
       return total + (ing.quantity_required * unitPrice);
@@ -354,7 +354,7 @@ export async function getSaleProduct(id: string): Promise<{ data: SaleProductWit
       ingredients: ingredients?.map(ing => {
         const product = ing.products as { name: string; sku: string; purchase_price: number; total_units: number; units_per_box: number } | null;
         const unitPrice = product ? product.purchase_price / (product.units_per_box || 1) : 0;
-        
+
         return {
           ...ing,
           product_name: product?.name,
@@ -399,7 +399,7 @@ export async function createSaleProduct(formData: {
 }): Promise<{ data: SaleProduct | null; error: string | null }> {
   try {
     const supabase = await createServiceRoleClient();
-    
+
     // Create sale product
     const { data: product, error: productError } = await supabase
       .from('sale_products')
@@ -480,7 +480,7 @@ export async function updateSaleProductImage(
 ): Promise<{ data: SaleProduct | null; error: string | null }> {
   try {
     const supabase = await createServiceRoleClient();
-    
+
     const { data: product, error } = await supabase
       .from('sale_products')
       .update({ image_url: imageUrl })
@@ -496,9 +496,9 @@ export async function updateSaleProductImage(
     return { data: product, error: null };
   } catch (error) {
     console.error('Error updating sale product image:', error);
-    return { 
-      data: null, 
-      error: error instanceof Error ? error.message : 'Failed to update product image' 
+    return {
+      data: null,
+      error: error instanceof Error ? error.message : 'Failed to update product image'
     };
   }
 }
@@ -530,7 +530,7 @@ export async function updateSaleProduct(
 ): Promise<{ data: SaleProduct | null; error: string | null }> {
   try {
     const supabase = await createServiceRoleClient();
-    
+
     // Update sale product
     const { data: product, error: productError } = await supabase
       .from('sale_products')
@@ -627,7 +627,7 @@ export async function updateSaleProduct(
 export async function deleteSaleProduct(id: string): Promise<{ error: string | null }> {
   try {
     const supabase = await createServiceRoleClient();
-    
+
     // Delete ingredients first (cascade should handle this, but being explicit)
     const { error: ingredientsError } = await supabase
       .from('sale_product_ingredients')
@@ -686,18 +686,20 @@ export async function setSaleProductSortOrders(
 }
 
 // Helper function to get available products for ingredient selection
-export async function getAvailableProducts(): Promise<{ data: Array<{
-  id: string;
-  name: string;
-  sku: string;
-  purchase_price: number;
-  unit_price: number;
-  total_units: number;
-  units_per_box: number;
-}> | null; error: string | null }> {
+export async function getAvailableProducts(): Promise<{
+  data: Array<{
+    id: string;
+    name: string;
+    sku: string;
+    purchase_price: number;
+    unit_price: number;
+    total_units: number;
+    units_per_box: number;
+  }> | null; error: string | null
+}> {
   try {
     const supabase = await createServiceRoleClient();
-    
+
     const { data, error } = await supabase
       .from('products')
       .select('id, name, sku, purchase_price, total_units, units_per_box')
