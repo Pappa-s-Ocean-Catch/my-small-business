@@ -36,7 +36,7 @@ export interface AddonGroupWithItems extends AddonGroup {
 export async function getAddonGroups(): Promise<{ data: AddonGroupWithItems[] | null; error: string | null }> {
   try {
     const supabase = await createServiceRoleClient();
-    
+
     // Fetch all addon groups
     const { data: groups, error: groupsError } = await supabase
       .from('addon_groups')
@@ -84,7 +84,7 @@ export async function getAddonGroups(): Promise<{ data: AddonGroupWithItems[] | 
 export async function getAddonGroup(id: string): Promise<{ data: AddonGroupWithItems | null; error: string | null }> {
   try {
     const supabase = await createServiceRoleClient();
-    
+
     // Fetch addon group
     const { data: group, error: groupError } = await supabase
       .from('addon_groups')
@@ -110,13 +110,13 @@ export async function getAddonGroup(id: string): Promise<{ data: AddonGroupWithI
       return { data: null, error: itemsError.message };
     }
 
-    return { 
-      data: { 
-        ...group, 
+    return {
+      data: {
+        ...group,
         items: items || [],
         item_count: items?.length || 0
-      }, 
-      error: null 
+      },
+      error: null
     };
   } catch (error) {
     console.error('Unexpected error fetching addon group:', error);
@@ -133,7 +133,7 @@ export async function createAddonGroup(formData: {
 }): Promise<{ data: AddonGroup | null; error: string | null }> {
   try {
     const supabase = await createServiceRoleClient();
-    
+
     const { data, error } = await supabase
       .from('addon_groups')
       .insert([{
@@ -170,7 +170,7 @@ export async function updateAddonGroup(
 ): Promise<{ data: AddonGroup | null; error: string | null }> {
   try {
     const supabase = await createServiceRoleClient();
-    
+
     const { data, error } = await supabase
       .from('addon_groups')
       .update({
@@ -199,7 +199,7 @@ export async function updateAddonGroup(
 export async function deleteAddonGroup(id: string): Promise<{ error: string | null }> {
   try {
     const supabase = await createServiceRoleClient();
-    
+
     // Check if group is used by any products
     const { data: usedBy, error: checkError } = await supabase
       .from('sale_product_addon_groups')
@@ -244,7 +244,7 @@ export async function createAddonItem(formData: {
 }): Promise<{ data: AddonItem | null; error: string | null }> {
   try {
     const supabase = await createServiceRoleClient();
-    
+
     const { data, error } = await supabase
       .from('addon_items')
       .insert([{
@@ -280,7 +280,7 @@ export async function updateAddonItem(
 ): Promise<{ data: AddonItem | null; error: string | null }> {
   try {
     const supabase = await createServiceRoleClient();
-    
+
     const { data, error } = await supabase
       .from('addon_items')
       .update({
@@ -308,7 +308,7 @@ export async function updateAddonItem(
 export async function deleteAddonItem(id: string): Promise<{ error: string | null }> {
   try {
     const supabase = await createServiceRoleClient();
-    
+
     const { error } = await supabase
       .from('addon_items')
       .delete()
@@ -326,11 +326,67 @@ export async function deleteAddonItem(id: string): Promise<{ error: string | nul
   }
 }
 
+export async function setAddonGroupSortOrders(
+  updates: Array<{ id: string; sort_order: number }>
+): Promise<{ error: string | null }> {
+  try {
+    const supabase = await createServiceRoleClient();
+
+    const results = await Promise.all(
+      updates.map((u) =>
+        supabase
+          .from('addon_groups')
+          .update({ sort_order: u.sort_order })
+          .eq('id', u.id)
+      )
+    );
+
+    const firstError = results.find((r) => r.error)?.error;
+    if (firstError) {
+      console.error('Error updating addon group sort orders:', firstError);
+      return { error: firstError.message };
+    }
+
+    return { error: null };
+  } catch (error) {
+    console.error('Unexpected error updating addon group sort orders:', error);
+    return { error: 'An unexpected error occurred' };
+  }
+}
+
+export async function setAddonItemSortOrders(
+  updates: Array<{ id: string; sort_order: number }>
+): Promise<{ error: string | null }> {
+  try {
+    const supabase = await createServiceRoleClient();
+
+    const results = await Promise.all(
+      updates.map((u) =>
+        supabase
+          .from('addon_items')
+          .update({ sort_order: u.sort_order })
+          .eq('id', u.id)
+      )
+    );
+
+    const firstError = results.find((r) => r.error)?.error;
+    if (firstError) {
+      console.error('Error updating addon item sort orders:', firstError);
+      return { error: firstError.message };
+    }
+
+    return { error: null };
+  } catch (error) {
+    console.error('Unexpected error updating addon item sort orders:', error);
+    return { error: 'An unexpected error occurred' };
+  }
+}
+
 // Sale Product Add-on Groups management
 export async function getSaleProductAddonGroups(sale_product_id: string): Promise<{ data: AddonGroup[] | null; error: string | null }> {
   try {
     const supabase = await createServiceRoleClient();
-    
+
     const { data, error } = await supabase
       .from('sale_product_addon_groups')
       .select(`
@@ -362,7 +418,7 @@ export async function updateSaleProductAddonGroups(
 ): Promise<{ error: string | null }> {
   try {
     const supabase = await createServiceRoleClient();
-    
+
     // Delete existing relationships
     const { error: deleteError } = await supabase
       .from('sale_product_addon_groups')

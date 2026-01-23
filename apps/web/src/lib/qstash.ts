@@ -60,7 +60,7 @@ export class QStashAutomation {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    this.baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://localhost:3000';
   }
 
   /**

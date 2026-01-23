@@ -59,7 +59,7 @@ This document outlines the implementation of Google Business Profile sync functi
 # Google Business Profile API Credentials
 GOOGLE_BUSINESS_CLIENT_ID=your_client_id
 GOOGLE_BUSINESS_CLIENT_SECRET=your_client_secret
-GOOGLE_BUSINESS_REDIRECT_URI=http://localhost:3000/api/google-business/callback
+GOOGLE_BUSINESS_REDIRECT_URI=https://localhost:3000/api/google-business/callback
 GOOGLE_BUSINESS_REFRESH_TOKEN=your_refresh_token
 ```
 

@@ -1,10 +1,26 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { FaPlus, FaEdit, FaTrash, FaUtensils, FaTag, FaClock, FaBox, FaChevronDown, FaChevronRight, FaFilter, FaSave, FaTimes } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaUtensils, FaTag, FaClock, FaBox, FaChevronDown, FaChevronRight, FaFilter, FaSave, FaTimes, FaGripVertical } from 'react-icons/fa';
 import { FaEye, FaEyeSlash } from 'react-icons/fa6';
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  rectSortingStrategy,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Icon } from '@/components/Icon';
 import type { SaleProduct } from '@/app/actions/sale-products';
 import Modal from '@/components/Modal';
@@ -27,11 +43,65 @@ import {
   createSaleCategory,
   updateSaleCategory,
   deleteSaleCategory,
+  setSaleCategorySortOrders,
+  setSaleProductSortOrders,
   getAvailableProducts,
   type SaleProductWithDetails,
   type SaleCategory
 } from '@/app/actions/sale-products';
 import { getAddonGroups, getSaleProductAddonGroups, type AddonGroupWithItems } from '@/app/actions/addons';
+
+function SortHandle(props: ButtonHTMLAttributes<HTMLButtonElement> & { disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      {...props}
+      disabled={props.disabled}
+      onClick={(e) => {
+        e.stopPropagation();
+        props.onClick?.(e);
+      }}
+      className={`p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${props.className ?? ''}`}
+      title={props.title ?? 'Drag to reorder'}
+      aria-label={props['aria-label'] ?? 'Drag to reorder'}
+    >
+      <Icon icon={FaGripVertical} className="h-3.5 w-3.5" />
+    </button>
+  );
+}
+
+function SortableRow({
+  id,
+  disabled,
+  children,
+}: {
+  id: string;
+  disabled?: boolean;
+  children: (args: { handleProps: ButtonHTMLAttributes<HTMLButtonElement>; isDragging: boolean }) => ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+    disabled,
+  });
+
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.7 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      {children({
+        handleProps: {
+          ...attributes,
+          ...listeners,
+        },
+        isDragging,
+      })}
+    </div>
+  );
+}
 
 export default function MenuPage() {
   const router = useRouter();
@@ -50,6 +120,9 @@ export default function MenuPage() {
   const [addonGroups, setAddonGroups] = useState<AddonGroupWithItems[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [savingMainCategoryOrder, setSavingMainCategoryOrder] = useState(false);
+  const [savingSubCategoryOrderByParent, setSavingSubCategoryOrderByParent] = useState<Record<string, boolean>>({});
+  const [savingProductOrderByGroup, setSavingProductOrderByGroup] = useState<Record<string, boolean>>({});
   
   // Filter states
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
@@ -69,6 +142,7 @@ export default function MenuPage() {
   const [productForm, setProductForm] = useState({
     name: '',
     description: '',
+    sort_order: 0,
     sale_price: 0,
     image_url: '',
     sale_category_id: '',
@@ -150,12 +224,142 @@ export default function MenuPage() {
   const categoryHierarchy = useMemo(() => {
     const mainCategories = saleCategories.filter(cat => !cat.parent_category_id);
     const subCategories = saleCategories.filter(cat => cat.parent_category_id);
-    
-    return mainCategories.map(mainCat => ({
-      ...mainCat,
-      sub_categories: subCategories.filter(subCat => subCat.parent_category_id === mainCat.id)
-    }));
+
+    const bySortThenName = (a: SaleCategory, b: SaleCategory) => {
+      const sa = Number(a.sort_order ?? 0);
+      const sb = Number(b.sort_order ?? 0);
+      if (sa !== sb) return sa - sb;
+      return (a.name ?? '').localeCompare(b.name ?? '');
+    };
+
+    return [...mainCategories]
+      .sort(bySortThenName)
+      .map(mainCat => ({
+        ...mainCat,
+        sub_categories: subCategories
+          .filter(subCat => subCat.parent_category_id === mainCat.id)
+          .sort(bySortThenName)
+      }));
   }, [saleCategories]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 6 },
+    })
+  );
+
+  const persistCategorySortOrders = async (updates: Array<{ id: string; sort_order: number }>) => {
+    const res = await setSaleCategorySortOrders(updates);
+    if (res.error) {
+      toast.error(res.error);
+      await loadData();
+      return false;
+    }
+    return true;
+  };
+
+  const handleMainCategoryDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+    if (active.id === over.id) return;
+
+    const mainCats = categoryHierarchy;
+    const oldIndex = mainCats.findIndex((c) => c.id === String(active.id));
+    const newIndex = mainCats.findIndex((c) => c.id === String(over.id));
+    if (oldIndex < 0 || newIndex < 0) return;
+
+    const reordered = arrayMove(mainCats, oldIndex, newIndex);
+    const updates = reordered.map((c, idx) => ({ id: c.id, sort_order: idx }));
+
+    setSaleCategories((prev) =>
+      prev.map((c) => {
+        const u = updates.find((x) => x.id === c.id);
+        return u ? { ...c, sort_order: u.sort_order } : c;
+      })
+    );
+
+    setSavingMainCategoryOrder(true);
+    await persistCategorySortOrders(updates);
+    setSavingMainCategoryOrder(false);
+  };
+
+  const handleSubCategoryDragEnd = async (parentId: string, event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+    if (active.id === over.id) return;
+
+    const parent = categoryHierarchy.find((c) => c.id === parentId);
+    const subs = parent?.sub_categories ?? [];
+    const oldIndex = subs.findIndex((c) => c.id === String(active.id));
+    const newIndex = subs.findIndex((c) => c.id === String(over.id));
+    if (oldIndex < 0 || newIndex < 0) return;
+
+    const reordered = arrayMove(subs, oldIndex, newIndex);
+    const updates = reordered.map((c, idx) => ({ id: c.id, sort_order: idx }));
+
+    setSaleCategories((prev) =>
+      prev.map((c) => {
+        const u = updates.find((x) => x.id === c.id);
+        return u ? { ...c, sort_order: u.sort_order } : c;
+      })
+    );
+
+    setSavingSubCategoryOrderByParent((p) => ({ ...p, [parentId]: true }));
+    await persistCategorySortOrders(updates);
+    setSavingSubCategoryOrderByParent((p) => ({ ...p, [parentId]: false }));
+  };
+
+  const productGroupKey = (categoryId: string, subCategoryId: string | null) =>
+    `${categoryId}:${subCategoryId ?? 'null'}`;
+
+  const persistProductSortOrders = async (updates: Array<{ id: string; sort_order: number }>) => {
+    const res = await setSaleProductSortOrders(updates);
+    if (res.error) {
+      toast.error(res.error);
+      await loadData();
+      return false;
+    }
+    return true;
+  };
+
+  const sortProductsByOrderThenName = (products: SaleProductWithDetails[]): SaleProductWithDetails[] => {
+    return [...products].sort((a, b) => {
+      const sa = Number((a as unknown as { sort_order?: number }).sort_order ?? 0);
+      const sb = Number((b as unknown as { sort_order?: number }).sort_order ?? 0);
+      if (sa !== sb) return sa - sb;
+      return (a.name ?? '').localeCompare(b.name ?? '');
+    });
+  };
+
+  const handleProductDragEnd = async (
+    categoryId: string,
+    subCategoryId: string | null,
+    productsInGroup: SaleProductWithDetails[],
+    event: DragEndEvent
+  ) => {
+    const { active, over } = event;
+    if (!over) return;
+    if (active.id === over.id) return;
+
+    const oldIndex = productsInGroup.findIndex((p) => p.id === String(active.id));
+    const newIndex = productsInGroup.findIndex((p) => p.id === String(over.id));
+    if (oldIndex < 0 || newIndex < 0) return;
+
+    const reordered = arrayMove(productsInGroup, oldIndex, newIndex);
+    const updates = reordered.map((p, idx) => ({ id: p.id, sort_order: idx }));
+
+    setSaleProducts((prev) =>
+      prev.map((p) => {
+        const u = updates.find((x) => x.id === p.id);
+        return u ? ({ ...p, sort_order: u.sort_order } as SaleProductWithDetails) : p;
+      })
+    );
+
+    const key = productGroupKey(categoryId, subCategoryId);
+    setSavingProductOrderByGroup((m) => ({ ...m, [key]: true }));
+    await persistProductSortOrders(updates);
+    setSavingProductOrderByGroup((m) => ({ ...m, [key]: false }));
+  };
 
   const getCategoryNameForProduct = (product: SaleProduct): string | undefined => {
     if (product.sub_category_id) {
@@ -198,7 +402,7 @@ export default function MenuPage() {
       );
     }
 
-    return filtered;
+    return sortProductsByOrderThenName(filtered);
   }, [saleProducts, selectedCategoryId, selectedSubCategoryId, searchTerm]);
 
   // Toggle category expansion
@@ -236,6 +440,7 @@ export default function MenuPage() {
       setProductForm({
         name: product.name,
         description: product.description || '',
+        sort_order: Number((product as unknown as { sort_order?: number }).sort_order ?? 0),
         sale_price: product.sale_price,
         image_url: product.image_url || '',
         sale_category_id: product.sale_category_id || '',
@@ -256,13 +461,25 @@ export default function MenuPage() {
       });
     } else {
       setEditingProduct(null);
+
+      const defaultCategoryId = selectedCategoryId || '';
+      const defaultSubCategoryId = selectedSubCategoryId || '';
+      const siblings = saleProducts.filter(
+        (p) => (p.sale_category_id || '') === defaultCategoryId && (p.sub_category_id || '') === defaultSubCategoryId
+      );
+      const maxSiblingOrder = siblings.reduce(
+        (max, p) => Math.max(max, Number((p as unknown as { sort_order?: number }).sort_order ?? 0)),
+        -1
+      );
+
       setProductForm({
         name: '',
         description: '',
+        sort_order: maxSiblingOrder + 1,
         sale_price: 0,
         image_url: '',
-        sale_category_id: selectedCategoryId || '',
-        sub_category_id: selectedSubCategoryId || '',
+        sale_category_id: defaultCategoryId,
+        sub_category_id: defaultSubCategoryId,
         preparation_time_minutes: 0,
         is_active: true,
         is_featured: false,
@@ -288,11 +505,16 @@ export default function MenuPage() {
       });
     } else {
       setEditingCategory(null);
+      const defaultParentCategoryId = selectedSubCategoryId ? (selectedCategoryId || '') : '';
+      const siblings = saleCategories.filter(
+        (c) => (c.parent_category_id || '') === defaultParentCategoryId
+      );
+      const maxSiblingOrder = siblings.reduce((max, c) => Math.max(max, Number(c.sort_order ?? 0)), -1);
       setCategoryForm({
         name: '',
         description: '',
-        sort_order: 0,
-        parent_category_id: '',
+        sort_order: maxSiblingOrder + 1,
+        parent_category_id: defaultParentCategoryId,
         is_active: true
       });
     }
@@ -417,6 +639,165 @@ export default function MenuPage() {
     );
   }
 
+  const selectedCategoryHasSubCategories = Boolean(
+    selectedCategoryId && categoryHierarchy.find((c) => c.id === selectedCategoryId)?.sub_categories?.length
+  );
+
+  const canReorderCurrentProducts =
+    isAdmin &&
+    !searchTerm &&
+    Boolean(selectedCategoryId) &&
+    (Boolean(selectedSubCategoryId) || !selectedCategoryHasSubCategories);
+
+  const currentProductGroupKey = selectedCategoryId ? productGroupKey(selectedCategoryId, selectedSubCategoryId) : null;
+  const savingProductOrder = Boolean(currentProductGroupKey && savingProductOrderByGroup[currentProductGroupKey]);
+
+  const renderProductCard = (product: SaleProductWithDetails, dragHandle?: ReactNode) => (
+    <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 overflow-hidden">
+      {product.image_url ? (
+        <div className="h-48 bg-gray-200 dark:bg-neutral-700 relative group">
+          <img
+            src={product.image_url}
+            alt={product.name}
+            className="w-full h-full object-cover"
+          />
+          {isAdmin && (
+            <ImageDownloadButton
+              imageUrl={product.image_url}
+              fileName={`${(() => {
+                const cat = getCategoryNameForProduct(product);
+                const catSlug = cat ? toSlug(cat) : 'uncategorized';
+                const prodSlug = toSlug(product.name);
+                return `${catSlug}-${prodSlug}.jpg`;
+              })()}`}
+            />
+          )}
+        </div>
+      ) : (
+        <ImagePlaceholder
+          productName={product.name}
+          description={product.description ?? undefined}
+          ingredients={(product.ingredients?.map((ing) => {
+            const maybeName = (ing as unknown as { name?: string }).name;
+            return maybeName ?? String(ing);
+          }) || []).filter(Boolean)}
+          category={undefined}
+          onImageGenerated={async (imageUrl) => {
+            try {
+              const { error } = await updateSaleProductImage(product.id, imageUrl);
+
+              if (error) {
+                toast.error('Failed to update product with new image');
+                return;
+              }
+
+              setSaleProducts(prev =>
+                prev.map(p =>
+                  p.id === product.id
+                    ? ({ ...p, image_url: imageUrl } as SaleProductWithDetails)
+                    : p
+                )
+              );
+              toast.success('Image generated and updated successfully!');
+            } catch (error) {
+              console.error('Error updating product:', error);
+              toast.error('Failed to update product with new image');
+            }
+          }}
+        />
+      )}
+
+      <div className="p-4">
+        <div className="flex items-start justify-between mb-2">
+          <div>
+            <h3 className="font-semibold text-gray-900 dark:text-white text-lg">
+              <Link href={`/shop/menu/${product.id}`} className="hover:underline">
+                {product.name}
+              </Link>
+            </h3>
+            <div className="text-xs text-gray-500 dark:text-gray-400">#{Number((product as unknown as { sort_order?: number }).sort_order ?? 0)}</div>
+          </div>
+          <div className="flex gap-1">
+            {dragHandle}
+            <Link
+              href={`/shop/menu/${product.id}`}
+              className="p-2 text-gray-500 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors"
+              title="View details"
+            >
+              <Icon icon={FaEye} className="h-4 w-4" />
+            </Link>
+            <button
+              onClick={() => openProductModal(product)}
+              className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+              title="Edit product"
+            >
+              <Icon icon={FaEdit} className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => openDeleteDialog('product', product.id, product.name)}
+              className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+              title="Delete product"
+            >
+              <Icon icon={FaTrash} className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {product.description && (
+          <p className="text-gray-600 dark:text-gray-400 text-sm mb-3 line-clamp-2">
+            {product.description}
+          </p>
+        )}
+
+        {/* Category Info */}
+        <div className="mb-3">
+          <div className="flex items-center gap-2 text-sm">
+            <Icon icon={FaTag} className="text-blue-600" />
+            <span className="text-gray-700 dark:text-gray-300">
+              {product.category_name}
+              {product.sub_category_name && (
+                <span className="text-gray-500 dark:text-gray-400">
+                  {' '}• {product.sub_category_name}
+                </span>
+              )}
+            </span>
+          </div>
+        </div>
+
+        {/* Price and Details */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+            <div className="flex items-center gap-1">
+              <span className="font-semibold text-green-600">
+                ${product.sale_price.toFixed(2)}
+              </span>
+            </div>
+            {product.preparation_time_minutes > 0 && (
+              <div className="flex items-center gap-1">
+                <Icon icon={FaClock} className="text-orange-600" />
+                <span>{product.preparation_time_minutes}m</span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            {product.is_available ? (
+              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                <Icon icon={FaEye} className="h-3 w-3 mr-1" />
+                Available
+              </span>
+            ) : (
+              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+                <Icon icon={FaEyeSlash} className="h-3 w-3 mr-1" />
+                Unavailable
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-neutral-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -486,118 +867,164 @@ export default function MenuPage() {
 
                 {/* Category List */}
                 <div className="space-y-1">
-                  {categoryHierarchy.map((category) => (
-                    <div key={category.id}>
-                      {/* Main Category */}
-                      <div className="group relative">
-                        <button
-                          onClick={() => {
-                            if (category.sub_categories.length > 0) {
-                              toggleCategory(category.id);
-                            } else {
-                              handleCategorySelect(category.id);
-                            }
-                          }}
-                          className={`w-full text-left p-3 rounded-lg mb-1 transition-colors ${
-                            selectedCategoryId === category.id && !selectedSubCategoryId
-                              ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' 
-                              : 'hover:bg-gray-100 dark:hover:bg-neutral-700 text-gray-700 dark:text-gray-300'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              {category.sub_categories.length > 0 && (
-                                expandedCategories.has(category.id) ? 
-                                  <Icon icon={FaChevronDown} className="h-3 w-3" /> : 
-                                  <Icon icon={FaChevronRight} className="h-3 w-3" />
-                              )}
-                              <span className="font-medium">{category.name}</span>
-                            </div>
-                            <span className="text-sm text-gray-500 dark:text-gray-400">
-                              {saleProducts.filter(p => p.sale_category_id === category.id).length}
-                            </span>
-                          </div>
-                        </button>
-                        
-                        {/* Category Actions */}
-                        <div className="absolute right-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <div className="flex gap-1">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openCategoryModal(category);
-                              }}
-                              className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
-                              title="Edit category"
-                            >
-                              <Icon icon={FaEdit} className="h-3 w-3" />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openDeleteDialog('category', category.id, category.name);
-                              }}
-                              className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                              title="Delete category"
-                            >
-                              <Icon icon={FaTrash} className="h-3 w-3" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Sub Categories */}
-                      {expandedCategories.has(category.id) && category.sub_categories.length > 0 && (
-                        <div className="ml-4 space-y-1">
-                          {category.sub_categories.map((subCategory) => (
-                            <div key={subCategory.id} className="group relative">
-                              <button
-                                onClick={() => handleCategorySelect(category.id, subCategory.id)}
-                                className={`w-full text-left p-2 rounded-lg transition-colors ${
-                                  selectedSubCategoryId === subCategory.id
-                                    ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300' 
-                                    : 'hover:bg-gray-100 dark:hover:bg-neutral-700 text-gray-600 dark:text-gray-400'
-                                }`}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <span className="text-sm">{subCategory.name}</span>
-                                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                                    {saleProducts.filter(p => p.sub_category_id === subCategory.id).length}
-                                  </span>
+                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleMainCategoryDragEnd}>
+                    <SortableContext items={categoryHierarchy.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+                      {categoryHierarchy.map((category) => (
+                        <div key={category.id}>
+                          <SortableRow id={category.id} disabled={savingMainCategoryOrder}>
+                            {({ handleProps }) => (
+                              <div className="group relative flex items-stretch gap-1">
+                                <div className="pt-2">
+                                  <SortHandle
+                                    {...handleProps}
+                                    disabled={savingMainCategoryOrder}
+                                    className="ml-1"
+                                  />
                                 </div>
-                              </button>
-                              
-                              {/* Sub-Category Actions */}
-                              <div className="absolute right-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <div className="flex gap-1">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      openCategoryModal(subCategory);
-                                    }}
-                                    className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
-                                    title="Edit sub-category"
-                                  >
-                                    <Icon icon={FaEdit} className="h-3 w-3" />
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      openDeleteDialog('category', subCategory.id, subCategory.name);
-                                    }}
-                                    className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                                    title="Delete sub-category"
-                                  >
-                                    <Icon icon={FaTrash} className="h-3 w-3" />
-                                  </button>
+                                <button
+                                  onClick={() => {
+                                    if (category.sub_categories.length > 0) {
+                                      toggleCategory(category.id);
+                                    } else {
+                                      handleCategorySelect(category.id);
+                                    }
+                                  }}
+                                  className={`flex-1 text-left p-3 pr-12 rounded-lg mb-1 transition-colors ${
+                                    selectedCategoryId === category.id && !selectedSubCategoryId
+                                      ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
+                                      : 'hover:bg-gray-100 dark:hover:bg-neutral-700 text-gray-700 dark:text-gray-300'
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      {category.sub_categories.length > 0 && (
+                                        expandedCategories.has(category.id) ? (
+                                          <Icon icon={FaChevronDown} className="h-3 w-3" />
+                                        ) : (
+                                          <Icon icon={FaChevronRight} className="h-3 w-3" />
+                                        )
+                                      )}
+                                      <span className="font-medium">{category.name}</span>
+                                      <span className="text-xs text-gray-500 dark:text-gray-400">#{category.sort_order}</span>
+                                    </div>
+                                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                                      {saleProducts.filter(p => p.sale_category_id === category.id).length}
+                                    </span>
+                                  </div>
+                                </button>
+
+                                {/* Category Actions */}
+                                <div className="absolute right-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <div className="flex gap-1">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openCategoryModal(category);
+                                      }}
+                                      className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                                      title="Edit category"
+                                    >
+                                      <Icon icon={FaEdit} className="h-3 w-3" />
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openDeleteDialog('category', category.id, category.name);
+                                      }}
+                                      className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                                      title="Delete category"
+                                    >
+                                      <Icon icon={FaTrash} className="h-3 w-3" />
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
+                            )}
+                          </SortableRow>
+
+                          {/* Sub Categories */}
+                          {expandedCategories.has(category.id) && category.sub_categories.length > 0 && (
+                            <div className="ml-4 space-y-1">
+                              <DndContext
+                                sensors={sensors}
+                                collisionDetection={closestCenter}
+                                onDragEnd={(e) => handleSubCategoryDragEnd(category.id, e)}
+                              >
+                                <SortableContext
+                                  items={category.sub_categories.map((s) => s.id)}
+                                  strategy={verticalListSortingStrategy}
+                                >
+                                  {category.sub_categories.map((subCategory) => (
+                                    <SortableRow
+                                      key={subCategory.id}
+                                      id={subCategory.id}
+                                      disabled={Boolean(savingSubCategoryOrderByParent[category.id])}
+                                    >
+                                      {({ handleProps }) => (
+                                        <div className="group relative flex items-stretch gap-1">
+                                          <div className="pt-1">
+                                            <SortHandle
+                                              {...handleProps}
+                                              disabled={Boolean(savingSubCategoryOrderByParent[category.id])}
+                                              className="ml-1"
+                                            />
+                                          </div>
+                                          <button
+                                            onClick={() => handleCategorySelect(category.id, subCategory.id)}
+                                            className={`flex-1 text-left p-2 pr-12 rounded-lg transition-colors ${
+                                              selectedSubCategoryId === subCategory.id
+                                                ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
+                                                : 'hover:bg-gray-100 dark:hover:bg-neutral-700 text-gray-600 dark:text-gray-400'
+                                            }`}
+                                          >
+                                            <div className="flex items-center justify-between">
+                                              <div className="flex items-center gap-2">
+                                                <span className="text-sm">{subCategory.name}</span>
+                                                <span className="text-xs text-gray-500 dark:text-gray-400">#{subCategory.sort_order}</span>
+                                              </div>
+                                              <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                {saleProducts.filter(p => p.sub_category_id === subCategory.id).length}
+                                              </span>
+                                            </div>
+                                          </button>
+
+                                          {/* Sub-Category Actions */}
+                                          <div className="absolute right-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <div className="flex gap-1">
+                                              <button
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  openCategoryModal(subCategory);
+                                                }}
+                                                className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                                                title="Edit sub-category"
+                                              >
+                                                <Icon icon={FaEdit} className="h-3 w-3" />
+                                              </button>
+                                              <button
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  openDeleteDialog('category', subCategory.id, subCategory.name);
+                                                }}
+                                                className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                                                title="Delete sub-category"
+                                              >
+                                                <Icon icon={FaTrash} className="h-3 w-3" />
+                                              </button>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </SortableRow>
+                                  ))}
+                                </SortableContext>
+                              </DndContext>
                             </div>
-                          ))}
+                          )}
                         </div>
-                      )}
-                    </div>
-                  ))}
+                      ))}
+                    </SortableContext>
+                  </DndContext>
                 </div>
 
                 {/* Clear Filters */}
@@ -630,151 +1057,54 @@ export default function MenuPage() {
             </div>
 
             {/* Products Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
-              {filteredProducts.map((product) => (
-                <div key={product.id} className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 overflow-hidden">
-                  {product.image_url ? (
-                    <div className="h-48 bg-gray-200 dark:bg-neutral-700 relative group">
-                      <img
-                        src={product.image_url}
-                        alt={product.name}
-                        className="w-full h-full object-cover"
-                      />
-                      {isAdmin && (
-                        <ImageDownloadButton
-                          imageUrl={product.image_url}
-                          fileName={`${(() => {
-                            const cat = getCategoryNameForProduct(product);
-                            const catSlug = cat ? toSlug(cat) : 'uncategorized';
-                            const prodSlug = toSlug(product.name);
-                            return `${catSlug}-${prodSlug}.jpg`;
-                          })()}`}
-                        />
-                      )}
-                    </div>
-                  ) : (
-                    <ImagePlaceholder
-                      productName={product.name}
-                      description={product.description ?? undefined}
-                      ingredients={(product.ingredients?.map((ing) => {
-                        const maybeName = (ing as unknown as { name?: string }).name;
-                        return maybeName ?? String(ing);
-                      }) || []).filter(Boolean)}
-                      category={undefined}
-                      onImageGenerated={async (imageUrl) => {
-                        try {
-                          // Update the product image in the database
-                          const { error } = await updateSaleProductImage(product.id, imageUrl);
-                          
-                          if (error) {
-                            toast.error('Failed to update product with new image');
-                            return;
-                          }
-                          
-                          // Update the local state
-                          setSaleProducts(prev => 
-                            prev.map(p => 
-                              p.id === product.id 
-                                ? { ...p, image_url: imageUrl }
-                                : p
-                            )
-                          );
-                          toast.success('Image generated and updated successfully!');
-                        } catch (error) {
-                          console.error('Error updating product:', error);
-                          toast.error('Failed to update product with new image');
+            {isAdmin && (
+              <div className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+                {searchTerm
+                  ? 'Drag reorder is disabled while searching.'
+                  : !selectedCategoryId
+                    ? 'Select a category to drag-reorder products.'
+                    : selectedCategoryHasSubCategories && !selectedSubCategoryId
+                      ? 'Select a sub-category to drag-reorder products.'
+                      : canReorderCurrentProducts
+                        ? (savingProductOrder ? 'Saving order…' : 'Drag the handle to reorder products.')
+                        : null}
+              </div>
+            )}
+
+            {canReorderCurrentProducts && selectedCategoryId ? (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={(event) =>
+                  handleProductDragEnd(selectedCategoryId, selectedSubCategoryId, filteredProducts, event)
+                }
+              >
+                <SortableContext items={filteredProducts.map((p) => p.id)} strategy={rectSortingStrategy}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
+                    {filteredProducts.map((product) => (
+                      <SortableRow key={product.id} id={product.id} disabled={savingProductOrder}>
+                        {({ handleProps }) =>
+                          renderProductCard(
+                            product,
+                            <SortHandle
+                              {...handleProps}
+                              disabled={savingProductOrder}
+                              title="Drag to reorder product"
+                            />
+                          )
                         }
-                      }}
-                    />
-                  )}
-                  
-                  <div className="p-4">
-                    <div className="flex items-start justify-between mb-2">
-                      <h3 className="font-semibold text-gray-900 dark:text-white text-lg">
-                        <Link href={`/shop/menu/${product.id}`} className="hover:underline">
-                          {product.name}
-                        </Link>
-                      </h3>
-                      <div className="flex gap-1">
-                        <Link
-                          href={`/shop/menu/${product.id}`}
-                          className="p-2 text-gray-500 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors"
-                          title="View details"
-                        >
-                          <Icon icon={FaEye} className="h-4 w-4" />
-                        </Link>
-                        <button
-                          onClick={() => openProductModal(product)}
-                          className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                          title="Edit product"
-                        >
-                          <Icon icon={FaEdit} className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => openDeleteDialog('product', product.id, product.name)}
-                          className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                          title="Delete product"
-                        >
-                          <Icon icon={FaTrash} className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {product.description && (
-                      <p className="text-gray-600 dark:text-gray-400 text-sm mb-3 line-clamp-2">
-                        {product.description}
-                      </p>
-                    )}
-
-                    {/* Category Info */}
-                    <div className="mb-3">
-                      <div className="flex items-center gap-2 text-sm">
-                        <Icon icon={FaTag} className="text-blue-600" />
-                        <span className="text-gray-700 dark:text-gray-300">
-                          {product.category_name}
-                          {product.sub_category_name && (
-                            <span className="text-gray-500 dark:text-gray-400">
-                              {' '}• {product.sub_category_name}
-                            </span>
-                          )}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Price and Details */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
-                        <div className="flex items-center gap-1">
-                          <span className="font-semibold text-green-600">
-                            ${product.sale_price.toFixed(2)}
-                          </span>
-                        </div>
-                        {product.preparation_time_minutes > 0 && (
-                          <div className="flex items-center gap-1">
-                            <Icon icon={FaClock} className="text-orange-600" />
-                            <span>{product.preparation_time_minutes}m</span>
-                          </div>
-                        )}
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                        {product.is_available ? (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                            <Icon icon={FaEye} className="h-3 w-3 mr-1" />
-                            Available
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
-                            <Icon icon={FaEyeSlash} className="h-3 w-3 mr-1" />
-                            Unavailable
-                          </span>
-                        )}
-                      </div>
-                    </div>
+                      </SortableRow>
+                    ))}
                   </div>
-                </div>
-              ))}
-            </div>
+                </SortableContext>
+              </DndContext>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
+                {filteredProducts.map((product) => (
+                  <div key={product.id}>{renderProductCard(product)}</div>
+                ))}
+              </div>
+            )}
 
             {/* Empty State */}
             {filteredProducts.length === 0 && (
@@ -880,7 +1210,7 @@ export default function MenuPage() {
             {/* Tab Content */}
             {activeProductTab === 'overview' && (
               <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <label className="grid gap-2">
                     <span className="text-sm text-gray-700 dark:text-gray-300">Product Name</span>
                     <input
@@ -903,6 +1233,18 @@ export default function MenuPage() {
                       className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
                       placeholder="0.00"
                       required
+                    />
+                  </label>
+
+                  <label className="grid gap-2">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Sort Order</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={productForm.sort_order}
+                      onChange={(e) => setProductForm({ ...productForm, sort_order: parseInt(e.target.value) || 0 })}
+                      className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
+                      placeholder="0"
                     />
                   </label>
                 </div>

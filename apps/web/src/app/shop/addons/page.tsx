@@ -1,7 +1,22 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { FaPlus, FaEdit, FaTrash, FaChevronDown, FaChevronRight, FaTag, FaDollarSign, FaCheck, FaTimes } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaChevronDown, FaChevronRight, FaTag, FaDollarSign, FaCheck, FaTimes, FaGripVertical } from 'react-icons/fa';
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Icon } from '@/components/Icon';
 import Modal from '@/components/Modal';
 import { ActionButton } from '@/components/ActionButton';
@@ -16,16 +31,67 @@ import {
   createAddonItem,
   updateAddonItem,
   deleteAddonItem,
+  setAddonGroupSortOrders,
+  setAddonItemSortOrders,
   type AddonGroupWithItems,
   type AddonItem
 } from '@/app/actions/addons';
+
+function SortHandle(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      type="button"
+      {...props}
+      className={`p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded-lg transition-colors ${props.className ?? ''}`}
+      title={props.title ?? 'Drag to reorder'}
+      aria-label={props['aria-label'] ?? 'Drag to reorder'}
+    >
+      <Icon icon={FaGripVertical} className="h-4 w-4" />
+    </button>
+  );
+}
+
+function SortableItemRow({
+  id,
+  disabled,
+  children,
+}: {
+  id: string;
+  disabled?: boolean;
+  children: (args: { handleProps: React.ButtonHTMLAttributes<HTMLButtonElement>; isDragging: boolean }) => React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+    disabled,
+  });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.7 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      {children({
+        handleProps: {
+          ...attributes,
+          ...listeners,
+        },
+        isDragging,
+      })}
+    </div>
+  );
+}
 
 export default function AddonsPage() {
   const { isAdmin } = useAdmin();
   const [addonGroups, setAddonGroups] = useState<AddonGroupWithItems[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+  const [savingGroupOrder, setSavingGroupOrder] = useState(false);
+  const [savingItemOrderByGroup, setSavingItemOrderByGroup] = useState<Record<string, boolean>>({});
+
   // Modal states
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showItemModal, setShowItemModal] = useState(false);
@@ -52,18 +118,11 @@ export default function AddonsPage() {
     is_active: true
   });
 
-  // Load data
-  useEffect(() => {
-    if (isAdmin) {
-      loadData();
-    }
-  }, [isAdmin]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       const result = await getAddonGroups();
-      
+
       if (result.error) {
         setError(result.error);
         return;
@@ -80,7 +139,89 @@ export default function AddonsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // Load data
+  useEffect(() => {
+    if (isAdmin) {
+      loadData();
+    }
+  }, [isAdmin, loadData]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 6 },
+    })
+  );
+
+  const handleGroupDragEnd = useCallback(
+    async (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over) return;
+      if (active.id === over.id) return;
+
+      const oldIndex = addonGroups.findIndex((g) => g.id === String(active.id));
+      const newIndex = addonGroups.findIndex((g) => g.id === String(over.id));
+      if (oldIndex < 0 || newIndex < 0) return;
+
+      const reordered = arrayMove(addonGroups, oldIndex, newIndex).map((g, idx) => ({
+        ...g,
+        sort_order: idx,
+      }));
+
+      setAddonGroups(reordered);
+      setSavingGroupOrder(true);
+
+      const res = await setAddonGroupSortOrders(
+        reordered.map((g) => ({ id: g.id, sort_order: g.sort_order }))
+      );
+
+      if (res.error) {
+        toast.error(res.error);
+        await loadData();
+      }
+
+      setSavingGroupOrder(false);
+    },
+    [addonGroups, loadData]
+  );
+
+  const handleItemDragEnd = useCallback(
+    async (groupId: string, event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over) return;
+      if (active.id === over.id) return;
+
+      const group = addonGroups.find((g) => g.id === groupId);
+      if (!group) return;
+
+      const oldIndex = group.items.findIndex((i) => i.id === String(active.id));
+      const newIndex = group.items.findIndex((i) => i.id === String(over.id));
+      if (oldIndex < 0 || newIndex < 0) return;
+
+      const reorderedItems = arrayMove(group.items, oldIndex, newIndex).map((i, idx) => ({
+        ...i,
+        sort_order: idx,
+      }));
+
+      setAddonGroups(
+        addonGroups.map((g) => (g.id === groupId ? { ...g, items: reorderedItems } : g))
+      );
+      setSavingItemOrderByGroup((prev) => ({ ...prev, [groupId]: true }));
+
+      const res = await setAddonItemSortOrders(
+        reorderedItems.map((i) => ({ id: i.id, sort_order: i.sort_order }))
+      );
+
+      if (res.error) {
+        toast.error(res.error);
+        await loadData();
+      }
+
+      setSavingItemOrderByGroup((prev) => ({ ...prev, [groupId]: false }));
+    },
+    [addonGroups, loadData]
+  );
 
   // Toggle group expansion
   const toggleGroup = (groupId: string) => {
@@ -106,11 +247,12 @@ export default function AddonsPage() {
       });
     } else {
       setEditingGroup(null);
+      const maxOrder = addonGroups.reduce((max, g) => Math.max(max, Number(g.sort_order ?? 0)), -1);
       setGroupForm({
         name: '',
         description: '',
         is_required: false,
-        sort_order: addonGroups.length,
+        sort_order: maxOrder + 1,
         is_active: true
       });
     }
@@ -131,10 +273,11 @@ export default function AddonsPage() {
       setEditingItem(null);
       setCurrentGroupId(groupId);
       const group = addonGroups.find(g => g.id === groupId);
+      const maxOrder = (group?.items ?? []).reduce((max, i) => Math.max(max, Number(i.sort_order ?? 0)), -1);
       setItemForm({
         name: '',
         extra_price: 0,
-        sort_order: group?.items.length || 0,
+        sort_order: maxOrder + 1,
         is_active: true
       });
     }
@@ -216,7 +359,7 @@ export default function AddonsPage() {
 
   const handleDelete = async () => {
     if (!deletingItem) return;
-    
+
     try {
       let result;
       if (deletingItem.type === 'group') {
@@ -224,12 +367,12 @@ export default function AddonsPage() {
       } else {
         result = await deleteAddonItem(deletingItem.id);
       }
-      
+
       if (result.error) {
         toast.error(result.error);
         return;
       }
-      
+
       toast.success(`${deletingItem.type === 'group' ? 'Add-on group' : 'Add-on item'} deleted successfully`);
       setShowDeleteDialog(false);
       loadData();
@@ -264,7 +407,7 @@ export default function AddonsPage() {
         <div className="text-center">
           <h2 className="text-2xl font-bold text-red-600 mb-4">Error Loading Add-ons</h2>
           <p className="text-gray-600 mb-4">{error}</p>
-          <button 
+          <button
             onClick={loadData}
             className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
           >
@@ -319,141 +462,163 @@ export default function AddonsPage() {
               </button>
             </div>
           ) : (
-            addonGroups.map((group) => (
-              <div
-                key={group.id}
-                className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700"
-              >
-                {/* Group Header */}
-                <div className="p-4 border-b border-gray-200 dark:border-neutral-700">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 flex-1">
-                      <button
-                        onClick={() => toggleGroup(group.id)}
-                        className="p-1 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded transition-colors"
-                      >
-                        {expandedGroups.has(group.id) ? (
-                          <Icon icon={FaChevronDown} className="h-4 w-4 text-gray-500" />
-                        ) : (
-                          <Icon icon={FaChevronRight} className="h-4 w-4 text-gray-500" />
-                        )}
-                      </button>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-gray-900 dark:text-white">
-                            {group.name}
-                          </h3>
-                          {group.is_required && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
-                              Required
-                            </span>
-                          )}
-                          {!group.is_active && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
-                              Inactive
-                            </span>
-                          )}
-                        </div>
-                        {group.description && (
-                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                            {group.description}
-                          </p>
-                        )}
-                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                          {group.items.length} item{group.items.length !== 1 ? 's' : ''}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => openItemModal(group.id)}
-                        className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
-                        title="Add item"
-                      >
-                        <Icon icon={FaPlus} className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => openGroupModal(group)}
-                        className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                        title="Edit group"
-                      >
-                        <Icon icon={FaEdit} className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => openDeleteDialog('group', group.id, group.name)}
-                        className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                        title="Delete group"
-                      >
-                        <Icon icon={FaTrash} className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Group Items */}
-                {expandedGroups.has(group.id) && (
-                  <div className="p-4">
-                    {group.items.length === 0 ? (
-                      <div className="text-center py-6 text-gray-500 dark:text-gray-400">
-                        <p className="text-sm">No items in this group yet</p>
-                        <button
-                          onClick={() => openItemModal(group.id)}
-                          className="mt-2 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400"
-                        >
-                          Add first item
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {group.items.map((item) => (
-                          <div
-                            key={item.id}
-                            className="flex items-center justify-between p-3 bg-gray-50 dark:bg-neutral-700 rounded-lg"
-                          >
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleGroupDragEnd}>
+              <SortableContext items={addonGroups.map((g) => g.id)} strategy={verticalListSortingStrategy}>
+                {addonGroups.map((group) => (
+                  <SortableItemRow key={group.id} id={group.id} disabled={savingGroupOrder}>
+                    {({ handleProps }) => (
+                      <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700">
+                        {/* Group Header */}
+                        <div className="p-4 border-b border-gray-200 dark:border-neutral-700">
+                          <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3 flex-1">
+                              <SortHandle {...handleProps} className="-ml-1" />
+                              <button
+                                onClick={() => toggleGroup(group.id)}
+                                className="p-1 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded transition-colors"
+                              >
+                                {expandedGroups.has(group.id) ? (
+                                  <Icon icon={FaChevronDown} className="h-4 w-4 text-gray-500" />
+                                ) : (
+                                  <Icon icon={FaChevronRight} className="h-4 w-4 text-gray-500" />
+                                )}
+                              </button>
                               <div className="flex-1">
                                 <div className="flex items-center gap-2">
-                                  <span className="font-medium text-gray-900 dark:text-white">
-                                    {item.name}
-                                  </span>
-                                  {!item.is_active && (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-200">
+                                  <h3 className="font-semibold text-gray-900 dark:text-white">
+                                    {group.name}
+                                  </h3>
+                                  <span className="text-xs text-gray-500 dark:text-gray-400">#{group.sort_order}</span>
+                                  {group.is_required && (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+                                      Required
+                                    </span>
+                                  )}
+                                  {!group.is_active && (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
                                       Inactive
                                     </span>
                                   )}
                                 </div>
-                                <div className="flex items-center gap-4 mt-1 text-sm text-gray-600 dark:text-gray-400">
-                                  <span className="flex items-center gap-1">
-                                    <Icon icon={FaDollarSign} className="h-3 w-3" />
-                                    {item.extra_price.toFixed(2)}
-                                  </span>
-                                </div>
+                                {group.description && (
+                                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                    {group.description}
+                                  </p>
+                                )}
+                                <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                                  {group.items.length} item{group.items.length !== 1 ? 's' : ''}
+                                </p>
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
                               <button
-                                onClick={() => openItemModal(group.id, item)}
+                                onClick={() => openItemModal(group.id)}
+                                className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
+                                title="Add item"
+                              >
+                                <Icon icon={FaPlus} className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => openGroupModal(group)}
                                 className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                                title="Edit item"
+                                title="Edit group"
                               >
                                 <Icon icon={FaEdit} className="h-4 w-4" />
                               </button>
                               <button
-                                onClick={() => openDeleteDialog('item', item.id, item.name)}
+                                onClick={() => openDeleteDialog('group', group.id, group.name)}
                                 className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                title="Delete item"
+                                title="Delete group"
                               >
                                 <Icon icon={FaTrash} className="h-4 w-4" />
                               </button>
                             </div>
                           </div>
-                        ))}
+                        </div>
+
+                        {/* Group Items */}
+                        {expandedGroups.has(group.id) && (
+                          <div className="p-4">
+                            {group.items.length === 0 ? (
+                              <div className="text-center py-6 text-gray-500 dark:text-gray-400">
+                                <p className="text-sm">No items in this group yet</p>
+                                <button
+                                  onClick={() => openItemModal(group.id)}
+                                  className="mt-2 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                                >
+                                  Add first item
+                                </button>
+                              </div>
+                            ) : (
+                              <DndContext
+                                sensors={sensors}
+                                collisionDetection={closestCenter}
+                                onDragEnd={(e) => handleItemDragEnd(group.id, e)}
+                              >
+                                <SortableContext items={group.items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+                                  <div className="space-y-2">
+                                    {group.items.map((item) => (
+                                      <SortableItemRow
+                                        key={item.id}
+                                        id={item.id}
+                                        disabled={Boolean(savingItemOrderByGroup[group.id])}
+                                      >
+                                        {({ handleProps }) => (
+                                          <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-neutral-700 rounded-lg">
+                                            <div className="flex items-center gap-3 flex-1">
+                                              <SortHandle {...handleProps} className="-ml-1" />
+                                              <div className="flex-1">
+                                                <div className="flex items-center gap-2">
+                                                  <span className="font-medium text-gray-900 dark:text-white">
+                                                    {item.name}
+                                                  </span>
+                                                  <span className="text-xs text-gray-500 dark:text-gray-400">#{item.sort_order}</span>
+                                                  {!item.is_active && (
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-200">
+                                                      Inactive
+                                                    </span>
+                                                  )}
+                                                </div>
+                                                <div className="flex items-center gap-4 mt-1 text-sm text-gray-600 dark:text-gray-400">
+                                                  <span className="flex items-center gap-1">
+                                                    <Icon icon={FaDollarSign} className="h-3 w-3" />
+                                                    {item.extra_price.toFixed(2)}
+                                                  </span>
+                                                </div>
+                                              </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              <button
+                                                onClick={() => openItemModal(group.id, item)}
+                                                className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                                                title="Edit item"
+                                              >
+                                                <Icon icon={FaEdit} className="h-4 w-4" />
+                                              </button>
+                                              <button
+                                                onClick={() => openDeleteDialog('item', item.id, item.name)}
+                                                className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                                title="Delete item"
+                                              >
+                                                <Icon icon={FaTrash} className="h-4 w-4" />
+                                              </button>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </SortableItemRow>
+                                    ))}
+                                  </div>
+                                </SortableContext>
+                              </DndContext>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
-                  </div>
-                )}
-              </div>
-            ))
+                  </SortableItemRow>
+                ))}
+              </SortableContext>
+            </DndContext>
           )}
         </div>
 

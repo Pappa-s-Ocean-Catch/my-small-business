@@ -20,13 +20,13 @@
 ### 2. Create Webhook in Your App
 
 #### Development (localhost:3000)
-1. Go to `http://localhost:3000/webhooks`
+1. Go to `https://localhost:3000/webhooks`
 2. Click "Add Webhook"
 3. Fill in:
    - **Name**: SmartPay Sync
    - **Type**: Transaction
    - **Enabled**: Yes
-4. Copy the webhook URL (e.g., `http://localhost:3000/api/webhooks/abc123`)
+4. Copy the webhook URL (e.g., `https://localhost:3000/api/webhooks/abc123`)
 
 #### Production (pappasfishnchips.com.au)
 1. Go to `https://pappasfishnchips.com.au/webhooks`

@@ -23,7 +23,7 @@ This Chrome extension automatically syncs transaction data from SmartPay to your
 
 3. **Setup Extension**:
    - Click the extension icon in Chrome toolbar
-   - Enter your webhook URL (e.g., `http://localhost:3000/api/webhooks/your-webhook-id`)
+   - Enter your webhook URL (e.g., `https://localhost:3000/api/webhooks/your-webhook-id`)
    - Configure authentication if needed
    - Set sync interval (default: 60 seconds)
 
@@ -32,7 +32,7 @@ This Chrome extension automatically syncs transaction data from SmartPay to your
 ### 1. Create Webhook in Your App
 
 1. Go to your app's webhook configuration page:
-   - **Development**: `http://localhost:3000/webhooks`
+   - **Development**: `https://localhost:3000/webhooks`
    - **Production**: `https://pappasfishnchips.com.au/webhooks`
 
 2. Create a new webhook with these settings:
@@ -41,13 +41,13 @@ This Chrome extension automatically syncs transaction data from SmartPay to your
    - **Authentication**: Configure header-based auth (optional)
    - **Enabled**: Yes
 
-3. Copy the webhook URL (format: `http://localhost:3000/api/webhooks/[webhook-id]` or `https://pappasfishnchips.com.au/api/webhooks/[webhook-id]`)
+3. Copy the webhook URL (format: `https://localhost:3000/api/webhooks/[webhook-id]` or `https://pappasfishnchips.com.au/api/webhooks/[webhook-id]`)
 
 ### 2. Configure Extension
 
 1. Open SmartPay Hub (https://smartpay-hub.com) in a browser tab
 2. Click the extension icon
-3. Enter the webhook URL from step 1 (e.g., `http://localhost:3000/api/webhooks/your-webhook-id`)
+3. Enter the webhook URL from step 1 (e.g., `https://localhost:3000/api/webhooks/your-webhook-id`)
 4. If you configured authentication, enter the header (e.g., `X-API-Key: your-key`)
 5. Set sync interval (recommended: 60 seconds)
 6. Click "Start Sync"

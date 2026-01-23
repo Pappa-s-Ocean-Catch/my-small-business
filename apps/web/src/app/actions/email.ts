@@ -32,8 +32,8 @@ export async function sendShiftReminder(
 
     const formattedDate = format(shiftDate, 'EEEE, MMMM do, yyyy');
     const formattedTime = `${startTime} - ${endTime}`;
-    const  emailTo = getEmailOverride(staffEmail);
-    console.log('📧 Sending shift reminder to:', emailTo);  
+    const emailTo = getEmailOverride(staffEmail);
+    console.log('📧 Sending shift reminder to:', emailTo);
     const { data, error } = await resend.emails.send({
       from: process.env.EMAIL_FROM!,
       to: [emailTo],
@@ -55,9 +55,9 @@ export async function sendShiftReminder(
     return { success: true, messageId: data?.id };
   } catch (error) {
     console.error('Error in sendShiftReminder:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error occurred' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
     };
   }
 }
@@ -65,7 +65,7 @@ export async function sendShiftReminder(
 export async function sendMagicLinkInvite(inviteeEmail: string) {
   try {
     console.log('📧 Starting magic link send process for:', inviteeEmail);
-    
+
     if (!resend || !process.env.RESEND_API_KEY) {
       console.error('❌ RESEND_API_KEY is not configured');
       throw new Error('RESEND_API_KEY is not configured');
@@ -80,18 +80,18 @@ export async function sendMagicLinkInvite(inviteeEmail: string) {
       .select('id')
       .ilike('email', inviteeEmail)
       .maybeSingle();
-    
+
     console.log('👤 Profile check result:', { existing: !!existing, email: inviteeEmail });
-    
+
     // Determine the correct redirect URL based on environment
     // In development, always use localhost; in production, use the configured URL
-    const isDevelopment = process.env.NODE_ENV === 'development' || 
-                         !process.env.NEXT_PUBLIC_SITE_URL || 
-                         process.env.NEXT_PUBLIC_SITE_URL.includes('localhost');
-    const redirectUrl = isDevelopment 
-      ? 'http://localhost:3000/auth/callback'
+    const isDevelopment = process.env.NODE_ENV === 'development' ||
+      !process.env.NEXT_PUBLIC_SITE_URL ||
+      process.env.NEXT_PUBLIC_SITE_URL.includes('localhost');
+    const redirectUrl = isDevelopment
+      ? 'https://localhost:3000/auth/callback'
       : `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`;
-    
+
     console.log('🔗 [MagicLink] Using redirect URL:', redirectUrl);
     console.log('🔍 [MagicLink] Environment check:', {
       NODE_ENV: process.env.NODE_ENV,
@@ -99,21 +99,21 @@ export async function sendMagicLinkInvite(inviteeEmail: string) {
       isDevelopment,
       redirectUrl
     });
-    
+
     console.log('🔍 [MagicLink] Calling Supabase generateLink with:', {
       type: 'magiclink',
       email: inviteeEmail,
       redirectTo: redirectUrl
     });
-    
+
     const { data, error } = await supabase.auth.admin.generateLink({
       type: 'magiclink',
       email: inviteeEmail,
-      options: { 
+      options: {
         redirectTo: redirectUrl
       }
     });
-    
+
     if (error || !data?.properties?.action_link) {
       console.error('❌ [MagicLink] Failed to generate magic link:', error);
       console.error('❌ [MagicLink] Error details:', {
@@ -131,7 +131,7 @@ export async function sendMagicLinkInvite(inviteeEmail: string) {
       actionLinkLength: actionUrl.length,
       actionLinkPrefix: actionUrl.substring(0, 100) + '...'
     });
-    
+
     // Check if the generated URL contains the production domain instead of localhost
     try {
       const urlObj = new URL(actionUrl);
@@ -146,7 +146,7 @@ export async function sendMagicLinkInvite(inviteeEmail: string) {
         hash: urlObj.hash,
         redirectToParam: redirectParam
       });
-      
+
       // If the redirect_to doesn't match what we want, manually fix it
       if (redirectParam && !redirectParam.includes('localhost') && isDevelopment) {
         console.warn('⚠️ [MagicLink] Generated link has wrong redirect URL, fixing...');
@@ -184,7 +184,7 @@ export async function sendMagicLinkInvite(inviteeEmail: string) {
 
     const emailSubject = existing ? `Your ${businessName} sign-in link` : `You are invited to ${businessName}`;
     const emailFrom = process.env.EMAIL_FROM!;
-    
+
     console.log('📨 Email details:', {
       from: emailFrom,
       to: inviteeEmail,
@@ -196,9 +196,9 @@ export async function sendMagicLinkInvite(inviteeEmail: string) {
       from: emailFrom,
       to: [inviteeEmail],
       subject: emailSubject,
-      react: MagicLinkInviteEmail({ 
-        inviteeEmail, 
-        actionUrl, 
+      react: MagicLinkInviteEmail({
+        inviteeEmail,
+        actionUrl,
         isExistingUser: Boolean(existing),
         businessName,
         logoUrl: logoUrl || undefined
@@ -209,13 +209,13 @@ export async function sendMagicLinkInvite(inviteeEmail: string) {
       console.error('❌ Email send failed:', sendErr);
       return { success: false, error: sendErr.message };
     }
-    
+
     console.log('✅ Email sent successfully:', {
       messageId: sent?.id,
       recipient: inviteeEmail,
       subject: emailSubject
     });
-    
+
     return { success: true, messageId: sent?.id };
   } catch (error) {
     console.error('❌ Magic link send error:', error);

@@ -44,11 +44,11 @@ export async function POST(request: Request) {
     // Validate Stripe key format
     const stripeSecretKey = process.env.STRIPE_SECRET_KEY || '';
     const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '';
-    
+
     // Check if keys are from the same account (both test or both live)
     const secretIsTest = stripeSecretKey.startsWith('sk_test_');
     const publishableIsTest = publishableKey.startsWith('pk_test_');
-    
+
     if (secretIsTest !== publishableIsTest) {
       console.error('[Stripe] Key mismatch detected:', {
         secretKeyType: secretIsTest ? 'test' : 'live',
@@ -56,14 +56,14 @@ export async function POST(request: Request) {
         secretKeyPrefix: stripeSecretKey.substring(0, 7),
         publishableKeyPrefix: publishableKey.substring(0, 7)
       });
-      return NextResponse.json({ 
-        error: 'Stripe key mismatch: Secret key and publishable key must be from the same account (both test or both live)' 
+      return NextResponse.json({
+        error: 'Stripe key mismatch: Secret key and publishable key must be from the same account (both test or both live)'
       }, { status: 500 });
     }
 
     const body = (await request.json()) as CreateCheckoutSessionBody;
     const currency = (body.currency || 'aud').toLowerCase();
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://localhost:3000';
 
     // Calculate service fee (on amount after reward points discount)
     const rewardPointsDiscount = body.rewardPointsDiscount || 0;
@@ -74,8 +74,8 @@ export async function POST(request: Request) {
     // Ensure minimum amount (Stripe requires at least $0.50 AUD = 50 cents)
     const amountInCents = Math.round(totalAmount * 100);
     if (amountInCents < 50) {
-      return NextResponse.json({ 
-        error: `Minimum order amount is $0.50 AUD. Current total: $${totalAmount.toFixed(2)}` 
+      return NextResponse.json({
+        error: `Minimum order amount is $0.50 AUD. Current total: $${totalAmount.toFixed(2)}`
       }, { status: 400 });
     }
 

@@ -21,6 +21,7 @@ export interface SaleProduct {
   id: string;
   name: string;
   description: string | null;
+  sort_order: number;
   sale_price: number;
   image_url: string | null;
   sale_category_id: string | null;
@@ -186,6 +187,34 @@ export async function deleteSaleCategory(id: string): Promise<{ error: string | 
   }
 }
 
+export async function setSaleCategorySortOrders(
+  updates: Array<{ id: string; sort_order: number }>
+): Promise<{ error: string | null }> {
+  try {
+    const supabase = await createServiceRoleClient();
+
+    const results = await Promise.all(
+      updates.map((u) =>
+        supabase
+          .from('sale_categories')
+          .update({ sort_order: u.sort_order })
+          .eq('id', u.id)
+      )
+    );
+
+    const firstError = results.find((r) => r.error)?.error;
+    if (firstError) {
+      console.error('Error updating sale category sort orders:', firstError);
+      return { error: firstError.message };
+    }
+
+    return { error: null };
+  } catch (error) {
+    console.error('Unexpected error updating sale category sort orders:', error);
+    return { error: 'An unexpected error occurred' };
+  }
+}
+
 // Sale Products CRUD
 export async function getSaleProducts(): Promise<{ data: SaleProductWithDetails[] | null; error: string | null }> {
   try {
@@ -199,6 +228,9 @@ export async function getSaleProducts(): Promise<{ data: SaleProductWithDetails[
         sale_categories!sale_category_id(name),
         sub_category:sale_categories!sub_category_id(name)
       `)
+      .order('sale_category_id', { ascending: true })
+      .order('sub_category_id', { ascending: true })
+      .order('sort_order', { ascending: true })
       .order('name', { ascending: true });
 
     if (productsError) {
@@ -347,6 +379,7 @@ export async function getSaleProduct(id: string): Promise<{ data: SaleProductWit
 export async function createSaleProduct(formData: {
   name: string;
   description?: string;
+  sort_order?: number;
   sale_price: number;
   image_url?: string;
   sale_category_id?: string;
@@ -373,6 +406,7 @@ export async function createSaleProduct(formData: {
       .insert([{
         name: formData.name,
         description: formData.description || null,
+        sort_order: formData.sort_order || 0,
         sale_price: formData.sale_price,
         image_url: formData.image_url || null,
         sale_category_id: formData.sale_category_id || null,
@@ -474,6 +508,7 @@ export async function updateSaleProduct(
   formData: {
     name: string;
     description?: string;
+    sort_order?: number;
     sale_price: number;
     image_url?: string;
     sale_category_id?: string;
@@ -502,6 +537,7 @@ export async function updateSaleProduct(
       .update({
         name: formData.name,
         description: formData.description || null,
+        sort_order: formData.sort_order || 0,
         sale_price: formData.sale_price,
         image_url: formData.image_url || null,
         sale_category_id: formData.sale_category_id || null,
@@ -617,6 +653,34 @@ export async function deleteSaleProduct(id: string): Promise<{ error: string | n
     return { error: null };
   } catch (error) {
     console.error('Unexpected error deleting sale product:', error);
+    return { error: 'An unexpected error occurred' };
+  }
+}
+
+export async function setSaleProductSortOrders(
+  updates: Array<{ id: string; sort_order: number }>
+): Promise<{ error: string | null }> {
+  try {
+    const supabase = await createServiceRoleClient();
+
+    const results = await Promise.all(
+      updates.map((u) =>
+        supabase
+          .from('sale_products')
+          .update({ sort_order: u.sort_order })
+          .eq('id', u.id)
+      )
+    );
+
+    const firstError = results.find((r) => r.error)?.error;
+    if (firstError) {
+      console.error('Error updating sale product sort orders:', firstError);
+      return { error: firstError.message };
+    }
+
+    return { error: null };
+  } catch (error) {
+    console.error('Unexpected error updating sale product sort orders:', error);
     return { error: 'An unexpected error occurred' };
   }
 }

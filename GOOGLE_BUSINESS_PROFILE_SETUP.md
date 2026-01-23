@@ -10,7 +10,7 @@ Add the following environment variables to your `.env.local` file:
 # Google Business Profile API Configuration
 GOOGLE_BUSINESS_CLIENT_ID=your_google_business_client_id_here
 GOOGLE_BUSINESS_CLIENT_SECRET=your_google_business_client_secret_here
-GOOGLE_BUSINESS_REDIRECT_URI=http://localhost:3000/api/google-business/callback
+GOOGLE_BUSINESS_REDIRECT_URI=https://localhost:3000/api/google-business/callback
 GOOGLE_BUSINESS_REFRESH_TOKEN=your_refresh_token_here
 ```
 
@@ -46,7 +46,7 @@ GOOGLE_BUSINESS_REFRESH_TOKEN=your_refresh_token_here
 2. Click "Create Credentials" > "OAuth client ID"
 3. Choose "Web application" as the application type
 4. Add authorized redirect URIs:
-   - `http://localhost:3000/api/google-business/callback` (for development)
+   - `https://localhost:3000/api/google-business/callback` (for development)
    - `https://yourdomain.com/api/google-business/callback` (for production)
 5. Click "Create"
 6. Copy the Client ID and Client Secret
@@ -57,7 +57,7 @@ GOOGLE_BUSINESS_REFRESH_TOKEN=your_refresh_token_here
    ```bash
    GOOGLE_BUSINESS_CLIENT_ID=your_actual_client_id_here
    GOOGLE_BUSINESS_CLIENT_SECRET=your_actual_client_secret_here
-   GOOGLE_BUSINESS_REDIRECT_URI=http://localhost:3000/api/google-business/callback
+   GOOGLE_BUSINESS_REDIRECT_URI=https://localhost:3000/api/google-business/callback
    ```
 
 2. For production deployment (Vercel), add the environment variables:

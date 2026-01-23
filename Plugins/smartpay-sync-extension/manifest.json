@@ -10,7 +10,7 @@
   ],
   "host_permissions": [
     "https://smartpay-hub.com/*",
-    "http://localhost:3000/*",
+    "https://localhost:3000/*",
     "https://pappasfishnchips.com.au/*",
     "https://api.b2c.prod.automation.smartpay.co.nz/*"
   ],
@@ -19,8 +19,12 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://smartpay-hub.com/*"],
-      "js": ["content.js"],
+      "matches": [
+        "https://smartpay-hub.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_start",
       "all_frames": true
     }
