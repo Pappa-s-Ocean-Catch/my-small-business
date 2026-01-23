@@ -442,7 +442,12 @@
   /* Add slight right padding so content isn't flush with edge */
 }
 
+.menu1-custom-layout.three-columns {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
 .menu1-left-column,
+.menu1-middle-column,
 .menu1-right-column {
   display: flex;
   flex-direction: column;
@@ -458,7 +463,18 @@
   max-width: 100%;
 }
 
+.menu2-special-layout.three-columns {
+  grid-template-columns: 3fr 2fr 2fr;
+  gap: 1.5rem;
+}
+
 .menu2-left-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.menu2-middle-column {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
@@ -1349,7 +1365,12 @@
   max-width: 100%;
 }
 
+.menu3-layout.three-columns {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
 .menu3-left-column,
+.menu3-middle-column,
 .menu3-right-column {
   display: flex;
   flex-direction: column;

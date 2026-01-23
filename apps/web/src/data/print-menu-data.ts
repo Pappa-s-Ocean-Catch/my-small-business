@@ -24,6 +24,21 @@ export interface TwoColumnCategoryLayout {
   right?: string[];
 }
 
+/**
+ * Optional 3-column layout for in-store print pages.
+ *
+ * NOTE: property name `middleCollumn` is intentionally kept for backwards compatibility
+ * with existing data/config naming.
+ */
+export interface ThreeColumnCategoryLayout extends TwoColumnCategoryLayout {
+  /** Optional middle column category list (intentional spelling). */
+  middleCollumn?: string[];
+  /** Preferred spelling (supported as an alias). */
+  middleColumn?: string[];
+}
+
+export type CategoryLayout = TwoColumnCategoryLayout | ThreeColumnCategoryLayout;
+
 function normalizeCategoryName(name: string): string {
   return name
     .trim()
@@ -32,10 +47,11 @@ function normalizeCategoryName(name: string): string {
     .replace(/\s+/g, ' ');
 }
 
-export function splitCategoriesByLayout(page: MenuPage, layout: TwoColumnCategoryLayout): {
+export function splitCategoriesByLayout(page: MenuPage, layout: CategoryLayout): {
   leftCategories: MenuCategory[];
+  middleCategories?: MenuCategory[];
   rightCategories: MenuCategory[];
-  missing: { left: string[]; right: string[] };
+  missing: { left: string[]; middle?: string[]; right: string[] };
 } {
   const normalizedToCategory = new Map<string, MenuCategory>();
   for (const category of page.categories) {
@@ -45,26 +61,40 @@ export function splitCategoriesByLayout(page: MenuPage, layout: TwoColumnCategor
   const leftNames = layout.left;
   const leftNormalized = new Set(leftNames.map(normalizeCategoryName));
 
+  const middleNames = ('middleCollumn' in layout && Array.isArray(layout.middleCollumn) ? layout.middleCollumn : undefined)
+    ?? ('middleColumn' in layout && Array.isArray(layout.middleColumn) ? layout.middleColumn : undefined)
+    ?? [];
+  const middleNormalized = new Set(middleNames.map(normalizeCategoryName));
+
   let rightNames: string[];
   if (layout.right && layout.right.length > 0) {
     const explicitRightNormalized = new Set(layout.right.map(normalizeCategoryName));
     const remainingRightNames = page.categories
       .map((c) => c.name)
-      .filter((n) => !leftNormalized.has(normalizeCategoryName(n)) && !explicitRightNormalized.has(normalizeCategoryName(n)));
+      .filter((n) => !leftNormalized.has(normalizeCategoryName(n)) && !middleNormalized.has(normalizeCategoryName(n)) && !explicitRightNormalized.has(normalizeCategoryName(n)));
     rightNames = [...layout.right, ...remainingRightNames];
   } else {
     rightNames = page.categories
       .map((c) => c.name)
-      .filter((n) => !leftNormalized.has(normalizeCategoryName(n)));
+      .filter((n) => !leftNormalized.has(normalizeCategoryName(n)) && !middleNormalized.has(normalizeCategoryName(n)));
   }
 
   const missingLeft: string[] = [];
+  const missingMiddle: string[] = [];
   const missingRight: string[] = [];
 
   const leftCategories: MenuCategory[] = leftNames
     .map((name) => {
       const category = normalizedToCategory.get(normalizeCategoryName(name));
       if (!category) missingLeft.push(name);
+      return category;
+    })
+    .filter((category): category is MenuCategory => Boolean(category));
+
+  const middleCategories: MenuCategory[] = middleNames
+    .map((name) => {
+      const category = normalizedToCategory.get(normalizeCategoryName(name));
+      if (!category) missingMiddle.push(name);
       return category;
     })
     .filter((category): category is MenuCategory => Boolean(category));
@@ -79,8 +109,13 @@ export function splitCategoriesByLayout(page: MenuPage, layout: TwoColumnCategor
 
   return {
     leftCategories,
+    middleCategories: middleCategories.length > 0 ? middleCategories : undefined,
     rightCategories,
-    missing: { left: missingLeft, right: missingRight }
+    missing: {
+      left: missingLeft,
+      middle: missingMiddle.length > 0 ? missingMiddle : undefined,
+      right: missingRight
+    }
   };
 }
 
@@ -102,14 +137,15 @@ export const inStoreCategoryLayouts = {
     right: ['FOR VEGETARIANS', 'SNACK PACK', 'SOUVLAKI', 'STEAK SANDWICHES']
   },
   menu2: {
-    left: ['FISH', 'CHIPS', 'CHIPS & GRAVY', 'SIDES'],
-    right: ['PACKS', 'SPECIAL COMBO', 'SEAFOOD SIDES', 'SWEET']
+    left: ['FISH', 'CHIPS', 'SPECIAL COMBO'],
+    middleCollumn: ['PACKS', 'CHIPS & GRAVY'],
+    right: ['SIDES', 'SEAFOOD SIDES', 'SWEET']
   },
   menu3: {
     left: ['PACKS', 'BURGERS'],
     right: ['FOR VEGETARIANS', 'SIDES']
   }
-} satisfies Record<string, TwoColumnCategoryLayout>;
+} satisfies Record<string, CategoryLayout>;
 
 // Menu Page 1 - Main Menu (Burgers, Fish, Packs)
 // Categories sorted by number of items to balance heights

@@ -5,7 +5,8 @@ import { inStoreCategoryLayouts, menuPage2, splitCategoriesByLayout } from '@/da
 import '@/styles/print-menu.css';
 
 export default function MenuPage2() {
-  const { leftCategories, rightCategories } = splitCategoriesByLayout(menuPage2, inStoreCategoryLayouts.menu2);
+  const { leftCategories, middleCategories, rightCategories } = splitCategoriesByLayout(menuPage2, inStoreCategoryLayouts.menu2);
+  const hasMiddleColumn = Boolean(middleCategories && middleCategories.length > 0);
 
   const categoryClass = (color?: string): string => {
     return color === '#dc2626'
@@ -60,11 +61,18 @@ export default function MenuPage2() {
         </header>
 
         <main className="print-menu-main">
-          <div className="menu2-special-layout">
+          <div className={`menu2-special-layout ${hasMiddleColumn ? 'three-columns' : ''}`}>
             {/* Left side - respects inStoreCategoryLayouts.menu2.left */}
             <div className="menu2-left-column">
               {leftCategories.map(renderCategory)}
             </div>
+
+            {/* Middle side - respects inStoreCategoryLayouts.menu2.middleCollumn */}
+            {hasMiddleColumn && (
+              <div className="menu2-middle-column">
+                {middleCategories!.map(renderCategory)}
+              </div>
+            )}
 
             {/* Right side - respects inStoreCategoryLayouts.menu2.right */}
             <div className="menu2-right-column">
