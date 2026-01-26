@@ -21,13 +21,14 @@ function head(color?: string): string {
 }
 
 export default function Menu2V3() {
-  const { leftCategories: left, rightCategories: right } = splitCategoriesByLayout(menuPage2, inStoreCategoryLayouts.menu2);
+  const { leftCategories: left, middleCategories: middle, rightCategories: right } = splitCategoriesByLayout(menuPage2, inStoreCategoryLayouts.menu2);
+  const hasMiddleColumn = Boolean(middle && middle.length > 0);
 
   return (
     <>
       <PrintButton />
       <PrintMenuLayoutV3 pageTitle="FISH & CHIPS & SIDES" subtitle="Packs • Fish • Sides">
-        <div className="v3-columns">
+        <div className={`v3-columns ${hasMiddleColumn ? 'three-columns' : ''}`}>
           <div>
             {left.map((cat) => (
               <section key={cat.name} className="v3-card" style={{ marginBottom: '1rem' }}>
@@ -46,6 +47,28 @@ export default function Menu2V3() {
               </section>
             ))}
           </div>
+
+          {hasMiddleColumn && (
+            <div>
+              {middle!.map((cat) => (
+                <section key={cat.name} className="v3-card" style={{ marginBottom: '1rem' }}>
+                  <div className={`v3-card-head ${head(cat.color)}`}>{cat.name}</div>
+                  <div className="v3-card-body">
+                    {cat.items.map((it, i) => (
+                      <div key={i} className="v3-row">
+                        <div>
+                          <div className="v3-name">{it.name}</div>
+                          {it.description && <div className="v3-desc">{it.description}</div>}
+                        </div>
+                        <div className="v3-price">{it.priceRange || `$${it.price.toFixed(2)}`}</div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
+
           <div>
             {right.map((cat) => (
               <section key={cat.name} className="v3-card" style={{ marginBottom: '1rem' }}>

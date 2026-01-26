@@ -53,11 +53,21 @@ export interface SaleProductIngredient {
   product_units_per_box?: number;
 }
 
+export interface SaleProductIncludeItem {
+  parent_sale_product_id: string;
+  included_sale_product_id: string;
+  quantity: number;
+  included_product_name?: string;
+  included_product_sale_price?: number;
+  included_product_image_url?: string | null;
+}
+
 export interface SaleProductWithDetails extends SaleProduct {
   cost_of_goods: number;
   profit_margin: number;
   is_available: boolean;
   ingredients: SaleProductIngredient[];
+  included_products: SaleProductIncludeItem[];
   category_name?: string;
   sub_category_name?: string;
 }
@@ -257,9 +267,26 @@ export async function getSaleProducts(): Promise<{ data: SaleProductWithDetails[
       return { data: null, error: ingredientsError.message };
     }
 
+    // Get bundle/pack includes for each product
+    const { data: includes, error: includesError } = await supabase
+      .from('sale_product_includes')
+      .select(`
+        parent_sale_product_id,
+        included_sale_product_id,
+        quantity,
+        included:sale_products!included_sale_product_id(id, name, sale_price, image_url)
+      `)
+      .in('parent_sale_product_id', productIds);
+
+    if (includesError) {
+      console.error('Error fetching sale product includes:', includesError);
+      return { data: null, error: includesError.message };
+    }
+
     // Combine data and calculate costs
     const productsWithDetails: SaleProductWithDetails[] = products.map(product => {
       const productIngredients = ingredients?.filter(ing => ing.sale_product_id === product.id) || [];
+      const productIncludes = (includes || []).filter((inc) => inc.parent_sale_product_id === product.id);
 
       // Calculate cost of goods
       const costOfGoods = productIngredients.reduce((total, ing) => {
@@ -285,6 +312,17 @@ export async function getSaleProducts(): Promise<{ data: SaleProductWithDetails[
           product_purchase_price: (ing.products as { name: string; sku: string; purchase_price: number; total_units: number } | null)?.purchase_price,
           product_total_units: (ing.products as { name: string; sku: string; purchase_price: number; total_units: number } | null)?.total_units
         })),
+        included_products: productIncludes.map((inc) => {
+          const included = (inc as unknown as { included?: { id: string; name: string; sale_price: number; image_url: string | null } | null }).included ?? null;
+          return {
+            parent_sale_product_id: inc.parent_sale_product_id,
+            included_sale_product_id: inc.included_sale_product_id,
+            quantity: Number(inc.quantity || 1),
+            included_product_name: included?.name,
+            included_product_sale_price: typeof included?.sale_price === 'number' ? included.sale_price : undefined,
+            included_product_image_url: included?.image_url ?? null,
+          };
+        }),
         category_name: (product.sale_categories as { name: string } | null)?.name,
         sub_category_name: (product.sub_category as { name: string } | null)?.name
       };
@@ -330,6 +368,22 @@ export async function getSaleProduct(id: string): Promise<{ data: SaleProductWit
       return { data: null, error: ingredientsError.message };
     }
 
+    // Get bundle/pack includes
+    const { data: includes, error: includesError } = await supabase
+      .from('sale_product_includes')
+      .select(`
+        parent_sale_product_id,
+        included_sale_product_id,
+        quantity,
+        included:sale_products!included_sale_product_id(id, name, sale_price, image_url)
+      `)
+      .eq('parent_sale_product_id', id);
+
+    if (includesError) {
+      console.error('Error fetching sale product includes:', includesError);
+      return { data: null, error: includesError.message };
+    }
+
     // Calculate cost of goods using unit prices
     const costOfGoods = ingredients?.reduce((total, ing) => {
       const product = ing.products as { purchase_price: number; units_per_box: number } | null;
@@ -365,6 +419,17 @@ export async function getSaleProduct(id: string): Promise<{ data: SaleProductWit
           product_units_per_box: product?.units_per_box
         };
       }) || [],
+      included_products: (includes || []).map((inc) => {
+        const included = (inc as unknown as { included?: { id: string; name: string; sale_price: number; image_url: string | null } | null }).included ?? null;
+        return {
+          parent_sale_product_id: inc.parent_sale_product_id,
+          included_sale_product_id: inc.included_sale_product_id,
+          quantity: Number(inc.quantity || 1),
+          included_product_name: included?.name,
+          included_product_sale_price: typeof included?.sale_price === 'number' ? included.sale_price : undefined,
+          included_product_image_url: included?.image_url ?? null,
+        };
+      }),
       category_name: (product.sale_categories as { name: string } | null)?.name,
       sub_category_name: (product.sub_category as { name: string } | null)?.name
     };
@@ -394,6 +459,10 @@ export async function createSaleProduct(formData: {
     unit_of_measure: string;
     is_optional: boolean;
     notes?: string;
+  }>;
+  included_products?: Array<{
+    included_sale_product_id: string;
+    quantity: number;
   }>;
   addon_group_ids?: string[];
 }): Promise<{ data: SaleProduct | null; error: string | null }> {
@@ -466,6 +535,29 @@ export async function createSaleProduct(formData: {
       }
     }
 
+    // Create bundle/pack includes
+    if (formData.included_products && formData.included_products.length > 0) {
+      const includeRows = formData.included_products
+        .filter((i) => Boolean(i.included_sale_product_id))
+        .map((i) => ({
+          parent_sale_product_id: product.id,
+          included_sale_product_id: i.included_sale_product_id,
+          quantity: Math.max(1, Number(i.quantity || 1)),
+        }));
+
+      if (includeRows.length > 0) {
+        const { error: includesInsertError } = await supabase
+          .from('sale_product_includes')
+          .insert(includeRows);
+
+        if (includesInsertError) {
+          console.error('Error creating bundle includes:', includesInsertError);
+          await supabase.from('sale_products').delete().eq('id', product.id);
+          return { data: null, error: includesInsertError.message };
+        }
+      }
+    }
+
     return { data: product, error: null };
   } catch (error) {
     console.error('Unexpected error creating sale product:', error);
@@ -524,6 +616,10 @@ export async function updateSaleProduct(
       unit_of_measure: string;
       is_optional: boolean;
       notes?: string;
+    }>;
+    included_products?: Array<{
+      included_sale_product_id: string;
+      quantity: number;
     }>;
     addon_group_ids?: string[];
   }
@@ -614,6 +710,38 @@ export async function updateSaleProduct(
       if (addonError) {
         console.error('Error creating add-on group relationships:', addonError);
         return { data: null, error: addonError.message };
+      }
+    }
+
+    // Update bundle/pack includes (delete all and recreate)
+    const { error: deleteIncludesError } = await supabase
+      .from('sale_product_includes')
+      .delete()
+      .eq('parent_sale_product_id', id);
+
+    if (deleteIncludesError) {
+      console.error('Error deleting old bundle includes:', deleteIncludesError);
+      return { data: null, error: deleteIncludesError.message };
+    }
+
+    if (formData.included_products && formData.included_products.length > 0) {
+      const includeRows = formData.included_products
+        .filter((i) => Boolean(i.included_sale_product_id))
+        .map((i) => ({
+          parent_sale_product_id: id,
+          included_sale_product_id: i.included_sale_product_id,
+          quantity: Math.max(1, Number(i.quantity || 1)),
+        }));
+
+      if (includeRows.length > 0) {
+        const { error: includesInsertError } = await supabase
+          .from('sale_product_includes')
+          .insert(includeRows);
+
+        if (includesInsertError) {
+          console.error('Error creating bundle includes:', includesInsertError);
+          return { data: null, error: includesInsertError.message };
+        }
       }
     }
 

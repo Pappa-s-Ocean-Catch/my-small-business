@@ -159,11 +159,15 @@ export default function MenuPage() {
       is_optional: boolean;
       notes: string;
     }>,
+    included_products: [] as Array<{
+      included_sale_product_id: string;
+      quantity: number;
+    }>,
     addon_group_ids: [] as string[]
   });
 
   // Tab state for product form
-  const [activeProductTab, setActiveProductTab] = useState<'overview' | 'ingredients' | 'addons'>('overview');
+  const [activeProductTab, setActiveProductTab] = useState<'overview' | 'ingredients' | 'bundle' | 'addons'>('overview');
 
   const [categoryForm, setCategoryForm] = useState({
     name: '',
@@ -437,6 +441,8 @@ export default function MenuPage() {
       const addonGroupsResult = await getSaleProductAddonGroups(product.id);
       const selectedAddonGroupIds = addonGroupsResult.data?.map(g => g.id) || [];
 
+      const includes = (product as unknown as { included_products?: Array<{ included_sale_product_id: string; quantity: number }> }).included_products || [];
+
       setProductForm({
         name: product.name,
         description: product.description || '',
@@ -456,6 +462,10 @@ export default function MenuPage() {
           unit_of_measure: ing.unit_of_measure,
           is_optional: ing.is_optional,
           notes: ing.notes || ''
+        })),
+        included_products: includes.map((i) => ({
+          included_sale_product_id: i.included_sale_product_id,
+          quantity: Number(i.quantity || 1),
         })),
         addon_group_ids: selectedAddonGroupIds
       });
@@ -486,6 +496,7 @@ export default function MenuPage() {
         warning_threshold_units: '',
         alert_threshold_units: '',
         ingredients: [],
+        included_products: [],
         addon_group_ids: []
       });
     }
@@ -536,6 +547,7 @@ export default function MenuPage() {
           warning_threshold_units: productForm.warning_threshold_units === '' ? null : Number(productForm.warning_threshold_units),
           alert_threshold_units: productForm.alert_threshold_units === '' ? null : Number(productForm.alert_threshold_units),
           addon_group_ids: productForm.addon_group_ids,
+          included_products: productForm.included_products,
         });
         if (result.error) {
           toast.error(result.error);
@@ -548,6 +560,7 @@ export default function MenuPage() {
           warning_threshold_units: productForm.warning_threshold_units === '' ? null : Number(productForm.warning_threshold_units),
           alert_threshold_units: productForm.alert_threshold_units === '' ? null : Number(productForm.alert_threshold_units),
           addon_group_ids: productForm.addon_group_ids,
+          included_products: productForm.included_products,
         });
         if (result.error) {
           toast.error(result.error);
@@ -852,8 +865,8 @@ export default function MenuPage() {
                 <button
                   onClick={() => handleCategorySelect(null)}
                   className={`w-full text-left p-3 rounded-lg mb-2 transition-colors ${!selectedCategoryId
-                      ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
-                      : 'hover:bg-gray-100 dark:hover:bg-neutral-700 text-gray-700 dark:text-gray-300'
+                    ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
+                    : 'hover:bg-gray-100 dark:hover:bg-neutral-700 text-gray-700 dark:text-gray-300'
                     }`}
                 >
                   <div className="flex items-center justify-between">
@@ -889,8 +902,8 @@ export default function MenuPage() {
                                     }
                                   }}
                                   className={`flex-1 text-left p-3 pr-12 rounded-lg mb-1 transition-colors ${selectedCategoryId === category.id && !selectedSubCategoryId
-                                      ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
-                                      : 'hover:bg-gray-100 dark:hover:bg-neutral-700 text-gray-700 dark:text-gray-300'
+                                    ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
+                                    : 'hover:bg-gray-100 dark:hover:bg-neutral-700 text-gray-700 dark:text-gray-300'
                                     }`}
                                 >
                                   <div className="flex items-center justify-between">
@@ -970,8 +983,8 @@ export default function MenuPage() {
                                           <button
                                             onClick={() => handleCategorySelect(category.id, subCategory.id)}
                                             className={`flex-1 text-left p-2 pr-12 rounded-lg transition-colors ${selectedSubCategoryId === subCategory.id
-                                                ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
-                                                : 'hover:bg-gray-100 dark:hover:bg-neutral-700 text-gray-600 dark:text-gray-400'
+                                              ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
+                                              : 'hover:bg-gray-100 dark:hover:bg-neutral-700 text-gray-600 dark:text-gray-400'
                                               }`}
                                           >
                                             <div className="flex items-center justify-between">
@@ -1169,8 +1182,8 @@ export default function MenuPage() {
                   type="button"
                   onClick={() => setActiveProductTab('overview')}
                   className={`py-2 px-1 border-b-2 font-medium text-sm ${activeProductTab === 'overview'
-                      ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
                     }`}
                 >
                   <Icon icon={FaUtensils} className="w-4 h-4 inline mr-2" />
@@ -1180,8 +1193,8 @@ export default function MenuPage() {
                   type="button"
                   onClick={() => setActiveProductTab('ingredients')}
                   className={`py-2 px-1 border-b-2 font-medium text-sm ${activeProductTab === 'ingredients'
-                      ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
                     }`}
                 >
                   <Icon icon={FaBox} className="w-4 h-4 inline mr-2" />
@@ -1191,12 +1204,23 @@ export default function MenuPage() {
                   type="button"
                   onClick={() => setActiveProductTab('addons')}
                   className={`py-2 px-1 border-b-2 font-medium text-sm ${activeProductTab === 'addons'
-                      ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
                     }`}
                 >
                   <Icon icon={FaTag} className="w-4 h-4 inline mr-2" />
                   Add-ons
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveProductTab('bundle')}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${activeProductTab === 'bundle'
+                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                    }`}
+                >
+                  <Icon icon={FaBox} className="w-4 h-4 inline mr-2" />
+                  Pack Includes
                 </button>
               </nav>
             </div>
@@ -1641,6 +1665,156 @@ export default function MenuPage() {
                         </div>
                       </label>
                     ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeProductTab === 'bundle' && (
+              <div className="space-y-4">
+                <div className="mb-2">
+                  <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pack / Bundle Includes</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-500">
+                    Use this for compound products like “Pack for 1”. Customers will see included items and savings.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-gray-700 dark:text-gray-300">
+                    Included items: <span className="font-medium">{productForm.included_products.length}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setProductForm({
+                      ...productForm,
+                      included_products: [...productForm.included_products, { included_sale_product_id: '', quantity: 1 }]
+                    })}
+                    className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    <Icon icon={FaPlus} className="w-4 h-4" />
+                    Add Included Item
+                  </button>
+                </div>
+
+                {productForm.included_products.length === 0 ? (
+                  <div className="text-center py-10 text-gray-500 dark:text-gray-400">
+                    <Icon icon={FaBox} className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                    <h4 className="text-lg font-medium mb-2">No included products</h4>
+                    <p className="text-sm">Add menu items that this pack includes.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {(() => {
+                      const currentId = editingProduct?.id ?? '';
+                      const originalTotal = productForm.included_products.reduce((sum, row) => {
+                        const p = saleProducts.find(sp => sp.id === row.included_sale_product_id);
+                        const price = p ? Number(p.sale_price || 0) : 0;
+                        return sum + price * Math.max(1, Number(row.quantity || 1));
+                      }, 0);
+                      const savings = Math.max(0, originalTotal - Number(productForm.sale_price || 0));
+
+                      return (
+                        <>
+                          <div className="rounded-lg border border-gray-200 dark:border-neutral-700 bg-gray-50/50 dark:bg-neutral-800/50 p-3">
+                            <div className="flex items-center justify-between text-sm">
+                              <div className="text-gray-700 dark:text-gray-300">
+                                Original total: <span className="font-semibold">${originalTotal.toFixed(2)}</span>
+                              </div>
+                              <div className="text-gray-700 dark:text-gray-300">
+                                Pack price: <span className="font-semibold">${Number(productForm.sale_price || 0).toFixed(2)}</span>
+                              </div>
+                              <div className={`font-semibold ${savings > 0 ? 'text-green-700 dark:text-green-300' : 'text-gray-600 dark:text-gray-400'}`}>
+                                Save: ${savings.toFixed(2)}
+                              </div>
+                            </div>
+                          </div>
+
+                          {productForm.included_products.map((row, index) => {
+                            const selectedElsewhere = new Set(
+                              productForm.included_products
+                                .filter((_, i) => i !== index)
+                                .map(r => r.included_sale_product_id)
+                                .filter(Boolean)
+                            );
+
+                            const selectedProduct = saleProducts.find(sp => sp.id === row.included_sale_product_id);
+                            const selectedPrice = selectedProduct ? Number(selectedProduct.sale_price || 0) : 0;
+
+                            return (
+                              <div
+                                key={`${index}-${row.included_sale_product_id}`}
+                                className="grid grid-cols-1 sm:grid-cols-6 gap-3 p-4 border border-gray-200 dark:border-neutral-700 rounded-lg bg-gray-50/50 dark:bg-neutral-800/50"
+                              >
+                                <div className="sm:col-span-4">
+                                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Included product
+                                  </label>
+                                  <select
+                                    value={row.included_sale_product_id}
+                                    onChange={(e) => {
+                                      const next = [...productForm.included_products];
+                                      next[index] = { ...next[index], included_sale_product_id: e.target.value };
+                                      setProductForm({ ...productForm, included_products: next });
+                                    }}
+                                    className="w-full h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900 text-sm"
+                                  >
+                                    <option value="">Select a menu item</option>
+                                    {saleProducts
+                                      .slice()
+                                      .sort((a, b) => a.name.localeCompare(b.name))
+                                      .map((p) => {
+                                        const disabled = (currentId && p.id === currentId) || (selectedElsewhere.has(p.id) && p.id !== row.included_sale_product_id);
+                                        return (
+                                          <option key={p.id} value={p.id} disabled={disabled}>
+                                            {p.name} — ${Number(p.sale_price || 0).toFixed(2)}
+                                          </option>
+                                        );
+                                      })}
+                                  </select>
+                                  {row.included_sale_product_id && (
+                                    <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                                      Line total: ${((Math.max(1, Number(row.quantity || 1)) * selectedPrice) || 0).toFixed(2)}
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="sm:col-span-1">
+                                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Qty
+                                  </label>
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    step={1}
+                                    value={row.quantity}
+                                    onChange={(e) => {
+                                      const next = [...productForm.included_products];
+                                      next[index] = { ...next[index], quantity: Math.max(1, parseInt(e.target.value || '1', 10)) };
+                                      setProductForm({ ...productForm, included_products: next });
+                                    }}
+                                    className="w-full h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900 text-sm"
+                                  />
+                                </div>
+
+                                <div className="sm:col-span-1 flex items-end justify-end">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const next = productForm.included_products.filter((_, i) => i !== index);
+                                      setProductForm({ ...productForm, included_products: next });
+                                    }}
+                                    className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                    title="Remove included product"
+                                  >
+                                    <Icon icon={FaTrash} className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </>
+                      );
+                    })()}
                   </div>
                 )}
               </div>

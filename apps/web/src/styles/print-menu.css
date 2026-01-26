@@ -167,6 +167,37 @@
   letter-spacing: 0.02em;
   text-transform: uppercase;
   white-space: nowrap;
+
+  .menu-hero-phone-text {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    white-space: nowrap;
+  }
+
+  .menu-hero-phone-primary {
+    color: #dc2626;
+  }
+
+  .menu-hero-phone-secondary {
+    color: #2563eb;
+  }
+
+  .menu-hero-phone-sep {
+    color: rgba(124, 45, 18, 0.9);
+    font-weight: 900;
+    text-transform: lowercase;
+  }
+
+  .menu-hero-qr {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px;
+    border-radius: 10px;
+    background: #ffffff;
+    border: 2px solid rgba(15, 23, 42, 0.12);
+  }
 }
 
 .coffee-icon {

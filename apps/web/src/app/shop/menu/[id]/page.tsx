@@ -8,6 +8,16 @@ import Card from '@/components/Card';
 import { toast } from 'react-toastify';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
 
+type BundleIncludeRow = {
+  quantity: number;
+  included: {
+    id: string;
+    name: string;
+    sale_price: number;
+    image_url: string | null;
+  } | null;
+};
+
 interface SaleProduct {
   id: string;
   name: string;
@@ -96,6 +106,7 @@ export default function SaleProductDetailsPage() {
   const router = useRouter();
   const [saleProduct, setSaleProduct] = useState<SaleProduct | null>(null);
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+  const [bundleIncludes, setBundleIncludes] = useState<BundleIncludeRow[]>([]);
   const [productionCapacity, setProductionCapacity] = useState<ProductionCapacity | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -263,6 +274,19 @@ export default function SaleProductDetailsPage() {
 
       setIngredients(ingredients);
 
+      // Fetch bundle/pack includes
+      const { data: includesData, error: includesError } = await supabase
+        .from('sale_product_includes')
+        .select('quantity, included:sale_products!included_sale_product_id(id, name, sale_price, image_url)')
+        .eq('parent_sale_product_id', id);
+
+      if (includesError) {
+        console.error('Error fetching sale product includes:', includesError);
+        setBundleIncludes([]);
+      } else {
+        setBundleIncludes((includesData || []) as unknown as BundleIncludeRow[]);
+      }
+
       // Calculate production capacity
       const capacity = calculateProductionCapacity(ingredients, saleProduct.sale_price);
       setProductionCapacity(capacity);
@@ -337,7 +361,7 @@ export default function SaleProductDetailsPage() {
     ingredients.forEach(ingredient => {
       if (!ingredient.is_optional) {
         const possibleFromThisIngredient = Math.floor(ingredient.current_stock / ingredient.quantity_required);
-        
+
         if (possibleFromThisIngredient < maxPossible) {
           maxPossible = possibleFromThisIngredient;
           limitingIngredient = ingredient.product_name;
@@ -389,6 +413,14 @@ export default function SaleProductDetailsPage() {
     if (possible >= 1) return 'Low';
     return 'Out of Stock';
   };
+
+  const bundleOriginalTotal = bundleIncludes.reduce((sum, row) => {
+    const price = row.included?.sale_price ?? 0;
+    const qty = Math.max(1, Number(row.quantity || 1));
+    return sum + price * qty;
+  }, 0);
+
+  const bundleSavings = Math.max(0, bundleOriginalTotal - (saleProduct?.sale_price ?? 0));
 
   if (loading) {
     return (
@@ -445,7 +477,7 @@ export default function SaleProductDetailsPage() {
             <Icon icon={FaArrowLeft} className="w-4 h-4" />
             Back to Menu
           </button>
-          
+
           <div className="flex items-start justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{saleProduct.name}</h1>
@@ -537,7 +569,7 @@ export default function SaleProductDetailsPage() {
                     </div>
                   </>
                 )}
-                
+
                 {ingredients.length === 0 ? (
                   <div className="text-center py-8">
                     <Icon icon={FaUtensils} className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -573,18 +605,18 @@ export default function SaleProductDetailsPage() {
                               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 italic">{ingredient.notes}</p>
                             )}
                           </div>
-                            <div className="text-right">
-                              <div className="text-sm text-gray-600 dark:text-gray-400">
-                                Can make: {Math.floor(ingredient.current_stock / ingredient.quantity_required)}
-                              </div>
-                              <div className="text-xs text-gray-500 dark:text-gray-400">
-                                {(() => {
-                                  const unitPrice = ingredient.units_per_box > 0 ? ingredient.purchase_price / ingredient.units_per_box : 0;
-                                  const lineCost = unitPrice * ingredient.quantity_required;
-                                  return `Unit: $${unitPrice.toFixed(3)} • Cost: $${lineCost.toFixed(2)}`;
-                                })()}
-                              </div>
+                          <div className="text-right">
+                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                              Can make: {Math.floor(ingredient.current_stock / ingredient.quantity_required)}
                             </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              {(() => {
+                                const unitPrice = ingredient.units_per_box > 0 ? ingredient.purchase_price / ingredient.units_per_box : 0;
+                                const lineCost = unitPrice * ingredient.quantity_required;
+                                return `Unit: $${unitPrice.toFixed(3)} • Cost: $${lineCost.toFixed(2)}`;
+                              })()}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -596,6 +628,51 @@ export default function SaleProductDetailsPage() {
 
           {/* Sidebar */}
           <div className="space-y-6">
+            {/* Bundle Includes */}
+            {bundleIncludes.length > 0 && (
+              <Card>
+                <div className="p-6">
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    <Icon icon={FaBox} className="w-5 h-5 text-blue-600" />
+                    Pack Includes
+                  </h2>
+
+                  <div className="rounded-lg border border-gray-200 dark:border-neutral-700 bg-gray-50/50 dark:bg-neutral-800/50 p-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="text-gray-700 dark:text-gray-300">
+                        Original total:{' '}
+                        <span className="font-semibold">${bundleOriginalTotal.toFixed(2)}</span>
+                      </div>
+                      <div className="text-gray-700 dark:text-gray-300">
+                        Pack price:{' '}
+                        <span className="font-semibold">${saleProduct.sale_price.toFixed(2)}</span>
+                      </div>
+                    </div>
+                    {bundleSavings > 0 && (
+                      <div className="mt-1 text-sm font-semibold text-green-700 dark:text-green-300">
+                        Save ${bundleSavings.toFixed(2)}
+                      </div>
+                    )}
+                  </div>
+
+                  <ul className="mt-4 space-y-2">
+                    {bundleIncludes.map((row, idx) => (
+                      <li key={`${row.included?.id ?? 'unknown'}-${idx}`} className="flex items-center justify-between gap-3 text-sm">
+                        <div className="min-w-0">
+                          <span className="font-medium text-gray-900 dark:text-white">
+                            {Math.max(1, Number(row.quantity || 1))}× {row.included?.name ?? 'Unknown item'}
+                          </span>
+                        </div>
+                        <div className="text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                          ${(Math.max(1, Number(row.quantity || 1)) * (row.included?.sale_price ?? 0)).toFixed(2)}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </Card>
+            )}
+
             {/* Production Capacity */}
             <Card>
               <div className="p-6">
@@ -603,7 +680,7 @@ export default function SaleProductDetailsPage() {
                   <Icon icon={FaBox} className="w-5 h-5 text-green-600" />
                   Production Capacity
                 </h2>
-                
+
                 {productionCapacity && (
                   <div className="space-y-4">
                     <div className="text-center">
@@ -650,20 +727,20 @@ export default function SaleProductDetailsPage() {
                   <Icon icon={FaTag} className="w-5 h-5 text-purple-600" />
                   Product Details
                 </h2>
-                
+
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600 dark:text-gray-400">Sale Price:</span>
                     <span className="font-medium text-gray-900 dark:text-white">${saleProduct.sale_price.toFixed(2)}</span>
                   </div>
-                  
+
                   {productionCapacity && (
                     <>
                       <div className="flex items-center justify-between">
                         <span className="text-gray-600 dark:text-gray-400">Cost per Item:</span>
                         <span className="font-medium text-gray-900 dark:text-white">${productionCapacity.total_cost.toFixed(2)}</span>
                       </div>
-                      
+
                       <div className="flex items-center justify-between">
                         <span className="text-gray-600 dark:text-gray-400">Profit Margin:</span>
                         <span className={`font-medium ${productionCapacity.profit_margin >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
@@ -672,7 +749,7 @@ export default function SaleProductDetailsPage() {
                       </div>
                     </>
                   )}
-                  
+
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600 dark:text-gray-400">Prep Time:</span>
                     <span className="font-medium text-gray-900 dark:text-white flex items-center gap-1">
@@ -680,7 +757,7 @@ export default function SaleProductDetailsPage() {
                       {saleProduct.preparation_time_minutes} min
                     </span>
                   </div>
-                  
+
                   {saleProduct.sale_category_name && (
                     <div className="flex items-center justify-between">
                       <span className="text-gray-600 dark:text-gray-400">Category:</span>

@@ -19,13 +19,14 @@ function colorToClass(color?: string): string {
 }
 
 export default function Menu1V2() {
-  const { leftCategories, rightCategories } = splitCategoriesByLayout(menuPage1, inStoreCategoryLayouts.menu1);
+  const { leftCategories, middleCategories, rightCategories } = splitCategoriesByLayout(menuPage1, inStoreCategoryLayouts.menu1);
+  const hasMiddleColumn = Boolean(middleCategories && middleCategories.length > 0);
 
   return (
     <>
       <PrintButton />
       <PrintMenuLayoutV2 pageTitle={menuPage1.title} subtitle="Signature Burgers & Souvlaki">
-        <div className="v2-columns">
+        <div className={`v2-columns ${hasMiddleColumn ? 'three-columns' : ''}`}>
           {/* Left Column */}
           <div className="v2-left-column">
             {leftCategories.map((category) => {
@@ -48,6 +49,31 @@ export default function Menu1V2() {
               );
             })}
           </div>
+
+          {/* Middle Column (optional) */}
+          {hasMiddleColumn && (
+            <div className="v2-middle-column">
+              {middleCategories!.map((category) => {
+                const key = colorToClass(category.color);
+                return (
+                  <section key={category.name} className={`v2-card v2-accent-${key}`}>
+                    <div className={`v2-card-header v2-header-${key}`}>{category.name}</div>
+                    <div className="v2-card-body">
+                      {category.items.map((item, idx) => (
+                        <div key={idx} className="v2-item">
+                          <div>
+                            <div className="v2-item-name">{item.name}</div>
+                            {item.description && <div className="v2-item-desc">{item.description}</div>}
+                          </div>
+                          <div className="v2-item-price">${item.price.toFixed(2)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+          )}
 
           {/* Right Column */}
           <div className="v2-right-column">

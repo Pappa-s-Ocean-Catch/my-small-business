@@ -27,6 +27,19 @@ function formatPhoneNumbers(phone: string): string {
   return formatted.join(' or ');
 }
 
+function getPhoneParts(phone: string): { primary?: string; secondary?: string } {
+  const numbers = phone.match(/\d+/g) ?? [];
+  const format = (n: string): string => {
+    if (n.length === 8) return `${n.slice(0, 4)} ${n.slice(4)}`;
+    if (n.length === 10) return `${n.slice(0, 4)} ${n.slice(4, 7)} ${n.slice(7)}`;
+    return n;
+  };
+  return {
+    primary: numbers[0] ? format(numbers[0]) : undefined,
+    secondary: numbers[1] ? format(numbers[1]) : undefined,
+  };
+}
+
 export default function PrintMenuLayout({
   children,
   pageTitle,
@@ -37,7 +50,8 @@ export default function PrintMenuLayout({
   void pageTitle;
 
   const hoursText = formatHours(storeInfo.hours);
-  const phoneText = formatPhoneNumbers(storeInfo.phone);
+  const phoneParts = getPhoneParts(storeInfo.phone);
+  const fallbackPhoneText = formatPhoneNumbers(storeInfo.phone);
 
   return (
     <div className="print-menu-container">
@@ -78,7 +92,21 @@ export default function PrintMenuLayout({
 
               <div className="menu-hero-phone-pill" aria-label="Phone orders">
                 <Icon icon={FaPhone} className="menu-hero-phone-icon" />
-                <span className="menu-hero-phone-text">{phoneText}</span>
+                <span className="menu-hero-phone-text">
+                  {phoneParts.primary ? (
+                    <>
+                      <span className="menu-hero-phone-primary">{phoneParts.primary}</span>
+                      {phoneParts.secondary && (
+                        <>
+                          <span className="menu-hero-phone-sep">or</span>
+                          <span className="menu-hero-phone-secondary">{phoneParts.secondary}</span>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    fallbackPhoneText
+                  )}
+                </span>
               </div>
             </div>
           </div>

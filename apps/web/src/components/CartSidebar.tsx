@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FaShoppingCart, FaTimes, FaPlus, FaMinus, FaTrash, FaChevronRight, FaEdit, FaComment } from 'react-icons/fa';
 import { Icon } from '@/components/Icon';
@@ -65,7 +66,7 @@ export function CartSidebar() {
             className="fixed inset-0 bg-black/50 z-40"
             onClick={() => setIsOpen(false)}
           />
-          
+
           {/* Sidebar */}
           <div className="fixed right-0 top-0 h-full w-full sm:w-96 bg-white dark:bg-neutral-900 shadow-xl z-50 flex flex-col">
             {/* Header */}
@@ -98,17 +99,21 @@ export function CartSidebar() {
                   >
                     <div className="flex gap-3">
                       {item.image_url && (
-                        <img
-                          src={item.image_url}
-                          alt={item.name}
-                          className="w-16 h-16 object-cover rounded-lg"
-                        />
+                        <Link href={`/order/product/${item.product_id}`} aria-label={`View details for ${item.name}`}>
+                          <img
+                            src={item.image_url}
+                            alt={item.name}
+                            className="w-16 h-16 object-cover rounded-lg"
+                          />
+                        </Link>
                       )}
                       <div className="flex-1 min-w-0">
                         <h3 className="font-semibold text-gray-900 dark:text-white text-sm">
-                          {item.name}
+                          <Link href={`/order/product/${item.product_id}`} className="hover:underline">
+                            {item.name}
+                          </Link>
                         </h3>
-                        
+
                         {/* Add-ons */}
                         {item.addon_groups.length > 0 && (
                           <div className="mt-1 space-y-1">

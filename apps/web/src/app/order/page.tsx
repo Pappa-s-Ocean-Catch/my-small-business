@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
 import { useCart } from '@/contexts/CartContext';
 import { ItemCustomizationModal } from '@/components/ItemCustomizationModal';
@@ -70,7 +71,7 @@ export default function OrderPage() {
     try {
       setLoading(true);
       const supabase = getSupabaseClient();
-      
+
       const [productsResult, categoriesResult, topSellersResult, featuredResult] = await Promise.all([
         supabase
           .from('sale_products')
@@ -98,7 +99,7 @@ export default function OrderPage() {
 
       setProducts(productsResult.data || []);
       setCategories(categoriesResult.data || []);
-      
+
       // Convert top sellers to MenuProduct format
       if (topSellersResult.data) {
         setTopSellers(topSellersResult.data.map(p => ({
@@ -111,7 +112,7 @@ export default function OrderPage() {
           sub_category_id: p.sub_category_id
         })));
       }
-      
+
       // Convert featured products to MenuProduct format
       if (featuredResult.data) {
         setFeaturedProducts(featuredResult.data.map(p => ({
@@ -135,7 +136,7 @@ export default function OrderPage() {
   const categoryHierarchy = useMemo(() => {
     const mainCategories = categories.filter(cat => !cat.parent_category_id);
     const subCategories = categories.filter(cat => cat.parent_category_id);
-    
+
     return mainCategories.map(mainCat => ({
       ...mainCat,
       sub_categories: subCategories.filter(subCat => subCat.parent_category_id === mainCat.id)
@@ -157,8 +158,8 @@ export default function OrderPage() {
         const subCategoryIds = categories
           .filter(c => c.parent_category_id === category.id)
           .map(c => c.id);
-        
-        filtered = products.filter(product => 
+
+        filtered = products.filter(product =>
           product.sale_category_id === selectedCategoryId ||
           (product.sub_category_id && subCategoryIds.includes(product.sub_category_id))
         );
@@ -266,11 +267,10 @@ export default function OrderPage() {
                 setFilterType('all');
                 setSelectedCategoryId(null);
               }}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
-                filterType === 'all' && selectedCategoryId === null
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${filterType === 'all' && selectedCategoryId === null
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-200 dark:bg-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-neutral-600'
-              }`}
+                }`}
             >
               <Icon icon={FaUtensils} className="w-3 h-3" />
               All Items
@@ -280,11 +280,10 @@ export default function OrderPage() {
                 setFilterType('top-sellers');
                 setSelectedCategoryId(null);
               }}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
-                filterType === 'top-sellers'
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${filterType === 'top-sellers'
                   ? 'bg-orange-600 text-white'
                   : 'bg-gray-200 dark:bg-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-neutral-600'
-              }`}
+                }`}
             >
               <Icon icon={FaFire} className="w-3 h-3" />
               Top Sellers
@@ -294,11 +293,10 @@ export default function OrderPage() {
                 setFilterType('featured');
                 setSelectedCategoryId(null);
               }}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
-                filterType === 'featured'
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${filterType === 'featured'
                   ? 'bg-yellow-600 text-white'
                   : 'bg-gray-200 dark:bg-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-neutral-600'
-              }`}
+                }`}
             >
               <Icon icon={FaStar} className="w-3 h-3" />
               Featured
@@ -310,11 +308,10 @@ export default function OrderPage() {
                   setFilterType('category');
                   setSelectedCategoryId(category.id);
                 }}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  filterType === 'category' && selectedCategoryId === category.id
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filterType === 'category' && selectedCategoryId === category.id
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-200 dark:bg-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-neutral-600'
-                }`}
+                  }`}
               >
                 {category.name}
               </button>
@@ -335,7 +332,7 @@ export default function OrderPage() {
             {filteredProducts.map(product => {
               const isTopSeller = topSellers.some(p => p.id === product.id);
               const isFeatured = featuredProducts.some(p => p.id === product.id);
-              
+
               return (
                 <div
                   key={product.id}
@@ -358,19 +355,23 @@ export default function OrderPage() {
                       )}
                     </div>
                   )}
-                  
+
                   {product.image_url && (
                     <div className="aspect-video bg-gray-200 dark:bg-neutral-700 relative">
-                      <img
-                        src={product.image_url}
-                        alt={product.name}
-                        className="w-full h-full object-cover"
-                      />
+                      <Link href={`/order/product/${product.id}`} aria-label={`View details for ${product.name}`}>
+                        <img
+                          src={product.image_url}
+                          alt={product.name}
+                          className="w-full h-full object-cover"
+                        />
+                      </Link>
                     </div>
                   )}
                   <div className="p-4">
                     <h3 className="font-semibold text-gray-900 dark:text-white mb-1">
-                      {product.name}
+                      <Link href={`/order/product/${product.id}`} className="hover:underline">
+                        {product.name}
+                      </Link>
                     </h3>
                     {product.description && (
                       <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">

@@ -1,13 +1,25 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { FaTimes, FaCheck, FaDollarSign } from 'react-icons/fa';
-import Modal from './Modal';
-import { ActionButton } from './ActionButton';
-import type { AddonGroupWithItems, AddonItem } from '@/app/actions/addons';
+import { useEffect, useMemo, useState } from 'react';
+import { FaCheck, FaDollarSign, FaTimes } from 'react-icons/fa';
+import { getSupabaseClient } from '@my-small-business/supabase/client';
+import type { AddonGroupWithItems } from '@/app/actions/addons';
+import { getAddonGroup, getSaleProductAddonGroups } from '@/app/actions/addons';
 import type { CartAddonGroup, CartAddonItem } from '@/contexts/CartContext';
-import { getSaleProductAddonGroups, getAddonGroup } from '@/app/actions/addons';
+import { ActionButton } from './ActionButton';
 import { Icon } from '@/components/Icon';
+import Modal from './Modal';
+
+type BundleIncludeRow = {
+  quantity: number;
+  included: {
+    id: string;
+    name: string;
+    sale_price: number;
+    image_url: string | null;
+  } | null;
+};
+
 interface ItemCustomizationModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -21,32 +33,39 @@ interface ItemCustomizationModalProps {
   onAddToCart: (customizations: CartAddonGroup[], comment?: string | null) => void;
 }
 
-export function ItemCustomizationModal({
-  isOpen,
-  onClose,
-  product,
-  onAddToCart
-}: ItemCustomizationModalProps) {
+export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart }: ItemCustomizationModalProps) {
   const [addonGroups, setAddonGroups] = useState<AddonGroupWithItems[]>([]);
+  const [bundleIncludes, setBundleIncludes] = useState<BundleIncludeRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedAddons, setSelectedAddons] = useState<Record<string, string[]>>({}); // groupId -> itemIds[]
+  const [selectedAddons, setSelectedAddons] = useState<Record<string, string[]>>({});
   const [errors, setErrors] = useState<string[]>([]);
   const [comment, setComment] = useState<string>('');
 
   useEffect(() => {
     if (isOpen && product.id) {
-      loadAddonGroups();
-    } else {
-      // Reset when modal closes
-      setSelectedAddons({});
-      setErrors([]);
-      setComment('');
+      void loadDetails();
+      return;
     }
+
+    // Reset when modal closes
+    setSelectedAddons({});
+    setErrors([]);
+    setComment('');
+    setAddonGroups([]);
+    setBundleIncludes([]);
   }, [isOpen, product.id]);
+
+  const loadDetails = async () => {
+    setLoading(true);
+    try {
+      await Promise.all([loadAddonGroups(), loadBundleIncludes()]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadAddonGroups = async () => {
     try {
-      setLoading(true);
       const result = await getSaleProductAddonGroups(product.id);
       if (result.error) {
         console.error('Error loading add-on groups:', result.error);
@@ -54,7 +73,6 @@ export function ItemCustomizationModal({
         return;
       }
 
-      // Fetch full group details with items
       const groupsWithItems = await Promise.all(
         (result.data || []).map(async (group) => {
           const groupResult = await getAddonGroup(group.id);
@@ -66,28 +84,45 @@ export function ItemCustomizationModal({
     } catch (err) {
       console.error('Error loading add-on groups:', err);
       setAddonGroups([]);
-    } finally {
-      setLoading(false);
+    }
+  };
+
+  const loadBundleIncludes = async () => {
+    try {
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase
+        .from('sale_product_includes')
+        .select('quantity, included:sale_products!included_sale_product_id(id, name, sale_price, image_url)')
+        .eq('parent_sale_product_id', product.id);
+
+      if (error) {
+        console.error('Error loading bundle includes:', error);
+        setBundleIncludes([]);
+        return;
+      }
+
+      setBundleIncludes((data || []) as unknown as BundleIncludeRow[]);
+    } catch (err) {
+      console.error('Error loading bundle includes:', err);
+      setBundleIncludes([]);
     }
   };
 
   const toggleAddonItem = (groupId: string, itemId: string) => {
-    setSelectedAddons(prev => {
+    setSelectedAddons((prev) => {
       const current = prev[groupId] || [];
       if (current.includes(itemId)) {
-        return { ...prev, [groupId]: current.filter(id => id !== itemId) };
-      } else {
-        return { ...prev, [groupId]: [...current, itemId] };
+        return { ...prev, [groupId]: current.filter((id) => id !== itemId) };
       }
+      return { ...prev, [groupId]: [...current, itemId] };
     });
-    // Clear errors when user makes a selection
     setErrors([]);
   };
 
   const validateSelection = (): boolean => {
     const newErrors: string[] = [];
-    
-    addonGroups.forEach(group => {
+
+    addonGroups.forEach((group) => {
       if (group.is_required && group.is_active) {
         const selected = selectedAddons[group.id] || [];
         if (selected.length === 0) {
@@ -101,48 +136,57 @@ export function ItemCustomizationModal({
   };
 
   const handleAddToCart = () => {
-    if (!validateSelection()) {
-      return;
-    }
+    if (!validateSelection()) return;
 
-    // Convert selected addons to cart format
     const cartAddonGroups: CartAddonGroup[] = addonGroups
-      .filter(group => group.is_active)
-      .map(group => {
+      .filter((group) => group.is_active)
+      .map((group) => {
         const selectedItemIds = selectedAddons[group.id] || [];
         const selectedItems: CartAddonItem[] = group.items
-          .filter(item => item.is_active && selectedItemIds.includes(item.id))
-          .map(item => ({
+          .filter((item) => item.is_active && selectedItemIds.includes(item.id))
+          .map((item) => ({
             id: item.id,
             name: item.name,
-            extra_price: item.extra_price
+            extra_price: item.extra_price,
           }));
 
         return {
           id: group.id,
           name: group.name,
           is_required: group.is_required,
-          selected_items: selectedItems
+          selected_items: selectedItems,
         };
       })
-      .filter(group => group.selected_items.length > 0 || group.is_required);
+      .filter((group) => group.selected_items.length > 0 || group.is_required);
 
     onAddToCart(cartAddonGroups, comment.trim() || null);
     onClose();
   };
 
-  const getTotalPrice = (): number => {
+  const totalPrice = useMemo((): number => {
     let total = product.sale_price;
-    addonGroups.forEach(group => {
+    addonGroups.forEach((group) => {
       const selectedItemIds = selectedAddons[group.id] || [];
-      group.items.forEach(item => {
+      group.items.forEach((item) => {
         if (item.is_active && selectedItemIds.includes(item.id)) {
           total += item.extra_price;
         }
       });
     });
     return total;
-  };
+  }, [addonGroups, product.sale_price, selectedAddons]);
+
+  const bundleOriginalTotal = useMemo(() => {
+    return bundleIncludes.reduce((sum, row) => {
+      const price = row.included?.sale_price ?? 0;
+      const qty = Math.max(1, Number(row.quantity || 1));
+      return sum + price * qty;
+    }, 0);
+  }, [bundleIncludes]);
+
+  const bundleSavings = useMemo(() => {
+    return Math.max(0, bundleOriginalTotal - product.sale_price);
+  }, [bundleOriginalTotal, product.sale_price]);
 
   return (
     <Modal
@@ -155,9 +199,7 @@ export function ItemCustomizationModal({
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
             <span>Total:</span>
-            <span className="text-green-600 dark:text-green-400">
-              ${getTotalPrice().toFixed(2)}
-            </span>
+            <span className="text-green-600 dark:text-green-400">${totalPrice.toFixed(2)}</span>
           </div>
           <div className="flex gap-3">
             <button
@@ -168,10 +210,7 @@ export function ItemCustomizationModal({
               <Icon icon={FaTimes} className="h-4 w-4" />
               Cancel
             </button>
-            <ActionButton
-              onClick={handleAddToCart}
-              icon={<Icon icon={FaCheck} />}
-            >
+            <ActionButton onClick={handleAddToCart} icon={<Icon icon={FaCheck} />}>
               Add to Cart
             </ActionButton>
           </div>
@@ -182,29 +221,53 @@ export function ItemCustomizationModal({
         {/* Product Info */}
         <div className="flex gap-4 pb-4 border-b border-gray-200 dark:border-neutral-700">
           {product.image_url && (
-            <img
-              src={product.image_url}
-              alt={product.name}
-              className="w-20 h-20 object-cover rounded-lg"
-            />
+            <img src={product.image_url} alt={product.name} className="w-20 h-20 object-cover rounded-lg" />
           )}
           <div className="flex-1">
-            <h3 className="font-semibold text-gray-900 dark:text-white text-lg">
-              {product.name}
-            </h3>
+            <h3 className="font-semibold text-gray-900 dark:text-white text-lg">{product.name}</h3>
             {product.description && (
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                {product.description}
-              </p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{product.description}</p>
             )}
             <div className="flex items-center gap-2 mt-2">
               <span className="text-sm text-gray-600 dark:text-gray-400">Base Price:</span>
-              <span className="font-semibold text-green-600 dark:text-green-400">
-                ${product.sale_price.toFixed(2)}
-              </span>
+              <span className="font-semibold text-green-600 dark:text-green-400">${product.sale_price.toFixed(2)}</span>
             </div>
           </div>
         </div>
+
+        {/* Bundle / Pack Includes */}
+        {bundleIncludes.length > 0 && (
+          <div className="rounded-lg border border-gray-200 dark:border-neutral-700 bg-gray-50/50 dark:bg-neutral-800/50 p-4">
+            <div className="flex items-center justify-between gap-4">
+              <h4 className="font-semibold text-gray-900 dark:text-white">This pack includes</h4>
+              <div className="text-sm text-gray-700 dark:text-gray-300">
+                <span className="line-through text-gray-500 dark:text-gray-400 mr-2">${bundleOriginalTotal.toFixed(2)}</span>
+                <span className="font-semibold">${product.sale_price.toFixed(2)}</span>
+                {bundleSavings > 0 && (
+                  <span className="ml-2 font-semibold text-green-700 dark:text-green-300">Save ${bundleSavings.toFixed(2)}</span>
+                )}
+              </div>
+            </div>
+
+            <ul className="mt-3 space-y-2">
+              {bundleIncludes.map((row, idx) => (
+                <li
+                  key={`${row.included?.id ?? 'unknown'}-${idx}`}
+                  className="flex items-center justify-between gap-3 text-sm"
+                >
+                  <div className="min-w-0">
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      {Math.max(1, Number(row.quantity || 1))}× {row.included?.name ?? 'Unknown item'}
+                    </span>
+                  </div>
+                  <div className="text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                    ${(Math.max(1, Number(row.quantity || 1)) * (row.included?.sale_price ?? 0)).toFixed(2)}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {/* Error Messages */}
         {errors.length > 0 && (
@@ -230,13 +293,11 @@ export function ItemCustomizationModal({
         ) : (
           <div className="space-y-6">
             {addonGroups
-              .filter(group => group.is_active)
-              .map(group => (
+              .filter((group) => group.is_active)
+              .map((group) => (
                 <div key={group.id} className="space-y-3">
                   <div className="flex items-center gap-2">
-                    <h4 className="font-semibold text-gray-900 dark:text-white">
-                      {group.name}
-                    </h4>
+                    <h4 className="font-semibold text-gray-900 dark:text-white">{group.name}</h4>
                     {group.is_required && (
                       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
                         Required
@@ -244,39 +305,37 @@ export function ItemCustomizationModal({
                     )}
                   </div>
                   {group.description && (
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      {group.description}
-                    </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{group.description}</p>
                   )}
                   <div className="space-y-2">
                     {group.items
-                      .filter(item => item.is_active)
-                      .map(item => {
+                      .filter((item) => item.is_active)
+                      .map((item) => {
                         const isSelected = (selectedAddons[group.id] || []).includes(item.id);
                         return (
                           <label
                             key={item.id}
-                            className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-colors ${
-                              isSelected
-                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-600'
-                                : 'border-gray-200 dark:border-neutral-700 hover:border-gray-300 dark:hover:border-neutral-600'
-                            }`}
+                            className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-colors ${isSelected
+                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                : 'border-gray-200 dark:border-neutral-700 hover:bg-gray-50 dark:hover:bg-neutral-800'
+                              }`}
                           >
-                            <div className="flex items-center gap-3 flex-1">
+                            <div className="flex items-center gap-3">
                               <input
                                 type="checkbox"
                                 checked={isSelected}
                                 onChange={() => toggleAddonItem(group.id, item.id)}
-                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                               />
-                              <span className="text-gray-900 dark:text-white">
-                                {item.name}
-                              </span>
+                              <div>
+                                <div className="font-medium text-gray-900 dark:text-white">{item.name}</div>
+                              </div>
                             </div>
                             {item.extra_price > 0 && (
-                              <span className="text-sm font-medium text-green-600 dark:text-green-400">
-                                +${item.extra_price.toFixed(2)}
-                              </span>
+                              <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                                <Icon icon={FaDollarSign} className="w-3 h-3" />
+                                <span className="text-sm font-medium">+${item.extra_price.toFixed(2)}</span>
+                              </div>
                             )}
                           </label>
                         );
@@ -300,11 +359,10 @@ export function ItemCustomizationModal({
             className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-800 text-gray-900 dark:text-white resize-none"
             placeholder="Add any special instructions or notes for this item..."
           />
-          <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-            {comment.length}/500 characters
-          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">{comment.length}/500 characters</p>
         </div>
       </div>
     </Modal>
   );
+
 }
