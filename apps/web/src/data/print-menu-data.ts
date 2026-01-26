@@ -245,7 +245,7 @@ export const menuPage1: MenuPage = {
     // 6 items
     {
       name: "SOUVLAKI",
-      color: "#16a34a",
+      color: "#8b5cf6",
       items: [
         { name: "LAMB SOUVLAKI", description: "Lamb Yiros Meat, Tomato, Red Onion, Lettuce, & Garlic Sauce", price: 12.8 },
         { name: "LAMB SOUVA WITH THE LOT", description: "Lamb Yiros Meat, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Garlic Sauce", price: 15.6 },
@@ -315,7 +315,7 @@ export const menuPage2: MenuPage = {
         { name: "Butter Fish", description: "Grilled Or Fried", price: 9.0 },
         { name: "Basa", description: "Grilled Or Fried", price: 7.0 },
         { name: "Barracouta", description: "Fried", price: 9.0 },
-        { name: "Make Grilled Fish Add $0.50", description: "Any Grilled Fish Add $0.50", price: 0.5 },
+        { name: "Make Grilled Fish", description: "Any Grilled Fish Add $0.50", price: 0.5 },
         { name: "Add Panko", description: "", price: 1.0 }
 
       ]
@@ -373,7 +373,7 @@ export const menuPage2: MenuPage = {
     },
     {
       name: "SEAFOOD SIDES",
-      color: "#8b5cf6",
+      color: "#16a34a",
       items: [
         { name: "Seafood / Crab Stick", description: "", price: 1.5 },
         { name: "Fish Bite", description: "", price: 5.0 },
