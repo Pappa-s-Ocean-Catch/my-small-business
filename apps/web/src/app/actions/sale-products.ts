@@ -238,7 +238,25 @@ export async function getSaleProducts(): Promise<{ data: SaleProductWithDetails[
     const { data: products, error: productsError } = await supabase
       .from('sale_products')
       .select(`
-        *,
+        id,
+        slug,
+        name,
+        description,
+        seo_title,
+        seo_description,
+        seo_text,
+        sort_order,
+        sale_price,
+        image_url,
+        sale_category_id,
+        sub_category_id,
+        is_active,
+        is_featured,
+        preparation_time_minutes,
+        created_at,
+        updated_at,
+        warning_threshold_units,
+        alert_threshold_units,
         sale_categories!sale_category_id(name),
         sub_category:sale_categories!sub_category_id(name)
       `)
@@ -261,7 +279,14 @@ export async function getSaleProducts(): Promise<{ data: SaleProductWithDetails[
     const { data: ingredients, error: ingredientsError } = await supabase
       .from('sale_product_ingredients')
       .select(`
-        *,
+        id,
+        sale_product_id,
+        product_id,
+        quantity_required,
+        unit_of_measure,
+        is_optional,
+        notes,
+        created_at,
         products!product_id(name, sku, purchase_price, total_units)
       `)
       .in('sale_product_id', productIds);
@@ -287,36 +312,58 @@ export async function getSaleProducts(): Promise<{ data: SaleProductWithDetails[
       return { data: null, error: includesError.message };
     }
 
+    // Build lookup maps to avoid O(products * ingredients/includes) filtering
+    const ingredientsByProductId = new Map<string, Array<any>>();
+    for (const ing of ingredients || []) {
+      const key = String((ing as any).sale_product_id);
+      const list = ingredientsByProductId.get(key);
+      if (list) list.push(ing);
+      else ingredientsByProductId.set(key, [ing]);
+    }
+
+    const includesByParentId = new Map<string, Array<any>>();
+    for (const inc of includes || []) {
+      const key = String((inc as any).parent_sale_product_id);
+      const list = includesByParentId.get(key);
+      if (list) list.push(inc);
+      else includesByParentId.set(key, [inc]);
+    }
+
     // Combine data and calculate costs
     const productsWithDetails: SaleProductWithDetails[] = products.map(product => {
-      const productIngredients = ingredients?.filter(ing => ing.sale_product_id === product.id) || [];
-      const productIncludes = (includes || []).filter((inc) => inc.parent_sale_product_id === product.id);
+      const productIngredients = ingredientsByProductId.get(String(product.id)) || [];
+      const productIncludes = includesByParentId.get(String(product.id)) || [];
 
-      // Calculate cost of goods
-      const costOfGoods = productIngredients.reduce((total, ing) => {
-        const product = ing.products as { purchase_price: number } | null;
-        return total + (ing.quantity_required * (product?.purchase_price || 0));
+      const costOfGoods = productIngredients.reduce((total: number, ing: any) => {
+        const joined = Array.isArray(ing.products) ? ing.products[0] : ing.products;
+        const purchasePrice = typeof joined?.purchase_price === 'number' ? joined.purchase_price : 0;
+        const qty = typeof ing.quantity_required === 'number' ? ing.quantity_required : Number(ing.quantity_required || 0);
+        return total + qty * purchasePrice;
       }, 0);
 
-      // Check availability
-      const isAvailable = productIngredients.every(ing => {
-        const product = ing.products as { total_units: number } | null;
-        return (product?.total_units || 0) >= ing.quantity_required;
+      const isAvailable = productIngredients.every((ing: any) => {
+        const joined = Array.isArray(ing.products) ? ing.products[0] : ing.products;
+        const totalUnits = typeof joined?.total_units === 'number' ? joined.total_units : 0;
+        const qty = typeof ing.quantity_required === 'number' ? ing.quantity_required : Number(ing.quantity_required || 0);
+        return totalUnits >= qty;
       });
 
       return {
-        ...product,
+        ...(product as any),
         cost_of_goods: costOfGoods,
         profit_margin: product.sale_price - costOfGoods,
         is_available: isAvailable,
-        ingredients: productIngredients.map(ing => ({
-          ...ing,
-          product_name: (ing.products as { name: string; sku: string; purchase_price: number; total_units: number } | null)?.name,
-          product_sku: (ing.products as { name: string; sku: string; purchase_price: number; total_units: number } | null)?.sku,
-          product_purchase_price: (ing.products as { name: string; sku: string; purchase_price: number; total_units: number } | null)?.purchase_price,
-          product_total_units: (ing.products as { name: string; sku: string; purchase_price: number; total_units: number } | null)?.total_units
-        })),
-        included_products: productIncludes.map((inc) => {
+        ingredients: productIngredients.map((ing: any) => {
+          const joined = Array.isArray(ing.products) ? ing.products[0] : ing.products;
+          return {
+            ...ing,
+            product_name: typeof joined?.name === 'string' ? joined.name : undefined,
+            product_sku: typeof joined?.sku === 'string' ? joined.sku : undefined,
+            product_purchase_price: typeof joined?.purchase_price === 'number' ? joined.purchase_price : undefined,
+            product_total_units: typeof joined?.total_units === 'number' ? joined.total_units : undefined,
+          };
+        }),
+        included_products: productIncludes.map((inc: any) => {
           const included = (inc as unknown as { included?: { id: string; name: string; sale_price: number; image_url: string | null } | null }).included ?? null;
           return {
             parent_sale_product_id: inc.parent_sale_product_id,
@@ -327,8 +374,14 @@ export async function getSaleProducts(): Promise<{ data: SaleProductWithDetails[
             included_product_image_url: included?.image_url ?? null,
           };
         }),
-        category_name: (product.sale_categories as { name: string } | null)?.name,
-        sub_category_name: (product.sub_category as { name: string } | null)?.name
+        category_name: (Array.isArray((product as any).sale_categories)
+          ? (product as any).sale_categories?.[0]
+          : (product as any).sale_categories
+        )?.name,
+        sub_category_name: (Array.isArray((product as any).sub_category)
+          ? (product as any).sub_category?.[0]
+          : (product as any).sub_category
+        )?.name
       };
     });
 

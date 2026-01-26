@@ -20,6 +20,7 @@ interface MenuProduct {
   name: string;
   description: string | null;
   sale_price: number;
+  bundle_original_total?: number | null;
   image_url: string | null;
   sale_category_id: string | null;
   sub_category_id: string | null;
@@ -101,7 +102,36 @@ export default function OrderPage() {
         return;
       }
 
-      setProducts(productsResult.data || []);
+      // If any items are bundles/packs, show "pack pricing" (sale price + strikethrough separate total).
+      const rawProducts = (productsResult.data || []) as MenuProduct[];
+      const productIds = rawProducts.map((p) => p.id);
+
+      const bundleOriginalTotals = new Map<string, number>();
+      if (productIds.length > 0) {
+        const { data: includeRows, error: includeError } = await supabase
+          .from('sale_product_includes')
+          .select('parent_sale_product_id, quantity, included:sale_products!included_sale_product_id(sale_price)')
+          .in('parent_sale_product_id', productIds);
+
+        // If RLS prevents access, just skip pack pricing (normal prices still render).
+        if (!includeError && includeRows) {
+          for (const row of includeRows as any[]) {
+            const parentId = String(row.parent_sale_product_id);
+            const qty = Math.max(1, Number(row.quantity || 1));
+            const joined = Array.isArray(row.included) ? row.included?.[0] : row.included;
+            const price = typeof joined?.sale_price === 'number' ? joined.sale_price : 0;
+            if (!price) continue;
+            bundleOriginalTotals.set(parentId, (bundleOriginalTotals.get(parentId) || 0) + qty * price);
+          }
+        }
+      }
+
+      setProducts(
+        rawProducts.map((p) => ({
+          ...p,
+          bundle_original_total: bundleOriginalTotals.get(p.id) ?? null,
+        }))
+      );
       setCategories(categoriesResult.data || []);
 
       // Convert top sellers to MenuProduct format
@@ -112,6 +142,7 @@ export default function OrderPage() {
           name: p.name,
           description: p.description,
           sale_price: p.sale_price,
+          bundle_original_total: bundleOriginalTotals.get(p.id) ?? null,
           image_url: p.image_url,
           sale_category_id: p.sale_category_id,
           sub_category_id: p.sub_category_id
@@ -126,6 +157,7 @@ export default function OrderPage() {
           name: p.name,
           description: p.description,
           sale_price: p.sale_price,
+          bundle_original_total: bundleOriginalTotals.get(p.id) ?? null,
           image_url: p.image_url,
           sale_category_id: p.sale_category_id,
           sub_category_id: p.sub_category_id
@@ -235,6 +267,9 @@ export default function OrderPage() {
     const slug = product.slug?.trim();
     const href = `/order/product/${slug ? slug : product.id}`;
 
+    const bundleOriginalTotal = typeof product.bundle_original_total === 'number' ? product.bundle_original_total : 0;
+    const bundleSavings = bundleOriginalTotal > product.sale_price ? bundleOriginalTotal - product.sale_price : 0;
+
     return (
       <div
         key={product.id}
@@ -288,9 +323,23 @@ export default function OrderPage() {
             <h3 className="font-semibold text-gray-900 dark:text-white leading-tight">
               {product.name}
             </h3>
-            <span className="text-base font-bold text-green-600 dark:text-green-400 whitespace-nowrap">
-              ${product.sale_price.toFixed(2)}
-            </span>
+            <div className="flex flex-col items-end gap-0.5 whitespace-nowrap">
+              <div className="flex items-baseline gap-2">
+                <span className="text-base font-bold text-green-600 dark:text-green-400">
+                  ${product.sale_price.toFixed(2)}
+                </span>
+                {bundleSavings > 0.009 && (
+                  <span className="text-sm font-semibold text-red-500 line-through">
+                    ${bundleOriginalTotal.toFixed(2)}
+                  </span>
+                )}
+              </div>
+              {bundleSavings > 0.009 && (
+                <span className="text-xs font-semibold text-orange-600 dark:text-orange-400">
+                  Save ${bundleSavings.toFixed(2)}
+                </span>
+              )}
+            </div>
           </div>
 
           {product.description && (
