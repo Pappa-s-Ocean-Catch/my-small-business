@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { FaPlus, FaEdit, FaTrash, FaUtensils, FaTag, FaClock, FaBox, FaChevronDown, FaChevronRight, FaFilter, FaSave, FaTimes, FaGripVertical } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaUtensils, FaTag, FaClock, FaBox, FaChevronDown, FaChevronRight, FaFilter, FaSave, FaTimes, FaGripVertical, FaSearch } from 'react-icons/fa';
 import { FaEye, FaEyeSlash } from 'react-icons/fa6';
 import {
   DndContext,
@@ -142,6 +142,10 @@ export default function MenuPage() {
   const [productForm, setProductForm] = useState({
     name: '',
     description: '',
+    slug: '',
+    seo_title: '',
+    seo_description: '',
+    seo_text: '',
     sort_order: 0,
     sale_price: 0,
     image_url: '',
@@ -167,7 +171,7 @@ export default function MenuPage() {
   });
 
   // Tab state for product form
-  const [activeProductTab, setActiveProductTab] = useState<'overview' | 'ingredients' | 'bundle' | 'addons'>('overview');
+  const [activeProductTab, setActiveProductTab] = useState<'overview' | 'seo' | 'ingredients' | 'bundle' | 'addons'>('overview');
 
   const [categoryForm, setCategoryForm] = useState({
     name: '',
@@ -450,6 +454,10 @@ export default function MenuPage() {
       setProductForm({
         name: product.name,
         description: product.description || '',
+        slug: (product as unknown as { slug?: string | null }).slug ?? '',
+        seo_title: (product as unknown as { seo_title?: string | null }).seo_title ?? '',
+        seo_description: (product as unknown as { seo_description?: string | null }).seo_description ?? '',
+        seo_text: (product as unknown as { seo_text?: string | null }).seo_text ?? '',
         sort_order: Number((product as unknown as { sort_order?: number }).sort_order ?? 0),
         sale_price: product.sale_price,
         image_url: product.image_url || '',
@@ -489,6 +497,10 @@ export default function MenuPage() {
       setProductForm({
         name: '',
         description: '',
+        slug: '',
+        seo_title: '',
+        seo_description: '',
+        seo_text: '',
         sort_order: maxSiblingOrder + 1,
         sale_price: 0,
         image_url: '',
@@ -1195,6 +1207,17 @@ export default function MenuPage() {
                 </button>
                 <button
                   type="button"
+                  onClick={() => setActiveProductTab('seo')}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${activeProductTab === 'seo'
+                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                    }`}
+                >
+                  <Icon icon={FaSearch} className="w-4 h-4 inline mr-2" />
+                  SEO
+                </button>
+                <button
+                  type="button"
                   onClick={() => setActiveProductTab('ingredients')}
                   className={`py-2 px-1 border-b-2 font-medium text-sm ${activeProductTab === 'ingredients'
                     ? 'border-blue-500 text-blue-600 dark:text-blue-400'
@@ -1409,6 +1432,66 @@ export default function MenuPage() {
                       </span>
                     </label>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {activeProductTab === 'seo' && (
+              <div className="space-y-6">
+                <div className="rounded-xl border border-gray-200 dark:border-neutral-700 bg-gray-50/50 dark:bg-neutral-800/50 p-4">
+                  <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Public URL</div>
+                  <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                    If left blank, the system generates a slug from the product name.
+                  </div>
+
+                  <label className="grid gap-2 mt-4">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Slug</span>
+                    <input
+                      type="text"
+                      value={productForm.slug}
+                      onChange={(e) => setProductForm({ ...productForm, slug: e.target.value })}
+                      className="w-full h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
+                      placeholder="e.g. cheeseburger"
+                    />
+                    <div className="text-xs text-gray-500 dark:text-gray-500">
+                      Example URL: <span className="font-mono">/order/product/{(productForm.slug || 'your-slug').trim() || 'your-slug'}</span>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4">
+                  <label className="grid gap-2">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">SEO Title</span>
+                    <input
+                      type="text"
+                      value={productForm.seo_title}
+                      onChange={(e) => setProductForm({ ...productForm, seo_title: e.target.value })}
+                      className="w-full h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
+                      placeholder="Defaults to product name"
+                    />
+                  </label>
+
+                  <label className="grid gap-2">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">SEO Description</span>
+                    <textarea
+                      value={productForm.seo_description}
+                      onChange={(e) => setProductForm({ ...productForm, seo_description: e.target.value })}
+                      rows={3}
+                      className="min-h-20 rounded-xl border px-3 py-2 bg-white/80 dark:bg-neutral-900 resize-y"
+                      placeholder="Defaults to product description"
+                    />
+                  </label>
+
+                  <label className="grid gap-2">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">SEO Text (optional)</span>
+                    <textarea
+                      value={productForm.seo_text}
+                      onChange={(e) => setProductForm({ ...productForm, seo_text: e.target.value })}
+                      rows={5}
+                      className="min-h-24 rounded-xl border px-3 py-2 bg-white/80 dark:bg-neutral-900 resize-y"
+                      placeholder="Extra marketing/SEO copy to show on the product page"
+                    />
+                  </label>
                 </div>
               </div>
             )}

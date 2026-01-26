@@ -16,6 +16,7 @@ import type { CartAddonGroup } from '@/contexts/CartContext';
 
 interface MenuProduct {
   id: string;
+  slug: string | null;
   name: string;
   description: string | null;
   sale_price: number;
@@ -78,7 +79,7 @@ export default function OrderPage() {
       const [productsResult, categoriesResult, topSellersResult, featuredResult] = await Promise.all([
         supabase
           .from('sale_products')
-          .select('id, name, description, sale_price, image_url, sale_category_id, sub_category_id')
+          .select('id, slug, name, description, sale_price, image_url, sale_category_id, sub_category_id')
           .eq('is_active', true)
           .order('name'),
         supabase
@@ -107,6 +108,7 @@ export default function OrderPage() {
       if (topSellersResult.data) {
         setTopSellers(topSellersResult.data.map(p => ({
           id: p.id,
+          slug: p.slug ?? null,
           name: p.name,
           description: p.description,
           sale_price: p.sale_price,
@@ -120,6 +122,7 @@ export default function OrderPage() {
       if (featuredResult.data) {
         setFeaturedProducts(featuredResult.data.map(p => ({
           id: p.id,
+          slug: p.slug ?? null,
           name: p.name,
           description: p.description,
           sale_price: p.sale_price,
@@ -175,27 +178,32 @@ export default function OrderPage() {
     return map;
   }, [categoryHierarchy, products]);
 
-  const selectedCategory = useMemo(() => {
-    if (!selectedCategoryId) return null;
-    return categoryHierarchy.find(c => c.id === selectedCategoryId) || null;
-  }, [categoryHierarchy, selectedCategoryId]);
-
-  const selectedCategoryProducts = useMemo(() => {
-    if (!selectedCategoryId) return [];
-    return productsByMainCategoryId.get(selectedCategoryId) || [];
-  }, [productsByMainCategoryId, selectedCategoryId]);
-
   const handleSelectCategory = useCallback((categoryId: string | null) => {
+    // Chips are scroll-only (no filtering). We keep state purely for UI highlight.
     setSelectedCategoryId(categoryId);
 
-    if (categoryId) {
-      // Scroll into view for a smoother browse experience
-      const el = document.getElementById(`cat-${categoryId}`);
-      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } else {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+    // If the user is searching and taps a category, switch back to browse mode first.
+    const hasSearch = !!searchTerm.trim();
+    if (hasSearch) {
+      setSearchTerm('');
     }
-  }, []);
+
+    const scroll = () => {
+      if (categoryId) {
+        const el = document.getElementById(`cat-${categoryId}`);
+        el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    };
+
+    // Defer scroll to allow UI to switch out of search mode.
+    if (hasSearch) {
+      window.setTimeout(scroll, 0);
+    } else {
+      scroll();
+    }
+  }, [searchTerm]);
 
   const handleAddToCart = (customizations: CartAddonGroup[], comment?: string | null) => {
     if (!customizingProduct) return;
@@ -224,11 +232,23 @@ export default function OrderPage() {
   const ProductCard = ({ product }: { product: MenuProduct }) => {
     const isTopSeller = topSellerIds.has(product.id);
     const isFeatured = featuredIds.has(product.id);
+    const slug = product.slug?.trim();
+    const href = `/order/product/${slug ? slug : product.id}`;
 
     return (
       <div
         key={product.id}
-        className="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-700 overflow-hidden hover:shadow-md transition-shadow relative"
+        className="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-700 overflow-hidden hover:shadow-md transition-shadow relative cursor-pointer"
+        role="link"
+        tabIndex={0}
+        onClick={() => router.push(href)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            router.push(href);
+          }
+        }}
+        aria-label={`View details for ${product.name}`}
       >
         {/* Badges */}
         {(isTopSeller || isFeatured) && (
@@ -248,29 +268,25 @@ export default function OrderPage() {
           </div>
         )}
 
-        <Link href={`/order/product/${product.id}`} aria-label={`View details for ${product.name}`}>
-          <div className="aspect-[16/10] bg-gray-200 dark:bg-neutral-700 relative">
-            {product.image_url ? (
-              <img
-                src={product.image_url}
-                alt={product.name}
-                className="w-full h-full object-cover"
-                loading="lazy"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-500">
-                <Icon icon={FaUtensils} className="w-10 h-10" />
-              </div>
-            )}
-          </div>
-        </Link>
+        <div className="aspect-[16/10] bg-gray-200 dark:bg-neutral-700 relative">
+          {product.image_url ? (
+            <img
+              src={product.image_url}
+              alt={product.name}
+              className="w-full h-full object-cover"
+              loading="lazy"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-500">
+              <Icon icon={FaUtensils} className="w-10 h-10" />
+            </div>
+          )}
+        </div>
 
         <div className="p-4">
           <div className="flex items-start justify-between gap-3">
             <h3 className="font-semibold text-gray-900 dark:text-white leading-tight">
-              <Link href={`/order/product/${product.id}`} className="hover:underline">
-                {product.name}
-              </Link>
+              {product.name}
             </h3>
             <span className="text-base font-bold text-green-600 dark:text-green-400 whitespace-nowrap">
               ${product.sale_price.toFixed(2)}
@@ -285,17 +301,14 @@ export default function OrderPage() {
 
           <div className="mt-4 flex items-center gap-2">
             <button
-              onClick={() => handleQuickAdd(product)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleQuickAdd(product);
+              }}
               className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors"
             >
               Add
             </button>
-            <Link
-              href={`/order/product/${product.id}`}
-              className="px-4 py-2 bg-gray-100 dark:bg-neutral-700 text-gray-700 dark:text-gray-200 text-sm font-semibold rounded-lg hover:bg-gray-200 dark:hover:bg-neutral-600 transition-colors"
-            >
-              Details
-            </Link>
           </div>
         </div>
       </div>
@@ -417,7 +430,7 @@ export default function OrderPage() {
                   onClick={() => handleSelectCategory(null)}
                   className="text-sm font-semibold text-blue-600 hover:text-blue-700"
                 >
-                  Clear category
+                  Back to top
                 </button>
               )}
             </div>
@@ -429,17 +442,16 @@ export default function OrderPage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {(selectedCategoryId ? searchResults.filter(p => selectedCategoryProducts.some(sp => sp.id === p.id)) : searchResults)
-                  .map(product => (
-                    <ProductCard key={product.id} product={product} />
-                  ))}
+                {searchResults.map(product => (
+                  <ProductCard key={product.id} product={product} />
+                ))}
               </div>
             )}
           </section>
         ) : (
           <>
             {/* Featured section */}
-            {featuredProducts.length > 0 && selectedCategoryId === null && (
+            {featuredProducts.length > 0 && (
               <section>
                 <div className="flex items-end justify-between gap-4 mb-4">
                   <div>
@@ -461,7 +473,7 @@ export default function OrderPage() {
             )}
 
             {/* Top sellers section */}
-            {topSellers.length > 0 && selectedCategoryId === null && (
+            {topSellers.length > 0 && (
               <section>
                 <div className="flex items-end justify-between gap-4 mb-4">
                   <div>
@@ -483,81 +495,59 @@ export default function OrderPage() {
             )}
 
             {/* Category browse */}
-            {selectedCategoryId ? (
-              <section id={`cat-${selectedCategoryId}`}>
-                <div className="flex items-end justify-between gap-4 mb-4">
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                      {selectedCategory?.name || 'Category'}
-                    </h2>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      {selectedCategoryProducts.length} item{selectedCategoryProducts.length === 1 ? '' : 's'}
-                    </p>
-                  </div>
+            <section>
+              <div className="flex items-end justify-between gap-4 mb-4">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">Browse by category</h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Pick a category above, or scroll to explore everything.
+                  </p>
+                </div>
+                {selectedCategoryId !== null && (
                   <button
                     onClick={() => handleSelectCategory(null)}
                     className="text-sm font-semibold text-blue-600 hover:text-blue-700"
                   >
-                    Show all
+                    Back to top
                   </button>
-                </div>
-
-                {selectedCategoryProducts.length === 0 ? (
-                  <div className="text-center py-12">
-                    <Icon icon={FaUtensils} className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-                    <p className="text-gray-500 dark:text-gray-400">No items found</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {selectedCategoryProducts.map(product => (
-                      <ProductCard key={product.id} product={product} />
-                    ))}
-                  </div>
                 )}
-              </section>
-            ) : (
-              <section>
-                <div className="flex items-end justify-between gap-4 mb-4">
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">Browse by category</h2>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Pick a category above, or scroll to explore everything.
-                    </p>
-                  </div>
-                </div>
+              </div>
 
-                <div className="space-y-10">
-                  {categoryHierarchy.map(category => {
-                    const items = productsByMainCategoryId.get(category.id) || [];
-                    if (items.length === 0) return null;
+              <div className="space-y-10">
+                {categoryHierarchy.map(category => {
+                  const items = productsByMainCategoryId.get(category.id) || [];
+                  if (items.length === 0) return null;
 
-                    return (
-                      <div key={category.id} id={`cat-${category.id}`}>
-                        <div className="flex items-end justify-between gap-4 mb-4">
-                          <div>
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-white">{category.name}</h3>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">
-                              {items.length} item{items.length === 1 ? '' : 's'}
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => handleSelectCategory(category.id)}
-                            className="text-sm font-semibold text-blue-600 hover:text-blue-700"
-                          >
-                            View
-                          </button>
+                  return (
+                    <div
+                      key={category.id}
+                      id={`cat-${category.id}`}
+                      className={selectedCategoryId === category.id ? 'scroll-mt-28' : 'scroll-mt-28'}
+                    >
+                      <div className="flex items-end justify-between gap-4 mb-4">
+                        <div>
+                          <h3 className="text-lg font-bold text-gray-900 dark:text-white">{category.name}</h3>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            {items.length} item{items.length === 1 ? '' : 's'}
+                          </p>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                          {items.slice(0, 8).map(product => (
-                            <ProductCard key={product.id} product={product} />
-                          ))}
-                        </div>
+                        <button
+                          onClick={() => handleSelectCategory(category.id)}
+                          className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+                        >
+                          Jump
+                        </button>
                       </div>
-                    );
-                  })}
-                </div>
-              </section>
-            )}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        {items.map(product => (
+                          <ProductCard key={product.id} product={product} />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
           </>
         )}
       </div>

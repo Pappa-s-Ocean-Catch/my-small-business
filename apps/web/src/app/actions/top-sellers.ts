@@ -4,6 +4,7 @@ import { createServiceRoleClient } from "@my-small-business/supabase/server";
 
 export interface TopSellerProduct {
   id: string;
+  slug: string | null;
   name: string;
   description: string | null;
   sale_price: number;
@@ -18,9 +19,9 @@ export interface TopSellerProduct {
  * Get top selling products based on order_items
  * Returns products sorted by total quantity sold
  */
-export async function getTopSellingProducts(limit: number = 20): Promise<{ 
-  data: TopSellerProduct[] | null; 
-  error: string | null 
+export async function getTopSellingProducts(limit: number = 20): Promise<{
+  data: TopSellerProduct[] | null;
+  error: string | null
 }> {
   try {
     const supabase = await createServiceRoleClient();
@@ -49,9 +50,9 @@ export async function getTopSellingProducts(limit: number = 20): Promise<{
 
     orderItems.forEach((item: any) => {
       if (!item.product_id) return;
-      
+
       const productId = item.product_id;
-      
+
       if (!productSalesMap.has(productId)) {
         productSalesMap.set(productId, {
           productId,
@@ -59,7 +60,7 @@ export async function getTopSellingProducts(limit: number = 20): Promise<{
           orderIds: new Set()
         });
       }
-      
+
       const salesData = productSalesMap.get(productId)!;
       salesData.totalQuantity += item.quantity || 1;
       if (item.order_id) {
@@ -71,7 +72,7 @@ export async function getTopSellingProducts(limit: number = 20): Promise<{
     const productIds = Array.from(productSalesMap.keys());
     const { data: products, error: productsError } = await supabase
       .from('sale_products')
-      .select('id, name, description, sale_price, image_url, sale_category_id, sub_category_id')
+      .select('id, slug, name, description, sale_price, image_url, sale_category_id, sub_category_id')
       .in('id', productIds)
       .eq('is_active', true);
 
@@ -85,9 +86,10 @@ export async function getTopSellingProducts(limit: number = 20): Promise<{
       .map(product => {
         const salesData = productSalesMap.get(product.id);
         if (!salesData) return null;
-        
+
         return {
           id: product.id,
+          slug: product.slug ?? null,
           name: product.name,
           description: product.description,
           sale_price: Number(product.sale_price),
@@ -112,16 +114,16 @@ export async function getTopSellingProducts(limit: number = 20): Promise<{
 /**
  * Get featured products (products marked as is_featured)
  */
-export async function getFeaturedProducts(): Promise<{ 
-  data: TopSellerProduct[] | null; 
-  error: string | null 
+export async function getFeaturedProducts(): Promise<{
+  data: TopSellerProduct[] | null;
+  error: string | null
 }> {
   try {
     const supabase = await createServiceRoleClient();
 
     const { data: featuredProducts, error: featuredError } = await supabase
       .from('sale_products')
-      .select('id, name, description, sale_price, image_url, sale_category_id, sub_category_id')
+      .select('id, slug, name, description, sale_price, image_url, sale_category_id, sub_category_id')
       .eq('is_active', true)
       .eq('is_featured', true)
       .order('name');
@@ -157,6 +159,7 @@ export async function getFeaturedProducts(): Promise<{
       const sales = salesMap.get(product.id) || { quantity: 0, orders: 0 };
       return {
         id: product.id,
+        slug: product.slug ?? null,
         name: product.name,
         description: product.description,
         sale_price: Number(product.sale_price),

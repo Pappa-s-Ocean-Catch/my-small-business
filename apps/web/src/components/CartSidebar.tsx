@@ -9,7 +9,7 @@ import { useCart } from '@/contexts/CartContext';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 
 export function CartSidebar() {
-  const { items, removeItem, updateQuantity, updateItem, getTotal, getItemCount, clearCart } = useCart();
+  const { items, removeItem, updateQuantity, updateItem, getTotal, clearCart } = useCart();
   const [isOpen, setIsOpen] = useState(false);
   const [editingCommentItemId, setEditingCommentItemId] = useState<string | null>(null);
   const [commentText, setCommentText] = useState<string>('');
@@ -21,6 +21,9 @@ export function CartSidebar() {
     router.push('/order/summary');
   };
 
+  const total = getTotal();
+  const totalLabel = `$${total.toFixed(2)}`;
+
   if (items.length === 0 && !isOpen) {
     return (
       <button
@@ -30,9 +33,9 @@ export function CartSidebar() {
       >
         <div className="relative">
           <Icon icon={FaShoppingCart} className="w-6 h-6" />
-          {getItemCount() > 0 && (
-            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-              {getItemCount()}
+          {total > 0 && (
+            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold rounded-full h-5 px-1.5 flex items-center justify-center min-w-5">
+              {totalLabel}
             </span>
           )}
         </div>
@@ -50,9 +53,9 @@ export function CartSidebar() {
       >
         <div className="relative">
           <Icon icon={FaShoppingCart} className="w-6 h-6" />
-          {getItemCount() > 0 && (
-            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-              {getItemCount()}
+          {total > 0 && (
+            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold rounded-full h-5 px-1.5 flex items-center justify-center min-w-5">
+              {totalLabel}
             </span>
           )}
         </div>
