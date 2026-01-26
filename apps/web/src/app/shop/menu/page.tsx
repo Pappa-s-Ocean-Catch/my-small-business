@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react';
+import { useState, useEffect, useMemo, useRef, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { FaPlus, FaEdit, FaTrash, FaUtensils, FaTag, FaClock, FaBox, FaChevronDown, FaChevronRight, FaFilter, FaSave, FaTimes, FaGripVertical } from 'react-icons/fa';
@@ -177,9 +177,13 @@ export default function MenuPage() {
     is_active: true
   });
 
+  const hasLoadedRef = useRef(false);
+
   // Load data
   useEffect(() => {
-    loadData();
+    if (hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
+    void loadData();
   }, []);
 
   const loadData = async () => {

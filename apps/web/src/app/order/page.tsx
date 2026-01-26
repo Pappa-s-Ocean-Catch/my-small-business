@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
@@ -10,7 +10,7 @@ import { CartSidebar } from '@/components/CartSidebar';
 import { OrderHeader } from '@/components/OrderHeader';
 import { getFeatureFlags } from '@/app/actions/feature-flags';
 import { getTopSellingProducts, getFeaturedProducts } from '@/app/actions/top-sellers';
-import { FaUtensils, FaSearch, FaTag, FaFire, FaStar } from 'react-icons/fa';
+import { FaUtensils, FaSearch, FaFire, FaStar } from 'react-icons/fa';
 import { Icon } from '@/components/Icon';
 import type { CartAddonGroup } from '@/contexts/CartContext';
 
@@ -44,8 +44,9 @@ export default function OrderPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
-  const [filterType, setFilterType] = useState<FilterType>('top-sellers');
   const [customizingProduct, setCustomizingProduct] = useState<MenuProduct | null>(null);
+
+  const hasLoadedRef = useRef(false);
 
   // Check feature flag
   useEffect(() => {
@@ -64,7 +65,9 @@ export default function OrderPage() {
   }, [router]);
 
   useEffect(() => {
-    loadMenuData();
+    if (hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
+    void loadMenuData();
   }, []);
 
   const loadMenuData = async () => {
@@ -143,44 +146,56 @@ export default function OrderPage() {
     }));
   }, [categories]);
 
-  const filteredProducts = useMemo(() => {
-    let filtered: MenuProduct[] = [];
+  const topSellerIds = useMemo(() => new Set(topSellers.map(p => p.id)), [topSellers]);
+  const featuredIds = useMemo(() => new Set(featuredProducts.map(p => p.id)), [featuredProducts]);
 
-    // Determine which product list to use based on filter type
-    if (filterType === 'top-sellers') {
-      filtered = topSellers;
-    } else if (filterType === 'featured') {
-      filtered = featuredProducts;
-    } else if (filterType === 'category' && selectedCategoryId) {
-      // Filter by category
-      const category = categories.find(c => c.id === selectedCategoryId);
-      if (category) {
-        const subCategoryIds = categories
-          .filter(c => c.parent_category_id === category.id)
-          .map(c => c.id);
+  const searchResults = useMemo(() => {
+    if (!searchTerm.trim()) return [];
+    const q = searchTerm.trim().toLowerCase();
+    return products.filter(product =>
+      product.name.toLowerCase().includes(q) ||
+      product.description?.toLowerCase().includes(q)
+    );
+  }, [products, searchTerm]);
 
-        filtered = products.filter(product =>
-          product.sale_category_id === selectedCategoryId ||
-          (product.sub_category_id && subCategoryIds.includes(product.sub_category_id))
-        );
-      } else {
-        filtered = products;
-      }
-    } else {
-      // All products
-      filtered = products;
-    }
+  const productsByMainCategoryId = useMemo(() => {
+    const map = new Map<string, MenuProduct[]>();
 
-    // Filter by search term
-    if (searchTerm) {
-      filtered = filtered.filter(product =>
-        product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.description?.toLowerCase().includes(searchTerm.toLowerCase())
+    for (const mainCategory of categoryHierarchy) {
+      const subCategoryIds = new Set(mainCategory.sub_categories.map(s => s.id));
+
+      const items = products.filter(product =>
+        product.sale_category_id === mainCategory.id ||
+        (product.sub_category_id && subCategoryIds.has(product.sub_category_id))
       );
+
+      map.set(mainCategory.id, items);
     }
 
-    return filtered;
-  }, [products, topSellers, featuredProducts, selectedCategoryId, searchTerm, categories, filterType]);
+    return map;
+  }, [categoryHierarchy, products]);
+
+  const selectedCategory = useMemo(() => {
+    if (!selectedCategoryId) return null;
+    return categoryHierarchy.find(c => c.id === selectedCategoryId) || null;
+  }, [categoryHierarchy, selectedCategoryId]);
+
+  const selectedCategoryProducts = useMemo(() => {
+    if (!selectedCategoryId) return [];
+    return productsByMainCategoryId.get(selectedCategoryId) || [];
+  }, [productsByMainCategoryId, selectedCategoryId]);
+
+  const handleSelectCategory = useCallback((categoryId: string | null) => {
+    setSelectedCategoryId(categoryId);
+
+    if (categoryId) {
+      // Scroll into view for a smoother browse experience
+      const el = document.getElementById(`cat-${categoryId}`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, []);
 
   const handleAddToCart = (customizations: CartAddonGroup[], comment?: string | null) => {
     if (!customizingProduct) return;
@@ -204,6 +219,87 @@ export default function OrderPage() {
     // For now, we'll always show customization modal
     // In a real app, you might want to check first
     setCustomizingProduct(product);
+  };
+
+  const ProductCard = ({ product }: { product: MenuProduct }) => {
+    const isTopSeller = topSellerIds.has(product.id);
+    const isFeatured = featuredIds.has(product.id);
+
+    return (
+      <div
+        key={product.id}
+        className="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-700 overflow-hidden hover:shadow-md transition-shadow relative"
+      >
+        {/* Badges */}
+        {(isTopSeller || isFeatured) && (
+          <div className="absolute top-2 left-2 flex gap-1 z-10">
+            {isTopSeller && (
+              <span className="px-2 py-1 bg-orange-500/90 text-white text-xs font-semibold rounded-full flex items-center gap-1 backdrop-blur">
+                <Icon icon={FaFire} className="w-2 h-2" />
+                Popular
+              </span>
+            )}
+            {isFeatured && (
+              <span className="px-2 py-1 bg-yellow-500/90 text-white text-xs font-semibold rounded-full flex items-center gap-1 backdrop-blur">
+                <Icon icon={FaStar} className="w-2 h-2" />
+                Featured
+              </span>
+            )}
+          </div>
+        )}
+
+        <Link href={`/order/product/${product.id}`} aria-label={`View details for ${product.name}`}>
+          <div className="aspect-[16/10] bg-gray-200 dark:bg-neutral-700 relative">
+            {product.image_url ? (
+              <img
+                src={product.image_url}
+                alt={product.name}
+                className="w-full h-full object-cover"
+                loading="lazy"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-500">
+                <Icon icon={FaUtensils} className="w-10 h-10" />
+              </div>
+            )}
+          </div>
+        </Link>
+
+        <div className="p-4">
+          <div className="flex items-start justify-between gap-3">
+            <h3 className="font-semibold text-gray-900 dark:text-white leading-tight">
+              <Link href={`/order/product/${product.id}`} className="hover:underline">
+                {product.name}
+              </Link>
+            </h3>
+            <span className="text-base font-bold text-green-600 dark:text-green-400 whitespace-nowrap">
+              ${product.sale_price.toFixed(2)}
+            </span>
+          </div>
+
+          {product.description && (
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 line-clamp-2">
+              {product.description}
+            </p>
+          )}
+
+          <div className="mt-4 flex items-center gap-2">
+            <button
+              onClick={() => handleQuickAdd(product)}
+              className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors"
+            >
+              Add
+            </button>
+            <Link
+              href={`/order/product/${product.id}`}
+              className="px-4 py-2 bg-gray-100 dark:bg-neutral-700 text-gray-700 dark:text-gray-200 text-sm font-semibold rounded-lg hover:bg-gray-200 dark:hover:bg-neutral-600 transition-colors"
+            >
+              Details
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   if (loading || cartLoading) {
@@ -243,74 +339,58 @@ export default function OrderPage() {
       {/* Page Header */}
       <div className="bg-white dark:bg-neutral-800 shadow-sm border-b border-gray-200 dark:border-neutral-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2 mb-4">
-            <Icon icon={FaUtensils} className="text-blue-600" />
-            Order Online
-          </h1>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <Icon icon={FaUtensils} className="text-blue-600" />
+                Order Online
+              </h1>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                Browse the menu, add items to your cart, then checkout when you’re ready.
+              </p>
+            </div>
+            <Link
+              href="/order/summary"
+              className="hidden sm:inline-flex items-center justify-center px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors"
+            >
+              Go to cart
+            </Link>
+          </div>
 
           {/* Search */}
-          <div className="relative mb-4">
+          <div className="relative mt-4">
             <Icon icon={FaSearch} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Search menu items..."
+              placeholder="Search dishes, burgers, sides..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
             />
           </div>
+        </div>
+      </div>
 
-          {/* Filter Buttons */}
-          <div className="flex flex-wrap gap-2">
+      {/* Category navigation */}
+      <div className="sticky top-0 z-30 bg-white/95 dark:bg-neutral-900/95 backdrop-blur border-b border-gray-200 dark:border-neutral-800">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+          <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1">
             <button
-              onClick={() => {
-                setFilterType('all');
-                setSelectedCategoryId(null);
-              }}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${filterType === 'all' && selectedCategoryId === null
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-200 dark:bg-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-neutral-600'
+              onClick={() => handleSelectCategory(null)}
+              className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${selectedCategoryId === null
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-neutral-700'
                 }`}
             >
-              <Icon icon={FaUtensils} className="w-3 h-3" />
-              All Items
-            </button>
-            <button
-              onClick={() => {
-                setFilterType('top-sellers');
-                setSelectedCategoryId(null);
-              }}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${filterType === 'top-sellers'
-                  ? 'bg-orange-600 text-white'
-                  : 'bg-gray-200 dark:bg-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-neutral-600'
-                }`}
-            >
-              <Icon icon={FaFire} className="w-3 h-3" />
-              Top Sellers
-            </button>
-            <button
-              onClick={() => {
-                setFilterType('featured');
-                setSelectedCategoryId(null);
-              }}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${filterType === 'featured'
-                  ? 'bg-yellow-600 text-white'
-                  : 'bg-gray-200 dark:bg-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-neutral-600'
-                }`}
-            >
-              <Icon icon={FaStar} className="w-3 h-3" />
-              Featured
+              All
             </button>
             {categoryHierarchy.map(category => (
               <button
                 key={category.id}
-                onClick={() => {
-                  setFilterType('category');
-                  setSelectedCategoryId(category.id);
-                }}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filterType === 'category' && selectedCategoryId === category.id
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-200 dark:bg-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-neutral-600'
+                onClick={() => handleSelectCategory(category.id)}
+                className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${selectedCategoryId === category.id
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-neutral-700'
                   }`}
               >
                 {category.name}
@@ -320,80 +400,165 @@ export default function OrderPage() {
         </div>
       </div>
 
-      {/* Menu Items Grid */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {filteredProducts.length === 0 ? (
-          <div className="text-center py-12">
-            <Icon icon={FaUtensils} className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-            <p className="text-gray-500 dark:text-gray-400">No items found</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredProducts.map(product => {
-              const isTopSeller = topSellers.some(p => p.id === product.id);
-              const isFeatured = featuredProducts.some(p => p.id === product.id);
-
-              return (
-                <div
-                  key={product.id}
-                  className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 overflow-hidden hover:shadow-md transition-shadow relative"
+      {/* Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-10">
+        {/* Search results */}
+        {searchTerm.trim() ? (
+          <section>
+            <div className="flex items-end justify-between gap-4 mb-4">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Search results</h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  {searchResults.length} item{searchResults.length === 1 ? '' : 's'} matching “{searchTerm.trim()}”
+                </p>
+              </div>
+              {selectedCategoryId !== null && (
+                <button
+                  onClick={() => handleSelectCategory(null)}
+                  className="text-sm font-semibold text-blue-600 hover:text-blue-700"
                 >
-                  {/* Badges */}
-                  {(isTopSeller || isFeatured) && (
-                    <div className="absolute top-2 right-2 flex gap-1 z-10">
-                      {isTopSeller && (
-                        <span className="px-2 py-1 bg-orange-500 text-white text-xs font-semibold rounded-full flex items-center gap-1">
-                          <Icon icon={FaFire} className="w-2 h-2" />
-                          Top Seller
-                        </span>
-                      )}
-                      {isFeatured && (
-                        <span className="px-2 py-1 bg-yellow-500 text-white text-xs font-semibold rounded-full flex items-center gap-1">
-                          <Icon icon={FaStar} className="w-2 h-2" />
-                          Featured
-                        </span>
-                      )}
-                    </div>
-                  )}
+                  Clear category
+                </button>
+              )}
+            </div>
 
-                  {product.image_url && (
-                    <div className="aspect-video bg-gray-200 dark:bg-neutral-700 relative">
-                      <Link href={`/order/product/${product.id}`} aria-label={`View details for ${product.name}`}>
-                        <img
-                          src={product.image_url}
-                          alt={product.name}
-                          className="w-full h-full object-cover"
-                        />
-                      </Link>
-                    </div>
-                  )}
-                  <div className="p-4">
-                    <h3 className="font-semibold text-gray-900 dark:text-white mb-1">
-                      <Link href={`/order/product/${product.id}`} className="hover:underline">
-                        {product.name}
-                      </Link>
-                    </h3>
-                    {product.description && (
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">
-                        {product.description}
-                      </p>
-                    )}
-                    <div className="flex items-center justify-between">
-                      <span className="text-lg font-bold text-green-600 dark:text-green-400">
-                        ${product.sale_price.toFixed(2)}
-                      </span>
-                      <button
-                        onClick={() => handleQuickAdd(product)}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
-                      >
-                        Add to Cart
-                      </button>
-                    </div>
+            {searchResults.length === 0 ? (
+              <div className="text-center py-12">
+                <Icon icon={FaUtensils} className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+                <p className="text-gray-500 dark:text-gray-400">No items found</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {(selectedCategoryId ? searchResults.filter(p => selectedCategoryProducts.some(sp => sp.id === p.id)) : searchResults)
+                  .map(product => (
+                    <ProductCard key={product.id} product={product} />
+                  ))}
+              </div>
+            )}
+          </section>
+        ) : (
+          <>
+            {/* Featured section */}
+            {featuredProducts.length > 0 && selectedCategoryId === null && (
+              <section>
+                <div className="flex items-end justify-between gap-4 mb-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                      <Icon icon={FaStar} className="text-yellow-500" />
+                      Featured picks
+                    </h2>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Customer favorites and seasonal highlights.
+                    </p>
                   </div>
                 </div>
-              );
-            })}
-          </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {featuredProducts.slice(0, 12).map(product => (
+                    <ProductCard key={product.id} product={product} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Top sellers section */}
+            {topSellers.length > 0 && selectedCategoryId === null && (
+              <section>
+                <div className="flex items-end justify-between gap-4 mb-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                      <Icon icon={FaFire} className="text-orange-500" />
+                      Popular right now
+                    </h2>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      The most ordered items recently.
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {topSellers.slice(0, 12).map(product => (
+                    <ProductCard key={product.id} product={product} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Category browse */}
+            {selectedCategoryId ? (
+              <section id={`cat-${selectedCategoryId}`}>
+                <div className="flex items-end justify-between gap-4 mb-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                      {selectedCategory?.name || 'Category'}
+                    </h2>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      {selectedCategoryProducts.length} item{selectedCategoryProducts.length === 1 ? '' : 's'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleSelectCategory(null)}
+                    className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+                  >
+                    Show all
+                  </button>
+                </div>
+
+                {selectedCategoryProducts.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Icon icon={FaUtensils} className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+                    <p className="text-gray-500 dark:text-gray-400">No items found</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {selectedCategoryProducts.map(product => (
+                      <ProductCard key={product.id} product={product} />
+                    ))}
+                  </div>
+                )}
+              </section>
+            ) : (
+              <section>
+                <div className="flex items-end justify-between gap-4 mb-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">Browse by category</h2>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Pick a category above, or scroll to explore everything.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-10">
+                  {categoryHierarchy.map(category => {
+                    const items = productsByMainCategoryId.get(category.id) || [];
+                    if (items.length === 0) return null;
+
+                    return (
+                      <div key={category.id} id={`cat-${category.id}`}>
+                        <div className="flex items-end justify-between gap-4 mb-4">
+                          <div>
+                            <h3 className="text-lg font-bold text-gray-900 dark:text-white">{category.name}</h3>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                              {items.length} item{items.length === 1 ? '' : 's'}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => handleSelectCategory(category.id)}
+                            className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+                          >
+                            View
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                          {items.slice(0, 8).map(product => (
+                            <ProductCard key={product.id} product={product} />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+          </>
         )}
       </div>
 
