@@ -137,8 +137,8 @@ export const inStoreCategoryLayouts = {
     right: ['FOR VEGETARIANS', 'SNACK PACK', 'SOUVLAKI', 'STEAK SANDWICHES']
   },
   menu2: {
-    left: ['FISH', 'CHIPS', 'SPECIAL COMBO'],
-    middleCollumn: ['PACKS', 'CHIPS & GRAVY'],
+    middleCollumn: ['FISH', 'CHIPS', 'CHIPS & GRAVY'],
+    left: ['PACKS', 'SPECIAL COMBO'],
     right: ['SIDES', 'SEAFOOD SIDES', 'SWEET']
   },
   menu3: {
@@ -191,17 +191,10 @@ export const menuPage1: MenuPage = {
       items: [
         { name: "PLAIN FISH", description: "Fried Flake, Lettuce, & Tartare Sauce", price: 12.2 },
         { name: "CLASSIC FISH", description: "Fried Flake, Cheese, Tomato, Red Onion, Lettuce, & Tartare Sauce", price: 13.4 },
-        { name: "THE LOT FISH BURGER", description: "Fried Flake, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Tartare Sauce", price: 15.4 }
+        { name: "THE LOT FISH BURGER", description: "Fried Flake, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Tartare Sauce", price: 15.4 },
+        { name: "Make Grilled Fish", description: "Any Grilled Fish Add $0.50", price: 0.5 }
       ]
     },
-    // {
-    //   name: "VEGGIE BURGERS",
-    //   color: "#10b981",
-    //   items: [
-    //     { name: "PLAIN VEGGIE BURGER", description: "Gourmet Vegetable Patty, Lettuce, & Tomato Sauce", price: 6.9, highlight: true },
-    //     { name: "CLASSIC VEGGIE BURGER", description: "Gourmet Vegetable Patty, Cheese, Tomato, Red Onion, Lettuce, Mayo, & Tomato Relish", price: 8.6, highlight: true },
-    //   ]
-    // },
     // 7 items
     {
       name: "BURGERS ADD-ONS",
@@ -220,7 +213,7 @@ export const menuPage1: MenuPage = {
       name: "FOR VEGETARIANS",
       color: "#10b981",
       items: [
-        { name: "VEGGIE PACK", description: "1 Veggie Patty, 2 Potato Cakes, 1 Veggie Dim Sim, & Half chips", price: 11.1 },
+        { name: "VEGGIE PACK", description: "1 Veggie Patty, 1 Potato Cake, 1 Veggie Dim Sim, & Half chips", price: 9.6 },
         { name: "VEGGIE SOUVLAKI", description: "Gourmet Vegetable Patty, Beetroot, Tomato, Red Onion, Lettuce, & Mayo", price: 7.1 },
         { name: "PLAIN VEGGIE BURGER", description: "Gourmet Vegetable Patty, Lettuce, & Tomato Sauce", price: 6.9 },
         { name: "CLASSIC VEGGIE BURGER", description: "Gourmet Vegetable Patty, Cheese, Tomato, Red Onion, Lettuce, Mayo, & Tomato Relish", price: 8.6 },
@@ -264,6 +257,7 @@ export const menuPage1: MenuPage = {
         { name: "SOUVA LOT FISH", description: "Fried Flake, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Tartare Sauce", price: 15.0 },
         { name: "GRILLED FISH SOUVLAKI", description: "Grilled Flake, Tomato, Red Onion, Lettuce, & Tartare Sauce", price: 12.7 },
         { name: "SOUVA LOT GRILLED FISH", description: "Grilled Flake, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Tartare Sauce", price: 15.5 },
+        { name: "VEGGIE SOUVLAKI", description: "Gourmet Vegetable Patty, Beetroot, Tomato, Red Onion, Lettuce, & Mayo", price: 7.1 },
         { name: "EXTRA LAMB MEAT", description: "Add extra lamb meat to any souvlaki", price: 4.0 },
         { name: "EXTRA CHICKEN MEAT", description: "Add extra chicken meat to any souvlaki", price: 3.0 }
       ]
@@ -280,22 +274,33 @@ export const menuPage2: MenuPage = {
       name: "PACKS",
       color: "#dc2626",
       items: [
-        { name: "FLAKE PACK FOR ONE", description: "1 Flake, 1 Potato Cake, 1 Dim Sim, & Small Chips", price: 16.8 },
-        { name: "FLAKE PACK FOR TWO", description: "2 Flakes, 2 Potato Cakes, 2 Dim Sims, & Small Chips", price: 28.2 },
-        { name: "FLAKE PACK FOR 3", description: "3 Flakes, 3 Potato Cakes, 3 Dim Sims, & Medium Chips", price: 42.0 },
+        { name: "FLAKE PACK FOR ONE", description: "1 Flake, 1 Potato Cake, 1 Dim Sim, & Small Chips", price: 16.0 },
+        { name: "FLAKE PACK FOR TWO", description: "2 Flakes, 2 Potato Cakes, 2 Dim Sims, & Small Chips", price: 28.5 },
+        { name: "FLAKE PACK FOR THREE", description: "3 Flakes, 3 Potato Cakes, 3 Dim Sims, & Medium Chips", price: 42.0 },
         { name: "FAMILY FLAKE PACK", description: "4 Flakes, 4 Potato Cakes, 4 Dim Sims, & Medium Chips", price: 54.0 },
-        { name: "DINNER BOX", description: "2 Flakes, 2 Fish Bites, 4 Potato Cakes, 4 Dim Sims, & Small Chips with 1.25L Drink", price: 46.0 },
         { name: "FLATHEAD PACK", description: "6 Flathead Fillets, & Small Chips", price: 22.0 },
         { name: "DIM & CAKE PACK", description: "2 Potato Cakes, 2 Dim Sims, & Small Chips", price: 11.5 },
         { name: "PARTY PACK", description: "8 Potato Cakes, 8 Dim Sims, & Extra Large Chips", price: 35.0 },
-        { name: "CALAMARI PACK", description: "4 Calamari, & Small Chips", price: 11.6 },
+        { name: "CALAMARI PACK", description: "4 Calamari Rings, & Small Chips", price: 11.6 },
         { name: "SALT & PEPPER SQUID PACK", description: "8 Salt & Pepper Squids, & Small Chips", price: 13.2 },
-        { name: "FISHERMAN'S CATCH", description: "1 Flake, 1 Scallop, 1 Seafood Stick, 2 Calamari Rings, & Half Chips with 375ml Can", price: 22.8 },
-        { name: "KIDS SNACK PACK", description: "2 Flathead Fillets, & Small Chips", price: 11.1 },
         { name: "KIDS PACK", description: "1 Fish Bite, 1 Potato Cake, 1 Dim Sim, & Half Chips", price: 10.5 },
+        { name: "VALUE PACK", description: "Basa Fish Fillet, 1 Potato Cake, 1 Dim Sim, & Half Chips", price: 9.0 },
+        { name: "VEGGIE PACK", description: "1 Veggie Patty, 1 Potato Cakes, 1 Veggie Dim Sim, & Half chips", price: 9.6 },
         { name: "NUGGET N CHIP PACK", description: "4 Chicken Nuggets, & Chips", price: 6.9 },
         { name: "8 CHICKEN NUGGETS", description: "Serve of 8", price: 7.5 },
-        { name: "12 CHICKEN NUGGETS", description: "Serve of 12", price: 11.3 },
+        { name: "12 CHICKEN NUGGETS", description: "Serve of 12", price: 11.3 } 
+      ]
+    },
+      {
+      name: "SPECIAL COMBO",
+      color: "#dc2626",
+      items: [
+        { name: "FLAKE PACK FOR ONE WITH A CAN", description: "1 Flake, 1 Potato Cake, 1 Dim Sim, & Small Chips with a 375ml Can", price: 19.0 },
+        { name: "MEAL FOR ONE", description: "1 Flake, 2 Potato Cakes, 2 Dim Sims, & Half Chips with a 375ml Can", price: 19.0 },
+        { name: "FLAKE PACK FOR TWO WITH 2 CANS", description: "2 Flakes, 2 Potato Cakes, 2 Dim Sims, & Small Chips with 2 x 375ml Cans", price: 33.2 },
+        { name: "FAMILY FLAKE PACK WITH 1.25L DRINK", description: "4 Flakes, 4 Potato Cakes, 4 Dim Sims, & Medium Chips with 1.25l Drink", price: 60.0 },
+        { name: "FISHERMAN'S CATCH", description: "1 Flake, 1 Scallop, 1 Seafood Stick, 2 Calamari Rings, & Half Chips with 375ml Can", price: 22.8 },
+        { name: "DINNER BOX", description: "2 Flakes, 2 Fish Bites, 4 Potato Cakes, 4 Dim Sims, & Small Chips with 1.25L Drink", price: 46.0 }
       ]
     },
     {
@@ -310,7 +315,7 @@ export const menuPage2: MenuPage = {
         { name: "Butter Fish", description: "Grilled Or Fried", price: 9.0 },
         { name: "Basa", description: "Grilled Or Fried", price: 7.0 },
         { name: "Barracouta", description: "Fried", price: 9.0 },
-        { name: "Any Grilled Fish Add $0.50", description: "", price: 0.5 },
+        { name: "Make Grilled Fish Add $0.50", description: "Any Grilled Fish Add $0.50", price: 0.5 },
         { name: "Add Panko", description: "", price: 1.0 }
 
       ]
@@ -387,23 +392,10 @@ export const menuPage2: MenuPage = {
       items: [
         { name: "Pineapple Fritter", description: "", price: 3.5 },
         { name: "Banana Fritter", description: "", price: 3.5 },
-        { name: "Mars Bar In Batter", description: "", price: 3.5 },
-        { name: "Snicker In Batter", description: "", price: 3.5 },
+        { name: "Mars Bar In Batter", description: "", price: 3.3 },
+        { name: "Snicker In Batter", description: "", price: 3.3 },
         { name: "Hot Jam Donut", description: "Single", price: 1.2 },
         { name: "Hot Jam Donuts", description: "Serve of 6", price: 7.0 }
-      ]
-    },
-    {
-      name: "SPECIAL COMBO",
-      color: "#dc2626",
-      items: [
-        { name: "FLAKE PACK FOR ONE WITH A CAN", description: "1 Flake, 1 Potato Cake, 1 Dim Sim, & Small Chips with a 375ml Can", price: 19.3 },
-        { name: "MEAL FOR ONE", description: "1 Flake, 2 Potato Cakes, 2 Dim Sims, & Half Chips with a 375ml Can", price: 19.3 },
-        { name: "FLAKE PACK FOR TWO WITH 600ml DRINK", description: "2 Flakes, 2 Potato Cakes, 2 Dim Sims, & Small Chips with a 600ml Drink", price: 32.2 },
-        { name: "FLAKE PACK FOR TWO WITH 2 CANS", description: "2 Flakes, 2 Potato Cakes, 2 Dim Sims, & Small Chips with 2 x 375ml Cans", price: 33.2 },
-        { name: "FAMILY FLAKE PACK WITH 1.25L DRINK", description: "4 Flakes, 4 Potato Cakes, 4 Dim Sims, & Medium Chips with 1.25l Drink", price: 60 },
-        { name: "FISHERMAN'S CATCH", description: "1 Flake, 1 Scallop, 1 Seafood Stick, 2 Calamari Rings, & Half Chips with 375ml Can", price: 22.8 },
-        { name: "DINNER BOX", description: "2 Flakes, 2 Fish Bites, 4 Potato Cakes, 4 Dim Sims, & Small Chips with 1.25L Drink", price: 46 }
       ]
     }
   ]
@@ -418,19 +410,20 @@ export const menuPage3: MenuPage = {
       name: "PACKS",
       color: "#dc2626",
       items: [
-        { name: "FLAKE PACK FOR ONE", description: "1 Flake, 1 Potato Cake, 1 Dim Sim, & Small Chips", price: 16.8 },
-        { name: "FLAKE PACK FOR TWO", description: "2 Flakes, 2 Potato Cakes, 2 Dim Sims, & Small Chips", price: 28.2 },
-        { name: "FAMILY FLAKE PACK", description: "4 Flakes, 4 Potato Cakes, 4 Dim Sims, & Medium Chips", price: 53.4 },
+        { name: "FLAKE PACK FOR ONE", description: "1 Flake, 1 Potato Cake, 1 Dim Sim, & Small Chips", price: 16.0 },
+        { name: "FLAKE PACK FOR TWO", description: "2 Flakes, 2 Potato Cakes, 2 Dim Sims, & Small Chips", price: 28.5 },
+        { name: "FAMILY FLAKE PACK", description: "4 Flakes, 4 Potato Cakes, 4 Dim Sims, & Medium Chips", price: 54.0 },
         { name: "DINNER BOX", description: "2 Flakes, 2 Fish Bites, 4 Potato Cakes, 4 Dim Sims, & Small Chips with 1.25L Drink", price: 46.0 },
-        { name: "FLATHEAD PACK", description: "6 Flathead Fillets, & Small Chips", price: 24.7 },
-        { name: "DIM & CAKE PACK", description: "2 Potato Cakes, 2 Dim Sims, & Small Chips", price: 10.1 },
-        { name: "PARTY PACK", description: "8 Potato Cakes, 8 Dim Sims, & Extra Large Chips", price: 32.9 },
-        { name: "8 Nuggets", description: "", price: 9.0 },
-        { name: "12 Nuggets", description: "", price: 13.0 },
-        { name: "Calamari Pack", description: "4 Calamari, & Small Chips", price: 11.6 },
-        { name: "Salt & Pepper Squid Pack", description: "8 Salt & Pepper Squids, & Small Chips", price: 16.2 },
-        { name: "Fisherman's Catch", description: "1 Flake, 1 Scallop, 1 Seafood Stick, 2 Calamari Rings, & Half Chips with 375ml Can", price: 22.3 },
-        { name: "KIDS PACK", description: "1 Fish Bite, 1 Potato Cake, 1 Dim Sim, & Half Chips", price: 9.5 }
+        { name: "FLATHEAD PACK", description: "6 Flathead Fillets, & Small Chips", price: 22.0 },
+        { name: "DIM & CAKE PACK", description: "2 Potato Cakes, 2 Dim Sims, & Small Chips", price: 11.5 },
+        { name: "PARTY PACK", description: "8 Potato Cakes, 8 Dim Sims, & Extra Large Chips", price: 35.0 },
+        { name: "8 Nuggets", description: "", price: 7.5 },
+        { name: "12 Nuggets", description: "", price: 11.3 },
+        { name: "CALAMARI PACK", description: "4 Calamari Rings, & Small Chips", price: 11.6 },
+        { name: "SALT & PEPPER SQUID PACK", description: "8 Salt & Pepper Squids, & Small Chips", price: 13.2 },
+        { name: "KIDS PACK", description: "1 Fish Bite, 1 Potato Cake, 1 Dim Sim, & Half Chips", price: 10.5 },
+        { name: "NUGGET N CHIP PACK", description: "4 Chicken Nuggets, & Chips", price: 6.9 },
+        { name: "FISHERMAN'S CATCH", description: "1 Flake, 1 Scallop, 1 Seafood Stick, 2 Calamari Rings, & Half Chips with 375ml Can", price: 22.8 }
       ]
     },
     {
@@ -472,14 +465,13 @@ export const menuPage3: MenuPage = {
         { name: "Potato Cake", description: "", price: 1.8 },
         { name: "Cheese & Bacon Potato Cake", description: "", price: 5.0 },
         { name: "Spring Roll", description: "", price: 4.0 },
-        { name: "Vietnamese Spring Roll", description: "Serve of 4", price: 5.0, highlight: true },
         { name: "Chiko Roll", description: "", price: 4.0 },
         { name: "Corn Jack", description: "", price: 4.0 },
         { name: "Chicken Breast Nugget", description: "", price: 1.0 },
         { name: "Dino Nugget", description: "", price: 1.0 },
         { name: "Frankfurt / Hotdog In Batter", description: "", price: 4.0 },
         { name: "Burger In Batter", description: "", price: 5.0 },
-        { name: "Cheese Kransky In Batter", description: "", price: 5.0 },
+        { name: "Cheese Kransky In Batter", description: "", price: 5.0 }
       ]
     }
   ]
