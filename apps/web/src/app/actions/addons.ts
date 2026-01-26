@@ -8,6 +8,7 @@ export interface AddonGroup {
   name: string;
   description: string | null;
   is_required: boolean;
+  multiple_choice: boolean;
   sort_order: number;
   is_active: boolean;
   created_at: string;
@@ -128,6 +129,7 @@ export async function createAddonGroup(formData: {
   name: string;
   description?: string;
   is_required?: boolean;
+  multiple_choice?: boolean;
   sort_order?: number;
   is_active?: boolean;
 }): Promise<{ data: AddonGroup | null; error: string | null }> {
@@ -140,6 +142,7 @@ export async function createAddonGroup(formData: {
         name: formData.name,
         description: formData.description || null,
         is_required: formData.is_required ?? false,
+        multiple_choice: formData.multiple_choice ?? true,
         sort_order: formData.sort_order || 0,
         is_active: formData.is_active !== undefined ? formData.is_active : true
       }])
@@ -164,6 +167,7 @@ export async function updateAddonGroup(
     name: string;
     description?: string;
     is_required?: boolean;
+    multiple_choice?: boolean;
     sort_order?: number;
     is_active?: boolean;
   }
@@ -177,6 +181,7 @@ export async function updateAddonGroup(
         name: formData.name,
         description: formData.description || null,
         is_required: formData.is_required ?? false,
+        multiple_choice: formData.multiple_choice ?? true,
         sort_order: formData.sort_order || 0,
         is_active: formData.is_active !== undefined ? formData.is_active : true
       })

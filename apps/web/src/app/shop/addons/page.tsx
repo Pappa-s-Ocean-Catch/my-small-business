@@ -107,6 +107,7 @@ export default function AddonsPage() {
     name: '',
     description: '',
     is_required: false,
+    multiple_choice: true,
     sort_order: 0,
     is_active: true
   });
@@ -242,6 +243,7 @@ export default function AddonsPage() {
         name: group.name,
         description: group.description || '',
         is_required: group.is_required,
+        multiple_choice: group.multiple_choice ?? true,
         sort_order: group.sort_order,
         is_active: group.is_active
       });
@@ -252,6 +254,7 @@ export default function AddonsPage() {
         name: '',
         description: '',
         is_required: false,
+        multiple_choice: true,
         sort_order: maxOrder + 1,
         is_active: true
       });
@@ -494,6 +497,11 @@ export default function AddonsPage() {
                                       Required
                                     </span>
                                   )}
+                                  {!group.multiple_choice && (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200">
+                                      Single choice
+                                    </span>
+                                  )}
                                   {!group.is_active && (
                                     <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
                                       Inactive
@@ -686,6 +694,20 @@ export default function AddonsPage() {
                 />
                 <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   Required (at least one item must be selected)
+                </span>
+              </label>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={groupForm.multiple_choice}
+                  onChange={(e) => setGroupForm({ ...groupForm, multiple_choice: e.target.checked })}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Allow multiple selections (unchecked = pick one only)
                 </span>
               </label>
             </div>

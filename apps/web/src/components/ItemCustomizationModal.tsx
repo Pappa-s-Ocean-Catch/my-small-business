@@ -108,13 +108,25 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart }
     }
   };
 
-  const toggleAddonItem = (groupId: string, itemId: string) => {
+  const setAddonSelection = (group: AddonGroupWithItems, itemId: string | null) => {
     setSelectedAddons((prev) => {
-      const current = prev[groupId] || [];
-      if (current.includes(itemId)) {
-        return { ...prev, [groupId]: current.filter((id) => id !== itemId) };
+      const current = prev[group.id] || [];
+
+      // Clear
+      if (!itemId) {
+        return { ...prev, [group.id]: [] };
       }
-      return { ...prev, [groupId]: [...current, itemId] };
+
+      // Single choice: replace selection
+      if (!group.multiple_choice) {
+        return { ...prev, [group.id]: [itemId] };
+      }
+
+      // Multiple choice: toggle
+      if (current.includes(itemId)) {
+        return { ...prev, [group.id]: current.filter((id) => id !== itemId) };
+      }
+      return { ...prev, [group.id]: [...current, itemId] };
     });
     setErrors([]);
   };
@@ -125,8 +137,14 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart }
     addonGroups.forEach((group) => {
       if (group.is_required && group.is_active) {
         const selected = selectedAddons[group.id] || [];
-        if (selected.length === 0) {
-          newErrors.push(`${group.name} is required. Please select at least one option.`);
+        if (group.multiple_choice) {
+          if (selected.length === 0) {
+            newErrors.push(`${group.name} is required. Please select at least one option.`);
+          }
+        } else {
+          if (selected.length !== 1) {
+            newErrors.push(`${group.name} is required. Please select one option.`);
+          }
         }
       }
     });
@@ -308,6 +326,27 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart }
                     <p className="text-sm text-gray-600 dark:text-gray-400">{group.description}</p>
                   )}
                   <div className="space-y-2">
+                    {!group.multiple_choice && !group.is_required && (
+                      <label
+                        className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-colors ${(selectedAddons[group.id] || []).length === 0
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                            : 'border-gray-200 dark:border-neutral-700 hover:bg-gray-50 dark:hover:bg-neutral-800'
+                          }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="radio"
+                            name={`addon-${group.id}`}
+                            checked={(selectedAddons[group.id] || []).length === 0}
+                            onChange={() => setAddonSelection(group, null)}
+                            className="rounded-full border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <div>
+                            <div className="font-medium text-gray-900 dark:text-white">No thanks</div>
+                          </div>
+                        </div>
+                      </label>
+                    )}
                     {group.items
                       .filter((item) => item.is_active)
                       .map((item) => {
@@ -316,16 +355,21 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart }
                           <label
                             key={item.id}
                             className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-colors ${isSelected
-                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                : 'border-gray-200 dark:border-neutral-700 hover:bg-gray-50 dark:hover:bg-neutral-800'
+                              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                              : 'border-gray-200 dark:border-neutral-700 hover:bg-gray-50 dark:hover:bg-neutral-800'
                               }`}
                           >
                             <div className="flex items-center gap-3">
                               <input
-                                type="checkbox"
+                                type={group.multiple_choice ? 'checkbox' : 'radio'}
+                                name={group.multiple_choice ? undefined : `addon-${group.id}`}
                                 checked={isSelected}
-                                onChange={() => toggleAddonItem(group.id, item.id)}
-                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                onChange={() => setAddonSelection(group, item.id)}
+                                className={
+                                  group.multiple_choice
+                                    ? 'rounded border-gray-300 text-blue-600 focus:ring-blue-500'
+                                    : 'rounded-full border-gray-300 text-blue-600 focus:ring-blue-500'
+                                }
                               />
                               <div>
                                 <div className="font-medium text-gray-900 dark:text-white">{item.name}</div>
