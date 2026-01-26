@@ -8,11 +8,13 @@ import { createOrder, type OrderInput } from '@/app/actions/orders';
 import { signUpCustomer } from '@/app/actions/customer-auth';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
 import { getFeatureFlags } from '@/app/actions/feature-flags';
+import { getActivePromotions } from '@/app/actions/promotions';
 import { getUserRewardPoints, useRewardPoints as useRewardPointsAction, getRewardPointsSettings } from '@/app/actions/reward-points';
 import { FaShoppingCart, FaArrowLeft, FaCreditCard, FaStore, FaUser, FaLock, FaCheckCircle, FaExclamationCircle, FaGift, FaChevronDown, FaChevronUp } from 'react-icons/fa';
 import { Icon } from '@/components/Icon';
 import Link from 'next/link';
 import { LoadingSpinner } from '@/components/Loading';
+import { computeCartPromotionTotals, type PromotionWithProducts } from '@/lib/promotions';
 type PaymentMethod = 'online' | 'store';
 
 export default function CheckoutPage() {
@@ -57,7 +59,7 @@ export default function CheckoutPage() {
   const [loadingRewardPoints, setLoadingRewardPoints] = useState(false);
   const [showRewardPointsSection, setShowRewardPointsSection] = useState(false);
 
-  const subtotal = getTotal();
+  const cartSubtotal = getTotal();
   const tax = 0; // Placeholder
   const [deliveryFee, setDeliveryFee] = useState(0);
   const [serviceFee, setServiceFee] = useState(0);
@@ -66,20 +68,60 @@ export default function CheckoutPage() {
     enable_online_payment: true,
     enable_instore_payment: true,
   });
-  
-  // Calculate reward points discount
-  const rewardPointsDiscount = useRewardPoints && rewardPointsToUse > 0 
-    ? rewardPointsToUse * rewardPointsSettings.dollars_per_point 
+
+  const [activePromotions, setActivePromotions] = useState<PromotionWithProducts[]>([]);
+
+  useEffect(() => {
+    const loadPromotions = async () => {
+      const res = await getActivePromotions();
+      if (res.data) setActivePromotions(res.data);
+    };
+    void loadPromotions();
+  }, []);
+
+  // Calculate promotions + reward points discount
+  const promoTotals = computeCartPromotionTotals({
+    promotions: activePromotions,
+    items: items.map((i) => ({
+      product_id: i.product_id,
+      base_price: i.base_price,
+      quantity: i.quantity,
+      subtotal: i.subtotal,
+    })),
+    cartSubtotal,
+  });
+
+  const subtotal = promoTotals.subtotalAfterPromotions;
+  const promotionDiscount = promoTotals.totalDiscount;
+  const promotionsApplied = promoTotals.applied;
+
+  const rawRewardPointsDiscount = useRewardPoints && rewardPointsToUse > 0
+    ? rewardPointsToUse * rewardPointsSettings.dollars_per_point
     : 0;
 
-  // Eligible amount for earning points: food subtotal minus any part paid with points
+  // Reward points should never exceed the (items + tax + delivery) amount.
+  const rewardPointsDiscount = Math.min(rawRewardPointsDiscount, Math.max(0, subtotal + tax + deliveryFee));
+
+  // Eligible amount for earning points: food subtotal (after promotions) minus any part paid with points
   const eligibleAmountForPoints = Math.max(0, subtotal - rewardPointsDiscount);
   const estimatedPointsEarned = rewardPointsSettings.enabled
     ? Math.floor(eligibleAmountForPoints * (rewardPointsSettings as { points_per_dollar?: number }).points_per_dollar!)
     : 0;
   const estimatedPointsValue = estimatedPointsEarned * rewardPointsSettings.dollars_per_point;
-  
+
   const total = subtotal + tax + deliveryFee + serviceFee - rewardPointsDiscount;
+
+  // Keep service fee derived from current payable amount (online only)
+  useEffect(() => {
+    if (paymentMethod !== 'online') {
+      setServiceFee(0);
+      return;
+    }
+
+    const baseAmount = Math.max(0, subtotal + tax + deliveryFee - rewardPointsDiscount);
+    const calculatedServiceFee = baseAmount * 0.0175 + 0.3; // Stripe fees
+    setServiceFee(calculatedServiceFee);
+  }, [paymentMethod, subtotal, tax, deliveryFee, rewardPointsDiscount]);
 
   // Load order type and delivery info from sessionStorage
   useEffect(() => {
@@ -127,7 +169,7 @@ export default function CheckoutPage() {
   useEffect(() => {
     const loadRewardPoints = async () => {
       if (!isAuthenticated || !currentUser) return;
-      
+
       try {
         setLoadingRewardPoints(true);
         const [pointsResult, settingsResult] = await Promise.all([
@@ -157,7 +199,7 @@ export default function CheckoutPage() {
   // Calculate max points that can be used
   const maxPointsToUse = userRewardPoints?.current_balance || 0;
   const maxDollarDiscount = maxPointsToUse * rewardPointsSettings.dollars_per_point;
-  const maxPointsForOrder = Math.min(maxPointsToUse, Math.floor(total / rewardPointsSettings.dollars_per_point));
+  const maxPointsForOrder = Math.min(maxPointsToUse, Math.floor(Math.max(0, total) / rewardPointsSettings.dollars_per_point));
 
   // Auto-suggest using reward points if available
   useEffect(() => {
@@ -177,24 +219,24 @@ export default function CheckoutPage() {
       try {
         console.log('🔍 [Checkout] Starting auth check...');
         const supabase = getSupabaseClient();
-        
+
         // First check if there's a session to avoid AuthSessionMissingError
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
+
         if (sessionError) {
           console.log('⚠️ [Checkout] No session found (this is OK for anonymous checkout):', sessionError.message);
           return;
         }
-        
+
         if (!session?.user) {
           console.log('ℹ️ [Checkout] No user session - anonymous checkout allowed');
           return;
         }
-        
+
         console.log('✅ [Checkout] Session found, user ID:', session.user.id, 'Email:', session.user.email);
-        
+
         const { data: { user }, error: userError } = await supabase.auth.getUser();
-        
+
         if (userError) {
           // If it's a session missing error, that's fine - user is not logged in
           if (userError.message?.includes('session') || userError.message?.includes('AuthSessionMissing')) {
@@ -204,30 +246,30 @@ export default function CheckoutPage() {
           console.error('❌ [Checkout] Error getting user:', userError);
           return;
         }
-        
+
         if (user) {
           console.log('👤 [Checkout] User found:', { id: user.id, email: user.email });
-          
+
           const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('id, email, full_name, phone, role_slug')
             .eq('id', user.id)
             .single();
-          
+
           if (profileError) {
             console.error('❌ [Checkout] Error getting profile:', profileError);
             return;
           }
-          
+
           if (profile) {
-            console.log('📋 [Checkout] Profile found:', { 
-              id: profile.id, 
-              email: profile.email, 
+            console.log('📋 [Checkout] Profile found:', {
+              id: profile.id,
+              email: profile.email,
               role: profile.role_slug,
               hasPhone: !!profile.phone,
               hasName: !!profile.full_name
             });
-            
+
             // For "Pay at Store", only customer role is allowed
             // For "Pay Online", any logged-in user can use their info
             if (profile.role_slug === 'customer') {
@@ -250,7 +292,7 @@ export default function CheckoutPage() {
                 phone: profile.phone || undefined
               });
             }
-            
+
             // Pre-fill customer info for any logged-in user (for Pay Online)
             if (profile.email) {
               setCustomerEmail(profile.email);
@@ -332,7 +374,7 @@ export default function CheckoutPage() {
 
       const supabase = getSupabaseClient();
       console.log('🔄 [Checkout] Calling signInWithPassword...');
-      
+
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email: loginEmail.trim().toLowerCase(),
         password: loginPassword
@@ -344,26 +386,26 @@ export default function CheckoutPage() {
           status: signInError.status,
           name: signInError.name
         });
-        
+
         // Provide user-friendly error messages
         let errorMessage = signInError.message;
-        if (signInError.message.includes('Invalid login credentials') || 
-            signInError.message.includes('invalid_credentials') ||
-            signInError.status === 400) {
+        if (signInError.message.includes('Invalid login credentials') ||
+          signInError.message.includes('invalid_credentials') ||
+          signInError.status === 400) {
           errorMessage = 'Invalid email or password. Please check your credentials and try again.';
         } else if (signInError.message.includes('Email not confirmed') ||
-                   signInError.message.includes('email_not_confirmed')) {
+          signInError.message.includes('email_not_confirmed')) {
           errorMessage = 'Please check your email and click the confirmation link before signing in.';
         } else if (signInError.message.includes('Too many requests')) {
           errorMessage = 'Too many login attempts. Please wait a moment and try again.';
         }
-        
+
         throw new Error(errorMessage);
       }
 
       if (signInData?.user) {
-        console.log('✅ [Checkout] Login successful, user:', { 
-          id: signInData.user.id, 
+        console.log('✅ [Checkout] Login successful, user:', {
+          id: signInData.user.id,
           email: signInData.user.email,
           emailConfirmed: signInData.user.email_confirmed_at ? 'Yes' : 'No'
         });
@@ -374,7 +416,7 @@ export default function CheckoutPage() {
       // Get user profile (use the user from signInData if available, otherwise fetch)
       const user = signInData?.user;
       let finalUser = user;
-      
+
       if (!finalUser) {
         console.log('🔄 [Checkout] User not in signInData, fetching...');
         const { data: { user: fetchedUser }, error: getUserError } = await supabase.auth.getUser();
@@ -384,28 +426,28 @@ export default function CheckoutPage() {
         }
         finalUser = fetchedUser;
       }
-      
+
       if (finalUser) {
         console.log('👤 [Checkout] User retrieved:', { id: finalUser.id, email: finalUser.email });
-        
+
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('id, email, full_name, phone, role_slug')
           .eq('id', finalUser.id)
           .single();
-        
+
         if (profileError) {
           console.error('❌ [Checkout] Error fetching profile:', profileError);
           throw new Error('Failed to retrieve user profile. Please try again.');
         }
 
         if (profile) {
-          console.log('📋 [Checkout] Profile retrieved:', { 
-            id: profile.id, 
-            email: profile.email, 
-            role: profile.role_slug 
+          console.log('📋 [Checkout] Profile retrieved:', {
+            id: profile.id,
+            email: profile.email,
+            role: profile.role_slug
           });
-          
+
           if (profile.role_slug === 'customer') {
             console.log('✅ [Checkout] User is a CUSTOMER - authentication successful');
             setIsAuthenticated(true);
@@ -493,7 +535,7 @@ export default function CheckoutPage() {
 
       if (!result.success) {
         console.error('❌ [Checkout] Signup failed:', result.error);
-        
+
         // Provide user-friendly error messages
         let errorMessage = result.error || 'Signup failed';
         if (result.error?.includes('already exists') || result.error?.includes('already registered')) {
@@ -503,7 +545,7 @@ export default function CheckoutPage() {
         } else if (result.error?.includes('password')) {
           errorMessage = 'Password does not meet requirements. Please use a stronger password.';
         }
-        
+
         throw new Error(errorMessage);
       }
 
@@ -532,7 +574,7 @@ export default function CheckoutPage() {
           status: signInError.status,
           name: signInError.name
         });
-        
+
         // Provide helpful message based on error
         let errorMessage = 'Account created but login failed. ';
         if (signInError.status === 400) {
@@ -636,6 +678,8 @@ export default function CheckoutPage() {
           )
         })),
         subtotal,
+        promotion_discount: promotionDiscount,
+        promotions_applied: promotionsApplied,
         tax,
         delivery_fee: deliveryFee,
         service_fee: serviceFee,
@@ -698,17 +742,12 @@ export default function CheckoutPage() {
 
       // For pay online, redirect to Stripe Checkout
       if (paymentMethod === 'online') {
-        // Calculate service fee
-        const baseAmount = subtotal + tax + deliveryFee;
-        const calculatedServiceFee = baseAmount * 0.0175 + 0.3; // Stripe fees
-        setServiceFee(calculatedServiceFee);
-
-        // Prepare line items for Stripe
+        // Prepare line items (display only; Stripe session amount is computed server-side)
         const lineItems = items.map(item => ({
           name: item.name,
           description: item.description || undefined,
           quantity: item.quantity,
-          price: item.base_price + (item.addon_groups.reduce((sum, group) => 
+          price: item.base_price + (item.addon_groups.reduce((sum, group) =>
             sum + group.selected_items.reduce((itemSum, addonItem) => itemSum + addonItem.extra_price, 0), 0
           ) / item.quantity)
         }));
@@ -725,6 +764,7 @@ export default function CheckoutPage() {
             customerPhone: customerPhone,
             items: lineItems,
             subtotal,
+            promotionDiscount,
             tax,
             deliveryFee,
             rewardPointsDiscount: rewardPointsDiscount,
@@ -746,7 +786,7 @@ export default function CheckoutPage() {
       // For pay at store, show success immediately
       setSuccess(true);
       setOrderNumber(result.data.order_number);
-      
+
       // Clear cart
       await clearCart();
 
@@ -1053,11 +1093,10 @@ export default function CheckoutPage() {
                         setAuthMode('login');
                         setError(null); // Clear error when switching modes
                       }}
-                      className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition ${
-                        authMode === 'login'
+                      className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition ${authMode === 'login'
                           ? 'bg-white dark:bg-neutral-700 text-gray-900 dark:text-white shadow-sm'
                           : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                      }`}
+                        }`}
                     >
                       Sign In
                     </button>
@@ -1067,11 +1106,10 @@ export default function CheckoutPage() {
                         setAuthMode('signup');
                         setError(null); // Clear error when switching modes
                       }}
-                      className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition ${
-                        authMode === 'signup'
+                      className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition ${authMode === 'signup'
                           ? 'bg-white dark:bg-neutral-700 text-gray-900 dark:text-white shadow-sm'
                           : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                      }`}
+                        }`}
                     >
                       Create Account
                     </button>
@@ -1246,6 +1284,16 @@ export default function CheckoutPage() {
               </h2>
               <div className="space-y-2 mb-4">
                 <div className="flex justify-between text-gray-600 dark:text-gray-400">
+                  <span>Items</span>
+                  <span>${cartSubtotal.toFixed(2)}</span>
+                </div>
+                {promotionDiscount > 0.009 && (
+                  <div className="flex justify-between text-green-600 dark:text-green-400 font-medium">
+                    <span>Promotions</span>
+                    <span>-${promotionDiscount.toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-gray-600 dark:text-gray-400">
                   <span>Subtotal</span>
                   <span>${subtotal.toFixed(2)}</span>
                 </div>
@@ -1328,7 +1376,7 @@ export default function CheckoutPage() {
                   <Icon icon={FaChevronDown} className="w-4 h-4 text-gray-400" />
                 )}
               </button>
-              
+
               {showRewardPointsSection && (
                 <div className="px-4 pb-4 border-t border-gray-200 dark:border-neutral-700 pt-4">
                   <div className="flex items-center gap-3 mb-3">

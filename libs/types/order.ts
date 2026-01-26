@@ -34,6 +34,10 @@ export interface OrderInput {
   delivery_eta_minutes?: number;
   reward_points_used?: number;
   reward_points_value?: number;
+
+  // Promotions (optional)
+  promotion_discount?: number;
+  promotions_applied?: any[];
 }
 
 export interface OrderItem {
@@ -77,6 +81,8 @@ export interface Order {
   tax: number;
   delivery_fee: number;
   service_fee: number;
+  promotion_discount: number;
+  promotions_applied: any[];
   total: number;
   reward_points_used: number | null;
   reward_points_value: number | null;

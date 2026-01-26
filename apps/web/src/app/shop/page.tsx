@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { getSupabaseClient } from "@my-small-business/supabase/client";
 import { ensureProfile } from "@/app/actions/profile";
 import { AdminGuard } from "@/components/AdminGuard";
-import { FaBox, FaTags, FaTruck, FaWarehouse, FaExclamationTriangle, FaPlus, FaChartLine, FaUtensils } from "react-icons/fa";
+import { FaBox, FaTags, FaTruck, FaWarehouse, FaExclamationTriangle, FaPlus, FaChartLine, FaUtensils, FaPercent } from "react-icons/fa";
 import { FaEye } from "react-icons/fa6";
 import { Icon } from "@/components/Icon";
 import Link from "next/link";
@@ -62,7 +62,7 @@ export default function ShopPage() {
   useEffect(() => {
     const fetchStats = async () => {
       const supabase = getSupabaseClient();
-      
+
       try {
         const [
           { count: productsCount },
@@ -78,8 +78,8 @@ export default function ShopPage() {
         const { data: allProducts } = await supabase
           .from("products")
           .select("id, quantity_in_stock, reorder_level");
-        
-        const lowStockProducts = allProducts?.filter(product => 
+
+        const lowStockProducts = allProducts?.filter(product =>
           product.quantity_in_stock <= product.reorder_level
         ) || [];
 
@@ -205,6 +205,19 @@ export default function ShopPage() {
             </Link>
 
             <Link
+              href="/shop/promotions"
+              className="p-4 bg-white dark:bg-neutral-900 rounded-lg border hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <Icon icon={FaPercent} className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+                <div>
+                  <h3 className="font-medium text-gray-900 dark:text-white">Promotions</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Discount rules</p>
+                </div>
+              </div>
+            </Link>
+
+            <Link
               href="/shop/suppliers"
               className="p-4 bg-white dark:bg-neutral-900 rounded-lg border hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
             >
@@ -217,10 +230,10 @@ export default function ShopPage() {
               </div>
             </Link>
 
-    <Link
-      href="/shop/inventory"
-      className="p-4 bg-white dark:bg-neutral-900 rounded-lg border hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
-    >
+            <Link
+              href="/shop/inventory"
+              className="p-4 bg-white dark:bg-neutral-900 rounded-lg border hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+            >
               <div className="flex items-center gap-3">
                 <Icon icon={FaWarehouse} className="w-6 h-6 text-orange-600 dark:text-orange-400" />
                 <div>

@@ -7,17 +7,19 @@ import { OrderHeader } from '@/components/OrderHeader';
 import { OrderTypeSelector, type OrderType } from '@/components/OrderTypeSelector';
 import { DeliveryAddressForm, type DeliveryAddressInput } from '@/components/DeliveryAddressForm';
 import { getFeatureFlags } from '@/app/actions/feature-flags';
+import { getActivePromotions } from '@/app/actions/promotions';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
 import { FaShoppingCart, FaArrowLeft, FaCheck, FaDollarSign, FaEdit, FaComment, FaTruck, FaClock, FaSpinner } from 'react-icons/fa';
 import { Icon } from '@/components/Icon';
 import Link from 'next/link';
+import { computeCartPromotionTotals, type PromotionWithProducts } from '@/lib/promotions';
 
 export default function OrderSummaryPage() {
   const { items, getTotal, clearCart, isLoading, updateItem } = useCart();
   const router = useRouter();
   const [editingCommentItemId, setEditingCommentItemId] = useState<string | null>(null);
   const [commentText, setCommentText] = useState<string>('');
-  
+
   // Order type and delivery state
   const [orderType, setOrderType] = useState<OrderType | null>(null);
   const [enableDelivery, setEnableDelivery] = useState(false);
@@ -33,7 +35,30 @@ export default function OrderSummaryPage() {
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  const subtotal = getTotal();
+  const [activePromotions, setActivePromotions] = useState<PromotionWithProducts[]>([]);
+
+  useEffect(() => {
+    const loadPromotions = async () => {
+      const res = await getActivePromotions();
+      if (res.data) setActivePromotions(res.data);
+    };
+    void loadPromotions();
+  }, []);
+
+  const cartSubtotal = getTotal();
+  const promoTotals = computeCartPromotionTotals({
+    promotions: activePromotions,
+    items: items.map((i) => ({
+      product_id: i.product_id,
+      base_price: i.base_price,
+      quantity: i.quantity,
+      subtotal: i.subtotal,
+    })),
+    cartSubtotal,
+  });
+
+  const subtotal = promoTotals.subtotalAfterPromotions;
+  const promotionDiscount = promoTotals.totalDiscount;
   const deliveryFee = deliveryQuote?.fee || 0;
   const serviceFee = 0;
   const tax = 0;
@@ -45,7 +70,7 @@ export default function OrderSummaryPage() {
       try {
         const flags = await getFeatureFlags();
         setEnableDelivery(flags.enable_online_delivery);
-        
+
         // Check if user is authenticated
         const supabase = getSupabaseClient();
         const { data: { user } } = await supabase.auth.getUser();
@@ -127,7 +152,7 @@ export default function OrderSummaryPage() {
       sessionStorage.removeItem('deliveryAddress');
       sessionStorage.removeItem('deliveryQuote');
     }
-    
+
     router.push('/order/checkout');
   };
 
@@ -210,7 +235,7 @@ export default function OrderSummaryPage() {
                   allowSave={isAuthenticated}
                   isAuthenticated={isAuthenticated}
                 />
-                
+
                 {/* Delivery Quote Display */}
                 {loadingQuote && (
                   <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center gap-3">
@@ -334,7 +359,7 @@ export default function OrderSummaryPage() {
                           ${item.subtotal.toFixed(2)}
                         </span>
                       </div>
-                      
+
                       {/* Add-ons */}
                       {item.addon_groups.length > 0 && (
                         <div className="mt-2 space-y-1">
@@ -430,15 +455,15 @@ export default function OrderSummaryPage() {
                       {/* Price Breakdown */}
                       <div className="mt-2 text-xs text-gray-500 dark:text-gray-500">
                         ${item.base_price.toFixed(2)} × {item.quantity}
-                        {item.addon_groups.reduce((sum, group) => 
+                        {item.addon_groups.reduce((sum, group) =>
                           sum + group.selected_items.reduce((itemSum, addon) => itemSum + addon.extra_price, 0), 0
                         ) > 0 && (
-                          <span>
-                            {' '}+ ${item.addon_groups.reduce((sum, group) => 
-                              sum + group.selected_items.reduce((itemSum, addon) => itemSum + addon.extra_price, 0), 0
-                            ).toFixed(2)} (add-ons)
-                          </span>
-                        )}
+                            <span>
+                              {' '}+ ${item.addon_groups.reduce((sum, group) =>
+                                sum + group.selected_items.reduce((itemSum, addon) => itemSum + addon.extra_price, 0), 0
+                              ).toFixed(2)} (add-ons)
+                            </span>
+                          )}
                       </div>
                     </div>
                   </div>
@@ -453,8 +478,18 @@ export default function OrderSummaryPage() {
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
                 Order Summary
               </h2>
-              
+
               <div className="space-y-3 mb-6">
+                <div className="flex justify-between text-gray-600 dark:text-gray-400">
+                  <span>Items</span>
+                  <span>${cartSubtotal.toFixed(2)}</span>
+                </div>
+                {promotionDiscount > 0.009 && (
+                  <div className="flex justify-between text-green-700 dark:text-green-300">
+                    <span>Promotions</span>
+                    <span>-${promotionDiscount.toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-gray-600 dark:text-gray-400">
                   <span>Subtotal</span>
                   <span>${subtotal.toFixed(2)}</span>

@@ -28,14 +28,14 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
       try {
         const supabase = getSupabaseClient();
         const { data: { user } } = await supabase.auth.getUser();
-        
+
         if (user) {
           const { data: profile } = await supabase
             .from("profiles")
             .select("role_slug")
             .eq("id", user.id)
             .single();
-          
+
           setUserRole(profile?.role_slug as 'admin' | 'staff' || null);
         } else {
           setUserRole(null);
@@ -76,12 +76,12 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
       const megaMenuWidth = 640; // Standard mega menu width
       const shopMenuWidth = 800; // Shop menu is wider
       const margin = 16; // Safety margin
-      
+
       if (isMgmtOpen && mgmtRef.current) {
         const rect = mgmtRef.current.getBoundingClientRect();
         const menuCenter = rect.left + rect.width / 2;
         const idealLeft = menuCenter - megaMenuWidth / 2;
-        
+
         // Check if we have enough space on both sides for centering
         if (idealLeft >= margin && idealLeft + megaMenuWidth <= window.innerWidth - margin) {
           setMgmtOffset(idealLeft - rect.left);
@@ -91,12 +91,12 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
           setMgmtOffset(Math.max(0, maxOffset));
         }
       }
-      
+
       if (isReportOpen && reportRef.current) {
         const rect = reportRef.current.getBoundingClientRect();
         const menuCenter = rect.left + rect.width / 2;
         const idealLeft = menuCenter - megaMenuWidth / 2;
-        
+
         // Check if we have enough space on both sides for centering
         if (idealLeft >= margin && idealLeft + megaMenuWidth <= window.innerWidth - margin) {
           setReportOffset(idealLeft - rect.left);
@@ -106,12 +106,12 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
           setReportOffset(Math.max(0, maxOffset));
         }
       }
-      
+
       if (isSystemOpen && systemRef.current) {
         const rect = systemRef.current.getBoundingClientRect();
         const menuCenter = rect.left + rect.width / 2;
         const idealLeft = menuCenter - megaMenuWidth / 2;
-        
+
         // Check if we have enough space on both sides for centering
         if (idealLeft >= margin && idealLeft + megaMenuWidth <= window.innerWidth - margin) {
           setSystemOffset(idealLeft - rect.left);
@@ -121,12 +121,12 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
           setSystemOffset(Math.max(0, maxOffset));
         }
       }
-      
+
       if (isShopOpen && shopRef.current) {
         const rect = shopRef.current.getBoundingClientRect();
         const menuCenter = rect.left + rect.width / 2;
         const idealLeft = menuCenter - shopMenuWidth / 2;
-        
+
         // Check if we have enough space on both sides for centering
         if (idealLeft >= margin && idealLeft + shopMenuWidth <= window.innerWidth - margin) {
           setShopOffset(idealLeft - rect.left);
@@ -137,7 +137,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
         }
       }
     }
-    
+
     computeSmartOffsets();
     window.addEventListener('resize', computeSmartOffsets);
     return () => window.removeEventListener('resize', computeSmartOffsets);
@@ -153,7 +153,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
       : "flex items-center h-full px-4 transition-colors";
     const activeClasses = "bg-blue-100 dark:bg-blue-900 border-b-2 border-blue-600 text-blue-700 dark:text-blue-300";
     const inactiveClasses = "hover:bg-gray-100 dark:hover:bg-neutral-900";
-    
+
     return `${baseClasses} ${isActive(path) ? activeClasses : inactiveClasses}`;
   };
 
@@ -161,7 +161,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
     <nav className={orientation === 'vertical' ? "flex flex-col items-stretch h-auto bg-white dark:bg-neutral-950 rounded-lg shadow divide-y divide-gray-200 dark:divide-neutral-800" : "flex items-center h-full"}>
       {/* Home/Dashboard - visible to all authenticated users */}
       <Link className={getLinkClasses("/admin")} href="/admin" aria-label="Dashboard">Dashboard</Link>
-      
+
       {/* Work shift (Calendar) - visible to authenticated users only, second item */}
       <Link className={getLinkClasses("/calendar")} href="/calendar" aria-label="Work shift">Work shift</Link>
 
@@ -195,8 +195,8 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
               Management
             </button>
             {isMgmtOpen && (
-            <div className="absolute top-full mt-0.5 w-screen max-w-[640px] sm:w-[640px] rounded-xl bg-white/95 dark:bg-neutral-950/95 backdrop-blur shadow-lg z-50 p-3 overflow-hidden"
-                 style={{ left: mgmtOffset === 0 ? 'auto' : mgmtOffset, right: mgmtOffset === 0 ? '0' : 'auto' }}>
+              <div className="absolute top-full mt-0.5 w-screen max-w-[640px] sm:w-[640px] rounded-xl bg-white/95 dark:bg-neutral-950/95 backdrop-blur shadow-lg z-50 p-3 overflow-hidden"
+                style={{ left: mgmtOffset === 0 ? 'auto' : mgmtOffset, right: mgmtOffset === 0 ? '0' : 'auto' }}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <Link href="/staff" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
@@ -281,6 +281,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                 <div className="pl-2 space-y-1">
                   <Link className={getLinkClasses("/admin/orders")} href="/admin/orders" aria-label="Orders">Orders</Link>
                   <Link className={getLinkClasses("/shop/menu")} href="/shop/menu" aria-label="Menu">Menu</Link>
+                  <Link className={getLinkClasses("/shop/promotions")} href="/shop/promotions" aria-label="Promotions">Promotions</Link>
                   <Link className={getLinkClasses("/shop/addons")} href="/shop/addons" aria-label="Add-ons">Add-ons</Link>
                   <Link className={getLinkClasses("/shop/combo")} href="/shop/combo" aria-label="Combo">Combo</Link>
                   <Link className={getLinkClasses("/shop/google-business-sync")} href="/shop/google-business-sync" aria-label="Google Business Sync">Google Business Sync</Link>
@@ -312,8 +313,8 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
               Shop
             </button>
             {isShopOpen && (
-            <div className="absolute top-full mt-0.5 w-screen max-w-[800px] sm:w-[800px] rounded-xl bg-white/95 dark:bg-neutral-950/95 backdrop-blur shadow-lg z-50 p-3 overflow-hidden"
-                 style={{ left: shopOffset === 0 ? 'auto' : shopOffset, right: shopOffset === 0 ? '0' : 'auto' }}>
+              <div className="absolute top-full mt-0.5 w-screen max-w-[800px] sm:w-[800px] rounded-xl bg-white/95 dark:bg-neutral-950/95 backdrop-blur shadow-lg z-50 p-3 overflow-hidden"
+                style={{ left: shopOffset === 0 ? 'auto' : shopOffset, right: shopOffset === 0 ? '0' : 'auto' }}>
                 <div className="flex">
                   {/* Left Panel - Main Shop Link */}
                   <div className="w-1/4 pr-3">
@@ -331,7 +332,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                       </Link>
                     </div>
                   </div>
-                  
+
                   {/* Middle Panel - Inventory Section */}
                   <div className="w-1/4 px-3">
                     <div className="mb-2">
@@ -412,6 +413,17 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                             </div>
                           </div>
                         </Link>
+                        <Link href="/shop/promotions" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                          <div className="flex items-start gap-3">
+                            <div className="mt-0.5 text-yellow-600 dark:text-yellow-400">
+                              <Icon icon={FaMoneyBillWave} className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="font-medium text-gray-900 dark:text-white">Promotions</div>
+                              <div className="text-xs text-gray-600 dark:text-gray-400">Manage discounts and promo schedules</div>
+                            </div>
+                          </div>
+                        </Link>
                         <Link href="/shop/addons" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                           <div className="flex items-start gap-3">
                             <div className="mt-0.5 text-blue-600 dark:text-blue-400">
@@ -487,7 +499,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
       )}
 
       {/* removed old Calendar position - now labeled Work shift above */}
-      
+
       {/* Analysis & Report - Admin only (mega) */}
       {userRole === 'admin' && (
         orientation === 'vertical' ? (
@@ -519,8 +531,8 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
               Analysis & Report
             </button>
             {isReportOpen && (
-            <div className="absolute top-full mt-0.5 w-screen max-w-[640px] sm:w-[640px] rounded-xl bg-white/95 dark:bg-neutral-950/95 backdrop-blur shadow-lg z-50 p-3 overflow-hidden"
-                 style={{ left: reportOffset === 0 ? 'auto' : reportOffset, right: reportOffset === 0 ? '0' : 'auto' }}>
+              <div className="absolute top-full mt-0.5 w-screen max-w-[640px] sm:w-[640px] rounded-xl bg-white/95 dark:bg-neutral-950/95 backdrop-blur shadow-lg z-50 p-3 overflow-hidden"
+                style={{ left: reportOffset === 0 ? 'auto' : reportOffset, right: reportOffset === 0 ? '0' : 'auto' }}>
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
                   <Link href="/orders" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
@@ -624,8 +636,8 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
               System
             </button>
             {isSystemOpen && (
-            <div className="absolute top-full mt-0.5 w-screen max-w-[640px] sm:w-[640px] rounded-xl bg-white/95 dark:bg-neutral-950/95 backdrop-blur shadow-lg z-50 p-3 overflow-hidden"
-                 style={{ left: systemOffset === 0 ? 'auto' : systemOffset, right: systemOffset === 0 ? '0' : 'auto' }}>
+              <div className="absolute top-full mt-0.5 w-screen max-w-[640px] sm:w-[640px] rounded-xl bg-white/95 dark:bg-neutral-950/95 backdrop-blur shadow-lg z-50 p-3 overflow-hidden"
+                style={{ left: systemOffset === 0 ? 'auto' : systemOffset, right: systemOffset === 0 ? '0' : 'auto' }}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                   <Link href="/users" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">

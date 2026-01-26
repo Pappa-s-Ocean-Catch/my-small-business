@@ -25,6 +25,33 @@ function OrderConfirmationContent() {
   const [rewardSummary, setRewardSummary] = useState<OrderRewardPointsSummary | null>(null);
   const clearedCartRef = useRef(false);
 
+  const promotionsApplied = Array.isArray((order as any)?.promotions_applied)
+    ? ((order as any).promotions_applied as any[])
+    : [];
+
+  const promotionDiscount = typeof (order as any)?.promotion_discount === 'number'
+    ? ((order as any).promotion_discount as number)
+    : Number((order as any)?.promotion_discount ?? 0) || 0;
+
+  const aggregatedPromotions = (() => {
+    const byKey = new Map<string, { title: string; amount: number }>();
+    for (const p of promotionsApplied) {
+      if (!p) continue;
+      const id = p.id != null ? String(p.id) : '';
+      const title = p.title != null ? String(p.title) : 'Promotion';
+      const amount = Number(p.amount ?? 0) || 0;
+      if (amount <= 0) continue;
+      const key = id || title;
+      const prev = byKey.get(key);
+      if (prev) {
+        byKey.set(key, { title: prev.title, amount: prev.amount + amount });
+      } else {
+        byKey.set(key, { title, amount });
+      }
+    }
+    return Array.from(byKey.values()).sort((a, b) => b.amount - a.amount);
+  })();
+
   useEffect(() => {
     const fetchOrder = async () => {
       try {
@@ -49,24 +76,24 @@ function OrderConfirmationContent() {
         }
 
         // If we have order_id from Stripe redirect, use that
-          if (orderId) {
-            const result = await getOrder(orderId);
-            if (result.error || !result.data) {
-              setError(result.error || 'Order not found');
-              setLoading(false);
-              return;
-            }
-            setOrder(result.data);
-
-            // Load reward points earned for this order (concrete value at order time)
-            const rewards = await getOrderRewardPoints(orderId);
-            if (rewards.data) {
-              setRewardSummary(rewards.data);
-            }
-
+        if (orderId) {
+          const result = await getOrder(orderId);
+          if (result.error || !result.data) {
+            setError(result.error || 'Order not found');
             setLoading(false);
             return;
           }
+          setOrder(result.data);
+
+          // Load reward points earned for this order (concrete value at order time)
+          const rewards = await getOrderRewardPoints(orderId);
+          if (rewards.data) {
+            setRewardSummary(rewards.data);
+          }
+
+          setLoading(false);
+          return;
+        }
 
         // Otherwise, try to get by order number
         if (orderNumber) {
@@ -199,15 +226,14 @@ function OrderConfirmationContent() {
               <p className="text-gray-900 dark:text-white">
                 Payment Status:{' '}
                 <span
-                  className={`inline-block px-2 py-1 rounded text-xs font-semibold ${
-                    order.payment_status === 'paid'
+                  className={`inline-block px-2 py-1 rounded text-xs font-semibold ${order.payment_status === 'paid'
                       ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
                       : order.payment_status === 'failed'
                         ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
                         : order.payment_status === 'refunded'
                           ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300'
                           : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
-                  }`}
+                    }`}
                 >
                   {order.payment_status === 'paid' ? '✓ Paid' : order.payment_status.charAt(0).toUpperCase() + order.payment_status.slice(1)}
                 </span>
@@ -215,15 +241,14 @@ function OrderConfirmationContent() {
               <p className="text-gray-900 dark:text-white">
                 Order Status:{' '}
                 <span
-                  className={`inline-block px-2 py-1 rounded text-xs font-semibold ${
-                    order.order_status === 'completed'
+                  className={`inline-block px-2 py-1 rounded text-xs font-semibold ${order.order_status === 'completed'
                       ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
                       : order.order_status === 'cancelled'
                         ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
                         : order.order_status === 'ready'
                           ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300'
                           : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
-                  }`}
+                    }`}
                 >
                   {order.order_status.charAt(0).toUpperCase() + order.order_status.slice(1)}
                 </span>
@@ -287,9 +312,33 @@ function OrderConfirmationContent() {
           {/* Order Total */}
           <div className="mt-6 pt-6 border-t border-gray-200 dark:border-neutral-700">
             <div className="flex justify-between items-center mb-2">
+              <span className="text-gray-600 dark:text-gray-400">Items</span>
+              <span className="text-gray-900 dark:text-white">${(order.subtotal + promotionDiscount).toFixed(2)}</span>
+            </div>
+            {promotionDiscount > 0.009 && (
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-green-700 dark:text-green-300">Promotions</span>
+                <span className="text-green-700 dark:text-green-300">-${promotionDiscount.toFixed(2)}</span>
+              </div>
+            )}
+            <div className="flex justify-between items-center mb-2">
               <span className="text-gray-600 dark:text-gray-400">Subtotal</span>
               <span className="text-gray-900 dark:text-white">${order.subtotal.toFixed(2)}</span>
             </div>
+
+            {aggregatedPromotions.length > 0 && (
+              <div className="mt-3 mb-2 rounded-lg border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-900 px-4 py-3">
+                <div className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Applied promotions</div>
+                <div className="space-y-1">
+                  {aggregatedPromotions.map((p, idx) => (
+                    <div key={`${p.title}-${idx}`} className="flex justify-between text-sm text-gray-700 dark:text-gray-300">
+                      <span className="truncate pr-3">{p.title}</span>
+                      <span className="text-green-700 dark:text-green-300">-${p.amount.toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {order.tax > 0 && (
               <div className="flex justify-between items-center mb-2">
                 <span className="text-gray-600 dark:text-gray-400">Tax</span>

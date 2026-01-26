@@ -29,6 +29,7 @@ interface CreateCheckoutSessionBody {
     price: number; // Price per unit in dollars
   }>;
   subtotal: number;
+  promotionDiscount?: number;
   tax: number;
   deliveryFee: number;
   rewardPointsDiscount?: number;
@@ -65,9 +66,9 @@ export async function POST(request: Request) {
     const currency = (body.currency || 'aud').toLowerCase();
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://localhost:3000';
 
-    // Calculate service fee (on amount after reward points discount)
+    // Calculate service fee (on amount after discounts)
     const rewardPointsDiscount = body.rewardPointsDiscount || 0;
-    const baseAmount = body.subtotal + body.tax + body.deliveryFee - rewardPointsDiscount;
+    const baseAmount = Math.max(0, body.subtotal + body.tax + body.deliveryFee - rewardPointsDiscount);
     const serviceFee = baseAmount * STRIPE_PERCENT_FEE + STRIPE_FIXED_FEE;
     const totalAmount = baseAmount + serviceFee;
 
@@ -80,17 +81,21 @@ export async function POST(request: Request) {
     }
 
     // Build line items for Stripe Checkout
-    const lineItems = body.items.map(item => ({
-      price_data: {
-        currency,
-        product_data: {
-          name: item.name,
-          description: item.description || undefined,
+    // Note: Promotions/reward points can change the payable amount while keeping item prices unchanged.
+    // To avoid mismatched totals, we charge a single "Order" line item and keep the breakdown in metadata.
+    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
+      {
+        price_data: {
+          currency,
+          product_data: {
+            name: 'Order',
+            description: 'Food, tax, and delivery (after discounts)',
+          },
+          unit_amount: Math.round(baseAmount * 100),
         },
-        unit_amount: Math.round(item.price * 100), // Convert to cents
+        quantity: 1,
       },
-      quantity: item.quantity,
-    }));
+    ];
 
     // Add service fee as a separate line item
     if (serviceFee > 0) {
@@ -120,6 +125,7 @@ export async function POST(request: Request) {
         customer_name: body.customerName || '',
         customer_phone: body.customerPhone || '',
         subtotal: body.subtotal.toFixed(2),
+        promotion_discount: (body.promotionDiscount || 0).toFixed(2),
         tax: body.tax.toFixed(2),
         delivery_fee: body.deliveryFee.toFixed(2),
         service_fee: serviceFee.toFixed(2),

@@ -10,9 +10,11 @@ import { CartSidebar } from '@/components/CartSidebar';
 import { OrderHeader } from '@/components/OrderHeader';
 import { getFeatureFlags } from '@/app/actions/feature-flags';
 import { getTopSellingProducts, getFeaturedProducts } from '@/app/actions/top-sellers';
+import { getActivePromotions } from '@/app/actions/promotions';
 import { FaUtensils, FaSearch, FaFire, FaStar } from 'react-icons/fa';
 import { Icon } from '@/components/Icon';
 import type { CartAddonGroup } from '@/contexts/CartContext';
+import { pickBestProductPromotion, promotionLabel, type PromotionWithProducts } from '@/lib/promotions';
 
 interface MenuProduct {
   id: string;
@@ -48,6 +50,14 @@ export default function OrderPage() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [customizingProduct, setCustomizingProduct] = useState<MenuProduct | null>(null);
 
+  const [activePromotions, setActivePromotions] = useState<PromotionWithProducts[]>([]);
+
+  const topCartPromo = useMemo(() => {
+    const carts = activePromotions.filter((p) => p.applies_to === 'cart');
+    if (carts.length === 0) return null;
+    return [...carts].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0))[0];
+  }, [activePromotions]);
+
   const hasLoadedRef = useRef(false);
 
   // Check feature flag
@@ -70,6 +80,14 @@ export default function OrderPage() {
     if (hasLoadedRef.current) return;
     hasLoadedRef.current = true;
     void loadMenuData();
+  }, []);
+
+  useEffect(() => {
+    const loadPromotions = async () => {
+      const res = await getActivePromotions();
+      if (res.data) setActivePromotions(res.data);
+    };
+    void loadPromotions();
   }, []);
 
   const loadMenuData = async () => {
@@ -270,6 +288,12 @@ export default function OrderPage() {
     const bundleOriginalTotal = typeof product.bundle_original_total === 'number' ? product.bundle_original_total : 0;
     const bundleSavings = bundleOriginalTotal > product.sale_price ? bundleOriginalTotal - product.sale_price : 0;
 
+    const { promo: productPromo, discountPerUnit } = pickBestProductPromotion(activePromotions, {
+      id: product.id,
+      sale_price: product.sale_price,
+    });
+    const discountedPrice = Math.max(0, product.sale_price - discountPerUnit);
+
     return (
       <div
         key={product.id}
@@ -286,8 +310,8 @@ export default function OrderPage() {
         aria-label={`View details for ${product.name}`}
       >
         {/* Badges */}
-        {(isTopSeller || isFeatured) && (
-          <div className="absolute top-2 left-2 flex gap-1 z-10">
+        {(isTopSeller || isFeatured || discountPerUnit > 0.009) && (
+          <div className="absolute top-2 left-2 flex flex-wrap gap-1 z-10">
             {isTopSeller && (
               <span className="px-2 py-1 bg-orange-500/90 text-white text-xs font-semibold rounded-full flex items-center gap-1 backdrop-blur">
                 <Icon icon={FaFire} className="w-2 h-2" />
@@ -298,6 +322,11 @@ export default function OrderPage() {
               <span className="px-2 py-1 bg-yellow-500/90 text-white text-xs font-semibold rounded-full flex items-center gap-1 backdrop-blur">
                 <Icon icon={FaStar} className="w-2 h-2" />
                 Featured
+              </span>
+            )}
+            {discountPerUnit > 0.009 && productPromo && (
+              <span className="px-2 py-1 bg-green-600/90 text-white text-xs font-semibold rounded-full backdrop-blur">
+                {promotionLabel(productPromo)}
               </span>
             )}
           </div>
@@ -325,9 +354,20 @@ export default function OrderPage() {
             </h3>
             <div className="flex flex-col items-end gap-0.5 whitespace-nowrap">
               <div className="flex items-baseline gap-2">
-                <span className="text-base font-bold text-green-600 dark:text-green-400">
-                  ${product.sale_price.toFixed(2)}
-                </span>
+                {discountPerUnit > 0.009 ? (
+                  <>
+                    <span className="text-base font-bold text-green-700 dark:text-green-300">
+                      ${discountedPrice.toFixed(2)}
+                    </span>
+                    <span className="text-sm font-semibold text-red-500 line-through">
+                      ${product.sale_price.toFixed(2)}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-base font-bold text-green-600 dark:text-green-400">
+                    ${product.sale_price.toFixed(2)}
+                  </span>
+                )}
                 {bundleSavings > 0.009 && (
                   <span className="text-sm font-semibold text-red-500 line-through">
                     ${bundleOriginalTotal.toFixed(2)}
@@ -418,6 +458,17 @@ export default function OrderPage() {
               Go to cart
             </Link>
           </div>
+
+          {topCartPromo && (
+            <div className="mt-3 rounded-lg border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-900/20 px-4 py-3 text-sm text-green-900 dark:text-green-100">
+              <div className="font-semibold">{topCartPromo.title}</div>
+              <div className="opacity-90">
+                {topCartPromo.cart_scope === 'subtotal_min' && typeof topCartPromo.min_cart_subtotal === 'number'
+                  ? `Spend $${topCartPromo.min_cart_subtotal.toFixed(2)}+ and get ${promotionLabel(topCartPromo)} (excludes delivery fee).`
+                  : `${promotionLabel(topCartPromo)} (excludes delivery fee).`}
+              </div>
+            </div>
+          )}
 
           {/* Search */}
           <div className="relative mt-4">

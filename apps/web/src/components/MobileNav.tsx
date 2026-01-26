@@ -3,12 +3,12 @@
 import { useEffect, useState } from 'react';
 import Link from "next/link";
 
-import { 
-  FaBars, 
-  FaTimes, 
-  FaChevronDown, 
-  FaHome, 
-  FaCalendarAlt, 
+import {
+  FaBars,
+  FaTimes,
+  FaChevronDown,
+  FaHome,
+  FaCalendarAlt,
   FaDollarSign,
   FaUsers,
   FaCog,
@@ -60,7 +60,7 @@ export function MobileNav() {
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={closeMenu}
           />
-          
+
           {/* Menu Panel - Slides in from left */}
           <div className="absolute top-0 left-0 h-full w-[90vw] bg-neutral-900/95 backdrop-blur-md shadow-2xl transform transition-transform duration-300 ease-out">
             <div className="h-full flex flex-col bg-neutral-900">
@@ -72,8 +72,8 @@ export function MobileNav() {
                   </div>
                   <span className="text-white font-semibold text-lg">Business Hub</span>
                 </div>
-                <button 
-                  aria-label="Close menu" 
+                <button
+                  aria-label="Close menu"
                   className="p-2 rounded-lg hover:bg-white/20 transition-colors"
                   onClick={closeMenu}
                 >
@@ -85,33 +85,33 @@ export function MobileNav() {
               <div className="p-3 bg-neutral-800">
                 <h3 className="text-xs font-semibold text-gray-300 mb-2 uppercase tracking-wider">Quick Actions</h3>
                 <div className="grid grid-cols-4 gap-2 bg-neutral-800/30">
-                  <Link 
-                    href="/admin" 
-                    onClick={closeMenu} 
+                  <Link
+                    href="/admin"
+                    onClick={closeMenu}
                     className="p-3 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200 active:scale-95 flex flex-col items-center gap-1"
                   >
                     <Icon icon={FaHome} className="w-4 h-4 text-blue-400" />
                     <span className="text-xs font-medium text-white">Dashboard</span>
                   </Link>
-                  <Link 
-                    href="/calendar" 
-                    onClick={closeMenu} 
+                  <Link
+                    href="/calendar"
+                    onClick={closeMenu}
                     className="p-3 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200 active:scale-95 flex flex-col items-center gap-1"
                   >
                     <Icon icon={FaCalendarAlt} className="w-4 h-4 text-green-400" />
                     <span className="text-xs font-medium text-white">Work Shift</span>
                   </Link>
-                  <Link 
-                    href="/income-expense" 
-                    onClick={closeMenu} 
+                  <Link
+                    href="/income-expense"
+                    onClick={closeMenu}
                     className="p-3 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200 active:scale-95 flex flex-col items-center gap-1"
                   >
                     <Icon icon={FaDollarSign} className="w-4 h-4 text-yellow-400" />
                     <span className="text-xs font-medium text-white">Income</span>
                   </Link>
-                  <Link 
-                    href="/cash-flow" 
-                    onClick={closeMenu} 
+                  <Link
+                    href="/cash-flow"
+                    onClick={closeMenu}
                     className="p-3 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200 active:scale-95 flex flex-col items-center gap-1"
                   >
                     <Icon icon={FaChartLine} className="w-4 h-4 text-purple-400" />
@@ -129,7 +129,7 @@ export function MobileNav() {
                     <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 bg-neutral-800 px-2 py-1 rounded">Main Menu</div>
                     {/* Management Section */}
                     <div className="border-b border-neutral-700 pb-2 bg-neutral-800">
-                      <button 
+                      <button
                         className="w-full flex items-center justify-between px-3 py-3 rounded-lg hover:bg-white/10 transition-colors"
                         onClick={() => {
                           setMgmtOpen(!mgmtOpen);
@@ -174,7 +174,7 @@ export function MobileNav() {
 
                     {/* Shop Section */}
                     <div className="border-b border-neutral-700 pb-2 bg-neutral-800">
-                      <button 
+                      <button
                         className="w-full flex items-center justify-between px-3 py-3 rounded-lg hover:bg-white/10 transition-colors"
                         onClick={() => {
                           setShopOpen(!shopOpen);
@@ -217,6 +217,10 @@ export function MobileNav() {
                             <Icon icon={FaUtensils} className="w-4 h-4 mr-2 text-red-400" />
                             Menu
                           </Link>
+                          <Link href="/shop/promotions" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                            <Icon icon={FaMoneyBillWave} className="w-4 h-4 mr-2 text-yellow-400" />
+                            Promotions
+                          </Link>
                           <Link href="/shop/addons" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
                             <Icon icon={FaTag} className="w-4 h-4 mr-2 text-blue-400" />
                             Add-ons
@@ -239,7 +243,7 @@ export function MobileNav() {
 
                     {/* Analysis & Reports Section */}
                     <div className="border-b border-neutral-700 pb-2 bg-neutral-800">
-                      <button 
+                      <button
                         className="w-full flex items-center justify-between px-3 py-3 rounded-lg hover:bg-white/10 transition-colors"
                         onClick={() => {
                           setReportsOpen(!reportsOpen);
@@ -288,7 +292,7 @@ export function MobileNav() {
 
                     {/* System Section */}
                     <div className="pb-2 bg-neutral-800">
-                      <button 
+                      <button
                         className="w-full flex items-center justify-between px-3 py-3 rounded-lg hover:bg-white/10 transition-colors"
                         onClick={() => {
                           setSystemOpen(!systemOpen);

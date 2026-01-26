@@ -35,6 +35,10 @@ export interface OrderInput {
   delivery_eta_minutes?: number;
   reward_points_used?: number;
   reward_points_value?: number;
+
+  // Promotions
+  promotion_discount?: number;
+  promotions_applied?: any[];
 }
 
 // Note: Types are no longer re-exported here
@@ -69,6 +73,8 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
       tax: input.tax || 0,
       delivery_fee: input.delivery_fee || 0,
       service_fee: input.service_fee || 0,
+      promotion_discount: input.promotion_discount || 0,
+      promotions_applied: input.promotions_applied || [],
       total: input.total,
       reward_points_used: input.reward_points_used ?? null,
       reward_points_value: input.reward_points_value ?? null,
@@ -80,7 +86,7 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
       if (input.delivery_address_id) {
         orderData.delivery_address_id = input.delivery_address_id;
       }
-      
+
       if (input.delivery_address) {
         orderData.delivery_address_line1 = input.delivery_address.address_line1;
         orderData.delivery_address_line2 = input.delivery_address.address_line2 || null;
@@ -255,6 +261,8 @@ export async function getOrderByNumber(orderNumber: string): Promise<{ data: Ord
         tax: Number(order.tax),
         delivery_fee: Number(order.delivery_fee),
         service_fee: Number(order.service_fee),
+        promotion_discount: Number(order.promotion_discount ?? 0),
+        promotions_applied: (order.promotions_applied as any[]) ?? [],
         total: Number(order.total),
         items: itemsWithAddons
       },
@@ -327,6 +335,8 @@ export async function getOrder(orderId: string): Promise<{ data: Order | null; e
         tax: Number(order.tax),
         delivery_fee: Number(order.delivery_fee),
         service_fee: Number(order.service_fee),
+        promotion_discount: Number(order.promotion_discount ?? 0),
+        promotions_applied: (order.promotions_applied as any[]) ?? [],
         total: Number(order.total),
         items: itemsWithAddons
       },
@@ -368,7 +378,7 @@ export async function getAllOrders(filters?: {
       startOfDay.setHours(0, 0, 0, 0);
       const endOfDay = new Date(selectedDate);
       endOfDay.setHours(23, 59, 59, 999);
-      
+
       query = query
         .gte('created_at', startOfDay.toISOString())
         .lte('created_at', endOfDay.toISOString());

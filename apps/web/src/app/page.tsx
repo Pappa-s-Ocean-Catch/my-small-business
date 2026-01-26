@@ -8,6 +8,8 @@ import { Icon } from "@/components/Icon";
 import Image from "next/image";
 import { TypewriterText } from "@/components/TypewriterText";
 import { getFeatureFlags } from "@/app/actions/feature-flags";
+import { getHomePromotions } from "@/app/actions/promotions";
+import type { Promotion } from "@/lib/promotions";
 
 interface FeaturedProduct {
   id: string;
@@ -37,6 +39,7 @@ export default function Home() {
   const [contactLoading, setContactLoading] = useState(false);
   const [contactMessage, setContactMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [enablePickupOrder, setEnablePickupOrder] = useState(true);
+  const [homePromotions, setHomePromotions] = useState<Promotion[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -58,9 +61,10 @@ export default function Home() {
           setFeaturedProducts(data || []);
         }
 
-        // Fetch feature flags
-        const flags = await getFeatureFlags();
+        // Fetch feature flags + home promotions
+        const [flags, promoRes] = await Promise.all([getFeatureFlags(), getHomePromotions()]);
         setEnablePickupOrder(flags.enable_pickup_order);
+        if (promoRes.data) setHomePromotions(promoRes.data);
       } catch (error) {
         console.error("Error fetching data:", error);
       } finally {
@@ -190,6 +194,11 @@ export default function Home() {
 
           {/* Hero Content */}
           <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
+            {homePromotions.length > 0 && (
+              <div className="inline-flex items-center justify-center mb-4 px-4 py-2 rounded-full bg-green-600/90 text-white text-sm font-semibold backdrop-blur">
+                {homePromotions[0].home_title || homePromotions[0].title}
+              </div>
+            )}
             <h1 className="text-5xl md:text-7xl font-bold text-white mb-6 drop-shadow-lg min-h-[1.2em]">
               <TypewriterText
                 text="Welcome to Pappa's Ocean Catch"
@@ -198,7 +207,7 @@ export default function Home() {
               />
             </h1>
             <p className="text-xl md:text-2xl text-white/90 mb-8 drop-shadow-md">
-            Fresh Fish. Crispy Chips. Done Right.
+              Fresh Fish. Crispy Chips. Done Right.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
@@ -257,7 +266,7 @@ export default function Home() {
                 <div className="absolute inset-0 bg-gradient-to-br from-rose-500/10 to-orange-500/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
                 <div className="relative">
                   <div className="text-sm font-semibold text-gray-600 mb-2">Main Number</div>
-                  <div 
+                  <div
                     className="text-4xl md:text-5xl font-bold text-rose-600 mb-2 relative inline-block"
                     style={{
                       animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
@@ -275,7 +284,7 @@ export default function Home() {
                 <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 to-amber-500/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
                 <div className="relative">
                   <div className="text-sm font-semibold text-gray-600 mb-2">Alternative Number</div>
-                  <div 
+                  <div
                     className="text-4xl md:text-5xl font-bold text-orange-600 mb-2 relative inline-block"
                     style={{
                       animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
@@ -528,11 +537,10 @@ export default function Home() {
                 </div>
                 {contactMessage && (
                   <div
-                    className={`p-4 rounded-lg ${
-                      contactMessage.type === "success"
+                    className={`p-4 rounded-lg ${contactMessage.type === "success"
                         ? "bg-green-50 text-green-800 border border-green-200"
                         : "bg-red-50 text-red-800 border border-red-200"
-                    }`}
+                      }`}
                   >
                     {contactMessage.text}
                   </div>
@@ -563,7 +571,7 @@ export default function Home() {
                 Visit us at our location in Melton
               </p>
             </div>
-            
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Address Card */}
               <div className="bg-white rounded-lg shadow-lg p-8">
