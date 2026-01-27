@@ -73,7 +73,7 @@ export default function PrintMenuLayout({
 
               <div className="menu-hero-titles">
                 <div className="menu-hero-name">PAPPA&apos;S OCEAN CATCH</div>
-                <div className="menu-hero-subtitle">FISH, CHIPS &amp; BUGGERS</div>
+                <div className="menu-hero-subtitle">FISH, CHIPS &amp; BURGERS</div>
                 <div className="menu-hero-slogan">Serving fresh and high quality food</div>
               </div>
             </div>
