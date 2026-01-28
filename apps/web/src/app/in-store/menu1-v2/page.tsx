@@ -2,6 +2,7 @@
 
 import PrintMenuLayoutV2 from '@/components/PrintMenuLayoutV2';
 import PrintButton from '@/components/PrintButton';
+import { getPrintMenuCategoryBlockStyle, PrintMenuCategoryTitle } from '@/components/PrintMenuCategoryVisuals';
 import { inStoreCategoryLayouts, menuPage1, splitCategoriesByLayout } from '@/data/print-menu-data';
 import '@/styles/print-menu-v2.css';
 import '@/styles/print-menu.css';
@@ -32,8 +33,14 @@ export default function Menu1V2() {
             {leftCategories.map((category) => {
               const key = colorToClass(category.color);
               return (
-                <section key={category.name} className={`v2-card v2-accent-${key}`}>
-                  <div className={`v2-card-header v2-header-${key}`}>{category.name}</div>
+                <section
+                  key={category.name}
+                  className={`v2-card v2-accent-${key}`}
+                  style={getPrintMenuCategoryBlockStyle(category.bgImage)}
+                >
+                  <div className={`v2-card-header v2-header-${key}`}>
+                    <PrintMenuCategoryTitle name={category.name} icon={category.icon} />
+                  </div>
                   <div className="v2-card-body">
                     {category.items.map((item, idx) => (
                       <div key={idx} className="v2-item">
@@ -56,8 +63,14 @@ export default function Menu1V2() {
               {middleCategories!.map((category) => {
                 const key = colorToClass(category.color);
                 return (
-                  <section key={category.name} className={`v2-card v2-accent-${key}`}>
-                    <div className={`v2-card-header v2-header-${key}`}>{category.name}</div>
+                  <section
+                    key={category.name}
+                    className={`v2-card v2-accent-${key}`}
+                    style={getPrintMenuCategoryBlockStyle(category.bgImage)}
+                  >
+                    <div className={`v2-card-header v2-header-${key}`}>
+                      <PrintMenuCategoryTitle name={category.name} icon={category.icon} />
+                    </div>
                     <div className="v2-card-body">
                       {category.items.map((item, idx) => (
                         <div key={idx} className="v2-item">
@@ -80,8 +93,14 @@ export default function Menu1V2() {
             {rightCategories.map((category) => {
               const key = colorToClass(category.color);
               return (
-                <section key={category.name} className={`v2-card v2-accent-${key}`}>
-                  <div className={`v2-card-header v2-header-${key}`}>{category.name}</div>
+                <section
+                  key={category.name}
+                  className={`v2-card v2-accent-${key}`}
+                  style={getPrintMenuCategoryBlockStyle(category.bgImage)}
+                >
+                  <div className={`v2-card-header v2-header-${key}`}>
+                    <PrintMenuCategoryTitle name={category.name} icon={category.icon} />
+                  </div>
                   <div className="v2-card-body">
                     {category.items.map((item, idx) => (
                       <div key={idx} className="v2-item">

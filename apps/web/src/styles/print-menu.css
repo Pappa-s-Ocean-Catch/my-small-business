@@ -8,6 +8,19 @@
   line-height: 1.4;
 }
 
+/* Shared: category title icon support (v1/v2/v3) */
+.pm-category-title-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.pm-category-icon {
+  width: 1.1em;
+  height: 1.1em;
+  object-fit: contain;
+}
+
 /* Header Styles - Dark Blue Background */
 .print-menu-header {
   background: #1e3a8a;

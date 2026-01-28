@@ -2,6 +2,7 @@
 
 import PrintMenuLayoutV3 from '@/components/PrintMenuLayoutV3';
 import PrintButton from '@/components/PrintButton';
+import { getPrintMenuCategoryBlockStyle, PrintMenuCategoryTitle } from '@/components/PrintMenuCategoryVisuals';
 import { inStoreCategoryLayouts, menuPage3, splitCategoriesByLayout } from '@/data/print-menu-data';
 import '@/styles/print-menu-v3.css';
 import '@/styles/print-menu.css';
@@ -24,8 +25,14 @@ export default function Menu3V3() {
         <div className={`v3-columns ${hasMiddleColumn ? 'three-columns' : ''}`}>
           <div>
             {leftCats.map((cat) => (
-              <section key={cat.name} className="v3-card" style={{ marginBottom: '1rem' }}>
-                <div className={`v3-card-head ${cat.name === 'MEAL FOR ONE' ? 'blue' : headClass(cat.name)}`}>{cat.name === 'MEAL FOR ONE' ? 'MEALS' : cat.name}</div>
+              <section
+                key={cat.name}
+                className="v3-card"
+                style={{ marginBottom: '1rem', ...(getPrintMenuCategoryBlockStyle(cat.bgImage) ?? {}) }}
+              >
+                <div className={`v3-card-head ${cat.name === 'MEAL FOR ONE' ? 'blue' : headClass(cat.name)}`}>
+                  <PrintMenuCategoryTitle name={cat.name === 'MEAL FOR ONE' ? 'MEALS' : cat.name} icon={cat.icon} />
+                </div>
                 <div className="v3-card-body">
                   {cat.items.map((it, i) => (
                     <div key={i} className="v3-row">
@@ -44,8 +51,14 @@ export default function Menu3V3() {
           {hasMiddleColumn && (
             <div>
               {middleCats!.map((cat) => (
-                <section key={cat.name} className="v3-card" style={{ marginBottom: '1rem' }}>
-                  <div className={`v3-card-head ${headClass(cat.name)}`}>{cat.name}</div>
+                <section
+                  key={cat.name}
+                  className="v3-card"
+                  style={{ marginBottom: '1rem', ...(getPrintMenuCategoryBlockStyle(cat.bgImage) ?? {}) }}
+                >
+                  <div className={`v3-card-head ${headClass(cat.name)}`}>
+                    <PrintMenuCategoryTitle name={cat.name} icon={cat.icon} />
+                  </div>
                   <div className="v3-card-body">
                     {cat.items.map((it, i) => (
                       <div key={i} className="v3-row">
@@ -64,8 +77,14 @@ export default function Menu3V3() {
 
           <div>
             {rightCats.map((cat) => (
-              <section key={cat.name} className="v3-card" style={{ marginBottom: '1rem' }}>
-                <div className={`v3-card-head ${headClass(cat.name)}`}>{cat.name}</div>
+              <section
+                key={cat.name}
+                className="v3-card"
+                style={{ marginBottom: '1rem', ...(getPrintMenuCategoryBlockStyle(cat.bgImage) ?? {}) }}
+              >
+                <div className={`v3-card-head ${headClass(cat.name)}`}>
+                  <PrintMenuCategoryTitle name={cat.name} icon={cat.icon} />
+                </div>
                 <div className="v3-card-body">
                   {cat.items.map((it, i) => (
                     <div key={i} className="v3-row">

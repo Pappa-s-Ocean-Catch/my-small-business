@@ -10,6 +10,10 @@ export interface MenuCategory {
   name: string;
   items: MenuItem[];
   color?: string;
+  /** Optional image URL/path rendered next to the category title (print menus). */
+  icon?: string;
+  /** Optional image URL/path rendered as a centered background on the category block (print menus). */
+  bgImage?: string;
 }
 
 export interface MenuPage {
@@ -288,10 +292,10 @@ export const menuPage2: MenuPage = {
         { name: "VEGGIE PACK", description: "1 Veggie Patty, 1 Potato Cakes, 1 Veggie Dim Sim, & Half chips", price: 9.6 },
         { name: "NUGGET N CHIP PACK", description: "4 Chicken Nuggets, & Chips", price: 6.9 },
         { name: "8 CHICKEN NUGGETS", description: "Serve of 8", price: 7.5 },
-        { name: "12 CHICKEN NUGGETS", description: "Serve of 12", price: 11.3 } 
+        { name: "12 CHICKEN NUGGETS", description: "Serve of 12", price: 11.3 }
       ]
     },
-      {
+    {
       name: "SPECIAL COMBO",
       color: "#dc2626",
       items: [

@@ -1,6 +1,7 @@
 'use client';
 
 import PrintButton from '@/components/PrintButton';
+import { getPrintMenuCategoryBlockStyle, PrintMenuCategoryTitle } from '@/components/PrintMenuCategoryVisuals';
 import { inStoreCategoryLayouts, menuPage2, splitCategoriesByLayout } from '@/data/print-menu-data';
 import '@/styles/print-menu.css';
 
@@ -34,8 +35,11 @@ export default function MenuPage2() {
       <div
         key={category.name}
         className={`menu-category ${isPacks ? 'packs-special-card' : ''} category-${categoryClass(category.color)}`}
+        style={getPrintMenuCategoryBlockStyle(category.bgImage)}
       >
-        <div className="category-header">{category.name}</div>
+        <div className="category-header">
+          <PrintMenuCategoryTitle name={category.name} icon={category.icon} />
+        </div>
         <div className="category-items">
           {category.items.map((item, itemIndex) => (
             <div key={itemIndex} className={`menu-item ${isPacks ? 'pack-item' : ''}`}>
