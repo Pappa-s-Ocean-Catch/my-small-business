@@ -35,22 +35,29 @@ export default function MenuPage2() {
       <div
         key={category.name}
         className={`menu-category ${isPacks ? 'packs-special-card' : ''} category-${categoryClass(category.color)}`}
-        style={getPrintMenuCategoryBlockStyle(category.bgImage)}
+        style={{
+          ...getPrintMenuCategoryBlockStyle(category.bgImage),
+          ...(category.visualOnly && category.height ? { height: category.height } : {})
+        }}
       >
-        <div className="category-header">
-          <PrintMenuCategoryTitle name={category.name} icon={category.icon} />
-        </div>
-        <div className="category-items">
-          {category.items.map((item, itemIndex) => (
-            <div key={itemIndex} className={`menu-item ${isPacks ? 'pack-item' : ''}`}>
-              <div className="item-info">
-                <div className="item-name">{item.name}</div>
-                {item.description && <div className="item-description">{item.description}</div>}
-              </div>
-              <div className="item-price">{item.priceRange || `$${item.price.toFixed(2)}`}</div>
+        {!category.visualOnly && (
+          <>
+            <div className="category-header">
+              <PrintMenuCategoryTitle name={category.name} icon={category.icon} />
             </div>
-          ))}
-        </div>
+            <div className="category-items">
+              {category.items.map((item, itemIndex) => (
+                <div key={itemIndex} className={`menu-item ${isPacks ? 'pack-item' : ''}`}>
+                  <div className="item-info">
+                    <div className="item-name">{item.name}</div>
+                    {item.description && <div className="item-description">{item.description}</div>}
+                  </div>
+                  <div className="item-price">{item.priceRange || `$${item.price.toFixed(2)}`}</div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     );
   };
@@ -61,7 +68,7 @@ export default function MenuPage2() {
       <div className="print-menu-container">
         {/* Simple Menu Header */}
         <header className="simple-menu-header">
-          <h1 className="simple-title">FISH & CHIPS & SIDES</h1>
+          <h1 className="simple-title">FISH & CHIPS</h1>
         </header>
 
         <main className="print-menu-main">

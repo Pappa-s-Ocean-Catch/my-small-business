@@ -98,7 +98,7 @@ export default function PrintMenuLayout({
                       <span className="menu-hero-phone-primary">{phoneParts.primary}</span>
                       {phoneParts.secondary && (
                         <>
-                          <span className="menu-hero-phone-sep">or</span>
+                          <span className="menu-hero-phone-sep mr-2 ml-2">or</span>
                           <span className="menu-hero-phone-secondary">{phoneParts.secondary}</span>
                         </>
                       )}

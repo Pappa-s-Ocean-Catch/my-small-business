@@ -33,22 +33,30 @@ export default function Menu1V3() {
               <section
                 key={cat.name}
                 className="v3-card"
-                style={{ marginBottom: '1rem', ...(getPrintMenuCategoryBlockStyle(cat.bgImage) ?? {}) }}
+                style={{
+                  marginBottom: '1rem',
+                  ...(getPrintMenuCategoryBlockStyle(cat.bgImage) ?? {}),
+                  ...(cat.visualOnly && cat.height ? { height: cat.height } : {})
+                }}
               >
-                <div className={`v3-card-head ${colorHeadClass(cat.color)}`}>
-                  <PrintMenuCategoryTitle name={cat.name} icon={cat.icon} />
-                </div>
-                <div className="v3-card-body">
-                  {cat.items.map((it, i) => (
-                    <div key={i} className="v3-row">
-                      <div>
-                        <div className="v3-name">{it.name}</div>
-                        {it.description && <div className="v3-desc">{it.description}</div>}
-                      </div>
-                      <div className="v3-price">${it.price.toFixed(2)}</div>
+                {!cat.visualOnly && (
+                  <>
+                    <div className={`v3-card-head ${colorHeadClass(cat.color)}`}>
+                      <PrintMenuCategoryTitle name={cat.name} icon={cat.icon} />
                     </div>
-                  ))}
-                </div>
+                    <div className="v3-card-body">
+                      {cat.items.map((it, i) => (
+                        <div key={i} className="v3-row">
+                          <div>
+                            <div className="v3-name">{it.name}</div>
+                            {it.description && <div className="v3-desc">{it.description}</div>}
+                          </div>
+                          <div className="v3-price">${it.price.toFixed(2)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
               </section>
             ))}
           </div>
@@ -59,22 +67,30 @@ export default function Menu1V3() {
                 <section
                   key={cat.name}
                   className="v3-card"
-                  style={{ marginBottom: '1rem', ...(getPrintMenuCategoryBlockStyle(cat.bgImage) ?? {}) }}
+                  style={{
+                    marginBottom: '1rem',
+                    ...(getPrintMenuCategoryBlockStyle(cat.bgImage) ?? {}),
+                    ...(cat.visualOnly && cat.height ? { height: cat.height } : {})
+                  }}
                 >
-                  <div className={`v3-card-head ${colorHeadClass(cat.color)}`}>
-                    <PrintMenuCategoryTitle name={cat.name} icon={cat.icon} />
-                  </div>
-                  <div className="v3-card-body">
-                    {cat.items.map((it, i) => (
-                      <div key={i} className="v3-row">
-                        <div>
-                          <div className="v3-name">{it.name}</div>
-                          {it.description && <div className="v3-desc">{it.description}</div>}
-                        </div>
-                        <div className="v3-price">${it.price.toFixed(2)}</div>
+                  {!cat.visualOnly && (
+                    <>
+                      <div className={`v3-card-head ${colorHeadClass(cat.color)}`}>
+                        <PrintMenuCategoryTitle name={cat.name} icon={cat.icon} />
                       </div>
-                    ))}
-                  </div>
+                      <div className="v3-card-body">
+                        {cat.items.map((it, i) => (
+                          <div key={i} className="v3-row">
+                            <div>
+                              <div className="v3-name">{it.name}</div>
+                              {it.description && <div className="v3-desc">{it.description}</div>}
+                            </div>
+                            <div className="v3-price">${it.price.toFixed(2)}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </section>
               ))}
             </div>
@@ -85,22 +101,30 @@ export default function Menu1V3() {
               <section
                 key={cat.name}
                 className="v3-card"
-                style={{ marginBottom: '1rem', ...(getPrintMenuCategoryBlockStyle(cat.bgImage) ?? {}) }}
+                style={{
+                  marginBottom: '1rem',
+                  ...(getPrintMenuCategoryBlockStyle(cat.bgImage) ?? {}),
+                  ...(cat.visualOnly && cat.height ? { height: cat.height } : {})
+                }}
               >
-                <div className={`v3-card-head ${colorHeadClass(cat.color)}`}>
-                  <PrintMenuCategoryTitle name={cat.name} icon={cat.icon} />
-                </div>
-                <div className="v3-card-body">
-                  {cat.items.map((it, i) => (
-                    <div key={i} className="v3-row">
-                      <div>
-                        <div className="v3-name">{it.name}</div>
-                        {it.description && <div className="v3-desc">{it.description}</div>}
-                      </div>
-                      <div className="v3-price">${it.price.toFixed(2)}</div>
+                {!cat.visualOnly && (
+                  <>
+                    <div className={`v3-card-head ${colorHeadClass(cat.color)}`}>
+                      <PrintMenuCategoryTitle name={cat.name} icon={cat.icon} />
                     </div>
-                  ))}
-                </div>
+                    <div className="v3-card-body">
+                      {cat.items.map((it, i) => (
+                        <div key={i} className="v3-row">
+                          <div>
+                            <div className="v3-name">{it.name}</div>
+                            {it.description && <div className="v3-desc">{it.description}</div>}
+                          </div>
+                          <div className="v3-price">${it.price.toFixed(2)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
               </section>
             ))}
           </div>

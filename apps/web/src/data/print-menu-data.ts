@@ -14,6 +14,9 @@ export interface MenuCategory {
   icon?: string;
   /** Optional image URL/path rendered as a centered background on the category block (print menus). */
   bgImage?: string;
+  /** If true, render only the background image (no title, no items). */
+  visualOnly?: boolean;
+  height?: number;
 }
 
 export interface MenuPage {
@@ -141,8 +144,8 @@ export const inStoreCategoryLayouts = {
     right: ['FOR VEGETARIANS', 'SNACK PACK', 'SOUVLAKI', 'STEAK SANDWICHES']
   },
   menu2: {
-    middleCollumn: ['FISH', 'CHIPS', 'CHIPS & GRAVY'],
-    left: ['PACKS', 'SPECIAL COMBO'],
+    middleCollumn: ['FISH', 'CHIPS', 'CHIPS & GRAVY', 'BG1'],
+    left: ['PACKS', 'SPECIAL COMBO', 'BG2'],
     right: ['SIDES', 'SEAFOOD SIDES', 'SWEET']
   },
   menu3: {
@@ -274,6 +277,20 @@ export const menuPage2: MenuPage = {
   id: "packs-menu",
   title: "PACKS",
   categories: [
+    {
+      name: "BG1",
+      bgImage: "/bg1.jpg",
+      items: [],
+      height: 200,
+      visualOnly: true
+    },
+    {
+      name: "BG2",
+      bgImage: "/bg2.jpg",
+      items: [],
+      height: 200,
+      visualOnly: true
+    },
     {
       name: "PACKS",
       color: "#dc2626",
@@ -459,7 +476,7 @@ export const menuPage3: MenuPage = {
         { name: "VEGGIE DIM SIM", description: "", price: 2.2 },
       ]
     },
-     {
+    {
       name: "FISH",
       color: "#0ea5e9",
       items: [

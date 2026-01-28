@@ -36,22 +36,29 @@ export default function Menu1V2() {
                 <section
                   key={category.name}
                   className={`v2-card v2-accent-${key}`}
-                  style={getPrintMenuCategoryBlockStyle(category.bgImage)}
+                  style={{
+                    ...getPrintMenuCategoryBlockStyle(category.bgImage),
+                    ...(category.visualOnly && category.height ? { height: category.height } : {})
+                  }}
                 >
-                  <div className={`v2-card-header v2-header-${key}`}>
-                    <PrintMenuCategoryTitle name={category.name} icon={category.icon} />
-                  </div>
-                  <div className="v2-card-body">
-                    {category.items.map((item, idx) => (
-                      <div key={idx} className="v2-item">
-                        <div>
-                          <div className="v2-item-name">{item.name}</div>
-                          {item.description && <div className="v2-item-desc">{item.description}</div>}
-                        </div>
-                        <div className="v2-item-price">${item.price.toFixed(2)}</div>
+                  {!category.visualOnly && (
+                    <>
+                      <div className={`v2-card-header v2-header-${key}`}>
+                        <PrintMenuCategoryTitle name={category.name} icon={category.icon} />
                       </div>
-                    ))}
-                  </div>
+                      <div className="v2-card-body">
+                        {category.items.map((item, idx) => (
+                          <div key={idx} className="v2-item">
+                            <div>
+                              <div className="v2-item-name">{item.name}</div>
+                              {item.description && <div className="v2-item-desc">{item.description}</div>}
+                            </div>
+                            <div className="v2-item-price">${item.price.toFixed(2)}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </section>
               );
             })}
@@ -66,22 +73,29 @@ export default function Menu1V2() {
                   <section
                     key={category.name}
                     className={`v2-card v2-accent-${key}`}
-                    style={getPrintMenuCategoryBlockStyle(category.bgImage)}
+                    style={{
+                      ...getPrintMenuCategoryBlockStyle(category.bgImage),
+                      ...(category.visualOnly && category.height ? { height: category.height } : {})
+                    }}
                   >
-                    <div className={`v2-card-header v2-header-${key}`}>
-                      <PrintMenuCategoryTitle name={category.name} icon={category.icon} />
-                    </div>
-                    <div className="v2-card-body">
-                      {category.items.map((item, idx) => (
-                        <div key={idx} className="v2-item">
-                          <div>
-                            <div className="v2-item-name">{item.name}</div>
-                            {item.description && <div className="v2-item-desc">{item.description}</div>}
-                          </div>
-                          <div className="v2-item-price">${item.price.toFixed(2)}</div>
+                    {!category.visualOnly && (
+                      <>
+                        <div className={`v2-card-header v2-header-${key}`}>
+                          <PrintMenuCategoryTitle name={category.name} icon={category.icon} />
                         </div>
-                      ))}
-                    </div>
+                        <div className="v2-card-body">
+                          {category.items.map((item, idx) => (
+                            <div key={idx} className="v2-item">
+                              <div>
+                                <div className="v2-item-name">{item.name}</div>
+                                {item.description && <div className="v2-item-desc">{item.description}</div>}
+                              </div>
+                              <div className="v2-item-price">${item.price.toFixed(2)}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
                   </section>
                 );
               })}
@@ -96,22 +110,29 @@ export default function Menu1V2() {
                 <section
                   key={category.name}
                   className={`v2-card v2-accent-${key}`}
-                  style={getPrintMenuCategoryBlockStyle(category.bgImage)}
+                  style={{
+                    ...getPrintMenuCategoryBlockStyle(category.bgImage),
+                    ...(category.visualOnly && category.height ? { height: category.height } : {})
+                  }}
                 >
-                  <div className={`v2-card-header v2-header-${key}`}>
-                    <PrintMenuCategoryTitle name={category.name} icon={category.icon} />
-                  </div>
-                  <div className="v2-card-body">
-                    {category.items.map((item, idx) => (
-                      <div key={idx} className="v2-item">
-                        <div>
-                          <div className="v2-item-name">{item.name}</div>
-                          {item.description && <div className="v2-item-desc">{item.description}</div>}
-                        </div>
-                        <div className="v2-item-price">${item.price.toFixed(2)}</div>
+                  {!category.visualOnly && (
+                    <>
+                      <div className={`v2-card-header v2-header-${key}`}>
+                        <PrintMenuCategoryTitle name={category.name} icon={category.icon} />
                       </div>
-                    ))}
-                  </div>
+                      <div className="v2-card-body">
+                        {category.items.map((item, idx) => (
+                          <div key={idx} className="v2-item">
+                            <div>
+                              <div className="v2-item-name">{item.name}</div>
+                              {item.description && <div className="v2-item-desc">{item.description}</div>}
+                            </div>
+                            <div className="v2-item-price">${item.price.toFixed(2)}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </section>
               );
             })}
