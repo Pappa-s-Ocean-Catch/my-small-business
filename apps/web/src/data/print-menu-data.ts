@@ -142,8 +142,8 @@ export const inStoreCategoryLayouts = {
   },
   menu2: {
     middleCollumn: ['FISH', 'CHIPS', 'CHIPS & GRAVY'],
-    right: ['PACKS', 'SPECIAL COMBO'],
-    left: ['SIDES', 'SEAFOOD SIDES', 'SWEET']
+    left: ['PACKS', 'SPECIAL COMBO'],
+    right: ['SIDES', 'SEAFOOD SIDES', 'SWEET']
   },
   menu3: {
     left: ['PACKS', 'BURGERS'],
