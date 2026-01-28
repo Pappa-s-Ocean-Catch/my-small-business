@@ -142,8 +142,8 @@ export const inStoreCategoryLayouts = {
   },
   menu2: {
     middleCollumn: ['FISH', 'CHIPS', 'CHIPS & GRAVY'],
-    left: ['PACKS', 'SPECIAL COMBO'],
-    right: ['SIDES', 'SEAFOOD SIDES', 'SWEET']
+    right: ['PACKS', 'SPECIAL COMBO'],
+    left: ['SIDES', 'SEAFOOD SIDES', 'SWEET']
   },
   menu3: {
     left: ['PACKS', 'BURGERS'],
@@ -202,7 +202,7 @@ export const menuPage1: MenuPage = {
     // 7 items
     {
       name: "BURGERS ADD-ONS",
-      color: "#16a34a",
+      color: "#e68bbd",
       items: [
         { name: "Make a meal / combo", description: "Half Serve Chip & a Can", price: 5.3, highlight: true },
         { name: "Add Egg / Bacon / Pineapple / Jalapenos", description: "", price: 1.0 },
@@ -249,7 +249,7 @@ export const menuPage1: MenuPage = {
     // 6 items
     {
       name: "SOUVLAKI",
-      color: "#8b5cf6",
+      color: "#e5e68b",
       items: [
         { name: "LAMB SOUVLAKI", description: "Lamb Yiros Meat, Tomato, Red Onion, Lettuce, & Garlic Sauce", price: 12.8 },
         { name: "LAMB SOUVA WITH THE LOT", description: "Lamb Yiros Meat, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Garlic Sauce", price: 15.6 },
@@ -297,7 +297,7 @@ export const menuPage2: MenuPage = {
     },
     {
       name: "SPECIAL COMBO",
-      color: "#dc2626",
+      color: "#8b91e6",
       items: [
         { name: "FLAKE PACK FOR ONE WITH A CAN", description: "1 Flake, 1 Potato Cake, 1 Dim Sim, & Small Chips with a 375ml Can", price: 19.0 },
         { name: "MEAL FOR ONE", description: "1 Flake, 2 Potato Cakes, 2 Dim Sims, & Half Chips with a 375ml Can", price: 19.0 },
@@ -457,6 +457,21 @@ export const menuPage3: MenuPage = {
         { name: "SWEET POTATO CHIPS", description: "", price: 6.0 },
         { name: "VEGGIE SPRING ROLL", description: "", price: 2.0 },
         { name: "VEGGIE DIM SIM", description: "", price: 2.2 },
+      ]
+    },
+     {
+      name: "FISH",
+      color: "#0ea5e9",
+      items: [
+        { name: "Flake (Australian)", description: "Grilled Or Fried", price: 10.0 },
+        { name: "Blue Grenadier", description: "Grilled Or Fried", price: 9.0 },
+        { name: "Flathead", description: "3 Fillets Fried Only", price: 9.0 },
+        { name: "Barramundi", description: "Grilled Or Fried", price: 9.0 },
+        { name: "Whiting", description: "Grilled Or Fried", price: 9.0 },
+        { name: "Butter Fish", description: "Grilled Or Fried", price: 9.0 },
+        { name: "Basa", description: "Grilled Or Fried", price: 7.0 },
+        { name: "Barracouta", description: "Fried", price: 9.0 },
+
       ]
     },
     {
