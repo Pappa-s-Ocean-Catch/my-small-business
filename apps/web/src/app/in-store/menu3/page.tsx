@@ -1,5 +1,6 @@
 'use client';
 
+import PrintMenuLayout from '@/components/PrintMenuLayout';
 import PrintButton from '@/components/PrintButton';
 import { getPrintMenuCategoryBlockStyle, PrintMenuCategoryTitle } from '@/components/PrintMenuCategoryVisuals';
 import { inStoreCategoryLayouts, menuPage3, splitCategoriesByLayout } from '@/data/print-menu-data';
@@ -15,123 +16,114 @@ export default function MenuPage3() {
   return (
     <>
       <PrintButton />
-      <div className="menu3-clean-container">
-        {/* Clean Header */}
-        <header className="menu3-header">
-          <h1 className="menu3-title">🔥 SPECIALS & NEW ITEMS 🔥</h1>
-          <p className="menu3-subtitle">Fresh & Delicious</p>
-        </header>
-
-        <main className="menu3-main">
-          <div className={`menu3-layout ${hasMiddleColumn ? 'three-columns' : ''}`}>
-            {/* Left Column - Promotional Items */}
-            <div className="menu3-left-column">
-              {promotionalCategories.map((category) => (
-                <div
-                  key={category.name}
-                  className={`menu3-category promo-${category.color === '#dc2626' ? 'red' : category.color === '#f59e0b' ? 'amber' : category.color === '#8b5cf6' ? 'violet' : category.color === '#ec4899' ? 'pink' : category.color === '#06b6d4' ? 'cyan' : 'green'}`}
-                  style={getPrintMenuCategoryBlockStyle(category.bgImage)}
-                >
-                  <div className="menu3-category-header">
-                    <h2 className="menu3-category-title">
+      <PrintMenuLayout pageTitle={menuPage3.title}>
+        <div className={`menu3-layout ${hasMiddleColumn ? 'three-columns' : ''}`}>
+          {/* Left Column - Promotional Items */}
+          <div className="menu1-left-column">
+            {promotionalCategories.map((category) => (
+              <div
+                key={category.name}
+                className={`menu-category category-${category.color === '#dc2626' ? 'red' : category.color === '#f97316' ? 'orange' : category.color === '#16a34a' ? 'green' : category.color === '#7c2d12' ? 'brown' : category.color === '#0891b2' ? 'cyan' : category.color === '#be185d' ? 'pink' : 'gray'}`}
+                style={getPrintMenuCategoryBlockStyle(category.bgImage)}
+              >
+                {!category.visualOnly && (
+                  <>
+                    <div className="category-header">
                       <PrintMenuCategoryTitle name={category.name} icon={category.icon} />
-                    </h2>
-                    {category.name === 'NEW ITEMS' && <span className="new-badge">NEW!</span>}
-                  </div>
-                  <div className="menu3-items">
-                    {category.items.map((item, itemIndex) => (
-                      <div key={itemIndex} className={`menu3-item ${item.highlight ? 'highlighted' : ''}`}>
-                        <div className="menu3-item-content">
-                          <div className="menu3-item-name">{item.name}</div>
-                          {item.description && (
-                            <div className="menu3-item-desc">{item.description}</div>
-                          )}
-                        </div>
-                        <div className="menu3-item-price">
-                          ${item.price.toFixed(2)}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Middle Column (optional) */}
-            {hasMiddleColumn && (
-              <div className="menu3-middle-column">
-                {middleCategories!.map((category) => (
-                  <div
-                    key={category.name}
-                    className={`menu3-category category-${category.color === '#dc2626' ? 'red' : category.color === '#f97316' ? 'orange' : category.color === '#16a34a' ? 'green' : category.color === '#f59e0b' ? 'amber' : category.color === '#8b5cf6' ? 'violet' : category.color === '#ec4899' ? 'pink' : category.color === '#06b6d4' ? 'cyan' : category.color === '#84cc16' ? 'lime' : 'gray'}`}
-                    style={getPrintMenuCategoryBlockStyle(category.bgImage)}
-                  >
-                    <div className="menu3-category-header">
-                      <h2 className="menu3-category-title">
-                        <PrintMenuCategoryTitle name={category.name} icon={category.icon} />
-                      </h2>
+                      {category.name === 'NEW ITEMS' && <span className="new-badge">NEW!</span>}
                     </div>
-                    <div className="menu3-items">
+                    <div className="category-items">
                       {category.items.map((item, itemIndex) => (
-                        <div key={itemIndex} className="menu3-item">
-                          <div className="menu3-item-content">
-                            <div className="menu3-item-name">{item.name}</div>
+                        <div key={itemIndex} className={`menu-item ${item.highlight ? 'highlight' : ''}`}>
+                          <div className="item-info">
+                            <div className="item-name">{item.name}</div>
                             {item.description && (
-                              <div className="menu3-item-desc">{item.description}</div>
+                              <div className="item-description">{item.description}</div>
                             )}
                           </div>
-                          <div className="menu3-item-price">
+                          <div className="item-price">
                             ${item.price.toFixed(2)}
                           </div>
                         </div>
                       ))}
                     </div>
-                  </div>
-                ))}
+                  </>
+                )}
               </div>
-            )}
+            ))}
+          </div>
 
-            {/* Right Column - Regular Items */}
-            <div className="menu3-right-column">
-              {regularCategories.map((category) => (
+          {/* Middle Column (optional) */}
+          {hasMiddleColumn && (
+            <div className="menu1-middle-column">
+              {middleCategories!.map((category) => (
                 <div
                   key={category.name}
-                  className={`menu3-category category-${category.color === '#dc2626' ? 'red' : category.color === '#f97316' ? 'orange' : category.color === '#16a34a' ? 'green' : category.color === '#f59e0b' ? 'amber' : category.color === '#8b5cf6' ? 'violet' : category.color === '#ec4899' ? 'pink' : category.color === '#06b6d4' ? 'cyan' : category.color === '#84cc16' ? 'lime' : 'gray'}`}
+                  className={`menu-category category-${category.color === '#dc2626' ? 'red' : category.color === '#f97316' ? 'orange' : category.color === '#16a34a' ? 'green' : category.color === '#7c2d12' ? 'brown' : category.color === '#0891b2' ? 'cyan' : category.color === '#be185d' ? 'pink' : 'gray'}`}
                   style={getPrintMenuCategoryBlockStyle(category.bgImage)}
                 >
-                  <div className="menu3-category-header">
-                    <h2 className="menu3-category-title">
-                      <PrintMenuCategoryTitle name={category.name} icon={category.icon} />
-                    </h2>
-                  </div>
-                  <div className="menu3-items">
-                    {category.items.map((item, itemIndex) => (
-                      <div key={itemIndex} className="menu3-item">
-                        <div className="menu3-item-content">
-                          <div className="menu3-item-name">{item.name}</div>
-                          {item.description && (
-                            <div className="menu3-item-desc">{item.description}</div>
-                          )}
-                        </div>
-                        <div className="menu3-item-price">
-                          ${item.price.toFixed(2)}
-                        </div>
+                  {!category.visualOnly && (
+                    <>
+                      <div className="category-header">
+                        <PrintMenuCategoryTitle name={category.name} icon={category.icon} />
                       </div>
-                    ))}
-                  </div>
+                      <div className="category-items">
+                        {category.items.map((item, itemIndex) => (
+                          <div key={itemIndex} className={`menu-item ${item.highlight ? 'highlight' : ''}`}>
+                            <div className="item-info">
+                              <div className="item-name">{item.name}</div>
+                              {item.description && (
+                                <div className="item-description">{item.description}</div>
+                              )}
+                            </div>
+                            <div className="item-price">
+                              ${item.price.toFixed(2)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
             </div>
-          </div>
-        </main>
+          )}
 
-        <footer className="menu3-footer">
-          <div className="menu3-footer-content">
-            <p>🎉 Try our new items today! 🎉</p>
-            <p>Phone Orders: 9743 8150 • 87 Unitt St, Melton VIC 3337</p>
+          {/* Right Column - Regular Items */}
+          <div className="menu1-right-column">
+            {regularCategories.map((category) => (
+              <div
+                key={category.name}
+                className={`menu-category category-${category.color === '#dc2626' ? 'red' : category.color === '#f97316' ? 'orange' : category.color === '#16a34a' ? 'green' : category.color === '#7c2d12' ? 'brown' : category.color === '#0891b2' ? 'cyan' : category.color === '#be185d' ? 'pink' : 'gray'}`}
+                style={getPrintMenuCategoryBlockStyle(category.bgImage)}
+              >
+                {!category.visualOnly && (
+                  <>
+                    <div className="category-header">
+                      <PrintMenuCategoryTitle name={category.name} icon={category.icon} />
+                    </div>
+                    <div className="category-items">
+                      {category.items.map((item, itemIndex) => (
+                        <div key={itemIndex} className={`menu-item ${item.highlight ? 'highlight' : ''}`}>
+                          <div className="item-info">
+                            <div className="item-name">{item.name}</div>
+                            {item.description && (
+                              <div className="item-description">{item.description}</div>
+                            )}
+                          </div>
+                          <div className="item-price">
+                            ${item.price.toFixed(2)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
           </div>
-        </footer>
-      </div>
+        </div>
+      </PrintMenuLayout>
     </>
   );
 }
