@@ -22,11 +22,12 @@ export default function UniversalMenuPage() {
         const [{ data: screensData }, { data: catsData }, { data: prodsData }] = await Promise.all([
           supabase.from('menu_screens').select('id, name, subtitle, show_images, num_columns, is_published').order('sort_order'),
           supabase.from('sale_categories').select('id, name, parent_category_id').order('sort_order'),
-          supabase.from('sale_products').select('id, name, description, sale_price, image_url, sale_category_id, sub_category_id').eq('is_active', true)
+          supabase.from('sale_products').select('id, name, description, sale_price, image_url, sale_category_id, sub_category_id, sort_order').eq('is_active', true).order('sort_order')
         ]);
         setScreens((screensData ?? []) as unknown as PublicMenuScreenModel[]);
         setCategories((catsData ?? []) as unknown as PublicSaleCategory[]);
         setProducts((prodsData ?? []) as unknown as PublicSaleProduct[]);
+
         // fetch per-screen category layout
         const layout: Record<string, Array<{ sale_category_id: string; column_index: number; sort_order: number }>> = {};
         for (const s of (screensData ?? [])) {

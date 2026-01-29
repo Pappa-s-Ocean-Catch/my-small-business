@@ -62,7 +62,7 @@ export function PublicMenuRenderer({
         {selectedCategoryIds
           .map(id => categories.find(c => c.id === id))
           .filter((c): c is PublicSaleCategory => Boolean(c))
-          .sort((a,b) => {
+          .sort((a, b) => {
             const ca = categoryColumnMap[a.id]?.columnIndex ?? 0;
             const cb = categoryColumnMap[b.id]?.columnIndex ?? 0;
             if (ca !== cb) return ca - cb;
@@ -72,11 +72,19 @@ export function PublicMenuRenderer({
           })
           .map(cat => {
             const includeIds = new Set<string>([cat.id, ...(categoryChildrenMap[cat.id] ?? [])]);
-            const items = products.filter(p => {
-              const saleCatOk = p.sale_category_id ? includeIds.has(p.sale_category_id) : false;
-              const subCatOk = p.sub_category_id ? includeIds.has(p.sub_category_id) : false;
-              return saleCatOk || subCatOk;
-            });
+            const items = products
+              .filter(p => {
+                const saleCatOk = p.sale_category_id ? includeIds.has(p.sale_category_id) : false;
+                const subCatOk = p.sub_category_id ? includeIds.has(p.sub_category_id) : false;
+                return saleCatOk || subCatOk;
+              })
+              .slice() // copy before sort
+              .sort((a, b) => {
+                const sa = (a as any).sort_order ?? 0;
+                const sb = (b as any).sort_order ?? 0;
+                if (sa !== sb) return sa - sb;
+                return (a.name ?? '').localeCompare(b.name ?? '');
+              });
             if (items.length === 0) return null;
             return (
               <div key={cat.id} className="rounded-xl shadow-sm border bg-white overflow-hidden">
@@ -108,18 +116,26 @@ export function PublicMenuRenderer({
               .map(id => categories.find(c => c.id === id))
               .filter((c): c is PublicSaleCategory => Boolean(c))
               .filter(cat => (categoryColumnMap[cat.id]?.columnIndex ?? 0) === colIdx)
-              .sort((a,b) => {
+              .sort((a, b) => {
                 const sa = categoryColumnMap[a.id]?.sortOrder ?? 0;
                 const sb = categoryColumnMap[b.id]?.sortOrder ?? 0;
                 return sa - sb;
               })
               .map(cat => {
                 const includeIds = new Set<string>([cat.id, ...(categoryChildrenMap[cat.id] ?? [])]);
-                const items = products.filter(p => {
-                  const saleCatOk = p.sale_category_id ? includeIds.has(p.sale_category_id) : false;
-                  const subCatOk = p.sub_category_id ? includeIds.has(p.sub_category_id) : false;
-                  return saleCatOk || subCatOk;
-                });
+                const items = products
+                  .filter(p => {
+                    const saleCatOk = p.sale_category_id ? includeIds.has(p.sale_category_id) : false;
+                    const subCatOk = p.sub_category_id ? includeIds.has(p.sub_category_id) : false;
+                    return saleCatOk || subCatOk;
+                  })
+                  .slice() // copy before sort
+                  .sort((a, b) => {
+                    const sa = (a as any).sort_order ?? 0;
+                    const sb = (b as any).sort_order ?? 0;
+                    if (sa !== sb) return sa - sb;
+                    return (a.name ?? '').localeCompare(b.name ?? '');
+                  });
                 if (items.length === 0) return null;
                 return (
                   <div key={cat.id} className="rounded-xl shadow-sm border bg-white overflow-hidden">
@@ -140,7 +156,7 @@ export function PublicMenuRenderer({
                     </ul>
                   </div>
                 );
-            })}
+              })}
           </div>
         ))}
       </div>
