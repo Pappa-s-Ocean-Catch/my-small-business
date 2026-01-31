@@ -41,15 +41,16 @@ export default function PrintButton() {
 
       if (element) {
         const target = element as HTMLElement;
+
         const width = Math.max(1, Math.ceil(target.scrollWidth || target.getBoundingClientRect().width));
         const height = Math.max(1, Math.ceil(target.scrollHeight || target.getBoundingClientRect().height));
 
         // Adaptive scale: huge posters can take a very long time at scale=2.
         const pixels = width * height;
-        let scale = 2;
-        if (pixels > 10_000_000) scale = 1.5;
-        if (pixels > 18_000_000) scale = 1;
-        if (pixels > 28_000_000) scale = 0.75;
+        let scale = 6;
+        // if (pixels > 10_000_000) scale = 1.5;
+        // if (pixels > 18_000_000) scale = 1;
+        // if (pixels > 28_000_000) scale = 0.75;
 
         // Let the UI render the "Generating..." state before heavy work starts.
         await new Promise((r) => window.setTimeout(r, 0));
@@ -84,7 +85,7 @@ export default function PrintButton() {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `menu-${new Date().toISOString().split('T')[0]}.png`;
+        link.download = `menu-A0-150DPI-${new Date().toISOString().split('T')[0]}.png`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);

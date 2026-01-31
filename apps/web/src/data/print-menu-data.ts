@@ -150,7 +150,7 @@ export const inStoreCategoryLayouts = {
   },
   menu3: {
     left: ['PACKS', 'BURGERS'],
-    right: ['FOR VEGETARIANS', 'SIDES']
+    right: ['FOR VEGETARIANS', 'SIDES', 'SOUVLAKI']
   }
 } satisfies Record<string, CategoryLayout>;
 
@@ -438,34 +438,45 @@ export const menuPage3: MenuPage = {
         { name: "FLATHEAD PACK", description: "6 Flathead Fillets, & Small Chips", price: 22.0 },
         { name: "DIM & CAKE PACK", description: "2 Potato Cakes, 2 Dim Sims, & Small Chips", price: 11.5 },
         { name: "PARTY PACK", description: "8 Potato Cakes, 8 Dim Sims, & Extra Large Chips", price: 35.0 },
-        { name: "8 Nuggets", description: "", price: 7.5 },
-        { name: "12 Nuggets", description: "", price: 11.3 },
+        { name: "MEAL FOR ONE", description: "1 Flake, 2 Potato Cakes, 2 Dim Sims, & Half Chips with a 375ml Can", price: 19.0 },
         { name: "CALAMARI PACK", description: "4 Calamari Rings, & Small Chips", price: 11.6 },
         { name: "SALT & PEPPER SQUID PACK", description: "8 Salt & Pepper Squids, & Small Chips", price: 13.2 },
         { name: "KIDS PACK", description: "1 Fish Bite, 1 Potato Cake, 1 Dim Sim, & Half Chips", price: 10.5 },
-        { name: "NUGGET N CHIP PACK", description: "4 Chicken Nuggets, & Chips", price: 6.9 },
-        { name: "FISHERMAN'S CATCH", description: "1 Flake, 1 Scallop, 1 Seafood Stick, 2 Calamari Rings, & Half Chips with 375ml Can", price: 22.8 }
+        { name: "FISHERMAN'S CATCH", description: "1 Flake, 1 Scallop, 1 Seafood Stick, 2 Calamari Rings, & Half Chips with 375ml Can", price: 22.8 },
+        { name: "8 Nuggets", description: "", price: 7.5 },
+        { name: "12 Nuggets", description: "", price: 11.3 },
+        { name: "NUGGET N CHIP PACK", description: "4 Chicken Nuggets, & Chips", price: 6.9 }
       ]
     },
     {
       name: "BURGERS",
-      color: "#dc2626",
+      color: "#f97316",
       items: [
+        { name: "PLAIN BEEF", description: "Beef Patty, Lettuce, & Tomato Sauce", price: 7.5 },
         { name: "THE LOT BEEF", description: "Beef Patty, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Tomato Relish", price: 11.2 },
         { name: "CHEESE BURGER", description: "Beef Patty, Cheese, Lettuce, & Tomato Sauce", price: 8.3 },
+        { name: "DOUBLE BEEF CHEESE", description: "Two Beef Patties, Double Cheese, Lettuce, & Tomato Sauce", price: 13.4 },
+        { name: "MEXICAN", description: "Beef Patty, Jalapenos, Cheese, Tomato, Red Onion, Lettuce, & Peri Peri Mayo", price: 10.2 },
         { name: "TROPICAL", description: "Beef Patty, Bacon, Pineapple, Cheese, Lettuce, Mayo, & Tomato Relish", price: 10.3 },
         { name: "BLT CHEESE", description: "Beef Patty, Bacon, Cheese, Tomato, Lettuce, Mayo, & Tomato Sauce", price: 9.7 },
+        { name: "BBQ CHEESE", description: "Beef Patty, Bacon, Cheese, Red Onion, Lettuce, & BBQ Sauce", price: 9.8 },
         { name: "THE AUSSIE", description: "Beef Patty, Egg, Bacon, Cheese, Beetroot, Tomato, Red Onion, Lettuce, BBQ Sauce, & Tomato Sauce", price: 12.2 },
+        { name: "ROYALE WITH CHEESE", description: "Beef Patty, Double Cheese, Red Onion, Pickles, Tomato Relish & Mustard", price: 10.1 },
+        { name: "PLAIN CHICKEN", description: "Chicken Patty, Lettuce, & Mayo", price: 9.2 },
         { name: "CHICKEN BURGER WITH THE LOT", description: "Chicken Patty, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Mayo", price: 12.9 },
         { name: "CHICKEN BLT", description: "Chicken Patty, Bacon, Cheese, Tomato, Lettuce, & Mayo", price: 11.4 },
         { name: "PERI PERI CHICKEN", description: "Chicken Patty, Jalapenos, Cheese, Tomato, Red Onion, Lettuce, & Peri Peri Mayo", price: 11.9 },
         { name: "HAWAIIAN CHICKEN", description: "Chicken Patty, Bacon, Pineapple, Cheese, Lettuce, & Mayo", price: 12.5 },
-        { name: "TRADITIONAL CHICKEN SCHNITZEL", description: "Crumbed Breast Fillet Schnitzel, Lettuce, & Mayo", price: 8.5 }
+        { name: "TRADITIONAL CHICKEN SCHNITZEL", description: "Crumbed Breast Fillet Schnitzel, Lettuce, & Mayo", price: 8.5 },
+        { name: "KIDS CHICKEN BURGER", description: "Crumbed Chicken Patty, Cheese, Lettuce, & Tomato Sauce", price: 6.0 },
+        { name: "PLAIN FISH", description: "Fried Flake, Lettuce, & Tartare Sauce", price: 12.2 },
+        { name: "CLASSIC FISH", description: "Fried Flake, Cheese, Tomato, Red Onion, Lettuce, & Tartare Sauce", price: 13.4 },
+        { name: "THE LOT FISH BURGER", description: "Fried Flake, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Tartare Sauce", price: 15.4 }
       ]
     },
     {
       name: "FOR VEGETARIANS",
-      color: "#10b981",
+      color: "#16a34a",
       items: [
         { name: "VEGGIE PACK", description: "1 Veggie Patty, 2 Potato Cakes, 1 Veggie Dim Sim, & Half chips", price: 11.1 },
         { name: "VEGETABLE SOUVLAKI", description: "Gourmet Vegetable Patty, Beetroot, Tomato, Red Onion, Lettuce, & Mayo", price: 7.1 },
@@ -478,7 +489,7 @@ export const menuPage3: MenuPage = {
     },
     {
       name: "FISH",
-      color: "#0ea5e9",
+      color: "#0891b2",
       items: [
         { name: "Flake (Australian)", description: "Grilled Or Fried", price: 10.0 },
         { name: "Blue Grenadier", description: "Grilled Or Fried", price: 9.0 },
@@ -489,6 +500,20 @@ export const menuPage3: MenuPage = {
         { name: "Basa", description: "Grilled Or Fried", price: 7.0 },
         { name: "Barracouta", description: "Fried", price: 9.0 },
 
+      ]
+    },
+    {
+      name: "SOUVLAKI",
+      color: "#7c2d12",
+      items: [
+        { name: "LAMB SOUVLAKI", description: "Lamb Yiros Meat, Tomato, Red Onion, Lettuce, & Garlic Sauce", price: 12.8 },
+        { name: "LAMB SOUVA WITH THE LOT", description: "Lamb Yiros Meat, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Garlic Sauce", price: 15.6 },
+        { name: "CHICKEN SOUVLAKI", description: "Chicken Yiros Meat, Tomato, Red Onion, Lettuce, & Garlic Sauce", price: 11.5 },
+        { name: "CHICKEN SOUVA WITH THE LOT", description: "Chicken Yiros Meat, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Garlic Sauce", price: 14.3 },
+        { name: "MIX SOUVLAKI", description: "Lamb & Chicken Yiros Meat, Tomato, Red Onion, Lettuce, & Garlic sauce", price: 12.2 },
+        { name: "MIX SOUVA WITH THE LOT", description: "Lamb & Chicken Yiros Meat, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Garlic Sauce", price: 15.0 },
+        { name: "FISH SOUVLAKI", description: "Fried Flake, Tomato, Red Onion, Lettuce, & Tartare Sauce", price: 12.2 },
+        { name: "SOUVA LOT FISH", description: "Fried Flake, Egg, Bacon, Cheese, Tomato, Red Onion, Lettuce, & Tartare Sauce", price: 15.0 },
       ]
     },
     {

@@ -63,7 +63,13 @@ export default function Home() {
 
         // Fetch feature flags + home promotions
         const [flags, promoRes] = await Promise.all([getFeatureFlags(), getHomePromotions()]);
-        setEnablePickupOrder(flags.enable_pickup_order);
+        // Allow env var to override DB flag for local/dev
+        const envOverride = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_ENABLE_ONLINE_ORDER;
+        if (envOverride !== undefined) {
+          setEnablePickupOrder(envOverride === 'true');
+        } else {
+          setEnablePickupOrder(flags.enable_pickup_order);
+        }
         if (promoRes.data) setHomePromotions(promoRes.data);
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -538,8 +544,8 @@ export default function Home() {
                 {contactMessage && (
                   <div
                     className={`p-4 rounded-lg ${contactMessage.type === "success"
-                        ? "bg-green-50 text-green-800 border border-green-200"
-                        : "bg-red-50 text-red-800 border border-red-200"
+                      ? "bg-green-50 text-green-800 border border-green-200"
+                      : "bg-red-50 text-red-800 border border-red-200"
                       }`}
                   >
                     {contactMessage.text}
