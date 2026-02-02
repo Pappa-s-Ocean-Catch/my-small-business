@@ -40,7 +40,7 @@ export const homeMetadata: Metadata = {
     description,
     images: [
       {
-        url: `${siteUrl}/og-image.jpg`,
+        url: `${siteUrl}/og-image.png`,
         width: 1200,
         height: 630,
         alt: `${siteName} - Fresh Fish and Chips`,
@@ -51,7 +51,7 @@ export const homeMetadata: Metadata = {
     card: "summary_large_image",
     title: `${siteName} | Fresh Fish and Chips Takeaway in Melton`,
     description,
-    images: [`${siteUrl}/og-image.jpg`],
+    images: [`${siteUrl}/og-image.png`],
   },
   robots: {
     index: true,
