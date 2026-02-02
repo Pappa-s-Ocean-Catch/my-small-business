@@ -38,7 +38,8 @@ export default function Home() {
   });
   const [contactLoading, setContactLoading] = useState(false);
   const [contactMessage, setContactMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [enablePickupOrder, setEnablePickupOrder] = useState(true);
+  // Change: default to undefined so button is hidden until check completes
+  const [enablePickupOrder, setEnablePickupOrder] = useState<boolean | undefined>(undefined);
   const [homePromotions, setHomePromotions] = useState<Promotion[]>([]);
 
   useEffect(() => {
@@ -223,7 +224,8 @@ export default function Home() {
                 <Icon icon={FaUtensils} className="w-5 h-5" />
                 View Our Menu
               </Link>
-              {enablePickupOrder && (
+              {/* Only show Pickup Order button if enablePickupOrder is true (not undefined) */}
+              {enablePickupOrder === true && (
                 <Link
                   href="/order"
                   className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white/10 backdrop-blur-sm text-white rounded-lg font-semibold text-lg hover:bg-white/20 transition-colors border-2 border-white/30"
