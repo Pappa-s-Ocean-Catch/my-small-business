@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { getAllOrders, updateOrderStatus, updatePaymentStatus, getOrder } from '@/app/actions/orders';
 import { LoadingSpinner } from '@/components/Loading';
 import { AdminGuard } from '@/components/AdminGuard';
-import { FaEye,FaPrint, FaCheckCircle, FaTimesCircle, FaClock, FaSpinner, FaFilter, FaPlay, FaCheck, FaShoppingBag, FaChevronLeft, FaChevronRight, FaCalendar } from 'react-icons/fa';
+import { FaEye, FaPrint, FaCheckCircle, FaTimesCircle, FaClock, FaSpinner, FaFilter, FaPlay, FaCheck, FaShoppingBag, FaChevronLeft, FaChevronRight, FaCalendar } from 'react-icons/fa';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 import { Icon } from '@/components/Icon';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
@@ -81,7 +81,7 @@ export default function OrdersPage() {
 
     // Set up Supabase realtime subscription for orders
     const supabase = getSupabaseClient();
-    
+
     // Subscribe to order changes
     subscriptionRef.current = supabase
       .channel('orders-changes')
@@ -94,7 +94,7 @@ export default function OrdersPage() {
         },
         (payload) => {
           console.log('🔔 [Orders] Realtime event received:', payload.eventType);
-          
+
           if (payload.eventType === 'INSERT') {
             // New order received
             const newOrder = payload.new as { id: string; order_number: string; created_at: string };
@@ -103,7 +103,7 @@ export default function OrdersPage() {
               orderNumber: newOrder.order_number,
               createdAt: newOrder.created_at
             });
-            
+
             // Only notify if the order is for the selected date
             const orderDate = new Date(newOrder.created_at).toISOString().split('T')[0];
             if (orderDate === selectedDate) {
@@ -112,10 +112,10 @@ export default function OrdersPage() {
                 console.log('🔔 [Orders] Playing notification for realtime new order');
                 playNewOrderSound();
               }
-              
+
               // Update last order ID immediately to prevent duplicate notifications
               lastOrderIdRef.current = newOrder.id;
-              
+
               // Reload orders to get the new one
               loadOrders();
             }
@@ -146,7 +146,7 @@ export default function OrdersPage() {
     if (orders.length > 0 && previousOrderIdsRef.current.size > 0) {
       const currentOrderIds = new Set(orders.map(o => o.id));
       const newOrderIds = [...currentOrderIds].filter(id => !previousOrderIdsRef.current.has(id));
-      
+
       if (newOrderIds.length > 0 && soundEnabled) {
         console.log('🆕 [Orders] New orders detected via polling:', newOrderIds);
         // Only play sound if we haven't already played it via realtime
@@ -160,12 +160,12 @@ export default function OrdersPage() {
           const now = Date.now();
           return (now - orderTime) < 10000; // Within last 10 seconds
         });
-        
+
         if (veryRecentOrders.length > 0) {
           playNewOrderSound();
         }
       }
-      
+
       previousOrderIdsRef.current = currentOrderIds;
     } else if (orders.length > 0) {
       // First load - initialize the set
@@ -191,13 +191,13 @@ export default function OrdersPage() {
         setError(result.error);
       } else {
         const newOrders = result.data || [];
-        
+
         // Check for new orders by comparing the most recent order ID
         if (newOrders.length > 0) {
           const mostRecentOrder = newOrders[0]; // Orders are sorted by created_at DESC
           const currentLastOrderId = mostRecentOrder.id;
           const currentLastOrderTime = new Date(mostRecentOrder.created_at).getTime();
-          
+
           // If we have a previous last order ID and it's different, we have a new order
           if (lastOrderIdRef.current) {
             if (lastOrderIdRef.current !== currentLastOrderId) {
@@ -206,7 +206,7 @@ export default function OrdersPage() {
                 currentLastId: currentLastOrderId,
                 orderNumber: mostRecentOrder.order_number
               });
-              
+
               // Check if this order was created recently (within last 2 minutes)
               const twoMinutesAgo = Date.now() - (2 * 60 * 1000);
               if (currentLastOrderTime > twoMinutesAgo && soundEnabled) {
@@ -222,11 +222,11 @@ export default function OrdersPage() {
             // First load - just set the last order ID without playing sound
             console.log('📋 [Orders] Initial load, setting last order ID:', currentLastOrderId);
           }
-          
+
           // Update the last order ID
           lastOrderIdRef.current = currentLastOrderId;
         }
-        
+
         setOrders(newOrders);
         setLastUpdated(new Date());
         setRefreshCountdown(30); // Reset countdown to 30 seconds
@@ -486,7 +486,7 @@ export default function OrdersPage() {
               >
                 <Icon icon={FaChevronLeft} className="w-4 h-4" />
               </button>
-              
+
               <div className="flex items-center gap-2 flex-1">
                 <Icon icon={FaCalendar} className="text-gray-500" />
                 <input
@@ -499,7 +499,7 @@ export default function OrdersPage() {
                   <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">(Today)</span>
                 )}
               </div>
-              
+
               <button
                 onClick={() => {
                   const date = new Date(selectedDate);
@@ -517,7 +517,7 @@ export default function OrdersPage() {
               >
                 <Icon icon={FaChevronRight} className="w-4 h-4" />
               </button>
-              
+
               <button
                 onClick={() => setSelectedDate(getTodayDateString())}
                 className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors"
@@ -573,11 +573,10 @@ export default function OrdersPage() {
                 )}
                 <button
                   onClick={() => setSoundEnabled(!soundEnabled)}
-                  className={`px-3 py-1 rounded-lg text-sm transition-colors ${
-                    soundEnabled
+                  className={`px-3 py-1 rounded-lg text-sm transition-colors ${soundEnabled
                       ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
                       : 'bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-gray-400'
-                  }`}
+                    }`}
                   title={soundEnabled ? 'Sound enabled' : 'Sound disabled'}
                 >
                   {soundEnabled ? '🔔 On' : '🔕 Off'}
@@ -619,7 +618,7 @@ export default function OrdersPage() {
               <Icon icon={FaShoppingBag} className="w-12 h-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-600 dark:text-gray-400 text-lg font-medium mb-2">No orders found</p>
               <p className="text-gray-500 dark:text-gray-500 text-sm">
-                {selectedDate === getTodayDateString() 
+                {selectedDate === getTodayDateString()
                   ? "No orders for today yet."
                   : `No orders found for ${new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`
                 }
