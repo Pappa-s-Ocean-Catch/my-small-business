@@ -313,7 +313,7 @@ export default function Home() {
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-12">
               <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-                Featured Dishes
+                Popular Choices
               </h2>
               <p className="text-xl text-gray-600 max-w-2xl mx-auto">
                 Discover our chef&apos;s special selections, crafted with the finest ingredients
@@ -389,7 +389,7 @@ export default function Home() {
             ) : (
               <div className="text-center py-12">
                 <p className="text-gray-600 text-lg">
-                  Check back soon for our featured dishes!
+                  Check back soon for our Popular Choices!
                 </p>
               </div>
             )}

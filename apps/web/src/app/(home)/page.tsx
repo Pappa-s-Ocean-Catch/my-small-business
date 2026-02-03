@@ -145,376 +145,375 @@ export default function Home() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
       <div className="min-h-screen bg-white">
-      {/* Hero Section with Video Background */}
-      <section className="relative h-screen flex items-center justify-center overflow-hidden">
-        {/* Video Background */}
-        <div className="absolute inset-0 z-0">
-          <video
-            autoPlay
-            loop
-            muted
-            playsInline
-            className="w-full h-full object-cover"
-            poster="/hero-poster.jpg"
-            onError={(e) => {
-              // Hide video if it fails to load and show fallback
-              const target = e.target as HTMLVideoElement;
-              target.style.display = 'none';
-            }}
-          >
-            <source src="/hero-video.mp4" type="video/mp4" />
-          </video>
-          {/* Fallback gradient background if video doesn't load */}
-          <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-rose-100 via-orange-50 to-amber-100" />
-          {/* Overlay for better text readability */}
-          <div className="absolute inset-0 bg-black/40" />
-        </div>
-
-        {/* Hero Content */}
-        <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
-          <h1 className="text-5xl md:text-7xl font-bold text-white mb-6 drop-shadow-lg">
-            Welcome to Pappa&apos;s Ocean Catch
-          </h1>
-          <p className="text-xl md:text-2xl text-white/90 mb-8 drop-shadow-md">
-            Fresh seafood, authentic flavors, unforgettable dining experience
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              href="/menu"
-              className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-rose-600 text-white rounded-lg font-semibold text-lg hover:bg-rose-700 transition-colors shadow-lg hover:shadow-xl"
+        {/* Hero Section with Video Background */}
+        <section className="relative h-screen flex items-center justify-center overflow-hidden">
+          {/* Video Background */}
+          <div className="absolute inset-0 z-0">
+            <video
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="w-full h-full object-cover"
+              poster="/hero-poster.jpg"
+              onError={(e) => {
+                // Hide video if it fails to load and show fallback
+                const target = e.target as HTMLVideoElement;
+                target.style.display = 'none';
+              }}
             >
-              <Icon icon={FaUtensils} className="w-5 h-5" />
-              View Our Menu
-            </Link>
-            <Link
-              href="/menu"
-              className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white/10 backdrop-blur-sm text-white rounded-lg font-semibold text-lg hover:bg-white/20 transition-colors border-2 border-white/30"
-            >
-              Order Online
-              <Icon icon={FaArrowRight} className="w-5 h-5" />
-            </Link>
+              <source src="/hero-video.mp4" type="video/mp4" />
+            </video>
+            {/* Fallback gradient background if video doesn't load */}
+            <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-rose-100 via-orange-50 to-amber-100" />
+            {/* Overlay for better text readability */}
+            <div className="absolute inset-0 bg-black/40" />
           </div>
-        </div>
 
-        {/* Scroll Indicator */}
-        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10 animate-bounce">
-          <div className="w-6 h-10 border-2 border-white/50 rounded-full flex justify-center">
-            <div className="w-1 h-3 bg-white/50 rounded-full mt-2" />
-          </div>
-        </div>
-      </section>
-
-      {/* Phone Orders Section */}
-      <section className="py-20 px-4 bg-gradient-to-br from-rose-50 via-orange-50 to-amber-50">
-        <div className="max-w-4xl mx-auto text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-rose-600 rounded-full mb-4">
-            <Icon icon={FaPhone} className="w-8 h-8 text-white" />
-          </div>
-          <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-            Order by Phone
-          </h2>
-          <p className="text-xl text-gray-600 mb-12">
-            Call us now to place your order for pickup or delivery
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <a
-              href="tel:+61397438150"
-              className="group relative bg-white rounded-2xl shadow-xl p-8 hover:shadow-2xl transition-all duration-300 transform hover:scale-105 overflow-hidden"
-            >
-              <div className="absolute inset-0 bg-gradient-to-br from-rose-500/10 to-orange-500/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
-              <div className="relative">
-                <div className="text-sm font-semibold text-gray-600 mb-2">Main Number</div>
-                <div 
-                  className="text-4xl md:text-5xl font-bold text-rose-600 mb-2 relative inline-block"
-                  style={{
-                    animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-                  }}
-                >
-                  (03) 9743 8150
-                </div>
-                <div className="text-sm text-gray-500">Tap to call</div>
-              </div>
-            </a>
-            <a
-              href="tel:+61466994085"
-              className="group relative bg-white rounded-2xl shadow-xl p-8 hover:shadow-2xl transition-all duration-300 transform hover:scale-105 overflow-hidden"
-            >
-              <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 to-amber-500/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
-              <div className="relative">
-                <div className="text-sm font-semibold text-gray-600 mb-2">Alternative Number</div>
-                <div 
-                  className="text-4xl md:text-5xl font-bold text-orange-600 mb-2 relative inline-block"
-                  style={{
-                    animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-                    animationDelay: "0.5s",
-                  }}
-                >
-                  0466 994 085
-                </div>
-                <div className="text-sm text-gray-500">Tap to call</div>
-              </div>
-            </a>
-          </div>
-        </div>
-      </section>
-
-      {/* Featured Products Section */}
-      <section className="py-20 px-4 bg-gradient-to-b from-white to-gray-50">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-              Featured Dishes
-            </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Discover our chef&apos;s special selections, crafted with the finest ingredients
+          {/* Hero Content */}
+          <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
+            <h1 className="text-5xl md:text-7xl font-bold text-white mb-6 drop-shadow-lg">
+              Welcome to Pappa&apos;s Ocean Catch
+            </h1>
+            <p className="text-xl md:text-2xl text-white/90 mb-8 drop-shadow-md">
+              Fresh seafood, authentic flavors, unforgettable dining experience
             </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link
+                href="/menu"
+                className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-rose-600 text-white rounded-lg font-semibold text-lg hover:bg-rose-700 transition-colors shadow-lg hover:shadow-xl"
+              >
+                <Icon icon={FaUtensils} className="w-5 h-5" />
+                View Our Menu
+              </Link>
+              <Link
+                href="/menu"
+                className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white/10 backdrop-blur-sm text-white rounded-lg font-semibold text-lg hover:bg-white/20 transition-colors border-2 border-white/30"
+              >
+                Order Online
+                <Icon icon={FaArrowRight} className="w-5 h-5" />
+              </Link>
+            </div>
           </div>
 
-          {loading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {[...Array(6)].map((_, i) => (
-                <div
-                  key={i}
-                  className="bg-white rounded-lg shadow-md overflow-hidden animate-pulse"
-                >
-                  <div className="h-64 bg-gray-200" />
-                  <div className="p-6">
-                    <div className="h-6 bg-gray-200 rounded mb-2" />
-                    <div className="h-4 bg-gray-200 rounded w-2/3" />
-                  </div>
-                </div>
-              ))}
+          {/* Scroll Indicator */}
+          <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10 animate-bounce">
+            <div className="w-6 h-10 border-2 border-white/50 rounded-full flex justify-center">
+              <div className="w-1 h-3 bg-white/50 rounded-full mt-2" />
             </div>
-          ) : featuredProducts.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {featuredProducts.map((product) => (
-                <div
-                  key={product.id}
-                  className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow group"
-                >
-                  <div className="relative h-64 overflow-hidden">
-                    {product.image_url && !imageErrors.has(product.id) ? (
-                      <Image
-                        src={product.image_url}
-                        alt={product.name}
-                        fill
-                        className="object-cover group-hover:scale-110 transition-transform duration-300"
-                        unoptimized
-                        onError={() => {
-                          setImageErrors((prev) => new Set(prev).add(product.id));
-                        }}
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-rose-100 to-orange-100 flex items-center justify-center">
-                        <Icon icon={FaUtensils} className="w-16 h-16 text-rose-300" />
-                      </div>
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                  <div className="p-6">
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">
-                      {product.name}
-                    </h3>
-                    {product.description && (
-                      <p className="text-gray-600 mb-4 line-clamp-2">
-                        {product.description}
-                      </p>
-                    )}
-                    <div className="flex items-center justify-between">
-                      <span className="text-2xl font-bold text-rose-600">
-                        ${product.sale_price.toFixed(2)}
-                      </span>
-                      <Link
-                        href="/menu"
-                        className="text-rose-600 hover:text-rose-700 font-semibold flex items-center gap-1"
-                      >
-                        View Details
-                        <Icon icon={FaArrowRight} className="w-4 h-4" />
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              ))}
+          </div>
+        </section>
+
+        {/* Phone Orders Section */}
+        <section className="py-20 px-4 bg-gradient-to-br from-rose-50 via-orange-50 to-amber-50">
+          <div className="max-w-4xl mx-auto text-center">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-rose-600 rounded-full mb-4">
+              <Icon icon={FaPhone} className="w-8 h-8 text-white" />
             </div>
-          ) : (
-            <div className="text-center py-12">
-              <p className="text-gray-600 text-lg">
-                Check back soon for our featured dishes!
+            <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+              Order by Phone
+            </h2>
+            <p className="text-xl text-gray-600 mb-12">
+              Call us now to place your order for pickup or delivery
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <a
+                href="tel:+61397438150"
+                className="group relative bg-white rounded-2xl shadow-xl p-8 hover:shadow-2xl transition-all duration-300 transform hover:scale-105 overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-rose-500/10 to-orange-500/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="relative">
+                  <div className="text-sm font-semibold text-gray-600 mb-2">Main Number</div>
+                  <div
+                    className="text-4xl md:text-5xl font-bold text-rose-600 mb-2 relative inline-block"
+                    style={{
+                      animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+                    }}
+                  >
+                    (03) 9743 8150
+                  </div>
+                  <div className="text-sm text-gray-500">Tap to call</div>
+                </div>
+              </a>
+              <a
+                href="tel:+61466994085"
+                className="group relative bg-white rounded-2xl shadow-xl p-8 hover:shadow-2xl transition-all duration-300 transform hover:scale-105 overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 to-amber-500/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="relative">
+                  <div className="text-sm font-semibold text-gray-600 mb-2">Alternative Number</div>
+                  <div
+                    className="text-4xl md:text-5xl font-bold text-orange-600 mb-2 relative inline-block"
+                    style={{
+                      animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+                      animationDelay: "0.5s",
+                    }}
+                  >
+                    0466 994 085
+                  </div>
+                  <div className="text-sm text-gray-500">Tap to call</div>
+                </div>
+              </a>
+            </div>
+          </div>
+        </section>
+
+        {/* Featured Products Section */}
+        <section className="py-20 px-4 bg-gradient-to-b from-white to-gray-50">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-12">
+              <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+                Popular Choices
+              </h2>
+              <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+                Discover our chef&apos;s special selections, crafted with the finest ingredients
               </p>
             </div>
-          )}
 
-          <div className="text-center mt-12">
-            <Link
-              href="/menu"
-              className="inline-flex items-center gap-2 px-8 py-4 bg-rose-600 text-white rounded-lg font-semibold text-lg hover:bg-rose-700 transition-colors shadow-lg"
-            >
-              View Full Menu
-              <Icon icon={FaArrowRight} className="w-5 h-5" />
-            </Link>
-          </div>
-        </div>
-      </section>
+            {loading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {[...Array(6)].map((_, i) => (
+                  <div
+                    key={i}
+                    className="bg-white rounded-lg shadow-md overflow-hidden animate-pulse"
+                  >
+                    <div className="h-64 bg-gray-200" />
+                    <div className="p-6">
+                      <div className="h-6 bg-gray-200 rounded mb-2" />
+                      <div className="h-4 bg-gray-200 rounded w-2/3" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : featuredProducts.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {featuredProducts.map((product) => (
+                  <div
+                    key={product.id}
+                    className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow group"
+                  >
+                    <div className="relative h-64 overflow-hidden">
+                      {product.image_url && !imageErrors.has(product.id) ? (
+                        <Image
+                          src={product.image_url}
+                          alt={product.name}
+                          fill
+                          className="object-cover group-hover:scale-110 transition-transform duration-300"
+                          unoptimized
+                          onError={() => {
+                            setImageErrors((prev) => new Set(prev).add(product.id));
+                          }}
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-rose-100 to-orange-100 flex items-center justify-center">
+                          <Icon icon={FaUtensils} className="w-16 h-16 text-rose-300" />
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                    <div className="p-6">
+                      <h3 className="text-xl font-bold text-gray-900 mb-2">
+                        {product.name}
+                      </h3>
+                      {product.description && (
+                        <p className="text-gray-600 mb-4 line-clamp-2">
+                          {product.description}
+                        </p>
+                      )}
+                      <div className="flex items-center justify-between">
+                        <span className="text-2xl font-bold text-rose-600">
+                          ${product.sale_price.toFixed(2)}
+                        </span>
+                        <Link
+                          href="/menu"
+                          className="text-rose-600 hover:text-rose-700 font-semibold flex items-center gap-1"
+                        >
+                          View Details
+                          <Icon icon={FaArrowRight} className="w-4 h-4" />
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <p className="text-gray-600 text-lg">
+                  Check back soon for our popular choices!
+                </p>
+              </div>
+            )}
 
-      {/* About Section */}
-      <section className="py-20 px-4 bg-white">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-            About Us
-          </h2>
-          <p className="text-xl text-gray-600 leading-relaxed mb-6">
-            At Pappa&apos;s Ocean Catch, we&apos;re passionate about serving the finest fish and chips
-            made with the freshest catch from the ocean. Our traditional batter recipe, perfected over
-            years, creates that perfect golden crunch that pairs beautifully with our hand-cut chips.
-          </p>
-          <p className="text-xl text-gray-600 leading-relaxed">
-            We source only the best quality fish daily, ensuring every meal is fresh, crispy, and
-            full of flavor. Whether you&apos;re craving classic fish and chips, or exploring our
-            seafood selection, we bring the authentic taste of the ocean to your table.
-          </p>
-        </div>
-      </section>
-
-      {/* Opening Hours Section */}
-      <section className="py-20 px-4 bg-gradient-to-b from-gray-50 to-white">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-12">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-rose-100 rounded-full mb-4">
-              <Icon icon={FaClock} className="w-8 h-8 text-rose-600" />
+            <div className="text-center mt-12">
+              <Link
+                href="/menu"
+                className="inline-flex items-center gap-2 px-8 py-4 bg-rose-600 text-white rounded-lg font-semibold text-lg hover:bg-rose-700 transition-colors shadow-lg"
+              >
+                View Full Menu
+                <Icon icon={FaArrowRight} className="w-5 h-5" />
+              </Link>
             </div>
-            <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-              Opening Hours
+          </div>
+        </section>
+
+        {/* About Section */}
+        <section className="py-20 px-4 bg-white">
+          <div className="max-w-4xl mx-auto text-center">
+            <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
+              About Us
             </h2>
-            <p className="text-xl text-gray-600">
-              We&apos;re here to serve you fresh seafood every day
+            <p className="text-xl text-gray-600 leading-relaxed mb-6">
+              At Pappa&apos;s Ocean Catch, we&apos;re passionate about serving the finest fish and chips
+              made with the freshest catch from the ocean. Our traditional batter recipe, perfected over
+              years, creates that perfect golden crunch that pairs beautifully with our hand-cut chips.
+            </p>
+            <p className="text-xl text-gray-600 leading-relaxed">
+              We source only the best quality fish daily, ensuring every meal is fresh, crispy, and
+              full of flavor. Whether you&apos;re craving classic fish and chips, or exploring our
+              seafood selection, we bring the authentic taste of the ocean to your table.
             </p>
           </div>
-          <div className="bg-white rounded-lg shadow-lg p-8 md:p-12">
-            <div className="space-y-4 text-center">
-              <div className="flex items-center justify-between py-4 border-b border-gray-200">
-                <span className="text-lg font-semibold text-gray-700">Monday - Thursday</span>
-                <span className="text-xl font-bold text-rose-600">11:00 AM - 8:30 PM</span>
-              </div>
-              <div className="flex items-center justify-between py-4 border-b border-gray-200">
-                <span className="text-lg font-semibold text-gray-700">Friday</span>
-                <span className="text-xl font-bold text-rose-600">11:00 AM - 9:00 PM</span>
-              </div>
-              <div className="flex items-center justify-between py-4 border-b border-gray-200">
-                <span className="text-lg font-semibold text-gray-700">Saturday</span>
-                <span className="text-xl font-bold text-rose-600">11:00 AM - 8:30 PM</span>
-              </div>
-              <div className="flex items-center justify-between py-4">
-                <span className="text-lg font-semibold text-gray-700">Sunday</span>
-                <span className="text-xl font-bold text-rose-600">11:00 AM - 8:30 PM</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Contact Form Section */}
-      <section className="py-20 px-4 bg-white">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-12">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-rose-100 rounded-full mb-4">
-              <Icon icon={FaEnvelope} className="w-8 h-8 text-rose-600" />
+        {/* Opening Hours Section */}
+        <section className="py-20 px-4 bg-gradient-to-b from-gray-50 to-white">
+          <div className="max-w-4xl mx-auto">
+            <div className="text-center mb-12">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-rose-100 rounded-full mb-4">
+                <Icon icon={FaClock} className="w-8 h-8 text-rose-600" />
+              </div>
+              <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+                Opening Hours
+              </h2>
+              <p className="text-xl text-gray-600">
+                We&apos;re here to serve you fresh seafood every day
+              </p>
             </div>
-            <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-              Get in Touch
-            </h2>
-            <p className="text-xl text-gray-600">
-              Have a question or feedback? We&apos;d love to hear from you!
-            </p>
+            <div className="bg-white rounded-lg shadow-lg p-8 md:p-12">
+              <div className="space-y-4 text-center">
+                <div className="flex items-center justify-between py-4 border-b border-gray-200">
+                  <span className="text-lg font-semibold text-gray-700">Monday - Thursday</span>
+                  <span className="text-xl font-bold text-rose-600">11:00 AM - 8:30 PM</span>
+                </div>
+                <div className="flex items-center justify-between py-4 border-b border-gray-200">
+                  <span className="text-lg font-semibold text-gray-700">Friday</span>
+                  <span className="text-xl font-bold text-rose-600">11:00 AM - 9:00 PM</span>
+                </div>
+                <div className="flex items-center justify-between py-4 border-b border-gray-200">
+                  <span className="text-lg font-semibold text-gray-700">Saturday</span>
+                  <span className="text-xl font-bold text-rose-600">11:00 AM - 8:30 PM</span>
+                </div>
+                <div className="flex items-center justify-between py-4">
+                  <span className="text-lg font-semibold text-gray-700">Sunday</span>
+                  <span className="text-xl font-bold text-rose-600">11:00 AM - 8:30 PM</span>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="bg-white rounded-lg shadow-lg p-8 md:p-12">
-            <form onSubmit={handleContactSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        </section>
+
+        {/* Contact Form Section */}
+        <section className="py-20 px-4 bg-white">
+          <div className="max-w-4xl mx-auto">
+            <div className="text-center mb-12">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-rose-100 rounded-full mb-4">
+                <Icon icon={FaEnvelope} className="w-8 h-8 text-rose-600" />
+              </div>
+              <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+                Get in Touch
+              </h2>
+              <p className="text-xl text-gray-600">
+                Have a question or feedback? We&apos;d love to hear from you!
+              </p>
+            </div>
+            <div className="bg-white rounded-lg shadow-lg p-8 md:p-12">
+              <form onSubmit={handleContactSubmit} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+                      Name *
+                    </label>
+                    <input
+                      type="text"
+                      id="name"
+                      required
+                      value={contactForm.name}
+                      onChange={(e) =>
+                        setContactForm({ ...contactForm, name: e.target.value })
+                      }
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent outline-none transition"
+                      placeholder="Your name"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                      Email *
+                    </label>
+                    <input
+                      type="email"
+                      id="email"
+                      required
+                      value={contactForm.email}
+                      onChange={(e) =>
+                        setContactForm({ ...contactForm, email: e.target.value })
+                      }
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent outline-none transition"
+                      placeholder="your@email.com"
+                    />
+                  </div>
+                </div>
                 <div>
-                  <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
-                    Name *
+                  <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
+                    Phone
                   </label>
                   <input
-                    type="text"
-                    id="name"
-                    required
-                    value={contactForm.name}
+                    type="tel"
+                    id="phone"
+                    value={contactForm.phone}
                     onChange={(e) =>
-                      setContactForm({ ...contactForm, name: e.target.value })
+                      setContactForm({ ...contactForm, phone: e.target.value })
                     }
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent outline-none transition"
-                    placeholder="Your name"
+                    placeholder="Your phone number"
                   />
                 </div>
                 <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                    Email *
+                  <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-2">
+                    Message *
                   </label>
-                  <input
-                    type="email"
-                    id="email"
+                  <textarea
+                    id="message"
                     required
-                    value={contactForm.email}
+                    rows={6}
+                    value={contactForm.message}
                     onChange={(e) =>
-                      setContactForm({ ...contactForm, email: e.target.value })
+                      setContactForm({ ...contactForm, message: e.target.value })
                     }
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent outline-none transition"
-                    placeholder="your@email.com"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent outline-none transition resize-none"
+                    placeholder="Tell us how we can help..."
                   />
                 </div>
-              </div>
-              <div>
-                <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
-                  Phone
-                </label>
-                <input
-                  type="tel"
-                  id="phone"
-                  value={contactForm.phone}
-                  onChange={(e) =>
-                    setContactForm({ ...contactForm, phone: e.target.value })
-                  }
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent outline-none transition"
-                  placeholder="Your phone number"
-                />
-              </div>
-              <div>
-                <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-2">
-                  Message *
-                </label>
-                <textarea
-                  id="message"
-                  required
-                  rows={6}
-                  value={contactForm.message}
-                  onChange={(e) =>
-                    setContactForm({ ...contactForm, message: e.target.value })
-                  }
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent outline-none transition resize-none"
-                  placeholder="Tell us how we can help..."
-                />
-              </div>
-              {contactMessage && (
-                <div
-                  className={`p-4 rounded-lg ${
-                    contactMessage.type === "success"
+                {contactMessage && (
+                  <div
+                    className={`p-4 rounded-lg ${contactMessage.type === "success"
                       ? "bg-green-50 text-green-800 border border-green-200"
                       : "bg-red-50 text-red-800 border border-red-200"
-                  }`}
+                      }`}
+                  >
+                    {contactMessage.text}
+                  </div>
+                )}
+                <button
+                  type="submit"
+                  disabled={contactLoading}
+                  className="w-full md:w-auto px-8 py-4 bg-rose-600 text-white rounded-lg font-semibold text-lg hover:bg-rose-700 transition-colors shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {contactMessage.text}
-                </div>
-              )}
-              <button
-                type="submit"
-                disabled={contactLoading}
-                className="w-full md:w-auto px-8 py-4 bg-rose-600 text-white rounded-lg font-semibold text-lg hover:bg-rose-700 transition-colors shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {contactLoading ? "Sending..." : "Send Message"}
-              </button>
-            </form>
+                  {contactLoading ? "Sending..." : "Send Message"}
+                </button>
+              </form>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
       </div>
     </>
   );
