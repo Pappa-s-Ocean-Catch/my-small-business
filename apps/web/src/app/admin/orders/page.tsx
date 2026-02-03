@@ -34,7 +34,7 @@ const playNewOrderSound = () => {
     if ('Notification' in window && Notification.permission === 'granted') {
       new Notification('New Order Received!', {
         body: 'A new order has been placed',
-        icon: '/favicon.ico',
+        icon: '/favicon/favicon-32x32.png',
         tag: 'new-order'
       });
     }

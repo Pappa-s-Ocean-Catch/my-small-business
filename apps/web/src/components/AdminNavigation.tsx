@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { getSupabaseClient } from "@my-small-business/supabase/client";
-import { FaUsers, FaStore, FaUserShield, FaChartPie, FaFileAlt, FaMoneyBillWave, FaPalette, FaCog, FaRobot, FaBox, FaTags, FaTag, FaWarehouse, FaUtensils, FaCalendarAlt, FaDollarSign, FaChartLine, FaGlobe, FaShoppingCart, FaGoogle } from "react-icons/fa";
+import { FaUsers, FaStore, FaUserShield, FaChartPie, FaFileAlt, FaMoneyBillWave, FaPalette, FaCog, FaRobot, FaBox, FaTags, FaTag, FaWarehouse, FaUtensils, FaCalendarAlt, FaDollarSign, FaChartLine, FaGlobe, FaShoppingCart, FaGoogle, FaQrcode } from "react-icons/fa";
 import { Icon } from "@/components/Icon";
 
 export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 'horizontal' | 'vertical' }) {
@@ -616,6 +616,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
               <Link className={getLinkClasses("/users")} href="/users" aria-label="Users">Users</Link>
               <Link className={getLinkClasses("/automation")} href="/automation" aria-label="Automation">Automation</Link>
               <Link className={getLinkClasses("/webhooks")} href="/webhooks" aria-label="Webhooks">Webhooks</Link>
+              <Link className={getLinkClasses("/admin/qr")} href="/admin/qr" aria-label="QR Generator">QR Generator</Link>
               <Link className={getLinkClasses("/settings")} href="/settings" aria-label="Settings">Settings</Link>
             </div>
           </div>
@@ -680,6 +681,17 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                       <div>
                         <div className="font-medium text-gray-900 dark:text-white">Settings</div>
                         <div className="text-xs text-gray-600 dark:text-gray-400">System configuration and preferences</div>
+                      </div>
+                    </div>
+                  </Link>
+                  <Link href="/admin/qr" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 text-black dark:text-white">
+                        <Icon icon={FaQrcode} className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white">QR Generator</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">Generate QR codes with logo for printing</div>
                       </div>
                     </div>
                   </Link>
