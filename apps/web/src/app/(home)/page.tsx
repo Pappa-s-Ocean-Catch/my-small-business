@@ -441,7 +441,7 @@ export default function Home() {
                       onChange={(e) =>
                         setContactForm({ ...contactForm, name: e.target.value })
                       }
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent outline-none transition"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-rose-500 focus:border-transparent outline-none transition"
                       placeholder="Your name"
                     />
                   </div>
@@ -457,7 +457,7 @@ export default function Home() {
                       onChange={(e) =>
                         setContactForm({ ...contactForm, email: e.target.value })
                       }
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent outline-none transition"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-rose-500 focus:border-transparent outline-none transition"
                       placeholder="your@email.com"
                     />
                   </div>
@@ -473,7 +473,7 @@ export default function Home() {
                     onChange={(e) =>
                       setContactForm({ ...contactForm, phone: e.target.value })
                     }
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent outline-none transition"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-rose-500 focus:border-transparent outline-none transition"
                     placeholder="Your phone number"
                   />
                 </div>
@@ -489,7 +489,7 @@ export default function Home() {
                     onChange={(e) =>
                       setContactForm({ ...contactForm, message: e.target.value })
                     }
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent outline-none transition resize-none"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-rose-500 focus:border-transparent outline-none transition resize-none"
                     placeholder="Tell us how we can help..."
                   />
                 </div>
