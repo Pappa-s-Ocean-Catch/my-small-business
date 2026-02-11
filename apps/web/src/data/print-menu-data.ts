@@ -316,10 +316,10 @@ export const menuPage2: MenuPage = {
       name: "SPECIAL COMBO",
       color: "#8b91e6",
       items: [
-        { name: "FLAKE PACK FOR ONE WITH A CAN", description: "1 Flake, 1 Potato Cake, 1 Dim Sim, & Small Chips with a 375ml Can", price: 19.0 },
+        { name: "FLAKE PACK FOR ONE WITH A CAN", description: "1 Flake, 1 Potato Cake, 1 Dim Sim, & Small Chips with a 375ml Can", price: 18.5 },
         { name: "MEAL FOR ONE", description: "1 Flake, 2 Potato Cakes, 2 Dim Sims, & Half Chips with a 375ml Can", price: 19.0 },
-        { name: "FLAKE PACK FOR TWO WITH 2 CANS", description: "2 Flakes, 2 Potato Cakes, 2 Dim Sims, & Small Chips with 2 x 375ml Cans", price: 33.2 },
-        { name: "FAMILY FLAKE PACK WITH 1.25L DRINK", description: "4 Flakes, 4 Potato Cakes, 4 Dim Sims, & Medium Chips with 1.25l Drink", price: 60.0 },
+        { name: "FLAKE PACK FOR TWO WITH 2 CANS", description: "2 Flakes, 2 Potato Cakes, 2 Dim Sims, & Small Chips with 2 x 375ml Cans", price: 33.0 },
+        { name: "FAMILY FLAKE PACK WITH 1.25L DRINK", description: "4 Flakes, 4 Potato Cakes, 4 Dim Sims, & Medium Chips with 1.25l Drink", price: 58.0 },
         { name: "FISHERMAN'S CATCH", description: "1 Flake, 1 Scallop, 1 Seafood Stick, 2 Calamari Rings, & Half Chips with 375ml Can", price: 22.8 },
         { name: "DINNER BOX", description: "2 Flakes, 2 Fish Bites, 4 Potato Cakes, 4 Dim Sims, & Small Chips with 1.25L Drink", price: 46.0 }
       ]
