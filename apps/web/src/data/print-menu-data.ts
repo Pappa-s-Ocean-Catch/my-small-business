@@ -316,10 +316,10 @@ export const menuPage2: MenuPage = {
       name: "SPECIAL COMBO",
       color: "#8b91e6",
       items: [
-        { name: "FLAKE PACK FOR ONE WITH A CAN", description: "1 Flake, 1 Potato Cake, 1 Dim Sim, & Small Chips with a 375ml Can", price: 19.0 },
+        { name: "FLAKE PACK FOR ONE WITH A CAN", description: "1 Flake, 1 Potato Cake, 1 Dim Sim, & Small Chips with a 375ml Can", price: 18.5 },
         { name: "MEAL FOR ONE", description: "1 Flake, 2 Potato Cakes, 2 Dim Sims, & Half Chips with a 375ml Can", price: 19.0 },
-        { name: "FLAKE PACK FOR TWO WITH 2 CANS", description: "2 Flakes, 2 Potato Cakes, 2 Dim Sims, & Small Chips with 2 x 375ml Cans", price: 33.2 },
-        { name: "FAMILY FLAKE PACK WITH 1.25L DRINK", description: "4 Flakes, 4 Potato Cakes, 4 Dim Sims, & Medium Chips with 1.25l Drink", price: 60.0 },
+        { name: "FLAKE PACK FOR TWO WITH 2 CANS", description: "2 Flakes, 2 Potato Cakes, 2 Dim Sims, & Small Chips with 2 x 375ml Cans", price: 33.0 },
+        { name: "FAMILY FLAKE PACK WITH 1.25L DRINK", description: "4 Flakes, 4 Potato Cakes, 4 Dim Sims, & Medium Chips with 1.25l Drink", price: 58.0 },
         { name: "FISHERMAN'S CATCH", description: "1 Flake, 1 Scallop, 1 Seafood Stick, 2 Calamari Rings, & Half Chips with 375ml Can", price: 22.8 },
         { name: "DINNER BOX", description: "2 Flakes, 2 Fish Bites, 4 Potato Cakes, 4 Dim Sims, & Small Chips with 1.25L Drink", price: 46.0 }
       ]
@@ -346,10 +346,10 @@ export const menuPage2: MenuPage = {
       color: "#f59e0b",
       items: [
         { name: "Half Serve chip", description: "", price: 3.0 },
-        { name: "Small", description: "Serves 1-2", price: 6.0 },
-        { name: "Medium", description: "Serves 2-3", price: 8.5 },
-        { name: "Large", description: "Serves 3-4", price: 11.5 },
-        { name: "Extra Large", description: "Serves 4-5", price: 15.3 },
+        { name: "Small", description: "Serves 1-2", price: 5.5 },
+        { name: "Medium", description: "Serves 2-3", price: 7.8 },
+        { name: "Large", description: "Serves 3-4", price: 10.0 },
+        { name: "Extra Large", description: "Serves 4-5", price: 14.0 },
         { name: "Custom Amount", description: "Order any amount between $4-$20", price: 4.0, priceRange: "$4.00 - $20.00" },
         { name: "Sweet Potato Chip", description: "", price: 6.0 }
       ]
@@ -358,10 +358,10 @@ export const menuPage2: MenuPage = {
       name: "CHIPS & GRAVY",
       color: "#8b5cf6",
       items: [
-        { name: "Small Chips & Gravy", description: "", price: 5.4 },
-        { name: "Small Chips & Gravy With Cheese", description: "", price: 6.2 },
-        { name: "Large Chips & Gravy", description: "", price: 7.9 },
-        { name: "Large Chips & Gravy With Cheese", description: "", price: 8.7 },
+        { name: "Small Chips & Gravy", description: "", price: 5.0 },
+        { name: "Small Chips & Gravy With Cheese", description: "", price: 5.8 },
+        { name: "Large Chips & Gravy", description: "", price: 7.2 },
+        { name: "Large Chips & Gravy With Cheese", description: "", price: 8.0 },
         { name: "Small Tub of Gravy", description: "", price: 3.0 },
         { name: "Medium Tub of Gravy", description: "", price: 4.5 },
         { name: "Large Tub of Gravy", description: "", price: 6.5 }
