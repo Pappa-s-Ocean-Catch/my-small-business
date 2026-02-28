@@ -206,20 +206,39 @@ export default function Home() {
                 {homePromotions[0].home_title || homePromotions[0].title}
               </div>
             )}
-            <h1 className="text-5xl md:text-7xl font-bold text-white mb-6 drop-shadow-lg min-h-[1.2em]">
+            <h1 className="text-4xl md:text-7xl font-bold text-white mb-4 md:mb-6 drop-shadow-lg min-h-[1.2em]">
               <TypewriterText
                 text="Welcome to Pappa's Ocean Catch"
                 speed={80}
                 className="inline-block"
               />
             </h1>
-            <p className="text-xl md:text-2xl text-white/90 mb-8 drop-shadow-md">
+            <p className="text-lg md:text-2xl text-white/90 mb-4 md:mb-6 drop-shadow-md">
               Fresh Fish. Crispy Chips. Done Right.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="w-full max-w-2xl mx-auto mb-5 md:mb-8">
+              <p className="text-sm md:text-base text-white/90 mb-3 font-semibold">Call now to order</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <a
+                  href="tel:+61397438150"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/30 bg-white/10 px-4 py-3 text-white font-semibold backdrop-blur-sm hover:bg-white/20 transition-colors"
+                >
+                  <Icon icon={FaPhone} className="w-4 h-4" />
+                  (03) 9743 8150
+                </a>
+                <a
+                  href="tel:+61466994085"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/30 bg-white/10 px-4 py-3 text-white font-semibold backdrop-blur-sm hover:bg-white/20 transition-colors"
+                >
+                  <Icon icon={FaPhone} className="w-4 h-4" />
+                  0466 994 085
+                </a>
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center">
               <Link
                 href="/menu"
-                className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-rose-600 text-white rounded-lg font-semibold text-lg hover:bg-rose-700 transition-colors shadow-lg hover:shadow-xl"
+                className="inline-flex items-center justify-center gap-2 px-8 py-3 md:py-4 bg-rose-600 text-white rounded-lg font-semibold text-lg hover:bg-rose-700 transition-colors shadow-lg hover:shadow-xl"
               >
                 <Icon icon={FaUtensils} className="w-5 h-5" />
                 View Our Menu
@@ -228,7 +247,7 @@ export default function Home() {
               {enablePickupOrder === true && (
                 <Link
                   href="/order"
-                  className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white/10 backdrop-blur-sm text-white rounded-lg font-semibold text-lg hover:bg-white/20 transition-colors border-2 border-white/30"
+                  className="inline-flex items-center justify-center gap-2 px-8 py-3 md:py-4 bg-white/10 backdrop-blur-sm text-white rounded-lg font-semibold text-lg hover:bg-white/20 transition-colors border-2 border-white/30"
                 >
                   Pickup Order
                   <Icon icon={FaArrowRight} className="w-5 h-5" />
@@ -238,7 +257,7 @@ export default function Home() {
                 href="https://pappasoceancatch-ea.com.au/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white/10 backdrop-blur-sm text-white rounded-lg font-semibold text-lg hover:bg-white/20 transition-colors border-2 border-white/30"
+                className="inline-flex items-center justify-center gap-2 px-8 py-3 md:py-4 bg-white/10 backdrop-blur-sm text-white rounded-lg font-semibold text-lg hover:bg-white/20 transition-colors border-2 border-white/30"
               >
                 Order Online
                 <Icon icon={FaArrowRight} className="w-5 h-5" />
@@ -250,60 +269,6 @@ export default function Home() {
           <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10 animate-bounce">
             <div className="w-6 h-10 border-2 border-white/50 rounded-full flex justify-center">
               <div className="w-1 h-3 bg-white/50 rounded-full mt-2" />
-            </div>
-          </div>
-        </section>
-
-        {/* Phone Orders Section */}
-        <section className="py-20 px-4 bg-gradient-to-br from-rose-50 via-orange-50 to-amber-50">
-          <div className="max-w-4xl mx-auto text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-rose-600 rounded-full mb-4">
-              <Icon icon={FaPhone} className="w-8 h-8 text-white" />
-            </div>
-            <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-              Order by Phone
-            </h2>
-            <p className="text-xl text-gray-600 mb-12">
-              Call us now to place your order for pickup or delivery
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <a
-                href="tel:+61397438150"
-                className="group relative bg-white rounded-2xl shadow-xl p-8 hover:shadow-2xl transition-all duration-300 transform hover:scale-105 overflow-hidden"
-              >
-                <div className="absolute inset-0 bg-gradient-to-br from-rose-500/10 to-orange-500/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="relative">
-                  <div className="text-sm font-semibold text-gray-600 mb-2">Main Number</div>
-                  <div
-                    className="text-4xl md:text-5xl font-bold text-rose-600 mb-2 relative inline-block"
-                    style={{
-                      animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-                    }}
-                  >
-                    (03) 9743 8150
-                  </div>
-                  <div className="text-sm text-gray-500">Tap to call</div>
-                </div>
-              </a>
-              <a
-                href="tel:+61466994085"
-                className="group relative bg-white rounded-2xl shadow-xl p-8 hover:shadow-2xl transition-all duration-300 transform hover:scale-105 overflow-hidden"
-              >
-                <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 to-amber-500/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="relative">
-                  <div className="text-sm font-semibold text-gray-600 mb-2">Alternative Number</div>
-                  <div
-                    className="text-4xl md:text-5xl font-bold text-orange-600 mb-2 relative inline-block"
-                    style={{
-                      animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-                      animationDelay: "0.5s",
-                    }}
-                  >
-                    0466 994 085
-                  </div>
-                  <div className="text-sm text-gray-500">Tap to call</div>
-                </div>
-              </a>
             </div>
           </div>
         </section>
