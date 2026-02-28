@@ -666,6 +666,7 @@ export default function CheckoutPage() {
           base_price: item.base_price,
           quantity: item.quantity,
           subtotal: item.subtotal,
+          removed_ingredients: item.removed_ingredients || [],
           comment: item.comment || null,
           addons: item.addon_groups.flatMap(group =>
             group.selected_items.map(addonItem => ({

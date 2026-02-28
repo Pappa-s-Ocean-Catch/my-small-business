@@ -50,6 +50,7 @@ export interface OrderItem {
   base_price: number;
   quantity: number;
   subtotal: number;
+  removed_ingredients: string[];
   comment: string | null;
   created_at: string;
   addons?: OrderItemAddon[];

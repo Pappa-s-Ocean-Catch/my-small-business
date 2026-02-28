@@ -414,6 +414,7 @@ export default function OrdersPage() {
               <div class="item">
                 <p><strong>${item.product_name}</strong> × ${item.quantity}</p>
                 <p>$${item.base_price.toFixed(2)} each = $${item.subtotal.toFixed(2)}</p>
+                ${item.removed_ingredients && item.removed_ingredients.length > 0 ? `<p><strong>Removed:</strong> ${item.removed_ingredients.join(', ')}</p>` : ''}
                 ${item.comment ? `<p><em>Note: ${item.comment}</em></p>` : ''}
               </div>
             `).join('') || ''}
@@ -837,6 +838,11 @@ export default function OrdersPage() {
                               <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
                                 Quantity: {item.quantity} × ${item.base_price.toFixed(2)}
                               </p>
+                              {item.removed_ingredients && item.removed_ingredients.length > 0 && (
+                                <p className="text-sm text-orange-700 dark:text-orange-300 mb-2">
+                                  Removed: {item.removed_ingredients.join(', ')}
+                                </p>
+                              )}
                               {item.comment && (
                                 <p className="text-sm text-gray-500 dark:text-gray-500 italic mb-2">
                                   Note: {item.comment}

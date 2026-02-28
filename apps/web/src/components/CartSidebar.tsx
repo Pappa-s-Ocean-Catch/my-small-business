@@ -131,6 +131,12 @@ export function CartSidebar() {
                           </div>
                         )}
 
+                        {item.removed_ingredients.length > 0 && (
+                          <div className="mt-1 text-xs text-orange-700 dark:text-orange-300">
+                            <span className="font-medium">Removed:</span> {item.removed_ingredients.join(', ')}
+                          </div>
+                        )}
+
                         {/* Comment */}
                         {editingCommentItemId === item.id ? (
                           <div className="mt-2">

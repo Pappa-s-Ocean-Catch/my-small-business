@@ -46,6 +46,7 @@ export interface SaleProductIngredient {
   quantity_required: number;
   unit_of_measure: string;
   is_optional: boolean;
+  customer_can_remove: boolean;
   notes: string | null;
   created_at: string;
   // Joined data
@@ -285,6 +286,7 @@ export async function getSaleProducts(): Promise<{ data: SaleProductWithDetails[
         quantity_required,
         unit_of_measure,
         is_optional,
+        customer_can_remove,
         notes,
         created_at,
         products!product_id(name, sku, purchase_price, total_units)
@@ -519,6 +521,7 @@ export async function createSaleProduct(formData: {
     quantity_required: number;
     unit_of_measure: string;
     is_optional: boolean;
+    customer_can_remove: boolean;
     notes?: string;
   }>;
   included_products?: Array<{
@@ -566,6 +569,7 @@ export async function createSaleProduct(formData: {
         quantity_required: ing.quantity_required,
         unit_of_measure: ing.unit_of_measure,
         is_optional: ing.is_optional,
+        customer_can_remove: ing.customer_can_remove,
         notes: ing.notes || null
       }));
 
@@ -684,6 +688,7 @@ export async function updateSaleProduct(
       quantity_required: number;
       unit_of_measure: string;
       is_optional: boolean;
+      customer_can_remove: boolean;
       notes?: string;
     }>;
     included_products?: Array<{
@@ -745,6 +750,7 @@ export async function updateSaleProduct(
         quantity_required: ing.quantity_required,
         unit_of_measure: ing.unit_of_measure,
         is_optional: ing.is_optional,
+        customer_can_remove: ing.customer_can_remove,
         notes: ing.notes || null
       }));
 

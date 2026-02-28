@@ -161,6 +161,7 @@ export default function MenuPage() {
       quantity_required: number;
       unit_of_measure: string;
       is_optional: boolean;
+      customer_can_remove: boolean;
       notes: string;
     }>,
     included_products: [] as Array<{
@@ -473,6 +474,7 @@ export default function MenuPage() {
           quantity_required: ing.quantity_required,
           unit_of_measure: ing.unit_of_measure,
           is_optional: ing.is_optional,
+          customer_can_remove: ing.customer_can_remove,
           notes: ing.notes || ''
         })),
         included_products: includes.map((i) => ({
@@ -1539,6 +1541,7 @@ export default function MenuPage() {
                         quantity_required: 1,
                         unit_of_measure: 'units',
                         is_optional: false,
+                        customer_can_remove: false,
                         notes: ''
                       }]
                     })}
@@ -1563,6 +1566,7 @@ export default function MenuPage() {
                           quantity_required: 1,
                           unit_of_measure: 'units',
                           is_optional: false,
+                          customer_can_remove: false,
                           notes: ''
                         }]
                       })}
@@ -1575,8 +1579,8 @@ export default function MenuPage() {
                 ) : (
                   <div className="space-y-3">
                     {productForm.ingredients.map((ingredient, index) => (
-                      <div key={index} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 p-4 border border-gray-200 dark:border-neutral-700 rounded-lg bg-gray-50/50 dark:bg-neutral-800/50">
-                        <div className="sm:col-span-2 lg:col-span-3">
+                      <div key={index} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3 p-4 border border-gray-200 dark:border-neutral-700 rounded-lg bg-gray-50/50 dark:bg-neutral-800/50">
+                        <div className="sm:col-span-2 lg:col-span-2">
                           <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                             Product
                           </label>
@@ -1635,7 +1639,7 @@ export default function MenuPage() {
                           </select>
                         </div>
 
-                        <div className="flex items-center justify-center">
+                        <div className="flex flex-col items-start justify-center gap-2">
                           <label className="flex items-center space-x-2">
                             <input
                               type="checkbox"
@@ -1648,6 +1652,19 @@ export default function MenuPage() {
                               className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
                             />
                             <span className="text-xs text-gray-700 dark:text-gray-300">Optional</span>
+                          </label>
+                          <label className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              checked={ingredient.customer_can_remove}
+                              onChange={(e) => {
+                                const newIngredients = [...productForm.ingredients];
+                                newIngredients[index].customer_can_remove = e.target.checked;
+                                setProductForm({ ...productForm, ingredients: newIngredients });
+                              }}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
+                            />
+                            <span className="text-xs text-gray-700 dark:text-gray-300">Customer can remove</span>
                           </label>
                         </div>
 

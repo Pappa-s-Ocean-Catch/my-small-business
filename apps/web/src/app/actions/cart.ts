@@ -18,6 +18,7 @@ export interface CartItemData {
   base_price: number;
   quantity: number;
   subtotal: number;
+  removed_ingredients: string[];
   addons: CartItemAddon[];
   comment: string | null;
 }
@@ -96,6 +97,7 @@ export async function getOrCreateCart(sessionId: string): Promise<{ data: CartDa
           base_price: Number(item.base_price),
           quantity: item.quantity,
           subtotal: Number(item.subtotal),
+          removed_ingredients: (item.removed_ingredients as string[] | null) || [],
           comment: item.comment || null,
           addons: (addons || []).map(addon => ({
             addon_group_id: addon.addon_group_id,
@@ -166,6 +168,7 @@ export async function saveCart(
         base_price: item.base_price,
         quantity: item.quantity,
         subtotal: item.subtotal,
+        removed_ingredients: item.removed_ingredients || [],
         comment: item.comment || null
       }));
 

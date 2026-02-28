@@ -163,6 +163,7 @@ export default function OrderHistoryPage() {
           image_url: orderItem.product_image_url,
           quantity: orderItem.quantity,
           addon_groups: addonGroups,
+          removed_ingredients: orderItem.removed_ingredients || [],
           comment: orderItem.comment
         });
       }
@@ -227,6 +228,7 @@ export default function OrderHistoryPage() {
                   <tr>
                     <td>
                       <strong>${item.product_name}</strong>
+                      ${item.removed_ingredients && item.removed_ingredients.length > 0 ? `<br><small>Removed: ${item.removed_ingredients.join(', ')}</small>` : ''}
                       ${item.comment ? `<br><small>Note: ${item.comment}</small>` : ''}
                     </td>
                     <td>${item.quantity}</td>
@@ -381,6 +383,11 @@ export default function OrderHistoryPage() {
                               {item.comment && (
                                 <p className="text-gray-600 dark:text-gray-400 text-xs mt-1">
                                   Note: {item.comment}
+                                </p>
+                              )}
+                              {item.removed_ingredients && item.removed_ingredients.length > 0 && (
+                                <p className="text-orange-700 dark:text-orange-300 text-xs mt-1">
+                                  Removed: {item.removed_ingredients.join(', ')}
                                 </p>
                               )}
                             </div>

@@ -11,6 +11,7 @@ import { OrderHeader } from '@/components/OrderHeader';
 import { getFeatureFlags } from '@/app/actions/feature-flags';
 import { getTopSellingProducts, getFeaturedProducts } from '@/app/actions/top-sellers';
 import { getActivePromotions } from '@/app/actions/promotions';
+import { resolveOnlineOrderOverride } from '@/lib/online-order-override';
 import { FaUtensils, FaSearch, FaFire, FaStar } from 'react-icons/fa';
 import { Icon } from '@/components/Icon';
 import type { CartAddonGroup } from '@/contexts/CartContext';
@@ -64,6 +65,14 @@ export default function OrderPage() {
   useEffect(() => {
     const checkFeatureFlag = async () => {
       try {
+        const envOverride = resolveOnlineOrderOverride();
+        if (envOverride !== null) {
+          if (!envOverride) {
+            router.push('/');
+          }
+          return;
+        }
+
         const flags = await getFeatureFlags();
         if (!flags.enable_pickup_order) {
           // Redirect to home if pickup orders are disabled
@@ -255,7 +264,7 @@ export default function OrderPage() {
     }
   }, [searchTerm]);
 
-  const handleAddToCart = (customizations: CartAddonGroup[], comment?: string | null) => {
+  const handleAddToCart = (customizations: CartAddonGroup[], comment?: string | null, removedIngredients?: string[]) => {
     if (!customizingProduct) return;
 
     addItem({
@@ -266,6 +275,7 @@ export default function OrderPage() {
       image_url: customizingProduct.image_url,
       quantity: 1,
       addon_groups: customizations,
+      removed_ingredients: removedIngredients || [],
       comment: comment || null
     });
 

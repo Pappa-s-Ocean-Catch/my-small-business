@@ -135,6 +135,7 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
       base_price: item.base_price,
       quantity: item.quantity,
       subtotal: item.subtotal,
+      removed_ingredients: item.removed_ingredients || [],
       comment: item.comment || null
     }));
 
@@ -249,6 +250,7 @@ export async function getOrderByNumber(orderNumber: string): Promise<{ data: Ord
           base_price: Number(item.base_price),
           quantity: item.quantity,
           subtotal: Number(item.subtotal),
+          removed_ingredients: (item.removed_ingredients as string[] | null) || [],
           addons: addons || []
         });
       }
@@ -323,7 +325,8 @@ export async function getOrder(orderId: string): Promise<{ data: Order | null; e
           ...item,
           base_price: Number(item.base_price),
           quantity: item.quantity,
-          subtotal: Number(item.subtotal)
+          subtotal: Number(item.subtotal),
+          removed_ingredients: (item.removed_ingredients as string[] | null) || []
         });
       }
     }
@@ -420,7 +423,8 @@ export async function getAllOrders(filters?: {
             ...item,
             base_price: Number(item.base_price),
             quantity: item.quantity,
-            subtotal: Number(item.subtotal)
+            subtotal: Number(item.subtotal),
+            removed_ingredients: (item.removed_ingredients as string[] | null) || []
           })) || []
         });
       }
@@ -545,6 +549,7 @@ export async function getCustomerOrders(): Promise<{ data: Order[] | null; error
               base_price: Number(item.base_price),
               quantity: item.quantity,
               subtotal: Number(item.subtotal),
+              removed_ingredients: (item.removed_ingredients as string[] | null) || [],
               addons: addons?.map(addon => ({
                 id: addon.id,
                 order_item_id: addon.order_item_id,

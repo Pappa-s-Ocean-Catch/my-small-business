@@ -25,6 +25,7 @@ export interface CartItem {
   image_url: string | null;
   quantity: number;
   addon_groups: CartAddonGroup[];
+  removed_ingredients: string[];
   subtotal: number; // base_price * quantity + addon prices
   comment: string | null; // Optional comment/instructions for this item
 }
@@ -110,6 +111,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
               image_url: item.product_image_url,
               quantity: item.quantity,
               addon_groups: Array.from(addonGroupsMap.values()),
+              removed_ingredients: item.removed_ingredients || [],
               subtotal: item.subtotal,
               comment: item.comment || null
             };
@@ -145,6 +147,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         base_price: item.base_price,
         quantity: item.quantity,
         subtotal: item.subtotal,
+        removed_ingredients: item.removed_ingredients || [],
         comment: item.comment || null,
         addons: item.addon_groups.flatMap(group =>
           group.selected_items.map(addonItem => ({
@@ -189,6 +192,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         base_price: item.base_price,
         quantity: item.quantity,
         subtotal: item.subtotal,
+        removed_ingredients: item.removed_ingredients || [],
         comment: item.comment || null,
         addons: item.addon_groups.flatMap(group =>
           group.selected_items.map(addonItem => ({

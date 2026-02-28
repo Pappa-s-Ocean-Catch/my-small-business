@@ -67,7 +67,7 @@ export default function ProductDetailsClient(props: {
         return Math.max(0, bundleOriginalTotal - product.sale_price);
     }, [bundleOriginalTotal, product.sale_price]);
 
-    const handleAddToCart = (customizations: CartAddonGroup[], comment?: string | null) => {
+    const handleAddToCart = (customizations: CartAddonGroup[], comment?: string | null, removedIngredients?: string[]) => {
         addItem({
             product_id: product.id,
             name: product.name,
@@ -76,13 +76,14 @@ export default function ProductDetailsClient(props: {
             image_url: product.image_url,
             quantity: 1,
             addon_groups: customizations,
+            removed_ingredients: removedIngredients || [],
             comment: comment || null,
         });
 
         setShowCustomize(false);
     };
 
-    const handleAddHotSellerToCart = (customizations: CartAddonGroup[], comment?: string | null) => {
+    const handleAddHotSellerToCart = (customizations: CartAddonGroup[], comment?: string | null, removedIngredients?: string[]) => {
         if (!customizingProduct) return;
 
         addItem({
@@ -93,6 +94,7 @@ export default function ProductDetailsClient(props: {
             image_url: customizingProduct.image_url,
             quantity: 1,
             addon_groups: customizations,
+            removed_ingredients: removedIngredients || [],
             comment: comment || null,
         });
 

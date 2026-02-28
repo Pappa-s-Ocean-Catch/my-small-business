@@ -20,6 +20,11 @@ type BundleIncludeRow = {
   } | null;
 };
 
+type RemovableIngredient = {
+  id: string;
+  ingredient_name: string;
+};
+
 interface ItemCustomizationModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -30,7 +35,7 @@ interface ItemCustomizationModalProps {
     sale_price: number;
     image_url: string | null;
   };
-  onAddToCart: (customizations: CartAddonGroup[], comment?: string | null) => void;
+  onAddToCart: (customizations: CartAddonGroup[], comment?: string | null, removedIngredients?: string[]) => void;
 }
 
 export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart }: ItemCustomizationModalProps) {
@@ -38,6 +43,8 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart }
   const [bundleIncludes, setBundleIncludes] = useState<BundleIncludeRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedAddons, setSelectedAddons] = useState<Record<string, string[]>>({});
+  const [removableIngredients, setRemovableIngredients] = useState<RemovableIngredient[]>([]);
+  const [selectedRemovedIngredientIds, setSelectedRemovedIngredientIds] = useState<string[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const [comment, setComment] = useState<string>('');
 
@@ -53,12 +60,14 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart }
     setComment('');
     setAddonGroups([]);
     setBundleIncludes([]);
+    setRemovableIngredients([]);
+    setSelectedRemovedIngredientIds([]);
   }, [isOpen, product.id]);
 
   const loadDetails = async () => {
     setLoading(true);
     try {
-      await Promise.all([loadAddonGroups(), loadBundleIncludes()]);
+      await Promise.all([loadAddonGroups(), loadBundleIncludes(), loadRemovableIngredients()]);
     } finally {
       setLoading(false);
     }
@@ -105,6 +114,36 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart }
     } catch (err) {
       console.error('Error loading bundle includes:', err);
       setBundleIncludes([]);
+    }
+  };
+
+  const loadRemovableIngredients = async () => {
+    try {
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase
+        .from('sale_product_ingredients')
+        .select('id, products!product_id(name)')
+        .eq('sale_product_id', product.id)
+        .eq('customer_can_remove', true);
+
+      if (error) {
+        console.error('Error loading removable ingredients:', error);
+        setRemovableIngredients([]);
+        return;
+      }
+
+      const mapped = ((data || []) as Array<{ id: string; products: { name?: string } | { name?: string }[] | null }>).map((row) => {
+        const productRef = Array.isArray(row.products) ? row.products[0] : row.products;
+        return {
+          id: row.id,
+          ingredient_name: productRef?.name?.trim() || 'Unknown ingredient',
+        };
+      });
+
+      setRemovableIngredients(mapped);
+    } catch (err) {
+      console.error('Error loading removable ingredients:', err);
+      setRemovableIngredients([]);
     }
   };
 
@@ -177,7 +216,11 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart }
       })
       .filter((group) => group.selected_items.length > 0 || group.is_required);
 
-    onAddToCart(cartAddonGroups, comment.trim() || null);
+    const removedIngredientNames = removableIngredients
+      .filter((ingredient) => selectedRemovedIngredientIds.includes(ingredient.id))
+      .map((ingredient) => ingredient.ingredient_name);
+
+    onAddToCart(cartAddonGroups, comment.trim() || null, removedIngredientNames);
     onClose();
   };
 
@@ -205,6 +248,12 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart }
   const bundleSavings = useMemo(() => {
     return Math.max(0, bundleOriginalTotal - product.sale_price);
   }, [bundleOriginalTotal, product.sale_price]);
+
+  const toggleRemovedIngredient = (ingredientId: string) => {
+    setSelectedRemovedIngredientIds((prev) =>
+      prev.includes(ingredientId) ? prev.filter((id) => id !== ingredientId) : [...prev, ingredientId]
+    );
+  };
 
   return (
     <Modal
@@ -304,7 +353,7 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart }
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Loading options...</p>
           </div>
-        ) : addonGroups.length === 0 ? (
+        ) : addonGroups.length === 0 && removableIngredients.length === 0 ? (
           <div className="text-center py-8 text-gray-500 dark:text-gray-400">
             <p>No customization options available for this item.</p>
           </div>
@@ -387,6 +436,45 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart }
                   </div>
                 </div>
               ))}
+          </div>
+        )}
+
+        {/* Removable Ingredients */}
+        {!loading && removableIngredients.length > 0 && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <h4 className="font-semibold text-gray-900 dark:text-white">Remove Ingredients</h4>
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 dark:bg-neutral-700 dark:text-gray-300">
+                Optional
+              </span>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Select ingredients you want removed from this item.
+            </p>
+            <div className="space-y-2">
+              {removableIngredients.map((ingredient) => {
+                const isSelected = selectedRemovedIngredientIds.includes(ingredient.id);
+                return (
+                  <label
+                    key={ingredient.id}
+                    className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-colors ${isSelected
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      : 'border-gray-200 dark:border-neutral-700 hover:bg-gray-50 dark:hover:bg-neutral-800'
+                      }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleRemovedIngredient(ingredient.id)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <div className="font-medium text-gray-900 dark:text-white">{ingredient.ingredient_name}</div>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
           </div>
         )}
 

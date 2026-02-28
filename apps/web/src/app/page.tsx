@@ -10,6 +10,7 @@ import { TypewriterText } from "@/components/TypewriterText";
 import { getFeatureFlags } from "@/app/actions/feature-flags";
 import { getHomePromotions } from "@/app/actions/promotions";
 import type { Promotion } from "@/lib/promotions";
+import { resolveOnlineOrderOverride } from "@/lib/online-order-override";
 
 interface FeaturedProduct {
   id: string;
@@ -65,9 +66,9 @@ export default function Home() {
         // Fetch feature flags + home promotions
         const [flags, promoRes] = await Promise.all([getFeatureFlags(), getHomePromotions()]);
         // Allow env var to override DB flag for local/dev
-        const envOverride = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_ENABLE_ONLINE_ORDER;
-        if (envOverride !== undefined) {
-          setEnablePickupOrder(envOverride === 'true');
+        const envOverride = resolveOnlineOrderOverride();
+        if (envOverride !== null) {
+          setEnablePickupOrder(envOverride);
         } else {
           setEnablePickupOrder(flags.enable_pickup_order);
         }
@@ -211,7 +212,7 @@ export default function Home() {
                 text="Welcome to Pappa's Ocean Catch"
                 speed={80}
                 className="inline-block"
-              />
+              />order
             </h1>
             <p className="text-lg md:text-2xl text-white/90 mb-4 md:mb-6 drop-shadow-md">
               Fresh Fish. Crispy Chips. Done Right.
