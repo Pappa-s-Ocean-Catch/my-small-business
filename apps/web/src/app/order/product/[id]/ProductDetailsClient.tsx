@@ -67,14 +67,15 @@ export default function ProductDetailsClient(props: {
         return Math.max(0, bundleOriginalTotal - product.sale_price);
     }, [bundleOriginalTotal, product.sale_price]);
 
-    const handleAddToCart = (customizations: CartAddonGroup[], comment?: string | null, removedIngredients?: string[]) => {
+    const handleAddToCart = (customizations: CartAddonGroup[], comment?: string | null, removedIngredients?: string[], quantity?: number) => {
+        const qty = Math.max(1, Math.min(99, quantity ?? 1));
         addItem({
             product_id: product.id,
             name: product.name,
             description: product.description,
             base_price: product.sale_price,
             image_url: product.image_url,
-            quantity: 1,
+            quantity: qty,
             addon_groups: customizations,
             removed_ingredients: removedIngredients || [],
             comment: comment || null,
@@ -83,16 +84,17 @@ export default function ProductDetailsClient(props: {
         setShowCustomize(false);
     };
 
-    const handleAddHotSellerToCart = (customizations: CartAddonGroup[], comment?: string | null, removedIngredients?: string[]) => {
+    const handleAddHotSellerToCart = (customizations: CartAddonGroup[], comment?: string | null, removedIngredients?: string[], quantity?: number) => {
         if (!customizingProduct) return;
 
+        const qty = Math.max(1, Math.min(99, quantity ?? 1));
         addItem({
             product_id: customizingProduct.id,
             name: customizingProduct.name,
             description: customizingProduct.description,
             base_price: customizingProduct.sale_price,
             image_url: customizingProduct.image_url,
-            quantity: 1,
+            quantity: qty,
             addon_groups: customizations,
             removed_ingredients: removedIngredients || [],
             comment: comment || null,

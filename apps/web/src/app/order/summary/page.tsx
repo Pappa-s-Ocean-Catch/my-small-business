@@ -9,16 +9,18 @@ import { DeliveryAddressForm, type DeliveryAddressInput } from '@/components/Del
 import { getFeatureFlags } from '@/app/actions/feature-flags';
 import { getActivePromotions } from '@/app/actions/promotions';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
-import { FaShoppingCart, FaArrowLeft, FaCheck, FaDollarSign, FaEdit, FaComment, FaTruck, FaClock, FaSpinner } from 'react-icons/fa';
+import { FaShoppingCart, FaArrowLeft, FaCheck, FaDollarSign, FaEdit, FaComment, FaTruck, FaClock, FaSpinner, FaTrash, FaMinus, FaPlus } from 'react-icons/fa';
 import { Icon } from '@/components/Icon';
+import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 import Link from 'next/link';
 import { computeCartPromotionTotals, type PromotionWithProducts } from '@/lib/promotions';
 
 export default function OrderSummaryPage() {
-  const { items, getTotal, clearCart, isLoading, updateItem } = useCart();
+  const { items, getTotal, clearCart, isLoading, updateItem, removeItem, updateQuantity } = useCart();
   const router = useRouter();
   const [editingCommentItemId, setEditingCommentItemId] = useState<string | null>(null);
   const [commentText, setCommentText] = useState<string>('');
+  const [itemToRemove, setItemToRemove] = useState<string | null>(null);
 
   // Order type and delivery state
   const [orderType, setOrderType] = useState<OrderType | null>(null);
@@ -351,9 +353,34 @@ export default function OrderSummaryPage() {
                           <h3 className="font-semibold text-gray-900 dark:text-white">
                             {item.name}
                           </h3>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            Quantity: {item.quantity}
-                          </p>
+                          <div className="flex items-center gap-3 mt-1">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                                className="p-1.5 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded hover:bg-gray-200 dark:hover:bg-neutral-700 transition-colors"
+                                aria-label="Decrease quantity"
+                              >
+                                <Icon icon={FaMinus} className="w-3 h-3" />
+                              </button>
+                              <span className="text-sm font-medium text-gray-900 dark:text-white w-6 text-center tabular-nums">
+                                {item.quantity}
+                              </span>
+                              <button
+                                onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                                className="p-1.5 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded hover:bg-gray-200 dark:hover:bg-neutral-700 transition-colors"
+                                aria-label="Increase quantity"
+                              >
+                                <Icon icon={FaPlus} className="w-3 h-3" />
+                              </button>
+                            </div>
+                            <button
+                              onClick={() => setItemToRemove(item.id)}
+                              className="p-1.5 text-red-600 hover:text-red-700 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                              aria-label="Remove item"
+                            >
+                              <Icon icon={FaTrash} className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                         <span className="text-lg font-semibold text-gray-900 dark:text-white">
                           ${item.subtotal.toFixed(2)}
@@ -568,6 +595,22 @@ export default function OrderSummaryPage() {
           </div>
         </div>
       </div>
+
+      <ConfirmationDialog
+        isOpen={itemToRemove !== null}
+        onClose={() => setItemToRemove(null)}
+        onConfirm={() => {
+          if (itemToRemove) {
+            removeItem(itemToRemove);
+            setItemToRemove(null);
+          }
+        }}
+        title="Remove Item"
+        message={`Are you sure you want to remove "${items.find((i) => i.id === itemToRemove)?.name ?? 'this item'}" from your cart?`}
+        confirmText="Remove"
+        cancelText="Cancel"
+        variant="warning"
+      />
     </div>
   );
 }

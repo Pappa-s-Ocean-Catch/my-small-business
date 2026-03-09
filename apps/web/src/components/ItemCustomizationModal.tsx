@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from 'react';
-import { FaCheck, FaDollarSign, FaTimes } from 'react-icons/fa';
+import { FaCheck, FaDollarSign, FaTimes, FaMinus, FaPlus } from 'react-icons/fa';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
 import type { AddonGroupWithItems } from '@/app/actions/addons';
 import { getAddonGroup, getSaleProductAddonGroups } from '@/app/actions/addons';
@@ -35,7 +35,7 @@ interface ItemCustomizationModalProps {
     sale_price: number;
     image_url: string | null;
   };
-  onAddToCart: (customizations: CartAddonGroup[], comment?: string | null, removedIngredients?: string[]) => void;
+  onAddToCart: (customizations: CartAddonGroup[], comment?: string | null, removedIngredients?: string[], quantity?: number) => void;
 }
 
 export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart }: ItemCustomizationModalProps) {
@@ -47,6 +47,7 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart }
   const [selectedRemovedIngredientIds, setSelectedRemovedIngredientIds] = useState<string[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const [comment, setComment] = useState<string>('');
+  const [quantity, setQuantity] = useState<number>(1);
 
   useEffect(() => {
     if (isOpen && product.id) {
@@ -58,6 +59,7 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart }
     setSelectedAddons({});
     setErrors([]);
     setComment('');
+    setQuantity(1);
     setAddonGroups([]);
     setBundleIncludes([]);
     setRemovableIngredients([]);
@@ -220,11 +222,12 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart }
       .filter((ingredient) => selectedRemovedIngredientIds.includes(ingredient.id))
       .map((ingredient) => ingredient.ingredient_name);
 
-    onAddToCart(cartAddonGroups, comment.trim() || null, removedIngredientNames);
+    const qty = Math.max(1, Math.min(99, quantity));
+    onAddToCart(cartAddonGroups, comment.trim() || null, removedIngredientNames, qty);
     onClose();
   };
 
-  const totalPrice = useMemo((): number => {
+  const unitPrice = useMemo((): number => {
     let total = product.sale_price;
     addonGroups.forEach((group) => {
       const selectedItemIds = selectedAddons[group.id] || [];
@@ -236,6 +239,8 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart }
     });
     return total;
   }, [addonGroups, product.sale_price, selectedAddons]);
+
+  const totalPrice = useMemo((): number => unitPrice * Math.max(1, Math.min(99, quantity)), [unitPrice, quantity]);
 
   const bundleOriginalTotal = useMemo(() => {
     return bundleIncludes.reduce((sum, row) => {
@@ -298,6 +303,31 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart }
             <div className="flex items-center gap-2 mt-2">
               <span className="text-sm text-gray-600 dark:text-gray-400">Base Price:</span>
               <span className="font-semibold text-green-600 dark:text-green-400">${product.sale_price.toFixed(2)}</span>
+            </div>
+            {/* Quantity */}
+            <div className="flex items-center gap-3 mt-3">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Quantity</span>
+              <div className="flex items-center gap-2 border border-gray-300 dark:border-neutral-600 rounded-lg overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                  className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-neutral-700 transition-colors"
+                  aria-label="Decrease quantity"
+                >
+                  <Icon icon={FaMinus} className="w-3 h-3" />
+                </button>
+                <span className="w-8 text-center text-sm font-semibold text-gray-900 dark:text-white tabular-nums">
+                  {quantity}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setQuantity((q) => Math.min(99, q + 1))}
+                  className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-neutral-700 transition-colors"
+                  aria-label="Increase quantity"
+                >
+                  <Icon icon={FaPlus} className="w-3 h-3" />
+                </button>
+              </div>
             </div>
           </div>
         </div>

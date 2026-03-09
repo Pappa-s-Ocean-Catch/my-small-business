@@ -264,16 +264,17 @@ export default function OrderPage() {
     }
   }, [searchTerm]);
 
-  const handleAddToCart = (customizations: CartAddonGroup[], comment?: string | null, removedIngredients?: string[]) => {
+  const handleAddToCart = (customizations: CartAddonGroup[], comment?: string | null, removedIngredients?: string[], quantity?: number) => {
     if (!customizingProduct) return;
 
+    const qty = Math.max(1, Math.min(99, quantity ?? 1));
     addItem({
       product_id: customizingProduct.id,
       name: customizingProduct.name,
       description: customizingProduct.description,
       base_price: customizingProduct.sale_price,
       image_url: customizingProduct.image_url,
-      quantity: 1,
+      quantity: qty,
       addon_groups: customizations,
       removed_ingredients: removedIngredients || [],
       comment: comment || null
