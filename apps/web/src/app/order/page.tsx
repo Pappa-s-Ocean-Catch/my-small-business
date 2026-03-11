@@ -12,10 +12,12 @@ import { getFeatureFlags } from '@/app/actions/feature-flags';
 import { getTopSellingProducts, getFeaturedProducts } from '@/app/actions/top-sellers';
 import { getActivePromotions } from '@/app/actions/promotions';
 import { resolveOnlineOrderOverride } from '@/lib/online-order-override';
-import { FaUtensils, FaSearch, FaFire, FaStar } from 'react-icons/fa';
+import { FaUtensils, FaSearch, FaFire, FaStar, FaClock } from 'react-icons/fa';
 import { Icon } from '@/components/Icon';
 import type { CartAddonGroup } from '@/contexts/CartContext';
 import { pickBestProductPromotion, promotionLabel, type PromotionWithProducts } from '@/lib/promotions';
+import type { StoreHours } from '@my-small-business/types';
+import { buildDefaultStoreHours, isStoreOpenNow } from '@/lib/store-hours';
 
 interface MenuProduct {
   id: string;
@@ -52,6 +54,12 @@ export default function OrderPage() {
   const [customizingProduct, setCustomizingProduct] = useState<MenuProduct | null>(null);
 
   const [activePromotions, setActivePromotions] = useState<PromotionWithProducts[]>([]);
+
+  // Store hours for today (Melbourne) – for messaging on menu
+  const [storeHours, setStoreHours] = useState<StoreHours | null>(null);
+  const [isStoreOpen, setIsStoreOpen] = useState<boolean | null>(null);
+  const [todayLabel, setTodayLabel] = useState<string | null>(null);
+  const [todayHoursLabel, setTodayHoursLabel] = useState<string | null>(null);
 
   const topCartPromo = useMemo(() => {
     const carts = activePromotions.filter((p) => p.applies_to === 'cart');
@@ -97,6 +105,92 @@ export default function OrderPage() {
       if (res.data) setActivePromotions(res.data);
     };
     void loadPromotions();
+  }, []);
+
+  // Load today's store hours and open/closed state (Melbourne time)
+  useEffect(() => {
+    const loadStoreHours = async () => {
+      try {
+        const supabase = getSupabaseClient();
+        const [{ data: storeHoursRow }, { data: defaultsRow }] = await Promise.all([
+          supabase
+            .from('settings')
+            .select('value')
+            .eq('key', 'store_hours')
+            .maybeSingle(),
+          supabase
+            .from('settings')
+            .select('value')
+            .eq('key', 'defaults')
+            .maybeSingle(),
+        ]);
+
+        const storeHoursValue = storeHoursRow?.value as StoreHours | undefined;
+        const defaults = (defaultsRow?.value as { store_open_time?: string; store_close_time?: string } | undefined) ?? {};
+
+        const hours: StoreHours =
+          storeHoursValue && typeof storeHoursValue === 'object'
+            ? storeHoursValue
+            : buildDefaultStoreHours(defaults.store_open_time ?? '10:00', defaults.store_close_time ?? '21:00');
+
+        setStoreHours(hours);
+
+        // Determine today's label and hours in Australia/Melbourne
+        const now = new Date();
+        const formatter = new Intl.DateTimeFormat('en-AU', {
+          timeZone: 'Australia/Melbourne',
+          weekday: 'long',
+        });
+        const parts = formatter.formatToParts(now);
+        const weekdayPart = parts.find((p) => p.type === 'weekday');
+        const weekdayLabel = weekdayPart?.value ?? 'Today';
+
+        const weekdayShortFormatter = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Australia/Melbourne',
+          weekday: 'short',
+        });
+        const weekdayShortParts = weekdayShortFormatter.formatToParts(now);
+        const short = weekdayShortParts.find((p) => p.type === 'weekday')?.value.toLowerCase() ?? 'sun';
+        const dayIndexMap: Record<string, number> = {
+          sun: 0,
+          mon: 1,
+          tue: 2,
+          wed: 3,
+          thu: 4,
+          fri: 5,
+          sat: 6,
+        };
+        const dayIndex = dayIndexMap[short] ?? 0;
+        const todaysHours = hours[String(dayIndex)] ?? null;
+
+        setTodayLabel(weekdayLabel);
+
+        if (todaysHours) {
+          const formatTime = (t: string) => {
+            const [hStr, mStr] = t.split(':');
+            const h = Number(hStr ?? 0);
+            const m = Number(mStr ?? 0);
+            const d = new Date();
+            d.setHours(h, m, 0, 0);
+            return d.toLocaleTimeString('en-AU', {
+              timeZone: 'Australia/Melbourne',
+              hour: 'numeric',
+              minute: '2-digit',
+            });
+          };
+
+          setTodayHoursLabel(`${formatTime(todaysHours.open)} – ${formatTime(todaysHours.close)} (Melbourne time)`);
+        } else {
+          setTodayHoursLabel('Closed today');
+        }
+
+        setIsStoreOpen(isStoreOpenNow(hours));
+      } catch (err) {
+        console.error('Error loading store hours on order page:', err);
+      }
+    };
+
+    void loadStoreHours();
   }, []);
 
   const loadMenuData = async () => {
@@ -453,14 +547,32 @@ export default function OrderPage() {
       <div className="bg-white dark:bg-neutral-800 shadow-sm border-b border-gray-200 dark:border-neutral-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-start justify-between gap-4">
-            <div>
+            <div className="space-y-1">
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                 <Icon icon={FaUtensils} className="text-blue-600" />
                 Order Online
               </h1>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
                 Browse the menu, add items to your cart, then checkout when you’re ready.
               </p>
+              {todayLabel && todayHoursLabel && (
+                <div className="mt-1 flex items-start gap-2 text-xs sm:text-sm">
+                  <Icon icon={FaClock} className="w-4 h-4 text-gray-500 mt-0.5" />
+                  <div>
+                    <p className="text-gray-700 dark:text-gray-300">
+                      <span className="font-semibold">{todayLabel}</span>{' '}
+                      <span className="text-gray-600 dark:text-gray-400">hours:</span>{' '}
+                      <span className="font-medium">{todayHoursLabel}</span>
+                    </p>
+                    {isStoreOpen === false && (
+                      <p className="text-amber-700 dark:text-amber-400 mt-0.5">
+                        Online ordering is closed right now. You can still build your cart and place a
+                        <span className="font-semibold"> pre-order</span> at checkout.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
             <Link
               href="/order/summary"

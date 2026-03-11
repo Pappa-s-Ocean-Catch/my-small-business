@@ -6,6 +6,9 @@ import { useRouter } from 'next/navigation';
 import { FaShoppingCart, FaTimes, FaPlus, FaMinus, FaTrash, FaChevronRight, FaEdit, FaComment } from 'react-icons/fa';
 import { Icon } from '@/components/Icon';
 import { useCart } from '@/contexts/CartContext';
+import type { CartItem } from '@/contexts/CartContext';
+import { ItemCustomizationModal } from '@/components/ItemCustomizationModal';
+import { toast } from 'react-toastify';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 
 export function CartSidebar() {
@@ -14,6 +17,7 @@ export function CartSidebar() {
   const [editingCommentItemId, setEditingCommentItemId] = useState<string | null>(null);
   const [commentText, setCommentText] = useState<string>('');
   const [itemToRemove, setItemToRemove] = useState<string | null>(null);
+  const [itemToEdit, setItemToEdit] = useState<CartItem | null>(null);
   const router = useRouter();
 
   const handleCheckout = () => {
@@ -223,11 +227,16 @@ export function CartSidebar() {
                             >
                               <Icon icon={FaPlus} className="w-3 h-3" />
                             </button>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                              ${item.subtotal.toFixed(2)}
-                            </span>
+                            <button
+                              onClick={() => {
+                                setItemToEdit(item);
+                                setIsOpen(false);
+                              }}
+                              className="p-1 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 rounded hover:bg-gray-200 dark:hover:bg-neutral-700 transition-colors"
+                              aria-label="Edit item"
+                            >
+                              <Icon icon={FaEdit} className="w-3 h-3" />
+                            </button>
                             <button
                               onClick={() => setItemToRemove(item.id)}
                               className="p-1 text-red-600 hover:text-red-700 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
@@ -236,6 +245,9 @@ export function CartSidebar() {
                               <Icon icon={FaTrash} className="w-4 h-4" />
                             </button>
                           </div>
+                          <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                            ${item.subtotal.toFixed(2)}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -270,6 +282,32 @@ export function CartSidebar() {
             )}
           </div>
         </>
+      )}
+
+      {itemToEdit && (
+        <ItemCustomizationModal
+          isOpen={!!itemToEdit}
+          onClose={() => setItemToEdit(null)}
+          product={{
+            id: itemToEdit.product_id,
+            name: itemToEdit.name,
+            description: itemToEdit.description,
+            sale_price: itemToEdit.base_price,
+            image_url: itemToEdit.image_url,
+          }}
+          onAddToCart={() => {}}
+          existingCartItem={itemToEdit}
+          onUpdateCartItem={(cartItemId, addonGroups, comment, removedIngredients, quantity) => {
+            updateItem(cartItemId, {
+              addon_groups: addonGroups,
+              comment: comment || null,
+              removed_ingredients: removedIngredients,
+              quantity,
+            });
+            setItemToEdit(null);
+            toast.success('Cart item updated successfully');
+          }}
+        />
       )}
 
       {/* Remove Item Confirmation Dialog */}

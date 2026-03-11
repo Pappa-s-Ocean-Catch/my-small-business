@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/contexts/CartContext';
+import type { CartItem } from '@/contexts/CartContext';
 import { OrderHeader } from '@/components/OrderHeader';
+import { ItemCustomizationModal } from '@/components/ItemCustomizationModal';
 import { OrderTypeSelector, type OrderType } from '@/components/OrderTypeSelector';
 import { DeliveryAddressForm, type DeliveryAddressInput } from '@/components/DeliveryAddressForm';
 import { getFeatureFlags } from '@/app/actions/feature-flags';
@@ -13,7 +15,16 @@ import { FaShoppingCart, FaArrowLeft, FaCheck, FaDollarSign, FaEdit, FaComment, 
 import { Icon } from '@/components/Icon';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 import Link from 'next/link';
+import { toast } from 'react-toastify';
 import { computeCartPromotionTotals, type PromotionWithProducts } from '@/lib/promotions';
+import type { StoreHours } from '@my-small-business/types';
+import { buildDefaultStoreHours, getPickupTimeSlots, isStoreOpenNow, type PickupDayOption } from '@/lib/store-hours';
+
+type StoreHoursForOrderResult = {
+  storeHours: StoreHours;
+  isOpenNow: boolean;
+  pickupDayOptions: PickupDayOption[];
+};
 
 export default function OrderSummaryPage() {
   const { items, getTotal, clearCart, isLoading, updateItem, removeItem, updateQuantity } = useCart();
@@ -21,6 +32,7 @@ export default function OrderSummaryPage() {
   const [editingCommentItemId, setEditingCommentItemId] = useState<string | null>(null);
   const [commentText, setCommentText] = useState<string>('');
   const [itemToRemove, setItemToRemove] = useState<string | null>(null);
+  const [itemToEdit, setItemToEdit] = useState<CartItem | null>(null);
 
   // Order type and delivery state
   const [orderType, setOrderType] = useState<OrderType | null>(null);
@@ -36,6 +48,13 @@ export default function OrderSummaryPage() {
   const [loadingQuote, setLoadingQuote] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Pickup time: when store is open user can choose "asap" or "scheduled"; when closed, must choose scheduled (pre-order)
+  const [storeHoursLoading, setStoreHoursLoading] = useState(false);
+  const [storeHoursResult, setStoreHoursResult] = useState<StoreHoursForOrderResult | null>(null);
+  const [pickupOption, setPickupOption] = useState<'asap' | 'scheduled'>('asap');
+  const [scheduledPickupAt, setScheduledPickupAt] = useState<string | null>(null);
+  const [selectedPickupDate, setSelectedPickupDate] = useState<string | null>(null);
 
   const [activePromotions, setActivePromotions] = useState<PromotionWithProducts[]>([]);
 
@@ -90,6 +109,78 @@ export default function OrderSummaryPage() {
       getDeliveryQuote();
     }
   }, [orderType, deliveryAddress]);
+
+  // Load store hours when pickup is selected (for open/closed and pickup time slots)
+  useEffect(() => {
+    if (orderType !== 'pickup') return;
+    let cancelled = false;
+    setStoreHoursLoading(true);
+    const loadStoreHours = async () => {
+      try {
+        const supabase = getSupabaseClient();
+
+        const [{ data: storeHoursRow }, { data: defaultsRow }] = await Promise.all([
+          supabase
+            .from('settings')
+            .select('value')
+            .eq('key', 'store_hours')
+            .maybeSingle(),
+          supabase
+            .from('settings')
+            .select('value')
+            .eq('key', 'defaults')
+            .maybeSingle(),
+        ]);
+
+        const storeHoursValue = storeHoursRow?.value as StoreHours | undefined;
+        const defaults = (defaultsRow?.value as { store_open_time?: string; store_close_time?: string } | undefined) ?? {};
+
+        const storeHours: StoreHours =
+          storeHoursValue && typeof storeHoursValue === 'object'
+            ? storeHoursValue
+            : buildDefaultStoreHours(defaults.store_open_time ?? '10:00', defaults.store_close_time ?? '21:00');
+
+        const isOpenNow = isStoreOpenNow(storeHours);
+
+        // When store is open: allow scheduled pickup for today + tomorrow.
+        // When store is closed: pre-order only for the next day.
+        const now = new Date();
+        const fromDate = new Date(now);
+        let numDays = 2;
+        if (!isOpenNow) {
+          fromDate.setDate(fromDate.getDate() + 1);
+          numDays = 1;
+        }
+
+        const pickupDayOptions = getPickupTimeSlots(storeHours, fromDate, {
+          numDays,
+          intervalMinutes: 15,
+        });
+
+        if (!cancelled) {
+          const result: StoreHoursForOrderResult = { storeHours, isOpenNow, pickupDayOptions };
+          setStoreHoursResult(result);
+          if (!result.isOpenNow) {
+            setPickupOption('scheduled');
+            const firstOption = result.pickupDayOptions[0]?.slots[0]?.value ?? null;
+            setScheduledPickupAt(firstOption);
+            setSelectedPickupDate(result.pickupDayOptions[0]?.date ?? null);
+          } else {
+            setScheduledPickupAt(null);
+            setSelectedPickupDate(null);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading store hours for order:', error);
+      } finally {
+        if (!cancelled) setStoreHoursLoading(false);
+      }
+    };
+
+    void loadStoreHours();
+
+    return () => { cancelled = true; };
+  }, [orderType]);
 
   const getDeliveryQuote = async () => {
     if (!deliveryAddress) return;
@@ -149,14 +240,23 @@ export default function OrderSummaryPage() {
       sessionStorage.setItem('orderType', 'delivery');
       sessionStorage.setItem('deliveryAddress', JSON.stringify(deliveryAddress));
       sessionStorage.setItem('deliveryQuote', JSON.stringify(deliveryQuote));
+      sessionStorage.removeItem('scheduledPickupAt');
     } else if (orderType === 'pickup') {
       sessionStorage.setItem('orderType', 'pickup');
       sessionStorage.removeItem('deliveryAddress');
       sessionStorage.removeItem('deliveryQuote');
+      if (pickupOption === 'scheduled' && scheduledPickupAt) {
+        sessionStorage.setItem('scheduledPickupAt', scheduledPickupAt);
+      } else {
+        sessionStorage.removeItem('scheduledPickupAt');
+      }
     }
 
     router.push('/order/checkout');
   };
+
+  const pickupRequiresTime = storeHoursResult && !storeHoursResult.isOpenNow;
+  const canProceedPickup = orderType !== 'pickup' || !pickupRequiresTime || !!scheduledPickupAt;
 
   if (isLoading) {
     return (
@@ -218,11 +318,13 @@ export default function OrderSummaryPage() {
           <div className="lg:col-span-2 space-y-4">
             {/* Order Type Selection */}
             {!orderType && (
-              <OrderTypeSelector
-                onSelect={handleOrderTypeSelect}
-                selectedType={orderType}
-                enableDelivery={enableDelivery}
-              />
+              <div id="order-type-selector">
+                <OrderTypeSelector
+                  onSelect={handleOrderTypeSelect}
+                  selectedType={orderType}
+                  enableDelivery={enableDelivery}
+                />
+              </div>
             )}
 
             {/* Delivery Address Form */}
@@ -310,24 +412,142 @@ export default function OrderSummaryPage() {
               </div>
             )}
 
-            {/* Pickup Order Confirmation */}
+            {/* Pickup: store hours and pickup time */}
             {orderType === 'pickup' && (
               <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-6">
                 <div className="flex items-center gap-3 mb-2">
                   <Icon icon={FaCheck} className="w-5 h-5 text-blue-600" />
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    Pickup Order Selected
+                    Pickup Order
                   </h2>
                 </div>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                  Your order will be ready for pickup at the store. We'll notify you when it's ready.
-                </p>
-                <button
-                  onClick={() => setOrderType(null)}
-                  className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-                >
-                  Change to delivery order
-                </button>
+                {storeHoursLoading && (
+                  <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 py-2">
+                    <Icon icon={FaSpinner} className="w-4 h-4 animate-spin" />
+                    Loading store hours…
+                  </div>
+                )}
+                {!storeHoursLoading && storeHoursResult && (
+                  <>
+                    {storeHoursResult.isOpenNow ? (
+                      <p className="text-sm text-green-600 dark:text-green-400 mb-4">
+                        Store is open now. You can pick up as soon as ready or choose a time.
+                      </p>
+                    ) : (
+                      <p className="text-sm text-amber-600 dark:text-amber-400 mb-4">
+                        Store is currently closed. This is a pre-order – please choose when you’d like to pick up.
+                      </p>
+                    )}
+                    <div className="space-y-3 mb-4">
+                      {storeHoursResult.isOpenNow && (
+                        <label className="flex items-center gap-3 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="pickupOption"
+                            className="w-4 h-4 text-blue-600"
+                            checked={pickupOption === 'asap'}
+                            onChange={() => {
+                              setPickupOption('asap');
+                              setScheduledPickupAt(null);
+                              setSelectedPickupDate(null);
+                            }}
+                          />
+                          <span className="text-sm text-gray-900 dark:text-white">As soon as ready</span>
+                        </label>
+                      )}
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="pickupOption"
+                          className="w-4 h-4 text-blue-600"
+                          checked={pickupOption === 'scheduled'}
+                          onChange={() => {
+                            setPickupOption('scheduled');
+                              const firstDay = storeHoursResult.pickupDayOptions[0];
+                              const first = firstDay?.slots[0]?.value ?? null;
+                              setSelectedPickupDate(firstDay?.date ?? selectedPickupDate);
+                              setScheduledPickupAt(first ?? scheduledPickupAt);
+                          }}
+                        />
+                        <span className="text-sm text-gray-900 dark:text-white">
+                          {storeHoursResult.isOpenNow ? 'Choose a pickup time' : 'Pickup date & time (required)'}
+                        </span>
+                      </label>
+                    </div>
+                    {pickupOption === 'scheduled' && storeHoursResult.pickupDayOptions.length > 0 && (
+                      <div className="grid gap-3">
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Pickup date &amp; time
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md">
+                          {/* Date picker (select) */}
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs text-gray-500 dark:text-gray-400">Date</span>
+                            <select
+                              className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900 text-sm"
+                              value={selectedPickupDate ?? storeHoursResult.pickupDayOptions[0]?.date ?? ''}
+                              onChange={(e) => {
+                                const newDate = e.target.value;
+                                setSelectedPickupDate(newDate);
+                                const day = storeHoursResult.pickupDayOptions.find((d) => d.date === newDate);
+                                const firstSlot = day?.slots[0];
+                                if (firstSlot) {
+                                  setScheduledPickupAt(firstSlot.value);
+                                }
+                              }}
+                            >
+                              {storeHoursResult.pickupDayOptions.map((day) => (
+                                <option key={day.date} value={day.date}>
+                                  {day.dateLabel}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* Time picker (select) */}
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs text-gray-500 dark:text-gray-400">Time</span>
+                            {(() => {
+                              const currentDate =
+                                selectedPickupDate ?? storeHoursResult.pickupDayOptions[0]?.date ?? null;
+                              const day =
+                                storeHoursResult.pickupDayOptions.find((d) => d.date === currentDate) ??
+                                storeHoursResult.pickupDayOptions[0];
+                              const slots = day?.slots ?? [];
+                              const currentValue =
+                                scheduledPickupAt && slots.some((s) => s.value === scheduledPickupAt)
+                                  ? scheduledPickupAt
+                                  : slots[0]?.value ?? '';
+                              if (!scheduledPickupAt && slots[0]) {
+                                // Ensure we always have a value when there are slots
+                                setScheduledPickupAt(slots[0].value);
+                              }
+                              return (
+                                <select
+                                  className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900 text-sm"
+                                  value={currentValue}
+                                  onChange={(e) => setScheduledPickupAt(e.target.value)}
+                                >
+                                  {slots.map((slot) => (
+                                    <option key={slot.value} value={slot.value}>
+                                      {slot.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    <button
+                      onClick={() => setOrderType(null)}
+                      className="mt-4 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                    >
+                      Change to delivery order
+                    </button>
+                  </>
+                )}
               </div>
             )}
             <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-6">
@@ -373,6 +593,13 @@ export default function OrderSummaryPage() {
                                 <Icon icon={FaPlus} className="w-3 h-3" />
                               </button>
                             </div>
+                            <button
+                              onClick={() => setItemToEdit(item)}
+                              className="p-1.5 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 rounded hover:bg-gray-200 dark:hover:bg-neutral-700 transition-colors"
+                              aria-label="Edit item"
+                            >
+                              <Icon icon={FaEdit} className="w-4 h-4" />
+                            </button>
                             <button
                               onClick={() => setItemToRemove(item.id)}
                               className="p-1.5 text-red-600 hover:text-red-700 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
@@ -566,17 +793,40 @@ export default function OrderSummaryPage() {
               </div>
 
               <div className="space-y-3">
-                <button
-                  onClick={handleProceedToCheckout}
-                  disabled={!orderType || (orderType === 'delivery' && (!deliveryAddress || !deliveryQuote))}
-                  className="block w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-                >
-                  <Icon icon={FaDollarSign} className="w-4 h-4" />
-                  {!orderType ? 'Select Order Type First' : orderType === 'delivery' && (!deliveryAddress || !deliveryQuote) ? 'Complete Delivery Info' : 'Checkout'}
-                </button>
+                {!orderType ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => document.getElementById('order-type-selector')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                      className="block w-full border-2 border-blue-600 dark:border-blue-500 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm"
+                    >
+                      <Icon icon={FaShoppingCart} className="w-4 h-4" />
+                      Choose order type
+                    </button>
+                    <p className="text-xs text-center text-gray-500 dark:text-gray-400">
+                      Pickup or delivery to continue
+                    </p>
+                  </>
+                ) : (
+                  <button
+                    onClick={handleProceedToCheckout}
+                    disabled={
+                      (orderType === 'delivery' && (!deliveryAddress || !deliveryQuote)) ||
+                      (orderType === 'pickup' && !canProceedPickup)
+                    }
+                    className="block w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Icon icon={FaDollarSign} className="w-4 h-4" />
+                    {orderType === 'delivery' && (!deliveryAddress || !deliveryQuote)
+                      ? 'Complete Delivery Info'
+                      : orderType === 'pickup' && !canProceedPickup
+                        ? 'Select Pickup Time'
+                        : 'Checkout'}
+                  </button>
+                )}
                 <Link
                   href="/order"
-                  className="block w-full text-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white py-2 transition-colors"
+                  className="block w-full text-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white py-2 transition-colors text-sm"
                 >
                   Continue Shopping
                 </Link>
@@ -595,6 +845,32 @@ export default function OrderSummaryPage() {
           </div>
         </div>
       </div>
+
+      {itemToEdit && (
+        <ItemCustomizationModal
+          isOpen={!!itemToEdit}
+          onClose={() => setItemToEdit(null)}
+          product={{
+            id: itemToEdit.product_id,
+            name: itemToEdit.name,
+            description: itemToEdit.description,
+            sale_price: itemToEdit.base_price,
+            image_url: itemToEdit.image_url,
+          }}
+          onAddToCart={() => {}}
+          existingCartItem={itemToEdit}
+          onUpdateCartItem={(cartItemId, addonGroups, comment, removedIngredients, quantity) => {
+            updateItem(cartItemId, {
+              addon_groups: addonGroups,
+              comment: comment || null,
+              removed_ingredients: removedIngredients,
+              quantity,
+            });
+            setItemToEdit(null);
+            toast.success('Cart item updated successfully');
+          }}
+        />
+      )}
 
       <ConfirmationDialog
         isOpen={itemToRemove !== null}

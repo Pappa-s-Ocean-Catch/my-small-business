@@ -7,6 +7,8 @@ import { ImageUpload } from "@/components/ImageUpload";
 import { toast } from 'react-toastify';
 import { getFeatureFlags, updateFeatureFlags, type FeatureFlags } from "@/app/actions/feature-flags";
 import { getRewardPointsSettings, updateRewardPointsSettings, type RewardPointsSettings } from "@/app/actions/reward-points";
+import type { StoreHours } from "@my-small-business/types";
+import { buildDefaultStoreHours } from "@/lib/store-hours";
 
 type Defaults = {
   pay_rate: number;
@@ -54,6 +56,10 @@ export default function SettingsPage() {
   });
   const [savingRewardPoints, setSavingRewardPoints] = useState(false);
 
+  // Store hours: 0=Sunday .. 6=Saturday. null = closed that day.
+  const [storeHours, setStoreHours] = useState<StoreHours>(() => buildDefaultStoreHours("10:00", "21:00"));
+  const [savingStoreHours, setSavingStoreHours] = useState(false);
+
   const load = async () => {
     const supabase = getSupabaseClient();
     
@@ -67,6 +73,15 @@ export default function SettingsPage() {
       store_close_time: "21:00"
     };
     setDefaults(value);
+
+    // Load store hours (per-day open/close for online orders)
+    const { data: storeHoursData } = await supabase.from("settings").select("value").eq("key", "store_hours").maybeSingle();
+    const hoursValue = storeHoursData?.value as StoreHours | undefined;
+    if (hoursValue && typeof hoursValue === "object") {
+      setStoreHours(hoursValue);
+    } else {
+      setStoreHours(buildDefaultStoreHours(value.store_open_time, value.store_close_time));
+    }
 
     // Load brand settings
     const { data: brandData } = await supabase.from("brand_settings").select("*").maybeSingle();
@@ -179,6 +194,41 @@ export default function SettingsPage() {
     }
   };
 
+  const saveStoreHours = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingStoreHours(true);
+    try {
+      await getSupabaseClient().from("settings").upsert({ key: "store_hours", value: storeHours }, { onConflict: "key" });
+      toast.success("Store hours saved successfully!");
+    } catch (error) {
+      console.error("Error saving store hours:", error);
+      toast.error("Failed to save store hours. Please try again.");
+    } finally {
+      setSavingStoreHours(false);
+    }
+  };
+
+  const applySameHoursToAll = () => {
+    const first = storeHours["1"] ?? storeHours["0"];
+    if (!first) return;
+    const next: StoreHours = {};
+    for (let i = 0; i <= 6; i++) {
+      next[String(i)] = first;
+    }
+    setStoreHours(next);
+    toast.success("Applied same hours to all days. Click Save to keep.");
+  };
+
+  const DAY_NAMES: { key: string; label: string }[] = [
+    { key: "0", label: "Sunday" },
+    { key: "1", label: "Monday" },
+    { key: "2", label: "Tuesday" },
+    { key: "3", label: "Wednesday" },
+    { key: "4", label: "Thursday" },
+    { key: "5", label: "Friday" },
+    { key: "6", label: "Saturday" },
+  ];
+
   return (
     <AdminGuard>
       <div className="p-6 max-w-3xl mx-auto">
@@ -227,7 +277,7 @@ export default function SettingsPage() {
           </div>
 
           <div className="grid gap-4">
-            <h2 className="text-lg font-medium">Store Hours</h2>
+            <h2 className="text-lg font-medium">Default store times (shifts)</h2>
             <div className="grid gap-4 sm:grid-cols-2 max-w-md">
               <label className="grid gap-2">
                 <span className="text-sm text-gray-600 dark:text-gray-400">Store open time</span>
@@ -249,7 +299,7 @@ export default function SettingsPage() {
               </label>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              Store operating hours. Used for smart shift prefill when no existing shifts are found for a date + section.
+              Used for smart shift prefill when no existing shifts are found for a date + section.
             </p>
           </div>
 
@@ -259,6 +309,93 @@ export default function SettingsPage() {
             className="h-10 px-4 rounded-xl bg-black text-white dark:bg-white dark:text-black w-fit disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? "Saving..." : "Save Settings"}
+          </button>
+        </form>
+
+        {/* Store opening hours (per day) – for online orders and pickup time */}
+        <form onSubmit={saveStoreHours} className="mt-12 grid gap-6">
+          <div className="grid gap-4">
+            <h2 className="text-lg font-medium">Store opening hours (online orders)</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Set open/close for each day. Orders are accepted during these times; outside these times customers can pre-order and choose a pickup time.
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[420px] border-collapse">
+                <thead>
+                  <tr className="border-b border-gray-200 dark:border-neutral-700">
+                    <th className="text-left py-2 pr-4 text-sm font-medium text-gray-700 dark:text-gray-300">Day</th>
+                    <th className="text-left py-2 pr-4 text-sm font-medium text-gray-700 dark:text-gray-300 w-20">Closed</th>
+                    <th className="text-left py-2 pr-4 text-sm font-medium text-gray-700 dark:text-gray-300">Open</th>
+                    <th className="text-left py-2 text-sm font-medium text-gray-700 dark:text-gray-300">Close</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {DAY_NAMES.map(({ key, label }) => (
+                    <tr key={key} className="border-b border-gray-100 dark:border-neutral-800">
+                      <td className="py-2 pr-4 text-sm text-gray-900 dark:text-gray-100">{label}</td>
+                      <td className="py-2 pr-4">
+                        <input
+                          type="checkbox"
+                          className="w-5 h-5 rounded border-gray-300 text-black focus:ring-black"
+                          checked={!storeHours[key]}
+                          onChange={(e) => {
+                            const closed = e.target.checked;
+                            setStoreHours((prev) => ({
+                              ...prev,
+                              [key]: closed ? null : prev["1"] ?? prev["0"] ?? { open: "10:00", close: "21:00" },
+                            }));
+                          }}
+                        />
+                      </td>
+                      <td className="py-2 pr-4">
+                        <input
+                          type="time"
+                          className="h-9 rounded-lg border px-2 bg-white/80 dark:bg-neutral-900 w-28"
+                          value={storeHours[key]?.open ?? "10:00"}
+                          disabled={!storeHours[key]}
+                          onChange={(e) =>
+                            setStoreHours((prev) => ({
+                              ...prev,
+                              [key]: prev[key] ? { ...prev[key]!, open: e.target.value } : { open: e.target.value, close: "21:00" },
+                            }))
+                          }
+                        />
+                      </td>
+                      <td className="py-2">
+                        <input
+                          type="time"
+                          className="h-9 rounded-lg border px-2 bg-white/80 dark:bg-neutral-900 w-28"
+                          value={storeHours[key]?.close ?? "21:00"}
+                          disabled={!storeHours[key]}
+                          onChange={(e) =>
+                            setStoreHours((prev) => ({
+                              ...prev,
+                              [key]: prev[key] ? { ...prev[key]!, close: e.target.value } : { open: "10:00", close: e.target.value },
+                            }))
+                          }
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={applySameHoursToAll}
+                className="h-9 px-3 rounded-lg border border-gray-300 dark:border-neutral-600 text-sm"
+              >
+                Use same hours for all days
+              </button>
+            </div>
+          </div>
+          <button
+            type="submit"
+            disabled={savingStoreHours}
+            className="h-10 px-4 rounded-xl bg-black text-white dark:bg-white dark:text-black w-fit disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {savingStoreHours ? "Saving Store Hours..." : "Save Store Hours"}
           </button>
         </form>
 

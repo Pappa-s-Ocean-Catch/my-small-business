@@ -38,6 +38,9 @@ export interface OrderInput {
   // Promotions (optional)
   promotion_discount?: number;
   promotions_applied?: any[];
+
+  /** When the customer wants to pick up (for pickup orders). Required when ordering outside open hours (pre-order). */
+  scheduled_pickup_at?: string | null; // ISO datetime
 }
 
 export interface OrderItem {
@@ -110,6 +113,7 @@ export interface Order {
   delivery_vehicle_info: string | null;
   created_at: string;
   updated_at: string;
+  scheduled_pickup_at: string | null;
   items?: OrderItem[];
 }
 

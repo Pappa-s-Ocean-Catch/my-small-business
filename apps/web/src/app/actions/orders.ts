@@ -2,6 +2,7 @@
 
 import { createServiceRoleClient, createServerSupabaseClient } from '@my-small-business/supabase/server';
 import { CartItemData } from './cart';
+import { buildDefaultStoreHours, isPickupTimeWithinHours, isStoreOpenNow } from '@/lib/store-hours';
 import type {
   Order,
   OrderItem,
@@ -9,6 +10,7 @@ import type {
   DeliveryAddressInput,
   OrderStatus,
   PaymentStatus,
+  StoreHours,
 } from '@my-small-business/types';
 
 // Extend OrderInput to include CartItemData for web app
@@ -39,6 +41,9 @@ export interface OrderInput {
   // Promotions
   promotion_discount?: number;
   promotions_applied?: any[];
+
+  /** When the customer wants to pick up (for pickup orders). Required when ordering outside open hours (pre-order). */
+  scheduled_pickup_at?: string | null;
 }
 
 // Note: Types are no longer re-exported here
@@ -57,6 +62,91 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
 
     if (!input.items || input.items.length === 0) {
       return { data: null, error: 'Order must contain at least one item' };
+    }
+
+    // Pickup-time rules:
+    // - If store is closed now: customer must pre-order and choose scheduled_pickup_at
+    // - If scheduled_pickup_at is provided: it must fall within store opening hours
+    if (input.order_type === 'pickup') {
+      const [storeHoursRes, defaultsRes] = await Promise.all([
+        supabase.from('settings').select('value').eq('key', 'store_hours').maybeSingle(),
+        supabase.from('settings').select('value').eq('key', 'defaults').maybeSingle(),
+      ]);
+
+      if (storeHoursRes.error) {
+        console.error('[createOrder] Failed to load store_hours:', storeHoursRes.error);
+        return {
+          data: null,
+          error: 'Failed to load store hours. Please try again. If the problem persists, ask staff to check Settings → Store opening hours.',
+        };
+      }
+
+      if (defaultsRes.error) {
+        console.error('[createOrder] Failed to load defaults settings:', defaultsRes.error);
+        return {
+          data: null,
+          error: 'Failed to load store settings. Please try again. If the problem persists, ask staff to check Settings.',
+        };
+      }
+
+      const storeHoursValue = storeHoursRes.data?.value as StoreHours | undefined;
+      const defaultsValue = defaultsRes.data?.value as { store_open_time?: string; store_close_time?: string } | undefined;
+
+      const storeHours: StoreHours =
+        storeHoursValue && typeof storeHoursValue === 'object'
+          ? storeHoursValue
+          : buildDefaultStoreHours(defaultsValue?.store_open_time ?? '10:00', defaultsValue?.store_close_time ?? '21:00');
+
+      const isOpenNow = isStoreOpenNow(storeHours);
+
+      if (!isOpenNow && !input.scheduled_pickup_at) {
+        return { data: null, error: 'Store is currently closed. Please choose a pickup time to pre-order.' };
+      }
+
+      if (input.scheduled_pickup_at && !isPickupTimeWithinHours(storeHours, input.scheduled_pickup_at)) {
+        return { data: null, error: 'Selected pickup time must be within store opening hours.' };
+      }
+
+      // Enforce that pre-orders are only for next-day pickup (no multi-day future scheduling).
+      if (input.scheduled_pickup_at) {
+        const melbourneFormatter = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Australia/Melbourne',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        });
+
+        const now = new Date();
+        const scheduled = new Date(input.scheduled_pickup_at);
+
+        const todayParts = melbourneFormatter.formatToParts(now);
+        const schedParts = melbourneFormatter.formatToParts(scheduled);
+
+        const getYMD = (parts: Intl.DateTimeFormatPart[]) => {
+          const y = Number(parts.find((p) => p.type === 'year')?.value ?? '0');
+          const m = Number(parts.find((p) => p.type === 'month')?.value ?? '1');
+          const d = Number(parts.find((p) => p.type === 'day')?.value ?? '1');
+          return { y, m, d };
+        };
+
+        const t = getYMD(todayParts);
+        const s = getYMD(schedParts);
+
+        const todayUtc = Date.UTC(t.y, t.m - 1, t.d);
+        const schedUtc = Date.UTC(s.y, s.m - 1, s.d);
+        const diffDays = Math.round((schedUtc - todayUtc) / (1000 * 60 * 60 * 24));
+
+        if (diffDays < 0) {
+          return { data: null, error: 'Pickup time must be in the future.' };
+        }
+
+        if (diffDays > 1) {
+          return {
+            data: null,
+            error: 'Pre-order is only supported for next-day pickup. Please choose tomorrow as your pickup date.',
+          };
+        }
+      }
     }
 
     // Create order
@@ -79,6 +169,7 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
       reward_points_used: input.reward_points_used ?? null,
       reward_points_value: input.reward_points_value ?? null,
       special_instructions: input.special_instructions || null,
+      scheduled_pickup_at: input.scheduled_pickup_at ?? null,
     };
 
     // Add delivery fields if order type is delivery

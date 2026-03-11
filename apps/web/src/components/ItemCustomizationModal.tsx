@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { FaCheck, FaDollarSign, FaTimes, FaMinus, FaPlus } from 'react-icons/fa';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
 import type { AddonGroupWithItems } from '@/app/actions/addons';
 import { getAddonGroup, getSaleProductAddonGroups } from '@/app/actions/addons';
-import type { CartAddonGroup, CartAddonItem } from '@/contexts/CartContext';
+import type { CartAddonGroup, CartAddonItem, CartItem } from '@/contexts/CartContext';
 import { ActionButton } from './ActionButton';
 import { Icon } from '@/components/Icon';
 import Modal from './Modal';
@@ -36,9 +36,12 @@ interface ItemCustomizationModalProps {
     image_url: string | null;
   };
   onAddToCart: (customizations: CartAddonGroup[], comment?: string | null, removedIngredients?: string[], quantity?: number) => void;
+  /** When set, modal opens in edit mode: form is pre-filled and submit calls onUpdateCartItem instead of onAddToCart */
+  existingCartItem?: CartItem | null;
+  onUpdateCartItem?: (cartItemId: string, addonGroups: CartAddonGroup[], comment: string | null, removedIngredients: string[], quantity: number) => void;
 }
 
-export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart }: ItemCustomizationModalProps) {
+export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart, existingCartItem = null, onUpdateCartItem }: ItemCustomizationModalProps) {
   const [addonGroups, setAddonGroups] = useState<AddonGroupWithItems[]>([]);
   const [bundleIncludes, setBundleIncludes] = useState<BundleIncludeRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,14 +51,17 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart }
   const [errors, setErrors] = useState<string[]>([]);
   const [comment, setComment] = useState<string>('');
   const [quantity, setQuantity] = useState<number>(1);
+  const appliedEditRef = useRef(false);
 
   useEffect(() => {
     if (isOpen && product.id) {
+      appliedEditRef.current = false;
       void loadDetails();
       return;
     }
 
     // Reset when modal closes
+    appliedEditRef.current = false;
     setSelectedAddons({});
     setErrors([]);
     setComment('');
@@ -65,6 +71,24 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart }
     setRemovableIngredients([]);
     setSelectedRemovedIngredientIds([]);
   }, [isOpen, product.id]);
+
+  // Pre-fill form when opening in edit mode (after addons/ingredients are loaded)
+  useEffect(() => {
+    if (!isOpen || !existingCartItem || loading) return;
+    if (appliedEditRef.current) return;
+    appliedEditRef.current = true;
+    setQuantity(Math.max(1, Math.min(99, existingCartItem.quantity)));
+    setComment(existingCartItem.comment ?? '');
+    const addons: Record<string, string[]> = {};
+    existingCartItem.addon_groups.forEach((g) => {
+      addons[g.id] = g.selected_items.map((i) => i.id);
+    });
+    setSelectedAddons(addons);
+    const ids = removableIngredients
+      .filter((ri) => existingCartItem.removed_ingredients.includes(ri.ingredient_name))
+      .map((ri) => ri.id);
+    setSelectedRemovedIngredientIds(ids);
+  }, [isOpen, existingCartItem, loading, removableIngredients]);
 
   const loadDetails = async () => {
     setLoading(true);
@@ -223,7 +247,11 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart }
       .map((ingredient) => ingredient.ingredient_name);
 
     const qty = Math.max(1, Math.min(99, quantity));
-    onAddToCart(cartAddonGroups, comment.trim() || null, removedIngredientNames, qty);
+    if (existingCartItem && onUpdateCartItem) {
+      onUpdateCartItem(existingCartItem.id, cartAddonGroups, comment.trim() || null, removedIngredientNames, qty);
+    } else {
+      onAddToCart(cartAddonGroups, comment.trim() || null, removedIngredientNames, qty);
+    }
     onClose();
   };
 
@@ -260,11 +288,13 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart }
     );
   };
 
+  const isEditMode = Boolean(existingCartItem && onUpdateCartItem);
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={`Customize ${product.name}`}
+      title={isEditMode ? `Edit ${product.name}` : `Customize ${product.name}`}
       size="lg"
       bodyClassName="px-6 sm:px-8 pt-6 sm:pt-8"
       footer={
@@ -283,7 +313,7 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart }
               Cancel
             </button>
             <ActionButton onClick={handleAddToCart} icon={<Icon icon={FaCheck} />}>
-              Add to Cart
+              {isEditMode ? 'Update Item' : 'Add to Cart'}
             </ActionButton>
           </div>
         </div>

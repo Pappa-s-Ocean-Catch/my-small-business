@@ -50,6 +50,7 @@ export default function CheckoutPage() {
   const [deliveryAddress, setDeliveryAddress] = useState<any>(null);
   const [deliveryQuote, setDeliveryQuote] = useState<any>(null);
   const [deliveryAddressEditable, setDeliveryAddressEditable] = useState(false);
+  const [scheduledPickupAt, setScheduledPickupAt] = useState<string | null>(null);
 
   // Reward points state
   const [userRewardPoints, setUserRewardPoints] = useState<{ current_balance: number } | null>(null);
@@ -64,9 +65,11 @@ export default function CheckoutPage() {
   const [deliveryFee, setDeliveryFee] = useState(0);
   const [serviceFee, setServiceFee] = useState(0);
   const [isRedirecting, setIsRedirecting] = useState(false);
+  // Do not default to showing both options; wait until getFeatureFlags resolves.
+  const [featureFlagsLoaded, setFeatureFlagsLoaded] = useState(false);
   const [featureFlags, setFeatureFlags] = useState({
-    enable_online_payment: true,
-    enable_instore_payment: true,
+    enable_online_payment: false,
+    enable_instore_payment: false,
   });
 
   const [activePromotions, setActivePromotions] = useState<PromotionWithProducts[]>([]);
@@ -128,6 +131,7 @@ export default function CheckoutPage() {
     const storedOrderType = sessionStorage.getItem('orderType') as 'pickup' | 'delivery' | null;
     const storedDeliveryAddress = sessionStorage.getItem('deliveryAddress');
     const storedDeliveryQuote = sessionStorage.getItem('deliveryQuote');
+    const storedScheduledPickupAt = sessionStorage.getItem('scheduledPickupAt');
 
     if (storedOrderType) {
       setOrderType(storedOrderType);
@@ -150,9 +154,13 @@ export default function CheckoutPage() {
         console.error('Error parsing delivery quote:', e);
       }
     }
+
+    if (storedScheduledPickupAt) {
+      setScheduledPickupAt(storedScheduledPickupAt);
+    }
   }, []);
 
-  // Load feature flags
+  // Load feature flags (payment options stay hidden until this completes)
   useEffect(() => {
     const loadFeatureFlags = async () => {
       try {
@@ -160,6 +168,10 @@ export default function CheckoutPage() {
         setFeatureFlags(flags);
       } catch (error) {
         console.error('Error loading feature flags:', error);
+        // Leave both disabled so UI shows "unavailable" after load attempt
+        setFeatureFlags({ enable_online_payment: false, enable_instore_payment: false });
+      } finally {
+        setFeatureFlagsLoaded(true);
       }
     };
     void loadFeatureFlags();
@@ -694,6 +706,11 @@ export default function CheckoutPage() {
         // Note: Points will be deducted when order is created via useRewardPoints action
       }
 
+      // Add scheduled pickup time for pickup orders (optional when store open, set when pre-order or custom time)
+      if (orderType === 'pickup' && scheduledPickupAt) {
+        orderInput.scheduled_pickup_at = scheduledPickupAt;
+      }
+
       // Add delivery fields if order type is delivery
       if (orderType === 'delivery' && deliveryAddress && deliveryQuote) {
         orderInput.delivery_address = {
@@ -869,8 +886,19 @@ export default function CheckoutPage() {
             </div>
           )}
 
-          {/* Payment Method Selection */}
-          {!paymentMethod && (
+          {/* Payment Method Selection – hidden until feature flags load (no flash of wrong options) */}
+          {!paymentMethod && !featureFlagsLoaded && (
+            <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-6">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                Select Payment Method
+              </h2>
+              <div className="flex items-center gap-3 py-8 justify-center text-gray-600 dark:text-gray-400">
+                <LoadingSpinner size="md" />
+                <span className="text-sm">Loading payment options…</span>
+              </div>
+            </div>
+          )}
+          {!paymentMethod && featureFlagsLoaded && (
             <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-6">
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
                 Select Payment Method
@@ -882,29 +910,51 @@ export default function CheckoutPage() {
                   </p>
                 </div>
               ) : null}
-              <div className={`grid gap-4 ${orderType === 'delivery' ? 'grid-cols-1' : featureFlags.enable_online_payment && featureFlags.enable_instore_payment ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'}`}>
-                {featureFlags.enable_online_payment && (
+              <div className={`grid gap-4 ${orderType === 'delivery' ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'}`}>
+                <button
+                  type="button"
+                  disabled={!featureFlags.enable_online_payment}
+                  onClick={() => featureFlags.enable_online_payment && handlePaymentMethodSelect('online')}
+                  className={`p-6 border-2 rounded-lg transition-colors text-left ${
+                    !featureFlags.enable_online_payment
+                      ? 'border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800/50 opacity-75 cursor-not-allowed'
+                      : 'border-gray-200 dark:border-neutral-700 hover:border-blue-600 dark:hover:border-blue-500'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-3">
+                    <Icon icon={FaCreditCard} className={`w-8 h-8 ${!featureFlags.enable_online_payment ? 'text-gray-400 dark:text-gray-500' : 'text-blue-600'}`} />
+                    {!featureFlags.enable_online_payment && (
+                      <span className="text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded">
+                        Currently unavailable
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
+                    Pay Online
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Pay securely online. No account required, but we recommend creating one for faster checkout.
+                  </p>
+                </button>
+                {orderType !== 'delivery' && (
                   <button
                     type="button"
-                    onClick={() => handlePaymentMethodSelect('online')}
-                    className="p-6 border-2 border-gray-200 dark:border-neutral-700 rounded-lg hover:border-blue-600 dark:hover:border-blue-500 transition-colors text-left"
+                    disabled={!featureFlags.enable_instore_payment}
+                    onClick={() => featureFlags.enable_instore_payment && handlePaymentMethodSelect('store')}
+                    className={`p-6 border-2 rounded-lg transition-colors text-left ${
+                      !featureFlags.enable_instore_payment
+                        ? 'border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800/50 opacity-75 cursor-not-allowed'
+                        : 'border-gray-200 dark:border-neutral-700 hover:border-green-600 dark:hover:border-green-500'
+                    }`}
                   >
-                    <Icon icon={FaCreditCard} className="w-8 h-8 text-blue-600 mb-3" />
-                    <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
-                      Pay Online
-                    </h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Pay securely online. No account required, but we recommend creating one for faster checkout.
-                    </p>
-                  </button>
-                )}
-                {orderType !== 'delivery' && featureFlags.enable_instore_payment && (
-                  <button
-                    type="button"
-                    onClick={() => handlePaymentMethodSelect('store')}
-                    className="p-6 border-2 border-gray-200 dark:border-neutral-700 rounded-lg hover:border-blue-600 dark:hover:border-blue-500 transition-colors text-left"
-                  >
-                    <Icon icon={FaStore} className="w-8 h-8 text-green-600 mb-3" />
+                    <div className="flex items-center gap-2 mb-3">
+                      <Icon icon={FaStore} className={`w-8 h-8 ${!featureFlags.enable_instore_payment ? 'text-gray-400 dark:text-gray-500' : 'text-green-600'}`} />
+                      {!featureFlags.enable_instore_payment && (
+                        <span className="text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded">
+                          Currently unavailable
+                        </span>
+                      )}
+                    </div>
                     <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
                       Pay at Store
                     </h3>
@@ -913,10 +963,19 @@ export default function CheckoutPage() {
                     </p>
                   </button>
                 )}
-                {!featureFlags.enable_online_payment && !featureFlags.enable_instore_payment && (
-                  <div className="p-6 border-2 border-gray-200 dark:border-neutral-700 rounded-lg text-center">
-                    <p className="text-gray-600 dark:text-gray-400">
-                      Payment options are currently unavailable. Please contact the store for assistance.
+                {orderType === 'delivery' && (
+                  <div className="p-6 border-2 border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800/50 rounded-lg opacity-75 cursor-not-allowed">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Icon icon={FaStore} className="w-8 h-8 text-gray-400 dark:text-gray-500" />
+                      <span className="text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded">
+                        Not available for delivery
+                      </span>
+                    </div>
+                    <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
+                      Pay at Store
+                    </h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Pay when you pick up your order. Only available for pickup orders.
                     </p>
                   </div>
                 )}
@@ -1049,7 +1108,7 @@ export default function CheckoutPage() {
                       You are currently logged in as a non-customer account ({currentUser?.email}).
                     </p>
                     <p className="text-sm text-amber-800 dark:text-amber-200">
-                      To use "Pay at Store", you need to sign out and create a customer account, or use "Pay Online" instead.
+                      To use &quot;Pay at Store&quot;, you need to sign out and create a customer account{featureFlags.enable_online_payment ? ', or use "Pay Online" instead.' : '.'}
                     </p>
                   </div>
                   <div className="flex gap-3">
@@ -1068,16 +1127,18 @@ export default function CheckoutPage() {
                     >
                       Sign Out
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPaymentMethod('online');
-                        setError(null);
-                      }}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
-                    >
-                      Use Pay Online Instead
-                    </button>
+                    {featureFlags.enable_online_payment && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPaymentMethod('online');
+                          setError(null);
+                        }}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
+                      >
+                        Use Pay Online Instead
+                      </button>
+                    )}
                   </div>
                 </div>
               ) : (
