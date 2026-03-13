@@ -100,10 +100,16 @@ function formatAddonLines(addons?: OrderItemAddon[]): string[] {
   return addons.map((a) => `  + ${a.addon_item_name} (${a.addon_group_name})`);
 }
 
+function formatRemovedLines(removed?: string[] | null): string[] {
+  if (!removed || removed.length === 0) return [];
+  return removed.map((name) => `  - NO ${name}`);
+}
+
 function formatItemLines(item: OrderItem): string[] {
   const lines: string[] = [];
   lines.push(`${item.quantity}x ${item.product_name}`);
   lines.push(...formatAddonLines(item.addons));
+  lines.push(...formatRemovedLines(item.removed_ingredients));
   if (item.comment) lines.push(`  Note: ${item.comment}`);
   return lines;
 }

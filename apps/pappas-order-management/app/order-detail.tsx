@@ -132,6 +132,10 @@ export default function OrderDetailScreen() {
       const addonsHTML = item.addons?.map(addon =>
         `<li>+ ${addon.addon_item_name} (${addon.addon_group_name}) - $${addon.addon_item_price.toFixed(2)}</li>`
       ).join('') || '';
+      const removedHTML =
+        Array.isArray(item.removed_ingredients) && item.removed_ingredients.length > 0
+          ? `<p><em>Removed: ${item.removed_ingredients.join(', ')}</em></p>`
+          : '';
 
       return `
         <tr>
@@ -140,6 +144,7 @@ export default function OrderDetailScreen() {
         </tr>
         ${item.comment ? `<tr><td colspan="2"><em>Note: ${item.comment}</em></td></tr>` : ''}
         ${addonsHTML ? `<tr><td colspan="2"><ul style="margin: 0; padding-left: 20px;">${addonsHTML}</ul></td></tr>` : ''}
+        ${removedHTML ? `<tr><td colspan="2">${removedHTML}</td></tr>` : ''}
       `;
     }).join('') || '';
 
@@ -298,6 +303,11 @@ export default function OrderDetailScreen() {
               </View>
               {item.comment && (
                 <Text style={styles.itemComment}>Note: {item.comment}</Text>
+              )}
+              {Array.isArray(item.removed_ingredients) && item.removed_ingredients.length > 0 && (
+                <Text style={styles.removedText}>
+                  Removed: {item.removed_ingredients.join(', ')}
+                </Text>
               )}
               {item.addons && item.addons.length > 0 && (
                 <View style={styles.addonsContainer}>
@@ -560,6 +570,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     fontStyle: 'italic',
+    marginTop: 4,
+  },
+  removedText: {
+    fontSize: 14,
+    color: '#b45309',
     marginTop: 4,
   },
   addonsContainer: {

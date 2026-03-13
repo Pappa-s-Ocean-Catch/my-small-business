@@ -535,6 +535,10 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
       const addonsHTML = item.addons?.map(addon =>
         `<li>+ ${addon.addon_item_name} (${addon.addon_group_name}) - $${addon.addon_item_price.toFixed(2)}</li>`
       ).join('') || '';
+      const removedHTML =
+        Array.isArray(item.removed_ingredients) && item.removed_ingredients.length > 0
+          ? `<p><em>Removed: ${item.removed_ingredients.join(', ')}</em></p>`
+          : '';
 
       return `
         <tr>
@@ -543,6 +547,7 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
         </tr>
         ${item.comment ? `<tr><td colspan="2"><em>Note: ${item.comment}</em></td></tr>` : ''}
         ${addonsHTML ? `<tr><td colspan="2"><ul style="margin: 0; padding-left: 20px;">${addonsHTML}</ul></td></tr>` : ''}
+        ${removedHTML ? `<tr><td colspan="2">${removedHTML}</td></tr>` : ''}
       `;
     }).join('') || '';
 
@@ -636,6 +641,7 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
     const elapsed = mode === 'live' ? formatElapsed(order.created_at) : null;
     const elapsedColor =
       elapsed && elapsed.minutes < 10 ? '#16a34a' : elapsed && elapsed.minutes < 20 ? '#ca8a04' : '#dc2626';
+    const isPaid = order.payment_status === 'paid';
 
     return (
       <Card style={styles.orderCard} onPress={() => handleOrderPress(order)}>
@@ -648,30 +654,40 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
               </Text>
               <View style={styles.orderMeta}>
                 <Text style={styles.orderType}>{paymentSummary(order)}</Text>
-                {mode === 'live' && elapsed ? (
-                  <View style={[styles.elapsedPill, { backgroundColor: elapsedColor }]}>
-                    <Text style={styles.elapsedText}>{elapsed.text}</Text>
-                  </View>
-                ) : (
-                  <Text style={styles.orderTime}>{new Date(order.created_at).toLocaleTimeString()}</Text>
-                )}
               </View>
             </View>
             <View style={styles.badgesContainer}>
-              <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
-                <Text style={styles.statusText}>{statusLabel}</Text>
-              </View>
-              <View style={[styles.paymentBadge, { backgroundColor: paymentColor }]}>
-                <Text style={styles.paymentText}>{paymentLabel}</Text>
-              </View>
+              {mode === 'live' && elapsed ? (
+                <View style={[styles.elapsedPill, { backgroundColor: elapsedColor }]}>
+                  <Text style={styles.elapsedText}>{elapsed.text}</Text>
+                </View>
+              ) : (
+                <Text style={styles.orderTime}>{new Date(order.created_at).toLocaleTimeString()}</Text>
+              )}
+              <IconButton
+                icon="printer"
+                size={20}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  handlePrint(order);
+                }}
+                accessibilityLabel="Print order"
+              />
             </View>
           </View>
 
-          <View style={styles.orderInfo}>
-            <Text style={styles.orderTotal}>${order.total.toFixed(2)}</Text>
-          </View>
-
-          <View style={styles.quickActions}>
+          <View style={styles.orderInfoRow}>
+            <View style={styles.orderInfoLeft}>
+              <Text
+                style={[
+                  styles.paymentAttention,
+                  isPaid ? styles.paymentAttentionPaid : styles.paymentAttentionUnpaid,
+                ]}
+              >
+                {isPaid ? 'PAID' : 'UNPAID'}
+              </Text>
+              <Text style={styles.orderTotal}>${order.total.toFixed(2)}</Text>
+            </View>
             {enableStatusUpdates && quickAction && (
               <PaperButton
                 mode="contained"
@@ -680,34 +696,12 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
                   handleQuickAction(order.id, quickAction.action as 'accept' | 'prepare' | 'ready' | 'completed');
                 }}
                 disabled={updatingStatus === order.id}
-                style={styles.paperInlineButton}
-                contentStyle={styles.paperInlineButtonContent}
+                style={styles.bodyQuickButton}
+                contentStyle={styles.bodyQuickButtonContent}
               >
                 {quickAction.label}
               </PaperButton>
             )}
-            <PaperButton
-              mode="outlined"
-              onPress={(e) => {
-                e.stopPropagation();
-                handleViewOrder(order.id);
-              }}
-              style={styles.paperInlineButton}
-              contentStyle={styles.paperInlineButtonContent}
-            >
-              View
-            </PaperButton>
-            <PaperButton
-              mode="outlined"
-              onPress={(e) => {
-                e.stopPropagation();
-                handlePrint(order);
-              }}
-              style={styles.paperInlineButton}
-              contentStyle={styles.paperInlineButtonContent}
-            >
-              Print
-            </PaperButton>
           </View>
 
           <View style={styles.statusControls}>
@@ -746,18 +740,22 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
                     e.stopPropagation();
                     if (!enableStatusUpdates) return;
                     Alert.alert(
-                      'Update Payment Status',
-                      'Select new payment status',
+                      'Mark payment as paid',
+                      'Select payment method',
                       [
-                        ...Object.entries(PAYMENT_STATUS_LABELS).map(([status, label]) => ({
-                          text: label,
-                          onPress: () => handlePaymentStatusUpdate(order.id, status as PaymentStatus),
-                        })),
+                        {
+                          text: 'Card',
+                          onPress: () => handlePaymentStatusUpdate(order.id, 'paid'),
+                        },
+                        {
+                          text: 'Cash',
+                          onPress: () => handlePaymentStatusUpdate(order.id, 'paid'),
+                        },
                         { text: 'Cancel', style: 'cancel' },
                       ]
                     );
                   }}
-                  disabled={updatingStatus === order.id || !enableStatusUpdates}
+                  disabled={updatingStatus === order.id || !enableStatusUpdates || order.payment_status === 'paid'}
                 >
                   <Text style={styles.statusSelectText}>{paymentLabel}</Text>
                 </TouchableOpacity>
@@ -1084,6 +1082,11 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
                         <Text style={styles.modalItemPrice}>${item.subtotal.toFixed(2)}</Text>
                         {item.comment && (
                           <Text style={styles.modalItemComment}>Note: {item.comment}</Text>
+                        )}
+                        {Array.isArray(item.removed_ingredients) && item.removed_ingredients.length > 0 && (
+                          <Text style={styles.modalRemovedText}>
+                            Removed: {item.removed_ingredients.join(', ')}
+                          </Text>
                         )}
                         {item.addons && item.addons.length > 0 && (
                           <View style={styles.modalAddonsContainer}>
@@ -1462,6 +1465,12 @@ const styles = StyleSheet.create({
   badgesContainer: {
     alignItems: 'flex-end',
     gap: 6,
+    flexDirection: 'row',
+  },
+  badgesRow: {
+    flexDirection: 'row',
+    gap: 6,
+    alignItems: 'center',
   },
   statusBadge: {
     paddingHorizontal: 12,
@@ -1483,11 +1492,29 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  orderInfo: {
+  orderInfoRow: {
     marginBottom: 12,
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#e5e5e5',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  orderInfoLeft: {
+    flexShrink: 1,
+  },
+  paymentAttention: {
+    fontSize: 14,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  paymentAttentionPaid: {
+    color: '#16a34a',
+  },
+  paymentAttentionUnpaid: {
+    color: '#dc2626',
   },
   orderTotal: {
     fontSize: 20,
@@ -1498,6 +1525,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     marginBottom: 12,
+  },
+  bodyQuickButton: {
+    borderRadius: 999,
+    marginRight: 0,
+  },
+  bodyQuickButtonContent: {
+    paddingHorizontal: 12,
+    paddingVertical: 2,
   },
   quickActionButton: {
     flex: 1,
@@ -1686,6 +1721,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     fontStyle: 'italic',
+    marginTop: 4,
+  },
+  modalRemovedText: {
+    fontSize: 14,
+    color: '#b45309',
     marginTop: 4,
   },
   modalAddonsContainer: {

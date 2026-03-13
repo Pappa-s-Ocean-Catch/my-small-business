@@ -133,6 +133,32 @@ function OrderConfirmationContent() {
     fetchOrder();
   }, [orderNumber, orderId, sessionId]);
 
+  // Auto-refresh open orders every 10s to keep status live
+  useEffect(() => {
+    if (!order) return;
+    if (order.order_status === 'completed' || order.order_status === 'cancelled') return;
+
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const result = await getOrder(order.id);
+        if (cancelled) return;
+        if (result.data) {
+          setOrder(result.data);
+        }
+      } catch (err) {
+        console.error('[Confirmation] Polling error:', err);
+      }
+    };
+
+    const id = window.setInterval(poll, 10_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [order]);
+
   // Clear cart once we have a confirmed order (so shopping cart empties after success)
   useEffect(() => {
     if (order && !clearedCartRef.current) {
@@ -172,6 +198,16 @@ function OrderConfirmationContent() {
       </div>
     );
   }
+
+  const statusSteps: { id: Order['order_status']; label: string }[] = [
+    { id: 'pending', label: 'Pending' },
+    { id: 'confirmed', label: 'Accepted' },
+    { id: 'preparing', label: 'Cooking' },
+    { id: 'ready', label: 'Ready' },
+    { id: 'completed', label: 'Collected' },
+  ];
+
+  const currentStepIndex = statusSteps.findIndex((s) => s.id === order.order_status);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-neutral-900">
@@ -259,6 +295,55 @@ function OrderConfirmationContent() {
             </div>
           </div>
 
+          {/* Live Status Tracker */}
+          <div className="mt-4">
+            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+              Order Progress
+            </h3>
+            <div className="flex items-center justify-between gap-2">
+              {statusSteps.map((step, index) => {
+                const isDone = currentStepIndex > index;
+                const isCurrent = currentStepIndex === index;
+                const isFuture = currentStepIndex < index;
+                const baseCircle =
+                  'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold';
+                const circleClass = isDone
+                  ? 'bg-green-600 text-white'
+                  : isCurrent
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-300';
+
+                return (
+                  <div key={step.id} className="flex-1 flex flex-col items-center">
+                    <div className="flex items-center w-full">
+                      {index > 0 && (
+                        <div
+                          className={`flex-1 h-1 ${
+                            isDone ? 'bg-green-500' : isCurrent ? 'bg-blue-500' : 'bg-gray-200 dark:bg-gray-700'
+                          }`}
+                        />
+                      )}
+                      <div className={`${baseCircle} ${circleClass}`}>
+                        {index + 1}
+                      </div>
+                      {index < statusSteps.length - 1 && (
+                        <div className="flex-1 h-1 bg-gray-200 dark:bg-gray-700" />
+                      )}
+                    </div>
+                    <div className="mt-2 text-xs text-center text-gray-700 dark:text-gray-200">
+                      {step.label}
+                    </div>
+                    {!isFuture && (
+                      <div className="sr-only">
+                        {isCurrent ? 'Current step' : 'Completed step'}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           {order.special_instructions && (
             <div className="mb-6">
               <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
@@ -275,36 +360,57 @@ function OrderConfirmationContent() {
                 Order Items
               </h3>
               <div className="space-y-4">
-                {order.items.map((item, index) => (
-                  <div
-                    key={index}
-                    className="flex gap-4 pb-4 border-b border-gray-200 dark:border-neutral-700 last:border-0 last:pb-0"
-                  >
-                    {item.product_image_url && (
-                      <img
-                        src={item.product_image_url}
-                        alt={item.product_name}
-                        className="w-20 h-20 object-cover rounded-lg"
-                      />
-                    )}
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-gray-900 dark:text-white mb-1">
-                        {item.product_name}
-                      </h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                        Quantity: {item.quantity} × ${item.base_price.toFixed(2)}
-                      </p>
-                      {item.comment && (
-                        <p className="text-sm text-gray-500 dark:text-gray-500 italic">
-                          Note: {item.comment}
-                        </p>
+                {order.items.map((item, index) => {
+                  const addons = (item as any).addons as any[] | undefined;
+                  const removed = (item as any).removed_ingredients as string[] | undefined;
+                  return (
+                    <div
+                      key={index}
+                      className="flex gap-4 pb-4 border-b border-gray-200 dark:border-neutral-700 last:border-0 last:pb-0"
+                    >
+                      {item.product_image_url && (
+                        <img
+                          src={item.product_image_url}
+                          alt={item.product_name}
+                          className="w-20 h-20 object-cover rounded-lg"
+                        />
                       )}
-                      <p className="text-lg font-semibold text-gray-900 dark:text-white mt-2">
-                        ${item.subtotal.toFixed(2)}
-                      </p>
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-gray-900 dark:text-white mb-1">
+                          {item.product_name}
+                        </h4>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                          Quantity: {item.quantity} × ${item.base_price.toFixed(2)}
+                        </p>
+                        {Array.isArray(addons) && addons.length > 0 && (
+                          <div className="text-xs text-gray-700 dark:text-gray-300 mb-1">
+                            <span className="font-semibold">Add-ons:</span>{' '}
+                            {addons.map((addon, idx) => (
+                              <span key={addon.id ?? idx}>
+                                {addon.addon_item_name}
+                                {addon.addon_group_name ? ` (${addon.addon_group_name})` : ''}
+                                {idx < addons.length - 1 ? ', ' : ''}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {Array.isArray(removed) && removed.length > 0 && (
+                          <p className="text-xs text-amber-700 dark:text-amber-300 mb-1">
+                            <span className="font-semibold">Removed:</span> {removed.join(', ')}
+                          </p>
+                        )}
+                        {item.comment && (
+                          <p className="text-sm text-gray-500 dark:text-gray-500 italic">
+                            Note: {item.comment}
+                          </p>
+                        )}
+                        <p className="text-lg font-semibold text-gray-900 dark:text-white mt-2">
+                          ${item.subtotal.toFixed(2)}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

@@ -9,6 +9,8 @@ import type { CartAddonGroup } from '@/contexts/CartContext';
 import { ActionButton } from '@/components/ActionButton';
 import { Icon } from '@/components/Icon';
 import { FaFire, FaUtensils } from 'react-icons/fa';
+import { CartSidebar } from '@/components/CartSidebar';
+import { toast } from 'react-toastify';
 
 export type SaleProductForDetails = {
     id: string;
@@ -82,6 +84,7 @@ export default function ProductDetailsClient(props: {
         });
 
         setShowCustomize(false);
+        toast.success('Added to cart');
     };
 
     const handleAddHotSellerToCart = (customizations: CartAddonGroup[], comment?: string | null, removedIngredients?: string[], quantity?: number) => {
@@ -101,6 +104,7 @@ export default function ProductDetailsClient(props: {
         });
 
         setCustomizingProduct(null);
+        toast.success('Added to cart');
     };
 
     const seoText = product.seo_text?.trim();
@@ -282,6 +286,9 @@ export default function ProductDetailsClient(props: {
                     onAddToCart={handleAddHotSellerToCart}
                 />
             )}
+
+            {/* Cart Sidebar (floating cart button + drawer) */}
+            <CartSidebar />
         </div>
     );
 }

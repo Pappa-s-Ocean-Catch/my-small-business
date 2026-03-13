@@ -74,6 +74,9 @@ export async function getAllOrders(filters?: {
 
           orderItems.push({
             ...item,
+            base_price: Number(item.base_price),
+            subtotal: Number(item.subtotal),
+            removed_ingredients: (item.removed_ingredients as string[] | null) || [],
             addons: addons || undefined,
           } as OrderItem);
         }
@@ -139,6 +142,9 @@ export async function getOrder(orderId: string): Promise<{ data: Order | null; e
 
         orderItems.push({
           ...item,
+          base_price: Number(item.base_price),
+          subtotal: Number(item.subtotal),
+          removed_ingredients: (item.removed_ingredients as string[] | null) || [],
           addons: addons || undefined,
         } as OrderItem);
       }
