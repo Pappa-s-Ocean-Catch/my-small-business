@@ -18,6 +18,7 @@ interface FeaturedProduct {
   description: string | null;
   sale_price: number;
   image_url: string | null;
+  slug?: string | null;
 }
 
 interface ContactFormData {
@@ -50,7 +51,7 @@ export default function Home() {
         // Fetch featured products marked with is_featured flag
         const { data, error } = await supabase
           .from("sale_products")
-          .select("id, name, description, sale_price, image_url")
+          .select("id, name, description, sale_price, image_url, slug")
           .eq("is_active", true)
           .eq("is_featured", true)
           .not("image_url", "is", null)
@@ -304,9 +305,11 @@ export default function Home() {
             ) : featuredProducts.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {featuredProducts.map((product) => (
-                  <div
+                  <Link
                     key={product.id}
-                    className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow group"
+                    href={`/order/product/${product.slug?.trim() ? product.slug.trim() : product.id}`}
+                    aria-label={`View details for ${product.name}`}
+                    className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow group block focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
                   >
                     <div className="relative h-64 overflow-hidden">
                       {product.image_url && !imageErrors.has(product.id) ? (
@@ -340,16 +343,13 @@ export default function Home() {
                         <span className="text-2xl font-bold text-rose-600">
                           ${product.sale_price.toFixed(2)}
                         </span>
-                        <Link
-                          href="/menu"
-                          className="text-rose-600 hover:text-rose-700 font-semibold flex items-center gap-1"
-                        >
+                        <span className="text-rose-600 group-hover:text-rose-700 font-semibold flex items-center gap-1">
                           View Details
                           <Icon icon={FaArrowRight} className="w-4 h-4" />
-                        </Link>
+                        </span>
                       </div>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             ) : (
