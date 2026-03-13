@@ -4,10 +4,13 @@ import { StyleSheet } from 'react-native';
 import { MD3LightTheme, PaperProvider } from 'react-native-paper';
 import { supabase } from '../lib/supabase';
 import { isAdminUser } from '../lib/auth';
+import { OfflineAttentionOverlay } from '../lib/KitchenAlertOverlay';
+import { useKeepAwake } from 'expo-keep-awake';
 
 export default function RootLayout() {
   const router = useRouter();
   const segments = useSegments();
+  useKeepAwake();
 
   useEffect(() => {
     let cancelled = false;
@@ -51,7 +54,7 @@ export default function RootLayout() {
       }
 
       if (currentSegment === 'login' || !currentSegment) {
-        router.replace('/(tabs)/orders');
+        router.replace('/(tabs)/live-orders');
       }
     };
 
@@ -78,6 +81,7 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="order-detail" />
       </Stack>
+      <OfflineAttentionOverlay appName="Pappas Order" />
     </PaperProvider>
   );
 }

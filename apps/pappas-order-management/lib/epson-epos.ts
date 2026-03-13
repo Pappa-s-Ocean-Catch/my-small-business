@@ -61,6 +61,15 @@ function formatOrderHeaderLines(order: Order): string[] {
   lines.push(`ORDER #${order.order_number}`);
   lines.push(created.toLocaleString());
   lines.push(`${order.order_type === 'delivery' ? 'DELIVERY' : 'PICKUP'}  •  ${order.payment_method.toUpperCase()}`);
+
+  // Highlight scheduled pickup time for pre-orders so the kitchen can see it clearly.
+  if (order.order_type === 'pickup' && order.scheduled_pickup_at) {
+    const scheduled = new Date(order.scheduled_pickup_at);
+    lines.push('');
+    lines.push('PICKUP TIME (PRE-ORDER):');
+    lines.push(scheduled.toLocaleString());
+  }
+
   lines.push('');
 
   const customer = order.customer_name || order.customer_email;

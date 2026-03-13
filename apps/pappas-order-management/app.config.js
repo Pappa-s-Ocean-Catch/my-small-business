@@ -20,6 +20,9 @@ module.exports = {
       bundleIdentifier: 'com.pappas.orderManagement',
     },
     android: {
+      // Explicit Android launcher icons (some devices ignore the root `icon`).
+      icon: './assets/icon.png',
+      roundIcon: './assets/icon.png',
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon.png',
         backgroundColor: '#ffffff',

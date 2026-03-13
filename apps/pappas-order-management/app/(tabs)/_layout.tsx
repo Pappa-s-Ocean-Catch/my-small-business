@@ -26,15 +26,15 @@ export default function TabsLayout() {
           <Appbar.Action icon="logout" onPress={handleLogout} iconColor="#fff" />
         ),
         tabBarIcon: ({ color, size, focused }) => {
-          const name =
-            route.name === 'orders'
-              ? focused
-                ? 'receipt'
-                : 'receipt-outline'
-              : focused
-                ? 'settings'
-                : 'settings-outline';
-          return <Ionicons name={name as any} size={size} color={color} />;
+          let iconName: string;
+          if (route.name === 'live-orders') {
+            iconName = focused ? 'speedometer' : 'speedometer-outline';
+          } else if (route.name === 'orders') {
+            iconName = focused ? 'receipt' : 'receipt-outline';
+          } else {
+            iconName = focused ? 'settings' : 'settings-outline';
+          }
+          return <Ionicons name={iconName as any} size={size} color={color} />;
         },
         tabBarStyle: {
           backgroundColor: '#fff',
@@ -46,10 +46,17 @@ export default function TabsLayout() {
       })}
     >
       <Tabs.Screen
+        name="live-orders"
+        options={{
+          title: 'Live Orders',
+          tabBarLabel: 'Live',
+        }}
+      />
+      <Tabs.Screen
         name="orders"
         options={{
-          title: 'Orders',
-          tabBarLabel: 'Orders',
+          title: 'Order History',
+          tabBarLabel: 'History',
         }}
       />
       <Tabs.Screen

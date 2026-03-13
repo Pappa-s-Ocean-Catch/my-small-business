@@ -3,9 +3,11 @@
 import { Resend } from 'resend';
 import { ShiftReminderEmail } from '@/emails/ShiftReminder';
 import { MagicLinkInviteEmail } from '@/emails/MagicLinkInvite';
+import { OrderReadyEmail } from '@/emails/OrderReady';
 import { createServiceRoleClient } from '@my-small-business/supabase/server';
 import { format } from 'date-fns';
 import { getBrandSettings } from '@/lib/brand-settings';
+import type { Order } from '@my-small-business/types';
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
@@ -58,6 +60,51 @@ export async function sendShiftReminder(
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
+export async function sendOrderReadyEmail(order: Order) {
+  try {
+    if (!resend || !process.env.RESEND_API_KEY) {
+      throw new Error('RESEND_API_KEY is not configured');
+    }
+
+    if (!order.customer_email) {
+      throw new Error('Order has no customer_email');
+    }
+
+    const brandSettings = await getBrandSettings();
+    const businessName = brandSettings?.business_name || 'OperateFlow';
+    const logoUrl = brandSettings?.logo_url;
+
+    const emailTo = getEmailOverride(order.customer_email);
+    const emailFrom = process.env.EMAIL_FROM!;
+
+    const { data, error } = await resend.emails.send({
+      from: emailFrom,
+      to: [emailTo],
+      subject: `Your order #${order.order_number} is ready`,
+      react: OrderReadyEmail({
+        customerName: order.customer_name,
+        orderNumber: order.order_number,
+        pickupType: order.order_type === 'delivery' ? 'delivery' : 'pickup',
+        businessName,
+        logoUrl: logoUrl || undefined,
+      }),
+    });
+
+    if (error) {
+      console.error('Error sending order ready email:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, messageId: data?.id };
+  } catch (error) {
+    console.error('Error in sendOrderReadyEmail:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
     };
   }
 }

@@ -143,6 +143,11 @@ export default function OrderDetailScreen() {
       `;
     }).join('') || '';
 
+    const pickupTimeHTML =
+      order.order_type === 'pickup' && order.scheduled_pickup_at
+        ? `<p><strong>Pickup time (pre-order):</strong> ${new Date(order.scheduled_pickup_at).toLocaleString()}</p>`
+        : '';
+
     return `
       <!DOCTYPE html>
       <html>
@@ -167,6 +172,7 @@ export default function OrderDetailScreen() {
             <p><strong>Type:</strong> ${order.order_type === 'delivery' ? 'Delivery' : 'Pickup'}</p>
             <p><strong>Status:</strong> ${STATUS_LABELS[order.order_status]}</p>
             <p><strong>Time:</strong> ${new Date(order.created_at).toLocaleString()}</p>
+            ${pickupTimeHTML}
             ${order.order_type === 'delivery' && order.delivery_address_line1 ? `
               <p><strong>Delivery Address:</strong><br>
               ${order.delivery_address_line1}<br>
@@ -245,7 +251,7 @@ export default function OrderDetailScreen() {
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Type:</Text>
             <Text style={styles.infoValue}>
-              {order.order_type === 'delivery' ? '🚚 Delivery' : '🏪 Pickup'}
+              {order.order_type === 'delivery' ? 'Delivery' : 'Pickup'}
             </Text>
           </View>
           <View style={styles.infoRow}>
