@@ -27,6 +27,9 @@ export function CartSidebar() {
 
   const total = getTotal();
   const totalLabel = `$${total.toFixed(2)}`;
+  const itemCount = items.reduce((sum, i) => sum + i.quantity, 0);
+  const subtotalExGst = total / 1.1;
+  const gstAmount = total - subtotalExGst;
 
   if (items.length === 0 && !isOpen) {
     return (
@@ -248,14 +251,29 @@ export function CartSidebar() {
               )}
             </div>
 
-            {/* Footer */}
+            {/* Footer - Order Summary */}
             {items.length > 0 && (
               <div className="border-t border-gray-200 dark:border-neutral-700 p-4 space-y-3">
-                <div className="flex items-center justify-between text-lg font-semibold">
-                  <span className="text-gray-900 dark:text-white">Total:</span>
-                  <span className="text-green-600 dark:text-green-400">
-                    ${getTotal().toFixed(2)}
-                  </span>
+                <h3 className="font-semibold text-gray-900 dark:text-white">Order Summary</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between text-gray-600 dark:text-gray-400">
+                    <span>Items</span>
+                    <span>{itemCount}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-600 dark:text-gray-400">
+                    <span>Subtotal</span>
+                    <span>${subtotalExGst.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-600 dark:text-gray-400">
+                    <span>GST (10%)</span>
+                    <span>${gstAmount.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center pt-2 border-t border-gray-200 dark:border-neutral-700 text-base font-semibold">
+                    <span className="text-gray-900 dark:text-white">Total</span>
+                    <span className="text-green-600 dark:text-green-400">
+                      ${total.toFixed(2)}
+                    </span>
+                  </div>
                 </div>
                 <button
                   onClick={handleCheckout}

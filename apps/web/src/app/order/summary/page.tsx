@@ -84,6 +84,9 @@ export default function OrderSummaryPage() {
   const serviceFee = 0;
   const tax = 0;
   const total = subtotal + deliveryFee + serviceFee + tax;
+  const itemCount = items.reduce((sum, i) => sum + i.quantity, 0);
+  const subtotalExGst = total / 1.1;
+  const gstAmount = total - subtotalExGst;
 
   // Check feature flags and auth status
   useEffect(() => {
@@ -742,7 +745,7 @@ export default function OrderSummaryPage() {
               <div className="space-y-3 mb-6">
                 <div className="flex justify-between text-gray-600 dark:text-gray-400">
                   <span>Items</span>
-                  <span>${cartSubtotal.toFixed(2)}</span>
+                  <span>{itemCount}</span>
                 </div>
                 {promotionDiscount > 0.009 && (
                   <div className="flex justify-between text-green-700 dark:text-green-300">
@@ -752,7 +755,7 @@ export default function OrderSummaryPage() {
                 )}
                 <div className="flex justify-between text-gray-600 dark:text-gray-400">
                   <span>Subtotal</span>
-                  <span>${subtotal.toFixed(2)}</span>
+                  <span>${subtotalExGst.toFixed(2)}</span>
                 </div>
                 {orderType === 'delivery' && deliveryFee > 0 && (
                   <div className="flex justify-between text-gray-600 dark:text-gray-400">
@@ -774,6 +777,10 @@ export default function OrderSummaryPage() {
                     <span>${serviceFee.toFixed(2)}</span>
                   </div>
                 )}
+                <div className="flex justify-between text-gray-600 dark:text-gray-400">
+                  <span>GST (10%)</span>
+                  <span>${gstAmount.toFixed(2)}</span>
+                </div>
                 {tax > 0 && (
                   <div className="flex justify-between text-gray-600 dark:text-gray-400">
                     <span>Tax</span>
@@ -837,7 +844,7 @@ export default function OrderSummaryPage() {
                   <Icon icon={FaCheck} className="w-4 h-4 text-green-600 mt-0.5" />
                   <div>
                     <p className="font-medium mb-1">Secure Checkout</p>
-                    <p className="text-xs">Your payment information is secure and encrypted</p>
+                    <p className="text-xs">We use Stripe for payments. We never see or store your card details—payment is secure and encrypted by Stripe.</p>
                   </div>
                 </div>
               </div>
