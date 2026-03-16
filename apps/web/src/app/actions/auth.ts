@@ -2,7 +2,12 @@
 
 import { createServiceRoleClient } from "@my-small-business/supabase/server";
 
-export async function canSendMagicLink(email: string) {
+export type MagicLinkCheck = {
+  allowed: boolean;
+  reason?: string;
+};
+
+export async function canSendMagicLink(email: string): Promise<MagicLinkCheck> {
   // Public customers should be able to sign in with a magic link.
   // Security for admin/staff is enforced via profiles.role_slug and invitations /
   // triggers in the database, so we don't need to gate magic-link sending here.
@@ -14,7 +19,7 @@ export async function canSendMagicLink(email: string) {
   //
   // Therefore, always allow sending a magic link for any email.
   const _ = email; // keep signature for future logging/metrics if needed
-  return { allowed: true } as const;
+  return { allowed: true };
 }
 
 
