@@ -208,7 +208,7 @@ export default function Home() {
                 {homePromotions[0].home_title || homePromotions[0].title}
               </div>
             )}
-            <h1 className="text-4xl md:text-7xl font-bold text-white mb-4 md:mb-6 drop-shadow-lg min-h-[1.2em]">
+            <h1 className="hidden text-4xl md:text-7xl font-bold text-white mb-4 md:mb-6 drop-shadow-lg min-h-[1.2em]">
               <TypewriterText
                 text="Welcome to Pappa's Ocean Catch"
                 speed={80}
@@ -261,7 +261,7 @@ export default function Home() {
                 rel="noopener noreferrer"
                 className="inline-flex items-center justify-center gap-2 px-8 py-3 md:py-4 bg-white/10 backdrop-blur-sm text-white rounded-lg font-semibold text-lg hover:bg-white/20 transition-colors border-2 border-white/30"
               >
-                Order Online
+                Delivery Order
                 <Icon icon={FaArrowRight} className="w-5 h-5" />
               </Link>
             </div>

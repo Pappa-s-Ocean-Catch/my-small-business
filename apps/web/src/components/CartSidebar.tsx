@@ -32,17 +32,13 @@ export function CartSidebar() {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-50 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg transition-all hover:scale-105"
+        className="fixed bottom-6 right-6 z-50 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg transition-all hover:scale-105 flex items-center gap-2"
         aria-label="Open cart"
       >
-        <div className="relative">
-          <Icon icon={FaShoppingCart} className="w-6 h-6" />
-          {total > 0 && (
-            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold rounded-full h-5 px-1.5 flex items-center justify-center min-w-5">
-              {totalLabel}
-            </span>
-          )}
-        </div>
+        <Icon icon={FaShoppingCart} className="w-6 h-6" />
+        {total > 0 && (
+          <span className="text-sm font-semibold">{totalLabel}</span>
+        )}
       </button>
     );
   }
@@ -52,17 +48,13 @@ export function CartSidebar() {
       {/* Cart Button */}
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-50 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg transition-all hover:scale-105"
+        className="fixed bottom-6 right-6 z-50 bg-blue-600 hover:bg-blue-700 text-white rounded-full px-4 py-3 shadow-lg transition-all hover:scale-105 flex items-center gap-2"
         aria-label="Open cart"
       >
-        <div className="relative">
-          <Icon icon={FaShoppingCart} className="w-6 h-6" />
-          {total > 0 && (
-            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold rounded-full h-5 px-1.5 flex items-center justify-center min-w-5">
-              {totalLabel}
-            </span>
-          )}
-        </div>
+        <Icon icon={FaShoppingCart} className="w-6 h-6" />
+        {total > 0 && (
+          <span className="text-sm font-semibold">{totalLabel}</span>
+        )}
       </button>
 
       {/* Cart Sidebar */}

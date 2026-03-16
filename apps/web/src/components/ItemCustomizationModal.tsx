@@ -298,23 +298,25 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart, 
       size="lg"
       bodyClassName="px-6 sm:px-8 pt-6 sm:pt-8"
       footer={
-        <div className="flex items-center justify-between w-full">
-          <div className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
+        <div className="w-full flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center justify-between sm:justify-start gap-2 text-lg font-semibold text-gray-900 dark:text-white">
             <span>Total:</span>
             <span className="text-green-600 dark:text-green-400">${totalPrice.toFixed(2)}</span>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="flex items-center gap-2 h-10 px-4 rounded-lg border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+              className="flex items-center justify-center gap-2 h-11 px-4 rounded-lg border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors w-full sm:w-auto"
             >
               <Icon icon={FaTimes} className="h-4 w-4" />
               Cancel
             </button>
-            <ActionButton onClick={handleAddToCart} icon={<Icon icon={FaCheck} />}>
-              {isEditMode ? 'Update Item' : 'Add to Cart'}
-            </ActionButton>
+            <div className="w-full sm:w-auto">
+              <ActionButton onClick={handleAddToCart} icon={<Icon icon={FaCheck} />} className="w-full h-11">
+                {isEditMode ? 'Update Item' : 'Add to Cart'}
+              </ActionButton>
+            </div>
           </div>
         </div>
       }

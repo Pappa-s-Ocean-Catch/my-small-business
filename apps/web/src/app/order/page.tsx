@@ -550,10 +550,6 @@ export default function OrderPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1">
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <Icon icon={FaUtensils} className="text-blue-600" />
-                Order Online
-              </h1>
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 Browse the menu, add items to your cart, then checkout when you’re ready.
               </p>
