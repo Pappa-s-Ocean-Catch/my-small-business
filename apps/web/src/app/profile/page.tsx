@@ -7,6 +7,7 @@ import { toast } from "react-toastify";
 import { FaEye, FaEyeSlash } from "react-icons/fa6";
 import { FaUser, FaEnvelope, FaShieldAlt } from "react-icons/fa";
 import { Icon } from "@/components/Icon";
+import { OrderHeader } from "@/components/OrderHeader";
 
 interface Profile {
   id: string;
@@ -164,37 +165,45 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="min-h-[80vh] flex items-center justify-center">
-        <LoadingSpinner size="lg" />
-      </div>
+      <>
+        <OrderHeader />
+        <div className="min-h-[80vh] flex items-center justify-center">
+          <LoadingSpinner size="lg" />
+        </div>
+      </>
     );
   }
 
   if (!profile) {
     return (
-      <div className="min-h-[80vh] flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-            Profile Not Found
-          </h2>
-          <p className="text-gray-600 dark:text-gray-400">
-            Unable to load your profile information.
-          </p>
+      <>
+        <OrderHeader />
+        <div className="min-h-[80vh] flex items-center justify-center">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+              Profile Not Found
+            </h2>
+            <p className="text-gray-600 dark:text-gray-400">
+              Unable to load your profile information.
+            </p>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="min-h-[80vh] p-6 max-w-4xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-          My Profile
-        </h1>
-        <p className="text-gray-600 dark:text-gray-400">
-          Manage your account settings and preferences
-        </p>
-      </div>
+    <>
+      <OrderHeader />
+      <div className="min-h-[80vh] p-6 max-w-4xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+            My Profile
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            Manage your account settings and preferences
+          </p>
+        </div>
 
       <div className="grid gap-8 md:grid-cols-2">
         {/* Profile Information */}
@@ -383,6 +392,7 @@ export default function ProfilePage() {
           )}
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

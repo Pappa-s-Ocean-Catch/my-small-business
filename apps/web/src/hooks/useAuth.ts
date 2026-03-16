@@ -30,13 +30,18 @@ export function useAuth(redirectTo: string = '/login') {
     // Listen for auth changes
     const supabase = getSupabaseClient();
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session?.user) {
-        setIsAuthenticated(true);
-        setUser(session.user);
-      } else {
-        setIsAuthenticated(false);
-        setUser(null);
-        router.push(redirectTo);
+      () =>  {
+        setTimeout(async() => {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            setIsAuthenticated(true);
+            setUser(user);
+          } else {
+            setIsAuthenticated(false);
+            setUser(null);
+            router.push(redirectTo);
+          }
+        }, 0);
       }
     });
 

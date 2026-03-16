@@ -43,29 +43,32 @@ export function AuthenticatedHeader() {
 
     // Listen for auth changes
     const supabase = getSupabaseClient();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      const hasUser = !!session?.user;
-      setIsAuthenticated(hasUser);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Defer any async Supabase calls until after the callback returns.
+      setTimeout(async () => {
+        const hasUser = !!session?.user;
+        setIsAuthenticated(hasUser);
 
-      if (hasUser && session?.user) {
-        try {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("role_slug")
-            .eq("id", session.user.id)
-            .single();
-          if (profile?.role_slug === "admin" || profile?.role_slug === "staff") {
-            setUserRole(profile.role_slug);
-          } else {
-            setUserRole("customer");
+        if (hasUser && session?.user) {
+          try {
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("role_slug")
+              .eq("id", session.user.id)
+              .single();
+            if (profile?.role_slug === "admin" || profile?.role_slug === "staff") {
+              setUserRole(profile.role_slug);
+            } else {
+              setUserRole("customer");
+            }
+          } catch (err) {
+            console.error("[Header] Failed to refresh user role:", err);
+            setUserRole(null);
           }
-        } catch (err) {
-          console.error("[Header] Failed to refresh user role:", err);
+        } else {
           setUserRole(null);
         }
-      } else {
-        setUserRole(null);
-      }
+      }, 0);
     });
 
     return () => subscription.unsubscribe();

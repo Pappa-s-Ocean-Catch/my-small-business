@@ -23,7 +23,9 @@ export function OrderHeader() {
     checkAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
-      checkAuth();
+      setTimeout(() => {
+        void checkAuth();
+      }, 0);
     });
 
     return () => {

@@ -60,7 +60,9 @@ export default function RootLayout() {
 
     // Listen for auth changes - redirect to orders if logged in, login if not
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      void routeForSession(session);
+      setTimeout(async() => {
+        void routeForSession(session);
+      }, 0);
     });
 
     // Check initial session

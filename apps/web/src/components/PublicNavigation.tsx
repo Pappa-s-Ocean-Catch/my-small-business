@@ -22,7 +22,10 @@ export function PublicNavigation() {
     // Listen for auth changes
     const supabase = getSupabaseClient();
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setIsAuthenticated(!!session?.user);
+      setTimeout(async() => {
+        const { data: { user } } = await supabase.auth.getUser();
+        setIsAuthenticated(!!user);
+      }, 0);
     });
 
     return () => subscription.unsubscribe();
