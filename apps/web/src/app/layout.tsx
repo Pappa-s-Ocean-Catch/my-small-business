@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { DynamicHeader } from "@/components/DynamicHeader";
 import { AppHeader } from "@/components/AppHeader";
 import { SnackbarProvider } from "@/components/Snackbar";
+import { CartProvider } from "@/contexts/CartContext";
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { Geist, Geist_Mono } from "next/font/google";
@@ -31,8 +32,10 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <AppHeader />
         <SnackbarProvider>
-          <DynamicHeader />
-          <main>{children}</main>
+          <CartProvider>
+            <DynamicHeader />
+            <main>{children}</main>
+          </CartProvider>
           <ToastContainer position="top-right" autoClose={3500} hideProgressBar theme="colored" aria-label="Notifications"/>
         </SnackbarProvider>
         <Analytics />

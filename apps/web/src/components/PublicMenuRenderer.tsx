@@ -1,6 +1,8 @@
 'use client';
 
 import { useMemo } from 'react';
+import Link from 'next/link';
+import { FaPlus } from 'react-icons/fa';
 
 export type PublicMenuScreenModel = {
   id: string;
@@ -31,13 +33,15 @@ export function PublicMenuRenderer({
   categories,
   products,
   selectedCategoryIds,
-  categoryColumnMap
+  categoryColumnMap,
+  onAddToCartClick
 }: {
   screen: PublicMenuScreenModel;
   categories: PublicSaleCategory[];
   products: PublicSaleProduct[];
   selectedCategoryIds: string[];
   categoryColumnMap: Record<string, { columnIndex: number; sortOrder: number }>;
+  onAddToCartClick?: (product: PublicSaleProduct) => void;
 }) {
   const categoryChildrenMap = useMemo(() => {
     const children: Record<string, string[]> = {};
@@ -91,15 +95,37 @@ export function PublicMenuRenderer({
                 <div className="px-4 py-3 font-bold text-lg" style={{ background: '#fff0e6', color: '#ff6363' }}>{cat.name}</div>
                 <ul className="divide-y">
                   {items.map(item => (
-                    <li key={item.id} className="p-4 flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="font-semibold text-neutral-900">{item.name}</div>
-                        {item.description && <div className="text-sm text-neutral-600">{item.description}</div>}
+                    <li key={item.id}>
+                      <div className="p-4 flex items-start justify-between gap-4 hover:bg-rose-50/50 transition-colors">
+                        <Link
+                          href={`/order/product/${item.id}`}
+                          className="flex-1 min-w-0"
+                          aria-label={`View details for ${item.name}`}
+                        >
+                          <div className="font-semibold text-neutral-900">{item.name}</div>
+                          {item.description && <div className="text-sm text-neutral-600">{item.description}</div>}
+                        </Link>
+                        {screen?.show_images && item.image_url && (
+                          <img src={item.image_url} alt={item.name} className="w-16 h-16 object-cover rounded-md shrink-0" />
+                        )}
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          <span className="font-bold text-neutral-900 whitespace-nowrap">${Number(item.sale_price).toFixed(2)}</span>
+                          {onAddToCartClick && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                onAddToCartClick(item);
+                              }}
+                              className="p-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                              aria-label={`Add ${item.name} to cart`}
+                            >
+                              <FaPlus className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      {screen?.show_images && item.image_url && (
-                        <img src={item.image_url} alt={item.name} className="w-16 h-16 object-cover rounded-md" />
-                      )}
-                      <div className="font-bold text-neutral-900 whitespace-nowrap">${Number(item.sale_price).toFixed(2)}</div>
                     </li>
                   ))}
                 </ul>
@@ -142,15 +168,37 @@ export function PublicMenuRenderer({
                     <div className="px-4 py-3 font-bold text-lg" style={{ background: '#fff0e6', color: '#ff6363' }}>{cat.name}</div>
                     <ul className="divide-y">
                       {items.map(item => (
-                        <li key={item.id} className="p-4 flex items-start justify-between gap-4">
-                          <div className="flex-1">
-                            <div className="font-semibold text-neutral-900">{item.name}</div>
-                            {item.description && <div className="text-sm text-neutral-600">{item.description}</div>}
+                        <li key={item.id}>
+                          <div className="p-4 flex items-start justify-between gap-4 hover:bg-rose-50/50 transition-colors">
+                            <Link
+                              href={`/order/product/${item.id}`}
+                              className="flex-1 min-w-0"
+                              aria-label={`View details for ${item.name}`}
+                            >
+                              <div className="font-semibold text-neutral-900">{item.name}</div>
+                              {item.description && <div className="text-sm text-neutral-600">{item.description}</div>}
+                            </Link>
+                            {screen?.show_images && item.image_url && (
+                              <img src={item.image_url} alt={item.name} className="w-16 h-16 object-cover rounded-md shrink-0" />
+                            )}
+                            <div className="flex flex-col items-end gap-1 shrink-0">
+                              <span className="font-bold text-neutral-900 whitespace-nowrap">${Number(item.sale_price).toFixed(2)}</span>
+                              {onAddToCartClick && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    onAddToCartClick(item);
+                                  }}
+                                  className="p-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                                  aria-label={`Add ${item.name} to cart`}
+                                >
+                                  <FaPlus className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
                           </div>
-                          {screen?.show_images && item.image_url && (
-                            <img src={item.image_url} alt={item.name} className="w-16 h-16 object-cover rounded-md" />
-                          )}
-                          <div className="font-bold text-neutral-900 whitespace-nowrap">${Number(item.sale_price).toFixed(2)}</div>
                         </li>
                       ))}
                     </ul>

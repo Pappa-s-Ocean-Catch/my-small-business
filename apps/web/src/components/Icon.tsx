@@ -113,28 +113,36 @@ const iconMap: Record<string, IconType> = {
   FiUser: FiIcons.FiUser,
 };
 
+const iconWrapperClass = "inline-flex items-center justify-center [&>svg]:shrink-0";
+
 export function Icon({ icon, className = "", ...props }: IconProps): ReactElement {
+  const combinedClassName = `${iconWrapperClass} ${className}`.trim();
   // If icon is already a component, render it directly with className
   if (typeof icon !== "string") {
     const IconComponent = icon;
-    return (<span className={className}>
+    return (
+      <span className={combinedClassName}>
         <IconComponent {...props} />
-    </span>);
+      </span>
+    );
   }
 
   // If icon is a string, look it up in the icon map
   const IconComponent = iconMap[icon];
-  
+
   if (!IconComponent) {
     // Fallback to a default icon if the icon name is not found
     console.warn(`Icon "${icon}" not found in iconMap. Using FaInfoCircle as fallback.`);
-    (<span className={className}>
+    return (
+      <span className={combinedClassName}>
         <Icon icon={FaIcons.FaInfoCircle} {...props} />
-    </span>);
-
+      </span>
+    );
   }
 
-  return (<span className={className}>
-    <IconComponent {...props} />
-</span>);
+  return (
+    <span className={combinedClassName}>
+      <IconComponent {...props} />
+    </span>
+  );
 }

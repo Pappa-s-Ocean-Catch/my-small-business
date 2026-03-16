@@ -1,11 +1,21 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
 import { PublicMenuRenderer, type PublicMenuScreenModel, type PublicSaleCategory, type PublicSaleProduct } from '@/components/PublicMenuRenderer';
+import { resolveOnlineOrderOverride } from '@/lib/online-order-override';
+import { useCart } from '@/contexts/CartContext';
+import { ItemCustomizationModal } from '@/components/ItemCustomizationModal';
+import { CartSidebar } from '@/components/CartSidebar';
+import type { CartAddonGroup } from '@/contexts/CartContext';
+import { toast } from 'react-toastify';
 
 export default function UniversalMenuPage() {
   const supabase = getSupabaseClient();
+  const { addItem } = useCart();
+  const showAddToCart = resolveOnlineOrderOverride() === true;
+  const [customizingProduct, setCustomizingProduct] = useState<PublicSaleProduct | null>(null);
+
   const [screens, setScreens] = useState<PublicMenuScreenModel[]>([]);
   const [categories, setCategories] = useState<PublicSaleCategory[]>([]);
   const [products, setProducts] = useState<PublicSaleProduct[]>([]);
@@ -13,6 +23,28 @@ export default function UniversalMenuPage() {
   const [activeScreenId, setActiveScreenId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const handleAddToCart = useCallback((customizations: CartAddonGroup[], comment?: string | null, removedIngredients?: string[], quantity?: number) => {
+    if (!customizingProduct) return;
+    const qty = Math.max(1, Math.min(99, quantity ?? 1));
+    addItem({
+      product_id: customizingProduct.id,
+      name: customizingProduct.name,
+      description: customizingProduct.description ?? null,
+      base_price: customizingProduct.sale_price,
+      image_url: customizingProduct.image_url ?? null,
+      quantity: qty,
+      addon_groups: customizations,
+      removed_ingredients: removedIngredients ?? [],
+      comment: comment ?? null
+    });
+    setCustomizingProduct(null);
+    toast.success('Added to cart');
+  }, [customizingProduct, addItem]);
+
+  const handleQuickAdd = useCallback((product: PublicSaleProduct) => {
+    setCustomizingProduct(product);
+  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -93,9 +125,27 @@ export default function UniversalMenuPage() {
             products={products}
             selectedCategoryIds={selectedCategoryIds}
             categoryColumnMap={categoryColumnMap}
+            onAddToCartClick={showAddToCart ? handleQuickAdd : undefined}
           />
         </div>
       </main>
+
+      {showAddToCart && customizingProduct && (
+        <ItemCustomizationModal
+          isOpen={!!customizingProduct}
+          onClose={() => setCustomizingProduct(null)}
+          product={{
+            id: customizingProduct.id,
+            name: customizingProduct.name,
+            description: customizingProduct.description ?? null,
+            sale_price: customizingProduct.sale_price,
+            image_url: customizingProduct.image_url ?? null
+          }}
+          onAddToCart={handleAddToCart}
+        />
+      )}
+
+      {showAddToCart && <CartSidebar />}
     </div>
   );
 }
