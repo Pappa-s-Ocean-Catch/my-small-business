@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { StyleSheet } from 'react-native';
 import { MD3LightTheme, PaperProvider } from 'react-native-paper';
 import { supabase } from '../lib/supabase';
-import { isAdminUser } from '../lib/auth';
+import { canAccessOrderManagement } from '../lib/auth';
 import { OfflineAttentionOverlay } from '../lib/KitchenAlertOverlay';
 import { useKeepAwake } from 'expo-keep-awake';
 
@@ -35,10 +35,10 @@ export default function RootLayout() {
       }
 
       try {
-        const isAdmin = await isAdminUser(userId);
+        const canAccess = await canAccessOrderManagement(userId);
         if (cancelled) return;
 
-        if (!isAdmin) {
+        if (!canAccess) {
           await supabase.auth.signOut();
           if (currentSegment !== 'login') {
             router.replace('/login');

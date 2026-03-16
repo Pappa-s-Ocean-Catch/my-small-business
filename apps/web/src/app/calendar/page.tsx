@@ -57,6 +57,12 @@ export default function CalendarPage() {
         isUserAdmin = profile?.role_slug === 'admin';
         setIsAdmin(isUserAdmin);
         
+        // Customers should not access calendar at all – redirect to home.
+        if (profile && profile.role_slug === 'customer') {
+          router.push('/');
+          return;
+        }
+        
         // Ensure staff profile is linked for non-admin users
         if (!isUserAdmin) {
           await supabase.rpc('link_staff_profile', { p_profile_id: user.id });

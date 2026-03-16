@@ -18,6 +18,7 @@ import type { CartAddonGroup } from '@/contexts/CartContext';
 import { pickBestProductPromotion, promotionLabel, type PromotionWithProducts } from '@/lib/promotions';
 import type { StoreHours } from '@my-small-business/types';
 import { buildDefaultStoreHours, isStoreOpenNow } from '@/lib/store-hours';
+import { toast } from 'react-toastify';
 
 interface MenuProduct {
   id: string;
@@ -375,6 +376,7 @@ export default function OrderPage() {
     });
 
     setCustomizingProduct(null);
+    toast.success('Added to cart');
   };
 
   const handleQuickAdd = (product: MenuProduct) => {

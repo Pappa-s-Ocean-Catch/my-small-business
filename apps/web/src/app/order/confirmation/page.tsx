@@ -388,7 +388,6 @@ function OrderConfirmationContent() {
                             {addons.map((addon, idx) => (
                               <span key={addon.id ?? idx}>
                                 {addon.addon_item_name}
-                                {addon.addon_group_name ? ` (${addon.addon_group_name})` : ''}
                                 {idx < addons.length - 1 ? ', ' : ''}
                               </span>
                             ))}

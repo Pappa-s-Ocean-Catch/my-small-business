@@ -74,6 +74,21 @@ export default function CheckoutPage() {
 
   const [activePromotions, setActivePromotions] = useState<PromotionWithProducts[]>([]);
 
+  // Restore last used phone number from localStorage so customers don't need
+  // to re-enter it every visit, even if their profile phone is empty.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (customerPhone) return;
+    try {
+      const stored = window.localStorage.getItem('checkout:lastCustomerPhone');
+      if (stored) {
+        setCustomerPhone(stored);
+      }
+    } catch (err) {
+      console.error('[Checkout] Failed to read stored phone from localStorage:', err);
+    }
+  }, [customerPhone]);
+
   useEffect(() => {
     const loadPromotions = async () => {
       const res = await getActivePromotions();
@@ -633,9 +648,9 @@ export default function CheckoutPage() {
     setIsSubmitting(true);
 
     try {
-      // Validate required fields
+      // Validate required contact fields
       if (!customerEmail || !customerPhone) {
-        throw new Error('Email and phone number are required');
+        throw new Error('Please enter your email and phone number so we can contact you about your order.');
       }
 
       if (!paymentMethod) {
@@ -730,6 +745,15 @@ export default function CheckoutPage() {
         orderInput.delivery_eta_minutes = deliveryQuote.estimated_duration_minutes;
       }
 
+      // Persist latest phone locally so it's pre-filled next time on this device.
+      if (typeof window !== 'undefined') {
+        try {
+          window.localStorage.setItem('checkout:lastCustomerPhone', customerPhone);
+        } catch (storageErr) {
+          console.error('[Checkout] Failed to persist phone in localStorage:', storageErr);
+        }
+      }
+
       // Create order first (for both payment methods)
       const result = await createOrder(orderInput);
 
@@ -739,6 +763,24 @@ export default function CheckoutPage() {
 
       if (!result.data) {
         throw new Error('Failed to create order');
+      }
+
+      // If the user is authenticated, persist updated phone to their profile
+      if (isAuthenticated && currentUser?.id && customerPhone && customerPhone !== (currentUser.phone ?? '')) {
+        try {
+          const supabase = getSupabaseClient();
+          const { error: profileUpdateError } = await supabase
+            .from('profiles')
+            .update({ phone: customerPhone })
+            .eq('id', currentUser.id);
+          if (profileUpdateError) {
+            console.error('[Checkout] Failed to update profile phone:', profileUpdateError);
+          } else {
+            console.log('[Checkout] Updated profile phone number from checkout');
+          }
+        } catch (profileErr) {
+          console.error('[Checkout] Unexpected error updating profile phone:', profileErr);
+        }
       }
 
       // Deduct reward points if they were used
@@ -1015,7 +1057,6 @@ export default function CheckoutPage() {
                     value={customerEmail}
                     onChange={(e) => setCustomerEmail(e.target.value)}
                     required
-                    disabled={isAuthenticated}
                     className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-white disabled:bg-gray-100 dark:disabled:bg-neutral-800"
                     placeholder="your@email.com"
                   />
@@ -1029,10 +1070,14 @@ export default function CheckoutPage() {
                     value={customerPhone}
                     onChange={(e) => setCustomerPhone(e.target.value)}
                     required
-                    disabled={isAuthenticated}
                     className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-white disabled:bg-gray-100 dark:disabled:bg-neutral-800"
                     placeholder="+61 4XX XXX XXX"
                   />
+                  {isAuthenticated && !customerPhone && (
+                    <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                      Please add a contact phone number so we can reach you about your order.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1042,7 +1087,6 @@ export default function CheckoutPage() {
                     type="text"
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
-                    disabled={isAuthenticated}
                     className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-white disabled:bg-gray-100 dark:disabled:bg-neutral-800"
                     placeholder="John Doe"
                   />
@@ -1315,9 +1359,24 @@ export default function CheckoutPage() {
                 <Icon icon={FaCheckCircle} className="w-5 h-5" />
                 <span>Signed in as {currentUser?.email}</span>
               </div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                 You'll pay for your order when you pick it up at the store.
               </p>
+              <div className="mt-1 p-4 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20">
+                <p className="text-sm font-medium text-amber-800 dark:text-amber-100 mb-2">
+                  Please confirm a contact phone number so the store can reach you about your order.
+                </p>
+                <label className="block text-xs font-medium text-gray-800 dark:text-gray-200 mb-1">
+                  Phone Number <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="tel"
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-white"
+                  placeholder="+61 4XX XXX XXX"
+                />
+              </div>
             </div>
           )}
 
@@ -1542,7 +1601,12 @@ export default function CheckoutPage() {
           {paymentMethod && (paymentMethod === 'online' || isAuthenticated) && (
             <button
               type="submit"
-              disabled={isSubmitting || isRedirecting || !customerEmail || !customerPhone}
+              disabled={
+                isSubmitting ||
+                isRedirecting ||
+                !customerPhone ||
+                (!isAuthenticated && paymentMethod === 'online' && !customerEmail)
+              }
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {isRedirecting ? (

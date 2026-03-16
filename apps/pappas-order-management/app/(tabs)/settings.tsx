@@ -227,7 +227,7 @@ export default function SettingsScreen() {
                     <Text style={styles.sectionTitle}>Printer</Text>
 
                     <View style={styles.switchRow}>
-                        <Text style={styles.label}>Enable Epson printer</Text>
+                        <Text style={styles.label}>Enable kitchen printer</Text>
                         <Switch value={printerEnabled} onValueChange={setPrinterEnabled} />
                     </View>
 

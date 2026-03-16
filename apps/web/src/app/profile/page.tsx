@@ -12,6 +12,7 @@ interface Profile {
   id: string;
   email: string;
   full_name: string | null;
+  phone: string | null;
   role_slug: string;
   created_at: string;
 }
@@ -27,6 +28,9 @@ export default function ProfilePage() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [hasPassword, setHasPassword] = useState<boolean | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const [editingPhone, setEditingPhone] = useState("");
+  const [profileSaving, setProfileSaving] = useState(false);
 
   useEffect(() => {
     fetchProfile();
@@ -44,7 +48,7 @@ export default function ProfilePage() {
 
       const { data: profileData, error } = await supabase
         .from("profiles")
-        .select("*")
+        .select("id, email, full_name, phone, role_slug, created_at")
         .eq("id", user.id)
         .single();
 
@@ -52,7 +56,9 @@ export default function ProfilePage() {
         throw new Error(error.message);
       }
 
-      setProfile(profileData);
+      setProfile(profileData as Profile);
+      setEditingName(profileData.full_name || "");
+      setEditingPhone(profileData.phone || "");
       
       // Check if user has a password set
       const { data: { session } } = await supabase.auth.getSession();
@@ -63,6 +69,37 @@ export default function ProfilePage() {
       toast.error("Failed to load profile");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleProfileSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profile) return;
+    setProfileSaving(true);
+    try {
+      const supabase = getSupabaseClient();
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          full_name: editingName.trim() || null,
+          phone: editingPhone.trim() || null,
+        })
+        .eq("id", profile.id);
+      if (error) {
+        throw new Error(error.message);
+      }
+      const updated: Profile = {
+        ...profile,
+        full_name: editingName.trim() || null,
+        phone: editingPhone.trim() || null,
+      };
+      setProfile(updated);
+      toast.success("Profile updated.");
+    } catch (err) {
+      console.error("Error updating profile:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to update profile");
+    } finally {
+      setProfileSaving(false);
     }
   };
 
@@ -169,16 +206,36 @@ export default function ProfilePage() {
             </h2>
           </div>
           
-          <div className="space-y-4">
+          <form onSubmit={handleProfileSave} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Full Name
               </label>
-              <div className="p-3 bg-gray-50 dark:bg-neutral-800 rounded-lg">
-                <span className="text-gray-900 dark:text-white">
-                  {profile.full_name || "Not set"}
-                </span>
-              </div>
+              <input
+                type="text"
+                value={editingName}
+                onChange={(e) => setEditingName(e.target.value)}
+                className="w-full p-3 bg-gray-50 dark:bg-neutral-800 border border-gray-300 dark:border-neutral-700 rounded-lg text-gray-900 dark:text-white"
+                placeholder="Your name"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Phone Number
+              </label>
+              <input
+                type="tel"
+                value={editingPhone}
+                onChange={(e) => setEditingPhone(e.target.value)}
+                className="w-full p-3 bg-gray-50 dark:bg-neutral-800 border border-gray-300 dark:border-neutral-700 rounded-lg text-gray-900 dark:text-white"
+                placeholder="+61 4XX XXX XXX"
+              />
+              {!profile.phone && (
+                <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                  Add a phone number so the shop can contact you about your orders.
+                </p>
+              )}
             </div>
             
             <div>
@@ -194,17 +251,6 @@ export default function ProfilePage() {
             
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Role
-              </label>
-              <div className="p-3 bg-gray-50 dark:bg-neutral-800 rounded-lg">
-                <span className="text-gray-900 dark:text-white capitalize">
-                  {profile.role_slug}
-                </span>
-              </div>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Member Since
               </label>
               <div className="p-3 bg-gray-50 dark:bg-neutral-800 rounded-lg">
@@ -213,7 +259,15 @@ export default function ProfilePage() {
                 </span>
               </div>
             </div>
-          </div>
+
+            <button
+              type="submit"
+              disabled={profileSaving}
+              className="mt-2 inline-flex items-center justify-center px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition disabled:opacity-50"
+            >
+              {profileSaving ? "Saving..." : "Save Profile"}
+            </button>
+          </form>
         </div>
 
         {/* Password Management */}

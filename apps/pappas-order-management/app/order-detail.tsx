@@ -9,10 +9,10 @@ import {
 import { ActivityIndicator, Button, Card, Text } from 'react-native-paper';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getOrder, updateOrderStatus } from '../lib/orders';
-import type { Order, OrderStatus } from '@my-small-business/types';
+import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import * as Print from 'expo-print';
 import { loadAppSettings } from '../lib/settings';
-import { epsonPrintKitchenReceipt } from '../lib/epson-epos';
+import { escposPrintKitchenReceipt, formatPrinterError } from '../lib/escpos-printer';
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
   pending: '#f59e0b',
@@ -30,6 +30,13 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   ready: 'Ready',
   completed: 'Completed',
   cancelled: 'Cancelled',
+};
+
+const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
+  pending: 'Payment Pending',
+  paid: 'Paid',
+  failed: 'Payment Failed',
+  refunded: 'Refunded',
 };
 
 export default function OrderDetailScreen() {
@@ -91,26 +98,30 @@ export default function OrderDetailScreen() {
 
     try {
       const s = await loadAppSettings();
-      if (s.printerEnabled && s.printerUrl.trim()) {
+      const selected = s.printerSaved.find((p) => p.target === s.printerSelectedTarget) ?? null;
+
+      if (s.printerEnabled && selected) {
         try {
-          await epsonPrintKitchenReceipt(order, {
-            printerUrl: s.printerUrl,
-            printerCopies: s.printerCopies,
-            printerDeviceId: s.printerDeviceId,
-            printerTimeoutMs: s.printerTimeoutMs,
-          });
+          await escposPrintKitchenReceipt(order, selected, s.printerCopies);
           return;
-        } catch (epsonError) {
+        } catch (printerError) {
+          const detail = formatPrinterError(printerError);
+          console.error('Print error:', printerError);
           Alert.alert(
             'Printer error',
-            epsonError instanceof Error ? epsonError.message : 'Failed to print to Epson printer',
+            detail,
             [
               { text: 'Cancel', style: 'cancel' },
               {
                 text: 'System Print',
                 onPress: async () => {
-                  const html = generatePrintHTML(order);
-                  await Print.printAsync({ html });
+                  try {
+                    const html = generatePrintHTML(order);
+                    await Print.printAsync({ html });
+                  } catch (e) {
+                    console.error('System print error:', e);
+                    Alert.alert('Error', e instanceof Error ? e.message : 'System print failed');
+                  }
                 },
               },
             ]
@@ -119,15 +130,46 @@ export default function OrderDetailScreen() {
         }
       }
 
+      if (!s.printerEnabled || !selected) {
+        Alert.alert(
+          'Printer not configured',
+          'Go to Settings to discover and select a kitchen printer, or use System Print.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'System Print',
+              onPress: async () => {
+                try {
+                  const html = generatePrintHTML(order);
+                  await Print.printAsync({ html });
+                } catch (e) {
+                  console.error('System print error:', e);
+                  Alert.alert('Error', e instanceof Error ? e.message : 'System print failed');
+                }
+              },
+            },
+          ]
+        );
+        return;
+      }
+
+      // Fallback system print (e.g. printer enabled but no selected target)
       const html = generatePrintHTML(order);
       await Print.printAsync({ html });
     } catch (error) {
-      Alert.alert('Error', 'Failed to print order');
+      const detail = error instanceof Error ? error.message : 'Failed to print order';
       console.error('Print error:', error);
+      Alert.alert('Error', detail);
     }
   };
 
   const generatePrintHTML = (order: Order): string => {
+    const ticketOrderNumber = (() => {
+      const match = order.order_number.match(/(\d{3,})$/);
+      if (!match) return order.order_number;
+      const lastSegment = match[1];
+      return `1${lastSegment}`;
+    })();
     const itemsHTML = order.items?.map(item => {
       const addonsHTML = item.addons?.map(addon =>
         `<li>+ ${addon.addon_item_name} (${addon.addon_group_name}) - $${addon.addon_item_price.toFixed(2)}</li>`
@@ -148,35 +190,56 @@ export default function OrderDetailScreen() {
       `;
     }).join('') || '';
 
+    const scheduledPickupAt = order.scheduled_pickup_at ? new Date(order.scheduled_pickup_at) : null;
+    const isPreOrder =
+      order.order_type === 'pickup' &&
+      !!scheduledPickupAt &&
+      Number.isFinite(scheduledPickupAt.getTime()) &&
+      scheduledPickupAt.getTime() > Date.now();
+
+    const preOrderBannerHTML = isPreOrder
+      ? `<div class="preorder-banner">PRE-ORDER</div>
+         <div class="pickup-time-hero"><strong>PICKUP TIME:</strong> ${scheduledPickupAt!.toLocaleString()}</div>`
+      : '';
+
     const pickupTimeHTML =
       order.order_type === 'pickup' && order.scheduled_pickup_at
-        ? `<p><strong>Pickup time (pre-order):</strong> ${new Date(order.scheduled_pickup_at).toLocaleString()}</p>`
+        ? `<p><strong>Pickup time:</strong> ${new Date(order.scheduled_pickup_at).toLocaleString()}</p>`
         : '';
+
+    const paymentStatusText = PAYMENT_STATUS_LABELS[order.payment_status];
 
     return `
       <!DOCTYPE html>
       <html>
         <head>
           <meta charset="utf-8">
-          <title>Order #${order.order_number}</title>
+          <title>Order #${ticketOrderNumber}</title>
           <style>
-            body { font-family: Arial, sans-serif; padding: 20px; }
-            h1 { margin: 0 0 10px 0; }
+            body { font-family: Arial, sans-serif; padding: 20px; font-size: 18px; }
+            h1 { margin: 0 0 10px 0; font-size: 30px; }
+            .payment-status { font-size: 26px; font-weight: bold; margin: 6px 0 4px 0; }
+            .preorder-banner { font-size: 34px; font-weight: 900; text-align: center; margin: 10px 0 8px 0; letter-spacing: 1px; }
+            .pickup-time-hero { font-size: 22px; font-weight: 700; text-align: center; margin: 0 0 10px 0; }
             .info { margin: 10px 0; }
             table { width: 100%; border-collapse: collapse; margin: 20px 0; }
             th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
             th { background-color: #f2f2f2; }
-            .total { font-size: 18px; font-weight: bold; margin-top: 20px; }
+            .total { font-size: 24px; font-weight: bold; margin-top: 20px; }
+            .order-number-bottom { margin-top: 24px; font-size: 32px; font-weight: bold; text-align: center; }
           </style>
         </head>
         <body>
-          <h1>Order #${order.order_number}</h1>
+          <h1>Order #${ticketOrderNumber}</h1>
+          <div class="payment-status">${paymentStatusText}</div>
+          ${preOrderBannerHTML}
           <div class="info">
             <p><strong>Customer:</strong> ${order.customer_name || order.customer_email}</p>
             <p><strong>Phone:</strong> ${order.customer_phone}</p>
             <p><strong>Type:</strong> ${order.order_type === 'delivery' ? 'Delivery' : 'Pickup'}</p>
-            <p><strong>Status:</strong> ${STATUS_LABELS[order.order_status]}</p>
-            <p><strong>Time:</strong> ${new Date(order.created_at).toLocaleString()}</p>
+            <p><strong>Order status:</strong> ${STATUS_LABELS[order.order_status]}</p>
+            <p><strong>Payment status:</strong> ${paymentStatusText}</p>
+            <p><strong>Time placed:</strong> ${new Date(order.created_at).toLocaleString()}</p>
             ${pickupTimeHTML}
             ${order.order_type === 'delivery' && order.delivery_address_line1 ? `
               <p><strong>Delivery Address:</strong><br>
@@ -205,6 +268,7 @@ export default function OrderDetailScreen() {
             ${order.service_fee > 0 ? `<p>Service Fee: $${order.service_fee.toFixed(2)}</p>` : ''}
             <p>Total: $${order.total.toFixed(2)}</p>
           </div>
+          <p class="order-number-bottom">ORDER #${ticketOrderNumber}</p>
         </body>
       </html>
     `;
@@ -313,7 +377,7 @@ export default function OrderDetailScreen() {
                 <View style={styles.addonsContainer}>
                   {item.addons.map((addon) => (
                     <Text key={addon.id} style={styles.addonText}>
-                      + {addon.addon_item_name} ({addon.addon_group_name}) - ${addon.addon_item_price.toFixed(2)}
+                      + {addon.addon_item_name} - ${addon.addon_item_price.toFixed(2)}
                     </Text>
                   ))}
                 </View>

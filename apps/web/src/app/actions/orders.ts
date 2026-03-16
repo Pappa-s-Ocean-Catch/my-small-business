@@ -57,7 +57,10 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
 
     // Validate input
     if (!input.customer_email || !input.customer_phone) {
-      return { data: null, error: 'Email and phone number are required' };
+      return {
+        data: null,
+        error: 'Please enter your email and phone number so we can contact you about your order.',
+      };
     }
 
     if (!input.items || input.items.length === 0) {

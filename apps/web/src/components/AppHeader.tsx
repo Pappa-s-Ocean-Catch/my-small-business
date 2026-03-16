@@ -12,6 +12,7 @@ const PUBLIC_ROUTES = [
   "/menu", // Menu page
   "/order", // Order page
   "/rewards", // Public rewards page (customer rewards)
+  "/auth/callback", // Auth callback - avoid flashing admin navigation for customers
 ];
 
 // Check if a pathname is a public route

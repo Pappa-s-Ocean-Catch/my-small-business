@@ -18,7 +18,7 @@ export function MagicLinkInviteEmail({
 }) {
   return (
     <EmailLayout 
-      title={`You're invited to ${businessName}`} 
+      title={`Sign in to ${businessName}`} 
       companyName={businessName} 
       logoUrl={logoUrl}
       previewText={`Your ${businessName} sign-in link`}
@@ -29,15 +29,9 @@ export function MagicLinkInviteEmail({
             <Text className="text-base text-gray-800 m-0 mb-3">
               Hello,
             </Text>
-            {isExistingUser ? (
-              <Text className="text-base text-gray-600 mb-4 m-0">
-                Here is your secure sign-in link for <strong>{businessName}</strong>.
-              </Text>
-            ) : (
             <Text className="text-base text-gray-600 mb-4 m-0">
-              You&apos;ve been invited to join <strong>{businessName}</strong> with the email <strong>{inviteeEmail}</strong>.
+              Here is your secure sign-in link for <strong>{businessName}</strong>.
             </Text>
-            )}
             <Text className="text-base text-gray-600 mb-4 m-0">
               Click the button below to securely sign in.
             </Text>
