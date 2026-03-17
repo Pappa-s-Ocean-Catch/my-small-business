@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { FaCheck, FaDollarSign, FaTimes, FaMinus, FaPlus } from 'react-icons/fa';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
 import type { AddonGroupWithItems } from '@/app/actions/addons';
-import { getAddonGroup, getSaleProductAddonGroups } from '@/app/actions/addons';
+import { getSaleProductAddonGroupsWithItems } from '@/app/actions/addons';
 import type { CartAddonGroup, CartAddonItem, CartItem } from '@/contexts/CartContext';
 import { ActionButton } from './ActionButton';
 import { Icon } from '@/components/Icon';
@@ -52,6 +52,7 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart, 
   const [comment, setComment] = useState<string>('');
   const [quantity, setQuantity] = useState<number>(1);
   const appliedEditRef = useRef(false);
+  const errorRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (isOpen && product.id) {
@@ -101,21 +102,14 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart, 
 
   const loadAddonGroups = async () => {
     try {
-      const result = await getSaleProductAddonGroups(product.id);
+      const result = await getSaleProductAddonGroupsWithItems(product.id);
       if (result.error) {
         console.error('Error loading add-on groups:', result.error);
         setAddonGroups([]);
         return;
       }
 
-      const groupsWithItems = await Promise.all(
-        (result.data || []).map(async (group) => {
-          const groupResult = await getAddonGroup(group.id);
-          return groupResult.data || null;
-        })
-      );
-
-      setAddonGroups(groupsWithItems.filter((g): g is AddonGroupWithItems => g !== null));
+      setAddonGroups((result.data || []) as AddonGroupWithItems[]);
     } catch (err) {
       console.error('Error loading add-on groups:', err);
       setAddonGroups([]);
@@ -215,10 +209,21 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart, 
     });
 
     setErrors(newErrors);
+
+    if (newErrors.length > 0) {
+      // Ensure the first error is visible, especially on mobile
+      window.setTimeout(() => {
+        if (errorRef.current) {
+          errorRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 0);
+    }
+
     return newErrors.length === 0;
   };
 
   const handleAddToCart = () => {
+    if (loading) return;
     if (!validateSelection()) return;
 
     const cartAddonGroups: CartAddonGroup[] = addonGroups
@@ -313,7 +318,13 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart, 
               Cancel
             </button>
             <div className="w-full sm:w-auto">
-              <ActionButton onClick={handleAddToCart} icon={<Icon icon={FaCheck} />} className="w-full h-11">
+              <ActionButton
+                onClick={handleAddToCart}
+                icon={<Icon icon={FaCheck} />}
+                className="w-full h-11"
+                disabled={loading}
+                loadingText={isEditMode ? 'Updating...' : 'Adding...'}
+              >
                 {isEditMode ? 'Update Item' : 'Add to Cart'}
               </ActionButton>
             </div>
@@ -400,7 +411,10 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart, 
 
         {/* Error Messages */}
         {errors.length > 0 && (
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+          <div
+            ref={errorRef}
+            className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4"
+          >
             <ul className="list-disc list-inside space-y-1 text-sm text-red-800 dark:text-red-200">
               {errors.map((error, index) => (
                 <li key={index}>{error}</li>

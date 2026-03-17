@@ -417,6 +417,52 @@ export async function getSaleProductAddonGroups(sale_product_id: string): Promis
   }
 }
 
+// Optimized helper for product customization: fetch groups + items in a single round-trip
+export async function getSaleProductAddonGroupsWithItems(
+  sale_product_id: string
+): Promise<{ data: AddonGroupWithItems[] | null; error: string | null }> {
+  try {
+    const supabase = await createServiceRoleClient();
+
+    const { data, error } = await supabase
+      .from('sale_product_addon_groups')
+      .select(`
+        addon_group_id,
+        addon_groups (
+          *,
+          addon_items (*)
+        )
+      `)
+      .eq('sale_product_id', sale_product_id);
+
+    if (error) {
+      console.error('Error fetching sale product addon groups with items:', error);
+      return { data: null, error: error.message };
+    }
+
+    const groups: AddonGroupWithItems[] = (
+      data
+        ?.map((row) => {
+          const group = Array.isArray(row.addon_groups) ? row.addon_groups[0] : row.addon_groups;
+          if (!group) return null;
+          const items = (group.addon_items || []) as AddonItem[];
+          const { addon_items, ...rest } = group as any;
+          return {
+            ...(rest as AddonGroup),
+            items,
+            item_count: items.length,
+          } as AddonGroupWithItems;
+        })
+        .filter((g): g is AddonGroupWithItems => g !== null) || []
+    );
+
+    return { data: groups, error: null };
+  } catch (error) {
+    console.error('Unexpected error fetching sale product addon groups with items:', error);
+    return { data: null, error: 'An unexpected error occurred' };
+  }
+}
+
 export async function updateSaleProductAddonGroups(
   sale_product_id: string,
   addon_group_ids: string[]

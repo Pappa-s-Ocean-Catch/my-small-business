@@ -32,9 +32,9 @@ export default function Modal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm grid place-items-center p-4 z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-start justify-center p-4 z-50 overflow-y-auto" onClick={onClose}>
       <div 
-        className={`w-full ${sizeClasses[size]} bg-white dark:bg-neutral-950 rounded-2xl shadow-2xl p-0 max-h-[85vh] overflow-hidden ${className}`} 
+        className={`w-full ${sizeClasses[size]} bg-white dark:bg-neutral-950 rounded-2xl shadow-2xl p-0 ${className}`} 
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
