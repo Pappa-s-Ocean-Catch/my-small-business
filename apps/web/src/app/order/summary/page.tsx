@@ -8,7 +8,7 @@ import { OrderHeader } from '@/components/OrderHeader';
 import { ItemCustomizationModal } from '@/components/ItemCustomizationModal';
 import { OrderTypeSelector, type OrderType } from '@/components/OrderTypeSelector';
 import { DeliveryAddressForm, type DeliveryAddressInput } from '@/components/DeliveryAddressForm';
-import { getFeatureFlags } from '@/app/actions/feature-flags';
+import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 import { getActivePromotions } from '@/app/actions/promotions';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
 import { FaShoppingCart, FaArrowLeft, FaCheck, FaDollarSign, FaEdit, FaComment, FaTruck, FaClock, FaSpinner, FaTrash, FaMinus, FaPlus } from 'react-icons/fa';
@@ -34,9 +34,11 @@ export default function OrderSummaryPage() {
   const [itemToRemove, setItemToRemove] = useState<string | null>(null);
   const [itemToEdit, setItemToEdit] = useState<CartItem | null>(null);
 
+  const { flags } = useFeatureFlag();
+
   // Order type and delivery state
   const [orderType, setOrderType] = useState<OrderType | null>(null);
-  const [enableDelivery, setEnableDelivery] = useState(false);
+  const enableDelivery = flags?.enable_online_delivery ?? false;
   const [deliveryAddress, setDeliveryAddress] = useState<DeliveryAddressInput | null>(null);
   const [deliveryQuote, setDeliveryQuote] = useState<{
     quote_id: string;
@@ -88,22 +90,14 @@ export default function OrderSummaryPage() {
   const subtotalExGst = total / 1.1;
   const gstAmount = total - subtotalExGst;
 
-  // Check feature flags and auth status
+  // Check auth status
   useEffect(() => {
-    const checkFlags = async () => {
-      try {
-        const flags = await getFeatureFlags();
-        setEnableDelivery(flags.enable_online_delivery);
-
-        // Check if user is authenticated
-        const supabase = getSupabaseClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        setIsAuthenticated(!!user);
-      } catch (error) {
-        console.error('Error checking feature flags:', error);
-      }
+    const checkAuth = async () => {
+      const supabase = getSupabaseClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      setIsAuthenticated(!!user);
     };
-    void checkFlags();
+    void checkAuth();
   }, []);
 
   // Get delivery quote when address is provided

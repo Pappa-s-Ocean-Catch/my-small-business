@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
 import { PublicMenuRenderer, type PublicMenuScreenModel, type PublicSaleCategory, type PublicSaleProduct } from '@/components/PublicMenuRenderer';
-import { resolveOnlineOrderOverride } from '@/lib/online-order-override';
+import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 import { useCart } from '@/contexts/CartContext';
 import { ItemCustomizationModal } from '@/components/ItemCustomizationModal';
 import { CartSidebar } from '@/components/CartSidebar';
@@ -13,7 +13,8 @@ import { toast } from 'react-toastify';
 export default function UniversalMenuPage() {
   const supabase = getSupabaseClient();
   const { addItem } = useCart();
-  const showAddToCart = resolveOnlineOrderOverride() === true;
+  const { onlineOrderEnabled } = useFeatureFlag();
+  const showAddToCart = onlineOrderEnabled === true;
   const [customizingProduct, setCustomizingProduct] = useState<PublicSaleProduct | null>(null);
 
   const [screens, setScreens] = useState<PublicMenuScreenModel[]>([]);

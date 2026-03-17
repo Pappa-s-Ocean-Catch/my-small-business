@@ -11,6 +11,7 @@ import { Icon } from '@/components/Icon';
 import { FaFire, FaUtensils } from 'react-icons/fa';
 import { CartSidebar } from '@/components/CartSidebar';
 import { toast } from 'react-toastify';
+import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 
 export type SaleProductForDetails = {
     id: string;
@@ -54,6 +55,7 @@ export default function ProductDetailsClient(props: {
 
     const { product, bundleIncludes, hotSellers } = props;
 
+    const { onlineOrderEnabled } = useFeatureFlag();
     const [showCustomize, setShowCustomize] = useState(false);
     const [customizingProduct, setCustomizingProduct] = useState<HotSellerProduct | null>(null);
 
@@ -192,11 +194,13 @@ export default function ProductDetailsClient(props: {
                             </div>
                         )}
 
-                        <div className="flex items-center justify-end">
-                            <ActionButton onClick={() => setShowCustomize(true)}>
-                                Add to Cart
-                            </ActionButton>
-                        </div>
+                        {onlineOrderEnabled === true && (
+                            <div className="flex items-center justify-end">
+                                <ActionButton onClick={() => setShowCustomize(true)}>
+                                    Add to Cart
+                                </ActionButton>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -251,17 +255,19 @@ export default function ProductDetailsClient(props: {
                                                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 line-clamp-2">{p.description}</p>
                                             )}
 
-                                            <div className="mt-4 flex items-center gap-2">
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setCustomizingProduct(p);
-                                                    }}
-                                                    className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors"
-                                                >
-                                                    Add
-                                                </button>
-                                            </div>
+                                            {onlineOrderEnabled === true && (
+                                                <div className="mt-4 flex items-center gap-2">
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setCustomizingProduct(p);
+                                                        }}
+                                                        className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors"
+                                                    >
+                                                        Add
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 );
@@ -271,24 +277,27 @@ export default function ProductDetailsClient(props: {
                 )}
             </div>
 
-            <ItemCustomizationModal
-                isOpen={showCustomize}
-                onClose={() => setShowCustomize(false)}
-                product={product}
-                onAddToCart={handleAddToCart}
-            />
+            {onlineOrderEnabled === true && (
+                <>
+                    <ItemCustomizationModal
+                        isOpen={showCustomize}
+                        onClose={() => setShowCustomize(false)}
+                        product={product}
+                        onAddToCart={handleAddToCart}
+                    />
 
-            {customizingProduct && (
-                <ItemCustomizationModal
-                    isOpen={!!customizingProduct}
-                    onClose={() => setCustomizingProduct(null)}
-                    product={customizingProduct as unknown as SaleProductForDetails}
-                    onAddToCart={handleAddHotSellerToCart}
-                />
+                    {customizingProduct && (
+                        <ItemCustomizationModal
+                            isOpen={!!customizingProduct}
+                            onClose={() => setCustomizingProduct(null)}
+                            product={customizingProduct as unknown as SaleProductForDetails}
+                            onAddToCart={handleAddHotSellerToCart}
+                        />
+                    )}
+
+                    <CartSidebar />
+                </>
             )}
-
-            {/* Cart Sidebar (floating cart button + drawer) */}
-            <CartSidebar />
         </div>
     );
 }

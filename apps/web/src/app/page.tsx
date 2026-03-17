@@ -7,10 +7,9 @@ import { FaUtensils, FaArrowRight, FaPhone, FaClock, FaEnvelope, FaMapMarkerAlt 
 import { Icon } from "@/components/Icon";
 import Image from "next/image";
 import { TypewriterText } from "@/components/TypewriterText";
-import { getFeatureFlags } from "@/app/actions/feature-flags";
 import { getHomePromotions } from "@/app/actions/promotions";
 import type { Promotion } from "@/lib/promotions";
-import { resolveOnlineOrderOverride } from "@/lib/online-order-override";
+import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 
 interface FeaturedProduct {
   id: string;
@@ -40,8 +39,7 @@ export default function Home() {
   });
   const [contactLoading, setContactLoading] = useState(false);
   const [contactMessage, setContactMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  // Change: default to undefined so button is hidden until check completes
-  const [enablePickupOrder, setEnablePickupOrder] = useState<boolean | undefined>(undefined);
+  const { onlineOrderEnabled, isLoading: flagLoading } = useFeatureFlag();
   const [homePromotions, setHomePromotions] = useState<Promotion[]>([]);
 
   useEffect(() => {
@@ -64,15 +62,7 @@ export default function Home() {
           setFeaturedProducts(data || []);
         }
 
-        // Fetch feature flags + home promotions
-        const [flags, promoRes] = await Promise.all([getFeatureFlags(), getHomePromotions()]);
-        // Allow env var to override DB flag for local/dev
-        const envOverride = resolveOnlineOrderOverride();
-        if (envOverride !== null) {
-          setEnablePickupOrder(envOverride);
-        } else {
-          setEnablePickupOrder(flags.enable_pickup_order);
-        }
+        const promoRes = await getHomePromotions();
         if (promoRes.data) setHomePromotions(promoRes.data);
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -83,6 +73,8 @@ export default function Home() {
 
     void fetchData();
   }, []);
+
+  const enablePickupOrder = flagLoading ? undefined : (onlineOrderEnabled ?? false);
 
   // Structured data for SEO
   const structuredData = {

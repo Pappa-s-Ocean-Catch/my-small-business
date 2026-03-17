@@ -8,10 +8,9 @@ import { useCart } from '@/contexts/CartContext';
 import { ItemCustomizationModal } from '@/components/ItemCustomizationModal';
 import { CartSidebar } from '@/components/CartSidebar';
 import { OrderHeader } from '@/components/OrderHeader';
-import { getFeatureFlags } from '@/app/actions/feature-flags';
 import { getTopSellingProducts, getFeaturedProducts } from '@/app/actions/top-sellers';
 import { getActivePromotions } from '@/app/actions/promotions';
-import { resolveOnlineOrderOverride } from '@/lib/online-order-override';
+import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 import { FaUtensils, FaSearch, FaFire, FaStar, FaClock } from 'react-icons/fa';
 import { Icon } from '@/components/Icon';
 import type { CartAddonGroup } from '@/contexts/CartContext';
@@ -62,6 +61,8 @@ export default function OrderPage() {
   const [todayLabel, setTodayLabel] = useState<string | null>(null);
   const [todayHoursLabel, setTodayHoursLabel] = useState<string | null>(null);
 
+  const { onlineOrderEnabled, isLoading: flagLoading } = useFeatureFlag();
+
   const topCartPromo = useMemo(() => {
     const carts = activePromotions.filter((p) => p.applies_to === 'cart');
     if (carts.length === 0) return null;
@@ -70,29 +71,13 @@ export default function OrderPage() {
 
   const hasLoadedRef = useRef(false);
 
-  // Check feature flag
+  // Redirect to home when online order is disabled
   useEffect(() => {
-    const checkFeatureFlag = async () => {
-      try {
-        const envOverride = resolveOnlineOrderOverride();
-        if (envOverride !== null) {
-          if (!envOverride) {
-            router.push('/');
-          }
-          return;
-        }
-
-        const flags = await getFeatureFlags();
-        if (!flags.enable_pickup_order) {
-          // Redirect to home if pickup orders are disabled
-          router.push('/');
-        }
-      } catch (error) {
-        console.error('Error checking feature flag:', error);
-      }
-    };
-    void checkFeatureFlag();
-  }, [router]);
+    if (flagLoading) return;
+    if (onlineOrderEnabled === false) {
+      router.push('/');
+    }
+  }, [flagLoading, onlineOrderEnabled, router]);
 
   useEffect(() => {
     if (hasLoadedRef.current) return;

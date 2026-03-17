@@ -7,7 +7,7 @@ import { OrderHeader } from '@/components/OrderHeader';
 import { createOrder, type OrderInput } from '@/app/actions/orders';
 import { signUpCustomer } from '@/app/actions/customer-auth';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
-import { getFeatureFlags } from '@/app/actions/feature-flags';
+import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 import { getActivePromotions } from '@/app/actions/promotions';
 import { getUserRewardPoints, useRewardPoints as useRewardPointsAction, getRewardPointsSettings } from '@/app/actions/reward-points';
 import { FaShoppingCart, FaArrowLeft, FaCreditCard, FaStore, FaUser, FaLock, FaCheckCircle, FaExclamationCircle, FaGift, FaChevronDown, FaChevronUp } from 'react-icons/fa';
@@ -65,12 +65,12 @@ export default function CheckoutPage() {
   const [deliveryFee, setDeliveryFee] = useState(0);
   const [serviceFee, setServiceFee] = useState(0);
   const [isRedirecting, setIsRedirecting] = useState(false);
-  // Do not default to showing both options; wait until getFeatureFlags resolves.
-  const [featureFlagsLoaded, setFeatureFlagsLoaded] = useState(false);
-  const [featureFlags, setFeatureFlags] = useState({
-    enable_online_payment: false,
-    enable_instore_payment: false,
-  });
+
+  const { flags: flagsFromHook, isLoading: featureFlagsLoading } = useFeatureFlag();
+  const featureFlagsLoaded = !featureFlagsLoading;
+  const featureFlags = flagsFromHook
+    ? { enable_online_payment: flagsFromHook.enable_online_payment, enable_instore_payment: flagsFromHook.enable_instore_payment }
+    : { enable_online_payment: false, enable_instore_payment: false };
 
   const [activePromotions, setActivePromotions] = useState<PromotionWithProducts[]>([]);
 
@@ -173,23 +173,6 @@ export default function CheckoutPage() {
     if (storedScheduledPickupAt) {
       setScheduledPickupAt(storedScheduledPickupAt);
     }
-  }, []);
-
-  // Load feature flags (payment options stay hidden until this completes)
-  useEffect(() => {
-    const loadFeatureFlags = async () => {
-      try {
-        const flags = await getFeatureFlags();
-        setFeatureFlags(flags);
-      } catch (error) {
-        console.error('Error loading feature flags:', error);
-        // Leave both disabled so UI shows "unavailable" after load attempt
-        setFeatureFlags({ enable_online_payment: false, enable_instore_payment: false });
-      } finally {
-        setFeatureFlagsLoaded(true);
-      }
-    };
-    void loadFeatureFlags();
   }, []);
 
   // Load reward points if user is authenticated
