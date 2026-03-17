@@ -437,6 +437,13 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart, 
           <div className="space-y-6">
             {addonGroups
               .filter((group) => group.is_active)
+              .slice()
+              .sort((a, b) => {
+                if (a.is_required !== b.is_required) {
+                  return a.is_required ? -1 : 1; // required first
+                }
+                return a.name.localeCompare(b.name);
+              })
               .map((group) => (
                 <div key={group.id} className="space-y-3">
                   <div className="flex items-center gap-2">

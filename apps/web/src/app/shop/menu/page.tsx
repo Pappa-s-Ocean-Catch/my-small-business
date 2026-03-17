@@ -812,7 +812,7 @@ export default function MenuPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            {product.is_available ? (
+            {product.is_active ? (
               <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
                 <Icon icon={FaEye} className="h-3 w-3 mr-1" />
                 Available
