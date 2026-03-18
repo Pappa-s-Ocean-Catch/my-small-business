@@ -78,6 +78,8 @@ export interface Order {
   customer_phone: string;
   customer_name: string | null;
   payment_method: 'online' | 'store';
+  /** Optional tender detail for in-store payments (e.g. 'cash', 'card', 'eftpos'). */
+  payment_method_detail: string | null;
   order_type: 'pickup' | 'delivery';
   payment_status: 'pending' | 'paid' | 'failed' | 'refunded';
   order_status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'completed' | 'cancelled';

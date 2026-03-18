@@ -194,12 +194,17 @@ export async function updateOrderStatus(
 
 export async function updatePaymentStatus(
   orderId: string,
-  paymentStatus: PaymentStatus
+  paymentStatus: PaymentStatus,
+  paymentMethodDetail?: string | null
 ): Promise<{ data: Order | null; error: string | null }> {
   try {
     const { data, error } = await supabase
       .from('orders')
-      .update({ payment_status: paymentStatus, updated_at: new Date().toISOString() })
+      .update({
+        payment_status: paymentStatus,
+        payment_method_detail: paymentMethodDetail ?? null,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', orderId)
       .select()
       .single();
