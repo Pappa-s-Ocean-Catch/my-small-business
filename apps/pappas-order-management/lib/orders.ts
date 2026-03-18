@@ -1,6 +1,33 @@
 import { supabase } from './supabase';
 import type { Order, OrderItem, OrderItemAddon, OrderStatus, PaymentStatus } from '@my-small-business/types';
 
+type OrderRow = Omit<Order, 'items'> & {
+  items?: never;
+};
+
+type OrderWithEmbeddedItemsRow = OrderRow & {
+  order_items?: Array<(OrderItem & { order_item_addons?: OrderItemAddon[] | null })> | null;
+};
+
+function mapEmbeddedOrder(row: OrderWithEmbeddedItemsRow): Order {
+  const items: OrderItem[] =
+    (row.order_items || []).map((item) => ({
+      ...item,
+      base_price: Number(item.base_price),
+      subtotal: Number(item.subtotal),
+      removed_ingredients: (item.removed_ingredients as string[] | null) || [],
+      addons: (item.order_item_addons || undefined) ?? undefined,
+    })) || [];
+
+  // Strip embedded fields from base row
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { order_items, ...rest } = row as unknown as { order_items?: unknown } & OrderRow;
+  return {
+    ...(rest as unknown as Order),
+    items,
+  };
+}
+
 export async function getAllOrders(filters?: {
   status?: string;
   payment_status?: string;
@@ -10,7 +37,7 @@ export async function getAllOrders(filters?: {
   try {
     let query = supabase
       .from('orders')
-      .select('*')
+      .select('*, order_items(*, order_item_addons(*))')
       .order('created_at', { ascending: false });
 
     if (filters?.status && filters.status !== 'all') {
@@ -44,51 +71,8 @@ export async function getAllOrders(filters?: {
       return { data: [], error: null };
     }
 
-    // Fetch items and addons for each order
-    const ordersWithItems: Order[] = [];
-    for (const order of data) {
-      const { data: items, error: itemsError } = await supabase
-        .from('order_items')
-        .select('*')
-        .eq('order_id', order.id)
-        .order('created_at', { ascending: true });
-
-      if (itemsError) {
-        console.error('Error fetching order items:', itemsError);
-        ordersWithItems.push(order as Order);
-        continue;
-      }
-
-      const orderItems: OrderItem[] = [];
-      if (items) {
-        for (const item of items) {
-          const { data: addons, error: addonsError } = await supabase
-            .from('order_item_addons')
-            .select('*')
-            .eq('order_item_id', item.id)
-            .order('created_at', { ascending: true });
-
-          if (addonsError) {
-            console.error('Error fetching addons:', addonsError);
-          }
-
-          orderItems.push({
-            ...item,
-            base_price: Number(item.base_price),
-            subtotal: Number(item.subtotal),
-            removed_ingredients: (item.removed_ingredients as string[] | null) || [],
-            addons: addons || undefined,
-          } as OrderItem);
-        }
-      }
-
-      ordersWithItems.push({
-        ...order,
-        items: orderItems,
-      } as Order);
-    }
-
-    return { data: ordersWithItems, error: null };
+    const mapped = (data as unknown as OrderWithEmbeddedItemsRow[]).map(mapEmbeddedOrder);
+    return { data: mapped, error: null };
   } catch (error) {
     console.error('Error fetching orders:', error);
     return {
@@ -102,7 +86,7 @@ export async function getOrder(orderId: string): Promise<{ data: Order | null; e
   try {
     const { data, error } = await supabase
       .from('orders')
-      .select('*')
+      .select('*, order_items(*, order_item_addons(*))')
       .eq('id', orderId)
       .single();
 
@@ -114,49 +98,7 @@ export async function getOrder(orderId: string): Promise<{ data: Order | null; e
       return { data: null, error: 'Order not found' };
     }
 
-    // Fetch items
-    const { data: items, error: itemsError } = await supabase
-      .from('order_items')
-      .select('*')
-      .eq('order_id', orderId)
-      .order('created_at', { ascending: true });
-
-    if (itemsError) {
-      console.error('Error fetching order items:', itemsError);
-      return { data: data as Order, error: null };
-    }
-
-    // Fetch addons for each item
-    const orderItems: OrderItem[] = [];
-    if (items) {
-      for (const item of items) {
-        const { data: addons, error: addonsError } = await supabase
-          .from('order_item_addons')
-          .select('*')
-          .eq('order_item_id', item.id)
-          .order('created_at', { ascending: true });
-
-        if (addonsError) {
-          console.error('Error fetching addons:', addonsError);
-        }
-
-        orderItems.push({
-          ...item,
-          base_price: Number(item.base_price),
-          subtotal: Number(item.subtotal),
-          removed_ingredients: (item.removed_ingredients as string[] | null) || [],
-          addons: addons || undefined,
-        } as OrderItem);
-      }
-    }
-
-    return {
-      data: {
-        ...data,
-        items: orderItems,
-      } as Order,
-      error: null,
-    };
+    return { data: mapEmbeddedOrder(data as unknown as OrderWithEmbeddedItemsRow), error: null };
   } catch (error) {
     console.error('Error fetching order:', error);
     return {

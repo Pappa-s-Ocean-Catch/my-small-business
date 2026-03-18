@@ -8,6 +8,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from '@vercel/analytics/react';
 import { homeMetadata } from "./metadata";
+import { SpeedInsights } from "@vercel/speed-insights/next"
 import "./globals.css";
 
 const geistSans = Geist({
@@ -30,13 +31,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <SpeedInsights></SpeedInsights>
         <AppHeader />
         <SnackbarProvider>
           <CartProvider>
             <DynamicHeader />
             <main>{children}</main>
           </CartProvider>
-          <ToastContainer position="top-right" autoClose={3500} hideProgressBar theme="colored" aria-label="Notifications"/>
+          <ToastContainer position="top-right" autoClose={3500} hideProgressBar theme="colored" aria-label="Notifications" />
         </SnackbarProvider>
         <Analytics />
       </body>

@@ -22,17 +22,6 @@ function assertPrinter(printer: SavedPrinter | null | undefined): asserts printe
   }
 }
 
-/** Format printer error for Alert and debugging (message, code, hint). */
-export function formatPrinterError(error: unknown): string {
-  const e = error instanceof Error ? error : new Error(String(error));
-  const code = (error as { code?: string })?.code;
-  const hint = 'Check Settings > Printer and try Test print.';
-  if (code) {
-    return `${e.message} (code: ${code}). ${hint}`;
-  }
-  return `${e.message}. ${hint}`;
-}
-
 async function withConnectedPrinter<T>(
   printer: SavedPrinter,
   fn: (p: Printer) => Promise<T>,
