@@ -209,6 +209,11 @@ function OrderConfirmationContent() {
 
   const currentStepIndex = statusSteps.findIndex((s) => s.id === order.order_status);
 
+  const totalItems =
+    Array.isArray(order.items) && order.items.length > 0
+      ? order.items.reduce((sum, item) => sum + item.quantity, 0)
+      : 0;
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-neutral-900">
       <OrderHeader />
@@ -418,7 +423,9 @@ function OrderConfirmationContent() {
           <div className="mt-6 pt-6 border-t border-gray-200 dark:border-neutral-700">
             <div className="flex justify-between items-center mb-2">
               <span className="text-gray-600 dark:text-gray-400">Items</span>
-              <span className="text-gray-900 dark:text-white">${(order.subtotal + promotionDiscount).toFixed(2)}</span>
+              <span className="text-gray-900 dark:text-white">
+                {totalItems} item{totalItems === 1 ? '' : 's'}
+              </span>
             </div>
             {promotionDiscount > 0.009 && (
               <div className="flex justify-between items-center mb-2">
@@ -446,7 +453,7 @@ function OrderConfirmationContent() {
             )}
             {order.tax > 0 && (
               <div className="flex justify-between items-center mb-2">
-                <span className="text-gray-600 dark:text-gray-400">Tax</span>
+                <span className="text-gray-600 dark:text-gray-400">GST</span>
                 <span className="text-gray-900 dark:text-white">${order.tax.toFixed(2)}</span>
               </div>
             )}
