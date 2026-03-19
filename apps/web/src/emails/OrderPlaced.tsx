@@ -11,20 +11,21 @@ interface OrderPlacedEmailProps {
 }
 
 function renderItem(item: OrderItem) {
+    const addons = item.addons ?? [];
     return (
         <Section key={item.id} className="mb-2">
             <Text className="font-bold text-base m-0">
                 {item.quantity}x {item.product_name}
             </Text>
-            {item.addons?.length > 0 && (
+            {addons.length > 0 && (
                 <Text className="text-sm text-gray-700 m-0">
-                    Add-ons: {item.addons.map((addon: OrderItemAddon) => addon.addon_item_name).join(', ')}
+                    Add-ons: {addons.map((addon: OrderItemAddon) => addon.addon_item_name).join(', ')}
                 </Text>
             )}
             {item.comment && (
                 <Text className="text-sm text-gray-700 m-0">Note: {item.comment}</Text>
             )}
-            <Text className="text-sm text-gray-700 m-0">Price: ${(item.price * item.quantity).toFixed(2)}</Text>
+            <Text className="text-sm text-gray-700 m-0">Price: ${item.subtotal.toFixed(2)}</Text>
         </Section>
     );
 }

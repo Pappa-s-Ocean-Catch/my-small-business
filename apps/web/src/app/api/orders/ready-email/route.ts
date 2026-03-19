@@ -3,7 +3,7 @@
 import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@my-small-business/supabase/server';
 import type { Order } from '@my-small-business/types';
-import { sendOrderPlacedEmail } from '@/app/actions/email';
+import { sendOrderPlacedEmail, sendOrderReadyEmail } from '@/app/actions/email';
 
 export async function POST(request: Request) {
   try {

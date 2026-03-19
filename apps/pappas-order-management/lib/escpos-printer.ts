@@ -1,5 +1,5 @@
 import type { Order } from '@my-small-business/types';
-import { Printer, PrinterModelLang } from 'react-native-esc-pos-printer';
+import { Printer, PrinterModelLang, PrinterConstants } from 'react-native-esc-pos-printer';
 import { buildKitchenReceiptLines } from './epson-epos';
 
 export type SavedPrinter = {
@@ -20,6 +20,12 @@ function assertPrinter(printer: SavedPrinter | null | undefined): asserts printe
   if (!printer || !printer.target || !printer.deviceName) {
     throw new Error('No printer selected');
   }
+}
+export function formatPrinterError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
 }
 
 async function withConnectedPrinter<T>(
@@ -67,18 +73,34 @@ export async function escposTestPrint(printer: SavedPrinter, copies: number): Pr
 export async function escposPrintKitchenReceipt(order: Order, printer: SavedPrinter, copies: number): Promise<void> {
   assertPrinter(printer);
   const repeat = normalizeCopies(copies);
-
-  const text = buildKitchenReceiptLines(order).join('\n');
+  const lines = buildKitchenReceiptLines(order);
 
   for (let i = 0; i < repeat; i++) {
     await withConnectedPrinter(
       printer,
       async (p) => {
-        await p.addText(text);
+        for (const line of lines) {
+          await printReceiptLine(p, line);
+        }
         await p.addCut();
         await p.sendData();
       },
       { timeoutMs: 15000 }
     );
   }
+}
+
+// Helper to print a single line with formatting
+async function printReceiptLine(p: Printer, line: string | { text: string; bold?: boolean; large?: boolean }) {
+  if (typeof line === 'string') {
+    await p.addText(line + '\n');
+    return;
+  }
+  // Set formatting if supported by printer
+  if (line.bold) await p.addTextStyle({ em: PrinterConstants.TRUE });
+  if (line.large) await p.addTextSize({ width: 2, height: 2 });
+  await p.addText(line.text + '\n');
+  // Reset formatting after line
+  if (line.bold) await p.addTextStyle({ em: PrinterConstants.FALSE });
+  if (line.large) await p.addTextSize({ width: 1, height: 1 });
 }

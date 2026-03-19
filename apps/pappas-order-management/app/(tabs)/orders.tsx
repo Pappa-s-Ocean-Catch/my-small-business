@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -31,7 +31,8 @@ import * as Print from 'expo-print';
 import { ConfirmationDialog } from '../../lib/ConfirmationDialog';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
-import { escposPrintKitchenReceipt } from '../../lib/escpos-printer';
+import { escposPrintKitchenReceipt, formatPrinterError } from '../../lib/escpos-printer';
+import { KitchenAlertOverlay } from '../../lib/KitchenAlertOverlay';
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
   pending: '#f59e0b',
@@ -71,10 +72,13 @@ const getTodayDateString = () => {
   return today.toISOString().split('T')[0];
 };
 
-export default function OrdersScreen() {
+const webBaseUrl = process.env.EXPO_PUBLIC_SITE_URL;
+
+export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' | 'all'; enableStatusUpdates: boolean }) {
   const { width, height } = useWindowDimensions();
   const isPortrait = height >= width;
   const isNarrow = width < 420;
+  const isTablet = width >= 600;
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,12 +92,23 @@ export default function OrdersScreen() {
   const [statusToUpdate, setStatusToUpdate] = useState<{ orderId: string; status: OrderStatus } | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshCountdown, setRefreshCountdown] = useState<number>(0);
   const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
+  const [isFiltersModalVisible, setIsFiltersModalVisible] = useState(false);
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
+
+  // Ensure Live Orders always starts unfiltered so pending orders are visible.
+  useEffect(() => {
+    if (mode !== 'live') return;
+    setStatusFilter('all');
+    setPaymentFilter('all');
+  }, [mode]);
 
   const lastOrderIdRef = useRef<string | null>(null);
   const autoPrintedOrderIdsRef = useRef<Set<string>>(new Set());
   const lastPrinterAlertAtRef = useRef<number>(0);
+  const lastAutoStatusAlertAtRef = useRef<number>(0);
   const subscriptionRef = useRef<any>(null);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const appSettingsRef = useRef<AppSettings>(DEFAULT_APP_SETTINGS);
@@ -140,22 +155,38 @@ export default function OrdersScreen() {
   const loadOrders = async () => {
     try {
       setLoading(true);
-      const filters: { status?: string; payment_status?: string; date?: string } = {};
+      setLoadError(null);
+      const filters: { status?: string; payment_status?: string; date?: string; since?: string } = {};
       if (statusFilter !== 'all') {
         filters.status = statusFilter;
       }
       if (paymentFilter !== 'all') {
         filters.payment_status = paymentFilter;
       }
-      if (selectedDate) {
+      if (mode === 'live') {
+        const since = new Date();
+        since.setHours(since.getHours() - 24);
+        filters.since = since.toISOString();
+      } else if (selectedDate) {
         filters.date = selectedDate;
       }
 
       const result = await getAllOrders(filters);
       if (result.error) {
+        setLoadError(result.error);
         Alert.alert('Error', result.error);
       } else {
-        const newOrders = result.data || [];
+        let newOrders = result.data || [];
+
+        // In "Live" mode, only show active orders (exclude completed/cancelled/refunded).
+        if (mode === 'live') {
+          newOrders = newOrders.filter(
+            (order) =>
+              order.order_status !== 'completed' &&
+              order.order_status !== 'cancelled' &&
+              order.payment_status !== 'refunded'
+          );
+        }
 
         // Check for new orders
         if (newOrders.length > 0) {
@@ -181,6 +212,7 @@ export default function OrdersScreen() {
         setRefreshCountdown(appSettingsRef.current.refreshIntervalSec);
       }
     } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Failed to load orders');
       Alert.alert('Error', 'Failed to load orders');
       console.error('Error loading orders:', error);
     } finally {
@@ -192,7 +224,11 @@ export default function OrdersScreen() {
   useEffect(() => {
     loadOrders();
 
-    // Set up realtime subscription
+    // Realtime subscription and auto-print are only needed in "live" mode.
+    if (mode !== 'live') {
+      return;
+    }
+
     subscriptionRef.current = supabase
       .channel('orders-changes')
       .on(
@@ -205,15 +241,13 @@ export default function OrdersScreen() {
         (payload) => {
           if (payload.eventType === 'INSERT') {
             const newOrder = payload.new as { id: string; created_at: string };
-            const orderDate = new Date(newOrder.created_at).toISOString().split('T')[0];
             const s = appSettingsRef.current;
-            if (orderDate === selectedDate && s.soundEnabled && lastOrderIdRef.current !== newOrder.id) {
+            if (s.soundEnabled && lastOrderIdRef.current !== newOrder.id) {
               playNewOrderSound({ soundId: s.soundId, repeatCount: s.soundRepeatCount, delayMs: 2000 });
               lastOrderIdRef.current = newOrder.id;
             }
 
             if (
-              orderDate === selectedDate &&
               s.printerEnabled &&
               s.printerAutoPrint &&
               !!s.printerSelectedTarget &&
@@ -233,15 +267,32 @@ export default function OrdersScreen() {
                   }
 
                   await escposPrintKitchenReceipt(result.data, selected, s.printerCopies);
+
+                  // After a successful print, auto-transition the order to "preparing"
+                  // (kitchen has received the ticket). This should not require any user action.
+                  if (result.data.order_status === 'pending' || result.data.order_status === 'confirmed') {
+                    const statusResult = await updateOrderStatus(result.data.id, 'preparing');
+                    if (statusResult.error) {
+                      console.error('[LiveOrders] Auto status update error:', statusResult.error);
+                      const now = Date.now();
+                      if (now - lastAutoStatusAlertAtRef.current > 30000) {
+                        lastAutoStatusAlertAtRef.current = now;
+                        Alert.alert('Status update error', statusResult.error);
+                      }
+                    }
+                  }
                 })
                 .catch((err) => {
                   autoPrintedOrderIdsRef.current.delete(newOrder.id);
                   console.error('Auto print error:', err);
+                  if (err && typeof (err as Error).stack === 'string') {
+                    console.error('Auto print stack:', (err as Error).stack);
+                  }
 
                   const now = Date.now();
                   if (now - lastPrinterAlertAtRef.current > 30000) {
                     lastPrinterAlertAtRef.current = now;
-                    Alert.alert('Printer error', err instanceof Error ? err.message : 'Auto print failed');
+                    Alert.alert('Printer error', formatPrinterError(err));
                   }
                 });
             }
@@ -256,7 +307,7 @@ export default function OrdersScreen() {
         supabase.removeChannel(subscriptionRef.current);
       }
     };
-  }, [statusFilter, paymentFilter, selectedDate]);
+  }, [statusFilter, paymentFilter, selectedDate, mode]);
 
   // Countdown timer for refresh
   useEffect(() => {
@@ -283,6 +334,42 @@ export default function OrdersScreen() {
       }
     };
   }, [refreshCountdown]);
+
+  // Live timer for elapsed order age (live mode only).
+  useEffect(() => {
+    if (mode !== 'live') return;
+    const id = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [mode]);
+
+  const formatElapsed = useMemo(() => {
+    return (createdAtIso: string): { text: string; minutes: number } => {
+      const createdMs = new Date(createdAtIso).getTime();
+      const diffSec = Math.max(0, Math.floor((nowMs - createdMs) / 1000));
+      const minutes = Math.floor(diffSec / 60);
+      const seconds = diffSec % 60;
+      const mm = String(minutes).padStart(2, '0');
+      const ss = String(seconds).padStart(2, '0');
+      return { text: `${mm}:${ss}`, minutes };
+    };
+  }, [nowMs]);
+
+  const paymentSummary = useMemo(() => {
+    return (order: Order): string => {
+      const type = order.order_type === 'delivery' ? 'Delivery' : 'Pickup';
+      const payment =
+        order.payment_method === 'store'
+          ? 'Pay at Counter'
+          : order.payment_status === 'paid'
+            ? 'Paid Online'
+            : 'Online Payment';
+      return `${type} • ${payment}`;
+    };
+  }, []);
+
+  const staleThresholdSec = Math.max(60, Math.round((appSettings.refreshIntervalSec || 30) * 2.5));
+  const isStale =
+    mode === 'live' && !!lastUpdated && (Date.now() - lastUpdated.getTime()) / 1000 > staleThresholdSec;
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -358,8 +445,9 @@ export default function OrdersScreen() {
     }
   };
 
-  const handleQuickAction = async (orderId: string, action: 'prepare' | 'ready' | 'completed') => {
+  const handleQuickAction = async (orderId: string, action: 'accept' | 'prepare' | 'ready' | 'completed') => {
     const statusMap: Record<string, OrderStatus> = {
+      accept: 'confirmed',
       prepare: 'preparing',
       ready: 'ready',
       completed: 'completed',
@@ -378,6 +466,9 @@ export default function OrdersScreen() {
         if (selectedOrder && selectedOrder.id === orderId) {
           setSelectedOrder(result.data);
         }
+        if (newStatus === 'ready') {
+          void triggerOrderReadyEmail(orderId);
+        }
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to update status');
@@ -387,8 +478,30 @@ export default function OrdersScreen() {
     }
   };
 
+  const triggerOrderReadyEmail = async (orderId: string) => {
+    if (!webBaseUrl) {
+      console.warn('[LiveOrders] EXPO_PUBLIC_SITE_URL is not configured; skipping ready email.');
+      return;
+    }
+    try {
+      const response = await fetch(`${webBaseUrl}/api/orders/ready-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId }),
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('[LiveOrders] Failed to send ready email:', response.status, text);
+      }
+    } catch (error) {
+      console.error('[LiveOrders] Error sending ready email:', error);
+    }
+  };
+
   const getNextQuickAction = (currentStatus: OrderStatus): { action: string; label: string } | null => {
     switch (currentStatus) {
+      case 'pending':
+        return { action: 'accept', label: 'Accept' };
       case 'confirmed':
         return { action: 'prepare', label: 'Start Preparing' };
       case 'preparing':
@@ -409,16 +522,25 @@ export default function OrdersScreen() {
           await escposPrintKitchenReceipt(order, selected, s.printerCopies);
           return;
         } catch (printerError) {
+          console.error('Print error:', printerError);
+          if (printerError && typeof (printerError as Error).stack === 'string') {
+            console.error('Print stack:', (printerError as Error).stack);
+          }
           Alert.alert(
             'Printer error',
-            printerError instanceof Error ? printerError.message : 'Failed to print to printer',
+            formatPrinterError(printerError),
             [
               { text: 'Cancel', style: 'cancel' },
               {
                 text: 'System Print',
                 onPress: async () => {
-                  const html = generatePrintHTML(order);
-                  await Print.printAsync({ html });
+                  try {
+                    const html = generatePrintHTML(order);
+                    await Print.printAsync({ html });
+                  } catch (e) {
+                    console.error('System print error:', e);
+                    Alert.alert('Error', e instanceof Error ? e.message : 'System print failed');
+                  }
                 },
               },
             ]
@@ -430,16 +552,27 @@ export default function OrdersScreen() {
       const html = generatePrintHTML(order);
       await Print.printAsync({ html });
     } catch (error) {
-      Alert.alert('Error', 'Failed to print order');
+      const detail = error instanceof Error ? error.message : 'Failed to print order';
       console.error('Print error:', error);
+      Alert.alert('Error', detail);
     }
   };
 
   const generatePrintHTML = (order: Order): string => {
+    const ticketOrderNumber = (() => {
+      const match = order.order_number.match(/(\d{3,})$/);
+      if (!match) return order.order_number;
+      const lastSegment = match[1];
+      return `1${lastSegment}`;
+    })();
     const itemsHTML = order.items?.map(item => {
       const addonsHTML = item.addons?.map(addon =>
         `<li>+ ${addon.addon_item_name} (${addon.addon_group_name}) - $${addon.addon_item_price.toFixed(2)}</li>`
       ).join('') || '';
+      const removedHTML =
+        Array.isArray(item.removed_ingredients) && item.removed_ingredients.length > 0
+          ? `<p><em>Removed: ${item.removed_ingredients.join(', ')}</em></p>`
+          : '';
 
       return `
         <tr>
@@ -448,33 +581,61 @@ export default function OrdersScreen() {
         </tr>
         ${item.comment ? `<tr><td colspan="2"><em>Note: ${item.comment}</em></td></tr>` : ''}
         ${addonsHTML ? `<tr><td colspan="2"><ul style="margin: 0; padding-left: 20px;">${addonsHTML}</ul></td></tr>` : ''}
+        ${removedHTML ? `<tr><td colspan="2">${removedHTML}</td></tr>` : ''}
       `;
     }).join('') || '';
+
+    const scheduledPickupAt = order.scheduled_pickup_at ? new Date(order.scheduled_pickup_at) : null;
+    const isPreOrder =
+      order.order_type === 'pickup' &&
+      !!scheduledPickupAt &&
+      Number.isFinite(scheduledPickupAt.getTime()) &&
+      scheduledPickupAt.getTime() > Date.now();
+
+    const preOrderBannerHTML = isPreOrder
+      ? `<div class="preorder-banner">PRE-ORDER</div>
+         <div class="pickup-time-hero"><strong>PICKUP TIME:</strong> ${scheduledPickupAt!.toLocaleString()}</div>`
+      : '';
+
+    const pickupTimeHTML =
+      order.order_type === 'pickup' && order.scheduled_pickup_at
+        ? `<p><strong>Pickup time:</strong> ${new Date(order.scheduled_pickup_at).toLocaleString()}</p>`
+        : '';
+
+    const paymentStatusText = PAYMENT_STATUS_LABELS[order.payment_status];
 
     return `
       <!DOCTYPE html>
       <html>
         <head>
           <meta charset="utf-8">
-          <title>Order #${order.order_number}</title>
+          <title>Order #${ticketOrderNumber}</title>
           <style>
-            body { font-family: Arial, sans-serif; padding: 20px; }
-            h1 { margin: 0 0 10px 0; }
+            body { font-family: Arial, sans-serif; padding: 20px; font-size: 18px; }
+            h1 { margin: 0 0 10px 0; font-size: 30px; }
+            .payment-status { font-size: 26px; font-weight: bold; margin: 6px 0 4px 0; }
+            .preorder-banner { font-size: 34px; font-weight: 900; text-align: center; margin: 10px 0 8px 0; letter-spacing: 1px; }
+            .pickup-time-hero { font-size: 22px; font-weight: 700; text-align: center; margin: 0 0 10px 0; }
             .info { margin: 10px 0; }
             table { width: 100%; border-collapse: collapse; margin: 20px 0; }
             th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
             th { background-color: #f2f2f2; }
-            .total { font-size: 18px; font-weight: bold; margin-top: 20px; }
+            .total { font-size: 24px; font-weight: bold; margin-top: 20px; }
+            .order-number-bottom { margin-top: 24px; font-size: 32px; font-weight: bold; text-align: center; }
           </style>
         </head>
         <body>
-          <h1>Order #${order.order_number}</h1>
+          <h1>Order #${ticketOrderNumber}</h1>
+          <div class="payment-status">${paymentStatusText}</div>
+          ${preOrderBannerHTML}
           <div class="info">
             <p><strong>Customer:</strong> ${order.customer_name || order.customer_email}</p>
             <p><strong>Phone:</strong> ${order.customer_phone}</p>
             <p><strong>Type:</strong> ${order.order_type === 'delivery' ? 'Delivery' : 'Pickup'}</p>
-            <p><strong>Status:</strong> ${STATUS_LABELS[order.order_status]}</p>
-            <p><strong>Time:</strong> ${new Date(order.created_at).toLocaleString()}</p>
+            <p><strong>Order status:</strong> ${STATUS_LABELS[order.order_status]}</p>
+            <p><strong>Payment status:</strong> ${paymentStatusText}</p>
+            <p><strong>Time placed:</strong> ${new Date(order.created_at).toLocaleString()}</p>
+            ${pickupTimeHTML}
             ${order.order_type === 'delivery' && order.delivery_address_line1 ? `
               <p><strong>Delivery Address:</strong><br>
               ${order.delivery_address_line1}<br>
@@ -502,6 +663,7 @@ export default function OrdersScreen() {
             ${order.service_fee > 0 ? `<p>Service Fee: $${order.service_fee.toFixed(2)}</p>` : ''}
             <p>Total: $${order.total.toFixed(2)}</p>
           </div>
+          <p class="order-number-bottom">ORDER #${ticketOrderNumber}</p>
         </body>
       </html>
     `;
@@ -532,6 +694,10 @@ export default function OrdersScreen() {
     const paymentColor = PAYMENT_STATUS_COLORS[order.payment_status];
     const paymentLabel = PAYMENT_STATUS_LABELS[order.payment_status];
     const quickAction = getNextQuickAction(order.order_status);
+    const elapsed = mode === 'live' ? formatElapsed(order.created_at) : null;
+    const elapsedColor =
+      elapsed && elapsed.minutes < 10 ? '#16a34a' : elapsed && elapsed.minutes < 20 ? '#ca8a04' : '#dc2626';
+    const isPaid = order.payment_status === 'paid';
 
     return (
       <Card style={styles.orderCard} onPress={() => handleOrderPress(order)}>
@@ -543,88 +709,53 @@ export default function OrdersScreen() {
                 {order.customer_name || order.customer_email}
               </Text>
               <View style={styles.orderMeta}>
-                <Text style={styles.orderType}>
-                  {order.order_type === 'delivery' ? 'Delivery' : 'Pickup'}
-                </Text>
-                <Text style={styles.orderTime}>
-                  {new Date(order.created_at).toLocaleTimeString()}
-                </Text>
+                <Text style={styles.orderType}>{paymentSummary(order)}</Text>
               </View>
             </View>
             <View style={styles.badgesContainer}>
-              <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
-                <Text style={styles.statusText}>{statusLabel}</Text>
-              </View>
-              <View style={[styles.paymentBadge, { backgroundColor: paymentColor }]}>
-                <Text style={styles.paymentText}>{paymentLabel}</Text>
-              </View>
+              {mode === 'live' && elapsed ? (
+                <View style={[styles.elapsedPill, { backgroundColor: elapsedColor }]}>
+                  <Text style={styles.elapsedText}>{elapsed.text}</Text>
+                </View>
+              ) : (
+                <Text style={styles.orderTime}>{new Date(order.created_at).toLocaleTimeString()}</Text>
+              )}
+              <IconButton
+                icon="printer"
+                size={20}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  handlePrint(order);
+                }}
+                accessibilityLabel="Print order"
+              />
             </View>
           </View>
 
-          <View style={styles.orderInfo}>
-            <Text style={styles.orderTotal}>${order.total.toFixed(2)}</Text>
-          </View>
-
-          <View style={styles.quickActions}>
-            {quickAction && (
+          <View style={styles.orderInfoRow}>
+            <View style={styles.orderInfoLeft}>
+              <Text
+                style={[
+                  styles.paymentAttention,
+                  isPaid ? styles.paymentAttentionPaid : styles.paymentAttentionUnpaid,
+                ]}
+              >
+                {isPaid ? 'PAID' : 'UNPAID'}
+              </Text>
+              <Text style={styles.orderTotal}>${order.total.toFixed(2)}</Text>
+            </View>
+            {enableStatusUpdates && quickAction && (
               <PaperButton
                 mode="contained"
                 onPress={(e) => {
                   e.stopPropagation();
-                  handleQuickAction(order.id, quickAction.action as 'prepare' | 'ready' | 'completed');
+                  handleQuickAction(order.id, quickAction.action as 'accept' | 'prepare' | 'ready' | 'completed');
                 }}
                 disabled={updatingStatus === order.id}
-                style={styles.paperInlineButton}
-                contentStyle={styles.paperInlineButtonContent}
+                style={styles.bodyQuickButton}
+                contentStyle={styles.bodyQuickButtonContent}
               >
                 {quickAction.label}
-              </PaperButton>
-            )}
-            <PaperButton
-              mode="outlined"
-              onPress={(e) => {
-                e.stopPropagation();
-                handleViewOrder(order.id);
-              }}
-              style={styles.paperInlineButton}
-              contentStyle={styles.paperInlineButtonContent}
-            >
-              View
-            </PaperButton>
-            <PaperButton
-              mode="outlined"
-              onPress={(e) => {
-                e.stopPropagation();
-                handlePrint(order);
-              }}
-              style={styles.paperInlineButton}
-              contentStyle={styles.paperInlineButtonContent}
-            >
-              Print
-            </PaperButton>
-            {order.order_status !== 'cancelled' && order.order_status !== 'completed' && (
-              <PaperButton
-                mode="outlined"
-                onPress={(e) => {
-                  e.stopPropagation();
-                  Alert.alert(
-                    'Cancel Order',
-                    'Are you sure you want to cancel this order?',
-                    [
-                      { text: 'No', style: 'cancel' },
-                      {
-                        text: 'Yes, Cancel',
-                        style: 'destructive',
-                        onPress: () => handleStatusUpdate(order.id, 'cancelled'),
-                      },
-                    ]
-                  );
-                }}
-                style={styles.paperInlineButton}
-                contentStyle={styles.paperInlineButtonContent}
-                color="#ef4444"
-              >
-                Cancel
               </PaperButton>
             )}
           </View>
@@ -637,7 +768,7 @@ export default function OrdersScreen() {
                   style={[styles.statusSelect, { backgroundColor: statusColor }]}
                   onPress={(e) => {
                     e.stopPropagation();
-                    // Show status picker
+                    if (!enableStatusUpdates) return;
                     Alert.alert(
                       'Update Status',
                       'Select new status',
@@ -650,7 +781,7 @@ export default function OrdersScreen() {
                       ]
                     );
                   }}
-                  disabled={updatingStatus === order.id}
+                  disabled={updatingStatus === order.id || !enableStatusUpdates}
                 >
                   <Text style={styles.statusSelectText}>{statusLabel}</Text>
                 </TouchableOpacity>
@@ -663,19 +794,24 @@ export default function OrdersScreen() {
                   style={[styles.statusSelect, { backgroundColor: paymentColor }]}
                   onPress={(e) => {
                     e.stopPropagation();
+                    if (!enableStatusUpdates) return;
                     Alert.alert(
-                      'Update Payment Status',
-                      'Select new payment status',
+                      'Mark payment as paid',
+                      'Select payment method',
                       [
-                        ...Object.entries(PAYMENT_STATUS_LABELS).map(([status, label]) => ({
-                          text: label,
-                          onPress: () => handlePaymentStatusUpdate(order.id, status as PaymentStatus),
-                        })),
+                        {
+                          text: 'Card',
+                          onPress: () => handlePaymentStatusUpdate(order.id, 'paid'),
+                        },
+                        {
+                          text: 'Cash',
+                          onPress: () => handlePaymentStatusUpdate(order.id, 'paid'),
+                        },
                         { text: 'Cancel', style: 'cancel' },
                       ]
                     );
                   }}
-                  disabled={updatingStatus === order.id}
+                  disabled={updatingStatus === order.id || !enableStatusUpdates || order.payment_status === 'paid'}
                 >
                   <Text style={styles.statusSelectText}>{paymentLabel}</Text>
                 </TouchableOpacity>
@@ -697,23 +833,64 @@ export default function OrdersScreen() {
   }
 
   return (
-    <ErrorBoundary>
-      <View style={styles.container}>
-        {/* Header with Date Navigation */}
-        <Surface style={[styles.header, isNarrow && styles.headerNarrow]} elevation={1}>
-          <View style={[styles.headerTop, isPortrait && styles.headerTopPortrait]}>
-            <View>
-              <Text style={[styles.headerTitle, isNarrow && styles.headerTitleNarrow]}>Order Management</Text>
-              <Text style={styles.headerSubtitle}>
-                {new Date(selectedDate).toLocaleDateString('en-US', {
-                  weekday: 'long',
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                })}
-              </Text>
-            </View>
-            <View style={[styles.headerActions, isPortrait && styles.headerActionsPortrait]}>
+    <View style={styles.container}>
+      {mode === 'live' && (isStale || !!loadError) && (
+        <KitchenAlertOverlay
+          title={loadError ? 'ERROR' : 'CONNECTION ISSUE'}
+          message={
+            loadError
+              ? 'Live Orders failed to refresh. Please check Wi‑Fi and try again.'
+              : 'Live Orders has not synced recently. Please check Wi‑Fi and try refreshing.'
+          }
+          details={`Last sync: ${lastUpdated ? lastUpdated.toLocaleString() : 'unknown'}\nThreshold: ${staleThresholdSec}s`}
+          primaryActionText="Retry refresh"
+          onPrimaryAction={() => loadOrders()}
+        />
+      )}
+      {/* Header with Date Navigation (no inner title to save vertical space; tab bar already shows screen name) */}
+      <Surface style={[styles.header, isNarrow && styles.headerNarrow]} elevation={1}>
+        {isTablet ? (
+          <View style={styles.tabletHeaderRow}>
+
+            {mode === 'all' ? (
+              <View style={styles.tabletDateRow}>
+                <IconButton icon="chevron-left" onPress={() => navigateDate('prev')} />
+                <PaperButton
+                  mode="outlined"
+                  onPress={() => {
+                    Alert.alert(
+                      'Select Date',
+                      'Date picker would open here',
+                      [
+                        { text: 'Today', onPress: () => setSelectedDate(getTodayDateString()) },
+                        { text: 'Cancel', style: 'cancel' },
+                      ]
+                    );
+                  }}
+                >
+                  {selectedDate}
+                </PaperButton>
+                <IconButton
+                  icon="chevron-right"
+                  onPress={() => navigateDate('next')}
+                  disabled={new Date(selectedDate) >= new Date(getTodayDateString())}
+                />
+                <PaperButton mode="text" onPress={() => navigateDate('today')}>
+                  Today
+                </PaperButton>
+              </View>
+            ) : (
+              <View style={styles.tabletDateRow} />
+            )}
+
+            <View style={styles.headerCenter} />
+
+            <View style={styles.headerActions}>
+              <IconButton
+                icon="filter-variant"
+                onPress={() => setIsFiltersModalVisible(true)}
+                accessibilityLabel="Filters"
+              />
               <PaperButton
                 mode="contained"
                 onPress={loadOrders}
@@ -725,236 +902,299 @@ export default function OrdersScreen() {
               </PaperButton>
             </View>
           </View>
+        ) : (
+          <>
+            <View style={[styles.headerTop, isPortrait && styles.headerTopPortrait]}>
+              <View style={styles.headerTitleContainer} />
 
-          {/* Date Navigation */}
-          <View style={[styles.dateNavigation, isPortrait && styles.dateNavigationPortrait]}>
-            <IconButton icon="chevron-left" onPress={() => navigateDate('prev')} />
-            <View style={styles.dateInputContainer}>
+              <View style={[styles.headerActions, isPortrait && styles.headerActionsPortrait]}>
+                <IconButton
+                  icon="filter-variant"
+                  onPress={() => setIsFiltersModalVisible(true)}
+                  accessibilityLabel="Filters"
+                />
+                <PaperButton
+                  mode="contained"
+                  onPress={loadOrders}
+                  disabled={loading}
+                  loading={loading}
+                  contentStyle={styles.refreshButtonContent}
+                >
+                  {refreshCountdown > 0 ? `Refresh (${refreshCountdown}s)` : 'Refresh'}
+                </PaperButton>
+              </View>
+            </View>
+
+            {/* Date Navigation (history only) */}
+            {mode === 'all' && (
+              <View style={[styles.dateNavigation, isPortrait && styles.dateNavigationPortrait]}>
+                <IconButton icon="chevron-left" onPress={() => navigateDate('prev')} />
+                <PaperButton
+                  mode="outlined"
+                  onPress={() => {
+                    Alert.alert(
+                      'Select Date',
+                      'Date picker would open here',
+                      [
+                        { text: 'Today', onPress: () => setSelectedDate(getTodayDateString()) },
+                        { text: 'Cancel', style: 'cancel' },
+                      ]
+                    );
+                  }}
+                >
+                  {selectedDate}
+                </PaperButton>
+                <IconButton
+                  icon="chevron-right"
+                  onPress={() => navigateDate('next')}
+                  disabled={new Date(selectedDate) >= new Date(getTodayDateString())}
+                />
+                <PaperButton mode="text" onPress={() => navigateDate('today')}>
+                  Today
+                </PaperButton>
+              </View>
+            )}
+          </>
+        )}
+
+        {lastUpdated && (
+          <Text style={styles.lastUpdated}>
+            Last updated: {lastUpdated.toLocaleTimeString()}
+          </Text>
+        )}
+      </Surface>
+
+      {/* Orders List */}
+      <FlatList
+        data={orders}
+        renderItem={renderOrderItem}
+        keyExtractor={(item) => item.id}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+        contentContainerStyle={styles.listContent}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>No orders found</Text>
+            <Text style={styles.emptySubtext}>
+              {selectedDate === getTodayDateString()
+                ? 'No orders for today yet.'
+                : `No orders found for ${new Date(selectedDate).toLocaleDateString('en-US', {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                })}.`}
+            </Text>
+          </View>
+        }
+      />
+
+      {/* Filters Modal */}
+      <Modal
+        visible={isFiltersModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setIsFiltersModalVisible(false)}
+      >
+        <View style={styles.filtersModalBackdrop}>
+          <View style={styles.filtersModalContent}>
+            <Text style={styles.filtersModalTitle}>Filters</Text>
+            <ScrollView style={styles.filtersModalScroll} contentContainerStyle={styles.filtersModalScrollContent}>
+              <View style={styles.filterGroup}>
+                <Text style={styles.filterLabel}>Status</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
+                  <Chip selected={statusFilter === 'all'} onPress={() => setStatusFilter('all')} style={styles.chip}>
+                    All
+                  </Chip>
+                  {Object.entries(STATUS_LABELS).map(([status, label]) => (
+                    <Chip
+                      key={status}
+                      selected={statusFilter === status}
+                      onPress={() => setStatusFilter(status)}
+                      style={styles.chip}
+                    >
+                      {label}
+                    </Chip>
+                  ))}
+                </ScrollView>
+              </View>
+              <View style={styles.filterGroup}>
+                <Text style={styles.filterLabel}>Payment</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
+                  <Chip selected={paymentFilter === 'all'} onPress={() => setPaymentFilter('all')} style={styles.chip}>
+                    All
+                  </Chip>
+                  {Object.entries(PAYMENT_STATUS_LABELS).map(([status, label]) => (
+                    <Chip
+                      key={status}
+                      selected={paymentFilter === status}
+                      onPress={() => setPaymentFilter(status)}
+                      style={styles.chip}
+                    >
+                      {label}
+                    </Chip>
+                  ))}
+                </ScrollView>
+              </View>
+            </ScrollView>
+            <View style={styles.filtersModalActions}>
               <PaperButton
                 mode="outlined"
                 onPress={() => {
-                  // For React Native, we'll use a simple date picker approach
-                  // In production, you might want to use a proper date picker library
-                  Alert.alert(
-                    'Select Date',
-                    'Date picker would open here',
-                    [
-                      { text: 'Today', onPress: () => setSelectedDate(getTodayDateString()) },
-                      { text: 'Cancel', style: 'cancel' },
-                    ]
-                  );
+                  setStatusFilter('all');
+                  setPaymentFilter('all');
                 }}
               >
-                {selectedDate}
+                Reset
+              </PaperButton>
+              <PaperButton
+                mode="contained"
+                onPress={() => {
+                  setIsFiltersModalVisible(false);
+                  loadOrders();
+                }}
+              >
+                Apply
               </PaperButton>
             </View>
-            <IconButton
-              icon="chevron-right"
-              onPress={() => navigateDate('next')}
-              disabled={new Date(selectedDate) >= new Date(getTodayDateString())}
-            />
-            <PaperButton mode="text" onPress={() => navigateDate('today')}>Today</PaperButton>
           </View>
-        </Surface>
-
-        {/* Filters */}
-        <View style={styles.filters}>
-          <View style={styles.filterGroup}>
-            <Text style={styles.filterLabel}>Status:</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-              <Chip selected={statusFilter === 'all'} onPress={() => setStatusFilter('all')} style={styles.chip}>
-                All
-              </Chip>
-              {Object.entries(STATUS_LABELS).map(([status, label]) => (
-                <Chip
-                  key={status}
-                  selected={statusFilter === status}
-                  onPress={() => setStatusFilter(status)}
-                  style={styles.chip}
-                >
-                  {label}
-                </Chip>
-              ))}
-            </ScrollView>
-          </View>
-          <View style={styles.filterGroup}>
-            <Text style={styles.filterLabel}>Payment:</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-              <Chip selected={paymentFilter === 'all'} onPress={() => setPaymentFilter('all')} style={styles.chip}>
-                All
-              </Chip>
-              {Object.entries(PAYMENT_STATUS_LABELS).map(([status, label]) => (
-                <Chip
-                  key={status}
-                  selected={paymentFilter === status}
-                  onPress={() => setPaymentFilter(status)}
-                  style={styles.chip}
-                >
-                  {label}
-                </Chip>
-              ))}
-            </ScrollView>
-          </View>
-          {lastUpdated && (
-            <Text style={styles.lastUpdated}>
-              Last updated: {lastUpdated.toLocaleTimeString()}
-            </Text>
-          )}
         </View>
+      </Modal>
 
-        {/* Orders List */}
-        <FlatList
-          data={orders}
-          renderItem={renderOrderItem}
-          keyExtractor={(item) => item.id}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-          }
-          contentContainerStyle={styles.listContent}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No orders found</Text>
-              <Text style={styles.emptySubtext}>
-                {selectedDate === getTodayDateString()
-                  ? 'No orders for today yet.'
-                  : `No orders found for ${new Date(selectedDate).toLocaleDateString('en-US', {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                  })}.`}
-              </Text>
+      {/* Order Detail Modal */}
+      <Modal
+        visible={showOrderModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowOrderModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>
+              Order {selectedOrder?.order_number}
+            </Text>
+            <View style={styles.modalHeaderActions}>
+              <TouchableOpacity
+                style={styles.modalActionButton}
+                onPress={() => selectedOrder && handlePrint(selectedOrder)}
+              >
+                <Text style={styles.modalActionButtonText}>Print</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => setShowOrderModal(false)}
+              >
+                <Text style={styles.modalCloseButtonText}>Close</Text>
+              </TouchableOpacity>
             </View>
-          }
-        />
+          </View>
+          <ScrollView style={styles.modalContent}>
+            {selectedOrder && (
+              <>
+                <View style={styles.modalSection}>
+                  <Text style={styles.modalSectionTitle}>Customer Information</Text>
+                  <Text style={styles.modalText}>{selectedOrder.customer_name || 'N/A'}</Text>
+                  <Text style={styles.modalTextSecondary}>{selectedOrder.customer_email}</Text>
+                  <Text style={styles.modalTextSecondary}>{selectedOrder.customer_phone}</Text>
+                </View>
 
-        {/* Order Detail Modal */}
-        <Modal
-          visible={showOrderModal}
-          animationType="slide"
-          presentationStyle="pageSheet"
-          onRequestClose={() => setShowOrderModal(false)}
-        >
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                Order {selectedOrder?.order_number}
-              </Text>
-              <View style={styles.modalHeaderActions}>
-                <TouchableOpacity
-                  style={styles.modalActionButton}
-                  onPress={() => selectedOrder && handlePrint(selectedOrder)}
-                >
-                  <Text style={styles.modalActionButtonText}>Print</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.modalCloseButton}
-                  onPress={() => setShowOrderModal(false)}
-                >
-                  <Text style={styles.modalCloseButtonText}>Close</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-            <ScrollView style={styles.modalContent}>
-              {selectedOrder && (
-                <>
-                  <View style={styles.modalSection}>
-                    <Text style={styles.modalSectionTitle}>Customer Information</Text>
-                    <Text style={styles.modalText}>{selectedOrder.customer_name || 'N/A'}</Text>
-                    <Text style={styles.modalTextSecondary}>{selectedOrder.customer_email}</Text>
-                    <Text style={styles.modalTextSecondary}>{selectedOrder.customer_phone}</Text>
-                  </View>
-
-                  <View style={styles.modalSection}>
-                    <Text style={styles.modalSectionTitle}>Order Details</Text>
-                    <View style={styles.modalInfoRow}>
-                      <Text style={styles.modalInfoLabel}>Payment:</Text>
-                      <Text style={styles.modalInfoValue}>
-                        {selectedOrder.payment_method} - {PAYMENT_STATUS_LABELS[selectedOrder.payment_status]}
-                      </Text>
-                    </View>
-                    <View style={styles.modalInfoRow}>
-                      <Text style={styles.modalInfoLabel}>Status:</Text>
-                      <View style={[styles.modalStatusBadge, { backgroundColor: STATUS_COLORS[selectedOrder.order_status] }]}>
-                        <Text style={styles.modalStatusText}>
-                          {STATUS_LABELS[selectedOrder.order_status]}
-                        </Text>
-                      </View>
-                    </View>
-                    <Text style={styles.modalTextSecondary}>
-                      {new Date(selectedOrder.created_at).toLocaleString()}
+                <View style={styles.modalSection}>
+                  <Text style={styles.modalSectionTitle}>Order Details</Text>
+                  <View style={styles.modalInfoRow}>
+                    <Text style={styles.modalInfoLabel}>Payment:</Text>
+                    <Text style={styles.modalInfoValue}>
+                      {selectedOrder.payment_method} - {PAYMENT_STATUS_LABELS[selectedOrder.payment_status]}
                     </Text>
                   </View>
-
-                  {selectedOrder.special_instructions && (
-                    <View style={styles.modalSection}>
-                      <Text style={styles.modalSectionTitle}>Special Instructions</Text>
-                      <Text style={styles.modalText}>{selectedOrder.special_instructions}</Text>
-                    </View>
-                  )}
-
-                  {selectedOrder.items && selectedOrder.items.length > 0 && (
-                    <View style={styles.modalSection}>
-                      <Text style={styles.modalSectionTitle}>Order Items</Text>
-                      {selectedOrder.items.map((item, index) => (
-                        <View key={index} style={styles.modalItemCard}>
-                          <Text style={styles.modalItemName}>
-                            {item.quantity}x {item.product_name}
-                          </Text>
-                          <Text style={styles.modalItemPrice}>${item.subtotal.toFixed(2)}</Text>
-                          {item.comment && (
-                            <Text style={styles.modalItemComment}>Note: {item.comment}</Text>
-                          )}
-                          {item.addons && item.addons.length > 0 && (
-                            <View style={styles.modalAddonsContainer}>
-                              {item.addons.map((addon) => (
-                                <Text key={addon.id} style={styles.modalAddonText}>
-                                  + {addon.addon_item_name} ({addon.addon_group_name}) - ${addon.addon_item_price.toFixed(2)}
-                                </Text>
-                              ))}
-                            </View>
-                          )}
-                        </View>
-                      ))}
-                    </View>
-                  )}
-
-                  <View style={styles.modalSection}>
-                    <Text style={styles.modalSectionTitle}>Total</Text>
-                    <View style={styles.modalTotalRow}>
-                      <Text style={styles.modalTotalLabel}>Subtotal:</Text>
-                      <Text style={styles.modalTotalValue}>${selectedOrder.subtotal.toFixed(2)}</Text>
-                    </View>
-                    {selectedOrder.tax > 0 && (
-                      <View style={styles.modalTotalRow}>
-                        <Text style={styles.modalTotalLabel}>Tax:</Text>
-                        <Text style={styles.modalTotalValue}>${selectedOrder.tax.toFixed(2)}</Text>
-                      </View>
-                    )}
-                    {selectedOrder.delivery_fee > 0 && (
-                      <View style={styles.modalTotalRow}>
-                        <Text style={styles.modalTotalLabel}>Delivery Fee:</Text>
-                        <Text style={styles.modalTotalValue}>${selectedOrder.delivery_fee.toFixed(2)}</Text>
-                      </View>
-                    )}
-                    {selectedOrder.service_fee > 0 && (
-                      <View style={styles.modalTotalRow}>
-                        <Text style={styles.modalTotalLabel}>Service Fee:</Text>
-                        <Text style={styles.modalTotalValue}>${selectedOrder.service_fee.toFixed(2)}</Text>
-                      </View>
-                    )}
-                    <View style={[styles.modalTotalRow, styles.modalFinalTotal]}>
-                      <Text style={styles.modalFinalTotalLabel}>Total:</Text>
-                      <Text style={styles.modalFinalTotalValue}>${selectedOrder.total.toFixed(2)}</Text>
+                  <View style={styles.modalInfoRow}>
+                    <Text style={styles.modalInfoLabel}>Status:</Text>
+                    <View style={[styles.modalStatusBadge, { backgroundColor: STATUS_COLORS[selectedOrder.order_status] }]}>
+                      <Text style={styles.modalStatusText}>
+                        {STATUS_LABELS[selectedOrder.order_status]}
+                      </Text>
                     </View>
                   </View>
-                </>
-              )}
-            </ScrollView>
-          </View>
-        </Modal>
+                  <Text style={styles.modalTextSecondary}>
+                    {new Date(selectedOrder.created_at).toLocaleString()}
+                  </Text>
+                </View>
 
-        {/* Status Update Confirmation Dialog */}
+                {selectedOrder.special_instructions && (
+                  <View style={styles.modalSection}>
+                    <Text style={styles.modalSectionTitle}>Special Instructions</Text>
+                    <Text style={styles.modalText}>{selectedOrder.special_instructions}</Text>
+                  </View>
+                )}
+
+                {selectedOrder.items && selectedOrder.items.length > 0 && (
+                  <View style={styles.modalSection}>
+                    <Text style={styles.modalSectionTitle}>Order Items</Text>
+                    {selectedOrder.items.map((item, index) => (
+                      <View key={index} style={styles.modalItemCard}>
+                        <Text style={styles.modalItemName}>
+                          {item.quantity}x {item.product_name}
+                        </Text>
+                        <Text style={styles.modalItemPrice}>${item.subtotal.toFixed(2)}</Text>
+                        {item.comment && (
+                          <Text style={styles.modalItemComment}>Note: {item.comment}</Text>
+                        )}
+                        {Array.isArray(item.removed_ingredients) && item.removed_ingredients.length > 0 && (
+                          <Text style={styles.modalRemovedText}>
+                            Removed: {item.removed_ingredients.join(', ')}
+                          </Text>
+                        )}
+                        {item.addons && item.addons.length > 0 && (
+                          <View style={styles.modalAddonsContainer}>
+                            {item.addons.map((addon) => (
+                              <Text key={addon.id} style={styles.modalAddonText}>
+                                + {addon.addon_item_name} - ${addon.addon_item_price.toFixed(2)}
+                              </Text>
+                            ))}
+                          </View>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                <View style={styles.modalSection}>
+                  <Text style={styles.modalSectionTitle}>Total</Text>
+                  <View style={styles.modalTotalRow}>
+                    <Text style={styles.modalTotalLabel}>Subtotal:</Text>
+                    <Text style={styles.modalTotalValue}>${selectedOrder.subtotal.toFixed(2)}</Text>
+                  </View>
+                  {selectedOrder.tax > 0 && (
+                    <View style={styles.modalTotalRow}>
+                      <Text style={styles.modalTotalLabel}>Tax:</Text>
+                      <Text style={styles.modalTotalValue}>${selectedOrder.tax.toFixed(2)}</Text>
+                    </View>
+                  )}
+                  {selectedOrder.delivery_fee > 0 && (
+                    <View style={styles.modalTotalRow}>
+                      <Text style={styles.modalTotalLabel}>Delivery Fee:</Text>
+                      <Text style={styles.modalTotalValue}>${selectedOrder.delivery_fee.toFixed(2)}</Text>
+                    </View>
+                  )}
+                  {selectedOrder.service_fee > 0 && (
+                    <View style={styles.modalTotalRow}>
+                      <Text style={styles.modalTotalLabel}>Service Fee:</Text>
+                      <Text style={styles.modalTotalValue}>${selectedOrder.service_fee.toFixed(2)}</Text>
+                    </View>
+                  )}
+                  <View style={[styles.modalTotalRow, styles.modalFinalTotal]}>
+                    <Text style={styles.modalFinalTotalLabel}>Total:</Text>
+                    <Text style={styles.modalFinalTotalValue}>${selectedOrder.total.toFixed(2)}</Text>
+                  </View>
+                </View>
+              </>
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Status Update Confirmation Dialog (only used when status updates are enabled) */}
+      {enableStatusUpdates && (
         <ConfirmationDialog
           isOpen={showStatusDialog}
           onClose={() => {
@@ -969,9 +1209,14 @@ export default function OrdersScreen() {
           variant="warning"
           isLoading={updatingStatus === statusToUpdate?.orderId}
         />
-      </View>
-    </ErrorBoundary>
+      )}
+    </View>
   );
+}
+
+// Default "Orders" tab shows all orders as read-only history.
+export default function OrdersScreen() {
+  return <OrdersScreenBase mode="all" enableStatusUpdates={false} />;
 }
 
 const styles = StyleSheet.create({
@@ -1047,6 +1292,30 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
+  },
+  headerTitleContainer: {
+    flexShrink: 1,
+  },
+  headerCenter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  viewModeButton: {
+    borderRadius: 999,
+  },
+  tabletHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 6,
+  },
+  tabletDateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 1,
   },
   dateNavigation: {
     flexDirection: 'row',
@@ -1159,6 +1428,37 @@ const styles = StyleSheet.create({
     color: '#999',
     marginTop: 8,
   },
+  filtersModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  filtersModalContent: {
+    backgroundColor: '#fff',
+    padding: 16,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    maxHeight: '80%',
+    marginBottom: 72,
+  },
+  filtersModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    color: '#111827',
+  },
+  filtersModalScroll: {
+    flexGrow: 0,
+  },
+  filtersModalScrollContent: {
+    paddingBottom: 8,
+  },
+  filtersModalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+    marginTop: 16,
+  },
   listContent: {
     padding: 16,
   },
@@ -1205,9 +1505,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
   },
+  elapsedPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    minWidth: 72,
+    alignItems: 'center',
+  },
+  elapsedText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
   badgesContainer: {
     alignItems: 'flex-end',
     gap: 6,
+    flexDirection: 'row',
+  },
+  badgesRow: {
+    flexDirection: 'row',
+    gap: 6,
+    alignItems: 'center',
   },
   statusBadge: {
     paddingHorizontal: 12,
@@ -1229,11 +1548,29 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  orderInfo: {
+  orderInfoRow: {
     marginBottom: 12,
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#e5e5e5',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  orderInfoLeft: {
+    flexShrink: 1,
+  },
+  paymentAttention: {
+    fontSize: 14,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  paymentAttentionPaid: {
+    color: '#16a34a',
+  },
+  paymentAttentionUnpaid: {
+    color: '#dc2626',
   },
   orderTotal: {
     fontSize: 20,
@@ -1244,6 +1581,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     marginBottom: 12,
+  },
+  bodyQuickButton: {
+    borderRadius: 999,
+    marginRight: 0,
+  },
+  bodyQuickButtonContent: {
+    paddingHorizontal: 12,
+    paddingVertical: 2,
   },
   quickActionButton: {
     flex: 1,
@@ -1432,6 +1777,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     fontStyle: 'italic',
+    marginTop: 4,
+  },
+  modalRemovedText: {
+    fontSize: 14,
+    color: '#b45309',
     marginTop: 4,
   },
   modalAddonsContainer: {
