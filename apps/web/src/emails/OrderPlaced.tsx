@@ -1,0 +1,69 @@
+import * as React from 'react';
+import { EmailLayout } from './components/EmailLayout';
+import { Tailwind } from '@react-email/tailwind';
+import { Container, Section, Text } from '@react-email/components';
+import type { Order, OrderItem, OrderItemAddon } from '@my-small-business/types';
+
+interface OrderPlacedEmailProps {
+    order: Order;
+    businessName?: string;
+    logoUrl?: string;
+}
+
+function renderItem(item: OrderItem) {
+    return (
+        <Section key={item.id} className="mb-2">
+            <Text className="font-bold text-base m-0">
+                {item.quantity}x {item.product_name}
+            </Text>
+            {item.addons?.length > 0 && (
+                <Text className="text-sm text-gray-700 m-0">
+                    Add-ons: {item.addons.map((addon: OrderItemAddon) => addon.addon_item_name).join(', ')}
+                </Text>
+            )}
+            {item.comment && (
+                <Text className="text-sm text-gray-700 m-0">Note: {item.comment}</Text>
+            )}
+            <Text className="text-sm text-gray-700 m-0">Price: ${(item.price * item.quantity).toFixed(2)}</Text>
+        </Section>
+    );
+}
+
+export const OrderPlacedEmail = ({ order, businessName = 'OperateFlow', logoUrl }: OrderPlacedEmailProps) => {
+    const greetingName = order.customer_name && order.customer_name.trim().length > 0 ? order.customer_name : 'there';
+    return (
+        <EmailLayout
+            title={`${businessName} - Order Confirmation`}
+            companyName={businessName}
+            logoUrl={logoUrl}
+            previewText={`Order #${order.order_number} placed successfully.`}
+        >
+            <Tailwind>
+                <Container className="max-w-lg mx-auto font-sans">
+                    <Section className="p-0">
+                        <Text className="text-base text-gray-800 m-0 mb-3">
+                            Hi {greetingName},
+                        </Text>
+                        <Text className="text-base text-gray-700 mb-4 m-0">
+                            Your order <strong>#{order.order_number}</strong> was placed successfully.
+                        </Text>
+                        <Text className="text-base text-gray-700 mb-4 m-0">
+                            Here are your order details:
+                        </Text>
+                        {order.items?.map(renderItem)}
+                        <Section className="mt-4">
+                            <Text className="text-base text-gray-700 m-0">Subtotal: ${order.subtotal.toFixed(2)}</Text>
+                            {order.tax > 0 && <Text className="text-base text-gray-700 m-0">Tax: ${order.tax.toFixed(2)}</Text>}
+                            {order.delivery_fee > 0 && <Text className="text-base text-gray-700 m-0">Delivery: ${order.delivery_fee.toFixed(2)}</Text>}
+                            {order.service_fee > 0 && <Text className="text-base text-gray-700 m-0">Service Fee: ${order.service_fee.toFixed(2)}</Text>}
+                            <Text className="font-bold text-base text-gray-900 m-0">Total: ${order.total.toFixed(2)}</Text>
+                        </Section>
+                        <Text className="text-base text-gray-700 mb-0 m-0 mt-4">
+                            Thank you for ordering with {businessName}!
+                        </Text>
+                    </Section>
+                </Container>
+            </Tailwind>
+        </EmailLayout>
+    );
+};

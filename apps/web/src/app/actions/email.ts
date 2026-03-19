@@ -269,3 +269,40 @@ export async function sendMagicLinkInvite(inviteeEmail: string) {
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }
+
+export async function sendOrderPlacedEmail(order: Order) {
+  try {
+    if (!resend || !process.env.RESEND_API_KEY) {
+      throw new Error('RESEND_API_KEY is not configured');
+    }
+    if (!order.customer_email) {
+      throw new Error('Order has no customer_email');
+    }
+    const brandSettings = await getBrandSettings();
+    const businessName = brandSettings?.business_name || 'OperateFlow';
+    const logoUrl = brandSettings?.logo_url;
+    const emailTo = getEmailOverride(order.customer_email);
+    const emailFrom = process.env.EMAIL_FROM!;
+    const { data, error } = await resend.emails.send({
+      from: emailFrom,
+      to: [emailTo],
+      subject: `Order Confirmation - #${order.order_number}`,
+      react: require('@/emails/OrderPlaced').OrderPlacedEmail({
+        order,
+        businessName,
+        logoUrl: logoUrl || undefined,
+      }),
+    });
+    if (error) {
+      console.error('Error sending order placed email:', error);
+      return { success: false, error: error.message };
+    }
+    return { success: true, messageId: data?.id };
+  } catch (error) {
+    console.error('Error in sendOrderPlacedEmail:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    };
+  }
+}

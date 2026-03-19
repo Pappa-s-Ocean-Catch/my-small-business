@@ -3,7 +3,7 @@
 import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@my-small-business/supabase/server';
 import type { Order } from '@my-small-business/types';
-import { sendOrderReadyEmail } from '@/app/actions/email';
+import { sendOrderPlacedEmail } from '@/app/actions/email';
 
 export async function POST(request: Request) {
   try {
@@ -29,6 +29,9 @@ export async function POST(request: Request) {
         { status: 404 },
       );
     }
+
+    // Send order placed email
+    await sendOrderPlacedEmail(order as Order);
 
     const { success, error: emailError } = await sendOrderReadyEmail(order as Order);
 

@@ -602,6 +602,31 @@ export default function OrdersScreen() {
             >
               Print
             </PaperButton>
+            {order.order_status !== 'cancelled' && order.order_status !== 'completed' && (
+              <PaperButton
+                mode="outlined"
+                onPress={(e) => {
+                  e.stopPropagation();
+                  Alert.alert(
+                    'Cancel Order',
+                    'Are you sure you want to cancel this order?',
+                    [
+                      { text: 'No', style: 'cancel' },
+                      {
+                        text: 'Yes, Cancel',
+                        style: 'destructive',
+                        onPress: () => handleStatusUpdate(order.id, 'cancelled'),
+                      },
+                    ]
+                  );
+                }}
+                style={styles.paperInlineButton}
+                contentStyle={styles.paperInlineButtonContent}
+                color="#ef4444"
+              >
+                Cancel
+              </PaperButton>
+            )}
           </View>
 
           <View style={styles.statusControls}>
@@ -672,278 +697,280 @@ export default function OrdersScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      {/* Header with Date Navigation */}
-      <Surface style={[styles.header, isNarrow && styles.headerNarrow]} elevation={1}>
-        <View style={[styles.headerTop, isPortrait && styles.headerTopPortrait]}>
-          <View>
-            <Text style={[styles.headerTitle, isNarrow && styles.headerTitleNarrow]}>Order Management</Text>
-            <Text style={styles.headerSubtitle}>
-              {new Date(selectedDate).toLocaleDateString('en-US', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-              })}
-            </Text>
-          </View>
-          <View style={[styles.headerActions, isPortrait && styles.headerActionsPortrait]}>
-            <PaperButton
-              mode="contained"
-              onPress={loadOrders}
-              disabled={loading}
-              loading={loading}
-              contentStyle={styles.refreshButtonContent}
-            >
-              {refreshCountdown > 0 ? `Refresh (${refreshCountdown}s)` : 'Refresh'}
-            </PaperButton>
-          </View>
-        </View>
-
-        {/* Date Navigation */}
-        <View style={[styles.dateNavigation, isPortrait && styles.dateNavigationPortrait]}>
-          <IconButton icon="chevron-left" onPress={() => navigateDate('prev')} />
-          <View style={styles.dateInputContainer}>
-            <PaperButton
-              mode="outlined"
-              onPress={() => {
-                // For React Native, we'll use a simple date picker approach
-                // In production, you might want to use a proper date picker library
-                Alert.alert(
-                  'Select Date',
-                  'Date picker would open here',
-                  [
-                    { text: 'Today', onPress: () => setSelectedDate(getTodayDateString()) },
-                    { text: 'Cancel', style: 'cancel' },
-                  ]
-                );
-              }}
-            >
-              {selectedDate}
-            </PaperButton>
-          </View>
-          <IconButton
-            icon="chevron-right"
-            onPress={() => navigateDate('next')}
-            disabled={new Date(selectedDate) >= new Date(getTodayDateString())}
-          />
-          <PaperButton mode="text" onPress={() => navigateDate('today')}>Today</PaperButton>
-        </View>
-      </Surface>
-
-      {/* Filters */}
-      <View style={styles.filters}>
-        <View style={styles.filterGroup}>
-          <Text style={styles.filterLabel}>Status:</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-            <Chip selected={statusFilter === 'all'} onPress={() => setStatusFilter('all')} style={styles.chip}>
-              All
-            </Chip>
-            {Object.entries(STATUS_LABELS).map(([status, label]) => (
-              <Chip
-                key={status}
-                selected={statusFilter === status}
-                onPress={() => setStatusFilter(status)}
-                style={styles.chip}
-              >
-                {label}
-              </Chip>
-            ))}
-          </ScrollView>
-        </View>
-        <View style={styles.filterGroup}>
-          <Text style={styles.filterLabel}>Payment:</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-            <Chip selected={paymentFilter === 'all'} onPress={() => setPaymentFilter('all')} style={styles.chip}>
-              All
-            </Chip>
-            {Object.entries(PAYMENT_STATUS_LABELS).map(([status, label]) => (
-              <Chip
-                key={status}
-                selected={paymentFilter === status}
-                onPress={() => setPaymentFilter(status)}
-                style={styles.chip}
-              >
-                {label}
-              </Chip>
-            ))}
-          </ScrollView>
-        </View>
-        {lastUpdated && (
-          <Text style={styles.lastUpdated}>
-            Last updated: {lastUpdated.toLocaleTimeString()}
-          </Text>
-        )}
-      </View>
-
-      {/* Orders List */}
-      <FlatList
-        data={orders}
-        renderItem={renderOrderItem}
-        keyExtractor={(item) => item.id}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-        }
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No orders found</Text>
-            <Text style={styles.emptySubtext}>
-              {selectedDate === getTodayDateString()
-                ? 'No orders for today yet.'
-                : `No orders found for ${new Date(selectedDate).toLocaleDateString('en-US', {
+    <ErrorBoundary>
+      <View style={styles.container}>
+        {/* Header with Date Navigation */}
+        <Surface style={[styles.header, isNarrow && styles.headerNarrow]} elevation={1}>
+          <View style={[styles.headerTop, isPortrait && styles.headerTopPortrait]}>
+            <View>
+              <Text style={[styles.headerTitle, isNarrow && styles.headerTitleNarrow]}>Order Management</Text>
+              <Text style={styles.headerSubtitle}>
+                {new Date(selectedDate).toLocaleDateString('en-US', {
                   weekday: 'long',
                   year: 'numeric',
                   month: 'long',
                   day: 'numeric',
-                })}.`}
-            </Text>
-          </View>
-        }
-      />
-
-      {/* Order Detail Modal */}
-      <Modal
-        visible={showOrderModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowOrderModal(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>
-              Order {selectedOrder?.order_number}
-            </Text>
-            <View style={styles.modalHeaderActions}>
-              <TouchableOpacity
-                style={styles.modalActionButton}
-                onPress={() => selectedOrder && handlePrint(selectedOrder)}
+                })}
+              </Text>
+            </View>
+            <View style={[styles.headerActions, isPortrait && styles.headerActionsPortrait]}>
+              <PaperButton
+                mode="contained"
+                onPress={loadOrders}
+                disabled={loading}
+                loading={loading}
+                contentStyle={styles.refreshButtonContent}
               >
-                <Text style={styles.modalActionButtonText}>Print</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.modalCloseButton}
-                onPress={() => setShowOrderModal(false)}
-              >
-                <Text style={styles.modalCloseButtonText}>Close</Text>
-              </TouchableOpacity>
+                {refreshCountdown > 0 ? `Refresh (${refreshCountdown}s)` : 'Refresh'}
+              </PaperButton>
             </View>
           </View>
-          <ScrollView style={styles.modalContent}>
-            {selectedOrder && (
-              <>
-                <View style={styles.modalSection}>
-                  <Text style={styles.modalSectionTitle}>Customer Information</Text>
-                  <Text style={styles.modalText}>{selectedOrder.customer_name || 'N/A'}</Text>
-                  <Text style={styles.modalTextSecondary}>{selectedOrder.customer_email}</Text>
-                  <Text style={styles.modalTextSecondary}>{selectedOrder.customer_phone}</Text>
-                </View>
 
-                <View style={styles.modalSection}>
-                  <Text style={styles.modalSectionTitle}>Order Details</Text>
-                  <View style={styles.modalInfoRow}>
-                    <Text style={styles.modalInfoLabel}>Payment:</Text>
-                    <Text style={styles.modalInfoValue}>
-                      {selectedOrder.payment_method} - {PAYMENT_STATUS_LABELS[selectedOrder.payment_status]}
-                    </Text>
+          {/* Date Navigation */}
+          <View style={[styles.dateNavigation, isPortrait && styles.dateNavigationPortrait]}>
+            <IconButton icon="chevron-left" onPress={() => navigateDate('prev')} />
+            <View style={styles.dateInputContainer}>
+              <PaperButton
+                mode="outlined"
+                onPress={() => {
+                  // For React Native, we'll use a simple date picker approach
+                  // In production, you might want to use a proper date picker library
+                  Alert.alert(
+                    'Select Date',
+                    'Date picker would open here',
+                    [
+                      { text: 'Today', onPress: () => setSelectedDate(getTodayDateString()) },
+                      { text: 'Cancel', style: 'cancel' },
+                    ]
+                  );
+                }}
+              >
+                {selectedDate}
+              </PaperButton>
+            </View>
+            <IconButton
+              icon="chevron-right"
+              onPress={() => navigateDate('next')}
+              disabled={new Date(selectedDate) >= new Date(getTodayDateString())}
+            />
+            <PaperButton mode="text" onPress={() => navigateDate('today')}>Today</PaperButton>
+          </View>
+        </Surface>
+
+        {/* Filters */}
+        <View style={styles.filters}>
+          <View style={styles.filterGroup}>
+            <Text style={styles.filterLabel}>Status:</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
+              <Chip selected={statusFilter === 'all'} onPress={() => setStatusFilter('all')} style={styles.chip}>
+                All
+              </Chip>
+              {Object.entries(STATUS_LABELS).map(([status, label]) => (
+                <Chip
+                  key={status}
+                  selected={statusFilter === status}
+                  onPress={() => setStatusFilter(status)}
+                  style={styles.chip}
+                >
+                  {label}
+                </Chip>
+              ))}
+            </ScrollView>
+          </View>
+          <View style={styles.filterGroup}>
+            <Text style={styles.filterLabel}>Payment:</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
+              <Chip selected={paymentFilter === 'all'} onPress={() => setPaymentFilter('all')} style={styles.chip}>
+                All
+              </Chip>
+              {Object.entries(PAYMENT_STATUS_LABELS).map(([status, label]) => (
+                <Chip
+                  key={status}
+                  selected={paymentFilter === status}
+                  onPress={() => setPaymentFilter(status)}
+                  style={styles.chip}
+                >
+                  {label}
+                </Chip>
+              ))}
+            </ScrollView>
+          </View>
+          {lastUpdated && (
+            <Text style={styles.lastUpdated}>
+              Last updated: {lastUpdated.toLocaleTimeString()}
+            </Text>
+          )}
+        </View>
+
+        {/* Orders List */}
+        <FlatList
+          data={orders}
+          renderItem={renderOrderItem}
+          keyExtractor={(item) => item.id}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          }
+          contentContainerStyle={styles.listContent}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No orders found</Text>
+              <Text style={styles.emptySubtext}>
+                {selectedDate === getTodayDateString()
+                  ? 'No orders for today yet.'
+                  : `No orders found for ${new Date(selectedDate).toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  })}.`}
+              </Text>
+            </View>
+          }
+        />
+
+        {/* Order Detail Modal */}
+        <Modal
+          visible={showOrderModal}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setShowOrderModal(false)}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                Order {selectedOrder?.order_number}
+              </Text>
+              <View style={styles.modalHeaderActions}>
+                <TouchableOpacity
+                  style={styles.modalActionButton}
+                  onPress={() => selectedOrder && handlePrint(selectedOrder)}
+                >
+                  <Text style={styles.modalActionButtonText}>Print</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modalCloseButton}
+                  onPress={() => setShowOrderModal(false)}
+                >
+                  <Text style={styles.modalCloseButtonText}>Close</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            <ScrollView style={styles.modalContent}>
+              {selectedOrder && (
+                <>
+                  <View style={styles.modalSection}>
+                    <Text style={styles.modalSectionTitle}>Customer Information</Text>
+                    <Text style={styles.modalText}>{selectedOrder.customer_name || 'N/A'}</Text>
+                    <Text style={styles.modalTextSecondary}>{selectedOrder.customer_email}</Text>
+                    <Text style={styles.modalTextSecondary}>{selectedOrder.customer_phone}</Text>
                   </View>
-                  <View style={styles.modalInfoRow}>
-                    <Text style={styles.modalInfoLabel}>Status:</Text>
-                    <View style={[styles.modalStatusBadge, { backgroundColor: STATUS_COLORS[selectedOrder.order_status] }]}>
-                      <Text style={styles.modalStatusText}>
-                        {STATUS_LABELS[selectedOrder.order_status]}
+
+                  <View style={styles.modalSection}>
+                    <Text style={styles.modalSectionTitle}>Order Details</Text>
+                    <View style={styles.modalInfoRow}>
+                      <Text style={styles.modalInfoLabel}>Payment:</Text>
+                      <Text style={styles.modalInfoValue}>
+                        {selectedOrder.payment_method} - {PAYMENT_STATUS_LABELS[selectedOrder.payment_status]}
                       </Text>
                     </View>
-                  </View>
-                  <Text style={styles.modalTextSecondary}>
-                    {new Date(selectedOrder.created_at).toLocaleString()}
-                  </Text>
-                </View>
-
-                {selectedOrder.special_instructions && (
-                  <View style={styles.modalSection}>
-                    <Text style={styles.modalSectionTitle}>Special Instructions</Text>
-                    <Text style={styles.modalText}>{selectedOrder.special_instructions}</Text>
-                  </View>
-                )}
-
-                {selectedOrder.items && selectedOrder.items.length > 0 && (
-                  <View style={styles.modalSection}>
-                    <Text style={styles.modalSectionTitle}>Order Items</Text>
-                    {selectedOrder.items.map((item, index) => (
-                      <View key={index} style={styles.modalItemCard}>
-                        <Text style={styles.modalItemName}>
-                          {item.quantity}x {item.product_name}
+                    <View style={styles.modalInfoRow}>
+                      <Text style={styles.modalInfoLabel}>Status:</Text>
+                      <View style={[styles.modalStatusBadge, { backgroundColor: STATUS_COLORS[selectedOrder.order_status] }]}>
+                        <Text style={styles.modalStatusText}>
+                          {STATUS_LABELS[selectedOrder.order_status]}
                         </Text>
-                        <Text style={styles.modalItemPrice}>${item.subtotal.toFixed(2)}</Text>
-                        {item.comment && (
-                          <Text style={styles.modalItemComment}>Note: {item.comment}</Text>
-                        )}
-                        {item.addons && item.addons.length > 0 && (
-                          <View style={styles.modalAddonsContainer}>
-                            {item.addons.map((addon) => (
-                              <Text key={addon.id} style={styles.modalAddonText}>
-                                + {addon.addon_item_name} ({addon.addon_group_name}) - ${addon.addon_item_price.toFixed(2)}
-                              </Text>
-                            ))}
-                          </View>
-                        )}
                       </View>
-                    ))}
+                    </View>
+                    <Text style={styles.modalTextSecondary}>
+                      {new Date(selectedOrder.created_at).toLocaleString()}
+                    </Text>
                   </View>
-                )}
 
-                <View style={styles.modalSection}>
-                  <Text style={styles.modalSectionTitle}>Total</Text>
-                  <View style={styles.modalTotalRow}>
-                    <Text style={styles.modalTotalLabel}>Subtotal:</Text>
-                    <Text style={styles.modalTotalValue}>${selectedOrder.subtotal.toFixed(2)}</Text>
-                  </View>
-                  {selectedOrder.tax > 0 && (
-                    <View style={styles.modalTotalRow}>
-                      <Text style={styles.modalTotalLabel}>Tax:</Text>
-                      <Text style={styles.modalTotalValue}>${selectedOrder.tax.toFixed(2)}</Text>
+                  {selectedOrder.special_instructions && (
+                    <View style={styles.modalSection}>
+                      <Text style={styles.modalSectionTitle}>Special Instructions</Text>
+                      <Text style={styles.modalText}>{selectedOrder.special_instructions}</Text>
                     </View>
                   )}
-                  {selectedOrder.delivery_fee > 0 && (
-                    <View style={styles.modalTotalRow}>
-                      <Text style={styles.modalTotalLabel}>Delivery Fee:</Text>
-                      <Text style={styles.modalTotalValue}>${selectedOrder.delivery_fee.toFixed(2)}</Text>
-                    </View>
-                  )}
-                  {selectedOrder.service_fee > 0 && (
-                    <View style={styles.modalTotalRow}>
-                      <Text style={styles.modalTotalLabel}>Service Fee:</Text>
-                      <Text style={styles.modalTotalValue}>${selectedOrder.service_fee.toFixed(2)}</Text>
-                    </View>
-                  )}
-                  <View style={[styles.modalTotalRow, styles.modalFinalTotal]}>
-                    <Text style={styles.modalFinalTotalLabel}>Total:</Text>
-                    <Text style={styles.modalFinalTotalValue}>${selectedOrder.total.toFixed(2)}</Text>
-                  </View>
-                </View>
-              </>
-            )}
-          </ScrollView>
-        </View>
-      </Modal>
 
-      {/* Status Update Confirmation Dialog */}
-      <ConfirmationDialog
-        isOpen={showStatusDialog}
-        onClose={() => {
-          setShowStatusDialog(false);
-          setStatusToUpdate(null);
-        }}
-        onConfirm={confirmStatusUpdate}
-        title="Update Order Status"
-        message={`Are you sure you want to update this order status to "${statusToUpdate?.status}"?`}
-        confirmText="Update"
-        cancelText="Cancel"
-        variant="warning"
-        isLoading={updatingStatus === statusToUpdate?.orderId}
-      />
-    </View>
+                  {selectedOrder.items && selectedOrder.items.length > 0 && (
+                    <View style={styles.modalSection}>
+                      <Text style={styles.modalSectionTitle}>Order Items</Text>
+                      {selectedOrder.items.map((item, index) => (
+                        <View key={index} style={styles.modalItemCard}>
+                          <Text style={styles.modalItemName}>
+                            {item.quantity}x {item.product_name}
+                          </Text>
+                          <Text style={styles.modalItemPrice}>${item.subtotal.toFixed(2)}</Text>
+                          {item.comment && (
+                            <Text style={styles.modalItemComment}>Note: {item.comment}</Text>
+                          )}
+                          {item.addons && item.addons.length > 0 && (
+                            <View style={styles.modalAddonsContainer}>
+                              {item.addons.map((addon) => (
+                                <Text key={addon.id} style={styles.modalAddonText}>
+                                  + {addon.addon_item_name} ({addon.addon_group_name}) - ${addon.addon_item_price.toFixed(2)}
+                                </Text>
+                              ))}
+                            </View>
+                          )}
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  <View style={styles.modalSection}>
+                    <Text style={styles.modalSectionTitle}>Total</Text>
+                    <View style={styles.modalTotalRow}>
+                      <Text style={styles.modalTotalLabel}>Subtotal:</Text>
+                      <Text style={styles.modalTotalValue}>${selectedOrder.subtotal.toFixed(2)}</Text>
+                    </View>
+                    {selectedOrder.tax > 0 && (
+                      <View style={styles.modalTotalRow}>
+                        <Text style={styles.modalTotalLabel}>Tax:</Text>
+                        <Text style={styles.modalTotalValue}>${selectedOrder.tax.toFixed(2)}</Text>
+                      </View>
+                    )}
+                    {selectedOrder.delivery_fee > 0 && (
+                      <View style={styles.modalTotalRow}>
+                        <Text style={styles.modalTotalLabel}>Delivery Fee:</Text>
+                        <Text style={styles.modalTotalValue}>${selectedOrder.delivery_fee.toFixed(2)}</Text>
+                      </View>
+                    )}
+                    {selectedOrder.service_fee > 0 && (
+                      <View style={styles.modalTotalRow}>
+                        <Text style={styles.modalTotalLabel}>Service Fee:</Text>
+                        <Text style={styles.modalTotalValue}>${selectedOrder.service_fee.toFixed(2)}</Text>
+                      </View>
+                    )}
+                    <View style={[styles.modalTotalRow, styles.modalFinalTotal]}>
+                      <Text style={styles.modalFinalTotalLabel}>Total:</Text>
+                      <Text style={styles.modalFinalTotalValue}>${selectedOrder.total.toFixed(2)}</Text>
+                    </View>
+                  </View>
+                </>
+              )}
+            </ScrollView>
+          </View>
+        </Modal>
+
+        {/* Status Update Confirmation Dialog */}
+        <ConfirmationDialog
+          isOpen={showStatusDialog}
+          onClose={() => {
+            setShowStatusDialog(false);
+            setStatusToUpdate(null);
+          }}
+          onConfirm={confirmStatusUpdate}
+          title="Update Order Status"
+          message={`Are you sure you want to update this order status to "${statusToUpdate?.status}"?`}
+          confirmText="Update"
+          cancelText="Cancel"
+          variant="warning"
+          isLoading={updatingStatus === statusToUpdate?.orderId}
+        />
+      </View>
+    </ErrorBoundary>
   );
 }
 
