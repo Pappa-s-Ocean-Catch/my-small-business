@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FaUtensils, FaHome, FaUser, FaSignOutAlt, FaHistory, FaLock, FaGift } from 'react-icons/fa';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
-import {Icon} from "@/components/Icon";
+import { Icon } from "@/components/Icon";
 
 
 export function OrderHeader() {
@@ -68,42 +68,46 @@ export function OrderHeader() {
     <header className="bg-white dark:bg-neutral-800 shadow-sm sticky top-0 z-30 border-b border-gray-200 dark:border-neutral-700">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Logo and Site Name */}
+          {/* Logo and Site Name - logo left, text right */}
           <Link
             href="/"
-            className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+            className="flex items-center w-full max-w-xs sm:max-w-none gap-2 hover:opacity-80 transition-opacity"
+            style={{ minWidth: 0 }}
           >
-            <div className="relative">
+            <div className="relative flex-shrink-0 mr-2">
               <div className="absolute inset-0 blur-xl bg-gradient-to-tr from-rose-500/40 to-orange-500/40 rounded-xl" />
-              <div className="relative grid place-items-center h-10 w-10 rounded-xl bg-gradient-to-tr from-rose-600 to-orange-500 text-white">
+              <div className="relative grid place-items-center h-8 w-8 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-tr from-rose-600 to-orange-500 text-white">
                 <Icon icon={FaUtensils} className="w-5 h-5" />
               </div>
             </div>
-            <div className="flex flex-col">
-              <span className="font-bold text-lg text-gray-900 dark:text-white tracking-tight">
+            <div className="flex flex-col flex-1 min-w-0">
+              <span className="font-bold text-lg text-gray-900 dark:text-white tracking-tight truncate">
                 Pappa&apos;s Ocean Catch
               </span>
-              <span className="text-xs text-gray-500 dark:text-gray-400">
+              <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
                 Fresh Fish & Chips
               </span>
             </div>
           </Link>
 
-          {/* Navigation Links */}
-          <nav className="flex items-center gap-4">
+          {/* Navigation Links - compact on mobile, Home icon hidden on mobile */}
+          <nav className="flex items-center gap-2 sm:gap-4">
+            {/* Home link only on desktop */}
             <Link
               href="/"
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-neutral-700 rounded-lg transition-colors"
+              className="hidden sm:flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-neutral-700 rounded-lg transition-colors"
             >
               <Icon icon={FaHome} className="w-4 h-4" />
-              <span className="hidden sm:inline">Home</span>
+              <span>Home</span>
             </Link>
+            {/* Menu link always visible, more compact on mobile */}
             <Link
               href="/menu"
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-neutral-700 rounded-lg transition-colors"
+              className="flex items-center gap-1 sm:gap-2 px-3 py-2 sm:px-4 sm:py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-neutral-700 rounded-lg transition-colors"
+              style={{ minWidth: 0 }}
             >
-              <Icon icon={FaUtensils} className="w-4 h-4" />
-              <span className="hidden sm:inline">Menu</span>
+              <Icon icon={FaUtensils} className="w-5 h-5 sm:w-4 sm:h-4" />
+              <span className="sr-only sm:not-sr-only sm:inline">Menu</span>
             </Link>
 
             {/* User Menu */}
@@ -124,7 +128,7 @@ export function OrderHeader() {
                         {email}
                       </p>
                     </div>
-                    
+
                     <Link
                       href="/order/history"
                       className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800"
@@ -133,7 +137,7 @@ export function OrderHeader() {
                       <Icon icon={FaHistory} className="w-4 h-4" />
                       Order History
                     </Link>
-                    
+
                     <Link
                       href="/rewards"
                       className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800"
@@ -142,7 +146,7 @@ export function OrderHeader() {
                       <Icon icon={FaGift} className="w-4 h-4" />
                       Reward Points
                     </Link>
-                    
+
                     <Link
                       href="/profile"
                       className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800"
@@ -151,7 +155,7 @@ export function OrderHeader() {
                       <Icon icon={FaUser} className="w-4 h-4" />
                       Profile
                     </Link>
-                    
+
                     <Link
                       href="/profile"
                       className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800"
@@ -160,9 +164,9 @@ export function OrderHeader() {
                       <Icon icon={FaLock} className="w-4 h-4" />
                       Change Password
                     </Link>
-                    
+
                     <div className="border-t border-gray-200 dark:border-neutral-700 my-1"></div>
-                    
+
                     <button
                       onClick={handleLogout}
                       className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
@@ -177,6 +181,7 @@ export function OrderHeader() {
               <Link
                 href="/login"
                 className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-neutral-700 rounded-lg transition-colors border border-gray-300 dark:border-neutral-600"
+                style={{ minWidth: '90px', textAlign: 'center' }}
               >
                 Sign In
               </Link>
