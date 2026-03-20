@@ -436,14 +436,7 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart, 
         ) : (
           <div className="space-y-6">
             {addonGroups
-              .filter((group) => group.is_active)
-              .slice()
-              .sort((a, b) => {
-                if (a.is_required !== b.is_required) {
-                  return a.is_required ? -1 : 1; // required first
-                }
-                return a.name.localeCompare(b.name);
-              })
+
               .map((group) => (
                 <div key={group.id} className="space-y-3">
                   <div className="flex items-center gap-2">
@@ -461,8 +454,8 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart, 
                     {!group.multiple_choice && !group.is_required && (
                       <label
                         className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-colors ${(selectedAddons[group.id] || []).length === 0
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                            : 'border-gray-200 dark:border-neutral-700 hover:bg-gray-50 dark:hover:bg-neutral-800'
+                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                          : 'border-gray-200 dark:border-neutral-700 hover:bg-gray-50 dark:hover:bg-neutral-800'
                           }`}
                       >
                         <div className="flex items-center gap-3">

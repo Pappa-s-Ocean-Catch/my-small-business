@@ -10,7 +10,7 @@ import { FaCheckCircle, FaPrint, FaArrowLeft, FaShoppingBag, FaGift } from 'reac
 import { Icon } from '@/components/Icon';
 import Link from 'next/link';
 import { LoadingSpinner } from '@/components/Loading';
-import type { Order } from '@my-small-business/types';
+import type { Order, OrderItemAddon } from '@my-small-business/types';
 
 function OrderConfirmationContent() {
   const searchParams = useSearchParams();
@@ -366,8 +366,9 @@ function OrderConfirmationContent() {
               </h3>
               <div className="space-y-4">
                 {order.items.map((item, index) => {
-                  const addons = (item as any).addons as any[] | undefined;
-                  const removed = (item as any).removed_ingredients as string[] | undefined;
+                  const addons = item.addons ?? [];
+                  const removed = item.removed_ingredients;
+
                   return (
                     <div
                       key={index}
@@ -390,12 +391,37 @@ function OrderConfirmationContent() {
                         {Array.isArray(addons) && addons.length > 0 && (
                           <div className="text-xs text-gray-700 dark:text-gray-300 mb-1">
                             <span className="font-semibold">Add-ons:</span>{' '}
-                            {addons.map((addon, idx) => (
-                              <span key={addon.id ?? idx}>
-                                {addon.addon_item_name}
-                                {idx < addons.length - 1 ? ', ' : ''}
-                              </span>
-                            ))}
+                            {addons
+                              .map((addon, idx) => ({ addon, idx }))
+                              .sort((a, b) => {
+                                const aGroupOrder =
+                                  typeof a.addon.display_group_order === 'number'
+                                    ? a.addon.display_group_order
+                                    : Number.MAX_SAFE_INTEGER;
+                                const bGroupOrder =
+                                  typeof b.addon.display_group_order === 'number'
+                                    ? b.addon.display_group_order
+                                    : Number.MAX_SAFE_INTEGER;
+                                if (aGroupOrder !== bGroupOrder) return aGroupOrder - bGroupOrder;
+
+                                const aOrder =
+                                  typeof a.addon.display_order === 'number'
+                                    ? a.addon.display_order
+                                    : Number.MAX_SAFE_INTEGER;
+                                const bOrder =
+                                  typeof b.addon.display_order === 'number'
+                                    ? b.addon.display_order
+                                    : Number.MAX_SAFE_INTEGER;
+                                if (aOrder !== bOrder) return aOrder - bOrder;
+
+                                return a.addon.addon_item_name.localeCompare(b.addon.addon_item_name);
+                              })
+                              .map(({ addon }, idx, arr) => (
+                                <span key={addon.id ?? idx}>
+                                  {addon.addon_item_name}
+                                  {idx < arr.length - 1 ? ', ' : ''}
+                                </span>
+                              ))}
                           </div>
                         )}
                         {Array.isArray(removed) && removed.length > 0 && (

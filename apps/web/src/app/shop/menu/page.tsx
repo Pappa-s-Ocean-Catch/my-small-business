@@ -1713,63 +1713,189 @@ export default function MenuPage() {
                     </Link>
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    {addonGroups.map((group) => (
-                      <label
-                        key={group.id}
-                        className="flex items-start gap-3 p-4 border border-gray-200 dark:border-neutral-700 rounded-lg bg-gray-50/50 dark:bg-neutral-800/50 hover:bg-gray-100/50 dark:hover:bg-neutral-700/50 transition-colors cursor-pointer"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={productForm.addon_group_ids.includes(group.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setProductForm({
-                                ...productForm,
-                                addon_group_ids: [...productForm.addon_group_ids, group.id]
-                              });
-                            } else {
-                              setProductForm({
-                                ...productForm,
-                                addon_group_ids: productForm.addon_group_ids.filter(id => id !== group.id)
-                              });
-                            }
-                          }}
-                          className="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
-                        />
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium text-gray-900 dark:text-white">
-                              {group.name}
-                            </span>
-                            {group.is_required && (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
-                                Required
-                              </span>
-                            )}
-                            {!group.is_active && (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
-                                Inactive
-                              </span>
-                            )}
+                  <>
+                    {(() => {
+                    const selectedGroups = productForm.addon_group_ids
+                      .map((id) => addonGroups.find((g) => g.id === id))
+                      .filter((g): g is AddonGroupWithItems => !!g);
+
+                    const selectedIdsSet = new Set(productForm.addon_group_ids);
+                    const availableGroups = addonGroups.filter((g) => !selectedIdsSet.has(g.id));
+
+                    const moveSelectedGroup = (fromIndex: number, toIndex: number) => {
+                      if (toIndex < 0 || toIndex >= productForm.addon_group_ids.length) return;
+                      if (fromIndex === toIndex) return;
+                      const next = productForm.addon_group_ids.slice();
+                      const tmp = next[fromIndex];
+                      next[fromIndex] = next[toIndex];
+                      next[toIndex] = tmp;
+                      setProductForm({ ...productForm, addon_group_ids: next });
+                    };
+
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-3">
+                          <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Selected add-on groups (order matters)
                           </div>
-                          {group.description && (
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                              {group.description}
-                            </p>
+
+                          {selectedGroups.length === 0 ? (
+                            <div className="text-center py-10 text-gray-500 dark:text-gray-400 bg-gray-50/50 dark:bg-neutral-800/50 rounded-lg border border-gray-200 dark:border-neutral-700">
+                              <p className="text-sm">No add-on groups selected.</p>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {selectedGroups.map((group, idx) => (
+                                <div
+                                  key={group.id}
+                                  className="flex items-start gap-3 p-4 border border-gray-200 dark:border-neutral-700 rounded-lg bg-white/70 dark:bg-neutral-900/30"
+                                >
+                                  <div className="mt-1 flex items-center gap-2">
+                                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-xs font-semibold">
+                                      {idx + 1}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="font-medium text-gray-900 dark:text-white truncate">
+                                        {group.name}
+                                      </span>
+                                      {group.is_required && (
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+                                          Required
+                                        </span>
+                                      )}
+                                      {!group.is_active && (
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
+                                          Inactive
+                                        </span>
+                                      )}
+                                    </div>
+                                    {group.description && (
+                                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2 line-clamp-2">
+                                        {group.description}
+                                      </p>
+                                    )}
+                                    <div className="text-xs text-gray-500 dark:text-gray-500">
+                                      {group.items.length} item{group.items.length !== 1 ? 's' : ''}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => moveSelectedGroup(idx, idx - 1)}
+                                      disabled={idx === 0}
+                                      className="p-2 rounded-lg border border-gray-200 dark:border-neutral-700 text-gray-600 dark:text-gray-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+                                      title="Move up"
+                                    >
+                                      <span className="inline-flex transform rotate-180">
+                                        <Icon icon={FaChevronDown} className="w-3 h-3" />
+                                      </span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => moveSelectedGroup(idx, idx + 1)}
+                                      disabled={idx === selectedGroups.length - 1}
+                                      className="p-2 rounded-lg border border-gray-200 dark:border-neutral-700 text-gray-600 dark:text-gray-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+                                      title="Move down"
+                                    >
+                                      <Icon icon={FaChevronDown} className="w-3 h-3" />
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setProductForm({
+                                          ...productForm,
+                                          addon_group_ids: productForm.addon_group_ids.filter((id) => id !== group.id),
+                                        });
+                                      }}
+                                      className="p-2 rounded-lg border border-gray-200 dark:border-neutral-700 text-red-600 dark:text-red-400 hover:bg-red-50/50 dark:hover:bg-red-900/20 transition-colors"
+                                      title="Remove"
+                                    >
+                                      <Icon icon={FaTimes} className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           )}
-                          <div className="text-xs text-gray-500 dark:text-gray-500">
-                            {group.items.length} item{group.items.length !== 1 ? 's' : ''}
-                            {group.items.length > 0 && (
-                              <span className="ml-2">
-                                ({group.items.filter(i => i.is_active).map(i => i.name).join(', ')})
-                              </span>
-                            )}
-                          </div>
                         </div>
-                      </label>
-                    ))}
-                  </div>
+
+                        <div className="space-y-3">
+                          <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Available add-on groups
+                          </div>
+
+                          {availableGroups.length === 0 ? (
+                            <div className="text-center py-10 text-gray-500 dark:text-gray-400 bg-gray-50/50 dark:bg-neutral-800/50 rounded-lg border border-gray-200 dark:border-neutral-700">
+                              <p className="text-sm">All groups are selected.</p>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {availableGroups.map((group) => (
+                                <label
+                                  key={group.id}
+                                  className="flex items-start gap-3 p-4 border border-gray-200 dark:border-neutral-700 rounded-lg bg-gray-50/50 dark:bg-neutral-800/50 hover:bg-gray-100/50 dark:hover:bg-neutral-700/50 transition-colors cursor-pointer"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={productForm.addon_group_ids.includes(group.id)}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setProductForm({
+                                          ...productForm,
+                                          addon_group_ids: [...productForm.addon_group_ids, group.id],
+                                        });
+                                      } else {
+                                        setProductForm({
+                                          ...productForm,
+                                          addon_group_ids: productForm.addon_group_ids.filter((id) => id !== group.id),
+                                        });
+                                      }
+                                    }}
+                                    className="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
+                                  />
+
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="font-medium text-gray-900 dark:text-white truncate">
+                                        {group.name}
+                                      </span>
+                                      {group.is_required && (
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+                                          Required
+                                        </span>
+                                      )}
+                                      {!group.is_active && (
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
+                                          Inactive
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {group.description && (
+                                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2 line-clamp-2">
+                                        {group.description}
+                                      </p>
+                                    )}
+
+                                    <div className="text-xs text-gray-500 dark:text-gray-500">
+                                      {group.items.length} item{group.items.length !== 1 ? 's' : ''}
+                                    </div>
+                                  </div>
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                    })()}
+                  </>
                 )}
               </div>
             )}

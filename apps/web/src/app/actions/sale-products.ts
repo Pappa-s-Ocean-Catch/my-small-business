@@ -587,9 +587,10 @@ export async function createSaleProduct(formData: {
 
     // Create add-on group relationships
     if (formData.addon_group_ids && formData.addon_group_ids.length > 0) {
-      const addonRelationships = formData.addon_group_ids.map(addon_group_id => ({
+      const addonRelationships = formData.addon_group_ids.map((addon_group_id, index) => ({
         sale_product_id: product.id,
-        addon_group_id
+        addon_group_id,
+        display_order: index,
       }));
 
       const { error: addonError } = await supabase
@@ -777,9 +778,10 @@ export async function updateSaleProduct(
 
     // Create new add-on group relationships
     if (formData.addon_group_ids && formData.addon_group_ids.length > 0) {
-      const addonRelationships = formData.addon_group_ids.map(addon_group_id => ({
+      const addonRelationships = formData.addon_group_ids.map((addon_group_id, index) => ({
         sale_product_id: id,
-        addon_group_id
+        addon_group_id,
+        display_order: index,
       }));
 
       const { error: addonError } = await supabase

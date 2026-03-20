@@ -68,6 +68,18 @@ export interface OrderItemAddon {
   addon_item_name: string;
   addon_item_price: number;
   created_at: string;
+  /**
+   * Controls display ordering in receipts / confirmation screens.
+   * Mapped from `addon_items.sort_order` until a dedicated DB column exists.
+   */
+  display_order?: number;
+  /**
+   * Order for the parent add-on group (mapped from `addon_groups.sort_order`).
+   * Useful when you want to control ordering at the group level.
+   */
+  display_group_order?: number;
+  /** Whether this add-on group is required (from `addon_groups.is_required`). */
+  is_required?: boolean;
 }
 
 export interface Order {

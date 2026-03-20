@@ -31,8 +31,8 @@ export default function LoginPage() {
           .select("role_slug")
           .eq("id", user.id)
           .single();
-        
-        const redirectPath = typeof window !== 'undefined' 
+
+        const redirectPath = typeof window !== 'undefined'
           ? new URLSearchParams(window.location.search).get('redirect')
           : null;
         if (redirectPath) {
@@ -53,16 +53,16 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setMessage(null);
-    
+
     // Handle forgot password case
     if (showForgotPassword) {
       await handleForgotPassword(e);
       return;
     }
-    
+
     try {
       const supabase = getSupabaseClient();
-      
+
       if (authMode === 'magic') {
         // Magic link authentication
         const check = await canSendMagicLink(email);
@@ -79,7 +79,7 @@ export default function LoginPage() {
           email,
           password
         });
-        
+
         if (error) {
           if (error.message.includes('Invalid login credentials')) {
             throw new Error('Invalid email or password');
@@ -89,10 +89,10 @@ export default function LoginPage() {
             throw new Error(error.message);
           }
         }
-        
+
         // Successful login - redirect based on role
         setMessage("Login successful! Redirecting...");
-        
+
         // Get user role
         const { data: { user: authUser } } = await supabase.auth.getUser();
         if (authUser) {
@@ -101,7 +101,7 @@ export default function LoginPage() {
             .select("role_slug")
             .eq("id", authUser.id)
             .single();
-          
+
           const redirectPath = typeof window !== 'undefined'
             ? new URLSearchParams(window.location.search).get('redirect')
             : null;
@@ -123,7 +123,7 @@ export default function LoginPage() {
         }
       }
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 
+      const errorMessage = err instanceof Error ? err.message :
         (authMode === 'magic' ? 'Failed to send magic link' : 'Login failed');
       setMessage(errorMessage);
     } finally {
@@ -135,14 +135,14 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setMessage(null);
-    
+
     try {
       const result = await sendPasswordResetEmail(email);
-      
+
       if (!result.success) {
         throw new Error(result.error || 'Failed to send password reset email');
       }
-      
+
       setMessage("Password reset email sent from OperateFlow! Please check your inbox.");
       setShowForgotPassword(false);
     } catch (err: unknown) {
@@ -160,28 +160,26 @@ export default function LoginPage() {
         <p className="text-sm text-gray-500 mt-1">
           {authMode === 'magic' ? 'Sign in with a magic link' : 'Sign in with your password'}
         </p>
-        
+
         {/* Authentication Mode Toggle */}
         <div className="mt-4 flex bg-gray-100 dark:bg-neutral-800 rounded-lg p-1">
           <button
             type="button"
             onClick={() => setAuthMode('magic')}
-            className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition ${
-              authMode === 'magic'
+            className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition ${authMode === 'magic'
                 ? 'bg-white dark:bg-neutral-700 text-gray-900 dark:text-white shadow-sm'
                 : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-            }`}
+              }`}
           >
             Magic Link
           </button>
           <button
             type="button"
             onClick={() => setAuthMode('password')}
-            className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition ${
-              authMode === 'password'
+            className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition ${authMode === 'password'
                 ? 'bg-white dark:bg-neutral-700 text-gray-900 dark:text-white shadow-sm'
                 : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-            }`}
+              }`}
           >
             Password
           </button>
@@ -195,11 +193,11 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              placeholder="you@company.com"
+              placeholder="you@email.com"
               className="h-11 rounded-lg px-3 bg-white dark:bg-neutral-800 outline-none focus:ring-2 ring-black/10 dark:ring-white/20 shadow-sm"
             />
           </label>
-          
+
           {authMode === 'password' && !showForgotPassword && (
             <label className="grid gap-2">
               <span className="text-sm text-gray-600">Password</span>
@@ -222,7 +220,7 @@ export default function LoginPage() {
               </div>
             </label>
           )}
-          
+
           {authMode === 'password' && !showForgotPassword && (
             <div className="text-right">
               <button
@@ -237,16 +235,16 @@ export default function LoginPage() {
               </button>
             </div>
           )}
-          
-          <button 
-            disabled={loading} 
+
+          <button
+            disabled={loading}
             className="h-11 rounded-lg bg-black text-white dark:bg-white dark:text-black flex items-center justify-center gap-2 hover:opacity-90 transition disabled:opacity-50"
           >
-            {loading && <LoadingSpinner size="sm" />} 
+            {loading && <LoadingSpinner size="sm" />}
             {showForgotPassword ? 'Send reset email' : (authMode === 'magic' ? 'Send magic link' : 'Sign in')}
           </button>
         </form>
-        
+
         {showForgotPassword && (
           <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
             <p className="text-sm text-blue-800 dark:text-blue-200 mb-2">
@@ -260,13 +258,12 @@ export default function LoginPage() {
             </button>
           </div>
         )}
-        
+
         {message && (
-          <p className={`mt-4 text-sm ${
-            message.includes('successful') || message.includes('sent') 
-              ? 'text-green-600 dark:text-green-400' 
+          <p className={`mt-4 text-sm ${message.includes('successful') || message.includes('sent')
+              ? 'text-green-600 dark:text-green-400'
               : 'text-red-600 dark:text-red-400'
-          }`}>
+            }`}>
             {message}
           </p>
         )}

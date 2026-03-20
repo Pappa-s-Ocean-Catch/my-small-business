@@ -13,6 +13,11 @@ export interface AddonGroup {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  /**
+   * Per-product display order (stored on `sale_product_addon_groups.display_order`).
+   * When loading the global add-on list, this will be undefined.
+   */
+  display_order: number;
   // Joined data
   items?: AddonItem[];
   item_count?: number;
@@ -396,8 +401,10 @@ export async function getSaleProductAddonGroups(sale_product_id: string): Promis
       .from('sale_product_addon_groups')
       .select(`
         addon_group_id,
+        display_order,
         addon_groups (*)
       `)
+      .order('display_order', { ascending: true })
       .eq('sale_product_id', sale_product_id);
 
     if (error) {
@@ -408,7 +415,10 @@ export async function getSaleProductAddonGroups(sale_product_id: string): Promis
     const groups = data?.map(item => {
       // Handle the case where addon_groups might be an array or object
       const group = Array.isArray(item.addon_groups) ? item.addon_groups[0] : item.addon_groups;
-      return group as AddonGroup;
+      return {
+        ...(group as AddonGroup),
+        display_order: item.display_order as number,
+      };
     }).filter((group): group is AddonGroup => group !== null && group !== undefined) || [];
     return { data: groups, error: null };
   } catch (error) {
@@ -428,13 +438,14 @@ export async function getSaleProductAddonGroupsWithItems(
       .from('sale_product_addon_groups')
       .select(`
         addon_group_id,
+        display_order,
         addon_groups (
           *,
           addon_items (*)
         )
       `)
+      .order('display_order', { ascending: true })
       .eq('sale_product_id', sale_product_id);
-
     if (error) {
       console.error('Error fetching sale product addon groups with items:', error);
       return { data: null, error: error.message };
@@ -449,13 +460,13 @@ export async function getSaleProductAddonGroupsWithItems(
           const { addon_items, ...rest } = group as any;
           return {
             ...(rest as AddonGroup),
+            display_order: row.display_order as number | null,
             items,
             item_count: items.length,
           } as AddonGroupWithItems;
         })
         .filter((g): g is AddonGroupWithItems => g !== null) || []
     );
-
     return { data: groups, error: null };
   } catch (error) {
     console.error('Unexpected error fetching sale product addon groups with items:', error);
@@ -483,9 +494,10 @@ export async function updateSaleProductAddonGroups(
 
     // Insert new relationships
     if (addon_group_ids.length > 0) {
-      const relationships = addon_group_ids.map(addon_group_id => ({
+      const relationships = addon_group_ids.map((addon_group_id, index) => ({
         sale_product_id,
-        addon_group_id
+        addon_group_id,
+        display_order: index,
       }));
 
       const { error: insertError } = await supabase

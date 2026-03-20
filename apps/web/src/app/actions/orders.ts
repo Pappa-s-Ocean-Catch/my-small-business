@@ -314,6 +314,17 @@ export async function getOrderByNumber(orderNumber: string): Promise<{ data: Ord
       return { data: null, error: 'Order not found' };
     }
 
+    type RawOrderItemAddon = {
+      id: string;
+      order_item_id: string;
+      addon_group_id: string;
+      addon_group_name: string;
+      addon_item_id: string;
+      addon_item_name: string;
+      addon_item_price: string | number;
+      created_at: string;
+    };
+
     // Fetch order items
     const { data: items, error: itemsError } = await supabase
       .from('order_items')
@@ -328,8 +339,14 @@ export async function getOrderByNumber(orderNumber: string): Promise<{ data: Ord
 
     // Fetch addons for each item
     const itemsWithAddons: OrderItem[] = [];
+    const itemAddonsByOrderItemId = new Map<string, RawOrderItemAddon[]>();
+    const addonItemIds = new Set<string>();
+    const addonGroupIds = new Set<string>();
+    const saleProductIds = new Set<string>();
+
     if (items) {
       for (const item of items) {
+        saleProductIds.add(item.product_id);
         const { data: addons, error: addonsError } = await supabase
           .from('order_item_addons')
           .select('*')
@@ -339,15 +356,110 @@ export async function getOrderByNumber(orderNumber: string): Promise<{ data: Ord
           console.error('Error fetching order item addons:', addonsError);
         }
 
+        const rawAddons = (addons ?? []) as unknown as RawOrderItemAddon[];
+        rawAddons.forEach((a) => {
+          addonItemIds.add(a.addon_item_id);
+          addonGroupIds.add(a.addon_group_id);
+        });
+        itemAddonsByOrderItemId.set(item.id, rawAddons);
+
         itemsWithAddons.push({
           ...item,
           base_price: Number(item.base_price),
           quantity: item.quantity,
           subtotal: Number(item.subtotal),
           removed_ingredients: (item.removed_ingredients as string[] | null) || [],
-          addons: addons || []
+          addons: []
         });
       }
+    }
+
+    // Fetch add-on metadata (display order + required flag) once, then map into each add-on row.
+    type AddonItemMetaRow = { id: string; sort_order: number | null };
+    type AddonGroupMetaRow = { id: string; is_required: boolean };
+    type SaleProductAddonGroupMetaRow = {
+      sale_product_id: string;
+      addon_group_id: string;
+      display_order: number | null;
+    };
+
+    const addonItemIdList = Array.from(addonItemIds);
+    const addonGroupIdList = Array.from(addonGroupIds);
+    const saleProductIdList = Array.from(saleProductIds);
+
+    const addonItemSortOrderById = new Map<string, number>();
+    if (addonItemIdList.length > 0) {
+      const { data: addonItemMeta, error: addonItemMetaError } = await supabase
+        .from('addon_items')
+        .select('id, sort_order')
+        .in('id', addonItemIdList);
+
+      if (addonItemMetaError) {
+        console.error('Error fetching addon_items metadata:', addonItemMetaError);
+      } else if (addonItemMeta) {
+        (addonItemMeta as AddonItemMetaRow[]).forEach((row) => {
+          if (typeof row.sort_order === 'number') addonItemSortOrderById.set(row.id, row.sort_order);
+        });
+      }
+    }
+
+    const addonGroupIsRequiredById = new Map<string, boolean>();
+    const saleProductAddonGroupDisplayOrderByKey = new Map<string, number>();
+
+    if (addonGroupIdList.length > 0) {
+      const { data: addonGroupMeta, error: addonGroupMetaError } = await supabase
+        .from('addon_groups')
+        .select('id, is_required')
+        .in('id', addonGroupIdList);
+
+      if (addonGroupMetaError) {
+        console.error('Error fetching addon_groups metadata:', addonGroupMetaError);
+      } else if (addonGroupMeta) {
+        (addonGroupMeta as AddonGroupMetaRow[]).forEach((row) => {
+          addonGroupIsRequiredById.set(row.id, row.is_required);
+        });
+      }
+    }
+
+    if (saleProductIdList.length > 0 && addonGroupIdList.length > 0) {
+      const { data: spagMeta, error: spagMetaError } = await supabase
+        .from('sale_product_addon_groups')
+        .select('sale_product_id, addon_group_id, display_order')
+        .in('sale_product_id', saleProductIdList)
+        .in('addon_group_id', addonGroupIdList);
+
+      if (spagMetaError) {
+        console.error('Error fetching sale_product_addon_groups metadata:', spagMetaError);
+      } else if (spagMeta) {
+        (spagMeta as SaleProductAddonGroupMetaRow[]).forEach((row) => {
+          if (typeof row.display_order === 'number') {
+            saleProductAddonGroupDisplayOrderByKey.set(
+              `${row.sale_product_id}:${row.addon_group_id}`,
+              row.display_order
+            );
+          }
+        });
+      }
+    }
+
+    // Attach mapped add-on metadata.
+    for (const orderItem of itemsWithAddons) {
+      const rawAddons = itemAddonsByOrderItemId.get(orderItem.id) ?? [];
+      orderItem.addons = rawAddons.map((a) => ({
+        id: a.id,
+        order_item_id: a.order_item_id,
+        addon_group_id: a.addon_group_id,
+        addon_group_name: a.addon_group_name,
+        addon_item_id: a.addon_item_id,
+        addon_item_name: a.addon_item_name,
+        addon_item_price: Number(a.addon_item_price),
+        created_at: a.created_at,
+        display_order: addonItemSortOrderById.get(a.addon_item_id),
+        is_required: addonGroupIsRequiredById.get(a.addon_group_id),
+        display_group_order: saleProductAddonGroupDisplayOrderByKey.get(
+          `${orderItem.product_id}:${a.addon_group_id}`
+        ),
+      }));
     }
 
     return {
@@ -390,6 +502,17 @@ export async function getOrder(orderId: string): Promise<{ data: Order | null; e
       return { data: null, error: 'Order not found' };
     }
 
+    type RawOrderItemAddon = {
+      id: string;
+      order_item_id: string;
+      addon_group_id: string;
+      addon_group_name: string;
+      addon_item_id: string;
+      addon_item_name: string;
+      addon_item_price: string | number;
+      created_at: string;
+    };
+
     // Fetch order items
     const { data: items, error: itemsError } = await supabase
       .from('order_items')
@@ -404,8 +527,14 @@ export async function getOrder(orderId: string): Promise<{ data: Order | null; e
 
     // Fetch addons for each item
     const itemsWithAddons: OrderItem[] = [];
+    const itemAddonsByOrderItemId = new Map<string, RawOrderItemAddon[]>();
+    const addonItemIds = new Set<string>();
+    const addonGroupIds = new Set<string>();
+    const saleProductIds = new Set<string>();
+
     if (items) {
       for (const item of items) {
+        saleProductIds.add(item.product_id);
         const { data: addons, error: addonsError } = await supabase
           .from('order_item_addons')
           .select('*')
@@ -415,14 +544,110 @@ export async function getOrder(orderId: string): Promise<{ data: Order | null; e
           console.error('Error fetching order item addons:', addonsError);
         }
 
+        const rawAddons = (addons ?? []) as unknown as RawOrderItemAddon[];
+        rawAddons.forEach((a) => {
+          addonItemIds.add(a.addon_item_id);
+          addonGroupIds.add(a.addon_group_id);
+        });
+        itemAddonsByOrderItemId.set(item.id, rawAddons);
+
         itemsWithAddons.push({
           ...item,
           base_price: Number(item.base_price),
           quantity: item.quantity,
           subtotal: Number(item.subtotal),
-          removed_ingredients: (item.removed_ingredients as string[] | null) || []
+          removed_ingredients: (item.removed_ingredients as string[] | null) || [],
+          addons: []
         });
       }
+    }
+
+    // Fetch add-on metadata (display order + required flag) once, then map into each add-on row.
+    type AddonItemMetaRow = { id: string; sort_order: number | null };
+    type AddonGroupMetaRow = { id: string; is_required: boolean };
+    type SaleProductAddonGroupMetaRow = {
+      sale_product_id: string;
+      addon_group_id: string;
+      display_order: number | null;
+    };
+
+    const addonItemIdList = Array.from(addonItemIds);
+    const addonGroupIdList = Array.from(addonGroupIds);
+    const saleProductIdList = Array.from(saleProductIds);
+
+    const addonItemSortOrderById = new Map<string, number>();
+    if (addonItemIdList.length > 0) {
+      const { data: addonItemMeta, error: addonItemMetaError } = await supabase
+        .from('addon_items')
+        .select('id, sort_order')
+        .in('id', addonItemIdList);
+
+      if (addonItemMetaError) {
+        console.error('Error fetching addon_items metadata:', addonItemMetaError);
+      } else if (addonItemMeta) {
+        (addonItemMeta as AddonItemMetaRow[]).forEach((row) => {
+          if (typeof row.sort_order === 'number') addonItemSortOrderById.set(row.id, row.sort_order);
+        });
+      }
+    }
+
+    const addonGroupIsRequiredById = new Map<string, boolean>();
+
+    const saleProductAddonGroupDisplayOrderByKey = new Map<string, number>();
+
+    if (addonGroupIdList.length > 0) {
+      const { data: addonGroupMeta, error: addonGroupMetaError } = await supabase
+        .from('addon_groups')
+        .select('id, is_required')
+        .in('id', addonGroupIdList);
+
+      if (addonGroupMetaError) {
+        console.error('Error fetching addon_groups metadata:', addonGroupMetaError);
+      } else if (addonGroupMeta) {
+        (addonGroupMeta as AddonGroupMetaRow[]).forEach((row) => {
+          addonGroupIsRequiredById.set(row.id, row.is_required);
+        });
+      }
+    }
+
+    if (saleProductIdList.length > 0 && addonGroupIdList.length > 0) {
+      const { data: spagMeta, error: spagMetaError } = await supabase
+        .from('sale_product_addon_groups')
+        .select('sale_product_id, addon_group_id, display_order')
+        .in('sale_product_id', saleProductIdList)
+        .in('addon_group_id', addonGroupIdList);
+
+      if (spagMetaError) {
+        console.error('Error fetching sale_product_addon_groups metadata:', spagMetaError);
+      } else if (spagMeta) {
+        (spagMeta as SaleProductAddonGroupMetaRow[]).forEach((row) => {
+          if (typeof row.display_order === 'number') {
+            saleProductAddonGroupDisplayOrderByKey.set(
+              `${row.sale_product_id}:${row.addon_group_id}`,
+              row.display_order
+            );
+          }
+        });
+      }
+    }
+
+    for (const orderItem of itemsWithAddons) {
+      const rawAddons = itemAddonsByOrderItemId.get(orderItem.id) ?? [];
+      orderItem.addons = rawAddons.map((a) => ({
+        id: a.id,
+        order_item_id: a.order_item_id,
+        addon_group_id: a.addon_group_id,
+        addon_group_name: a.addon_group_name,
+        addon_item_id: a.addon_item_id,
+        addon_item_name: a.addon_item_name,
+        addon_item_price: Number(a.addon_item_price),
+        created_at: a.created_at,
+        display_order: addonItemSortOrderById.get(a.addon_item_id),
+        is_required: addonGroupIsRequiredById.get(a.addon_group_id),
+        display_group_order: saleProductAddonGroupDisplayOrderByKey.get(
+          `${orderItem.product_id}:${a.addon_group_id}`
+        ),
+      }));
     }
 
     return {
