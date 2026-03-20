@@ -26,10 +26,15 @@ export async function getTopSellingProducts(limit: number = 20): Promise<{
   try {
     const supabase = await createServiceRoleClient();
 
-    // Get all order items with product information
+    // Get date 7 days ago
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const sevenDaysAgoISO = sevenDaysAgo.toISOString();
+
+    // Get all order items from orders in the last 7 days
     const { data: orderItems, error: orderItemsError } = await supabase
       .from('order_items')
-      .select('product_id, quantity, order_id')
+      .select('product_id, quantity, order_id, orders(created_at)')
       .not('product_id', 'is', null);
 
     if (orderItemsError) {
@@ -41,6 +46,12 @@ export async function getTopSellingProducts(limit: number = 20): Promise<{
       return { data: [], error: null };
     }
 
+    // Filter order items to only those with order.created_at in last 7 days
+    const recentOrderItems = orderItems.filter((item: any) => {
+      const createdAt = item.orders?.created_at;
+      return createdAt && createdAt >= sevenDaysAgoISO;
+    });
+
     // Aggregate sales data by product
     const productSalesMap = new Map<string, {
       productId: string;
@@ -48,7 +59,7 @@ export async function getTopSellingProducts(limit: number = 20): Promise<{
       orderIds: Set<string>;
     }>();
 
-    orderItems.forEach((item: any) => {
+    recentOrderItems.forEach((item: any) => {
       if (!item.product_id) return;
 
       const productId = item.product_id;
@@ -70,6 +81,9 @@ export async function getTopSellingProducts(limit: number = 20): Promise<{
 
     // Get product details for top selling products
     const productIds = Array.from(productSalesMap.keys());
+    if (productIds.length === 0) {
+      return { data: [], error: null };
+    }
     const { data: products, error: productsError } = await supabase
       .from('sale_products')
       .select('id, slug, name, description, sale_price, image_url, sale_category_id, sub_category_id')
