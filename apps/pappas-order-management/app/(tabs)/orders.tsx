@@ -292,7 +292,19 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
                   const now = Date.now();
                   if (now - lastPrinterAlertAtRef.current > 30000) {
                     lastPrinterAlertAtRef.current = now;
-                    Alert.alert('Printer error', formatPrinterError(err));
+
+                    const errorMessage = err instanceof Error ? err.message : String(err);
+                    const errorStack = err instanceof Error ? err.stack : undefined;
+                    const details =
+                      errorStack && errorStack.length > 0 ? `${errorMessage}\n\n${errorStack}` : errorMessage;
+
+                    // Play a distinct warning sound so staff notice immediately.
+                    if (s.soundEnabled) {
+                      const warningRepeatCount = Math.min(5, Math.max(1, Math.trunc(s.soundRepeatCount)));
+                      void playNewOrderSound({ soundId: 'vopvoopvooop', repeatCount: warningRepeatCount, delayMs: 0 });
+                    }
+
+                    Alert.alert('EPOS Print Failed', details);
                   }
                 });
             }

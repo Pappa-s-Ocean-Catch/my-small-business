@@ -340,29 +340,6 @@ export default function CheckoutPage() {
     );
   }
 
-  if (items.length === 0) {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-neutral-900 flex items-center justify-center">
-        <div className="text-center">
-          <Icon icon={FaShoppingCart} className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-            Your cart is empty
-          </h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">
-            Add some items to your cart to continue
-          </p>
-          <Link
-            href="/order"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
-          >
-            <Icon icon={FaArrowLeft} className="w-4 h-4" />
-            Back to Menu
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   const handlePaymentMethodSelect = (method: PaymentMethod) => {
     setPaymentMethod(method);
     setError(null);
@@ -859,6 +836,29 @@ export default function CheckoutPage() {
           <p className="text-sm text-gray-500 dark:text-gray-500 mb-6">
             Redirecting to order confirmation...
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-neutral-900 flex items-center justify-center">
+        <div className="text-center">
+          <Icon icon={FaShoppingCart} className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+            Your cart is empty
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">
+            Add some items to your cart to continue
+          </p>
+          <Link
+            href="/order"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+          >
+            <Icon icon={FaArrowLeft} className="w-4 h-4" />
+            Back to Menu
+          </Link>
         </div>
       </div>
     );
