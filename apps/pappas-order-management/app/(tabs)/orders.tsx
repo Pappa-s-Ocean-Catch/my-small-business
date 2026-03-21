@@ -1158,11 +1158,29 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
                         )}
                         {item.addons && item.addons.length > 0 && (
                           <View style={styles.modalAddonsContainer}>
-                            {item.addons.map((addon) => (
-                              <Text key={addon.id} style={styles.modalAddonText}>
-                                + {addon.addon_item_name} - ${addon.addon_item_price.toFixed(2)}
-                              </Text>
-                            ))}
+                            {Object.values(
+                              item.addons.reduce((acc, addon) => {
+                                const key = `${addon.addon_item_name}__${addon.addon_item_price}`;
+                                if (!acc[key]) acc[key] = { ...addon, qty: 0 };
+                                acc[key].qty += 1;
+                                return acc;
+                              }, {} as Record<string, any>)
+                            ).map((groupedAddon: any) => {
+                              const qty = groupedAddon.qty;
+                              const name = groupedAddon.addon_item_name;
+                              const price = groupedAddon.addon_item_price;
+                              let label = qty > 1 ? `${qty}x ${name}` : name;
+                              const isPaid = price > 0;
+                              if (isPaid) label += ` - $${price.toFixed(2)}`;
+                              return (
+                                <Text
+                                  key={groupedAddon.addon_item_id + '_' + price}
+                                  style={[styles.modalAddonText, isPaid && { fontWeight: 'bold' }]}
+                                >
+                                  + {label}
+                                </Text>
+                              );
+                            })}
                           </View>
                         )}
                       </View>

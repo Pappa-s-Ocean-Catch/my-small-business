@@ -1,4 +1,8 @@
+
 import type { Order, OrderItem, OrderItemAddon } from '@my-small-business/types';
+
+// Extend the type for receipt line objects to allow 'center' alignment
+type ReceiptLine = string | { text: string; bold?: boolean; large?: boolean; center?: boolean };
 
 export type EpsonPrinterConfig = {
   printerUrl: string; // base URL like http://192.168.0.50 (or full service.cgi URL)
@@ -86,14 +90,33 @@ function formatOrderHeaderLines(order: Order): string[] {
   return lines;
 }
 
-function formatAddonLines(addons?: OrderItemAddon[]): (string | { text: string; bold?: boolean; large?: boolean })[] {
+function formatAddonLines(addons?: OrderItemAddon[]): ReceiptLine[] {
   if (!addons?.length) return [];
-  // Only print add-on name, no group name
-  return addons.map((a) => `  + ${a.addon_item_name}`);
+  // Group by name and price
+  const grouped: Record<string, { name: string; qty: number; price: number }[]> = {};
+  for (const a of addons) {
+    const key = `${a.addon_item_name}__${a.addon_item_price ?? 0}`;
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push({ name: a.addon_item_name, qty: 1, price: a.addon_item_price ?? 0 });
+  }
+  const lines: ReceiptLine[] = [];
+  for (const key in grouped) {
+    const group = grouped[key];
+    const { name, price } = group[0];
+    const qty = group.length;
+    let line = qty > 1 ? `${qty}x ${name}` : name;
+    if (price > 0) line += ` ($${formatMoney(price)})`;
+    lines.push({
+      text: `  + ${line}`,
+      large: false,
+      bold: price > 0
+    });
+  }
+  return lines;
 }
 
-function formatItemLines(item: OrderItem): (string | { text: string; bold?: boolean; large?: boolean })[] {
-  const lines: (string | { text: string; bold?: boolean; large?: boolean })[] = [];
+function formatItemLines(item: OrderItem): ReceiptLine[] {
+  const lines: ReceiptLine[] = [];
   // Product item: bold and large
   lines.push({
     text: `${item.quantity}x ${item.product_name}`,
@@ -105,8 +128,8 @@ function formatItemLines(item: OrderItem): (string | { text: string; bold?: bool
   return lines;
 }
 
-export function buildKitchenReceiptLines(order: Order): (string | { text: string; bold?: boolean; large?: boolean })[] {
-  const lines: (string | { text: string; bold?: boolean; large?: boolean })[] = [];
+export function buildKitchenReceiptLines(order: Order): ReceiptLine[] {
+  const lines: ReceiptLine[] = [];
   lines.push(...formatOrderHeaderLines(order));
 
   if (order.items?.length) {
@@ -124,21 +147,49 @@ export function buildKitchenReceiptLines(order: Order): (string | { text: string
   if (order.tax > 0) lines.push(`Tax:      $${formatMoney(order.tax)}`);
   if (order.delivery_fee > 0) lines.push(`Delivery: $${formatMoney(order.delivery_fee)}`);
   if (order.service_fee > 0) lines.push(`Service:  $${formatMoney(order.service_fee)}`);
-  lines.push(`TOTAL:    $${formatMoney(order.total)}`);
+
+  // Payment status to the right of TOTAL line
+  let paymentStatus = 'UNPAID';
+  if (order.payment_status && typeof order.payment_status === 'string') {
+    paymentStatus = order.payment_status.toUpperCase() === 'PAID' ? 'PAID' : 'UNPAID';
+  }
+  // Add TOTAL line with payment status right-aligned
+  const totalLine = `TOTAL:    $${formatMoney(order.total)}`;
+  // Pad spaces to align payment status to the right (approximate for 32-char width)
+  const padLen = Math.max(0, 32 - (totalLine.length + paymentStatus.length + 2));
+  const pad = ' '.repeat(padLen);
+  lines.push({
+    text: `${totalLine}${pad}  ${paymentStatus}`,
+    bold: true,
+  });
+
   lines.push('');
   lines.push('');
 
-  // Print order number at end, bold and big
+  // Center-align payment status and order number at bottom
   lines.push({
-    text: `ORDER #${order.order_number}`,
+    text: paymentStatus,
     bold: true,
     large: true,
+    center: true,
+  });
+
+  // Print only the last segment of the order number as P###, bold and big, centered
+  let orderNum = order.order_number || '';
+  let lastSegment = orderNum.split('-').pop() || orderNum;
+  // Remove any non-digit prefix (just in case)
+  lastSegment = lastSegment.replace(/\D+/g, '');
+  lines.push({
+    text: `P${lastSegment}`,
+    bold: true,
+    large: true,
+    center: true,
   });
 
   return lines;
 }
 
-function buildEposPrintXmlFromLines(lines: (string | { text: string; bold?: boolean; large?: boolean })[]): string {
+function buildEposPrintXmlFromLines(lines: ReceiptLine[]): string {
   // Convert lines to XML <text> blocks with formatting
   const xmlLines = lines.map((line) => {
     if (typeof line === 'string') {
@@ -146,7 +197,9 @@ function buildEposPrintXmlFromLines(lines: (string | { text: string; bold?: bool
     }
     let attrs = '';
     if (line.bold) attrs += ' style="bold"';
-    if (line.large) attrs += ' width="2" height="2"';
+    if (line.large) attrs += ' width="1.5" height="1.5';
+    // Center alignment for lines with center: true
+    if ((line as any).center) attrs += ' align="center"';
     return `<text lang="en"${attrs}>${escapeXml(line.text)}</text>`;
   });
   return `<?xml version="1.0" encoding="utf-8"?>\n<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">\n  ${xmlLines.join('\n  ')}\n  <feed />\n  <cut type="feed" />\n</epos-print>`;
