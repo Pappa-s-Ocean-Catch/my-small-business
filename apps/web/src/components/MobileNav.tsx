@@ -197,6 +197,10 @@ export function MobileNav() {
                             <Icon icon={FaStore} className="w-4 h-4 mr-2 text-green-400" />
                             Shop Overview
                           </Link>
+                          <Link href="/admin/orders" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                            <Icon icon={FaShoppingBag} className="w-4 h-4 mr-2 text-blue-400" />
+                            Orders
+                          </Link>
                           <Link href="/shop/products" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
                             <Icon icon={FaBox} className="w-4 h-4 mr-2 text-blue-400" />
                             Products
