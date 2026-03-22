@@ -17,6 +17,7 @@ export const ReviewWidget: React.FC<ReviewWidgetProps> = ({ productId, className
     const [count, setCount] = useState(0);
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(false);
+    const [initialFetchDone, setInitialFetchDone] = useState(false);
     const PAGE_SIZE = 10;
     const [ref, inView] = useInView<HTMLDivElement>({ threshold: 0 });
 
@@ -37,6 +38,7 @@ export const ReviewWidget: React.FC<ReviewWidgetProps> = ({ productId, className
             }
         } finally {
             setLoading(false);
+            setInitialFetchDone(true);
         }
     };
 
@@ -55,15 +57,23 @@ export const ReviewWidget: React.FC<ReviewWidgetProps> = ({ productId, className
         setPage(p => p + 1);
     };
 
-    // Always render the ref div so IntersectionObserver can trigger
-    const shouldShowWidget = loading || count > 0;
+    // Only show widget after first fetch, and only if loading or there are reviews
+    const shouldShowWidget = initialFetchDone && (loading || count > 0);
 
     return (
         <>
             <div
                 ref={ref}
                 className={`flex items-center gap-1 bg-white/80 dark:bg-black/60 rounded-full px-2 py-1 shadow-sm text-xs cursor-pointer ${className || ''}`}
-                style={{ position: 'absolute', right: 8, bottom: 8, zIndex: 10, visibility: shouldShowWidget ? 'visible' : 'hidden', pointerEvents: shouldShowWidget ? 'auto' : 'none' }}
+                style={{
+                    position: 'absolute',
+                    right: 8,
+                    bottom: 8,
+                    zIndex: 10,
+                    opacity: shouldShowWidget ? 1 : 0,
+                    pointerEvents: shouldShowWidget ? 'auto' : 'none',
+                    transition: 'opacity 0.2s',
+                }}
                 onClick={() => setOpen(true)}
                 title="View all reviews"
             >

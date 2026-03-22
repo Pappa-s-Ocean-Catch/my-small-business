@@ -11,6 +11,7 @@ export const LikeDislikeWidget: React.FC<LikeDislikeWidgetProps> = ({ productId,
     const [likes, setLikes] = useState(0);
     const [dislikes, setDislikes] = useState(0);
     const [loading, setLoading] = useState(true);
+    const [initialFetchDone, setInitialFetchDone] = useState(false);
     const [ref, inView] = useInView<HTMLDivElement>({ threshold: 0 });
 
     useEffect(() => {
@@ -32,18 +33,29 @@ export const LikeDislikeWidget: React.FC<LikeDislikeWidgetProps> = ({ productId,
                 setDislikes(0);
             } finally {
                 setLoading(false);
+                setInitialFetchDone(true);
             }
         };
         fetchCounts();
     }, [productId, inView]);
 
-    if (!loading && likes === 0 && dislikes === 0) return null;
+
+    // Only show widget after first fetch, and only if loading or there are likes/dislikes
+    const shouldShowWidget = initialFetchDone && (loading || likes > 0 || dislikes > 0);
 
     return (
         <div
             ref={ref}
             className={`flex items-center gap-2 bg-white/80 dark:bg-black/60 rounded-full px-2 py-1 shadow-sm text-xs ${className || ''}`}
-            style={{ position: 'absolute', left: 8, bottom: 8, zIndex: 10 }}
+            style={{
+                position: 'absolute',
+                left: 8,
+                bottom: 8,
+                zIndex: 10,
+                opacity: shouldShowWidget ? 1 : 0,
+                pointerEvents: shouldShowWidget ? 'auto' : 'none',
+                transition: 'opacity 0.2s',
+            }}
         >
             <span className="flex items-center gap-1 text-green-600"><FaThumbsUp /> {loading ? '-' : likes}</span>
             <span className="flex items-center gap-1 text-red-600"><FaThumbsDown /> {loading ? '-' : dislikes}</span>
