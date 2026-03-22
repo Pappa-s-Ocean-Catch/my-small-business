@@ -449,14 +449,7 @@ function OrderConfirmationContent() {
                         <img src={item.product_image_url} alt={item.product_name} className="w-12 h-12 object-cover rounded" />
                       )}
                       <div className="flex-1">
-                        <Link
-                          href={`/order/product/${item.product_slug || item.product_id}`}
-                          className="font-medium text-blue-600 dark:text-blue-400 hover:underline"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          {item.product_name}
-                        </Link>
+                        <div className="font-medium text-gray-900 dark:text-white">{item.product_name}</div>
                         <div className="text-xs text-gray-500 dark:text-gray-400">Qty: {item.quantity}</div>
                       </div>
                       <button

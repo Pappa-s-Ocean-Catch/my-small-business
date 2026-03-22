@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error }, { status: 500 });
         }
         // Return a map: { [item_id]: true/false/null }
-        const likeMap = {};
+        const likeMap: Record<string, boolean | null> = {};
         ids.forEach(id => { likeMap[id] = null; });
         data?.forEach(row => { likeMap[row.item_id] = row.is_like; });
         return NextResponse.json({ itemLikes: likeMap });
