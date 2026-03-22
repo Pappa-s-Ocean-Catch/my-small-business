@@ -266,17 +266,23 @@ export default function OrdersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshCountdown]);
 
+  const [orderLoading, setOrderLoading] = useState(false);
   const handleViewOrder = async (orderId: string) => {
+    setOrderLoading(true);
+    setShowOrderModal(true);
     try {
       const result = await getOrder(orderId);
       if (result.error) {
         setError(result.error);
+        setSelectedOrder(null);
       } else if (result.data) {
         setSelectedOrder(result.data);
-        setShowOrderModal(true);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load order');
+      setSelectedOrder(null);
+    } finally {
+      setOrderLoading(false);
     }
   };
 
@@ -575,8 +581,8 @@ export default function OrdersPage() {
                 <button
                   onClick={() => setSoundEnabled(!soundEnabled)}
                   className={`px-3 py-1 rounded-lg text-sm transition-colors ${soundEnabled
-                      ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
-                      : 'bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-gray-400'
+                    ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
+                    : 'bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-gray-400'
                     }`}
                   title={soundEnabled ? 'Sound enabled' : 'Sound disabled'}
                 >
@@ -746,149 +752,194 @@ export default function OrdersPage() {
           )}
 
           {/* Order Detail Modal */}
-          {showOrderModal && selectedOrder && (
+          {showOrderModal && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
               <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
                 <div className="p-6">
-                  <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                      Order {selectedOrder.order_number}
-                    </h2>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handlePrint(selectedOrder)}
-                        className="px-4 py-2 bg-gray-100 dark:bg-neutral-700 hover:bg-gray-200 dark:hover:bg-neutral-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors flex items-center gap-2"
-                      >
-                        <Icon icon={FaPrint} className="w-4 h-4" />
-                        Print
-                      </button>
-                      <button
-                        onClick={() => setShowOrderModal(false)}
-                        className="px-4 py-2 bg-gray-100 dark:bg-neutral-700 hover:bg-gray-200 dark:hover:bg-neutral-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
-                      >
-                        Close
-                      </button>
+                  {orderLoading ? (
+                    <div className="flex justify-center items-center min-h-[200px]">
+                      <LoadingSpinner size="lg" />
                     </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                    <div>
-                      <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-                        Customer Information
-                      </h3>
-                      <p className="text-gray-900 dark:text-white">{selectedOrder.customer_name || 'N/A'}</p>
-                      <p className="text-gray-600 dark:text-gray-400">{selectedOrder.customer_email}</p>
-                      <p className="text-gray-600 dark:text-gray-400">{selectedOrder.customer_phone}</p>
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-                        Order Details
-                      </h3>
-                      <p className="text-gray-900 dark:text-white">
-                        Payment: <span className="capitalize">{selectedOrder.payment_method}</span>
-                      </p>
-                      <p className="text-gray-900 dark:text-white">
-                        Status: <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(selectedOrder.order_status)}`}>
-                          {selectedOrder.order_status}
-                        </span>
-                      </p>
-                      <p className="text-gray-900 dark:text-white">
-                        Payment Status: <span className={`px-2 py-1 rounded text-xs font-medium ${getPaymentStatusColor(selectedOrder.payment_status)}`}>
-                          {selectedOrder.payment_status}
-                        </span>
-                      </p>
-                      <p className="text-gray-600 dark:text-gray-400 text-sm">
-                        {new Date(selectedOrder.created_at).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-
-                  {selectedOrder.special_instructions && (
-                    <div className="mb-6">
-                      <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-                        Special Instructions
-                      </h3>
-                      <p className="text-gray-900 dark:text-white">{selectedOrder.special_instructions}</p>
-                    </div>
-                  )}
-
-                  {/* Order Items */}
-                  {selectedOrder.items && selectedOrder.items.length > 0 && (
-                    <div className="mb-6">
-                      <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">
-                        Order Items
-                      </h3>
-                      <div className="space-y-4">
-                        {selectedOrder.items.map((item, index) => (
-                          <div
-                            key={index}
-                            className="flex gap-4 pb-4 border-b border-gray-200 dark:border-neutral-700 last:border-0 last:pb-0"
+                  ) : selectedOrder ? (
+                    <>
+                      <div className="flex items-center justify-between mb-6">
+                        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                          Order {selectedOrder.order_number}
+                        </h2>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handlePrint(selectedOrder)}
+                            className="px-4 py-2 bg-gray-100 dark:bg-neutral-700 hover:bg-gray-200 dark:hover:bg-neutral-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors flex items-center gap-2"
                           >
-                            {item.product_image_url && (
-                              <img
-                                src={item.product_image_url}
-                                alt={item.product_name}
-                                className="w-20 h-20 object-cover rounded-lg"
-                              />
-                            )}
-                            <div className="flex-1">
-                              <h4 className="font-semibold text-gray-900 dark:text-white mb-1">
-                                {item.product_name}
-                              </h4>
-                              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                                Quantity: {item.quantity} × ${item.base_price.toFixed(2)}
-                              </p>
-                              {item.removed_ingredients && item.removed_ingredients.length > 0 && (
-                                <p className="text-sm text-orange-700 dark:text-orange-300 mb-2">
-                                  Removed: {item.removed_ingredients.join(', ')}
-                                </p>
-                              )}
-                              {item.comment && (
-                                <p className="text-sm text-gray-500 dark:text-gray-500 italic mb-2">
-                                  Note: {item.comment}
-                                </p>
-                              )}
-                              <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                                ${item.subtotal.toFixed(2)}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
+                            <Icon icon={FaPrint} className="w-4 h-4" />
+                            Print
+                          </button>
+                          <button
+                            onClick={() => setShowOrderModal(false)}
+                            className="px-4 py-2 bg-gray-100 dark:bg-neutral-700 hover:bg-gray-200 dark:hover:bg-neutral-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
+                          >
+                            Close
+                          </button>
+                        </div>
                       </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div>
+                          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                            Customer Information
+                          </h3>
+                          <p className="text-gray-900 dark:text-white">{selectedOrder.customer_name || 'N/A'}</p>
+                          <p className="text-gray-600 dark:text-gray-400">{selectedOrder.customer_email}</p>
+                          <p className="text-gray-600 dark:text-gray-400">{selectedOrder.customer_phone}</p>
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                            Order Details
+                          </h3>
+                          <p className="text-gray-900 dark:text-white">
+                            Payment: <span className="capitalize">{selectedOrder.payment_method}</span>
+                          </p>
+                          <p className="text-gray-900 dark:text-white">
+                            Status: <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(selectedOrder.order_status)}`}>
+                              {selectedOrder.order_status}
+                            </span>
+                          </p>
+                          <p className="text-gray-900 dark:text-white">
+                            Payment Status: <span className={`px-2 py-1 rounded text-xs font-medium ${getPaymentStatusColor(selectedOrder.payment_status)}`}>
+                              {selectedOrder.payment_status}
+                            </span>
+                          </p>
+                          <p className="text-gray-600 dark:text-gray-400 text-sm">
+                            {new Date(selectedOrder.created_at).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+
+                      {selectedOrder.special_instructions && (
+                        <div className="mb-6">
+                          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                            Special Instructions
+                          </h3>
+                          <p className="text-gray-900 dark:text-white">{selectedOrder.special_instructions}</p>
+                        </div>
+                      )}
+
+                      {/* Order Items */}
+                      {selectedOrder.items && selectedOrder.items.length > 0 && (
+                        <div className="mb-6">
+                          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">
+                            Order Items
+                          </h3>
+                          <div className="space-y-4">
+                            {selectedOrder.items.map((item, index) => (
+                              <div
+                                key={index}
+                                className="flex gap-4 pb-4 border-b border-gray-200 dark:border-neutral-700 last:border-0 last:pb-0"
+                              >
+                                {item.product_image_url && (
+                                  <img
+                                    src={item.product_image_url}
+                                    alt={item.product_name}
+                                    className="w-20 h-20 object-cover rounded-lg"
+                                  />
+                                )}
+                                <div className="flex-1">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <h4 className="font-semibold text-gray-900 dark:text-white">
+                                      {item.product_name}
+                                    </h4>
+                                    <span className="text-2xl font-bold text-green-700 dark:text-green-400 min-w-[80px] text-right ml-4">${item.subtotal.toFixed(2)}</span>
+                                  </div>
+                                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                                    Quantity: {item.quantity} × ${item.base_price.toFixed(2)}
+                                  </p>
+                                  {item.removed_ingredients && item.removed_ingredients.length > 0 && (
+                                    <p className="text-sm text-orange-700 dark:text-orange-300 mb-2">
+                                      Removed: {item.removed_ingredients.join(', ')}
+                                    </p>
+                                  )}
+                                  {item.comment && (
+                                    <p className="text-sm text-gray-500 dark:text-gray-500 italic mb-2">
+                                      Note: {item.comment}
+                                    </p>
+                                  )}
+                                  {/* Add-ons display (grouped by name, hide group if all same) */}
+                                  {item.addons && item.addons.length > 0 && (
+                                    <div className="mb-2">
+                                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">Add-ons:</span>
+                                      <ul className="list-disc list-inside ml-2 mt-1">
+                                        {(() => {
+                                          // Group by addon_item_name + price
+                                          const grouped: Record<string, { name: string; price: number; group: string; count: number }> = {};
+                                          item.addons.forEach(a => {
+                                            const key = `${a.addon_item_name}|${a.addon_item_price}`;
+                                            if (!grouped[key]) {
+                                              grouped[key] = { name: a.addon_item_name, price: a.addon_item_price, group: a.addon_group_name, count: 1 };
+                                            } else {
+                                              grouped[key].count++;
+                                            }
+                                          });
+                                          // Check if all group names are the same
+                                          const allGroups = Object.values(grouped).map(g => g.group);
+                                          const uniqueGroups = Array.from(new Set(allGroups));
+                                          const showGroup = uniqueGroups.length > 1;
+                                          return Object.values(grouped).map((g, idx) => (
+                                            <li key={g.name + g.price + idx} className="text-xs text-gray-700 dark:text-gray-200">
+                                              {g.count > 1 ? `${g.count}x ` : ''}{g.name}
+                                              {/* Group name intentionally omitted */}
+                                              {g.price > 0 && (
+                                                <span> - ${g.price.toFixed(2)}</span>
+                                              )}
+                                            </li>
+                                          ));
+                                        })()}
+                                      </ul>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Order Total */}
+                      <div className="pt-6 border-t border-gray-200 dark:border-neutral-700">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-gray-600 dark:text-gray-400">Subtotal</span>
+                          <span className="text-gray-900 dark:text-white">${selectedOrder.subtotal.toFixed(2)}</span>
+                        </div>
+                        {selectedOrder.tax > 0 && (
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-gray-600 dark:text-gray-400">Tax</span>
+                            <span className="text-gray-900 dark:text-white">${selectedOrder.tax.toFixed(2)}</span>
+                          </div>
+                        )}
+                        {selectedOrder.delivery_fee > 0 && (
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-gray-600 dark:text-gray-400">Delivery Fee</span>
+                            <span className="text-gray-900 dark:text-white">${selectedOrder.delivery_fee.toFixed(2)}</span>
+                          </div>
+                        )}
+                        {selectedOrder.service_fee > 0 && (
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-gray-600 dark:text-gray-400">Service Fee</span>
+                            <span className="text-gray-900 dark:text-white">${selectedOrder.service_fee.toFixed(2)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center pt-4 border-t border-gray-200 dark:border-neutral-700">
+                          <span className="text-xl font-semibold text-gray-900 dark:text-white">Total</span>
+                          <span className="text-2xl font-bold text-green-600 dark:text-green-400">
+                            ${selectedOrder.total.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex justify-center items-center min-h-[200px]">
+                      <span className="text-gray-500 dark:text-gray-400">No order found.</span>
                     </div>
                   )}
-
-                  {/* Order Total */}
-                  <div className="pt-6 border-t border-gray-200 dark:border-neutral-700">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-gray-600 dark:text-gray-400">Subtotal</span>
-                      <span className="text-gray-900 dark:text-white">${selectedOrder.subtotal.toFixed(2)}</span>
-                    </div>
-                    {selectedOrder.tax > 0 && (
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-gray-600 dark:text-gray-400">Tax</span>
-                        <span className="text-gray-900 dark:text-white">${selectedOrder.tax.toFixed(2)}</span>
-                      </div>
-                    )}
-                    {selectedOrder.delivery_fee > 0 && (
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-gray-600 dark:text-gray-400">Delivery Fee</span>
-                        <span className="text-gray-900 dark:text-white">${selectedOrder.delivery_fee.toFixed(2)}</span>
-                      </div>
-                    )}
-                    {selectedOrder.service_fee > 0 && (
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-gray-600 dark:text-gray-400">Service Fee</span>
-                        <span className="text-gray-900 dark:text-white">${selectedOrder.service_fee.toFixed(2)}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between items-center pt-4 border-t border-gray-200 dark:border-neutral-700">
-                      <span className="text-xl font-semibold text-gray-900 dark:text-white">Total</span>
-                      <span className="text-2xl font-bold text-green-600 dark:text-green-400">
-                        ${selectedOrder.total.toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
