@@ -18,6 +18,10 @@ import { pickBestProductPromotion, promotionLabel, type PromotionWithProducts } 
 import type { StoreHours } from '@my-small-business/types';
 import { buildDefaultStoreHours, isStoreOpenNow } from '@/lib/store-hours';
 import { toast } from 'react-toastify';
+import dynamic from 'next/dynamic';
+
+const LikeDislikeWidget = dynamic(() => import('@/components/LikeDislikeWidget').then(m => m.LikeDislikeWidget), { ssr: false });
+const ReviewWidget = dynamic(() => import('@/components/ReviewWidget').then(m => m.ReviewWidget), { ssr: false });
 
 interface MenuProduct {
   id: string;
@@ -473,6 +477,7 @@ export default function OrderPage() {
           }
         }}
         aria-label={`View details for ${product.name}`}
+        style={{ position: 'relative' }}
       >
         {/* Badges */}
         {(isTopSeller || isFeatured || discountPerUnit > 0.009) && (
@@ -510,6 +515,9 @@ export default function OrderPage() {
               <Icon icon={FaUtensils} className="w-10 h-10" />
             </div>
           )}
+          {/* Like/Dislike and Review widgets overlayed on image */}
+          <LikeDislikeWidget productId={product.id} />
+          <ReviewWidget productId={product.id} debug />
         </div>
 
         <div className="p-4">

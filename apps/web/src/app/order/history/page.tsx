@@ -24,7 +24,7 @@ export default function OrderHistoryPage() {
       try {
         const supabase = getSupabaseClient();
         const { data: { user } } = await supabase.auth.getUser();
-        
+
         if (!user) {
           router.push('/login');
           return;
@@ -154,7 +154,7 @@ export default function OrderHistoryPage() {
             selected_items: items
           });
         }
-        
+
         addItem({
           product_id: orderItem.product_id,
           name: orderItem.product_name,
@@ -369,6 +369,14 @@ export default function OrderHistoryPage() {
                             </>
                           )}
                         </button>
+                        <Link
+                          href={`/order/confirmation?order=${order.order_number}`}
+                          className="flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-neutral-700 text-gray-900 dark:text-white rounded-lg hover:bg-gray-300 dark:hover:bg-neutral-600 transition-colors"
+                          title="View order details and review"
+                        >
+                          <Icon icon={FaCheckCircle} className="w-4 h-4" />
+                          View Details
+                        </Link>
                       </div>
                     </div>
 

@@ -1,18 +1,34 @@
 'use client';
 
 import { useEffect, useState, useRef, Suspense } from 'react';
+import Modal from '@/components/Modal';
+import { ImageUpload } from '@/components/ImageUpload';
+import { likeItem, getOrderReviews } from '@/app/actions/social-activity';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
 import { OrderHeader } from '@/components/OrderHeader';
 import { getOrder, getOrderByNumber } from '@/app/actions/orders';
 import { getOrderRewardPoints, type OrderRewardPointsSummary } from '@/app/actions/reward-points';
 import { useCart } from '@/contexts/CartContext';
-import { FaCheckCircle, FaPrint, FaArrowLeft, FaShoppingBag, FaGift } from 'react-icons/fa';
+import { FaCheckCircle, FaPrint, FaArrowLeft, FaShoppingBag, FaGift, FaThumbsUp, FaThumbsDown } from 'react-icons/fa';
 import { Icon } from '@/components/Icon';
 import Link from 'next/link';
 import { LoadingSpinner } from '@/components/Loading';
 import type { Order, OrderItemAddon } from '@my-small-business/types';
 
+// Simple toast component
+function Toast({ message, type, onClose }: { message: string, type: 'success' | 'error', onClose: () => void }) {
+  return (
+    <div className={`fixed top-6 left-1/2 z-50 -translate-x-1/2 px-6 py-3 rounded shadow-lg text-white ${type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}
+      role="alert">
+      <span>{message}</span>
+      <button className="ml-4 text-white/80 hover:text-white" onClick={onClose}>&times;</button>
+    </div>
+  );
+}
+
 function OrderConfirmationContent() {
+  // Order and routing state (must be above all code that uses them)
   const searchParams = useSearchParams();
   const router = useRouter();
   const { clearCart } = useCart();
@@ -24,6 +40,158 @@ function OrderConfirmationContent() {
   const [error, setError] = useState<string | null>(null);
   const [rewardSummary, setRewardSummary] = useState<OrderRewardPointsSummary | null>(null);
   const clearedCartRef = useRef(false);
+  // --- Move all useState declarations to the top ---
+  const { user } = useAuth();
+
+  // Order review modal state
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewPhoto, setReviewPhoto] = useState<string | null>(null);
+  const [submittingReview, setSubmittingReview] = useState(false);
+  // Toast state
+  const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3500);
+  };
+  // Existing review state
+  const [existingReview, setExistingReview] = useState<any | null>(null);
+  // Like/dislike state for order items
+  const [itemLikes, setItemLikes] = useState<Record<string, boolean | null>>({});
+  // Populate like/dislike state for all order items
+  useEffect(() => {
+    const fetchItemLikes = async () => {
+      if (!order || !user?.id || !Array.isArray(order.items) || order.items.length === 0) return;
+      const itemIds = order.items.map((item: any) => item.product_id).join(',');
+      try {
+        const response = await fetch(`/api/social-activity/getItemLikes?userId=${user.id}&itemIds=${itemIds}`);
+        const result = await response.json();
+        if (response.ok && result.itemLikes) {
+          setItemLikes(result.itemLikes);
+        } else {
+          setItemLikes({});
+        }
+      } catch (err) {
+        setItemLikes({});
+      }
+    };
+    fetchItemLikes();
+  }, [order, user]);
+
+  // --- Functions and hooks follow ---
+  const handleLikeItem = async (itemId: string, isLike: boolean) => {
+    if (!user?.id) {
+      console.warn('[OrderConfirmation] Like/dislike: No user ID');
+      return;
+    }
+    setItemLikes(prev => ({ ...prev, [itemId]: isLike }));
+    try {
+      console.debug('[OrderConfirmation] Like/dislike API call', { userId: user.id, itemId, isLike });
+      const response = await fetch('/api/social-activity/likeItem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, itemId, isLike })
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        console.error('[OrderConfirmation] Like/dislike API error', result.error);
+      } else {
+        console.debug('[OrderConfirmation] Like/dislike API success', result);
+      }
+    } catch (err) {
+      console.error('[OrderConfirmation] Like/dislike fetch error', err);
+    }
+  };
+
+  const handleSubmitOrderReview = async () => {
+    if (!order || !reviewRating || !user?.id) {
+      showToast('Missing order, rating, or user ID', 'error');
+      return;
+    }
+    setSubmittingReview(true);
+    try {
+      const response = await fetch('/api/social-activity/addOrderReview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          orderId: order.id,
+          rating: reviewRating,
+          comment: reviewComment
+        })
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        showToast(result.error || 'Failed to submit review', 'error');
+        setSubmittingReview(false);
+        return;
+      }
+      showToast(existingReview ? 'Review updated!' : 'Review submitted!', 'success');
+      setSubmittingReview(false);
+      setReviewModalOpen(false);
+      setReviewRating(0);
+      setReviewComment('');
+      setReviewPhoto(null);
+      setItemLikes({});
+      // Refresh review state, but do not show error toast if it fails
+      try {
+        const { reviews } = await getOrderReviews(order.id);
+        const myReview = Array.isArray(reviews) ? reviews.find((r: any) => r.user_id === user.id) : null;
+        setExistingReview(myReview || null);
+      } catch (refreshErr) {
+        console.error('[OrderConfirmation] Failed to refresh review after submit', refreshErr);
+      }
+    } catch (err) {
+      setSubmittingReview(false);
+      showToast('Failed to submit review', 'error');
+    }
+  };
+  // Fetch existing review for this user/order
+  useEffect(() => {
+    const fetchReview = async () => {
+      if (!order || !user?.id) {
+        console.debug('[OrderConfirmation] Skipping fetchReview: missing order or user', { order, user });
+        return;
+      }
+      try {
+        console.debug('[OrderConfirmation] Fetching order reviews for order', order.id);
+        const response = await fetch(`/api/social-activity/getOrderReviews?orderId=${order.id}`);
+        const result = await response.json();
+        if (!response.ok) {
+          console.error('[OrderConfirmation] getOrderReviews API error', result.error);
+          setExistingReview(null);
+          return;
+        }
+        const { reviews } = result;
+        const myReview = Array.isArray(reviews) ? reviews.find((r: any) => r.user_id === user.id) : null;
+        console.debug('[OrderConfirmation] Found myReview', myReview);
+        setExistingReview(myReview || null);
+      } catch (err) {
+        console.error('[OrderConfirmation] Error fetching review', err);
+        setExistingReview(null);
+      }
+    };
+    fetchReview();
+  }, [order, user]);
+
+  // Pre-fill modal with existing review if editing
+  const openReviewModal = () => {
+    setReviewModalOpen(true);
+  };
+
+  // Sync modal fields with latest review when modal opens or review changes
+  useEffect(() => {
+    if (reviewModalOpen) {
+      if (existingReview) {
+        setReviewRating(existingReview.rating);
+        setReviewComment(existingReview.comment);
+      } else {
+        setReviewRating(0);
+        setReviewComment('');
+      }
+    }
+  }, [reviewModalOpen, existingReview]);
 
   const promotionsApplied = Array.isArray((order as any)?.promotions_applied)
     ? ((order as any).promotions_applied as any[])
@@ -216,8 +384,9 @@ function OrderConfirmationContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-neutral-900">
-      <OrderHeader />
 
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      <OrderHeader />
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Success Header */}
         <div className="text-center mb-8">
@@ -230,7 +399,101 @@ function OrderConfirmationContent() {
           </p>
         </div>
 
-        {/* Order Details Card */}
+        {/* Order Review Modal */}
+        <Modal
+          isOpen={reviewModalOpen}
+          onClose={() => setReviewModalOpen(false)}
+          title={existingReview ? 'Update Your Review' : 'Review Your Order'}
+          size="md"
+          bodyClassName="p-6"
+        >
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold">Your Rating:</span>
+              {[1, 2, 3, 4, 5].map(star => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => setReviewRating(star)}
+                  className="focus:outline-none"
+                  aria-label={`Rate ${star} star${star > 1 ? 's' : ''}`}
+                >
+                  <svg className={`w-6 h-6 ${reviewRating >= star ? 'text-yellow-400' : 'text-gray-300'} cursor-pointer`} fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.967a1 1 0 00.95.69h4.175c.969 0 1.371 1.24.588 1.81l-3.38 2.455a1 1 0 00-.364 1.118l1.287 3.966c.3.922-.755 1.688-1.54 1.118l-3.38-2.454a1 1 0 00-1.175 0l-3.38 2.454c-.784.57-1.838-.196-1.54-1.118l1.287-3.966a1 1 0 00-.364-1.118L2.05 9.394c-.783-.57-.38-1.81.588-1.81h4.175a1 1 0 00.95-.69l1.286-3.967z" /></svg>
+                </button>
+              ))}
+            </div>
+            <textarea
+              className="w-full border rounded p-2"
+              rows={3}
+              placeholder="Write your review..."
+              value={reviewComment}
+              onChange={e => setReviewComment(e.target.value)}
+            />
+            <div>
+              <span className="font-semibold">Photo (optional):</span>
+              <ImageUpload
+                type="product"
+                currentImageUrl={reviewPhoto ?? undefined}
+                onImageChange={setReviewPhoto}
+                className="mt-2"
+              />
+            </div>
+            {/* List of products in the order for like/dislike */}
+            {order && Array.isArray(order.items) && order.items.length > 0 && (
+              <div className="mt-6">
+                <h4 className="font-semibold mb-2">Rate Items in Your Order</h4>
+                <div className="space-y-3">
+                  {order.items.map((item) => (
+                    <div key={item.id} className="flex items-center gap-3 p-2 rounded border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-900">
+                      {item.product_image_url && (
+                        <img src={item.product_image_url} alt={item.product_name} className="w-12 h-12 object-cover rounded" />
+                      )}
+                      <div className="flex-1">
+                        <Link
+                          href={`/order/product/${item.product_slug || item.product_id}`}
+                          className="font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {item.product_name}
+                        </Link>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Qty: {item.quantity}</div>
+                      </div>
+                      <button
+                        className={`flex items-center gap-1 px-2 py-1 rounded ${itemLikes[item.product_id] === true ? 'bg-green-600 text-white' : 'bg-gray-200 dark:bg-neutral-800 text-gray-700 dark:text-gray-100'}`}
+                        onClick={() => handleLikeItem(item.product_id, true)}
+                        type="button"
+                        aria-label="Like"
+                      >
+                        <FaThumbsUp />
+                      </button>
+                      <button
+                        className={`flex items-center gap-1 px-2 py-1 rounded ${itemLikes[item.product_id] === false ? 'bg-red-600 text-white' : 'bg-gray-200 dark:bg-neutral-800 text-gray-700 dark:text-gray-100'}`}
+                        onClick={() => handleLikeItem(item.product_id, false)}
+                        type="button"
+                        aria-label="Dislike"
+                      >
+                        <FaThumbsDown />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 text-gray-900 dark:bg-neutral-800 dark:hover:bg-neutral-700 dark:text-gray-100"
+                onClick={() => setReviewModalOpen(false)}
+                disabled={submittingReview}
+              >
+                Cancel
+              </button>
+              <button className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700" onClick={handleSubmitOrderReview} disabled={submittingReview || !reviewRating}>
+                {submittingReview ? (existingReview ? 'Updating...' : 'Submitting...') : (existingReview ? 'Update Review' : 'Submit Review')}
+              </button>
+            </div>
+          </div>
+        </Modal>
         <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-6 mb-6">
           <div className="flex items-center justify-between mb-6">
             <div>
@@ -268,12 +531,12 @@ function OrderConfirmationContent() {
                 Payment Status:{' '}
                 <span
                   className={`inline-block px-2 py-1 rounded text-xs font-semibold ${order.payment_status === 'paid'
-                      ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
-                      : order.payment_status === 'failed'
-                        ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
-                        : order.payment_status === 'refunded'
-                          ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
+                    ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                    : order.payment_status === 'failed'
+                      ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
+                      : order.payment_status === 'refunded'
+                        ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
                     }`}
                 >
                   {order.payment_status === 'paid' ? '✓ Paid' : order.payment_status.charAt(0).toUpperCase() + order.payment_status.slice(1)}
@@ -283,12 +546,12 @@ function OrderConfirmationContent() {
                 Order Status:{' '}
                 <span
                   className={`inline-block px-2 py-1 rounded text-xs font-semibold ${order.order_status === 'completed'
-                      ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
-                      : order.order_status === 'cancelled'
-                        ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
-                        : order.order_status === 'ready'
-                          ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
+                    ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                    : order.order_status === 'cancelled'
+                      ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
+                      : order.order_status === 'ready'
+                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
                     }`}
                 >
                   {order.order_status.charAt(0).toUpperCase() + order.order_status.slice(1)}
@@ -323,9 +586,8 @@ function OrderConfirmationContent() {
                     <div className="flex items-center w-full">
                       {index > 0 && (
                         <div
-                          className={`flex-1 h-1 ${
-                            isDone ? 'bg-green-500' : isCurrent ? 'bg-blue-500' : 'bg-gray-200 dark:bg-gray-700'
-                          }`}
+                          className={`flex-1 h-1 ${isDone ? 'bg-green-500' : isCurrent ? 'bg-blue-500' : 'bg-gray-200 dark:bg-gray-700'
+                            }`}
                         />
                       )}
                       <div className={`${baseCircle} ${circleClass}`}>
@@ -538,36 +800,127 @@ function OrderConfirmationContent() {
           <h3 className="font-semibold text-blue-900 dark:text-blue-200 mb-2">
             What's Next?
           </h3>
-          {order.payment_method === 'online' ? (
-            order.payment_status === 'paid' ? (
-              <div className="text-sm text-blue-800 dark:text-blue-200 space-y-2">
-                <p>
-                  Your payment has been successfully processed. We'll notify you when your order is ready for pickup.
-                </p>
-                <p className="font-medium">
-                  Usually your order will be ready for pickup at the store after 10 minutes. Please allow us extra 5-10 minutes during peak hours from 5-7pm, especially on Friday nights.
-                </p>
+          {order.order_status === 'completed' ? (
+            existingReview ? (
+              <div className="mb-4 text-blue-900 dark:text-blue-200">
+                <span className="font-semibold">Your Review:</span>
+                <div className="flex items-center gap-2 mt-2">
+                  {[1, 2, 3, 4, 5].map(star => (
+                    <svg key={star} className={`w-5 h-5 ${existingReview.rating >= star ? 'text-yellow-400' : 'text-gray-300'}`} fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.967a1 1 0 00.95.69h4.175c.969 0 1.371 1.24.588 1.81l-3.38 2.455a1 1 0 00-.364 1.118l1.287 3.966c.3.922-.755 1.688-1.54 1.118l-3.38-2.454a1 1 0 00-1.175 0l-3.38 2.454c-.784.57-1.838-.196-1.54-1.118l1.287-3.966a1 1 0 00-.364-1.118L2.05 9.394c-.783-.57-.38-1.81.588-1.81h4.175a1 1 0 00.95-.69l1.286-3.967z" /></svg>
+                  ))}
+                </div>
+                <div className="text-gray-800 dark:text-gray-100 mt-1">{existingReview.comment || <span className="italic text-gray-400">No comment</span>}</div>
+                <button
+                  className="mt-3 px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
+                  onClick={openReviewModal}
+                >
+                  Edit Review
+                </button>
               </div>
-            ) : order.payment_status === 'failed' ? (
-              <p className="text-sm text-red-800 dark:text-red-200">
-                Your payment could not be processed. Please contact us or try placing your order again.
-              </p>
             ) : (
-              <p className="text-sm text-blue-800 dark:text-blue-200">
-                Your payment is being processed. You'll receive a confirmation email shortly.
-              </p>
+              <>
+                <div className="mb-4 text-blue-900 dark:text-blue-200">
+                  <span className="font-semibold">We'd love your feedback!</span> Please review your order below.
+                </div>
+                <button
+                  className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
+                  onClick={openReviewModal}
+                >
+                  Leave a Review
+                </button>
+              </>
             )
-          ) : (
-            <div className="text-sm text-blue-800 dark:text-blue-200 space-y-2">
-              <p>
-                Please pay for your order when you pick it up at the store. We'll notify you when your order is ready.
-              </p>
-              <p className="font-medium">
-                Usually your order will be ready for pickup at the store after 10 minutes. Please allow us extra 5-10 minutes during peak hours from 5-7pm, especially on Friday nights.
-              </p>
-            </div>
-          )}
+          ) : null}
         </div>
+
+        {/* Order Review Modal */}
+        <Modal
+          isOpen={reviewModalOpen}
+          onClose={() => setReviewModalOpen(false)}
+          title={existingReview ? 'Edit Your Review' : 'Review Your Order'}
+          size="md"
+          bodyClassName="p-6"
+        >
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold">Your Rating:</span>
+              {[1, 2, 3, 4, 5].map(star => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => setReviewRating(star)}
+                  className="focus:outline-none"
+                  aria-label={`Rate ${star} star${star > 1 ? 's' : ''}`}
+                >
+                  <svg className={`w-6 h-6 ${reviewRating >= star ? 'text-yellow-400' : 'text-gray-300'} cursor-pointer`} fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.967a1 1 0 00.95.69h4.175c.969 0 1.371 1.24.588 1.81l-3.38 2.455a1 1 0 00-.364 1.118l1.287 3.966c.3.922-.755 1.688-1.54 1.118l-3.38-2.454a1 1 0 00-1.175 0l-3.38 2.454c-.784.57-1.838-.196-1.54-1.118l1.287-3.966a1 1 0 00-.364-1.118L2.05 9.394c-.783-.57-.38-1.81.588-1.81h4.175a1 1 0 00.95-.69l1.286-3.967z" /></svg>
+                </button>
+              ))}
+            </div>
+            <textarea
+              className="w-full border rounded p-2"
+              rows={3}
+              placeholder="Write your review..."
+              value={reviewComment}
+              onChange={e => setReviewComment(e.target.value)}
+            />
+            <div>
+              <span className="font-semibold">Photo (optional):</span>
+              <ImageUpload
+                type="product"
+                currentImageUrl={reviewPhoto ?? undefined}
+                onImageChange={setReviewPhoto}
+                className="mt-2"
+              />
+            </div>
+            {/* List of products in the order for like/dislike */}
+            {order && Array.isArray(order.items) && order.items.length > 0 && (
+              <div className="mt-6">
+                <h4 className="font-semibold mb-2">Rate Items in Your Order</h4>
+                <div className="space-y-3">
+                  {order.items.map((item) => (
+                    <div key={item.id} className="flex items-center gap-3 p-2 rounded border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-900">
+                      {item.product_image_url && (
+                        <img src={item.product_image_url} alt={item.product_name} className="w-12 h-12 object-cover rounded" />
+                      )}
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900 dark:text-white">{item.product_name}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Qty: {item.quantity}</div>
+                      </div>
+                      <button
+                        className={`flex items-center gap-1 px-2 py-1 rounded ${itemLikes[item.product_id] === true ? 'bg-green-600 text-white' : 'bg-gray-200 dark:bg-neutral-800 text-gray-700 dark:text-gray-100'}`}
+                        onClick={() => handleLikeItem(item.product_id, true)}
+                        type="button"
+                        aria-label="Like"
+                      >
+                        <FaThumbsUp />
+                      </button>
+                      <button
+                        className={`flex items-center gap-1 px-2 py-1 rounded ${itemLikes[item.product_id] === false ? 'bg-red-600 text-white' : 'bg-gray-200 dark:bg-neutral-800 text-gray-700 dark:text-gray-100'}`}
+                        onClick={() => handleLikeItem(item.product_id, false)}
+                        type="button"
+                        aria-label="Dislike"
+                      >
+                        <FaThumbsDown />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 text-gray-900 dark:bg-neutral-800 dark:hover:bg-neutral-700 dark:text-gray-100"
+                onClick={() => setReviewModalOpen(false)}
+                disabled={submittingReview}
+              >
+                Cancel
+              </button>
+              <button className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700" onClick={handleSubmitOrderReview} disabled={submittingReview || !reviewRating}>
+                {submittingReview ? (existingReview ? 'Updating...' : 'Submitting...') : (existingReview ? 'Update Review' : 'Submit Review')}
+              </button>
+            </div>
+          </div>
+        </Modal>
 
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-4">

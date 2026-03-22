@@ -404,6 +404,7 @@ export async function getOrderByNumber(orderNumber: string): Promise<{ data: Ord
     }
 
     const addonGroupIsRequiredById = new Map<string, boolean>();
+
     const saleProductAddonGroupDisplayOrderByKey = new Map<string, number>();
 
     if (addonGroupIdList.length > 0) {
@@ -778,6 +779,16 @@ export async function updateOrderStatus(
 
     if (!order) {
       return { data: null, error: 'Order not found' };
+    }
+
+    // If status is set to completed, send review email
+    if (status === 'completed' && order) {
+      try {
+        const { sendOrderCompletedEmail } = require('./email');
+        await sendOrderCompletedEmail(order);
+      } catch (err) {
+        console.error('Failed to send order completed review email:', err);
+      }
     }
 
     return getOrder(orderId);

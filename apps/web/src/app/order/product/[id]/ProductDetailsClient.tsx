@@ -8,10 +8,16 @@ import { ItemCustomizationModal } from '@/components/ItemCustomizationModal';
 import type { CartAddonGroup } from '@/contexts/CartContext';
 import { ActionButton } from '@/components/ActionButton';
 import { Icon } from '@/components/Icon';
-import { FaFire, FaUtensils } from 'react-icons/fa';
+import { FaFire, FaUtensils, FaThumbsUp, FaThumbsDown, FaStar } from 'react-icons/fa';
 import { CartSidebar } from '@/components/CartSidebar';
 import { toast } from 'react-toastify';
 import { useFeatureFlag } from '@/hooks/useFeatureFlag';
+import Modal from '@/components/Modal';
+import { ImageUpload } from '@/components/ImageUpload';
+import { addItemReview } from '@/app/actions/social-activity';
+import dynamic from 'next/dynamic';
+const LikeDislikeWidget = dynamic(() => import('@/components/LikeDislikeWidget').then(m => m.LikeDislikeWidget), { ssr: false });
+const ReviewWidget = dynamic(() => import('@/components/ReviewWidget').then(m => m.ReviewWidget), { ssr: false });
 
 export type SaleProductForDetails = {
     id: string;
@@ -58,6 +64,31 @@ export default function ProductDetailsClient(props: {
     const { onlineOrderEnabled } = useFeatureFlag();
     const [showCustomize, setShowCustomize] = useState(false);
     const [customizingProduct, setCustomizingProduct] = useState<HotSellerProduct | null>(null);
+
+
+    // Social activity state
+    const [reviewModalOpen, setReviewModalOpen] = useState(false);
+    const [reviewRating, setReviewRating] = useState(0);
+    const [reviewComment, setReviewComment] = useState('');
+    const [reviewPhoto, setReviewPhoto] = useState<string | null>(null);
+    const [submittingReview, setSubmittingReview] = useState(false);
+    // TODO: Fetch likes/reviews from backend for this item (mocked for now)
+    const likes = 12, dislikes = 2, avgRating = 4.5, reviewCount = 8;
+
+    const handleSubmitReview = async () => {
+        if (!reviewRating) return;
+        setSubmittingReview(true);
+        // TODO: Get userId from auth context
+        const userId = 'mock-user-id';
+        await addItemReview({ userId, itemId: product.id, rating: reviewRating, comment: reviewComment });
+        // TODO: Save photo if uploaded
+        setSubmittingReview(false);
+        setReviewModalOpen(false);
+        setReviewRating(0);
+        setReviewComment('');
+        setReviewPhoto(null);
+        // Optionally: show toast, refresh reviews
+    };
 
     const bundleOriginalTotal = useMemo(() => {
         return bundleIncludes.reduce((sum, row) => {
@@ -134,15 +165,19 @@ export default function ProductDetailsClient(props: {
                 </div>
 
                 <div className="mt-4 bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 overflow-hidden">
-                    {product.image_url ? (
-                        <div className="aspect-video bg-gray-200 dark:bg-neutral-700">
+                    <div className="aspect-video bg-gray-200 dark:bg-neutral-700 relative">
+                        {product.image_url ? (
                             <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
-                        </div>
-                    ) : (
-                        <div className="aspect-video bg-gray-200 dark:bg-neutral-700 flex items-center justify-center">
-                            <Icon icon={FaUtensils} className="w-12 h-12 text-gray-400 dark:text-gray-500" />
-                        </div>
-                    )}
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-500">
+                                <Icon icon={FaUtensils} className="w-12 h-12" />
+                            </div>
+                        )}
+                        {/* Like/Dislike Widget overlay */}
+                        <LikeDislikeWidget productId={product.id} />
+                        {/* Review Widget overlay */}
+                        <ReviewWidget productId={product.id} alwaysVisible />
+                    </div>
 
                     <div className="p-6 space-y-4">
                         <div>

@@ -45,6 +45,27 @@ export const OrderReadyEmail = ({
               </Text>
             )}
 
+            <Text className="text-base text-gray-700 mb-4 m-0">
+              <strong>We value your feedback!</strong> Please let us know how we did:
+              <br />
+              <a
+                href={`https://pappas-ocean-catch.com/order/confirmation?order=${orderNumber}&review=1`}
+                style={{
+                  display: 'inline-block',
+                  marginTop: '8px',
+                  padding: '10px 20px',
+                  backgroundColor: '#2563eb',
+                  color: '#fff',
+                  borderRadius: '6px',
+                  textDecoration: 'none',
+                  fontWeight: 600,
+                }}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Leave a Review
+              </a>
+            </Text>
             <Text className="text-base text-gray-700 mb-0 m-0">
               Thank you for ordering with {businessName}.
             </Text>
