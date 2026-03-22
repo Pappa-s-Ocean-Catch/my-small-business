@@ -10,6 +10,8 @@ import { TypewriterText } from "@/components/TypewriterText";
 import { getHomePromotions } from "@/app/actions/promotions";
 import type { Promotion } from "@/lib/promotions";
 import { useFeatureFlag } from "@/hooks/useFeatureFlag";
+import { PublicReviewBlock } from "@/components/PublicReviewBlock";
+import { ReviewSummaryWidget } from "@/components/ReviewSummaryWidget";
 
 interface FeaturedProduct {
   id: string;
@@ -164,6 +166,9 @@ export default function Home() {
     };
   }, [structuredData]);
 
+  // Add an id to the review section for scrolling
+  const reviewSectionId = "public-review-section";
+
   return (
     <>
       <div className="min-h-screen bg-white">
@@ -200,6 +205,10 @@ export default function Home() {
                 {homePromotions[0].home_title || homePromotions[0].title}
               </div>
             )}
+            {/* Review summary widget */}
+            <div className="flex justify-center mb-6">
+              <ReviewSummaryWidget scrollToId={reviewSectionId} />
+            </div>
             <h1 className="hidden text-4xl md:text-7xl font-bold text-white mb-4 md:mb-6 drop-shadow-lg min-h-[1.2em]">
               <TypewriterText
                 text="Welcome to Pappa's Ocean Catch"
@@ -595,6 +604,11 @@ export default function Home() {
             </div>
           </div>
         </section>
+
+        {/* Public Reviews Section - always at the very end of the page */}
+        <div id={reviewSectionId}>
+          <PublicReviewBlock />
+        </div>
       </div>
     </>
   );
