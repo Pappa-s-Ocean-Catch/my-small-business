@@ -62,7 +62,7 @@ function formatOrderHeaderLines(order: Order): string[] {
   const created = new Date(order.created_at);
 
   const lines: string[] = [];
-  lines.push(`ORDER #${order.order_number}`);
+  // Removed order number from header
   lines.push(created.toLocaleString());
   lines.push(`${order.order_type === 'delivery' ? 'DELIVERY' : 'PICKUP'}  •  ${order.payment_method.toUpperCase()}`);
   lines.push('');
@@ -166,18 +166,12 @@ export function buildKitchenReceiptLines(order: Order): ReceiptLine[] {
   lines.push('');
   lines.push('');
 
-  // Center-align payment status and order number at bottom
-  lines.push({
-    text: paymentStatus,
-    bold: true,
-    large: true,
-    center: true,
-  });
-
-  // Print only the last segment of the order number as P###, bold and big, centered
+  // Add vertical space before order number in the middle
+  lines.push('');
+  lines.push('');
+  // Print only the last segment of the order number as P###, bold and big, centered (middle of receipt)
   let orderNum = order.order_number || '';
   let lastSegment = orderNum.split('-').pop() || orderNum;
-  // Remove any non-digit prefix (just in case)
   lastSegment = lastSegment.replace(/\D+/g, '');
   lines.push({
     text: `P${lastSegment}`,
@@ -197,7 +191,7 @@ function buildEposPrintXmlFromLines(lines: ReceiptLine[]): string {
     }
     let attrs = '';
     if (line.bold) attrs += ' style="bold"';
-    if (line.large) attrs += ' width="1.5" height="1.5';
+    if (line.large) attrs += ' width="1" height="1';
     // Center alignment for lines with center: true
     if ((line as any).center) attrs += ' align="center"';
     return `<text lang="en"${attrs}>${escapeXml(line.text)}</text>`;

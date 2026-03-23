@@ -53,6 +53,7 @@ export default function OrderPage() {
   const [featuredProducts, setFeaturedProducts] = useState<MenuProduct[]>([]);
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lazyLoading, setLazyLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
@@ -92,167 +93,104 @@ export default function OrderPage() {
     (async () => {
       setLoading(true);
       try {
+        // 1. Load featured products first
+        const featuredRes = await getFeaturedProducts();
+        if (featuredRes.data) setFeaturedProducts(featuredRes.data);
+        setLoading(false); // Show page after featured loaded
+        // 2. Start lazy loading the rest
+        setLazyLoading(true);
         const supabase = getSupabaseClient();
-        // Menu data
-        const menuPromise = (async () => {
-          const [productsResult, categoriesResult, topSellersResult, featuredResult] = await Promise.all([
-            supabase
-              .from('sale_products')
-              .select('id, slug, name, description, sale_price, image_url, sale_category_id, sub_category_id')
-              .eq('is_active', true)
-              .order('name'),
-            supabase
-              .from('sale_categories')
-              .select('id, name, parent_category_id, sort_order')
-              .eq('is_active', true)
-              .order('sort_order'),
-            getTopSellingProducts(20),
-            getFeaturedProducts()
-          ]);
-
-          if (productsResult.error) throw new Error(productsResult.error.message);
-          if (categoriesResult.error) throw new Error(categoriesResult.error.message);
-
-          const rawProducts = (productsResult.data || []) as MenuProduct[];
-          const productIds = rawProducts.map((p) => p.id);
-          const bundleOriginalTotals = new Map<string, number>();
-          if (productIds.length > 0) {
-            const { data: includeRows, error: includeError } = await supabase
-              .from('sale_product_includes')
-              .select('parent_sale_product_id, quantity, included:sale_products!included_sale_product_id(sale_price)')
-              .in('parent_sale_product_id', productIds);
-            if (!includeError && includeRows) {
-              for (const row of includeRows as any[]) {
-                const parentId = String(row.parent_sale_product_id);
-                const qty = Math.max(1, Number(row.quantity || 1));
-                const joined = Array.isArray(row.included) ? row.included?.[0] : row.included;
-                const price = typeof joined?.sale_price === 'number' ? joined.sale_price : 0;
-                if (!price) continue;
-                bundleOriginalTotals.set(parentId, (bundleOriginalTotals.get(parentId) || 0) + qty * price);
-              }
-            }
-          }
-
-          setProducts(
-            rawProducts.map((p) => ({
-              ...p,
-              bundle_original_total: bundleOriginalTotals.get(p.id) ?? null,
-            }))
-          );
-          setCategories(categoriesResult.data || []);
-
-          if (topSellersResult.data) {
-            setTopSellers(topSellersResult.data.map(p => ({
-              id: p.id,
-              slug: p.slug ?? null,
-              name: p.name,
-              description: p.description,
-              sale_price: p.sale_price,
-              bundle_original_total: bundleOriginalTotals.get(p.id) ?? null,
-              image_url: p.image_url,
-              sale_category_id: p.sale_category_id,
-              sub_category_id: p.sub_category_id
-            })));
-          }
-          if (featuredResult.data) {
-            setFeaturedProducts(featuredResult.data.map(p => ({
-              id: p.id,
-              slug: p.slug ?? null,
-              name: p.name,
-              description: p.description,
-              sale_price: p.sale_price,
-              bundle_original_total: bundleOriginalTotals.get(p.id) ?? null,
-              image_url: p.image_url,
-              sale_category_id: p.sale_category_id,
-              sub_category_id: p.sub_category_id
-            })));
-          }
-        })();
-
+        // Categories
+        const categoriesResult = await supabase
+          .from('sale_categories')
+          .select('id, name, parent_category_id, sort_order')
+          .eq('is_active', true)
+          .order('sort_order');
+        if (categoriesResult.data) setCategories(categoriesResult.data);
+        // Top sellers
+        const topSellersRes = await getTopSellingProducts(20);
+        if (topSellersRes.data) setTopSellers(topSellersRes.data);
         // Promotions
-        const promotionsPromise = (async () => {
-          const res = await getActivePromotions();
-          if (res.data) setActivePromotions(res.data);
-        })();
-
+        const promoRes = await getActivePromotions();
+        if (promoRes.data) setActivePromotions(promoRes.data);
         // Store hours
-        const storeHoursPromise = (async () => {
-          try {
-            const [{ data: storeHoursRow }, { data: defaultsRow }] = await Promise.all([
-              supabase
-                .from('settings')
-                .select('value')
-                .eq('key', 'store_hours')
-                .maybeSingle(),
-              supabase
-                .from('settings')
-                .select('value')
-                .eq('key', 'defaults')
-                .maybeSingle(),
-            ]);
-            const storeHoursValue = storeHoursRow?.value as StoreHours | undefined;
-            const defaults = (defaultsRow?.value as { store_open_time?: string; store_close_time?: string } | undefined) ?? {};
-            const hours: StoreHours =
-              storeHoursValue && typeof storeHoursValue === 'object'
-                ? storeHoursValue
-                : buildDefaultStoreHours(defaults.store_open_time ?? '10:00', defaults.store_close_time ?? '21:00');
-            setStoreHours(hours);
-            // Determine today's label and hours in Australia/Melbourne
-            const now = new Date();
-            const formatter = new Intl.DateTimeFormat('en-AU', {
+        const [{ data: storeHoursRow }, { data: defaultsRow }] = await Promise.all([
+          supabase
+            .from('settings')
+            .select('value')
+            .eq('key', 'store_hours')
+            .maybeSingle(),
+          supabase
+            .from('settings')
+            .select('value')
+            .eq('key', 'defaults')
+            .maybeSingle(),
+        ]);
+        const storeHoursValue = storeHoursRow?.value as StoreHours | undefined;
+        const defaults = (defaultsRow?.value as { store_open_time?: string; store_close_time?: string } | undefined) ?? {};
+        const hours: StoreHours =
+          storeHoursValue && typeof storeHoursValue === 'object'
+            ? storeHoursValue
+            : buildDefaultStoreHours(defaults.store_open_time ?? '10:00', defaults.store_close_time ?? '21:00');
+        setStoreHours(hours);
+        // Set today label
+        const now = new Date();
+        const formatter = new Intl.DateTimeFormat('en-AU', {
+          timeZone: 'Australia/Melbourne',
+          weekday: 'long',
+        });
+        const parts = formatter.formatToParts(now);
+        const weekdayPart = parts.find((p) => p.type === 'weekday');
+        const weekdayLabel = weekdayPart?.value ?? 'Today';
+        const weekdayShortFormatter = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Australia/Melbourne',
+          weekday: 'short',
+        });
+        const weekdayShortParts = weekdayShortFormatter.formatToParts(now);
+        const short = weekdayShortParts.find((p) => p.type === 'weekday')?.value.toLowerCase() ?? 'sun';
+        const dayIndexMap: Record<string, number> = {
+          sun: 0,
+          mon: 1,
+          tue: 2,
+          wed: 3,
+          thu: 4,
+          fri: 5,
+          sat: 6,
+        };
+        const dayIndex = dayIndexMap[short] ?? 0;
+        const todaysHours = hours[String(dayIndex)] ?? null;
+        setTodayLabel(weekdayLabel);
+        if (todaysHours) {
+          const formatTime = (t: string) => {
+            const [hStr, mStr] = t.split(':');
+            const h = Number(hStr ?? 0);
+            const m = Number(mStr ?? 0);
+            const d = new Date();
+            d.setHours(h, m, 0, 0);
+            return d.toLocaleTimeString('en-AU', {
               timeZone: 'Australia/Melbourne',
-              weekday: 'long',
+              hour: 'numeric',
+              minute: '2-digit',
             });
-            const parts = formatter.formatToParts(now);
-            const weekdayPart = parts.find((p) => p.type === 'weekday');
-            const weekdayLabel = weekdayPart?.value ?? 'Today';
-            const weekdayShortFormatter = new Intl.DateTimeFormat('en-CA', {
-              timeZone: 'Australia/Melbourne',
-              weekday: 'short',
-            });
-            const weekdayShortParts = weekdayShortFormatter.formatToParts(now);
-            const short = weekdayShortParts.find((p) => p.type === 'weekday')?.value.toLowerCase() ?? 'sun';
-            const dayIndexMap: Record<string, number> = {
-              sun: 0,
-              mon: 1,
-              tue: 2,
-              wed: 3,
-              thu: 4,
-              fri: 5,
-              sat: 6,
-            };
-            const dayIndex = dayIndexMap[short] ?? 0;
-            const todaysHours = hours[String(dayIndex)] ?? null;
-            setTodayLabel(weekdayLabel);
-            if (todaysHours) {
-              const formatTime = (t: string) => {
-                const [hStr, mStr] = t.split(':');
-                const h = Number(hStr ?? 0);
-                const m = Number(mStr ?? 0);
-                const d = new Date();
-                d.setHours(h, m, 0, 0);
-                return d.toLocaleTimeString('en-AU', {
-                  timeZone: 'Australia/Melbourne',
-                  hour: 'numeric',
-                  minute: '2-digit',
-                });
-              };
-              setTodayHoursLabel(`${formatTime(todaysHours.open)} – ${formatTime(todaysHours.close)} (Melbourne time)`);
-            } else {
-              setTodayHoursLabel('Closed today');
-            }
-            setIsStoreOpen(isStoreOpenNow(hours));
-          } catch (err) {
-            console.error('Error loading store hours on order page:', err);
-          }
-        })();
-
-        await Promise.all([menuPromise, promotionsPromise, storeHoursPromise]);
+          };
+          setTodayHoursLabel(`${formatTime(todaysHours.open)} – ${formatTime(todaysHours.close)} (Melbourne time)`);
+        } else {
+          setTodayHoursLabel('Closed today');
+        }
+        setIsStoreOpen(isStoreOpenNow(hours));
+        // 3. Lazy load all products (not featured)
+        const productsResult = await supabase
+          .from('sale_products')
+          .select('id, slug, name, description, sale_price, image_url, sale_category_id, sub_category_id')
+          .eq('is_active', true)
+          .order('name');
+        if (productsResult.data) setProducts(productsResult.data);
+        setLazyLoading(false);
       } catch (err) {
         setError('Failed to load menu');
         console.error('Error loading menu:', err);
-      } finally {
         setLoading(false);
+        setLazyLoading(false);
       }
     })();
   }, []);
@@ -591,7 +529,7 @@ export default function OrderPage() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600 dark:text-gray-400">
-            {loading ? 'Loading menu...' : 'Loading cart...'}
+            {loading ? 'Loading featured products...' : 'Loading cart...'}
           </p>
         </div>
       </div>
