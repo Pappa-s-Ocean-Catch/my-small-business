@@ -16,7 +16,7 @@ export function EmailLayout({
   children,
   companyName = 'OperateFlow',
   logoUrl = `${process.env.NEXT_PUBLIC_SITE_URL || ''}/favicon.ico`,
-  footerText = '© OperateFlow. All rights reserved.',
+  footerText = '©Pappas Ocean Catch. All rights reserved.',
   previewText,
 }: EmailLayoutProps) {
   return (
@@ -29,12 +29,12 @@ export function EmailLayout({
             <Section className="bg-blue-500 text-white p-5">
               <Section className="flex items-center gap-3">
                 {logoUrl && (
-                  <Img 
-                    src={logoUrl} 
-                    alt={companyName} 
-                    width={24} 
-                    height={24} 
-                    className="rounded" 
+                  <Img
+                    src={logoUrl}
+                    alt={companyName}
+                    width={24}
+                    height={24}
+                    className="rounded"
                   />
                 )}
                 <Text className="font-bold text-lg text-white m-0">{companyName}</Text>
