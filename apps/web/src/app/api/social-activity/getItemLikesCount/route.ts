@@ -5,7 +5,13 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const itemId = searchParams.get('itemId');
     if (!itemId) {
-        return NextResponse.json({ error: 'Missing itemId' }, { status: 400 });
+        return new NextResponse(JSON.stringify({ error: 'Missing itemId' }), {
+            status: 400,
+            headers: {
+                'Content-Type': 'application/json',
+                'Cache-Control': 'public, max-age=0, must-revalidate',
+            },
+        });
     }
     try {
         const supabase = await createServiceRoleClient();
@@ -13,12 +19,31 @@ export async function GET(req: NextRequest) {
             .select('is_like')
             .eq('item_id', itemId);
         if (error) {
-            return NextResponse.json({ error }, { status: 500 });
+            return new NextResponse(JSON.stringify({ error }), {
+                status: 500,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Cache-Control': 'public, max-age=0, must-revalidate',
+                },
+            });
         }
         const likes = (data || []).filter((d: any) => d.is_like).length;
         const dislikes = (data || []).filter((d: any) => d.is_like === false).length;
-        return NextResponse.json({ likes, dislikes });
+        return new NextResponse(JSON.stringify({ likes, dislikes }), {
+            status: 200,
+            headers: {
+                'Content-Type': 'application/json',
+                // Cache for 15 minutes (900 seconds)
+                'Cache-Control': 'public, max-age=900, stale-while-revalidate=60',
+            },
+        });
     } catch (err) {
-        return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
+        return new NextResponse(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }), {
+            status: 500,
+            headers: {
+                'Content-Type': 'application/json',
+                'Cache-Control': 'public, max-age=0, must-revalidate',
+            },
+        });
     }
 }

@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { LiveOrderTracker } from '@/components/LiveOrderTracker';
+import { getSupabaseClient } from '@my-small-business/supabase/client';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/contexts/CartContext';
 import type { CartItem } from '@/contexts/CartContext';
@@ -10,7 +12,6 @@ import { OrderTypeSelector, type OrderType } from '@/components/OrderTypeSelecto
 import { DeliveryAddressForm, type DeliveryAddressInput } from '@/components/DeliveryAddressForm';
 import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 import { getActivePromotions } from '@/app/actions/promotions';
-import { getSupabaseClient } from '@my-small-business/supabase/client';
 import { FaShoppingCart, FaArrowLeft, FaCheck, FaDollarSign, FaEdit, FaComment, FaTruck, FaClock, FaSpinner, FaTrash, FaMinus, FaPlus } from 'react-icons/fa';
 import { Icon } from '@/components/Icon';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
@@ -27,6 +28,18 @@ type StoreHoursForOrderResult = {
 };
 
 export default function OrderSummaryPage() {
+  const [userId, setUserId] = useState<string | null>(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const supabase = getSupabaseClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        setUserId(user?.id || null);
+      } catch {
+        setUserId(null);
+      }
+    })();
+  }, []);
   const { items, getTotal, clearCart, isLoading, updateItem, removeItem, updateQuantity } = useCart();
   const router = useRouter();
   const [editingCommentItemId, setEditingCommentItemId] = useState<string | null>(null);
@@ -291,6 +304,9 @@ export default function OrderSummaryPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-neutral-900">
+      {/* Live Order Tracker at the very top */}
+      <LiveOrderTracker userId={userId} />
+
       {/* Navigation Header */}
       <OrderHeader />
 
@@ -460,10 +476,10 @@ export default function OrderSummaryPage() {
                           checked={pickupOption === 'scheduled'}
                           onChange={() => {
                             setPickupOption('scheduled');
-                              const firstDay = storeHoursResult.pickupDayOptions[0];
-                              const first = firstDay?.slots[0]?.value ?? null;
-                              setSelectedPickupDate(firstDay?.date ?? selectedPickupDate);
-                              setScheduledPickupAt(first ?? scheduledPickupAt);
+                            const firstDay = storeHoursResult.pickupDayOptions[0];
+                            const first = firstDay?.slots[0]?.value ?? null;
+                            setSelectedPickupDate(firstDay?.date ?? selectedPickupDate);
+                            setScheduledPickupAt(first ?? scheduledPickupAt);
                           }}
                         />
                         <span className="text-sm text-gray-900 dark:text-white">
@@ -858,7 +874,7 @@ export default function OrderSummaryPage() {
             sale_price: itemToEdit.base_price,
             image_url: itemToEdit.image_url,
           }}
-          onAddToCart={() => {}}
+          onAddToCart={() => { }}
           existingCartItem={itemToEdit}
           onUpdateCartItem={(cartItemId, addonGroups, comment, removedIngredients, quantity) => {
             updateItem(cartItemId, {

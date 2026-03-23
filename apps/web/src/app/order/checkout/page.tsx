@@ -1,16 +1,38 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+// Utility to compare two arrays of items for equality (ignoring order)
+function areItemsEqual(
+  cartItems: Array<{ product_id?: string; id?: string; quantity: number }>,
+  orderItems: Array<{ product_id?: string; id?: string; quantity: number }>
+) {
+  if (cartItems.length !== orderItems.length) return false;
+  // Compare by product_id, quantity, and add-ons (if needed)
+  const normalize = (items: Array<{ product_id?: string; id?: string; quantity: number }>) =>
+    items
+      .map((item: { product_id?: string; id?: string; quantity: number }) => ({
+        product_id: item.product_id || item.id,
+        quantity: item.quantity,
+        // Optionally add more fields for stricter match
+      }))
+      .sort((a, b) => (a.product_id ?? '').localeCompare(b.product_id ?? ''));
+  const a = normalize(cartItems);
+  const b = normalize(orderItems);
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+import { LiveOrderTracker } from '@/components/LiveOrderTracker';
+import { getSupabaseClient } from '@my-small-business/supabase/client';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/contexts/CartContext';
 import { OrderHeader } from '@/components/OrderHeader';
 import { createOrder, type OrderInput } from '@/app/actions/orders';
+import type { Order, OrderItem } from '@my-small-business/types/order';
 import { signUpCustomer } from '@/app/actions/customer-auth';
-import { getSupabaseClient } from '@my-small-business/supabase/client';
 import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 import { getActivePromotions } from '@/app/actions/promotions';
 import { getUserRewardPoints, useRewardPoints as useRewardPointsAction, getRewardPointsSettings } from '@/app/actions/reward-points';
-import { FaShoppingCart, FaArrowLeft, FaCreditCard, FaStore, FaUser, FaLock, FaCheckCircle, FaExclamationCircle, FaGift, FaChevronDown, FaChevronUp } from 'react-icons/fa';
+import { FaShoppingCart, FaArrowLeft, FaCreditCard, FaStore, FaUser, FaLock, FaCheckCircle, FaExclamationCircle, FaGift, FaChevronDown, FaChevronUp, FaExclamationTriangle } from 'react-icons/fa';
 import { Icon } from '@/components/Icon';
 import Link from 'next/link';
 import { LoadingSpinner } from '@/components/Loading';
@@ -19,6 +41,58 @@ import posthog from 'posthog-js';
 type PaymentMethod = 'online' | 'store';
 
 export default function CheckoutPage() {
+  // Duplicate order detection state
+  const [liveOrders, setLiveOrders] = useState<Order[]>([]);
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [duplicateOrder, setDuplicateOrder] = useState<Order | null>(null);
+  const allowSubmitRef = useRef(false);
+  const [duplicateConfirmed, setDuplicateConfirmed] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const supabase = getSupabaseClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        setUserId(user?.id || null);
+      } catch {
+        setUserId(null);
+      }
+    })();
+  }, []);
+  // Fetch live orders for duplicate detection
+  useEffect(() => {
+    if (!userId) return;
+    const fetchLiveOrders = async () => {
+      try {
+        const supabase = getSupabaseClient();
+        const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        const { data, error } = await supabase
+          .from('orders')
+          .select('*, order_items(*, order_item_addons(*))')
+          .eq('user_id', userId)
+          .in('order_status', ['pending', 'confirmed', 'preparing', 'ready'])
+          .gte('created_at', since)
+          .order('created_at', { ascending: false });
+        if (!error && Array.isArray(data)) {
+          // Map embedded order_items to items array for comparison
+          const mapped: Order[] = data.map((row: any) => {
+            const items: OrderItem[] = (row.order_items || []).map((item: any) => ({
+              ...item,
+              base_price: Number(item.base_price),
+              subtotal: Number(item.subtotal),
+              removed_ingredients: (item.removed_ingredients || []),
+              addons: (item.order_item_addons || undefined) ?? undefined,
+            }));
+            return { ...row, items } as Order;
+          });
+          setLiveOrders(mapped);
+        }
+      } catch (err) {
+        // Ignore fetch errors for duplicate check
+      }
+    };
+    fetchLiveOrders();
+  }, [userId]);
   const { items, getTotal, clearCart, isLoading: cartLoading } = useCart();
   const router = useRouter();
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
@@ -607,8 +681,21 @@ export default function CheckoutPage() {
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setIsSubmitting(true);
 
+    // Duplicate order check (unless user already confirmed)
+    if (!allowSubmitRef.current && liveOrders.length > 0) {
+      const possibleDuplicate = liveOrders.find((order) =>
+        Math.abs(order.total - total) < 0.01 &&
+        areItemsEqual(items, order.items || [])
+      );
+      if (possibleDuplicate) {
+        setDuplicateOrder(possibleDuplicate);
+        setShowDuplicateModal(true);
+        return;
+      }
+    }
+
+    setIsSubmitting(true);
     try {
       // Validate required contact fields
       if (!customerEmail || !customerPhone) {
@@ -882,9 +969,83 @@ export default function CheckoutPage() {
     );
   }
 
+  // Debug logs for troubleshooting duplicate detection
+  if (typeof window !== 'undefined') {
+    // Only log in browser
+    console.log('[DEBUG] Cart items:', items);
+    console.log('[DEBUG] Cart total:', total);
+    console.log('[DEBUG] Live orders:', liveOrders);
+    liveOrders.forEach((order, idx) => {
+      console.log(`[DEBUG] Live order #${idx + 1}:`, order);
+      console.log('[DEBUG] Comparing order.items:', order.items, 'with cart items:', items);
+      console.log('[DEBUG] Order total:', order.total, 'Cart total:', total, 'Diff:', Math.abs(order.total - total));
+      console.log('[DEBUG] Items equal:', areItemsEqual(items, order.items || []));
+    });
+  }
+  // Pre-check for possible duplicate order (before submit)
+  const possibleDuplicate =
+    !duplicateConfirmed && liveOrders.length > 0 && items.length > 0
+      ? liveOrders.find((order) => {
+        const totalMatch = Math.abs(order.total - total) < 0.01;
+        const itemsMatch = areItemsEqual(items, order.items || []);
+        if (typeof window !== 'undefined') {
+          console.log('[DEBUG] Checking order', order.order_number, 'totalMatch:', totalMatch, 'itemsMatch:', itemsMatch);
+        }
+        return totalMatch && itemsMatch;
+      })
+      : null;
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-neutral-900">
       <OrderHeader />
+      <LiveOrderTracker userId={userId} />
+
+      {/* Duplicate Order Modal */}
+      {showDuplicateModal && duplicateOrder && (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40">
+          <div className="bg-white dark:bg-neutral-900 rounded-lg shadow-2xl max-w-md w-full p-6 border border-amber-400 dark:border-amber-700 animate-in fade-in">
+            <div className="flex items-center gap-3 mb-4">
+              <Icon icon={FaExclamationTriangle} className="w-6 h-6 text-amber-500" />
+              <h2 className="text-lg font-bold text-amber-700 dark:text-amber-300">Possible Duplicate Order</h2>
+            </div>
+            <p className="mb-3 text-gray-700 dark:text-gray-200">
+              You already have a live order with the same items and total price. Placing another order may result in duplicate orders.
+            </p>
+            <div className="mb-4 p-3 rounded bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="font-semibold">Order #{duplicateOrder.order_number}</span>
+                <span className="text-xs text-gray-500">{new Date(duplicateOrder.created_at).toLocaleString()}</span>
+              </div>
+              <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                Status: <span className="font-semibold">{duplicateOrder.order_status}</span> &bull; Total: <span className="font-semibold">${duplicateOrder.total.toFixed(2)}</span>
+              </div>
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                className="px-4 py-2 rounded bg-gray-200 dark:bg-neutral-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-neutral-600"
+                onClick={() => {
+                  setShowDuplicateModal(false);
+                  setDuplicateOrder(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 rounded bg-amber-600 text-white font-semibold hover:bg-amber-700"
+                onClick={() => {
+                  allowSubmitRef.current = true;
+                  setShowDuplicateModal(false);
+                  setDuplicateOrder(null);
+                  // Re-trigger submit
+                  document.querySelector('form')?.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+                }}
+              >
+                Place Anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Link
@@ -958,11 +1119,10 @@ export default function CheckoutPage() {
                   type="button"
                   disabled={!featureFlags.enable_online_payment}
                   onClick={() => featureFlags.enable_online_payment && handlePaymentMethodSelect('online')}
-                  className={`p-6 border-2 rounded-lg transition-colors text-left ${
-                    !featureFlags.enable_online_payment
-                      ? 'border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800/50 opacity-75 cursor-not-allowed'
-                      : 'border-gray-200 dark:border-neutral-700 hover:border-blue-600 dark:hover:border-blue-500'
-                  }`}
+                  className={`p-6 border-2 rounded-lg transition-colors text-left ${!featureFlags.enable_online_payment
+                    ? 'border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800/50 opacity-75 cursor-not-allowed'
+                    : 'border-gray-200 dark:border-neutral-700 hover:border-blue-600 dark:hover:border-blue-500'
+                    }`}
                 >
                   <div className="flex items-center gap-2 mb-3">
                     <Icon icon={FaCreditCard} className={`w-8 h-8 ${!featureFlags.enable_online_payment ? 'text-gray-400 dark:text-gray-500' : 'text-blue-600'}`} />
@@ -984,11 +1144,10 @@ export default function CheckoutPage() {
                     type="button"
                     disabled={!featureFlags.enable_instore_payment}
                     onClick={() => featureFlags.enable_instore_payment && handlePaymentMethodSelect('store')}
-                    className={`p-6 border-2 rounded-lg transition-colors text-left ${
-                      !featureFlags.enable_instore_payment
-                        ? 'border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800/50 opacity-75 cursor-not-allowed'
-                        : 'border-gray-200 dark:border-neutral-700 hover:border-green-600 dark:hover:border-green-500'
-                    }`}
+                    className={`p-6 border-2 rounded-lg transition-colors text-left ${!featureFlags.enable_instore_payment
+                      ? 'border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800/50 opacity-75 cursor-not-allowed'
+                      : 'border-gray-200 dark:border-neutral-700 hover:border-green-600 dark:hover:border-green-500'
+                      }`}
                   >
                     <div className="flex items-center gap-2 mb-3">
                       <Icon icon={FaStore} className={`w-8 h-8 ${!featureFlags.enable_instore_payment ? 'text-gray-400 dark:text-gray-500' : 'text-green-600'}`} />
@@ -1201,8 +1360,8 @@ export default function CheckoutPage() {
                         setError(null); // Clear error when switching modes
                       }}
                       className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition ${authMode === 'login'
-                          ? 'bg-white dark:bg-neutral-700 text-gray-900 dark:text-white shadow-sm'
-                          : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                        ? 'bg-white dark:bg-neutral-700 text-gray-900 dark:text-white shadow-sm'
+                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                         }`}
                     >
                       Sign In
@@ -1214,8 +1373,8 @@ export default function CheckoutPage() {
                         setError(null); // Clear error when switching modes
                       }}
                       className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition ${authMode === 'signup'
-                          ? 'bg-white dark:bg-neutral-700 text-gray-900 dark:text-white shadow-sm'
-                          : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                        ? 'bg-white dark:bg-neutral-700 text-gray-900 dark:text-white shadow-sm'
+                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                         }`}
                     >
                       Create Account
@@ -1598,8 +1757,42 @@ export default function CheckoutPage() {
             </div>
           )}
 
-          {/* Submit Button */}
-          {paymentMethod && (paymentMethod === 'online' || isAuthenticated) && (
+
+          {/* Duplicate Order Warning (pre-submit, requires confirmation) */}
+          {possibleDuplicate && !duplicateConfirmed && (
+            <div className="mb-4 p-4 rounded-lg border border-amber-400 bg-amber-50 dark:bg-amber-900/20 flex items-start gap-3 animate-in fade-in">
+              <Icon icon={FaExclamationTriangle} className="w-5 h-5 text-amber-500 mt-0.5" />
+              <div className="flex-1">
+                <div className="font-semibold text-amber-700 dark:text-amber-300 mb-1">Possible Duplicate Order</div>
+                <div className="text-sm text-gray-700 dark:text-gray-200 mb-3">
+                  You already have a live order with the same items and total price (
+                  Order <Link href={`/order/confirmation?order=${possibleDuplicate.order_number}`} className="text-blue-600 underline hover:text-blue-800" target="_blank" rel="noopener noreferrer">#{possibleDuplicate.order_number}</Link>,
+                  placed {new Date(possibleDuplicate.created_at).toLocaleString()}
+                  ).<br />
+                  Placing another order may result in duplicate orders.
+                </div>
+                <div className="flex gap-3 mt-2">
+                  <button
+                    type="button"
+                    className="px-4 py-2 rounded bg-amber-600 text-white font-semibold hover:bg-amber-700"
+                    onClick={() => setDuplicateConfirmed(true)}
+                  >
+                    Yes, I want to place order
+                  </button>
+                  <button
+                    type="button"
+                    className="px-4 py-2 rounded bg-gray-200 text-gray-800 font-semibold hover:bg-gray-300 border border-gray-300"
+                    onClick={() => window.location.href = '/order'}
+                  >
+                    No, I will change it
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Submit Button (only show if no duplicate or user confirmed) */}
+          {paymentMethod && (paymentMethod === 'online' || isAuthenticated) && (!possibleDuplicate || duplicateConfirmed) && (
             <button
               type="submit"
               disabled={

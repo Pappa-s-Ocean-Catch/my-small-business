@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { LiveOrderTracker } from '@/components/LiveOrderTracker';
+import { getSupabaseClient } from '@my-small-business/supabase/client';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getSupabaseClient } from '@my-small-business/supabase/client';
 import { useCart } from '@/contexts/CartContext';
 import { ItemCustomizationModal } from '@/components/ItemCustomizationModal';
 import { CartSidebar } from '@/components/CartSidebar';
@@ -46,6 +47,18 @@ interface MenuCategory {
 type FilterType = 'all' | 'category' | 'top-sellers' | 'featured';
 
 export default function OrderPage() {
+  const [userId, setUserId] = useState<string | null>(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const supabase = getSupabaseClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        setUserId(user?.id || null);
+      } catch {
+        setUserId(null);
+      }
+    })();
+  }, []);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const categoryNavRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -556,6 +569,9 @@ export default function OrderPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-neutral-900 pb-24">
+      {/* Live Order Tracker at the very top */}
+      <LiveOrderTracker userId={userId} />
+
       {/* Navigation Header */}
       <OrderHeader />
 
@@ -832,6 +848,7 @@ export default function OrderPage() {
 
       {/* Cart Sidebar */}
       <CartSidebar hideFloatBubble={!!customizingProduct} />
+      <LiveOrderTracker userId={userId} />
     </div>
   );
 }

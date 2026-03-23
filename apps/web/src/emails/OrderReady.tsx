@@ -49,7 +49,7 @@ export const OrderReadyEmail = ({
               <strong>We value your feedback!</strong> Please let us know how we did:
               <br />
               <a
-                href={`https://pappas-ocean-catch.com/order/confirmation?order=${orderNumber}&review=1`}
+                href={`${process.env.NEXT_PUBLIC_SITE_URL || 'https://www.pappasfishnchips.com.au'}/order/confirmation?order=${orderNumber}&review=1`}
                 style={{
                   display: 'inline-block',
                   marginTop: '8px',

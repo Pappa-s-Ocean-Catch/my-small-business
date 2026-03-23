@@ -127,11 +127,14 @@ export function splitCategoriesByLayout(page: MenuPage, layout: CategoryLayout):
 }
 
 // Store Information
+const SITE_URL = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SITE_URL
+  ? process.env.NEXT_PUBLIC_SITE_URL
+  : 'https://www.pappasfishnchips.com.au';
 export const storeInfo = {
   name: "PAPPA'S OCEAN CATCH BURGERS, FISH AND CHIPS",
   address: "2/87 UNITT ST, MELTON VIC 3337",
   phone: "PHONE ORDERS 97438150 or 0466994085",
-  website: "https://www.pappasfishnchips.com.au/",
+  website: SITE_URL + '/',
   hours: "TRADING HOURS: MON-SUN 11AM-8:30PM (FRI-9PM)",
   payment: "EFTPOS AVAILABLE, ONLINE AVAILABLE",
   social: "LIKE US ON FACEBOOK"
