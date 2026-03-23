@@ -11,7 +11,7 @@ import { OrderHeader } from '@/components/OrderHeader';
 import { getTopSellingProducts, getFeaturedProducts } from '@/app/actions/top-sellers';
 import { getActivePromotions } from '@/app/actions/promotions';
 import { useFeatureFlag } from '@/hooks/useFeatureFlag';
-import { FaUtensils, FaSearch, FaFire, FaStar, FaClock } from 'react-icons/fa';
+import { FaUtensils, FaSearch, FaFire, FaStar, FaClock, FaChevronLeft, FaChevronRight, FaFilter } from 'react-icons/fa';
 import { Icon } from '@/components/Icon';
 import type { CartAddonGroup } from '@/contexts/CartContext';
 import { pickBestProductPromotion, promotionLabel, type PromotionWithProducts } from '@/lib/promotions';
@@ -46,6 +46,8 @@ interface MenuCategory {
 type FilterType = 'all' | 'category' | 'top-sellers' | 'featured';
 
 export default function OrderPage() {
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const categoryNavRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const { addItem, isLoading: cartLoading } = useCart();
   const [products, setProducts] = useState<MenuProduct[]>([]);
@@ -619,31 +621,64 @@ export default function OrderPage() {
 
       {/* Category navigation */}
       <div className="sticky top-0 z-30 bg-white/95 dark:bg-neutral-900/95 backdrop-blur border-b border-gray-200 dark:border-neutral-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-          <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center">
+          {/* Category nav: Arrow buttons for horizontal scroll (all screens) */}
+          <div className="flex items-center w-full relative">
             <button
-              onClick={() => handleSelectCategory(null)}
-              className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${selectedCategoryId === null
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-neutral-700'
-                }`}
+              className="p-2 mr-2 rounded-full bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-neutral-700"
+              onClick={() => {
+                if (categoryNavRef.current) {
+                  categoryNavRef.current.scrollBy({ left: -200, behavior: 'smooth' });
+                }
+              }}
+              aria-label="Scroll categories left"
+              type="button"
             >
-              All
+              <FaChevronLeft />
             </button>
-            {categoryHierarchy.map(category => (
+            <div
+              ref={categoryNavRef}
+              className="flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1 scrollbar-hide"
+              style={{ scrollBehavior: 'smooth' }}
+            >
               <button
-                key={category.id}
-                onClick={() => handleSelectCategory(category.id)}
-                className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${selectedCategoryId === category.id
+                onClick={() => handleSelectCategory(null)}
+                className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${selectedCategoryId === null
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-neutral-700'
                   }`}
               >
-                {category.name}
+                All
               </button>
-            ))}
+              {categoryHierarchy.map(category => (
+                <button
+                  key={category.id}
+                  onClick={() => handleSelectCategory(category.id)}
+                  className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${selectedCategoryId === category.id
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-neutral-700'
+                    }`}
+                >
+                  {category.name}
+                </button>
+              ))}
+            </div>
+            <button
+              className="p-2 ml-2 rounded-full bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-neutral-700"
+              onClick={() => {
+                if (categoryNavRef.current) {
+                  categoryNavRef.current.scrollBy({ left: 200, behavior: 'smooth' });
+                }
+              }}
+              aria-label="Scroll categories right"
+              type="button"
+            >
+              <FaChevronRight />
+            </button>
           </div>
+          {/* Mobile: No modal/filter, use same nav as desktop */}
         </div>
+        {/* Mobile Category Modal removed: unified nav */}
       </div>
 
       {/* Content */}
