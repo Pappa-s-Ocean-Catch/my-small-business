@@ -11,7 +11,7 @@ import { ItemCustomizationModal } from '@/components/ItemCustomizationModal';
 import { toast } from 'react-toastify';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 
-export function CartSidebar() {
+export function CartSidebar({ hideFloatBubble = false }: { hideFloatBubble?: boolean }) {
   const { items, removeItem, updateQuantity, updateItem, getTotal, clearCart } = useCart();
   const [isOpen, setIsOpen] = useState(false);
   const [editingCommentItemId, setEditingCommentItemId] = useState<string | null>(null);
@@ -31,7 +31,8 @@ export function CartSidebar() {
   const subtotalExGst = total / 1.1;
   const gstAmount = total - subtotalExGst;
 
-  if (items.length === 0 && !isOpen) {
+  if ((items.length === 0 && !isOpen) || hideFloatBubble) {
+    if (hideFloatBubble) return null;
     return (
       <button
         onClick={() => setIsOpen(true)}
@@ -305,7 +306,7 @@ export function CartSidebar() {
             sale_price: itemToEdit.base_price,
             image_url: itemToEdit.image_url,
           }}
-          onAddToCart={() => {}}
+          onAddToCart={() => { }}
           existingCartItem={itemToEdit}
           onUpdateCartItem={(cartItemId, addonGroups, comment, removedIngredients, quantity) => {
             updateItem(cartItemId, {

@@ -831,7 +831,7 @@ export default function OrderPage() {
       )}
 
       {/* Cart Sidebar */}
-      <CartSidebar />
+      <CartSidebar hideFloatBubble={!!customizingProduct} />
     </div>
   );
 }
