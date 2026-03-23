@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createServiceRoleClient } from '@my-small-business/supabase/server';
+import { getPostHogClient } from '@/lib/posthog-server';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const stripe = stripeSecretKey ? new Stripe(stripeSecretKey) : null;
@@ -111,7 +112,20 @@ export async function POST(request: Request) {
         paymentStatus: order.payment_status,
       });
 
-      return NextResponse.json({ 
+      const posthog = getPostHogClient();
+      posthog.capture({
+        distinctId: session.customer_email || order.user_id || order.id,
+        event: 'payment_completed',
+        properties: {
+          order_id: order.id,
+          order_number: order.order_number,
+          total: parseFloat(session.metadata?.total || '0'),
+          currency: session.currency || 'aud',
+          stripe_session_id: session.id,
+        },
+      });
+
+      return NextResponse.json({
         success: true,
         orderId: order.id,
         orderNumber: order.order_number,

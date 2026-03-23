@@ -8,6 +8,7 @@ import { canSendMagicLink } from "@/app/actions/auth";
 import { sendMagicLinkInvite } from "@/app/actions/email";
 import { sendPasswordResetEmail } from "@/app/actions/password-reset";
 import { FaEye, FaEyeSlash } from "react-icons/fa6";
+import posthog from "posthog-js";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -72,6 +73,7 @@ export default function LoginPage() {
 
         const result = await sendMagicLinkInvite(email);
         if (!result.success) throw new Error(result.error || 'Failed to send magic link');
+        posthog.capture('magic_link_sent', { email });
         setMessage("Magic link sent from OperateFlow. Please check your inbox.");
       } else {
         // Password authentication
@@ -96,6 +98,8 @@ export default function LoginPage() {
         // Get user role
         const { data: { user: authUser } } = await supabase.auth.getUser();
         if (authUser) {
+          posthog.identify(authUser.id, { email: authUser.email });
+          posthog.capture('user_logged_in', { auth_method: 'password', email: authUser.email });
           const { data: profile } = await supabase
             .from("profiles")
             .select("role_slug")

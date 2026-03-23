@@ -6,6 +6,7 @@ import { getSupabaseClient } from '@my-small-business/supabase/client';
 import { LoadingSpinner } from '@/components/Loading';
 import { FaCheckCircle, FaExclamationCircle } from 'react-icons/fa';
 import { Icon } from '@/components/Icon';
+import posthog from 'posthog-js';
 
 function AuthCallbackContent() {
   const router = useRouter();
@@ -109,6 +110,8 @@ function AuthCallbackContent() {
           });
 
           if (sessionData?.user) {
+            posthog.identify(sessionData.user.id, { email: sessionData.user.email });
+            posthog.capture('auth_callback_completed', { auth_method: 'magic_link', email: sessionData.user.email });
             // Get user profile to determine role
             console.log('🔍 [AuthCallback] Fetching user profile...');
             const { data: profile, error: profileError } = await supabase

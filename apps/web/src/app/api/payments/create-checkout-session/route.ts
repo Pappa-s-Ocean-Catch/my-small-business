@@ -2,6 +2,7 @@
 
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
+import { getPostHogClient } from '@/lib/posthog-server';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 
@@ -143,6 +144,18 @@ export async function POST(request: Request) {
       amount: amountInCents,
       currency,
       url: session.url?.substring(0, 50) + '...'
+    });
+
+    const posthog = getPostHogClient();
+    posthog.capture({
+      distinctId: body.customerEmail,
+      event: 'checkout_session_created',
+      properties: {
+        order_id: body.orderId,
+        total: totalAmount,
+        currency,
+        session_id: session.id,
+      },
     });
 
     return NextResponse.json({

@@ -15,6 +15,7 @@ import { Icon } from '@/components/Icon';
 import Link from 'next/link';
 import { LoadingSpinner } from '@/components/Loading';
 import type { Order, OrderItemAddon } from '@my-small-business/types';
+import posthog from 'posthog-js';
 
 // Simple toast component
 function Toast({ message, type, onClose }: { message: string, type: 'success' | 'error', onClose: () => void }) {
@@ -251,6 +252,12 @@ function OrderConfirmationContent() {
             setLoading(false);
             return;
           }
+          posthog.capture('order_confirmed', {
+            order_id: result.data.id,
+            order_number: result.data.order_number,
+            payment_method: result.data.payment_method,
+            total: result.data.total,
+          });
           setOrder(result.data);
 
           // Load reward points earned for this order (concrete value at order time)
@@ -271,6 +278,12 @@ function OrderConfirmationContent() {
             setLoading(false);
             return;
           }
+          posthog.capture('order_confirmed', {
+            order_id: result.data.id,
+            order_number: result.data.order_number,
+            payment_method: result.data.payment_method,
+            total: result.data.total,
+          });
           setOrder(result.data);
 
           const rewards = await getOrderRewardPoints(result.data.id);

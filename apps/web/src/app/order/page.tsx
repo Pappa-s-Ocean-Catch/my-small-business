@@ -19,6 +19,7 @@ import type { StoreHours } from '@my-small-business/types';
 import { buildDefaultStoreHours, isStoreOpenNow } from '@/lib/store-hours';
 import { toast } from 'react-toastify';
 import dynamic from 'next/dynamic';
+import posthog from 'posthog-js';
 
 const LikeDislikeWidget = dynamic(() => import('@/components/LikeDislikeWidget').then(m => m.LikeDislikeWidget), { ssr: false });
 const ReviewWidget = dynamic(() => import('@/components/ReviewWidget').then(m => m.ReviewWidget), { ssr: false });
@@ -437,6 +438,13 @@ export default function OrderPage() {
       comment: comment || null
     });
 
+    posthog.capture('add_to_cart', {
+      product_id: customizingProduct.id,
+      product_name: customizingProduct.name,
+      price: customizingProduct.sale_price,
+      quantity: qty,
+      source: 'order_menu',
+    });
     setCustomizingProduct(null);
     toast.success('Added to cart');
   };

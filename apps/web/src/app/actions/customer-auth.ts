@@ -1,6 +1,7 @@
 'use server';
 
 import { createServiceRoleClient } from '@my-small-business/supabase/server';
+import { getPostHogClient } from '@/lib/posthog-server';
 
 // Sign up a new customer
 export async function signUpCustomer(
@@ -260,6 +261,13 @@ export async function signUpCustomer(
     });
 
     console.log('✅ [CustomerAuth] Customer account fully created and verified!');
+    const posthog = getPostHogClient();
+    posthog.capture({
+      distinctId: authData.user.id,
+      event: 'customer_signed_up',
+      properties: { email: authData.user.email, has_full_name: !!fullName, has_phone: !!phone },
+    });
+    posthog.identify({ distinctId: authData.user.id, properties: { email: authData.user.email, name: fullName } });
     return { success: true, userId: authData.user.id };
   } catch (error) {
     console.error('❌ [CustomerAuth] Unexpected error signing up customer:', {

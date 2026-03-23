@@ -16,6 +16,7 @@ import Modal from '@/components/Modal';
 import { ImageUpload } from '@/components/ImageUpload';
 import { addItemReview } from '@/app/actions/social-activity';
 import dynamic from 'next/dynamic';
+import posthog from 'posthog-js';
 const LikeDislikeWidget = dynamic(() => import('@/components/LikeDislikeWidget').then(m => m.LikeDislikeWidget), { ssr: false });
 const ReviewWidget = dynamic(() => import('@/components/ReviewWidget').then(m => m.ReviewWidget), { ssr: false });
 
@@ -116,6 +117,13 @@ export default function ProductDetailsClient(props: {
             comment: comment || null,
         });
 
+        posthog.capture('add_to_cart', {
+            product_id: product.id,
+            product_name: product.name,
+            price: product.sale_price,
+            quantity: qty,
+            source: 'product_detail',
+        });
         setShowCustomize(false);
         toast.success('Added to cart');
     };

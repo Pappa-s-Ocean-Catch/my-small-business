@@ -36,3 +36,5 @@ temp/
 
 certificates
 tsconfig.tsbuildinfo
+
+.claude

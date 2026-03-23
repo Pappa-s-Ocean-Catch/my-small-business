@@ -15,6 +15,7 @@ import { Icon } from '@/components/Icon';
 import Link from 'next/link';
 import { LoadingSpinner } from '@/components/Loading';
 import { computeCartPromotionTotals, type PromotionWithProducts } from '@/lib/promotions';
+import posthog from 'posthog-js';
 type PaymentMethod = 'online' | 'store';
 
 export default function CheckoutPage() {
@@ -345,6 +346,7 @@ export default function CheckoutPage() {
     setError(null);
     // Reset service fee when switching payment methods
     setServiceFee(0);
+    posthog.capture('payment_method_selected', { payment_method: method });
   };
 
   const handleCustomerLogin = async (e: React.FormEvent) => {
@@ -714,6 +716,14 @@ export default function CheckoutPage() {
         }
       }
 
+      posthog.capture('checkout_started', {
+        item_count: items.length,
+        subtotal,
+        total,
+        payment_method: paymentMethod,
+        order_type: orderType || 'pickup',
+      });
+
       // Create order first (for both payment methods)
       const result = await createOrder(orderInput);
 
@@ -804,6 +814,14 @@ export default function CheckoutPage() {
       }
 
       // For pay at store, show success immediately
+      posthog.capture('order_placed', {
+        order_id: result.data.id,
+        order_number: result.data.order_number,
+        payment_method: paymentMethod,
+        order_type: orderType || 'pickup',
+        total,
+        item_count: items.length,
+      });
       setSuccess(true);
       setOrderNumber(result.data.order_number);
 
