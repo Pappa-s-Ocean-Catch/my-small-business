@@ -15,7 +15,7 @@ const partners: Partner[] = [
     },
     {
         name: "DoorDash",
-        logo: "/partners/Doordash-logo.png",
+        logo: "/partners/DoorDash-logo.png",
         url: "https://www.doordash.com/store/pappa's-ocean-catch-melton-25864570/97468946/",
     },
     {
