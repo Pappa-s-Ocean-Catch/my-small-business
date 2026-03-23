@@ -1,5 +1,6 @@
 "use client";
 
+import { PartnerBlock } from "@/components/PartnerBlock";
 import { useEffect, useState } from "react";
 import { getSupabaseClient } from "@my-small-business/supabase/client";
 import Link from "next/link";
@@ -372,6 +373,9 @@ export default function Home() {
             </div>
           </div>
         </section>
+
+        {/* Partner Block Section */}
+        <PartnerBlock />
 
         {/* About Section */}
         <section className="py-20 px-4 bg-white">
