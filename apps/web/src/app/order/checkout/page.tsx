@@ -302,7 +302,6 @@ export default function CheckoutPage() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        console.log('🔍 [Checkout] Starting auth check...');
         const supabase = getSupabaseClient();
 
         // First check if there's a session to avoid AuthSessionMissingError
@@ -333,7 +332,6 @@ export default function CheckoutPage() {
         }
 
         if (user) {
-          console.log('👤 [Checkout] User found:', { id: user.id, email: user.email });
 
           const { data: profile, error: profileError } = await supabase
             .from('profiles')
@@ -347,18 +345,11 @@ export default function CheckoutPage() {
           }
 
           if (profile) {
-            console.log('📋 [Checkout] Profile found:', {
-              id: profile.id,
-              email: profile.email,
-              role: profile.role_slug,
-              hasPhone: !!profile.phone,
-              hasName: !!profile.full_name
-            });
+
 
             // For "Pay at Store", only customer role is allowed
             // For "Pay Online", any logged-in user can use their info
             if (profile.role_slug === 'customer') {
-              console.log('✅ [Checkout] User is a CUSTOMER - authenticated for Pay at Store');
               setIsAuthenticated(true);
               setCurrentUser({
                 id: profile.id,
@@ -381,15 +372,12 @@ export default function CheckoutPage() {
             // Pre-fill customer info for any logged-in user (for Pay Online)
             if (profile.email) {
               setCustomerEmail(profile.email);
-              console.log('📧 [Checkout] Pre-filled email:', profile.email);
             }
             if (profile.phone) {
               setCustomerPhone(profile.phone);
-              console.log('📱 [Checkout] Pre-filled phone:', profile.phone);
             }
             if (profile.full_name) {
               setCustomerName(profile.full_name);
-              console.log('👤 [Checkout] Pre-filled name:', profile.full_name);
             }
           } else {
             console.log('⚠️ [Checkout] No profile found for user');
@@ -969,28 +957,12 @@ export default function CheckoutPage() {
     );
   }
 
-  // Debug logs for troubleshooting duplicate detection
-  if (typeof window !== 'undefined') {
-    // Only log in browser
-    console.log('[DEBUG] Cart items:', items);
-    console.log('[DEBUG] Cart total:', total);
-    console.log('[DEBUG] Live orders:', liveOrders);
-    liveOrders.forEach((order, idx) => {
-      console.log(`[DEBUG] Live order #${idx + 1}:`, order);
-      console.log('[DEBUG] Comparing order.items:', order.items, 'with cart items:', items);
-      console.log('[DEBUG] Order total:', order.total, 'Cart total:', total, 'Diff:', Math.abs(order.total - total));
-      console.log('[DEBUG] Items equal:', areItemsEqual(items, order.items || []));
-    });
-  }
   // Pre-check for possible duplicate order (before submit)
   const possibleDuplicate =
     !duplicateConfirmed && liveOrders.length > 0 && items.length > 0
       ? liveOrders.find((order) => {
         const totalMatch = Math.abs(order.total - total) < 0.01;
         const itemsMatch = areItemsEqual(items, order.items || []);
-        if (typeof window !== 'undefined') {
-          console.log('[DEBUG] Checking order', order.order_number, 'totalMatch:', totalMatch, 'itemsMatch:', itemsMatch);
-        }
         return totalMatch && itemsMatch;
       })
       : null;

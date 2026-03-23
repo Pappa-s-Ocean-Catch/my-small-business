@@ -6,23 +6,23 @@ import { LoadingPage } from "@/components/Loading";
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
 import Modal from "@/components/Modal";
 import { ActionButton } from "@/components/ActionButton";
-import { 
-  getAutomationSchedules, 
-  createAutomationSchedule, 
-  updateAutomationSchedule, 
-  deleteAutomationSchedule, 
+import {
+  getAutomationSchedules,
+  createAutomationSchedule,
+  updateAutomationSchedule,
+  deleteAutomationSchedule,
   toggleAutomationSchedule,
   getAutomationLogs,
   triggerAutomationNow
 } from "@/app/actions/automation";
-import { 
-  FaPlus, 
-  FaEdit, 
-  FaTrash, 
-  FaToggleOn, 
-  FaToggleOff, 
-  FaClock, 
-  FaBell, 
+import {
+  FaPlus,
+  FaEdit,
+  FaTrash,
+  FaToggleOn,
+  FaToggleOff,
+  FaClock,
+  FaBell,
   FaHistory,
   FaCalendarAlt,
   FaExclamationTriangle,
@@ -67,7 +67,7 @@ export default function AutomationPage() {
 
   const fetchData = useCallback(async () => {
     if (!currentUserId) return;
-    
+
     setLoading(true);
     try {
       const [schedulesResult, logsResult] = await Promise.all([
@@ -105,7 +105,7 @@ export default function AutomationPage() {
         const { getSupabaseClient } = await import("@my-small-business/supabase/client");
         const supabase = getSupabaseClient();
         const { data: { user }, error: userError } = await supabase.auth.getUser();
-        
+
         if (user?.id) {
           setCurrentUserId(user.id);
         } else {
@@ -115,7 +115,7 @@ export default function AutomationPage() {
         console.error('Error getting current user:', error);
       }
     };
-    
+
     void getCurrentUser();
   }, []);
 
@@ -130,7 +130,7 @@ export default function AutomationPage() {
       toast.error('User not authenticated');
       return;
     }
-    
+
     try {
       let result;
       if (editing) {
@@ -177,7 +177,7 @@ export default function AutomationPage() {
       toast.error('User not authenticated');
       return;
     }
-    
+
     try {
       const result = await toggleAutomationSchedule(schedule.id, !schedule.is_enabled, currentUserId);
       if (result.success) {
@@ -197,10 +197,10 @@ export default function AutomationPage() {
       toast.error('User not authenticated');
       return;
     }
-    
+
     try {
       toast.info(`Triggering ${schedule.name}...`);
-      
+
       // First, get the schedule details from the server action
       const result = await triggerAutomationNow(schedule.id, currentUserId);
       if (!result.success) {
@@ -211,7 +211,7 @@ export default function AutomationPage() {
       // Now make the API call directly from the frontend (with user cookies)
       const baseUrl = window.location.origin;
       let apiUrl: string;
-      
+
       switch (schedule.job_type) {
         case 'shift_reminder':
           apiUrl = `${baseUrl}/api/automation/shift-reminders`;
@@ -227,21 +227,18 @@ export default function AutomationPage() {
           return;
       }
 
-      // Debug: Check if we have Supabase cookies in the browser
-      console.log('🍪 Browser cookies:', document.cookie);
-      
       // Get the user's access token for authentication
       const { getSupabaseClient } = await import("@my-small-business/supabase/client");
       const supabase = getSupabaseClient();
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session?.access_token) {
         toast.error('No valid session found. Please log in again.');
         return;
       }
-      
+
       console.log('🔑 Access token found:', session.access_token.substring(0, 20) + '...');
-      
+
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
@@ -262,7 +259,7 @@ export default function AutomationPage() {
       }
 
       const apiResult = await response.json();
-      
+
       if (apiResult.success) {
         toast.success(`${schedule.name} triggered successfully!`);
         await fetchData(); // Refresh to show updated last_run_at
@@ -339,14 +336,14 @@ export default function AutomationPage() {
   const formatSchedule = (schedule: AutomationSchedule) => {
     const { time, days } = schedule.schedule_config;
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    
+
     if (schedule.schedule_type === 'daily') {
       return `Daily at ${time}`;
     } else if (schedule.schedule_type === 'weekly') {
       const dayList = days?.map(d => dayNames[d]).join(', ') || 'Mon-Fri';
       return `Weekly on ${dayList} at ${time}`;
     }
-    
+
     return `${schedule.schedule_type} at ${time}`;
   };
 
@@ -409,11 +406,10 @@ export default function AutomationPage() {
                   icon={schedule.is_enabled ? <Icon icon={FaToggleOn} className="w-4 h-4" /> : <Icon icon={FaToggleOff} className="w-4 h-4" />}
                   loadingText={schedule.is_enabled ? 'Disabling...' : 'Enabling...'}
                   title={schedule.is_enabled ? 'Disable' : 'Enable'}
-                  className={`${
-                    schedule.is_enabled
+                  className={`${schedule.is_enabled
                       ? 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
                       : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
-                  }`}
+                    }`}
                 >
                   <span className="sr-only">{schedule.is_enabled ? 'Disable' : 'Enable'}</span>
                 </ActionButton>
@@ -479,10 +475,9 @@ export default function AutomationPage() {
               {logs.slice(0, 10).map((log) => (
                 <div key={log.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-neutral-900 rounded-lg">
                   <div className="flex items-center gap-3">
-                    <div className={`w-2 h-2 rounded-full ${
-                      log.status === 'success' ? 'bg-green-500' : 
-                      log.status === 'failed' ? 'bg-red-500' : 'bg-yellow-500'
-                    }`} />
+                    <div className={`w-2 h-2 rounded-full ${log.status === 'success' ? 'bg-green-500' :
+                        log.status === 'failed' ? 'bg-red-500' : 'bg-yellow-500'
+                      }`} />
                     <div>
                       <p className="text-sm font-medium text-gray-900 dark:text-white">
                         {getJobTypeLabel(log.job_type)}
@@ -539,205 +534,205 @@ export default function AutomationPage() {
           }
         >
           <form id="automation-form" className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Name
+              </label>
+              <input
+                type="text"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Description
+              </label>
+              <textarea
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
+                rows={3}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Job Type
+              </label>
+              <select
+                value={form.job_type}
+                onChange={(e) => setForm({ ...form, job_type: e.target.value as 'shift_reminder' | 'low_stock_notification' | 'missing_shift_allocation' })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
+              >
+                <option value="shift_reminder">Shift Reminders</option>
+                <option value="low_stock_notification">Low Stock Notifications</option>
+                <option value="missing_shift_allocation">Missing Shift Allocation</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Schedule Type
+              </label>
+              <select
+                value={form.schedule_type}
+                onChange={(e) => setForm({ ...form, schedule_type: e.target.value as 'daily' | 'weekly' | 'monthly' })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
+              >
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Time
+              </label>
+              <input
+                type="time"
+                value={form.schedule_config.time}
+                onChange={(e) => setForm({
+                  ...form,
+                  schedule_config: { ...form.schedule_config, time: e.target.value }
+                })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
+              />
+            </div>
+
+            {form.schedule_type === 'weekly' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Days of Week
+                </label>
+                <div className="grid grid-cols-7 gap-2">
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => (
+                    <label key={day} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={form.schedule_config.days?.includes(index) || false}
+                        onChange={(e) => {
+                          const days = form.schedule_config.days || [];
+                          if (e.target.checked) {
+                            setForm({
+                              ...form,
+                              schedule_config: {
+                                ...form.schedule_config,
+                                days: [...days, index]
+                              }
+                            });
+                          } else {
+                            setForm({
+                              ...form,
+                              schedule_config: {
+                                ...form.schedule_config,
+                                days: days.filter(d => d !== index)
+                              }
+                            });
+                          }
+                        }}
+                        className="mr-1"
+                      />
+                      <span className="text-xs">{day}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Custom Configuration Fields */}
+            {form.job_type === 'missing_shift_allocation' && (
+              <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-neutral-700">
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Custom Configuration
+                </h3>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Name
+                    Days to Check
                   </label>
                   <input
-                    type="text"
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Description
-                  </label>
-                  <textarea
-                    value={form.description}
-                    onChange={(e) => setForm({ ...form, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
-                    rows={3}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Job Type
-                  </label>
-                  <select
-                    value={form.job_type}
-                    onChange={(e) => setForm({ ...form, job_type: e.target.value as 'shift_reminder' | 'low_stock_notification' | 'missing_shift_allocation' })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
-                  >
-                    <option value="shift_reminder">Shift Reminders</option>
-                    <option value="low_stock_notification">Low Stock Notifications</option>
-                    <option value="missing_shift_allocation">Missing Shift Allocation</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Schedule Type
-                  </label>
-                  <select
-                    value={form.schedule_type}
-                    onChange={(e) => setForm({ ...form, schedule_type: e.target.value as 'daily' | 'weekly' | 'monthly' })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
-                  >
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly</option>
-                    <option value="monthly">Monthly</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Time
-                  </label>
-                  <input
-                    type="time"
-                    value={form.schedule_config.time}
-                    onChange={(e) => setForm({ 
-                      ...form, 
-                      schedule_config: { ...form.schedule_config, time: e.target.value }
+                    type="number"
+                    min="1"
+                    max="30"
+                    value={form.custom_config?.days_to_check || 7}
+                    onChange={(e) => setForm({
+                      ...form,
+                      custom_config: {
+                        ...form.custom_config,
+                        days_to_check: parseInt(e.target.value) || 7
+                      }
                     })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
                   />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Number of days ahead to check for missing shift allocations
+                  </p>
                 </div>
 
-                {form.schedule_type === 'weekly' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Days of Week
-                    </label>
-                    <div className="grid grid-cols-7 gap-2">
-                      {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => (
-                        <label key={day} className="flex items-center">
-                          <input
-                            type="checkbox"
-                            checked={form.schedule_config.days?.includes(index) || false}
-                            onChange={(e) => {
-                              const days = form.schedule_config.days || [];
-                              if (e.target.checked) {
-                                setForm({
-                                  ...form,
-                                  schedule_config: {
-                                    ...form.schedule_config,
-                                    days: [...days, index]
-                                  }
-                                });
-                              } else {
-                                setForm({
-                                  ...form,
-                                  schedule_config: {
-                                    ...form.schedule_config,
-                                    days: days.filter(d => d !== index)
-                                  }
-                                });
-                              }
-                            }}
-                            className="mr-1"
-                          />
-                          <span className="text-xs">{day}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Recipient Emails (Optional)
+                  </label>
+                  <textarea
+                    value={form.custom_config?.recipient_emails?.join(', ') || ''}
+                    onChange={(e) => {
+                      const emails = e.target.value.split(',').map(email => email.trim()).filter(Boolean);
+                      setForm({
+                        ...form,
+                        custom_config: {
+                          ...form.custom_config,
+                          recipient_emails: emails
+                        }
+                      });
+                    }}
+                    placeholder="admin@example.com, manager@example.com"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
+                    rows={2}
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Comma-separated list of email addresses. Leave empty to use admin emails.
+                  </p>
+                </div>
+              </div>
+            )}
 
-                {/* Custom Configuration Fields */}
-                {form.job_type === 'missing_shift_allocation' && (
-                  <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-neutral-700">
-                    <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Custom Configuration
-                    </h3>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Days to Check
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="30"
-                        value={form.custom_config?.days_to_check || 7}
-                        onChange={(e) => setForm({
-                          ...form,
-                          custom_config: {
-                            ...form.custom_config,
-                            days_to_check: parseInt(e.target.value) || 7
-                          }
-                        })}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
-                      />
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Number of days ahead to check for missing shift allocations
-                      </p>
-                    </div>
+            {form.job_type === 'low_stock_notification' && (
+              <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-neutral-700">
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Custom Configuration
+                </h3>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Recipient Emails (Optional)
-                      </label>
-                      <textarea
-                        value={form.custom_config?.recipient_emails?.join(', ') || ''}
-                        onChange={(e) => {
-                          const emails = e.target.value.split(',').map(email => email.trim()).filter(Boolean);
-                          setForm({
-                            ...form,
-                            custom_config: {
-                              ...form.custom_config,
-                              recipient_emails: emails
-                            }
-                          });
-                        }}
-                        placeholder="admin@example.com, manager@example.com"
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
-                        rows={2}
-                      />
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Comma-separated list of email addresses. Leave empty to use admin emails.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {form.job_type === 'low_stock_notification' && (
-                  <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-neutral-700">
-                    <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Custom Configuration
-                    </h3>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Recipient Emails (Optional)
-                      </label>
-                      <textarea
-                        value={form.custom_config?.recipient_emails?.join(', ') || ''}
-                        onChange={(e) => {
-                          const emails = e.target.value.split(',').map(email => email.trim()).filter(Boolean);
-                          setForm({
-                            ...form,
-                            custom_config: {
-                              ...form.custom_config,
-                              recipient_emails: emails
-                            }
-                          });
-                        }}
-                        placeholder="admin@example.com, manager@example.com"
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
-                        rows={2}
-                      />
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Comma-separated list of email addresses. Leave empty to use admin emails.
-                      </p>
-                    </div>
-                  </div>
-                )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Recipient Emails (Optional)
+                  </label>
+                  <textarea
+                    value={form.custom_config?.recipient_emails?.join(', ') || ''}
+                    onChange={(e) => {
+                      const emails = e.target.value.split(',').map(email => email.trim()).filter(Boolean);
+                      setForm({
+                        ...form,
+                        custom_config: {
+                          ...form.custom_config,
+                          recipient_emails: emails
+                        }
+                      });
+                    }}
+                    placeholder="admin@example.com, manager@example.com"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
+                    rows={2}
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Comma-separated list of email addresses. Leave empty to use admin emails.
+                  </p>
+                </div>
+              </div>
+            )}
           </form>
         </Modal>
 

@@ -20,6 +20,8 @@ export type AppSettings = {
 
     printerSelectedTarget: string | null;
     printerSaved: SavedPrinter[];
+    printerDelayPrintSec: number;
+
 };
 
 const STORAGE_KEY = 'pappas-order-management.settings.v1';
