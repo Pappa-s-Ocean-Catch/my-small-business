@@ -287,6 +287,19 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
 
     // Fetch complete order with items
     const completeOrder = await getOrder(order.id);
+
+    // Send order placed email to customer (fire and forget, but log errors)
+    if (completeOrder.data) {
+      try {
+        console.log('[createOrder] About to send order placed email for order:', completeOrder.data.order_number, completeOrder.data.customer_email);
+        // Dynamically import to avoid circular dependency at module load
+        const { sendOrderPlacedEmail } = await import('@/app/actions/email');
+        const emailResult = await sendOrderPlacedEmail(completeOrder.data);
+        console.log('[createOrder] sendOrderPlacedEmail result:', emailResult);
+      } catch (emailErr) {
+        console.error('[createOrder] Failed to send order placed email:', emailErr);
+      }
+    }
     return completeOrder;
   } catch (error) {
     console.error('Unexpected error creating order:', error);

@@ -29,9 +29,11 @@ function renderItem(item: OrderItem) {
         </Section>
     );
 }
-
 export const OrderPlacedEmail = ({ order, businessName = 'OperateFlow', logoUrl }: OrderPlacedEmailProps) => {
     const greetingName = order.customer_name && order.customer_name.trim().length > 0 ? order.customer_name : 'there';
+    // Use env or fallback for site URL
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.pappasfishnchips.com.au';
+    const orderLink = `${siteUrl}/order/confirmation?order=${order.order_number}`;
     return (
         <EmailLayout
             title={`${businessName} - Order Confirmation`}
@@ -46,7 +48,20 @@ export const OrderPlacedEmail = ({ order, businessName = 'OperateFlow', logoUrl 
                             Hi {greetingName},
                         </Text>
                         <Text className="text-base text-gray-700 mb-4 m-0">
-                            Your order <strong>#{order.order_number}</strong> was placed successfully.
+                            Your order <strong>
+                                <a href={orderLink} style={{ color: '#2563eb', textDecoration: 'underline' }} target="_blank" rel="noopener noreferrer">
+                                    #{order.order_number}
+                                </a>
+                            </strong> was placed successfully.
+                        </Text>
+                        <Text className="text-base text-gray-700 mb-2 m-0">
+                            You can <a href={orderLink} style={{ color: '#2563eb', textDecoration: 'underline' }} target="_blank" rel="noopener noreferrer">track your order status here</a> at any time.
+                        </Text>
+                        <Text className="text-base text-gray-700 mb-2 m-0">
+                            Most orders are ready for pickup about <strong>10 minutes</strong> after being placed. We'll update your order status on the website.
+                        </Text>
+                        <Text className="text-base text-gray-700 mb-2 m-0">
+                            If you have any questions or need help, please call us at <a href="tel:+61397438150" style={{ color: '#2563eb', textDecoration: 'underline' }}>+61 3 9743 8150</a>.
                         </Text>
                         <Text className="text-base text-gray-700 mb-4 m-0">
                             Here are your order details:
