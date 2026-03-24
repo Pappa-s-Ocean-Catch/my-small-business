@@ -74,7 +74,10 @@ export const ReviewWidget: React.FC<ReviewWidgetProps> = ({ productId, className
                     pointerEvents: shouldShowWidget ? 'auto' : 'none',
                     transition: 'opacity 0.2s',
                 }}
-                onClick={() => setOpen(true)}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    setOpen(true);
+                }}
                 title="View all reviews"
             >
                 <FaStar className="text-yellow-400" />
@@ -85,7 +88,19 @@ export const ReviewWidget: React.FC<ReviewWidgetProps> = ({ productId, className
             {open && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
                     <div className="bg-white dark:bg-neutral-900 rounded-lg shadow-lg max-w-lg w-full max-h-[80vh] overflow-y-auto p-6 relative">
-                        <button className="absolute top-2 right-2 text-gray-500 hover:text-gray-800 dark:hover:text-white" onClick={() => setOpen(false)}>&times;</button>
+                        <button
+                            className="absolute top-2 right-2 text-gray-500 hover:text-gray-800 dark:hover:text-white"
+                            onClick={() => {
+                                // Set a global flag to prevent navigation after closing
+                                window.__justClosedReviewPopup = true;
+                                setTimeout(() => {
+                                    window.__justClosedReviewPopup = false;
+                                }, 100);
+                                setOpen(false);
+                            }}
+                        >
+                            &times;
+                        </button>
                         <h2 className="text-lg font-bold mb-2 flex items-center gap-2"><FaStar className="text-yellow-400" /> {avg.toFixed(1)} / 5 <span className="text-gray-500">({count} reviews)</span></h2>
                         {loading && <div className="text-center py-4">Loading...</div>}
                         {!loading && reviews.length === 0 && <div className="text-center py-4 text-gray-500">No reviews yet.</div>}

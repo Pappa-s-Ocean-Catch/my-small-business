@@ -430,9 +430,13 @@ export default function OrderPage() {
         className="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-700 overflow-hidden hover:shadow-md transition-shadow relative cursor-pointer"
         role="link"
         tabIndex={0}
-        onClick={() => router.push(href)}
+        onClick={() => {
+          if (window.__justClosedReviewPopup) return;
+          router.push(href);
+        }}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
+            if (window.__justClosedReviewPopup) return;
             e.preventDefault();
             router.push(href);
           }

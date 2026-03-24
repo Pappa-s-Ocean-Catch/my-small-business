@@ -77,7 +77,7 @@ export default function Home() {
     void fetchData();
   }, []);
 
-  const enablePickupOrder = flagLoading ? undefined : (onlineOrderEnabled ?? false);
+  const enablePickupOrder = flagLoading ? true : (onlineOrderEnabled ?? true);
 
   // Structured data for SEO
   const structuredData = {
@@ -93,7 +93,7 @@ export default function Home() {
       "addressCountry": "AU",
     },
     "telephone": "+61397438150",
-    "priceRange": "$$",
+    "priceRange": "1$-100$",
     "servesCuisine": "Fish and Chips",
     "openingHoursSpecification": [
       {
