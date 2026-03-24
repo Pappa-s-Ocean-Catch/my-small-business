@@ -41,6 +41,7 @@ export default function Home() {
     phone: "",
     message: "",
   });
+  const [contactPhoneError, setContactPhoneError] = useState<string | null>(null);
   const [contactLoading, setContactLoading] = useState(false);
   const [contactMessage, setContactMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const { onlineOrderEnabled, isLoading: flagLoading } = useFeatureFlag();
@@ -562,12 +563,20 @@ export default function Home() {
                     type="tel"
                     id="phone"
                     value={contactForm.phone}
-                    onChange={(e) =>
-                      setContactForm({ ...contactForm, phone: e.target.value })
-                    }
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-rose-500 focus:border-transparent outline-none transition"
-                    placeholder="Your phone number"
+                    onChange={(e) => {
+                      setContactForm({ ...contactForm, phone: e.target.value });
+                      const auPhone = e.target.value.trim();
+                      const auPattern = /^(\+61|0)[2-478]\d{8}$/;
+                      if (auPhone && !auPattern.test(auPhone.replace(/\s+/g, ''))) {
+                        setContactPhoneError('Please enter a valid Australian phone number.');
+                      } else {
+                        setContactPhoneError(null);
+                      }
+                    }}
+                    className={`w-full px-4 py-3 border ${contactPhoneError ? 'border-red-500' : 'border-gray-300'} rounded-lg bg-white text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-rose-500 focus:border-transparent outline-none transition`}
+                    placeholder="e.g. 0412 345 678 or +61412 345 678"
                   />
+                  {contactPhoneError && <div className="text-red-500 text-xs mt-1">{contactPhoneError}</div>}
                 </div>
                 <div>
                   <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-2">

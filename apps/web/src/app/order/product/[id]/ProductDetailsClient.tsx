@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import ImageSlider from '@/components/ImageSlider';
+import { getProductImages } from './getProductImages';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/contexts/CartContext';
 import { ItemCustomizationModal } from '@/components/ItemCustomizationModal';
@@ -174,13 +176,11 @@ export default function ProductDetailsClient(props: {
 
                 <div className="mt-4 bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 overflow-hidden">
                     <div className="aspect-video bg-gray-200 dark:bg-neutral-700 relative">
-                        {product.image_url ? (
-                            <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
-                        ) : (
-                            <div className="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-500">
-                                <Icon icon={FaUtensils} className="w-12 h-12" />
-                            </div>
-                        )}
+                        <ImageSlider
+                            images={getProductImages(product, bundleIncludes)}
+                            alt={product.name}
+                            className="w-full h-full object-cover"
+                        />
                         {/* Like/Dislike Widget overlay */}
                         <LikeDislikeWidget productId={product.id} />
                         {/* Review Widget overlay */}
