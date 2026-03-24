@@ -1,7 +1,8 @@
 "use client";
 
 import { PartnerBlock } from "@/components/PartnerBlock";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+
 import { getSupabaseClient } from "@my-small-business/supabase/client";
 import Link from "next/link";
 import { FaUtensils, FaArrowRight, FaPhone, FaClock, FaEnvelope, FaMapMarkerAlt } from "react-icons/fa";
@@ -44,6 +45,19 @@ export default function Home() {
   const [contactMessage, setContactMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const { onlineOrderEnabled, isLoading: flagLoading } = useFeatureFlag();
   const [homePromotions, setHomePromotions] = useState<Promotion[]>([]);
+  // PWA install prompt state
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstall, setShowInstall] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstall(true);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -77,6 +91,15 @@ export default function Home() {
     void fetchData();
   }, []);
 
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setShowInstall(false);
+      setDeferredPrompt(null);
+    }
+  };
   const enablePickupOrder = flagLoading ? true : (onlineOrderEnabled ?? true);
 
   // Structured data for SEO
@@ -173,6 +196,18 @@ export default function Home() {
   return (
     <>
       <div className="min-h-screen bg-white">
+        {/* PWA Install Prompt Button */}
+        {showInstall && (
+          <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 px-6 py-3 rounded shadow-lg bg-blue-600 text-white flex items-center gap-3 animate-fade-in">
+            <span>Install our app for a better experience!</span>
+            <button
+              className="ml-4 px-4 py-2 rounded bg-white text-blue-600 font-semibold hover:bg-blue-100 transition-colors"
+              onClick={handleInstallClick}
+            >
+              Install
+            </button>
+          </div>
+        )}
         {/* Hero Section with Image Background */}
         <section className="relative h-screen flex items-center justify-center overflow-hidden">
           {/* Image Background */}
