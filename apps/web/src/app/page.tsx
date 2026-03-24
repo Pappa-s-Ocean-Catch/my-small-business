@@ -198,10 +198,16 @@ export default function Home() {
       <div className="min-h-screen bg-white">
         {/* PWA Install Prompt Button */}
         {showInstall && (
-          <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 px-6 py-3 rounded shadow-lg bg-blue-600 text-white flex items-center gap-3 animate-fade-in">
-            <span>Install our app for a better experience!</span>
+          <div
+            className="sticky top-0 left-0 w-full z-50 flex items-center justify-between px-4 py-2 bg-gradient-to-r from-blue-500 via-sky-500 to-cyan-500 text-white shadow-md animate-fade-in"
+            style={{ minHeight: 0, borderRadius: 0 }}
+          >
+            <div className="flex items-center gap-2">
+              <svg className="w-6 h-6 text-white/90" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+              <span className="font-medium text-base">Install our app for a better experience!</span>
+            </div>
             <button
-              className="ml-4 px-4 py-2 rounded bg-white text-blue-600 font-semibold hover:bg-blue-100 transition-colors"
+              className="ml-4 px-4 py-1 rounded bg-white text-sky-700 font-semibold hover:bg-sky-100 transition-colors border border-white/30 shadow-sm"
               onClick={handleInstallClick}
             >
               Install
