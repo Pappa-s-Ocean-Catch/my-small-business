@@ -1,5 +1,6 @@
 import { createServiceRoleClient } from '@my-small-business/supabase/server';
 import { v4 as uuidv4 } from 'uuid';
+import { getOrder } from './orders';
 
 // Like or dislike a menu item
 export async function likeItem({ userId, itemId, isLike }: { userId: string, itemId: string, isLike: boolean }) {
@@ -52,6 +53,15 @@ export async function getItemReviews(itemId: string) {
 
 // Add a review for an order
 export async function addOrderReview({ userId, orderId, rating, comment }: { userId: string, orderId: string, rating: number, comment: string }) {
+    // Ownership check: fetch order and verify userId matches order.user_id
+    const orderResult = await getOrder(orderId);
+    if (orderResult.error || !orderResult.data) {
+        return { error: new Error(orderResult.error || 'Order not found') };
+    }
+    if (orderResult.data.user_id !== userId) {
+        return { error: new Error('You do not have permission to review this order.') };
+    }
+
     const supabase = await createServiceRoleClient();
     const { error } = await supabase.from('order_reviews').upsert({
         id: uuidv4(),
