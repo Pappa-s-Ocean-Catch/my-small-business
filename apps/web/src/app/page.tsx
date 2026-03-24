@@ -49,9 +49,23 @@ export default function Home() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstall, setShowInstall] = useState(false);
 
+  // Check localStorage for dismiss flag
+  useEffect(() => {
+    const dismissed = localStorage.getItem('pwa-install-dismissed-until');
+    if (dismissed && Date.now() < Number(dismissed)) {
+      setShowInstall(false);
+    }
+  }, []);
+
   useEffect(() => {
     const handler = (e: any) => {
       e.preventDefault();
+      // Check if user has dismissed recently
+      const dismissed = localStorage.getItem('pwa-install-dismissed-until');
+      if (dismissed && Date.now() < Number(dismissed)) {
+        setShowInstall(false);
+        return;
+      }
       setDeferredPrompt(e);
       setShowInstall(true);
     };
@@ -99,6 +113,13 @@ export default function Home() {
       setShowInstall(false);
       setDeferredPrompt(null);
     }
+  };
+
+  const handleCloseInstall = () => {
+    // Dismiss for 7 days
+    const sevenDays = 7 * 24 * 60 * 60 * 1000;
+    localStorage.setItem('pwa-install-dismissed-until', String(Date.now() + sevenDays));
+    setShowInstall(false);
   };
   const enablePickupOrder = flagLoading ? true : (onlineOrderEnabled ?? true);
 
@@ -206,12 +227,21 @@ export default function Home() {
               <svg className="w-6 h-6 text-white/90" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
               <span className="font-medium text-base">Install our app for a better experience!</span>
             </div>
-            <button
-              className="ml-4 px-4 py-1 rounded bg-white text-sky-700 font-semibold hover:bg-sky-100 transition-colors border border-white/30 shadow-sm"
-              onClick={handleInstallClick}
-            >
-              Install
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                className="px-4 py-1 rounded bg-white text-sky-700 font-semibold hover:bg-sky-100 transition-colors border border-white/30 shadow-sm"
+                onClick={handleInstallClick}
+              >
+                Install
+              </button>
+              <button
+                className="ml-2 p-1 rounded hover:bg-white/20 transition-colors"
+                aria-label="Close install prompt"
+                onClick={handleCloseInstall}
+              >
+                <svg className="w-5 h-5 text-white/80" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
           </div>
         )}
         {/* Hero Section with Image Background */}
