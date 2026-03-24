@@ -485,8 +485,8 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
         if (selectedOrder && selectedOrder.id === orderId) {
           setSelectedOrder(result.data);
         }
-        if (newStatus === 'ready') {
-          void triggerOrderReadyEmail(orderId);
+        if (newStatus === 'ready' || newStatus === 'completed') {
+          void triggerOrderStatusEmail(orderId, newStatus);
         }
       }
     } catch (error) {
@@ -497,23 +497,23 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
     }
   };
 
-  const triggerOrderReadyEmail = async (orderId: string) => {
+  const triggerOrderStatusEmail = async (orderId: string, status: string) => {
     if (!webBaseUrl) {
-      console.warn('[LiveOrders] EXPO_PUBLIC_SITE_URL is not configured; skipping ready email.');
+      console.warn('[LiveOrders] EXPO_PUBLIC_SITE_URL is not configured; skipping status email.');
       return;
     }
     try {
-      const response = await fetch(`${webBaseUrl}/api/orders/ready-email`, {
+      const response = await fetch(`${webBaseUrl}/api/orders/status-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId }),
+        body: JSON.stringify({ orderId, status }),
       });
       if (!response.ok) {
         const text = await response.text();
-        console.error('[LiveOrders] Failed to send ready email:', response.status, text);
+        console.error('[LiveOrders] Failed to send status email:', response.status, text);
       }
     } catch (error) {
-      console.error('[LiveOrders] Error sending ready email:', error);
+      console.error('[LiveOrders] Error sending status email:', error);
     }
   };
 

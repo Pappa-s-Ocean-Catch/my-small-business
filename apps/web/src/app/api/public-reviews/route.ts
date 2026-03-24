@@ -6,7 +6,6 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10', 10);
     const page = parseInt(searchParams.get('page') || '1', 10);
     try {
-        console.log('[public-reviews] SUPABASE_SERVICE_ROLE_KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY ? 'set' : 'NOT SET');
         const supabase = await createServiceRoleClient();
         // Fetch all item_reviews and order_reviews (public, for all products)
         // Only use order_reviews with user name from profiles
@@ -14,7 +13,6 @@ export async function GET(req: NextRequest) {
             .select('id, rating, comment, created_at, user_id')
             .order('created_at', { ascending: false });
         if (orderError) {
-            console.error('[public-reviews] orderReviews error:', orderError);
             return NextResponse.json({ error: orderError }, { status: 500 });
         }
         // Get unique user_ids

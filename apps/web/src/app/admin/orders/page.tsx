@@ -304,6 +304,9 @@ export default function OrdersPage() {
         if (selectedOrder && selectedOrder.id === statusToUpdate.orderId) {
           setSelectedOrder(result.data);
         }
+        if (statusToUpdate.status === 'ready' || statusToUpdate.status === 'completed') {
+          await triggerOrderStatusEmail(statusToUpdate.orderId, statusToUpdate.status);
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update status');
@@ -354,11 +357,30 @@ export default function OrdersPage() {
         if (selectedOrder && selectedOrder.id === orderId) {
           setSelectedOrder(result.data);
         }
+        if (newStatus === 'ready' || newStatus === 'completed') {
+          await triggerOrderStatusEmail(orderId, newStatus);
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update status');
     } finally {
       setUpdatingStatus(null);
+    }
+  };
+  // Send status email for ready/completed
+  const triggerOrderStatusEmail = async (orderId: string, status: string) => {
+    try {
+      const response = await fetch('/api/orders/status-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, status }),
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('[AdminOrders] Failed to send status email:', response.status, text);
+      }
+    } catch (error) {
+      console.error('[AdminOrders] Error sending status email:', error);
     }
   };
 
