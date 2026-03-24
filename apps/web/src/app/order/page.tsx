@@ -645,7 +645,7 @@ export default function OrderPage() {
           {/* Category nav: Arrow buttons for horizontal scroll (all screens) */}
           <div className="flex items-center w-full relative">
             <button
-              className="p-2 mr-2 rounded-full bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-neutral-700"
+              className=" p-2 mr-2 rounded-full bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-neutral-700"
               onClick={() => {
                 if (categoryNavRef.current) {
                   categoryNavRef.current.scrollBy({ left: -200, behavior: 'smooth' });
@@ -663,7 +663,7 @@ export default function OrderPage() {
             >
               <button
                 onClick={() => handleSelectCategory(null)}
-                className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${selectedCategoryId === null
+                className={`cursor-pointer px-4 py-2 rounded-full text-sm font-semibold transition-colors ${selectedCategoryId === null
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-neutral-700'
                   }`}
@@ -674,7 +674,7 @@ export default function OrderPage() {
                 <button
                   key={category.id}
                   onClick={() => handleSelectCategory(category.id)}
-                  className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${selectedCategoryId === category.id
+                  className={`cursor-pointer px-4 py-2 rounded-full text-sm font-semibold transition-colors ${selectedCategoryId === category.id
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-neutral-700'
                     }`}
@@ -684,7 +684,7 @@ export default function OrderPage() {
               ))}
             </div>
             <button
-              className="p-2 ml-2 rounded-full bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-neutral-700"
+              className=" cursor-pointer p-2 ml-2 rounded-full bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-neutral-700"
               onClick={() => {
                 if (categoryNavRef.current) {
                   categoryNavRef.current.scrollBy({ left: 200, behavior: 'smooth' });
