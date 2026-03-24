@@ -244,6 +244,17 @@ function OrderConfirmationContent() {
           }
         }
 
+        // Helper to check order ownership
+        const checkOrderOwnership = (orderData: any) => {
+          if (!user?.id || !orderData?.user_id || user.id !== orderData.user_id) {
+            setError('You do not have permission to view this order.');
+            setOrder(null);
+            setLoading(false);
+            return false;
+          }
+          return true;
+        };
+
         // If we have order_id from Stripe redirect, use that
         if (orderId) {
           const result = await getOrder(orderId);
@@ -252,6 +263,7 @@ function OrderConfirmationContent() {
             setLoading(false);
             return;
           }
+          if (!checkOrderOwnership(result.data)) return;
           posthog.capture('order_confirmed', {
             order_id: result.data.id,
             order_number: result.data.order_number,
@@ -278,6 +290,7 @@ function OrderConfirmationContent() {
             setLoading(false);
             return;
           }
+          if (!checkOrderOwnership(result.data)) return;
           posthog.capture('order_confirmed', {
             order_id: result.data.id,
             order_number: result.data.order_number,
@@ -312,7 +325,7 @@ function OrderConfirmationContent() {
     };
 
     fetchOrder();
-  }, [orderNumber, orderId, sessionId]);
+  }, [orderNumber, orderId, sessionId, user]);
 
   // Auto-refresh open orders every 10s to keep status live
   useEffect(() => {
