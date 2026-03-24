@@ -465,7 +465,7 @@ export default function OrderSummaryPage() {
                               setSelectedPickupDate(null);
                             }}
                           />
-                          <span className="text-sm text-gray-900 dark:text-white">As soon as ready</span>
+                          <span className="text-sm text-gray-900 dark:text-white">As soon as ready [ETA=10 minutes]</span>
                         </label>
                       )}
                       <label className="flex items-center gap-3 cursor-pointer">

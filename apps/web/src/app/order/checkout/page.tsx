@@ -308,26 +308,21 @@ export default function CheckoutPage() {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
         if (sessionError) {
-          console.log('⚠️ [Checkout] No session found (this is OK for anonymous checkout):', sessionError.message);
           return;
         }
 
         if (!session?.user) {
-          console.log('ℹ️ [Checkout] No user session - anonymous checkout allowed');
           return;
         }
-
-        console.log('✅ [Checkout] Session found, user ID:', session.user.id, 'Email:', session.user.email);
 
         const { data: { user }, error: userError } = await supabase.auth.getUser();
 
         if (userError) {
           // If it's a session missing error, that's fine - user is not logged in
           if (userError.message?.includes('session') || userError.message?.includes('AuthSessionMissing')) {
-            console.log('⚠️ [Checkout] Session missing error (OK for anonymous):', userError.message);
             return;
           }
-          console.error('❌ [Checkout] Error getting user:', userError);
+          console.error('[Checkout] Error getting user:', userError);
           return;
         }
 
@@ -340,7 +335,7 @@ export default function CheckoutPage() {
             .single();
 
           if (profileError) {
-            console.error('❌ [Checkout] Error getting profile:', profileError);
+            console.error('[Checkout] Error getting profile:', profileError);
             return;
           }
 
@@ -358,7 +353,6 @@ export default function CheckoutPage() {
                 phone: profile.phone || undefined
               });
             } else {
-              console.log('⚠️ [Checkout] User is NOT a customer (role:', profile.role_slug, ') - can only use Pay Online');
               // User is logged in but not a customer
               setIsLoggedInNonCustomer(true);
               setCurrentUser({
@@ -379,14 +373,10 @@ export default function CheckoutPage() {
             if (profile.full_name) {
               setCustomerName(profile.full_name);
             }
-          } else {
-            console.log('⚠️ [Checkout] No profile found for user');
           }
-        } else {
-          console.log('ℹ️ [Checkout] No user found - anonymous checkout');
         }
       } catch (error) {
-        console.error('❌ [Checkout] Unexpected error checking auth:', error);
+        console.error('[Checkout] Unexpected error checking auth:', error);
       }
     };
     checkAuth();
@@ -413,7 +403,6 @@ export default function CheckoutPage() {
 
   const handleCustomerLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('🔐 [Checkout] Login attempt for:', loginEmail);
     setError(null);
     setIsSubmitting(true);
 
@@ -424,7 +413,6 @@ export default function CheckoutPage() {
       }
 
       const supabase = getSupabaseClient();
-      console.log('🔄 [Checkout] Calling signInWithPassword...');
 
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email: loginEmail.trim().toLowerCase(),
@@ -432,11 +420,7 @@ export default function CheckoutPage() {
       });
 
       if (signInError) {
-        console.error('❌ [Checkout] Login error:', {
-          message: signInError.message,
-          status: signInError.status,
-          name: signInError.name
-        });
+        console.error('[Checkout] Login error:', signInError.message);
 
         // Provide user-friendly error messages
         let errorMessage = signInError.message;
@@ -454,33 +438,20 @@ export default function CheckoutPage() {
         throw new Error(errorMessage);
       }
 
-      if (signInData?.user) {
-        console.log('✅ [Checkout] Login successful, user:', {
-          id: signInData.user.id,
-          email: signInData.user.email,
-          emailConfirmed: signInData.user.email_confirmed_at ? 'Yes' : 'No'
-        });
-      }
-
-      console.log('✅ [Checkout] Login successful, fetching user profile...');
-
       // Get user profile (use the user from signInData if available, otherwise fetch)
       const user = signInData?.user;
       let finalUser = user;
 
       if (!finalUser) {
-        console.log('🔄 [Checkout] User not in signInData, fetching...');
         const { data: { user: fetchedUser }, error: getUserError } = await supabase.auth.getUser();
         if (getUserError || !fetchedUser) {
-          console.error('❌ [Checkout] Error fetching user:', getUserError);
+          console.error('[Checkout] Error fetching user:', getUserError);
           throw new Error('Login successful but failed to retrieve user information. Please try again.');
         }
         finalUser = fetchedUser;
       }
 
       if (finalUser) {
-        console.log('👤 [Checkout] User retrieved:', { id: finalUser.id, email: finalUser.email });
-
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('id, email, full_name, phone, role_slug')
@@ -488,19 +459,12 @@ export default function CheckoutPage() {
           .single();
 
         if (profileError) {
-          console.error('❌ [Checkout] Error fetching profile:', profileError);
+          console.error('[Checkout] Error fetching profile:', profileError);
           throw new Error('Failed to retrieve user profile. Please try again.');
         }
 
         if (profile) {
-          console.log('📋 [Checkout] Profile retrieved:', {
-            id: profile.id,
-            email: profile.email,
-            role: profile.role_slug
-          });
-
           if (profile.role_slug === 'customer') {
-            console.log('✅ [Checkout] User is a CUSTOMER - authentication successful');
             setIsAuthenticated(true);
             setCurrentUser({
               id: profile.id,
@@ -512,21 +476,18 @@ export default function CheckoutPage() {
             setCustomerPhone(profile.phone || '');
             setCustomerName(profile.full_name || '');
           } else {
-            console.log('⚠️ [Checkout] User is NOT a customer (role:', profile.role_slug, ')');
             // User is logged in but not a customer - they can't use Pay at Store
             // But we don't throw an error, just don't set isAuthenticated
             throw new Error('This account is not a customer account. Please create a customer account or use "Pay Online" instead.');
           }
         } else {
-          console.log('⚠️ [Checkout] No profile found for user');
           throw new Error('User profile not found. Please contact support.');
         }
       } else {
-        console.log('⚠️ [Checkout] No user found after login');
         throw new Error('Login successful but user information not available. Please try again.');
       }
     } catch (err) {
-      console.error('❌ [Checkout] Login failed:', err);
+      console.error('[Checkout] Login failed:', err);
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
       setIsSubmitting(false);
@@ -535,25 +496,14 @@ export default function CheckoutPage() {
 
   const handleCustomerSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('📝 [Checkout] ========== SIGNUP STARTED ==========');
-    console.log('📝 [Checkout] Signup attempt for:', signupEmail);
-    console.log('📝 [Checkout] Signup data:', {
-      email: signupEmail,
-      hasPassword: !!signupPassword,
-      passwordLength: signupPassword.length,
-      hasFullName: !!signupFullName,
-      hasPhone: !!signupPhone
-    });
     setError(null);
 
     if (signupPassword !== signupConfirmPassword) {
-      console.error('❌ [Checkout] Passwords do not match');
       setError('Passwords do not match');
       return;
     }
 
     if (signupPassword.length < 6) {
-      console.error('❌ [Checkout] Password too short:', signupPassword.length);
       setError('Password must be at least 6 characters');
       return;
     }
@@ -564,11 +514,9 @@ export default function CheckoutPage() {
       // Validate email format
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(signupEmail)) {
-        console.error('❌ [Checkout] Invalid email format:', signupEmail);
         throw new Error('Please enter a valid email address');
       }
 
-      console.log('🔄 [Checkout] Calling signUpCustomer server action...');
       const result = await signUpCustomer(
         signupEmail.trim().toLowerCase(),
         signupPassword,
@@ -576,16 +524,8 @@ export default function CheckoutPage() {
         signupPhone?.trim() || undefined
       );
 
-      console.log('📋 [Checkout] signUpCustomer result:', {
-        success: result.success,
-        hasError: !!result.error,
-        error: result.error,
-        hasUserId: !!result.userId,
-        userId: result.userId
-      });
-
       if (!result.success) {
-        console.error('❌ [Checkout] Signup failed:', result.error);
+        console.error('[Checkout] Signup failed:', result.error);
 
         // Provide user-friendly error messages
         let errorMessage = result.error || 'Signup failed';
@@ -601,30 +541,21 @@ export default function CheckoutPage() {
       }
 
       if (!result.userId) {
-        console.error('❌ [Checkout] Signup succeeded but no userId returned');
         throw new Error('Account creation may have failed. No user ID returned. Please try again.');
       }
 
-      console.log('✅ [Checkout] Customer account created, user ID:', result.userId);
-
       // Wait a moment for the account to be fully set up in Supabase
-      console.log('⏳ [Checkout] Waiting for account to be fully set up...');
       await new Promise(resolve => setTimeout(resolve, 1000));
 
       // Auto-login after signup
       const supabase = getSupabaseClient();
-      console.log('🔄 [Checkout] Auto-logging in after signup...');
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email: signupEmail.trim().toLowerCase(),
         password: signupPassword
       });
 
       if (signInError) {
-        console.error('❌ [Checkout] Auto-login failed:', {
-          message: signInError.message,
-          status: signInError.status,
-          name: signInError.name
-        });
+        console.error('[Checkout] Auto-login failed:', signInError.message);
 
         // Provide helpful message based on error
         let errorMessage = 'Account created but login failed. ';
@@ -640,14 +571,6 @@ export default function CheckoutPage() {
         throw new Error(errorMessage);
       }
 
-      if (signInData?.user) {
-        console.log('✅ [Checkout] Auto-login successful, user:', {
-          id: signInData.user.id,
-          email: signInData.user.email
-        });
-      }
-
-      console.log('✅ [Checkout] Auto-login successful, setting authenticated state');
       setIsAuthenticated(true);
       setCurrentUser({
         id: result.userId || '',
@@ -659,7 +582,7 @@ export default function CheckoutPage() {
       setCustomerPhone(signupPhone || '');
       setCustomerName(signupFullName || '');
     } catch (err) {
-      console.error('❌ [Checkout] Signup error:', err);
+      console.error('[Checkout] Signup error:', err);
       setError(err instanceof Error ? err.message : 'Signup failed');
     } finally {
       setIsSubmitting(false);
@@ -820,8 +743,6 @@ export default function CheckoutPage() {
             .eq('id', currentUser.id);
           if (profileUpdateError) {
             console.error('[Checkout] Failed to update profile phone:', profileUpdateError);
-          } else {
-            console.log('[Checkout] Updated profile phone number from checkout');
           }
         } catch (profileErr) {
           console.error('[Checkout] Unexpected error updating profile phone:', profileErr);
@@ -830,7 +751,6 @@ export default function CheckoutPage() {
 
       // Deduct reward points if they were used
       if (useRewardPoints && rewardPointsToUse > 0 && currentUser?.id) {
-        console.log(`[Checkout] Deducting ${rewardPointsToUse} reward points for order ${result.data.id}`);
         const pointsResult = await useRewardPointsAction(
           currentUser.id,
           result.data.id,
@@ -840,8 +760,6 @@ export default function CheckoutPage() {
           console.error('[Checkout] Failed to deduct reward points:', pointsResult.error);
           // Don't fail the order if points deduction fails, but log it
           // The order will still proceed, but points won't be deducted
-        } else {
-          console.log(`[Checkout] Successfully deducted ${rewardPointsToUse} reward points ($${pointsResult.dollarValue?.toFixed(2)})`);
         }
       }
 
@@ -1108,7 +1026,7 @@ export default function CheckoutPage() {
                     Pay Online
                   </h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Pay securely online. No account required, but we recommend creating one for faster checkout.
+                    Pay securely online. All payment will be handled by secured payment gateway.
                   </p>
                 </button>
                 {orderType !== 'delivery' && (
@@ -1133,7 +1051,7 @@ export default function CheckoutPage() {
                       Pay at Store
                     </h3>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Pay when you pick up your order. Requires a customer account.
+                      Pay when you pick up your order at our store.
                     </p>
                   </button>
                 )}
@@ -1157,342 +1075,187 @@ export default function CheckoutPage() {
             </div>
           )}
 
-          {/* Pay Online Form */}
-          {paymentMethod === 'online' && (
+          {/* Require login/signup for all payment methods */}
+          {paymentMethod && !isAuthenticated && (
             <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-6">
               <div className="flex items-center gap-3 mb-4">
-                <Icon icon={FaCreditCard} className="w-6 h-6 text-blue-600" />
+                <Icon icon={paymentMethod === 'online' ? FaCreditCard : FaStore} className={`w-6 h-6 ${paymentMethod === 'online' ? 'text-blue-600' : 'text-green-600'}`} />
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Pay Online
+                  {paymentMethod === 'online' ? 'Pay Online' : 'Pay at Store'}
                 </h2>
               </div>
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                {isAuthenticated ? (
-                  <span className="flex items-center gap-2 text-green-600">
-                    <Icon icon={FaCheckCircle} className="w-4 h-4" />
-                    You're signed in as {currentUser?.email}
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2 text-blue-600">
-                    <Icon icon={FaUser} className="w-4 h-4" />
-                    No account required, but creating one makes checkout faster next time!
-                  </span>
-                )}
+                Please sign in with a customer account or create a new customer account to continue.
               </p>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Email Address <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    value={customerEmail}
-                    onChange={(e) => setCustomerEmail(e.target.value)}
-                    required
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-white disabled:bg-gray-100 dark:disabled:bg-neutral-800"
-                    placeholder="your@email.com"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Phone Number <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="tel"
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    required
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-white disabled:bg-gray-100 dark:disabled:bg-neutral-800"
-                    placeholder="+61 4XX XXX XXX"
-                  />
-                  {isAuthenticated && !customerPhone && (
-                    <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-                      Please add a contact phone number so we can reach you about your order.
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Full Name (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-white disabled:bg-gray-100 dark:disabled:bg-neutral-800"
-                    placeholder="John Doe"
-                  />
-                </div>
+              {/* Auth Mode Toggle */}
+              <div className="flex bg-gray-100 dark:bg-neutral-800 rounded-lg p-1 mb-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode('login');
+                    setError(null);
+                  }}
+                  className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition ${authMode === 'login'
+                    ? 'bg-white dark:bg-neutral-700 text-gray-900 dark:text-white shadow-sm'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                    }`}
+                >
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode('signup');
+                    setError(null);
+                  }}
+                  className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition ${authMode === 'signup'
+                    ? 'bg-white dark:bg-neutral-700 text-gray-900 dark:text-white shadow-sm'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                    }`}
+                >
+                  Create Account
+                </button>
               </div>
-            </div>
-          )}
-
-          {/* Pay at Store - Login/Signup */}
-          {paymentMethod === 'store' && !isAuthenticated && (
-            <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <Icon icon={FaStore} className="w-6 h-6 text-green-600" />
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Customer Account Required
-                </h2>
-              </div>
-
-              {/* Error Message for Login/Signup - Display prominently */}
-              {error && (
-                <div className="mb-6 bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded-lg p-4 flex items-start gap-3 animate-in fade-in">
-                  <Icon icon={FaExclamationCircle} className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-1">
-                      Error
-                    </p>
-                    <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
-                    {error.includes('Invalid email or password') && (
-                      <div className="mt-3 text-xs text-red-600 dark:text-red-400">
-                        <p className="font-medium mb-1">Possible reasons:</p>
-                        <ul className="list-disc list-inside space-y-1">
-                          <li>The email or password you entered is incorrect</li>
-                          <li>The account may not have been created successfully during signup</li>
-                          <li>You may need to try creating a new account again</li>
-                          <li>The account might be inactive - try signing up again</li>
-                        </ul>
-                        <p className="mt-2 font-medium">Try creating a new account if you just signed up.</p>
-                      </div>
-                    )}
-                    {error.includes('already exists') && (
-                      <div className="mt-3">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAuthMode('login');
-                            setError(null);
-                            setLoginEmail(signupEmail);
-                          }}
-                          className="text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 underline font-medium"
-                        >
-                          Click here to sign in instead →
-                        </button>
-                      </div>
-                    )}
+              {/* Login Form */}
+              {authMode === 'login' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      required
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-white"
+                      placeholder="your@email.com"
+                    />
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      required
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-white"
+                      placeholder="Enter your password"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCustomerLogin}
+                    disabled={isSubmitting}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {isSubmitting && <LoadingSpinner size="sm" />}
+                    Sign In
+                  </button>
                 </div>
               )}
-
-              {isLoggedInNonCustomer ? (
-                <div className="mb-6">
-                  <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-4">
-                    <p className="text-sm text-amber-800 dark:text-amber-200 mb-2">
-                      You are currently logged in as a non-customer account ({currentUser?.email}).
-                    </p>
-                    <p className="text-sm text-amber-800 dark:text-amber-200">
-                      To use &quot;Pay at Store&quot;, you need to sign out and create a customer account{featureFlags.enable_online_payment ? ', or use "Pay Online" instead.' : '.'}
-                    </p>
+              {/* Signup Form */}
+              {authMode === 'signup' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Full Name
+                    </label>
+                    <input
+                      type="text"
+                      value={signupFullName}
+                      onChange={(e) => setSignupFullName(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-white"
+                      placeholder="John Doe"
+                    />
                   </div>
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        const supabase = getSupabaseClient();
-                        await supabase.auth.signOut();
-                        setIsLoggedInNonCustomer(false);
-                        setCurrentUser(null);
-                        setCustomerEmail('');
-                        setCustomerPhone('');
-                        setCustomerName('');
-                      }}
-                      className="px-4 py-2 bg-gray-200 dark:bg-neutral-700 hover:bg-gray-300 dark:hover:bg-neutral-600 text-gray-900 dark:text-white rounded-lg transition-colors text-sm"
-                    >
-                      Sign Out
-                    </button>
-                    {featureFlags.enable_online_payment && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPaymentMethod('online');
-                          setError(null);
-                        }}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
-                      >
-                        Use Pay Online Instead
-                      </button>
-                    )}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={signupEmail}
+                      onChange={(e) => setSignupEmail(e.target.value)}
+                      required
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-white"
+                      placeholder="your@email.com"
+                    />
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Phone Number
+                    </label>
+                    <input
+                      type="tel"
+                      value={signupPhone}
+                      onChange={(e) => setSignupPhone(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-white"
+                      placeholder="+61 4XX XXX XXX"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      value={signupPassword}
+                      onChange={(e) => setSignupPassword(e.target.value)}
+                      required
+                      minLength={6}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-white"
+                      placeholder="At least 6 characters"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Confirm Password
+                    </label>
+                    <input
+                      type="password"
+                      value={signupConfirmPassword}
+                      onChange={(e) => setSignupConfirmPassword(e.target.value)}
+                      required
+                      minLength={6}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-white"
+                      placeholder="Confirm your password"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCustomerSignup}
+                    disabled={isSubmitting}
+                    className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {isSubmitting && <LoadingSpinner size="sm" />}
+                    Create Account
+                  </button>
                 </div>
-              ) : (
-                <>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                    Please sign in with a customer account or create a new customer account to pay at store.
-                  </p>
-
-                  {/* Auth Mode Toggle */}
-                  <div className="flex bg-gray-100 dark:bg-neutral-800 rounded-lg p-1 mb-6">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAuthMode('login');
-                        setError(null); // Clear error when switching modes
-                      }}
-                      className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition ${authMode === 'login'
-                        ? 'bg-white dark:bg-neutral-700 text-gray-900 dark:text-white shadow-sm'
-                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                        }`}
-                    >
-                      Sign In
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAuthMode('signup');
-                        setError(null); // Clear error when switching modes
-                      }}
-                      className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition ${authMode === 'signup'
-                        ? 'bg-white dark:bg-neutral-700 text-gray-900 dark:text-white shadow-sm'
-                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                        }`}
-                    >
-                      Create Account
-                    </button>
-                  </div>
-
-                  {/* Login Form */}
-                  {authMode === 'login' && (
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Email
-                        </label>
-                        <input
-                          type="email"
-                          value={loginEmail}
-                          onChange={(e) => setLoginEmail(e.target.value)}
-                          required
-                          className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-white"
-                          placeholder="your@email.com"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Password
-                        </label>
-                        <input
-                          type="password"
-                          value={loginPassword}
-                          onChange={(e) => setLoginPassword(e.target.value)}
-                          required
-                          className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-white"
-                          placeholder="Enter your password"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleCustomerLogin}
-                        disabled={isSubmitting}
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                      >
-                        {isSubmitting && <LoadingSpinner size="sm" />}
-                        Sign In
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Signup Form */}
-                  {authMode === 'signup' && (
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Full Name
-                        </label>
-                        <input
-                          type="text"
-                          value={signupFullName}
-                          onChange={(e) => setSignupFullName(e.target.value)}
-                          className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-white"
-                          placeholder="John Doe"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Email
-                        </label>
-                        <input
-                          type="email"
-                          value={signupEmail}
-                          onChange={(e) => setSignupEmail(e.target.value)}
-                          required
-                          className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-white"
-                          placeholder="your@email.com"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Phone Number
-                        </label>
-                        <input
-                          type="tel"
-                          value={signupPhone}
-                          onChange={(e) => setSignupPhone(e.target.value)}
-                          className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-white"
-                          placeholder="+61 4XX XXX XXX"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Password
-                        </label>
-                        <input
-                          type="password"
-                          value={signupPassword}
-                          onChange={(e) => setSignupPassword(e.target.value)}
-                          required
-                          minLength={6}
-                          className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-white"
-                          placeholder="At least 6 characters"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Confirm Password
-                        </label>
-                        <input
-                          type="password"
-                          value={signupConfirmPassword}
-                          onChange={(e) => setSignupConfirmPassword(e.target.value)}
-                          required
-                          minLength={6}
-                          className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-white"
-                          placeholder="Confirm your password"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleCustomerSignup}
-                        disabled={isSubmitting}
-                        className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                      >
-                        {isSubmitting && <LoadingSpinner size="sm" />}
-                        Create Account
-                      </button>
-                    </div>
-                  )}
-                </>
               )}
             </div>
           )}
 
-          {/* Pay at Store - Authenticated */}
-          {paymentMethod === 'store' && isAuthenticated && (
+
+          {/* Authenticated Info Block for Pay at Store and Pay Online */}
+          {(paymentMethod === 'store' || paymentMethod === 'online') && isAuthenticated && (
             <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-6">
               <div className="flex items-center gap-3 mb-4">
-                <Icon icon={FaStore} className="w-6 h-6 text-green-600" />
+                <Icon icon={paymentMethod === 'online' ? FaCreditCard : FaStore} className={`w-6 h-6 ${paymentMethod === 'online' ? 'text-blue-600' : 'text-green-600'}`} />
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Pay at Store
+                  {paymentMethod === 'online' ? 'Pay Online' : 'Pay at Store'}
                 </h2>
               </div>
-              <div className="flex items-center gap-2 text-green-600 mb-4">
+              <div className={`flex items-center gap-2 mb-4 ${paymentMethod === 'online' ? 'text-blue-600' : 'text-green-600'}`}>
                 <Icon icon={FaCheckCircle} className="w-5 h-5" />
                 <span>Signed in as {currentUser?.email}</span>
               </div>
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                You'll pay for your order when you pick it up at the store.
+                {paymentMethod === 'online'
+                  ? "You'll pay securely online for your order."
+                  : "You'll pay for your order when you pick it up at the store."}
               </p>
               <div className="mt-1 p-4 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20">
                 <p className="text-sm font-medium text-amber-800 dark:text-amber-100 mb-2">

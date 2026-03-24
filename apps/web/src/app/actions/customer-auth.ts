@@ -39,7 +39,7 @@ export async function signUpCustomer(
     // Check if user already exists
     console.log('🔍 [CustomerAuth] Checking if user already exists...');
     const { data: { users }, error: checkError } = await supabase.auth.admin.listUsers();
-    
+
     if (checkError) {
       console.error('❌ [CustomerAuth] Error checking existing users:', {
         message: checkError.message,
@@ -87,7 +87,7 @@ export async function signUpCustomer(
         name: authError.name,
         code: (authError as any).code
       });
-      
+
       // Provide user-friendly error messages
       let errorMessage = authError.message;
       if (authError.message.includes('already registered') || authError.message.includes('already exists')) {
@@ -97,7 +97,7 @@ export async function signUpCustomer(
       } else if (authError.message.includes('password')) {
         errorMessage = 'Password does not meet requirements. Please use a stronger password (at least 6 characters).';
       }
-      
+
       return { success: false, error: errorMessage };
     }
 
@@ -243,7 +243,7 @@ export async function signUpCustomer(
     // Verify user exists in auth.users
     console.log('🔍 [CustomerAuth] Verifying user in auth.users...');
     const { data: { user: verifyUser }, error: verifyUserError } = await supabase.auth.admin.getUserById(authData.user.id);
-    
+
     if (verifyUserError) {
       console.error('❌ [CustomerAuth] Failed to verify user in auth.users:', verifyUserError);
       return { success: false, error: 'Account created but user verification failed. Please try logging in.' };
@@ -268,6 +268,19 @@ export async function signUpCustomer(
       properties: { email: authData.user.email, has_full_name: !!fullName, has_phone: !!phone },
     });
     posthog.identify({ distinctId: authData.user.id, properties: { email: authData.user.email, name: fullName } });
+    // Send welcome/confirmation email (fire and forget)
+    try {
+      if (!authData.user.email) {
+        throw new Error('User email is missing, cannot send welcome email');
+      }
+      const { sendWelcomeEmail } = await import('@/app/actions/email-welcome');
+      await sendWelcomeEmail({
+        email: authData.user.email,
+        fullName: fullName || '',
+      });
+    } catch (welcomeErr) {
+      console.error('[CustomerAuth] Failed to send welcome email:', welcomeErr);
+    }
     return { success: true, userId: authData.user.id };
   } catch (error) {
     console.error('❌ [CustomerAuth] Unexpected error signing up customer:', {

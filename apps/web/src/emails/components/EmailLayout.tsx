@@ -29,17 +29,22 @@ export function EmailLayout({
             <Section className="bg-blue-500 text-white p-5">
               <Section className="flex items-center gap-3">
                 {logoUrl && (
-                  <Img
-                    src={logoUrl}
-                    alt={companyName}
-                    width={24}
-                    height={24}
-                    className="rounded"
-                  />
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <Img
+                      src={logoUrl}
+                      alt={companyName}
+                      width={60}
+                      height={60}
+                      className="rounded"
+                      style={{ display: 'block' }}
+                    />
+                  </div>
                 )}
-                <Text className="font-bold text-lg text-white m-0">{companyName}</Text>
+                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start' }}>
+                  <Text className="font-bold text-lg text-white m-0" style={{ marginBottom: 0 }}>{companyName}</Text>
+                  <Text className="mt-1 text-sm text-blue-100 mb-0" style={{ marginTop: 2 }}>{title}</Text>
+                </div>
               </Section>
-              <Text className="mt-1 text-sm text-blue-100 mb-0">{title}</Text>
             </Section>
 
             <Section className="p-6">
