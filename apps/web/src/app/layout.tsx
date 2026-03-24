@@ -30,6 +30,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#2563eb" />
+        <link rel="icon" href="/favicon/android-chrome-192x192.png" sizes="192x192" />
+        <link rel="apple-touch-icon" href="/favicon/android-chrome-512x512.png" />
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <SpeedInsights></SpeedInsights>
         <AppHeader />

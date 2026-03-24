@@ -1,8 +1,10 @@
+
+const withPWA = require('next-pwa');
 import type { NextConfig } from "next";
 
 const channel = process.env.BUILD_CHANNEL?.trim();
 
-const nextConfig: NextConfig = {
+const baseConfig: NextConfig = {
   distDir: channel ? `.next-${channel}` : ".next",
   // Transpile workspace packages (shared libraries)
   transpilePackages: [
@@ -35,6 +37,15 @@ const nextConfig: NextConfig = {
   },
   // This is required to support PostHog trailing slash API requests
   skipTrailingSlashRedirect: true,
+
 };
 
-export default nextConfig;
+const isProd = process.env.NODE_ENV === 'production';
+
+export default withPWA({
+  dest: 'public',
+  disable: !isProd,
+  register: true,
+  skipWaiting: true,
+})(baseConfig);
+
