@@ -74,7 +74,7 @@ export default function LoginPage() {
         const result = await sendMagicLinkInvite(email);
         if (!result.success) throw new Error(result.error || 'Failed to send magic link');
         posthog.capture('magic_link_sent', { email });
-        setMessage("Magic link sent from OperateFlow. Please check your inbox.");
+        setMessage("Magic link sent from Pappas Ocean Catch. Please check your inbox.");
       } else {
         // Password authentication
         const { error } = await supabase.auth.signInWithPassword({
@@ -147,7 +147,7 @@ export default function LoginPage() {
         throw new Error(result.error || 'Failed to send password reset email');
       }
 
-      setMessage("Password reset email sent from OperateFlow! Please check your inbox.");
+      setMessage("Password reset email sent from Pappas Ocean Catch! Please check your inbox.");
       setShowForgotPassword(false);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to send reset email';
