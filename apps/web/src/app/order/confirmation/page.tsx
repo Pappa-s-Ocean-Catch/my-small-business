@@ -419,10 +419,10 @@ function OrderConfirmationContent() {
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       <OrderHeader />
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-2 md:py-8">
         {/* Success Header */}
-        <div className="text-center mb-8">
-          <Icon icon={FaCheckCircle} className="w-20 h-20 text-green-600 mx-auto mb-4" />
+        <div className="text-center mb-2 md:mb-8">
+          <Icon icon={FaCheckCircle} className="w-20 h-20 text-green-600 mx-auto mb-2 md:mb-4" />
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
             Order Confirmed!
           </h1>
@@ -532,7 +532,6 @@ function OrderConfirmationContent() {
               className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-neutral-700 hover:bg-gray-200 dark:hover:bg-neutral-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
             >
               <Icon icon={FaPrint} className="w-4 h-4" />
-              Print
             </button>
           </div>
 
@@ -648,7 +647,7 @@ function OrderConfirmationContent() {
           {/* Order Items */}
           {order.items && order.items.length > 0 && (
             <div>
-              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">
+              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4 mt-4">
                 Order Items
               </h3>
               <div className="space-y-4">

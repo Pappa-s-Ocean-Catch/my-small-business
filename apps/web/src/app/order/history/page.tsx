@@ -315,47 +315,52 @@ export default function OrderHistoryPage() {
           ) : (
             <div className="space-y-4">
               {orders.map((order) => (
-                <div
+                <Link
                   key={order.id}
-                  className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 overflow-hidden"
+                  href={`/order/confirmation?order=${order.order_number}`}
+                  className="block bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 overflow-hidden focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
+                  tabIndex={0}
+                  style={{ textDecoration: 'none' }}
                 >
-                  <div className="p-6">
+                  <div className="p-6 cursor-pointer">
                     <div className="flex items-start justify-between mb-4">
                       <div>
-                        <div className="flex items-center gap-3 mb-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
                           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                             Order #{order.order_number}
                           </h3>
-                          {/* Show order status */}
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(order.order_status)}`}>
-                            <span className="flex items-center gap-1">
-                              {getStatusIcon(order.order_status)}
-                              {order.order_status.charAt(0).toUpperCase() + order.order_status.slice(1)}
+                          <div className="flex flex-row flex-wrap gap-2">
+                            {/* Show order status */}
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(order.order_status)}`}>
+                              <span className="flex items-center gap-1">
+                                {getStatusIcon(order.order_status)}
+                                {order.order_status.charAt(0).toUpperCase() + order.order_status.slice(1)}
+                              </span>
                             </span>
-                          </span>
-                          {/* Only show payment status badge if it's different from order status */}
-                          {order.payment_status.toLowerCase() !== order.order_status.toLowerCase() && (
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPaymentStatusColor(order.payment_status)}`}>
-                              Payment: {order.payment_status.charAt(0).toUpperCase() + order.payment_status.slice(1)}
-                            </span>
-                          )}
+                            {/* Only show payment status badge if it's different from order status */}
+                            {order.payment_status.toLowerCase() !== order.order_status.toLowerCase() && (
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPaymentStatusColor(order.payment_status)}`}>
+                                Payment: {order.payment_status.charAt(0).toUpperCase() + order.payment_status.slice(1)}
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <p className="text-sm text-gray-600 dark:text-gray-400">
                           {new Date(order.created_at).toLocaleString()}
                         </p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto items-stretch sm:items-center" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
                         <button
-                          onClick={() => handlePrintOrder(order)}
+                          onClick={e => { e.preventDefault(); handlePrintOrder(order); }}
                           className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-neutral-700 rounded-lg transition-colors"
                           title="Print order"
                         >
                           <Icon icon={FaPrint} className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => handleReorder(order)}
+                          onClick={e => { e.preventDefault(); handleReorder(order); }}
                           disabled={reorderingOrderId === order.id}
-                          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
                         >
                           {reorderingOrderId === order.id ? (
                             <>
@@ -369,14 +374,6 @@ export default function OrderHistoryPage() {
                             </>
                           )}
                         </button>
-                        <Link
-                          href={`/order/confirmation?order=${order.order_number}`}
-                          className="flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-neutral-700 text-gray-900 dark:text-white rounded-lg hover:bg-gray-300 dark:hover:bg-neutral-600 transition-colors"
-                          title="View order details and review"
-                        >
-                          <Icon icon={FaCheckCircle} className="w-4 h-4" />
-                          View Details
-                        </Link>
                       </div>
                     </div>
 
@@ -386,7 +383,14 @@ export default function OrderHistoryPage() {
                           <div key={index} className="flex items-start justify-between text-sm">
                             <div className="flex-1">
                               <p className="font-medium text-gray-900 dark:text-white">
-                                {item.quantity}x {item.product_name}
+                                {item.quantity}x{' '}
+                                <Link
+                                  href={`/order/product/${item.product_id}`}
+                                  className="text-blue-600 dark:text-blue-400 hover:underline"
+                                  title={`View details for ${item.product_name}`}
+                                >
+                                  {item.product_name}
+                                </Link>
                               </p>
                               {item.comment && (
                                 <p className="text-gray-600 dark:text-gray-400 text-xs mt-1">
@@ -423,7 +427,7 @@ export default function OrderHistoryPage() {
                       </div>
                     </div>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}
