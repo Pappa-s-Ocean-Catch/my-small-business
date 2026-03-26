@@ -953,7 +953,7 @@ function OrderConfirmationContent() {
             className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
           >
             <Icon icon={FaShoppingBag} className="w-4 h-4" />
-            Place Another Order
+            Order More?
           </Link>
           <Link
             href="/"
