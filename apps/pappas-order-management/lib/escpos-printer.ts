@@ -79,6 +79,7 @@ export async function escposPrintKitchenReceipt(order: Order, printer: SavedPrin
     await withConnectedPrinter(
       printer,
       async (p) => {
+        p.addTextSize({ width: 1.35, height: 1.35 });
         for (const line of lines) {
           await printReceiptLine(p, line);
         }
@@ -98,9 +99,9 @@ async function printReceiptLine(p: Printer, line: string | { text: string; bold?
   }
   // Set formatting if supported by printer
   if (line.bold) await p.addTextStyle({ em: PrinterConstants.TRUE });
-  if (line.large) await p.addTextSize({ width: 2, height: 2 });
+  if (line.large) await p.addTextSize({ width: 1.75, height: 1.75 });
   await p.addText(line.text + '\n');
   // Reset formatting after line
   if (line.bold) await p.addTextStyle({ em: PrinterConstants.FALSE });
-  if (line.large) await p.addTextSize({ width: 1, height: 1 });
+  if (line.large) await p.addTextSize({ width: 1.25, height: 1.25 });
 }

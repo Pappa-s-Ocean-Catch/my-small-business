@@ -2,6 +2,113 @@
 
 import { createServiceRoleClient } from '@my-small-business/supabase/server';
 
+// Product Media
+export interface ProductMedia {
+  id: string;
+  sale_product_id: string;
+  url: string;
+  type: 'image' | 'video';
+  sort_order: number;
+  uploaded_by?: string | null;
+  created_at: string;
+  publish_status: boolean;
+}
+
+// Fetch all published media for a product
+export async function getProductMedia(sale_product_id: string): Promise<{ data: ProductMedia[] | null; error: string | null }> {
+  try {
+    const supabase = await createServiceRoleClient();
+    const { data, error } = await supabase
+      .from('sale_product_media')
+      .select('*')
+      .eq('sale_product_id', sale_product_id)
+      .eq('publish_status', true)
+      .order('sort_order', { ascending: true });
+    if (error) {
+      console.error('Error fetching product media:', error);
+      return { data: null, error: error.message };
+    }
+    return { data, error: null };
+  } catch (error) {
+    console.error('Unexpected error fetching product media:', error);
+    return { data: null, error: 'An unexpected error occurred' };
+  }
+}
+
+// Add a media item to a product
+export async function addProductMedia(media: {
+  sale_product_id: string;
+  url: string;
+  type: 'image' | 'video';
+  sort_order?: number;
+  uploaded_by?: string;
+  publish_status?: boolean;
+}): Promise<{ data: ProductMedia | null; error: string | null }> {
+  try {
+    const supabase = await createServiceRoleClient();
+    const { data, error } = await supabase
+      .from('sale_product_media')
+      .insert([
+        {
+          sale_product_id: media.sale_product_id,
+          url: media.url,
+          type: media.type,
+          sort_order: media.sort_order ?? 0,
+          uploaded_by: media.uploaded_by ?? null,
+          publish_status: media.publish_status ?? true,
+        },
+      ])
+      .select()
+      .single();
+    if (error) {
+      console.error('Error adding product media:', error);
+      return { data: null, error: error.message };
+    }
+    return { data, error: null };
+  } catch (error) {
+    console.error('Unexpected error adding product media:', error);
+    return { data: null, error: 'An unexpected error occurred' };
+  }
+}
+
+// Delete a media item
+export async function deleteProductMedia(id: string): Promise<{ error: string | null }> {
+  try {
+    const supabase = await createServiceRoleClient();
+    const { error } = await supabase
+      .from('sale_product_media')
+      .delete()
+      .eq('id', id);
+    if (error) {
+      console.error('Error deleting product media:', error);
+      return { error: error.message };
+    }
+    return { error: null };
+  } catch (error) {
+    console.error('Unexpected error deleting product media:', error);
+    return { error: 'An unexpected error occurred' };
+  }
+}
+
+// Helper: fetch media for a list of product IDs
+async function fetchMediaForProducts(productIds: string[]): Promise<Record<string, ProductMedia[]>> {
+  if (!productIds.length) return {};
+  const supabase = await createServiceRoleClient();
+  const { data, error } = await supabase
+    .from('sale_product_media')
+    .select('*')
+    .in('sale_product_id', productIds);
+  if (error || !data) return {};
+  const map: Record<string, ProductMedia[]> = {};
+  for (const m of data) {
+    if (!map[m.sale_product_id]) map[m.sale_product_id] = [];
+    map[m.sale_product_id].push(m as ProductMedia);
+  }
+  // Sort by sort_order
+  for (const arr of Object.values(map)) arr.sort((a, b) => a.sort_order - b.sort_order);
+  return map;
+}
+
 // Types
 export interface SaleCategory {
   id: string;
@@ -277,6 +384,9 @@ export async function getSaleProducts(): Promise<{ data: SaleProductWithDetails[
 
     // Get ingredients for each product
     const productIds = products.map(p => p.id);
+
+    // Get media for each product
+    const mediaMap = await fetchMediaForProducts(productIds);
     const { data: ingredients, error: ingredientsError } = await supabase
       .from('sale_product_ingredients')
       .select(`
@@ -332,7 +442,7 @@ export async function getSaleProducts(): Promise<{ data: SaleProductWithDetails[
     }
 
     // Combine data and calculate costs
-    const productsWithDetails: SaleProductWithDetails[] = products.map(product => {
+    const productsWithDetails: (SaleProductWithDetails & { media?: ProductMedia[] })[] = products.map(product => {
       const productIngredients = ingredientsByProductId.get(String(product.id)) || [];
       const productIncludes = includesByParentId.get(String(product.id)) || [];
 
@@ -352,6 +462,7 @@ export async function getSaleProducts(): Promise<{ data: SaleProductWithDetails[
 
       return {
         ...(product as any),
+        media: mediaMap[product.id] || [],
         cost_of_goods: costOfGoods,
         profit_margin: product.sale_price - costOfGoods,
         is_available: isAvailable,
@@ -414,6 +525,13 @@ export async function getSaleProduct(id: string): Promise<{ data: SaleProductWit
     }
 
     // Get ingredients
+    // Get media
+    const { data: media, error: mediaError } = await supabase
+      .from('sale_product_media')
+      .select('*')
+      .eq('sale_product_id', id)
+      .order('sort_order', { ascending: true });
+    // Ignore mediaError for now (optional)
     const { data: ingredients, error: ingredientsError } = await supabase
       .from('sale_product_ingredients')
       .select(`
@@ -459,8 +577,9 @@ export async function getSaleProduct(id: string): Promise<{ data: SaleProductWit
       return (product?.total_units || 0) >= ing.quantity_required;
     }) || false;
 
-    const productWithDetails: SaleProductWithDetails = {
+    const productWithDetails: SaleProductWithDetails & { media?: ProductMedia[] } = {
       ...product,
+      media: media || [],
       cost_of_goods: costOfGoods,
       profit_margin: product.sale_price - costOfGoods,
       is_available: isAvailable,

@@ -246,8 +246,14 @@ function OrderConfirmationContent() {
 
         // Helper to check order ownership
         const checkOrderOwnership = (orderData: any) => {
-          if (!user?.id || !orderData?.user_id || user.id !== orderData.user_id) {
-            setError('You do not have permission to view this order.');
+          //
+          // Only check if both user and orderData.user_id are loaded
+          if (!user?.id || !orderData?.user_id) {
+            // Don't set error, just wait for both to be loaded
+            return false;
+          }
+          if (user.id !== orderData.user_id) {
+            setError('You do not have permission to view this order. (User mismatch)');
             setOrder(null);
             setLoading(false);
             return false;

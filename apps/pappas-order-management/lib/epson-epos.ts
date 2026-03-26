@@ -1,6 +1,11 @@
 
 import type { Order, OrderItem, OrderItemAddon } from '@my-small-business/types';
+// this file is no longer use
+const FONT_SIZE = {
 
+  large: { width: 0.7, height: 0.7 },
+  normal: { width: 0, height: 0 },
+}
 // Extend the type for receipt line objects to allow 'center' alignment
 type ReceiptLine = string | { text: string; bold?: boolean; large?: boolean; center?: boolean };
 
@@ -190,8 +195,8 @@ function buildEposPrintXmlFromLines(lines: ReceiptLine[]): string {
       return `<text lang="en">${escapeXml(line)}</text>`;
     }
     let attrs = '';
-    if (line.bold) attrs += ' style="bold"';
-    if (line.large) attrs += ' width="1" height="1';
+    // if (line.bold) attrs += ' style="bold"';
+    if (line.large) attrs += ` width="${FONT_SIZE.large.width}" height="${FONT_SIZE.large.height}" `;
     // Center alignment for lines with center: true
     if ((line as any).center) attrs += ' align="center"';
     return `<text lang="en"${attrs}>${escapeXml(line.text)}</text>`;
