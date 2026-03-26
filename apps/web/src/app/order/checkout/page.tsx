@@ -1154,6 +1154,18 @@ export default function CheckoutPage() {
                     {isSubmitting && <LoadingSpinner size="sm" />}
                     Sign In
                   </button>
+                </div>)}
+              {error && (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-lg p-3 text-sm text-red-700 dark:text-red-300 animate-in fade-in mt-2">
+                  <div className="font-semibold mb-1">Login failed</div>
+                  <div>{error}</div>
+                  <div className="mt-2">
+                    <span className="block mb-1">If you had an account on our previous website, it will not work here. Please create a new account to continue.</span>
+                    <span className="block">If you forgot your password, you can <button type="button" className="underline text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300" onClick={() => {
+                      // Open Supabase reset password or custom reset flow
+                      window.open('/login', '_blank');
+                    }}>reset your password</button>.</span>
+                  </div>
                 </div>
               )}
               {/* Signup Form */}
