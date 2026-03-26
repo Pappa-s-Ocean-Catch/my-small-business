@@ -1481,30 +1481,6 @@ export default function CheckoutPage() {
             </div>
           )}
 
-          {/* Error Message - Display prominently */}
-          {error && (
-            <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded-lg p-4 flex items-start gap-3 animate-in fade-in">
-              <Icon icon={FaExclamationCircle} className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-1">
-                  Error
-                </p>
-                <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
-                {error.includes('Invalid email or password') && (
-                  <div className="mt-3 text-xs text-red-600 dark:text-red-400">
-                    <p className="font-medium mb-1">Possible reasons:</p>
-                    <ul className="list-disc list-inside space-y-1">
-                      <li>The email or password you entered is incorrect</li>
-                      <li>The account may not have been created successfully</li>
-                      <li>You may need to create a new account</li>
-                    </ul>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-
           {/* Duplicate Order Warning (pre-submit, requires confirmation) */}
           {possibleDuplicate && !duplicateConfirmed && (
             <div className="mb-4 p-4 rounded-lg border border-amber-400 bg-amber-50 dark:bg-amber-900/20 flex items-start gap-3 animate-in fade-in">
