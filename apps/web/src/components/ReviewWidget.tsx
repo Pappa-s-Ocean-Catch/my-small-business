@@ -44,9 +44,6 @@ export const ReviewWidget: React.FC<ReviewWidgetProps> = ({ productId, className
 
     useEffect(() => {
         const shouldFetch = alwaysVisible || inView;
-        if (debug) {
-            console.log('ReviewWidget shouldFetch:', shouldFetch, 'inView:', inView, 'for', productId);
-        }
         if (!shouldFetch) return;
         fetchReviews(1);
         // eslint-disable-next-line

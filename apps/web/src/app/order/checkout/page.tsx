@@ -736,34 +736,39 @@ export default function CheckoutPage() {
     }
 
     setIsSubmitting(true);
+    let errorMessage = null;
     try {
       // Validate required contact fields
       if (!customerEmail || !customerPhone) {
-        throw new Error(
-          "Please enter your email and phone number so we can contact you about your order.",
-        );
+        errorMessage = "Please enter your email and phone number so we can contact you about your order.";
+        throw new Error(errorMessage);
       }
 
       if (!paymentMethod) {
-        throw new Error("Please select a payment method");
+        errorMessage = "Please select a payment method";
+        throw new Error(errorMessage);
       }
 
       // For pay at store, require authentication
       if (paymentMethod === "store" && !isAuthenticated) {
-        throw new Error("Please sign in or create an account to pay at store");
+        errorMessage = "Please sign in or create an account to pay at store";
+        throw new Error(errorMessage);
       }
 
       // Validate delivery order requirements
       if (orderType === "delivery") {
         if (!deliveryAddress) {
-          throw new Error("Delivery address is required");
+          errorMessage = "Delivery address is required";
+          throw new Error(errorMessage);
         }
         if (!deliveryQuote) {
-          throw new Error("Delivery quote is required");
+          errorMessage = "Delivery quote is required";
+          throw new Error(errorMessage);
         }
         // Delivery orders can only use online payment
         if (paymentMethod !== "online") {
-          throw new Error("Delivery orders must be paid online");
+          errorMessage = "Delivery orders must be paid online";
+          throw new Error(errorMessage);
         }
       }
 
@@ -864,10 +869,12 @@ export default function CheckoutPage() {
       const result = await createOrder(orderInput);
 
       if (result.error) {
+        errorMessage = result.error;
         throw new Error(result.error);
       }
 
       if (!result.data) {
+        errorMessage = "Failed to create order";
         throw new Error("Failed to create order");
       }
 
@@ -962,9 +969,8 @@ export default function CheckoutPage() {
         const checkoutData = await checkoutResponse.json();
         if (!checkoutResponse.ok || !checkoutData.url) {
           setIsRedirecting(false);
-          throw new Error(
-            checkoutData.error || "Failed to create checkout session",
-          );
+          errorMessage = checkoutData.error || "Failed to create checkout session";
+          throw new Error(errorMessage);
         }
 
         // Redirect to Stripe Checkout
@@ -992,7 +998,40 @@ export default function CheckoutPage() {
         router.push(`/order/confirmation?order=${result.data!.order_number}`);
       }, 3000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to submit order");
+      // Always log error for troubleshooting and monitoring
+      const monitoringTag = '[MONITORING][Checkout] Order submission error';
+      if (err instanceof Error) {
+        // Log with error stack if available
+        console.error(monitoringTag, err.message, err.stack || '', {
+          errorMessage,
+          customerEmail,
+          customerPhone,
+          paymentMethod,
+          orderType,
+          userId: currentUser?.id,
+          isAuthenticated,
+          itemsCount: items.length,
+          total,
+        });
+      } else {
+        console.error(monitoringTag, err, {
+          errorMessage,
+          customerEmail,
+          customerPhone,
+          paymentMethod,
+          orderType,
+          userId: currentUser?.id,
+          isAuthenticated,
+          itemsCount: items.length,
+          total,
+        });
+      }
+      // Always show error to user
+      setError(
+        err instanceof Error
+          ? err.message || errorMessage || "Failed to submit order"
+          : errorMessage || "Failed to submit order"
+      );
       setIsRedirecting(false);
     } finally {
       setIsSubmitting(false);

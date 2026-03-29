@@ -33,6 +33,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
 import { escposPrintKitchenReceipt, formatPrinterError } from '../../lib/escpos-printer';
 import { KitchenAlertOverlay } from '../../lib/KitchenAlertOverlay';
+import { getFriendlyOrderNumber } from '../utils/orderNumber';
+import { CustomerModal } from '../customer';
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
   pending: '#f59e0b',
@@ -98,12 +100,56 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
   const [isFiltersModalVisible, setIsFiltersModalVisible] = useState(false);
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
   const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
+  const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [customerModalEmail, setCustomerModalEmail] = useState<string | null>(null);
+  const [customerModalPhone, setCustomerModalPhone] = useState<string | null>(null);
+
+  // Helper to get API URL for mobile/Expo
+  const getApiUrl = (path: string) => {
+    const base = process.env.EXPO_PUBLIC_API_URL || '';
+    if (base.endsWith('/')) return base + path.replace(/^\//, '');
+    return base + (path.startsWith('/') ? path : '/' + path);
+  };
+
+  // Quick stats for history mode
+  const quickStats = useMemo(() => {
+    if (mode !== 'all' || !orders.length) return null;
+    let totalOrders = 0;
+    let totalSales = 0;
+    let totalCard = 0;
+    let totalCash = 0;
+    orders.forEach((order) => {
+      // Only count paid orders
+      if (order.payment_status === 'paid') {
+        totalOrders++;
+        totalSales += order.total;
+        if (order.payment_method === 'store') {
+          if (order.payment_method_detail && order.payment_method_detail.toLowerCase().includes('card')) {
+            totalCard += order.total;
+          } else if (order.payment_method_detail && order.payment_method_detail.toLowerCase().includes('cash')) {
+            totalCash += order.total;
+          } else {
+            // If no detail, treat as cash (fallback)
+            totalCash += order.total;
+          }
+        } else if (order.payment_method === 'online') {
+          totalCard += order.total;
+        }
+      }
+    });
+    return { totalOrders, totalSales, totalCard, totalCash };
+  }, [orders, mode]);
 
   // Ensure Live Orders always starts unfiltered so pending orders are visible.
   useEffect(() => {
-    if (mode !== 'live') return;
-    setStatusFilter('all');
-    setPaymentFilter('all');
+    if (mode === 'live') {
+      setStatusFilter('all');
+      setPaymentFilter('all');
+    }
+    // When switching to history mode, reset date to today
+    if (mode === 'all') {
+      setSelectedDate(getTodayDateString());
+    }
   }, [mode]);
 
   const lastOrderIdRef = useRef<string | null>(null);
@@ -257,63 +303,63 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
               autoPrintedOrderIdsRef.current.add(newOrder.id);
               setPrintingOrderId(newOrder.id);
               const delaySec = typeof s.printerDelayPrintSec === 'number' ? s.printerDelayPrintSec : 3;
-              setTimeout(() => {
-                getOrder(newOrder.id)
-                  .then(async (result) => {
-                    if (result.error || !result.data) {
-                      throw new Error(result.error || 'Failed to load order for printing');
-                    }
+              // setTimeout(() => {
+              getOrder(newOrder.id)
+                .then(async (result) => {
+                  if (result.error || !result.data) {
+                    throw new Error(result.error || 'Failed to load order for printing');
+                  }
 
-                    const selected = s.printerSaved.find((p) => p.target === s.printerSelectedTarget) || null;
-                    if (!selected) {
-                      throw new Error('Printer not selected');
-                    }
+                  const selected = s.printerSaved.find((p) => p.target === s.printerSelectedTarget) || null;
+                  if (!selected) {
+                    throw new Error('Printer not selected');
+                  }
 
-                    await escposPrintKitchenReceipt(result.data, selected, s.printerCopies);
+                  await escposPrintKitchenReceipt(result.data, selected, s.printerCopies);
 
-                    // After a successful print, auto-transition the order to "preparing"
-                    // (kitchen has received the ticket). This should not require any user action.
-                    if (result.data.order_status === 'pending' || result.data.order_status === 'confirmed') {
-                      const statusResult = await updateOrderStatus(result.data.id, 'preparing');
-                      if (statusResult.error) {
-                        console.error('[LiveOrders] Auto status update error:', statusResult.error);
-                        const now = Date.now();
-                        if (now - lastAutoStatusAlertAtRef.current > 30000) {
-                          lastAutoStatusAlertAtRef.current = now;
-                          Alert.alert('Status update error', statusResult.error);
-                        }
+                  // After a successful print, auto-transition the order to "preparing"
+                  // (kitchen has received the ticket). This should not require any user action.
+                  if (result.data.order_status === 'pending' || result.data.order_status === 'confirmed') {
+                    const statusResult = await updateOrderStatus(result.data.id, 'preparing');
+                    if (statusResult.error) {
+                      console.error('[LiveOrders] Auto status update error:', statusResult.error);
+                      const now = Date.now();
+                      if (now - lastAutoStatusAlertAtRef.current > 30000) {
+                        lastAutoStatusAlertAtRef.current = now;
+                        Alert.alert('Status update error', statusResult.error);
                       }
                     }
-                  })
-                  .catch((err) => {
-                    autoPrintedOrderIdsRef.current.delete(newOrder.id);
-                    console.error('Auto print error:', err);
-                    if (err && typeof (err as Error).stack === 'string') {
-                      console.error('Auto print stack:', (err as Error).stack);
+                  }
+                })
+                .catch((err) => {
+                  autoPrintedOrderIdsRef.current.delete(newOrder.id);
+                  console.error('Auto print error:', err);
+                  if (err && typeof (err as Error).stack === 'string') {
+                    console.error('Auto print stack:', (err as Error).stack);
+                  }
+
+                  const now = Date.now();
+                  if (now - lastPrinterAlertAtRef.current > 30000) {
+                    lastPrinterAlertAtRef.current = now;
+
+                    const errorMessage = err instanceof Error ? err.message : String(err);
+                    const errorStack = err instanceof Error ? err.stack : undefined;
+                    const details =
+                      errorStack && errorStack.length > 0 ? `${errorMessage}\n\n${errorStack}` : errorMessage;
+
+                    // Play a distinct warning sound so staff notice immediately.
+                    if (s.soundEnabled) {
+                      const warningRepeatCount = Math.min(5, Math.max(1, Math.trunc(s.soundRepeatCount)));
+                      void playNewOrderSound({ soundId: 'vopvoopvooop', repeatCount: warningRepeatCount, delayMs: 0 });
                     }
 
-                    const now = Date.now();
-                    if (now - lastPrinterAlertAtRef.current > 30000) {
-                      lastPrinterAlertAtRef.current = now;
-
-                      const errorMessage = err instanceof Error ? err.message : String(err);
-                      const errorStack = err instanceof Error ? err.stack : undefined;
-                      const details =
-                        errorStack && errorStack.length > 0 ? `${errorMessage}\n\n${errorStack}` : errorMessage;
-
-                      // Play a distinct warning sound so staff notice immediately.
-                      if (s.soundEnabled) {
-                        const warningRepeatCount = Math.min(5, Math.max(1, Math.trunc(s.soundRepeatCount)));
-                        void playNewOrderSound({ soundId: 'vopvoopvooop', repeatCount: warningRepeatCount, delayMs: 0 });
-                      }
-
-                      Alert.alert('EPOS Print Failed', details);
-                    }
-                  })
-                  .finally(() => {
-                    setPrintingOrderId((oid) => (oid === newOrder.id ? null : oid));
-                  });
-              }, delaySec * 1000);
+                    Alert.alert('EPOS Print Failed', details);
+                  }
+                })
+                .finally(() => {
+                  setPrintingOrderId((oid) => (oid === newOrder.id ? null : oid));
+                });
+              // }, delaySec * 1000);
             }
           }
           loadOrders();
@@ -366,7 +412,7 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
       const createdMs = new Date(createdAtIso).getTime();
       const diffSec = Math.max(0, Math.floor((nowMs - createdMs) / 1000));
       const minutes = Math.floor(diffSec / 60);
-      const seconds = diffSec % 60;
+      const seconds = diffSec % 66;
       const mm = String(minutes).padStart(2, '0');
       const ss = String(seconds).padStart(2, '0');
       return { text: `${mm}:${ss}`, minutes };
@@ -578,12 +624,7 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
   };
 
   const generatePrintHTML = (order: Order): string => {
-    const ticketOrderNumber = (() => {
-      const match = order.order_number.match(/(\d{3,})$/);
-      if (!match) return order.order_number;
-      const lastSegment = match[1];
-      return `1${lastSegment}`;
-    })();
+    const ticketOrderNumber = getFriendlyOrderNumber(order.order_number);
     const itemsHTML = order.items?.map(item => {
       const addonsHTML = item.addons?.map(addon =>
         `<li>+ ${addon.addon_item_name} (${addon.addon_group_name}) - $${addon.addon_item_price.toFixed(2)}</li>`
@@ -723,8 +764,8 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
         <Card.Content>
           <View style={styles.orderHeader}>
             <View style={styles.orderHeaderLeft}>
-              <Text style={styles.orderNumber}>#{order.order_number}</Text>
-              <Text style={styles.customerName}>
+              <Text style={styles.orderNumber}>{getFriendlyOrderNumber(order.order_number)}</Text>
+              <Text style={styles.customerName} onPress={() => handleCustomerPress(order)}>
                 {order.customer_name || order.customer_email}
               </Text>
               <View style={styles.orderMeta}>
@@ -842,6 +883,12 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
     );
   };
 
+  const handleCustomerPress = (order: Order) => {
+    setCustomerModalEmail(order.customer_email);
+    setCustomerModalPhone(order.customer_phone);
+    setShowCustomerModal(true);
+  };
+
   if (loading && orders.length === 0) {
     return (
       <View style={styles.centerContainer}>
@@ -853,6 +900,25 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
 
   return (
     <View style={styles.container}>
+      <CustomerModal
+        visible={showCustomerModal}
+        email={customerModalEmail || undefined}
+        phone={customerModalPhone || undefined}
+        onClose={() => setShowCustomerModal(false)}
+      />
+      {/* Quick Stats for Order History */}
+      {mode === 'all' && quickStats && (
+        <View style={styles.quickStatsContainer}>
+          <View style={styles.quickStatsRow}>
+            <View style={styles.quickStatBox}><Text style={styles.quickStatLabel}>Total Orders</Text><Text style={styles.quickStatValue}>{quickStats.totalOrders}</Text></View>
+            <View style={styles.quickStatBox}><Text style={styles.quickStatLabel}>Total Sales</Text><Text style={styles.quickStatValue}>${quickStats.totalSales.toFixed(2)}</Text></View>
+          </View>
+          <View style={styles.quickStatsRow}>
+            <View style={styles.quickStatBox}><Text style={styles.quickStatLabel}>Card Payment</Text><Text style={styles.quickStatValue}>${quickStats.totalCard.toFixed(2)}</Text></View>
+            <View style={styles.quickStatBox}><Text style={styles.quickStatLabel}>Cash Payment</Text><Text style={styles.quickStatValue}>${quickStats.totalCash.toFixed(2)}</Text></View>
+          </View>
+        </View>
+      )}
       {/* Printing overlay chip */}
       {printingOrderId && (
         <View style={{ position: 'absolute', top: 24, left: 0, right: 0, alignItems: 'center', zIndex: 100 }} pointerEvents="none">
@@ -1099,7 +1165,7 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>
-              Order {selectedOrder?.order_number}
+              Order {selectedOrder ? getFriendlyOrderNumber(selectedOrder.order_number) : ''}
             </Text>
             <View style={styles.modalHeaderActions}>
               <TouchableOpacity
@@ -1866,5 +1932,32 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: '#10b981',
+  },
+  quickStatsContainer: {
+    backgroundColor: '#fff',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e5e5',
+    marginBottom: 4,
+  },
+  quickStatsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  quickStatBox: {
+    flex: 1,
+    alignItems: 'center',
+    padding: 8,
+  },
+  quickStatLabel: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginBottom: 2,
+  },
+  quickStatValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#111827',
   },
 });

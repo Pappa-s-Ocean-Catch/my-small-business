@@ -49,7 +49,7 @@ export function ShiftModal({
   // Helper function to convert UTC time to Melbourne local time for display
   const formatTimeForDisplay = useCallback((isoString: string) => {
     const date = new Date(isoString);
-    return date.toLocaleTimeString('en-AU', { 
+    return date.toLocaleTimeString('en-AU', {
       timeZone: 'Australia/Melbourne',
       hour: '2-digit',
       minute: '2-digit',
@@ -61,33 +61,33 @@ export function ShiftModal({
   const getStaffRateForDate = useCallback((staffId: string, date: string) => {
     const dateObj = new Date(date);
     const dayOfWeek = dateObj.getDay(); // 0=Sunday, 1=Monday, etc.
-    
+
     // Map day of week to rate type
     const rateTypeMap: { [key: number]: string } = {
       0: 'sun', 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu', 5: 'fri', 6: 'sat'
     };
     const rateType = rateTypeMap[dayOfWeek];
-    
+
     // First try to find specific day rate
-    let rate = staffRates.find(r => 
-      r.staff_id === staffId && 
+    let rate = staffRates.find(r =>
+      r.staff_id === staffId &&
       r.rate_type === rateType &&
-      r.effective_date <= date && 
+      r.effective_date <= date &&
       r.end_date >= date &&
       r.is_current
     );
-    
+
     // If no specific day rate, fall back to default rate
     if (!rate) {
-      rate = staffRates.find(r => 
-        r.staff_id === staffId && 
+      rate = staffRates.find(r =>
+        r.staff_id === staffId &&
         r.rate_type === 'default' &&
-        r.effective_date <= date && 
+        r.effective_date <= date &&
         r.end_date >= date &&
         r.is_current
       );
     }
-    
+
     return rate?.rate || 0;
   }, [staffRates]);
 
@@ -128,15 +128,15 @@ export function ShiftModal({
   // Function to calculate shift duration in hours
   const calculateShiftDuration = useCallback(() => {
     if (!formData.start_time || !formData.end_time) return 0;
-    
+
     const startTime = new Date(`${currentSelectedDate}T${formData.start_time}:00`);
     const endTime = new Date(`${currentSelectedDate}T${formData.end_time}:00`);
-    
+
     // Handle overnight shifts (end time is next day)
     if (endTime <= startTime) {
       endTime.setDate(endTime.getDate() + 1);
     }
-    
+
     const durationMs = endTime.getTime() - startTime.getTime();
     return durationMs / (1000 * 60 * 60); // Convert to hours
   }, [formData.start_time, formData.end_time, currentSelectedDate]);
@@ -148,64 +148,58 @@ export function ShiftModal({
     return rate * duration;
   }, [getStaffRateForDate, calculateShiftDuration, currentSelectedDate]);
 
-  // Debug: Log the selected date
-  console.log('🔍 ShiftModal selectedDate prop:', selectedDate);
-  console.log('🔍 ShiftModal initialData start_time:', initialData?.start_time);
-  console.log('🔍 ShiftModal currentSelectedDate:', currentSelectedDate);
-  console.log('🔍 ShiftModal formData:', formData);
-
   const handleInputChange = useCallback((field: string, value: string | number | null) => {
     setLocalFormData(prev => ({ ...prev, [field]: value }));
   }, []);
 
-      const handleSave = useCallback(() => {
-        // Create Date objects in Melbourne timezone explicitly
-        // Melbourne is UTC+10 (or UTC+11 during daylight saving)
-        const melbourneOffset = 10; // UTC+10 for Melbourne (adjust for DST if needed)
-        
-        // Parse the time components
-        const [startHour, startMin] = formData.start_time.split(':').map(Number);
-        const [endHour, endMin] = formData.end_time.split(':').map(Number);
-        
-        // Create Date objects in Melbourne timezone
-        const startDateTime = new Date(`${currentSelectedDate}T${formData.start_time}:00+10:00`);
-        const endDateTime = new Date(`${currentSelectedDate}T${formData.end_time}:00+10:00`);
-        
-        // Debug: Log what's being saved
-        console.log('🔍 Shift Modal Debug - Form Submission:', {
-          selectedDate: currentSelectedDate,
-          localTimeInput: `${formData.start_time} - ${formData.end_time}`,
-          startDateTime: startDateTime.toString(),
-          endDateTime: endDateTime.toString(),
-          startUTC: startDateTime.toISOString(),
-          endUTC: endDateTime.toISOString(),
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          offset: new Date().getTimezoneOffset(),
-          melbourneOffset: melbourneOffset,
-          manualCalculation: {
-            startHour,
-            startMin,
-            endHour,
-            endMin
-          },
-          formData: formData,
-          currentSelectedDate: currentSelectedDate
-        });
-        
-        const shiftData = {
-          start_time: startDateTime.toISOString(),
-          end_time: endDateTime.toISOString(),
-          notes: formData.notes,
-          non_billable_hours: formData.non_billable_hours,
-          section_id: formData.section_id || null,
-          staff_id: formData.staff_id
-        };
-        
-        console.log('🔍 Shift Modal Debug - Data being passed to onSave:', shiftData);
-        
-        onSave(shiftData);
-        onClose();
-      }, [formData, currentSelectedDate, onSave, onClose]);
+  const handleSave = useCallback(() => {
+    // Create Date objects in Melbourne timezone explicitly
+    // Melbourne is UTC+10 (or UTC+11 during daylight saving)
+    const melbourneOffset = 10; // UTC+10 for Melbourne (adjust for DST if needed)
+
+    // Parse the time components
+    const [startHour, startMin] = formData.start_time.split(':').map(Number);
+    const [endHour, endMin] = formData.end_time.split(':').map(Number);
+
+    // Create Date objects in Melbourne timezone
+    const startDateTime = new Date(`${currentSelectedDate}T${formData.start_time}:00+10:00`);
+    const endDateTime = new Date(`${currentSelectedDate}T${formData.end_time}:00+10:00`);
+
+    // Debug: Log what's being saved
+    console.log('🔍 Shift Modal Debug - Form Submission:', {
+      selectedDate: currentSelectedDate,
+      localTimeInput: `${formData.start_time} - ${formData.end_time}`,
+      startDateTime: startDateTime.toString(),
+      endDateTime: endDateTime.toString(),
+      startUTC: startDateTime.toISOString(),
+      endUTC: endDateTime.toISOString(),
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      offset: new Date().getTimezoneOffset(),
+      melbourneOffset: melbourneOffset,
+      manualCalculation: {
+        startHour,
+        startMin,
+        endHour,
+        endMin
+      },
+      formData: formData,
+      currentSelectedDate: currentSelectedDate
+    });
+
+    const shiftData = {
+      start_time: startDateTime.toISOString(),
+      end_time: endDateTime.toISOString(),
+      notes: formData.notes,
+      non_billable_hours: formData.non_billable_hours,
+      section_id: formData.section_id || null,
+      staff_id: formData.staff_id
+    };
+
+    console.log('🔍 Shift Modal Debug - Data being passed to onSave:', shiftData);
+
+    onSave(shiftData);
+    onClose();
+  }, [formData, currentSelectedDate, onSave, onClose]);
 
   if (!isOpen) return null;
 
@@ -333,42 +327,40 @@ export function ShiftModal({
                   {/* Unassigned option */}
                   <button
                     onClick={() => handleInputChange('staff_id', null)}
-                    className={`w-full p-3 text-left border rounded-lg transition-colors ${
-                      formData.staff_id === null 
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
+                    className={`w-full p-3 text-left border rounded-lg transition-colors ${formData.staff_id === null
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                         : 'border-gray-200 dark:border-neutral-700 hover:bg-gray-50 dark:hover:bg-neutral-800'
-                    }`}
+                      }`}
                   >
                     <div className="font-medium text-gray-900 dark:text-white">Unassigned</div>
                     <div className="text-sm text-gray-600 dark:text-gray-400">No staff assigned</div>
                   </button>
-                  
+
                   {/* Staff options */}
                   {staff.filter(s => {
                     if (!s.is_available) return false;
-                    
+
                     // If no section is selected, show all available staff
                     if (!formData.section_id) return true;
-                    
+
                     // If staff has no skills defined (empty array), they can work in any section
                     if (!s.skills || s.skills.length === 0) return true;
-                    
+
                     // Check if staff has the skill for the selected section
                     return s.skills.includes(formData.section_id);
                   }).map((s) => {
                     const hourlyRate = getStaffRateForDate(s.id, currentSelectedDate);
                     const totalCost = calculateTotalCost(s.id);
                     const duration = calculateShiftDuration();
-                    
+
                     return (
                       <button
                         key={s.id}
                         onClick={() => handleInputChange('staff_id', s.id)}
-                        className={`w-full p-3 text-left border rounded-lg transition-colors ${
-                          formData.staff_id === s.id 
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
+                        className={`w-full p-3 text-left border rounded-lg transition-colors ${formData.staff_id === s.id
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                             : 'border-gray-200 dark:border-neutral-700 hover:bg-gray-50 dark:hover:bg-neutral-800'
-                        }`}
+                          }`}
                       >
                         <div className="font-medium text-gray-900 dark:text-white">{s.name}</div>
                         <div className="text-sm text-gray-600 dark:text-gray-400">
