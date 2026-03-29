@@ -93,7 +93,9 @@ export const PublicReviewBlock: React.FC = () => {
                                 <div className="flex items-center justify-between mb-1">
                                     <div>
                                         <span className="font-semibold text-gray-900">{r.user_name}</span>
-                                        <div className="text-xs text-gray-500 mt-0.5">{new Date(r.created_at).toLocaleDateString()}</div>
+                                        {r.created_at ? (
+                                            <div className="text-xs text-gray-500 mt-0.5">{new Date(r.created_at).toLocaleDateString()}</div>
+                                        ) : null}
                                     </div>
                                     <span className="flex gap-0.5 ml-2">
                                         {[1, 2, 3, 4, 5].map(star => (
@@ -102,6 +104,12 @@ export const PublicReviewBlock: React.FC = () => {
                                     </span>
                                 </div>
                                 <div className="text-sm text-gray-800 whitespace-pre-line">{r.comment}</div>
+                                {r.response && (
+                                    <div className="mt-3 ml-6 pl-4 border-l-2 border-rose-200">
+                                        <div className="text-xs text-rose-600 font-semibold mb-1">Shop Owner Reply</div>
+                                        <div className="text-sm text-gray-700 whitespace-pre-line">{r.response}</div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     ))}
