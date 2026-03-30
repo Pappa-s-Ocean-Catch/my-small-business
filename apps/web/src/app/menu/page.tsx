@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
 import { PublicMenuRenderer, type PublicMenuScreenModel, type PublicSaleCategory, type PublicSaleProduct } from '@/components/PublicMenuRenderer';
 import { useFeatureFlag } from '@/hooks/useFeatureFlag';
@@ -98,6 +99,16 @@ export default function UniversalMenuPage() {
 
   return (
     <div className="min-h-screen w-full" style={{ background: '#fff8f0' }}>
+      {/* Order Now Button */}
+      <div className="w-full flex justify-center sticky top-0 z-40" style={{ background: '#fff8f0', paddingTop: '0.5rem', paddingBottom: '0.5rem' }}>
+        <Link
+          href="/order"
+          className="inline-block px-4 py-1.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-base font-semibold shadow transition-colors border border-blue-700/10"
+          style={{ letterSpacing: '0.02em' }}
+        >
+          Order Now
+        </Link>
+      </div>
       {/* Floating Phone Order Button */}
       <a
         href="tel:+61397438150"
