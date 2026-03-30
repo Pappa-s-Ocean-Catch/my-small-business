@@ -838,7 +838,7 @@ export default function OrderSummaryPage() {
                       ? 'Complete Delivery Info'
                       : orderType === 'pickup' && !canProceedPickup
                         ? 'Select Pickup Time'
-                        : 'Checkout'}
+                        : 'Continue Checkout'}
                   </button>
                 )}
                 <Link

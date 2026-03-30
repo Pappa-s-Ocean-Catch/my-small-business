@@ -103,6 +103,8 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [customerModalEmail, setCustomerModalEmail] = useState<string | null>(null);
   const [customerModalPhone, setCustomerModalPhone] = useState<string | null>(null);
+  const [showSimulator, setShowSimulator] = useState(false);
+  const [simulatorOrder, setSimulatorOrder] = useState<Order | null>(null);
 
   // Helper to get API URL for mobile/Expo
   const getApiUrl = (path: string) => {
@@ -307,27 +309,32 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
             }
 
             if (
-              s.printerEnabled &&
+              (s.printerEnabled || s.printerSimulator) &&
               s.printerAutoPrint &&
-              !!s.printerSelectedTarget &&
+              (!!s.printerSelectedTarget || s.printerSimulator) &&
               !autoPrintedOrderIdsRef.current.has(orderId)
             ) {
               autoPrintedOrderIdsRef.current.add(orderId);
               setPrintingOrderId(orderId);
+
               getOrder(orderId)
                 .then(async (result) => {
                   if (result.error || !result.data) {
                     throw new Error(result.error || 'Failed to load order for printing');
                   }
 
-                  const selected = s.printerSaved.find((p) => p.target === s.printerSelectedTarget) || null;
-                  if (!selected) {
-                    throw new Error('Printer not selected');
+                  if (s.printerSimulator) {
+                    setSimulatorOrder(result.data);
+                    setShowSimulator(true);
+                  } else {
+                    const selected = s.printerSaved.find((p) => p.target === s.printerSelectedTarget) || null;
+                    if (!selected) {
+                      throw new Error('Printer not selected');
+                    }
+                    await escposPrintKitchenReceipt(result.data, selected, s.printerCopies);
                   }
 
-                  await escposPrintKitchenReceipt(result.data, selected, s.printerCopies);
-
-                  // After a successful print, auto-transition the order to "preparing"
+                  // After a successful print (or simulation), auto-transition the order to "preparing"
                   if (result.data.order_status === 'pending' || result.data.order_status === 'confirmed' || result.data.order_status === 'accepted') {
                     const statusResult = await updateOrderStatus(result.data.id, 'preparing');
                     if (statusResult.error) {
@@ -343,6 +350,7 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
                 .catch((err) => {
                   autoPrintedOrderIdsRef.current.delete(orderId);
                   console.error('Auto print error:', err);
+                  // ... (rest of catch logic remains same/similar)
                   if (err && typeof (err as Error).stack === 'string') {
                     console.error('Auto print stack:', (err as Error).stack);
                   }
@@ -588,6 +596,12 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
   const handlePrint = async (order: Order) => {
     try {
       const s = appSettingsRef.current;
+      if (s.printerSimulator) {
+        setSimulatorOrder(order);
+        setShowSimulator(true);
+        return;
+      }
+
       const selected = s.printerSaved.find((p) => p.target === s.printerSelectedTarget) || null;
       if (s.printerEnabled && selected) {
         try {
@@ -595,6 +609,7 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
           return;
         } catch (printerError) {
           console.error('Print error:', printerError);
+          // ... (rest of catch logic remains same)
           if (printerError && typeof (printerError as Error).stack === 'string') {
             console.error('Print stack:', (printerError as Error).stack);
           }
@@ -1328,6 +1343,34 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
           isLoading={updatingStatus === statusToUpdate?.orderId}
         />
       )}
+
+      {/* Print Simulator Modal */}
+      <Modal
+        visible={showSimulator}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowSimulator(false)}
+      >
+        <View style={styles.simulatorOverlay}>
+          <View style={styles.simulatorCard}>
+            <IconButton icon="printer-check" size={48} iconColor="#10b981" />
+            <Text style={styles.simulatorTitle}>Print Simulation</Text>
+            <Text style={styles.simulatorMessage}>
+              Successfully simulated printing for order:
+            </Text>
+            <Text style={styles.simulatorOrderNumber}>
+              #{simulatorOrder ? getFriendlyOrderNumber(simulatorOrder.order_number) : ''}
+            </Text>
+            <PaperButton
+              mode="contained"
+              onPress={() => setShowSimulator(false)}
+              style={styles.simulatorButton}
+            >
+              Dismiss
+            </PaperButton>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1966,5 +2009,49 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#111827',
+  },
+  simulatorOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  simulatorCard: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 30,
+    width: '100%',
+    maxWidth: 400,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  simulatorTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginTop: 10,
+    marginBottom: 16,
+  },
+  simulatorMessage: {
+    fontSize: 16,
+    color: '#4b5563',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  simulatorOrderNumber: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#2563eb',
+    marginBottom: 24,
+  },
+  simulatorButton: {
+    width: '100%',
+    paddingVertical: 4,
+    borderRadius: 12,
   },
 });

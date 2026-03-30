@@ -20,7 +20,7 @@ export type AppSettings = {
 
     printerSelectedTarget: string | null;
     printerSaved: SavedPrinter[];
-    printerDelayPrintSec: number;
+    printerSimulator: boolean;
 
 };
 
@@ -70,6 +70,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
 
     printerSelectedTarget: null,
     printerSaved: [],
+    printerSimulator: false,
 };
 
 function clampInt(value: number, min: number, max: number) {
@@ -138,6 +139,9 @@ export async function loadAppSettings(): Promise<AppSettings> {
 
             printerSelectedTarget,
             printerSaved,
+            printerSimulator: typeof (parsed as any)?.printerSimulator === 'boolean'
+                ? (parsed as any).printerSimulator
+                : DEFAULT_APP_SETTINGS.printerSimulator,
         };
         cachedSettings = result;
         return result;
@@ -160,6 +164,7 @@ export async function saveAppSettings(settings: AppSettings): Promise<void> {
 
         printerSelectedTarget: settings.printerSelectedTarget ? String(settings.printerSelectedTarget) : null,
         printerSaved: Array.isArray(settings.printerSaved) ? settings.printerSaved.filter(isSavedPrinter) : [],
+        printerSimulator: !!settings.printerSimulator,
     };
 
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));

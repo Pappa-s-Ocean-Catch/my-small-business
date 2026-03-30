@@ -280,7 +280,7 @@ export function CartSidebar({ hideFloatBubble = false }: { hideFloatBubble?: boo
                   onClick={handleCheckout}
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
                 >
-                  Shopping Cart
+                  Checkout
                   <Icon icon={FaChevronRight} className="w-4 h-4" />
                 </button>
                 <button

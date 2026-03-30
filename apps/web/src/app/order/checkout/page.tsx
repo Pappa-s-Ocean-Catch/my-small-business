@@ -1268,6 +1268,7 @@ export default function CheckoutPage() {
             estimatedPointsEarned={estimatedPointsEarned}
             estimatedPointsValue={estimatedPointsValue}
             isAuthenticated={isAuthenticated}
+            itemCount={items.length}
           />
           {/* Reward Points Section */}
           <RewardPointsSection

@@ -16,6 +16,7 @@ interface OrderSummaryProps {
   estimatedPointsEarned: number;
   estimatedPointsValue: number;
   isAuthenticated: boolean;
+  itemCount: number;
 }
 
 export function OrderSummary({
@@ -32,6 +33,7 @@ export function OrderSummary({
   estimatedPointsEarned,
   estimatedPointsValue,
   isAuthenticated,
+  itemCount,
 }: OrderSummaryProps) {
   if (!paymentMethod) return null;
 
@@ -43,7 +45,7 @@ export function OrderSummary({
       <div className="space-y-2 mb-4">
         <div className="flex justify-between text-gray-600 dark:text-gray-400">
           <span>Items</span>
-          <span>${cartSubtotal.toFixed(2)}</span>
+          <span>{itemCount}</span>
         </div>
         {promotionDiscount > 0.009 && (
           <div className="flex justify-between text-green-600 dark:text-green-400 font-medium">

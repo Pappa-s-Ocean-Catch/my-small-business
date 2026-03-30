@@ -18,9 +18,7 @@ export default function SettingsScreen() {
     const [printerCopiesText, setPrinterCopiesText] = useState<string>(String(DEFAULT_APP_SETTINGS.printerCopies));
     const [printerSaved, setPrinterSaved] = useState<SavedPrinter[]>(DEFAULT_APP_SETTINGS.printerSaved);
     const [printerSelectedTarget, setPrinterSelectedTarget] = useState<string | null>(DEFAULT_APP_SETTINGS.printerSelectedTarget);
-    const [printerDelayPrintSecText, setPrinterDelayPrintSecText] = useState(
-        String(DEFAULT_APP_SETTINGS.printerDelayPrintSec ?? 3)
-    );
+    const [printerSimulator, setPrinterSimulator] = useState<boolean>(DEFAULT_APP_SETTINGS.printerSimulator);
 
     const [saving, setSaving] = useState(false);
     const [testingPrinter, setTestingPrinter] = useState(false);
@@ -39,7 +37,7 @@ export default function SettingsScreen() {
             setPrinterCopiesText(String(s.printerCopies));
             setPrinterSaved(s.printerSaved);
             setPrinterSelectedTarget(s.printerSelectedTarget);
-            setPrinterDelayPrintSecText(String(s.printerDelayPrintSec ?? 3));
+            setPrinterSimulator(s.printerSimulator);
         });
     }, []);
 
@@ -138,7 +136,6 @@ export default function SettingsScreen() {
         const refreshIntervalSec = parseIntOr(refreshIntervalSecText, DEFAULT_APP_SETTINGS.refreshIntervalSec);
         const soundRepeatCount = parseIntOr(repeatCountText, DEFAULT_APP_SETTINGS.soundRepeatCount);
         const printerCopies = parseIntOr(printerCopiesText, DEFAULT_APP_SETTINGS.printerCopies);
-        const printerDelayPrintSec = parseIntOr(printerDelayPrintSecText, DEFAULT_APP_SETTINGS.printerDelayPrintSec ?? 3);
 
         if (refreshIntervalSec < 5 || refreshIntervalSec > 600) {
             Alert.alert('Invalid refresh interval', 'Please enter a value between 5 and 600 seconds.');
@@ -151,10 +148,6 @@ export default function SettingsScreen() {
 
         if (printerCopies < 1 || printerCopies > 10) {
             Alert.alert('Invalid copies', 'Please enter a value between 1 and 10.');
-            return;
-        }
-        if (printerDelayPrintSec < 0 || printerDelayPrintSec > 30) {
-            Alert.alert('Invalid print delay', 'Please enter a value between 0 and 30 seconds.');
             return;
         }
 
@@ -172,7 +165,7 @@ export default function SettingsScreen() {
 
                 printerSelectedTarget,
                 printerSaved,
-                printerDelayPrintSec,
+                printerSimulator,
             });
             Alert.alert('Saved', 'Settings updated.');
         } catch (e) {
@@ -312,15 +305,11 @@ export default function SettingsScreen() {
                     />
                     <Text style={styles.helper}>1 to 10 copies per print.</Text>
 
-                    <TextInput
-                        mode="outlined"
-                        label="Print delay (seconds)"
-                        value={printerDelayPrintSecText}
-                        onChangeText={setPrinterDelayPrintSecText}
-                        keyboardType="number-pad"
-                        style={styles.input}
-                    />
-                    <Text style={styles.helper}>Wait this many seconds after order insert before printing. 0-30 seconds.</Text>
+                    <View style={styles.switchRow}>
+                        <Text style={styles.label}>Print Simulator</Text>
+                        <Switch value={printerSimulator} onValueChange={setPrinterSimulator} />
+                    </View>
+                    <Text style={styles.helper}>Simulate printing with a modal. Good for development.</Text>
 
                     <View style={styles.switchRow}>
                         <Text style={styles.label}>Auto print new orders</Text>
