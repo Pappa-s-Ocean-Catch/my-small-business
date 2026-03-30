@@ -286,25 +286,35 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
           table: 'orders',
         },
         (payload) => {
-          if (payload.eventType === 'INSERT') {
-            const newOrder = payload.new as { id: string; created_at: string };
-            const s = appSettingsRef.current;
-            if (s.soundEnabled && lastOrderIdRef.current !== newOrder.id) {
+          const s = appSettingsRef.current;
+          // Print on new order (INSERT) only if status is 'pending',
+          // and on UPDATE if status changes from 'pending_online_payment' to 'confirmed' (or 'accepted')
+          let shouldPrint = false;
+          let orderId = payload.new.id;
+          if (payload.eventType === 'INSERT' && payload.new.order_status === 'pending') {
+            shouldPrint = true;
+          } else if (
+            payload.eventType === 'UPDATE' &&
+            payload.old.order_status === 'pending_online_payment' &&
+            (payload.new.order_status === 'confirmed' || payload.new.order_status === 'accepted')
+          ) {
+            shouldPrint = true;
+          }
+          if (shouldPrint) {
+            if (s.soundEnabled && lastOrderIdRef.current !== orderId) {
               playNewOrderSound({ soundId: s.soundId, repeatCount: s.soundRepeatCount, delayMs: 2000 });
-              lastOrderIdRef.current = newOrder.id;
+              lastOrderIdRef.current = orderId;
             }
 
             if (
               s.printerEnabled &&
               s.printerAutoPrint &&
               !!s.printerSelectedTarget &&
-              !autoPrintedOrderIdsRef.current.has(newOrder.id)
+              !autoPrintedOrderIdsRef.current.has(orderId)
             ) {
-              autoPrintedOrderIdsRef.current.add(newOrder.id);
-              setPrintingOrderId(newOrder.id);
-              const delaySec = typeof s.printerDelayPrintSec === 'number' ? s.printerDelayPrintSec : 3;
-              // setTimeout(() => {
-              getOrder(newOrder.id)
+              autoPrintedOrderIdsRef.current.add(orderId);
+              setPrintingOrderId(orderId);
+              getOrder(orderId)
                 .then(async (result) => {
                   if (result.error || !result.data) {
                     throw new Error(result.error || 'Failed to load order for printing');
@@ -318,8 +328,7 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
                   await escposPrintKitchenReceipt(result.data, selected, s.printerCopies);
 
                   // After a successful print, auto-transition the order to "preparing"
-                  // (kitchen has received the ticket). This should not require any user action.
-                  if (result.data.order_status === 'pending' || result.data.order_status === 'confirmed') {
+                  if (result.data.order_status === 'pending' || result.data.order_status === 'confirmed' || result.data.order_status === 'accepted') {
                     const statusResult = await updateOrderStatus(result.data.id, 'preparing');
                     if (statusResult.error) {
                       console.error('[LiveOrders] Auto status update error:', statusResult.error);
@@ -332,7 +341,7 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
                   }
                 })
                 .catch((err) => {
-                  autoPrintedOrderIdsRef.current.delete(newOrder.id);
+                  autoPrintedOrderIdsRef.current.delete(orderId);
                   console.error('Auto print error:', err);
                   if (err && typeof (err as Error).stack === 'string') {
                     console.error('Auto print stack:', (err as Error).stack);
@@ -347,7 +356,6 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
                     const details =
                       errorStack && errorStack.length > 0 ? `${errorMessage}\n\n${errorStack}` : errorMessage;
 
-                    // Play a distinct warning sound so staff notice immediately.
                     if (s.soundEnabled) {
                       const warningRepeatCount = Math.min(5, Math.max(1, Math.trunc(s.soundRepeatCount)));
                       void playNewOrderSound({ soundId: 'vopvoopvooop', repeatCount: warningRepeatCount, delayMs: 0 });
@@ -357,9 +365,8 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
                   }
                 })
                 .finally(() => {
-                  setPrintingOrderId((oid) => (oid === newOrder.id ? null : oid));
+                  setPrintingOrderId((oid) => (oid === orderId ? null : oid));
                 });
-              // }, delaySec * 1000);
             }
           }
           loadOrders();

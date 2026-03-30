@@ -75,10 +75,17 @@ export async function GET(req: NextRequest) {
             if (aTime && bTime) return bTime - aTime;
             if (aTime) return -1;
             if (bTime) return 1;
-            return (b.id || 0) - (a.id || 0);
+            // Ensure id is a number for fallback sort, otherwise compare as string
+            const aIdNum = typeof a.id === 'number' ? a.id : parseInt(a.id, 10);
+            const bIdNum = typeof b.id === 'number' ? b.id : parseInt(b.id, 10);
+            if (!isNaN(aIdNum) && !isNaN(bIdNum)) {
+                return bIdNum - aIdNum;
+            }
+            // Fallback to string comparison if not numbers
+            return String(b.id).localeCompare(String(a.id));
         });
 
-        function rTime(r) {
+        function rTime(r: { created_at?: string; date?: string }) {
             if (r.created_at) return new Date(r.created_at).getTime();
             if (r.date) return new Date(r.date).getTime();
             return null;
@@ -89,7 +96,11 @@ export async function GET(req: NextRequest) {
         const pagedReviews = allReviews.slice((page - 1) * limit, page * limit);
         const avg = allReviews.length > 0 ? allReviews.reduce((sum, r) => sum + (r.rating || 0), 0) / allReviews.length : 0;
         // For reviews with no date, set created_at to undefined so frontend can hide date
-        const pagedReviewsNoDate = pagedReviews.map(r => ({ ...r, created_at: r.created_at || r.date || undefined }));
+        const pagedReviewsNoDate = pagedReviews.map(r => {
+            // If r has a 'date' property, use it as fallback for created_at
+            const created_at = r.created_at || (typeof (r as any).date === 'string' ? (r as any).date : undefined);
+            return { ...r, created_at };
+        });
         return NextResponse.json({ reviews: pagedReviewsNoDate, avg, count: allReviews.length });
     } catch (err) {
         console.error('[public-reviews] Caught error:', err);

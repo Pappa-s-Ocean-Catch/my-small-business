@@ -29,9 +29,10 @@ export function RewardPointsSection({
 }: RewardPointsSectionProps) {
   const [showRewardPointsSection, setShowRewardPointsSection] = useState(false);
 
+  // Only allow reward points for online payment method
   if (
     !(
-      paymentMethod &&
+      paymentMethod === "online" &&
       isAuthenticated &&
       userRewardPoints &&
       userRewardPoints.current_balance > 0 &&

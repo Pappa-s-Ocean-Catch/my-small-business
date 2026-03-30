@@ -40,8 +40,12 @@ export async function getAllOrders(filters?: {
       .select('*, order_items(*, order_item_addons(*))')
       .order('created_at', { ascending: false });
 
+
     if (filters?.status && filters.status !== 'all') {
       query = query.eq('order_status', filters.status);
+    } else if (!filters?.status || filters.status === 'all') {
+      // Exclude pending_online_payment from live orders
+      query = query.neq('order_status', 'pending_online_payment');
     }
 
     if (filters?.payment_status && filters.payment_status !== 'all') {

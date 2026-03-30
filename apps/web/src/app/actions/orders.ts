@@ -161,7 +161,7 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
       payment_method: input.payment_method,
       order_type: input.order_type,
       payment_status: input.payment_method === 'online' ? 'pending' : 'pending', // Will be updated when payment is processed
-      order_status: 'pending',
+      order_status: input.payment_method === 'online' ? 'pending_online_payment' : 'pending',
       subtotal: input.subtotal,
       tax: input.tax || 0,
       delivery_fee: input.delivery_fee || 0,
@@ -288,16 +288,21 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
     // Fetch complete order with items
     const completeOrder = await getOrder(order.id);
 
-    // Send order placed email to customer (fire and forget, but log errors)
+    // Only send order placed email if order is accepted (in-store) or payment is successful (online)
     if (completeOrder.data) {
-      try {
-        console.log('[createOrder] About to send order placed email for order:', completeOrder.data.order_number, completeOrder.data.customer_email);
-        // Dynamically import to avoid circular dependency at module load
-        const { sendOrderPlacedEmail } = await import('@/app/actions/email');
-        const emailResult = await sendOrderPlacedEmail(completeOrder.data);
-        console.log('[createOrder] sendOrderPlacedEmail result:', emailResult);
-      } catch (emailErr) {
-        console.error('[createOrder] Failed to send order placed email:', emailErr);
+      const status = completeOrder.data.order_status;
+      if (status === 'pending' || status === 'confirmed') {
+        try {
+          console.log('[createOrder] About to send order placed email for order:', completeOrder.data.order_number, completeOrder.data.customer_email, 'status:', status);
+          // Dynamically import to avoid circular dependency at module load
+          const { sendOrderPlacedEmail } = await import('@/app/actions/email');
+          const emailResult = await sendOrderPlacedEmail(completeOrder.data);
+          console.log('[createOrder] sendOrderPlacedEmail result:', emailResult);
+        } catch (emailErr) {
+          console.error('[createOrder] Failed to send order placed email:', emailErr);
+        }
+      } else {
+        console.log('[createOrder] Skipping order placed email for order:', completeOrder.data.order_number, 'status:', status);
       }
     }
     return completeOrder;

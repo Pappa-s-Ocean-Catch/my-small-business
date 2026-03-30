@@ -94,7 +94,7 @@ export interface Order {
   payment_method_detail: string | null;
   order_type: 'pickup' | 'delivery';
   payment_status: 'pending' | 'paid' | 'failed' | 'refunded';
-  order_status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'completed' | 'cancelled';
+  order_status: 'pending' | 'pending_online_payment' | 'confirmed' | 'preparing' | 'ready' | 'completed' | 'cancelled';
   subtotal: number;
   tax: number;
   delivery_fee: number;

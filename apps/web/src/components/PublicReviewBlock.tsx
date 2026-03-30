@@ -7,6 +7,7 @@ interface Review {
     created_at: string;
     rating: number;
     comment: string;
+    response?: string;
 }
 
 const PAGE_SIZE = 10;

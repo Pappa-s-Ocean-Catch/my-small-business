@@ -20,16 +20,8 @@ import {
 import {
   FaShoppingCart,
   FaArrowLeft,
-  FaCreditCard,
-  FaStore,
-  FaUser,
   FaLock,
   FaCheckCircle,
-  FaExclamationCircle,
-  FaGift,
-  FaChevronDown,
-  FaChevronUp,
-  FaExclamationTriangle,
 } from "react-icons/fa";
 import { Icon } from "@/components/Icon";
 import Link from "next/link";
@@ -76,6 +68,39 @@ function areItemsEqual(
 }
 
 export default function CheckoutPage() {
+  // Cancel flow: check for canceled payment and delete pending order
+  // Toast state for cancel/fail
+  const [cancelToast, setCancelToast] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    const canceled = url.searchParams.get("canceled");
+    let orderId = url.searchParams.get("orderId");
+    // Try to get orderId from localStorage if not in URL
+    if (!orderId) {
+      const stored = window.localStorage.getItem("checkout:lastOrderId");
+      orderId = stored ? stored : null;
+    }
+    if (canceled === "true" && orderId) {
+      // Call API to delete order if status is pending_online_payment
+      fetch(`/api/orders/${orderId}`, { method: "DELETE" })
+        .then(async (res) => {
+          window.localStorage.removeItem("checkout:lastOrderId");
+          setCancelToast(true);
+          setTimeout(() => {
+            setCancelToast(false);
+            window.location.href = "/order/summary";
+          }, 2000);
+        })
+        .catch(() => {
+          setCancelToast(true);
+          setTimeout(() => {
+            setCancelToast(false);
+            window.location.href = "/order/summary";
+          }, 2000);
+        });
+    }
+  }, []);
   // Duplicate order detection state
   const [liveOrders, setLiveOrders] = useState<Order[]>([]);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
@@ -108,6 +133,7 @@ export default function CheckoutPage() {
           .select("*, order_items(*, order_item_addons(*))")
           .eq("user_id", userId)
           .in("order_status", ["pending", "confirmed", "preparing", "ready"])
+          .neq("order_status", "pending_online_payment")
           .gte("created_at", since)
           .order("created_at", { ascending: false });
         if (!error && Array.isArray(data)) {
@@ -943,6 +969,11 @@ export default function CheckoutPage() {
             item.quantity,
         }));
 
+        // Store orderId in localStorage for cancel flow
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem("checkout:lastOrderId", result.data.id);
+        }
+
         // Create Stripe Checkout Session
         setIsRedirecting(true);
         const checkoutResponse = await fetch(
@@ -978,7 +1009,7 @@ export default function CheckoutPage() {
         return; // Don't proceed further - Stripe will redirect back
       }
 
-      // For pay at store, show success immediately
+      // For pay at store, show success immediately and send order placed email
       posthog.capture("order_placed", {
         order_id: result.data.id,
         order_number: result.data.order_number,
@@ -987,6 +1018,14 @@ export default function CheckoutPage() {
         total,
         item_count: items.length,
       });
+      // Only send order placed email for in-store payments
+      if (paymentMethod === "store") {
+        fetch("/api/orders/status-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId: result.data.id, status: "placed" }),
+        });
+      }
       setSuccess(true);
       setOrderNumber(result.data.order_number);
 
@@ -1099,6 +1138,28 @@ export default function CheckoutPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-neutral-900">
+      {cancelToast && (
+        <div style={{
+          position: "fixed",
+          top: 20,
+          left: 0,
+          right: 0,
+          zIndex: 9999,
+          display: "flex",
+          justifyContent: "center",
+        }}>
+          <div style={{
+            background: "#ef4444",
+            color: "#fff",
+            padding: "12px 24px",
+            borderRadius: 8,
+            fontWeight: 600,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+          }}>
+            Your payment was cancelled or failed. You can continue shopping.
+          </div>
+        </div>
+      )}
       <OrderHeader />
       <LiveOrderTracker userId={userId} />
 

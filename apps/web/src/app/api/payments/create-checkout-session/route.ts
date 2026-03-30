@@ -119,7 +119,7 @@ export async function POST(request: Request) {
       line_items: lineItems,
       mode: 'payment',
       success_url: `${baseUrl}/order/confirmation?session_id={CHECKOUT_SESSION_ID}&order_id=${body.orderId}`,
-      cancel_url: `${baseUrl}/order/checkout?canceled=true`,
+      cancel_url: `${baseUrl}/order/checkout?canceled=true&order_id=${body.orderId}`,
       customer_email: body.customerEmail,
       metadata: {
         order_id: body.orderId,

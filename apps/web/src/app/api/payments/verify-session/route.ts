@@ -50,8 +50,8 @@ export async function POST(request: Request) {
         sessionOrderId: sessionOrderId || 'missing',
         sessionId: session.id
       });
-      return NextResponse.json({ 
-        error: 'Session does not match the provided order' 
+      return NextResponse.json({
+        error: 'Session does not match the provided order'
       }, { status: 403 });
     }
 
@@ -81,8 +81,8 @@ export async function POST(request: Request) {
       // SECURITY: Only allow updating payment status for online payment methods
       if (existingOrder.payment_method !== 'online') {
         console.error('[Stripe] Invalid payment method for this update:', existingOrder.payment_method);
-        return NextResponse.json({ 
-          error: 'Payment status can only be updated for online payments' 
+        return NextResponse.json({
+          error: 'Payment status can only be updated for online payments'
         }, { status: 400 });
       }
 
@@ -101,9 +101,9 @@ export async function POST(request: Request) {
       const paymentResult = await updatePaymentStatus(orderId, 'paid');
       if (paymentResult.error) {
         console.error('[Stripe] Error updating payment status:', paymentResult.error);
-        return NextResponse.json({ 
+        return NextResponse.json({
           error: 'Failed to update payment status',
-          details: paymentResult.error 
+          details: paymentResult.error
         }, { status: 500 });
       }
 
@@ -114,6 +114,22 @@ export async function POST(request: Request) {
         // Payment status update succeeded, so we'll still return success
       }
 
+      // Send order placed email if not already sent
+      if (orderResult.data) {
+        try {
+          const status = orderResult.data.order_status;
+          if (status === 'confirmed') {
+            console.log('[verify-session] Sending order placed email for order:', orderResult.data.order_number, orderResult.data.customer_email, 'status:', status);
+            const { sendOrderPlacedEmail } = await import('@/app/actions/email');
+            const emailResult = await sendOrderPlacedEmail(orderResult.data);
+            console.log('[verify-session] sendOrderPlacedEmail result:', emailResult);
+          } else {
+            console.log('[verify-session] Skipping order placed email for order:', orderResult.data.order_number, 'status:', status);
+          }
+        } catch (emailErr) {
+          console.error('[verify-session] Failed to send order placed email:', emailErr);
+        }
+      }
       // Award reward points if user is logged in and order is paid
       // Points are earned only on food subtotal, not on fees, tax, or delivery
       if (paymentResult.data?.user_id && paymentResult.data?.payment_status === 'paid') {
