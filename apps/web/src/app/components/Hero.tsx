@@ -8,8 +8,10 @@ import { FaUtensils, FaArrowRight, FaPhone } from "react-icons/fa";
 import { ReviewSummaryWidget } from "@/components/ReviewSummaryWidget";
 import React from "react";
 
+import type { Promotion } from "@/lib/promotions";
+
 interface HeroProps {
-    homePromotions: Array<{ home_title?: string; title?: string }>;
+    homePromotions: Promotion[];
     enablePickupOrder: boolean;
     reviewSectionId: string;
 }
