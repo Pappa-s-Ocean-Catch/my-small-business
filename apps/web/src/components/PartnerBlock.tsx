@@ -50,9 +50,7 @@ export const PartnerBlock: React.FC = () => (
                                 unoptimized
                             />
                         </div>
-                        <span className="text-lg font-semibold text-gray-800 group-hover:text-rose-600 transition-colors">
-                            {partner.name}
-                        </span>
+
                     </a>
                 ))}
             </div>

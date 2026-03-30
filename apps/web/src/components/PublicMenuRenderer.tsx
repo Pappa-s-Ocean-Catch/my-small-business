@@ -2,7 +2,8 @@
 
 import { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
-import { FaPlus } from 'react-icons/fa';
+import { FaPlus, FaUtensils } from 'react-icons/fa';
+import { LazyImage } from '@/components/LazyImage';
 
 
 export type PublicMenuScreenModel = {
@@ -110,7 +111,16 @@ export function PublicMenuRenderer({
                             {item.description && <div className="text-sm text-neutral-600">{item.description}</div>}
                           </Link>
                           {screen?.show_images && item.image_url && (
-                            <img src={item.image_url} alt={item.name} className="w-16 h-16 object-cover rounded-md shrink-0" />
+                            <LazyImage
+                              src={item.image_url}
+                              alt={item.name}
+                              className="w-16 h-16 object-cover rounded-md shrink-0"
+                              placeholder={
+                                <div className="w-16 h-16 flex items-center justify-center text-gray-300 dark:text-gray-600 animate-pulse bg-gray-100 dark:bg-neutral-800 rounded-md">
+                                  <FaUtensils className="w-6 h-6" />
+                                </div>
+                              }
+                            />
                           )}
                           <div className="flex flex-col items-end gap-1 shrink-0">
                             <span className="font-bold text-neutral-900 whitespace-nowrap">${Number(item.sale_price).toFixed(2)}</span>
@@ -185,7 +195,16 @@ export function PublicMenuRenderer({
                               {item.description && <div className="text-sm text-neutral-600">{item.description}</div>}
                             </Link>
                             {screen?.show_images && item.image_url && (
-                              <img src={item.image_url} alt={item.name} className="w-16 h-16 object-cover rounded-md shrink-0" />
+                              <LazyImage
+                                src={item.image_url}
+                                alt={item.name}
+                                className="w-16 h-16 object-cover rounded-md shrink-0"
+                                placeholder={
+                                  <div className="w-16 h-16 flex items-center justify-center text-gray-300 dark:text-gray-600 animate-pulse bg-gray-100 dark:bg-neutral-800 rounded-md">
+                                    <FaUtensils className="w-6 h-6" />
+                                  </div>
+                                }
+                              />
                             )}
                             <div className="flex flex-col items-end gap-1 shrink-0">
                               <span className="font-bold text-neutral-900 whitespace-nowrap">${Number(item.sale_price).toFixed(2)}</span>

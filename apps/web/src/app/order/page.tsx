@@ -14,6 +14,7 @@ import { getActivePromotions } from '@/app/actions/promotions';
 import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 import { FaUtensils, FaSearch, FaFire, FaStar, FaClock, FaChevronLeft, FaChevronRight, FaFilter } from 'react-icons/fa';
 import { Icon } from '@/components/Icon';
+import { LazyImage } from '@/components/LazyImage';
 import type { CartAddonGroup } from '@/contexts/CartContext';
 import { pickBestProductPromotion, promotionLabel, type PromotionWithProducts } from '@/lib/promotions';
 import type { StoreHours } from '@my-small-business/types';
@@ -469,11 +470,15 @@ export default function OrderPage() {
 
         <div className="aspect-[16/10] bg-gray-200 dark:bg-neutral-700 relative">
           {product.image_url ? (
-            <img
+            <LazyImage
               src={product.image_url}
               alt={product.name}
               className="w-full h-full object-cover"
-              loading="lazy"
+              placeholder={
+                <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-gray-600 animate-pulse bg-gray-100 dark:bg-neutral-800">
+                  <Icon icon={FaUtensils} className="w-10 h-10" />
+                </div>
+              }
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-500">
