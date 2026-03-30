@@ -98,6 +98,20 @@ export default function UniversalMenuPage() {
 
   return (
     <div className="min-h-screen w-full" style={{ background: '#fff8f0' }}>
+      {/* Floating Phone Order Button */}
+      <a
+        href="tel:+61397438150"
+        className="fixed top-6 right-6 z-50 flex items-center justify-center w-14 h-14 rounded-full bg-green-500 shadow-lg hover:bg-green-600 active:scale-95 transition-all animate-bounce"
+        style={{ boxShadow: '0 4px 24px 0 rgba(0,0,0,0.10)' }}
+        title="Call to order"
+      >
+        <img
+          src="/phone-call.svg"
+          alt="Call to order"
+          className="w-8 h-8 animate-pulse"
+          style={{ filter: 'invert(1) brightness(2)' }}
+        />
+      </a>
       <aside className="fixed left-0 top-0 h-screen w-16 md:w-20 bg-gradient-to-b from-white to-rose-50/70 backdrop-blur border-r z-20">
         <div className="h-full p-2 flex flex-col gap-2">
           {screens.map(s => (
