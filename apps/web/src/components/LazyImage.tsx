@@ -57,8 +57,6 @@ export const LazyImage: React.FC<LazyImageProps> = ({
                 loading="lazy"
                 style={{
                     display: 'block',
-                    width: '100%',
-                    height: '100%',
                     objectFit: 'cover',
                     ...(props.style || {})
                 }}
