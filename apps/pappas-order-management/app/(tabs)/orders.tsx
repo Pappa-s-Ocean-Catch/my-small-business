@@ -13,6 +13,7 @@ import {
   Platform,
   useWindowDimensions,
 } from 'react-native';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import {
   Button as PaperButton,
   Card,
@@ -38,6 +39,7 @@ import { CustomerModal } from '../customer';
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
   pending: '#f59e0b',
+  pending_online_payment: '#f59e0b',
   confirmed: '#3b82f6',
   preparing: '#8b5cf6',
   ready: '#10b981',
@@ -47,6 +49,7 @@ const STATUS_COLORS: Record<OrderStatus, string> = {
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
   pending: 'Pending',
+  pending_online_payment: 'Waiting for Payment',
   confirmed: 'Confirmed',
   preparing: 'Preparing',
   ready: 'Ready',
@@ -68,10 +71,17 @@ const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
   refunded: 'Refunded',
 };
 
-// Get today's date in YYYY-MM-DD format
+// Helper to format Date to YYYY-MM-DD in local time
+const formatDateToLocalISO = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+// Get today's date in YYYY-MM-DD format using local device time
 const getTodayDateString = () => {
-  const today = new Date();
-  return today.toISOString().split('T')[0];
+  return formatDateToLocalISO(new Date());
 };
 
 const webBaseUrl = process.env.EXPO_PUBLIC_SITE_URL;
@@ -105,6 +115,7 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
   const [customerModalPhone, setCustomerModalPhone] = useState<string | null>(null);
   const [showSimulator, setShowSimulator] = useState(false);
   const [simulatorOrder, setSimulatorOrder] = useState<Order | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   // Helper to get API URL for mobile/Expo
   const getApiUrl = (path: string) => {
@@ -335,7 +346,7 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
                   }
 
                   // After a successful print (or simulation), auto-transition the order to "preparing"
-                  if (result.data.order_status === 'pending' || result.data.order_status === 'confirmed' || result.data.order_status === 'accepted') {
+                  if (result.data.order_status === 'pending' || result.data.order_status === 'confirmed') {
                     const statusResult = await updateOrderStatus(result.data.id, 'preparing');
                     if (statusResult.error) {
                       console.error('[LiveOrders] Auto status update error:', statusResult.error);
@@ -767,7 +778,19 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
       maxDate.setDate(maxDate.getDate() + 1);
       if (date > maxDate) return;
     }
-    setSelectedDate(date.toISOString().split('T')[0]);
+    setSelectedDate(formatDateToLocalISO(date));
+  };
+
+  const onDateChange = (event: DateTimePickerEvent, date?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+
+    if (event.type === 'set' && date) {
+      setSelectedDate(formatDateToLocalISO(date));
+    } else if (event.type === 'dismissed') {
+      setShowDatePicker(false);
+    }
   };
 
   const renderOrderItem = ({ item: order }: { item: Order }) => {
@@ -972,16 +995,7 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
                 <IconButton icon="chevron-left" onPress={() => navigateDate('prev')} />
                 <PaperButton
                   mode="outlined"
-                  onPress={() => {
-                    Alert.alert(
-                      'Select Date',
-                      'Date picker would open here',
-                      [
-                        { text: 'Today', onPress: () => setSelectedDate(getTodayDateString()) },
-                        { text: 'Cancel', style: 'cancel' },
-                      ]
-                    );
-                  }}
+                  onPress={() => setShowDatePicker(true)}
                 >
                   {selectedDate}
                 </PaperButton>
@@ -1046,16 +1060,7 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
                 <IconButton icon="chevron-left" onPress={() => navigateDate('prev')} />
                 <PaperButton
                   mode="outlined"
-                  onPress={() => {
-                    Alert.alert(
-                      'Select Date',
-                      'Date picker would open here',
-                      [
-                        { text: 'Today', onPress: () => setSelectedDate(getTodayDateString()) },
-                        { text: 'Cancel', style: 'cancel' },
-                      ]
-                    );
-                  }}
+                  onPress={() => setShowDatePicker(true)}
                 >
                   {selectedDate}
                 </PaperButton>
@@ -1104,6 +1109,48 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
           </View>
         }
       />
+
+      {showDatePicker && (
+        Platform.OS === 'ios' ? (
+          <Modal
+            visible={showDatePicker}
+            transparent={true}
+            animationType="slide"
+            onRequestClose={() => setShowDatePicker(false)}
+          >
+            <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+              <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 40 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: '#eee' }}>
+                  <PaperButton onPress={() => setShowDatePicker(false)}>Cancel</PaperButton>
+                  <PaperButton onPress={() => setShowDatePicker(false)}>Done</PaperButton>
+                </View>
+                <DateTimePicker
+                  value={(() => {
+                    const [y, m, d] = selectedDate.split('-').map(Number);
+                    return new Date(y, m - 1, d);
+                  })()}
+                  mode="date"
+                  display="spinner"
+                  onChange={onDateChange}
+                  maximumDate={new Date()}
+                  style={{ height: 216, width: '100%' }}
+                />
+              </View>
+            </View>
+          </Modal>
+        ) : (
+          <DateTimePicker
+            value={(() => {
+              const [y, m, d] = selectedDate.split('-').map(Number);
+              return new Date(y, m - 1, d);
+            })()}
+            mode="date"
+            display="default"
+            onChange={onDateChange}
+            maximumDate={new Date()}
+          />
+        )
+      )}
 
       {/* Filters Modal */}
       <Modal

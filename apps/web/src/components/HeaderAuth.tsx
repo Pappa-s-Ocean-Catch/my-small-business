@@ -5,9 +5,12 @@ import { getSupabaseClient } from "@my-small-business/supabase/client";
 import Link from "next/link";
 import { FaUser, FaSignOutAlt, FaBell } from "react-icons/fa";
 import { Icon } from "@/components/Icon";
+import { ConfirmationDialog } from "./ConfirmationDialog";
+
 export function HeaderAuth() {
   const [email, setEmail] = useState<string | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -45,7 +48,12 @@ export function HeaderAuth() {
       .join('');
   };
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
+    setIsDropdownOpen(false);
+    setIsLogoutConfirmOpen(true);
+  };
+
+  const confirmLogout = async () => {
     await getSupabaseClient().auth.signOut();
     window.location.href = "/";
   };
@@ -101,6 +109,16 @@ export function HeaderAuth() {
           </button>
         </div>
       )}
+
+      <ConfirmationDialog
+        isOpen={isLogoutConfirmOpen}
+        onClose={() => setIsLogoutConfirmOpen(false)}
+        onConfirm={confirmLogout}
+        title="Sign Out"
+        message="Are you sure you want to sign out? You will need to sign in again to access your account."
+        confirmText="Sign Out"
+        variant="danger"
+      />
     </div>
   );
 }

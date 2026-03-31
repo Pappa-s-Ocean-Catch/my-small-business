@@ -2,14 +2,28 @@ import { Tabs } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { Alert } from 'react-native';
 import { Appbar } from 'react-native-paper';
 
 export default function TabsLayout() {
   const router = useRouter();
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.replace('/login');
+  const handleLogout = () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            await supabase.auth.signOut();
+            router.replace('/login');
+          },
+        },
+      ]
+    );
   };
 
   return (

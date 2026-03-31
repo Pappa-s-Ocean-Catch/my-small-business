@@ -6,11 +6,13 @@ import { useRouter } from 'next/navigation';
 import { FaUtensils, FaHome, FaUser, FaSignOutAlt, FaHistory, FaLock, FaGift } from 'react-icons/fa';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
 import { Icon } from "@/components/Icon";
+import { ConfirmationDialog } from "./ConfirmationDialog";
 
 
 export function OrderHeader() {
   const [email, setEmail] = useState<string | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
@@ -56,11 +58,16 @@ export function OrderHeader() {
       .join('');
   };
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
+    setIsDropdownOpen(false);
+    setIsLogoutConfirmOpen(true);
+  };
+
+  const confirmLogout = async () => {
     const supabase = getSupabaseClient();
     await supabase.auth.signOut();
     setEmail(null);
-    setIsDropdownOpen(false);
+    setIsLogoutConfirmOpen(false);
     router.push('/');
   };
 
@@ -189,6 +196,16 @@ export function OrderHeader() {
           </nav>
         </div>
       </div>
+
+      <ConfirmationDialog
+        isOpen={isLogoutConfirmOpen}
+        onClose={() => setIsLogoutConfirmOpen(false)}
+        onConfirm={confirmLogout}
+        title="Sign Out"
+        message="Are you sure you want to sign out? You will need to sign in again to access your account."
+        confirmText="Sign Out"
+        variant="danger"
+      />
     </header>
   );
 }
