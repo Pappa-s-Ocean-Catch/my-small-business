@@ -1,15 +1,21 @@
 import React from 'react';
-import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity } from 'react-native';
-import { Button as PaperButton } from 'react-native-paper';
-import type { Order } from '@my-small-business/types';
+import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity, useWindowDimensions, Alert } from 'react-native';
+import { Button as PaperButton, IconButton, Surface, Card, Divider } from 'react-native-paper';
+import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { getFriendlyOrderNumber } from '../utils/orderNumber';
-import { STATUS_COLORS, STATUS_LABELS, PAYMENT_STATUS_LABELS } from '../utils/constants';
+import { STATUS_COLORS, STATUS_LABELS, PAYMENT_STATUS_COLORS, PAYMENT_STATUS_LABELS } from '../utils/constants';
+import { paymentSummary, getNextQuickAction } from '../utils/orderUtils';
 
 interface OrderDetailModalProps {
   visible: boolean;
   order: Order | null;
   onClose: () => void;
   onPrint: (order: Order) => void;
+  onCustomerPress: (order: Order) => void;
+  onStatusUpdate?: (id: string, status: OrderStatus) => void;
+  onPaymentStatusUpdate?: (id: string, status: PaymentStatus) => void;
+  onQuickAction?: (id: string, action: string) => void;
+  updatingStatus?: string | null;
 }
 
 export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
@@ -17,316 +23,219 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   order,
   onClose,
   onPrint,
+  onCustomerPress,
+  onStatusUpdate,
+  onPaymentStatusUpdate,
+  onQuickAction,
+  updatingStatus,
 }) => {
+  const { width } = useWindowDimensions();
   if (!order) return null;
 
+  const statusColor = STATUS_COLORS[order.order_status];
+  const statusLabel = STATUS_LABELS[order.order_status];
+  const paymentColor = PAYMENT_STATUS_COLORS[order.payment_status];
+  const paymentLabel = PAYMENT_STATUS_LABELS[order.payment_status];
+  const quickAction = getNextQuickAction(order.order_status);
+  const isUpdating = updatingStatus === order.id;
+
+  const renderActionButton = () => {
+    if (!onQuickAction || !quickAction) return null;
+    return (
+      <PaperButton
+        mode="contained"
+        onPress={() => onQuickAction(order.id, quickAction.action)}
+        loading={isUpdating}
+        disabled={isUpdating}
+        style={styles.primaryActionButton}
+        contentStyle={styles.primaryActionButtonContent}
+      >
+        {quickAction.label}
+      </PaperButton>
+    );
+  };
+
+  const showPaymentAction = onPaymentStatusUpdate && order.payment_status === 'pending';
+  const showCancelAction = onStatusUpdate && order.order_status !== 'completed' && order.order_status !== 'cancelled';
+
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={onClose}
-    >
-      <View style={styles.modalContainer}>
-        <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>
-            Order {getFriendlyOrderNumber(order.order_number)}
-          </Text>
-          <View style={styles.modalHeaderActions}>
-            <TouchableOpacity
-              style={styles.modalActionButton}
-              onPress={() => onPrint(order)}
-            >
-              <Text style={styles.modalActionButtonText}>Print</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.modalCloseButton}
-              onPress={onClose}
-            >
-              <Text style={styles.modalCloseButtonText}>Close</Text>
-            </TouchableOpacity>
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <View style={styles.container}>
+        {/* Header */}
+        <Surface style={styles.header} elevation={1}>
+          <View style={styles.headerTop}>
+            <Text style={styles.headerTitle}>Order {getFriendlyOrderNumber(order.order_number)}</Text>
+            <IconButton icon="close" size={24} onPress={onClose} />
           </View>
-        </View>
-        <ScrollView style={styles.modalContent}>
-          <View style={styles.modalSection}>
-            <Text style={styles.modalSectionTitle}>Customer Information</Text>
-            <Text style={styles.modalText}>{order.customer_name || 'N/A'}</Text>
-            <Text style={styles.modalTextSecondary}>{order.customer_email}</Text>
-            <Text style={styles.modalTextSecondary}>{order.customer_phone}</Text>
+          <View style={styles.headerSub}>
+            <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
+              <Text style={styles.statusBadgeText}>{statusLabel}</Text>
+            </View>
+            <View style={[styles.statusBadge, { backgroundColor: paymentColor, marginLeft: 8 }]}>
+              <Text style={styles.statusBadgeText}>{paymentLabel}</Text>
+            </View>
+            <Text style={styles.timeText}>{new Date(order.created_at).toLocaleString()}</Text>
           </View>
+        </Surface>
 
-          <View style={styles.modalSection}>
-            <Text style={styles.modalSectionTitle}>Order Details</Text>
-            <View style={styles.modalInfoRow}>
-              <Text style={styles.modalInfoLabel}>Payment:</Text>
-              <Text style={styles.modalInfoValue}>
-                {order.payment_method} - {PAYMENT_STATUS_LABELS[order.payment_status]}
-              </Text>
-            </View>
-            <View style={styles.modalInfoRow}>
-              <Text style={styles.modalInfoLabel}>Status:</Text>
-              <View style={[styles.modalStatusBadge, { backgroundColor: STATUS_COLORS[order.order_status] }]}>
-                <Text style={styles.modalStatusText}>
-                  {STATUS_LABELS[order.order_status]}
-                </Text>
-              </View>
-            </View>
-            <Text style={styles.modalTextSecondary}>
-              {new Date(order.created_at).toLocaleString()}
-            </Text>
-          </View>
+        <ScrollView style={styles.scrollContent} contentContainerStyle={styles.scrollContainer}>
+          {/* Customer Info Card */}
+          <Card style={styles.infoCard}>
+            <Card.Title title="Customer" titleStyle={styles.cardTitle} left={(props) => <IconButton {...props} icon="account" />} />
+            <Card.Content>
+              <TouchableOpacity onPress={() => onCustomerPress(order)}>
+                <Text style={styles.customerName}>{order.customer_name || 'N/A'}</Text>
+              </TouchableOpacity>
+              <Text style={styles.contactText}>{order.customer_email}</Text>
+              <Text style={styles.contactText}>{order.customer_phone}</Text>
+              <Text style={styles.paymentSummary}>{paymentSummary(order)}</Text>
+            </Card.Content>
+          </Card>
 
-          {order.special_instructions && (
-            <View style={styles.modalSection}>
-              <Text style={styles.modalSectionTitle}>Special Instructions</Text>
-              <Text style={styles.modalText}>{order.special_instructions}</Text>
-            </View>
-          )}
-
-          {order.items && order.items.length > 0 && (
-            <View style={styles.modalSection}>
-              <Text style={styles.modalSectionTitle}>Order Items</Text>
-              {order.items.map((item, index) => (
-                <View key={index} style={styles.modalItemCard}>
-                  <Text style={styles.modalItemName}>
-                    {item.quantity}x {item.product_name}
-                  </Text>
-                  <Text style={styles.modalItemPrice}>${item.subtotal.toFixed(2)}</Text>
-                  {item.comment && (
-                    <Text style={styles.modalItemComment}>Note: {item.comment}</Text>
-                  )}
-                  {Array.isArray(item.removed_ingredients) && item.removed_ingredients.length > 0 && (
-                    <Text style={styles.modalRemovedText}>
-                      Removed: {item.removed_ingredients.join(', ')}
-                    </Text>
-                  )}
+          {/* Items Card */}
+          <Card style={styles.infoCard}>
+            <Card.Title title="Items" titleStyle={styles.cardTitle} left={(props) => <IconButton {...props} icon="list-box" />} />
+            <Card.Content>
+              {order.items?.map((item, index) => (
+                <View key={index} style={styles.itemRow}>
+                  <View style={styles.itemHeader}>
+                    <Text style={styles.itemName}>{item.quantity}x {item.product_name}</Text>
+                    <Text style={styles.itemPrice}>${item.subtotal.toFixed(2)}</Text>
+                  </View>
+                  {item.comment && <Text style={styles.itemComment}>Note: {item.comment}</Text>}
                   {item.addons && item.addons.length > 0 && (
-                    <View style={styles.modalAddonsContainer}>
-                      {Object.values(
-                        item.addons.reduce((acc, addon) => {
-                          const key = `${addon.addon_item_name}__${addon.addon_item_price}`;
-                          if (!acc[key]) acc[key] = { ...addon, qty: 0 };
-                          acc[key].qty += 1;
-                          return acc;
-                        }, {} as Record<string, any>)
-                      ).map((groupedAddon: any) => {
-                        const qty = groupedAddon.qty;
-                        const name = groupedAddon.addon_item_name;
-                        const price = groupedAddon.addon_item_price;
-                        let label = qty > 1 ? `${qty}x ${name}` : name;
-                        const isPaid = price > 0;
-                        if (isPaid) label += ` - $${price.toFixed(2)}`;
-                        return (
-                          <Text
-                            key={groupedAddon.addon_item_id + '_' + price}
-                            style={[styles.modalAddonText, isPaid && { fontWeight: 'bold' }]}
-                          >
-                            + {label}
-                          </Text>
-                        );
-                      })}
+                    <View style={styles.addonsList}>
+                      {item.addons.map((addon, aIdx) => (
+                        <Text key={aIdx} style={styles.addonText}>+ {addon.addon_item_name} {addon.addon_item_price > 0 ? `($${addon.addon_item_price.toFixed(2)})` : ''}</Text>
+                      ))}
                     </View>
                   )}
+                  {index < (order.items?.length || 0) - 1 && <Divider style={styles.divider} />}
                 </View>
               ))}
-            </View>
+            </Card.Content>
+          </Card>
+
+          {/* Special Instructions */}
+          {order.special_instructions && (
+            <Card style={[styles.infoCard, styles.instructionsCard]}>
+              <Card.Title title="Instructions" titleStyle={styles.cardTitle} left={(props) => <IconButton {...props} icon="note-text" />} />
+              <Card.Content>
+                <Text style={styles.instructionsText}>{order.special_instructions}</Text>
+              </Card.Content>
+            </Card>
           )}
 
-          <View style={styles.modalSection}>
-            <Text style={styles.modalSectionTitle}>Total</Text>
-            <View style={styles.modalTotalRow}>
-              <Text style={styles.modalTotalLabel}>Subtotal:</Text>
-              <Text style={styles.modalTotalValue}>${order.subtotal.toFixed(2)}</Text>
-            </View>
-            {order.tax > 0 && (
-              <View style={styles.modalTotalRow}>
-                <Text style={styles.modalTotalLabel}>Tax:</Text>
-                <Text style={styles.modalTotalValue}>${order.tax.toFixed(2)}</Text>
+          {/* Totals Card */}
+          <Card style={styles.infoCard}>
+            <Card.Content>
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Subtotal</Text>
+                <Text style={styles.totalValue}>${order.subtotal.toFixed(2)}</Text>
               </View>
-            )}
-            {order.delivery_fee > 0 && (
-              <View style={styles.modalTotalRow}>
-                <Text style={styles.modalTotalLabel}>Delivery Fee:</Text>
-                <Text style={styles.modalTotalValue}>${order.delivery_fee.toFixed(2)}</Text>
+              {order.tax > 0 && (
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Tax</Text>
+                  <Text style={styles.totalValue}>${order.tax.toFixed(2)}</Text>
+                </View>
+              )}
+              {order.delivery_fee > 0 && (
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Delivery Fee</Text>
+                  <Text style={styles.totalValue}>${order.delivery_fee.toFixed(2)}</Text>
+                </View>
+              )}
+              {order.service_fee > 0 && (
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Service Fee</Text>
+                  <Text style={styles.totalValue}>${order.service_fee.toFixed(2)}</Text>
+                </View>
+              )}
+              <Divider style={styles.totalDivider} />
+              <View style={styles.totalRow}>
+                <Text style={styles.finalTotalLabel}>Grand Total</Text>
+                <Text style={styles.finalTotalValue}>${order.total.toFixed(2)}</Text>
               </View>
-            )}
-            {order.service_fee > 0 && (
-              <View style={styles.modalTotalRow}>
-                <Text style={styles.modalTotalLabel}>Service Fee:</Text>
-                <Text style={styles.modalTotalValue}>${order.service_fee.toFixed(2)}</Text>
-              </View>
-            )}
-            <View style={[styles.modalTotalRow, styles.modalFinalTotal]}>
-              <Text style={styles.modalFinalTotalLabel}>Total:</Text>
-              <Text style={styles.modalFinalTotalValue}>${order.total.toFixed(2)}</Text>
-            </View>
-          </View>
+            </Card.Content>
+          </Card>
         </ScrollView>
+
+        {/* Action Bar */}
+        <Surface style={styles.actionBar} elevation={4}>
+          <View style={styles.secondaryActions}>
+            <IconButton icon="printer" mode="outlined" onPress={() => onPrint(order)} style={styles.secondaryButton} />
+            {showCancelAction && (
+              <IconButton 
+                icon="cancel" 
+                mode="outlined" 
+                iconColor="#ef4444" 
+                onPress={() => {
+                  Alert.alert('Cancel Order', 'Are you sure you want to cancel this order?', [
+                    { text: 'No', style: 'cancel' },
+                    { text: 'Yes, Cancel', onPress: () => onStatusUpdate!(order.id, 'cancelled'), style: 'destructive' }
+                  ]);
+                }} 
+                style={styles.secondaryButton} 
+              />
+            )}
+            {showPaymentAction && (
+              <PaperButton 
+                mode="outlined" 
+                onPress={() => {
+                  Alert.alert('Mark as Paid', 'Confirm payment received?', [
+                    { text: 'No', style: 'cancel' },
+                    { text: 'Yes, Paid', onPress: () => onPaymentStatusUpdate!(order.id, 'paid') }
+                  ]);
+                }}
+                style={styles.paymentButton}
+              >
+                Paid
+              </PaperButton>
+            )}
+          </View>
+          {renderActionButton()}
+        </Surface>
       </View>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    backgroundColor: '#f9fafb',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#111827',
-  },
-  modalHeaderActions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  modalActionButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: '#2563eb',
-    borderRadius: 6,
-  },
-  modalActionButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  modalCloseButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: '#f3f4f6',
-    borderRadius: 6,
-  },
-  modalCloseButtonText: {
-    color: '#374151',
-    fontWeight: '600',
-  },
-  modalContent: {
-    padding: 16,
-  },
-  modalSection: {
-    marginBottom: 24,
-  },
-  modalSectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#374151',
-    marginBottom: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  modalText: {
-    fontSize: 16,
-    color: '#111827',
-    marginBottom: 4,
-  },
-  modalTextSecondary: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 2,
-  },
-  modalInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  modalInfoLabel: {
-    fontSize: 15,
-    color: '#6b7280',
-    width: 100,
-  },
-  modalInfoValue: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  modalStatusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  modalStatusText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: 'bold',
-  },
-  modalItemCard: {
-    padding: 12,
-    backgroundColor: '#f9fafb',
-    borderRadius: 8,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#f3f4f6',
-  },
-  modalItemName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  modalItemPrice: {
-    fontSize: 15,
-    color: '#6b7280',
-    marginBottom: 8,
-  },
-  modalItemComment: {
-    fontSize: 14,
-    fontStyle: 'italic',
-    color: '#d97706',
-    marginTop: 4,
-  },
-  modalRemovedText: {
-    fontSize: 14,
-    color: '#dc2626',
-    marginTop: 4,
-  },
-  modalAddonsContainer: {
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-  },
-  modalAddonText: {
-    fontSize: 14,
-    color: '#4b5563',
-    marginBottom: 2,
-  },
-  modalTotalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  modalTotalLabel: {
-    fontSize: 15,
-    color: '#6b7280',
-  },
-  modalTotalValue: {
-    fontSize: 15,
-    color: '#111827',
-  },
-  modalFinalTotal: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 2,
-    borderTopColor: '#f3f4f6',
-  },
-  modalFinalTotalLabel: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#111827',
-  },
-  modalFinalTotalValue: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#2563eb',
-  },
+  container: { flex: 1, backgroundColor: '#f3f4f6' },
+  header: { paddingBottom: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingLeft: 16, paddingRight: 4, paddingTop: 8 },
+  headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#111827' },
+  headerSub: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginTop: -4 },
+  statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
+  statusBadgeText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
+  timeText: { fontSize: 12, color: '#6b7280', marginLeft: 'auto' },
+  scrollContent: { flex: 1 },
+  scrollContainer: { padding: 16, paddingBottom: 100 },
+  infoCard: { marginBottom: 16, backgroundColor: '#fff', borderRadius: 12 },
+  cardTitle: { fontSize: 16, fontWeight: 'bold', color: '#374151' },
+  customerName: { fontSize: 18, fontWeight: 'bold', color: '#111827', marginBottom: 4 },
+  contactText: { fontSize: 14, color: '#4b5563', marginBottom: 2 },
+  paymentSummary: { fontSize: 13, color: '#2563eb', fontWeight: '600', marginTop: 8 },
+  itemRow: { marginVertical: 8 },
+  itemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  itemName: { fontSize: 16, fontWeight: '600', color: '#111827', flex: 1 },
+  itemPrice: { fontSize: 16, fontWeight: 'bold', color: '#111827' },
+  itemComment: { fontSize: 14, color: '#d97706', fontStyle: 'italic', marginTop: 4 },
+  addonsList: { marginTop: 4, paddingLeft: 12 },
+  addonText: { fontSize: 13, color: '#6b7280' },
+  divider: { marginTop: 12 },
+  instructionsCard: { borderLeftWidth: 4, borderLeftColor: '#f59e0b' },
+  instructionsText: { fontSize: 15, color: '#4b5563', lineHeight: 22 },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  totalLabel: { fontSize: 14, color: '#6b7280' },
+  totalValue: { fontSize: 14, color: '#111827', fontWeight: '500' },
+  totalDivider: { marginVertical: 12 },
+  finalTotalLabel: { fontSize: 18, fontWeight: 'bold', color: '#111827' },
+  finalTotalValue: { fontSize: 22, fontWeight: 'bold', color: '#2563eb' },
+  actionBar: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#e5e7eb', flexDirection: 'row', alignItems: 'center', gap: 12 },
+  secondaryActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  secondaryButton: { margin: 0, borderWidth: 1, borderColor: '#e5e7eb' },
+  paymentButton: { borderRadius: 8, height: 40 },
+  primaryActionButton: { flex: 1, borderRadius: 8 },
+  primaryActionButtonContent: { height: 48 },
 });

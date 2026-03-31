@@ -22,7 +22,7 @@ import { getAllOrders } from '../../lib/orders';
 import type { Order } from '@my-small-business/types';
 import { DEFAULT_APP_SETTINGS, loadAppSettings, subscribeAppSettings, type AppSettings } from '../../lib/settings';
 import { CustomerModal } from '../customer';
-import { OrderListItem } from '../components/OrderListItem';
+import { HistoryOrderListItem } from '../components/HistoryOrderListItem';
 import { OrderDetailModal } from '../components/OrderDetailModal';
 import { OrderFiltersModal } from '../components/OrderFiltersModal';
 import { PrintSimulatorModal } from '../components/PrintSimulatorModal';
@@ -153,6 +153,11 @@ export default function HistoryScreen() {
     loadOrders();
   };
 
+  const handleCustomerPress = (order: Order) => {
+    setCustomerInfo({ email: order.customer_email, phone: order.customer_phone });
+    setShowCustomerModal(true);
+  };
+
   return (
     <View style={styles.container}>
       <CustomerModal
@@ -199,18 +204,10 @@ export default function HistoryScreen() {
       <FlatList
         data={orders}
         renderItem={({ item }) => (
-          <OrderListItem
+          <HistoryOrderListItem
             order={item}
-            mode="all"
-            enableStatusUpdates={false}
-            nowMs={Date.now()}
-            updatingStatus={updatingStatus}
             onOrderPress={(o) => { setSelectedOrder(o); setShowOrderModal(true); }}
-            onCustomerPress={(o) => { setCustomerInfo({ email: o.customer_email, phone: o.customer_phone }); setShowCustomerModal(true); }}
-            onPrintPress={handlePrint}
-            onQuickAction={() => {}}
-            onStatusUpdate={() => {}}
-            onPaymentStatusUpdate={() => {}}
+            onCustomerPress={handleCustomerPress}
           />
         )}
         keyExtractor={(item) => item.id}
@@ -228,6 +225,11 @@ export default function HistoryScreen() {
         order={selectedOrder}
         onClose={() => setShowOrderModal(false)}
         onPrint={handlePrint}
+        onCustomerPress={handleCustomerPress}
+        onStatusUpdate={handleStatusUpdate}
+        onPaymentStatusUpdate={handlePaymentStatusUpdate}
+        onQuickAction={handleQuickAction}
+        updatingStatus={updatingStatus}
       />
 
       <OrderFiltersModal

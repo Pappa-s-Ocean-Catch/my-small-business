@@ -6,10 +6,8 @@ import { getFriendlyOrderNumber } from '../utils/orderNumber';
 import { STATUS_COLORS, STATUS_LABELS, PAYMENT_STATUS_COLORS, PAYMENT_STATUS_LABELS } from '../utils/constants';
 import { paymentSummary, getNextQuickAction, formatElapsed } from '../utils/orderUtils';
 
-interface OrderListItemProps {
+interface LiveOrderListItemProps {
   order: Order;
-  mode: 'live' | 'all';
-  enableStatusUpdates: boolean;
   nowMs: number;
   updatingStatus: string | null;
   onOrderPress: (order: Order) => void;
@@ -20,10 +18,8 @@ interface OrderListItemProps {
   onPaymentStatusUpdate: (orderId: string, status: string) => void;
 }
 
-export const OrderListItem: React.FC<OrderListItemProps> = ({
+export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
   order,
-  mode,
-  enableStatusUpdates,
   nowMs,
   updatingStatus,
   onOrderPress,
@@ -38,7 +34,7 @@ export const OrderListItem: React.FC<OrderListItemProps> = ({
   const paymentColor = PAYMENT_STATUS_COLORS[order.payment_status];
   const paymentLabel = PAYMENT_STATUS_LABELS[order.payment_status];
   const quickAction = getNextQuickAction(order.order_status);
-  const elapsed = mode === 'live' ? formatElapsed(order.created_at, nowMs) : null;
+  const elapsed = formatElapsed(order.created_at, nowMs);
   const elapsedColor =
     elapsed && elapsed.minutes < 10 ? '#16a34a' : elapsed && elapsed.minutes < 20 ? '#ca8a04' : '#dc2626';
   const isPaid = order.payment_status === 'paid';
@@ -59,13 +55,9 @@ export const OrderListItem: React.FC<OrderListItemProps> = ({
             </View>
           </View>
           <View style={styles.badgesContainer}>
-            {mode === 'live' && elapsed ? (
-              <View style={[styles.elapsedPill, { backgroundColor: elapsedColor }]}>
-                <Text style={styles.elapsedText}>{elapsed.text}</Text>
-              </View>
-            ) : (
-              <Text style={styles.orderTime}>{new Date(order.created_at).toLocaleTimeString()}</Text>
-            )}
+            <View style={[styles.elapsedPill, { backgroundColor: elapsedColor }]}>
+              <Text style={styles.elapsedText}>{elapsed.text}</Text>
+            </View>
             <IconButton
               icon="printer"
               size={20}
@@ -87,7 +79,7 @@ export const OrderListItem: React.FC<OrderListItemProps> = ({
             </Text>
             <Text style={styles.orderTotal}>${order.total.toFixed(2)}</Text>
           </View>
-          {enableStatusUpdates && quickAction && (
+          {quickAction && (
             <PaperButton
               mode="contained"
               onPress={() => onQuickAction(order.id, quickAction.action)}
@@ -106,11 +98,8 @@ export const OrderListItem: React.FC<OrderListItemProps> = ({
             <View style={styles.statusSelectContainer}>
               <TouchableOpacity
                 style={[styles.statusSelect, { backgroundColor: statusColor }]}
-                onPress={() => {
-                  if (!enableStatusUpdates) return;
-                  onStatusUpdate(order.id, order.order_status);
-                }}
-                disabled={updatingStatus === order.id || !enableStatusUpdates}
+                onPress={() => onStatusUpdate(order.id, order.order_status)}
+                disabled={updatingStatus === order.id}
               >
                 <Text style={styles.statusSelectText}>{statusLabel}</Text>
               </TouchableOpacity>
@@ -121,11 +110,8 @@ export const OrderListItem: React.FC<OrderListItemProps> = ({
             <View style={styles.statusSelectContainer}>
               <TouchableOpacity
                 style={[styles.statusSelect, { backgroundColor: paymentColor }]}
-                onPress={() => {
-                  if (!enableStatusUpdates) return;
-                  onPaymentStatusUpdate(order.id, order.payment_status);
-                }}
-                disabled={updatingStatus === order.id || !enableStatusUpdates || order.payment_status === 'paid'}
+                onPress={() => onPaymentStatusUpdate(order.id, order.payment_status)}
+                disabled={updatingStatus === order.id || order.payment_status === 'paid'}
               >
                 <Text style={styles.statusSelectText}>{paymentLabel}</Text>
               </TouchableOpacity>
@@ -164,7 +150,7 @@ const styles = StyleSheet.create({
   },
   customerName: {
     fontSize: 16,
-    color: '#34d399',
+    color: '#10b981',
     fontWeight: '600',
     marginTop: 2,
   },
@@ -236,6 +222,7 @@ const styles = StyleSheet.create({
   },
   bodyQuickButton: {
     borderRadius: 6,
+    backgroundColor: '#2563eb',
   },
   bodyQuickButtonContent: {
     paddingHorizontal: 8,

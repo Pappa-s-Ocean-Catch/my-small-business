@@ -21,7 +21,7 @@ import { playNewOrderSound } from '../../lib/sounds';
 import { DEFAULT_APP_SETTINGS, loadAppSettings, subscribeAppSettings, type AppSettings } from '../../lib/settings';
 import { KitchenAlertOverlay } from '../../lib/KitchenAlertOverlay';
 import { CustomerModal } from '../customer';
-import { OrderListItem } from '../components/OrderListItem';
+import { LiveOrderListItem } from '../components/LiveOrderListItem';
 import { OrderDetailModal } from '../components/OrderDetailModal';
 import { PrintSimulatorModal } from '../components/PrintSimulatorModal';
 import { useOrderActions } from '../hooks/useOrderActions';
@@ -301,10 +301,8 @@ export default function LiveOrdersScreen() {
       <FlatList
         data={orders}
         renderItem={({ item }) => (
-          <OrderListItem
+          <LiveOrderListItem
             order={item}
-            mode="live"
-            enableStatusUpdates
             nowMs={nowMs}
             updatingStatus={updatingStatus}
             onOrderPress={handleOrderPress}
@@ -345,6 +343,11 @@ export default function LiveOrdersScreen() {
         order={selectedOrder}
         onClose={() => setShowOrderModal(false)}
         onPrint={handlePrint}
+        onCustomerPress={handleCustomerPress}
+        onStatusUpdate={handleStatusUpdate}
+        onPaymentStatusUpdate={handlePaymentStatusUpdate}
+        onQuickAction={handleQuickAction}
+        updatingStatus={updatingStatus}
       />
 
       <PrintSimulatorModal
