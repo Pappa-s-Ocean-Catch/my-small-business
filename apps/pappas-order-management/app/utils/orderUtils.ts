@@ -1,0 +1,162 @@
+import type { Order, OrderStatus } from '@my-small-business/types';
+import { getFriendlyOrderNumber } from './orderNumber';
+import { STATUS_LABELS, PAYMENT_STATUS_LABELS } from './constants';
+
+export const formatDateToLocalISO = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+export const getTodayDateString = () => {
+  return formatDateToLocalISO(new Date());
+};
+
+export const getApiUrl = (path: string) => {
+  const base = process.env.EXPO_PUBLIC_API_URL || '';
+  if (base.endsWith('/')) return base + path.replace(/^\//, '');
+  return base + (path.startsWith('/') ? path : '/' + path);
+};
+
+export const formatElapsed = (createdAtIso: string, nowMs: number): { text: string; minutes: number } => {
+  const createdMs = new Date(createdAtIso).getTime();
+  const diffSec = Math.max(0, Math.floor((nowMs - createdMs) / 1000));
+  const minutes = Math.floor(diffSec / 60);
+  const seconds = diffSec % 60;
+  const mm = String(minutes).padStart(2, '0');
+  const ss = String(seconds).padStart(2, '0');
+  return { text: `${mm}:${ss}`, minutes };
+};
+
+export const paymentSummary = (order: Order): string => {
+  const type = order.order_type === 'delivery' ? 'Delivery' : 'Pickup';
+  const payment =
+    order.payment_method === 'store'
+      ? 'Pay at Counter'
+      : order.payment_status === 'paid'
+        ? 'Paid Online'
+        : 'Online Payment';
+  return `${type} • ${payment}`;
+};
+
+export const getNextQuickAction = (currentStatus: OrderStatus): { action: string; label: string } | null => {
+  switch (currentStatus) {
+    case 'pending':
+      return { action: 'accept', label: 'Accept' };
+    case 'confirmed':
+      return { action: 'prepare', label: 'Start Preparing' };
+    case 'preparing':
+      return { action: 'ready', label: 'Mark Ready' };
+    case 'ready':
+      return { action: 'completed', label: 'Complete' };
+    default:
+      return null;
+  }
+};
+
+export const generatePrintHTML = (order: Order): string => {
+  const ticketOrderNumber = getFriendlyOrderNumber(order.order_number);
+  const itemsHTML = order.items?.map(item => {
+    const addonsHTML = item.addons?.map(addon =>
+      `<li>+ ${addon.addon_item_name} (${addon.addon_group_name}) - $${addon.addon_item_price.toFixed(2)}</li>`
+    ).join('') || '';
+    const removedHTML =
+      Array.isArray(item.removed_ingredients) && item.removed_ingredients.length > 0
+        ? `<p><em>Removed: ${item.removed_ingredients.join(', ')}</em></p>`
+        : '';
+
+    return `
+      <tr>
+        <td>${item.quantity}x ${item.product_name}</td>
+        <td>$${item.subtotal.toFixed(2)}</td>
+      </tr>
+      ${item.comment ? `<tr><td colspan="2"><em>Note: ${item.comment}</em></td></tr>` : ''}
+      ${addonsHTML ? `<tr><td colspan="2"><ul style="margin: 0; padding-left: 20px;">${addonsHTML}</ul></td></tr>` : ''}
+      ${removedHTML ? `<tr><td colspan="2">${removedHTML}</td></tr>` : ''}
+    `;
+  }).join('') || '';
+
+  const scheduledPickupAt = order.scheduled_pickup_at ? new Date(order.scheduled_pickup_at) : null;
+  const isPreOrder =
+    order.order_type === 'pickup' &&
+    !!scheduledPickupAt &&
+    Number.isFinite(scheduledPickupAt.getTime()) &&
+    scheduledPickupAt.getTime() > Date.now();
+
+  const preOrderBannerHTML = isPreOrder
+    ? `<div class="preorder-banner">PRE-ORDER</div>
+       <div class="pickup-time-hero"><strong>PICKUP TIME:</strong> ${scheduledPickupAt!.toLocaleString()}</div>`
+    : '';
+
+  const pickupTimeHTML =
+    order.order_type === 'pickup' && order.scheduled_pickup_at
+      ? `<p><strong>Pickup time:</strong> ${new Date(order.scheduled_pickup_at).toLocaleString()}</p>`
+      : '';
+
+  const paymentStatusText = PAYMENT_STATUS_LABELS[order.payment_status];
+
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Order #${ticketOrderNumber}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; font-size: 18px; }
+          h1 { margin: 0 0 10px 0; font-size: 30px; }
+          .payment-status { font-size: 26px; font-weight: bold; margin: 6px 0 4px 0; }
+          .preorder-banner { font-size: 34px; font-weight: 900; text-align: center; margin: 10px 0 8px 0; letter-spacing: 1px; }
+          .pickup-time-hero { font-size: 22px; font-weight: 700; text-align: center; margin: 0 0 10px 0; }
+          .info { margin: 10px 0; }
+          table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+          th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
+          th { background-color: #f2f2f2; }
+          .total { font-size: 24px; font-weight: bold; margin-top: 20px; }
+          .order-number-bottom { margin-top: 24px; font-size: 32px; font-weight: bold; text-align: center; }
+        </style>
+      </head>
+      <body>
+        <h1>Order #${ticketOrderNumber}</h1>
+        <div class="payment-status">${paymentStatusText}</div>
+        ${preOrderBannerHTML}
+        <div class="info">
+          <p><strong>Customer:</strong> ${order.customer_name || order.customer_email}</p>
+          <p><strong>Phone:</strong> ${order.customer_phone}</p>
+          <p><strong>Type:</strong> ${order.order_type === 'delivery' ? 'Delivery' : 'Pickup'}</p>
+          <p><strong>Order status:</strong> ${STATUS_LABELS[order.order_status]}</p>
+          <p><strong>Payment status:</strong> ${paymentStatusText}</p>
+          <p><strong>Time placed:</strong> ${new Date(order.created_at).toLocaleString()}</p>
+          ${pickupTimeHTML}
+          ${order.order_type === 'delivery' && order.delivery_address_line1 ? `
+            <p><strong>Delivery Address:</strong><br>
+            ${order.delivery_address_line1}<br>
+            ${order.delivery_address_line2 ? order.delivery_address_line2 + '<br>' : ''}
+            ${order.delivery_city}, ${order.delivery_state} ${order.delivery_postcode}
+            </p>
+          ` : ''}
+          ${order.special_instructions ? `<p><strong>Special Instructions:</strong> ${order.special_instructions}</p>` : ''}
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Price</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHTML}
+          </tbody>
+        </table>
+        <div class="total">
+          <p>Subtotal: $${order.subtotal.toFixed(2)}</p>
+          ${order.tax > 0 ? `<p>Tax: $${order.tax.toFixed(2)}</p>` : ''}
+          ${order.delivery_fee > 0 ? `<p>Delivery Fee: $${order.delivery_fee.toFixed(2)}</p>` : ''}
+          ${order.service_fee > 0 ? `<p>Service Fee: $${order.service_fee.toFixed(2)}</p>` : ''}
+          <p>Total: $${order.total.toFixed(2)}</p>
+        </div>
+        <p class="order-number-bottom">ORDER #${ticketOrderNumber}</p>
+      </body>
+    </html>
+  `;
+};
