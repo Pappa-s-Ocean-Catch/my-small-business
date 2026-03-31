@@ -1,29 +1,18 @@
 import { Tabs } from 'expo-router';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Alert } from 'react-native';
 import { Appbar } from 'react-native-paper';
+import { useNavigation } from '@react-navigation/native';
+import { DrawerNavigationProp } from '@react-navigation/drawer';
 
 export default function TabsLayout() {
   const router = useRouter();
+  const navigation = useNavigation<DrawerNavigationProp<any>>();
 
-  const handleLogout = () => {
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Sign Out',
-          style: 'destructive',
-          onPress: async () => {
-            await supabase.auth.signOut();
-            router.replace('/login');
-          },
-        },
-      ]
-    );
+  const handleOpenDrawer = () => {
+    navigation.openDrawer();
   };
 
   return (
@@ -36,8 +25,11 @@ export default function TabsLayout() {
         headerTitleStyle: {
           fontWeight: 'bold',
         },
+        headerLeft: () => (
+          <Appbar.Action icon="menu" onPress={handleOpenDrawer} iconColor="#fff" />
+        ),
         headerRight: () => (
-          <Appbar.Action icon="logout" onPress={handleLogout} iconColor="#fff" />
+          <Appbar.Action icon="account-circle" onPress={handleOpenDrawer} iconColor="#fff" />
         ),
         tabBarIcon: ({ color, size, focused }) => {
           let iconName: string;
@@ -45,6 +37,8 @@ export default function TabsLayout() {
             iconName = focused ? 'speedometer' : 'speedometer-outline';
           } else if (route.name === 'orders') {
             iconName = focused ? 'receipt' : 'receipt-outline';
+          } else if (route.name === 'customers') {
+            iconName = focused ? 'people' : 'people-outline';
           } else {
             iconName = focused ? 'settings' : 'settings-outline';
           }
@@ -71,6 +65,13 @@ export default function TabsLayout() {
         options={{
           title: 'Order History',
           tabBarLabel: 'History',
+        }}
+      />
+      <Tabs.Screen
+        name="customers"
+        options={{
+          title: 'Customers',
+          tabBarLabel: 'Customers',
         }}
       />
       <Tabs.Screen

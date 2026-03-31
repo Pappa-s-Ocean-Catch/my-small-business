@@ -8,8 +8,8 @@ import {
   ScrollView,
 } from 'react-native';
 import { Banner, Button, Text, TextInput } from 'react-native-paper';
-import { supabase } from '../lib/supabase';
-import { isAdminUser } from '../lib/auth';
+import { supabase } from '@/lib/supabase';
+import { isAdminUser } from '@/lib/auth';
 import { useRouter } from 'expo-router';
 
 export default function LoginScreen() {
@@ -101,7 +101,7 @@ export default function LoginScreen() {
           return;
         }
 
-        router.replace('/(tabs)/orders');
+        router.replace('/(drawer)/(tabs)/live-orders');
       } else {
         setError('Login failed: No session created. Please try again.');
       }

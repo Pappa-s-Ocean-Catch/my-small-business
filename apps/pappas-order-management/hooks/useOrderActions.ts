@@ -2,10 +2,10 @@ import { useState, useRef } from 'react';
 import { Alert } from 'react-native';
 import * as Print from 'expo-print';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
-import { updateOrderStatus, updatePaymentStatus, getOrder } from '../../lib/orders';
-import { escposPrintKitchenReceipt, formatPrinterError } from '../../lib/escpos-printer';
-import { generatePrintHTML } from '../utils/orderUtils';
-import type { AppSettings } from '../../lib/settings';
+import { updateOrderStatus, updatePaymentStatus, getOrder } from '@/lib/orders';
+import { escposPrintKitchenReceipt, formatPrinterError } from '@/lib/escpos-printer';
+import { generatePrintHTML } from '@/utils/orderUtils';
+import type { AppSettings } from '@/lib/settings';
 
 const webBaseUrl = process.env.EXPO_PUBLIC_SITE_URL;
 

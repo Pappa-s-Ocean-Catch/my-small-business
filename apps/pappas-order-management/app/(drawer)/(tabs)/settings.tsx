@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, Switch, Text, TextInput } from 'react-native-paper';
-import { DEFAULT_APP_SETTINGS, loadAppSettings, saveAppSettings } from '../../lib/settings';
-import { playNewOrderSound, SOUND_OPTIONS, type SoundId } from '../../lib/sounds';
+import { DEFAULT_APP_SETTINGS, loadAppSettings, saveAppSettings } from '@/lib/settings';
+import { playNewOrderSound, SOUND_OPTIONS, type SoundId } from '@/lib/sounds';
 import { usePrintersDiscovery } from 'react-native-esc-pos-printer';
 import type { DeviceInfo } from 'react-native-esc-pos-printer';
-import { escposTestPrint, type SavedPrinter } from '../../lib/escpos-printer';
+import { escposTestPrint, type SavedPrinter } from '@/lib/escpos-printer';
 
 export default function SettingsScreen() {
     const [refreshIntervalSecText, setRefreshIntervalSecText] = useState(String(DEFAULT_APP_SETTINGS.refreshIntervalSec));

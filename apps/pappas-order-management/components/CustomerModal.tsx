@@ -12,7 +12,7 @@ import {
     MD3Theme
 } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { fetchCustomerSummary, CustomerSummary } from './utils/customerSummary';
+import { fetchCustomerSummary, CustomerSummary } from '@/utils/customerSummary';
 
 const STATUS_COLORS: Record<string, string> = {
     pending: '#f59e0b',

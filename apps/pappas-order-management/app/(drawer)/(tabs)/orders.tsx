@@ -18,16 +18,17 @@ import {
   Surface,
 } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
-import { getAllOrders } from '../../lib/orders';
+import { getRecentCustomers, searchCustomers, Customer } from '@/lib/customers';
+import { CustomerModal } from '@/components/CustomerModal';
+import { HistoryOrderListItem } from '@/components/HistoryOrderListItem';
+import { OrderDetailModal } from '@/components/OrderDetailModal';
+import { OrderFiltersModal } from '@/components/OrderFiltersModal';
+import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
+import { getAllOrders } from '@/lib/orders';
 import type { Order } from '@my-small-business/types';
-import { DEFAULT_APP_SETTINGS, loadAppSettings, subscribeAppSettings, type AppSettings } from '../../lib/settings';
-import { CustomerModal } from '../customer';
-import { HistoryOrderListItem } from '../components/HistoryOrderListItem';
-import { OrderDetailModal } from '../components/OrderDetailModal';
-import { OrderFiltersModal } from '../components/OrderFiltersModal';
-import { PrintSimulatorModal } from '../components/PrintSimulatorModal';
-import { useOrderActions } from '../hooks/useOrderActions';
-import { getTodayDateString, formatDateToLocalISO } from '../utils/orderUtils';
+import { DEFAULT_APP_SETTINGS, loadAppSettings, subscribeAppSettings, type AppSettings } from '@/lib/settings';
+import { useOrderActions } from '@/hooks/useOrderActions';
+import { getTodayDateString, formatDateToLocalISO } from '@/utils/orderUtils';
 
 export default function HistoryScreen() {
   const { width, height } = useWindowDimensions();

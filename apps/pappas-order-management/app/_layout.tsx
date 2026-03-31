@@ -1,10 +1,12 @@
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import 'react-native-gesture-handler';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { StyleSheet } from 'react-native';
 import { MD3LightTheme, PaperProvider } from 'react-native-paper';
-import { supabase } from '../lib/supabase';
-import { canAccessOrderManagement } from '../lib/auth';
-import { OfflineAttentionOverlay } from '../lib/KitchenAlertOverlay';
+import { supabase } from '@/lib/supabase';
+import { canAccessOrderManagement } from '@/lib/auth';
+import { OfflineAttentionOverlay } from '@/lib/KitchenAlertOverlay';
 import { useKeepAwake } from 'expo-keep-awake';
 
 export default function RootLayout() {
@@ -54,7 +56,7 @@ export default function RootLayout() {
       }
 
       if (currentSegment === 'login' || !currentSegment) {
-        router.replace('/(tabs)/live-orders');
+        router.replace('/(drawer)/(tabs)/live-orders');
       }
     };
 
@@ -77,14 +79,16 @@ export default function RootLayout() {
   }, [router, segments]);
 
   return (
-    <PaperProvider theme={MD3LightTheme}>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="login" />
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="order-detail" />
-      </Stack>
-      <OfflineAttentionOverlay appName="Pappas Order" />
-    </PaperProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <PaperProvider theme={MD3LightTheme}>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="login" />
+          <Stack.Screen name="(drawer)" />
+          <Stack.Screen name="order-detail" />
+        </Stack>
+        <OfflineAttentionOverlay appName="Pappas Order" />
+      </PaperProvider>
+    </GestureHandlerRootView>
   );
 }
 

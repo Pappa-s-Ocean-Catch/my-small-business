@@ -21,6 +21,7 @@ const STATUS_COLORS: Record<OrderStatus, string> = {
   ready: '#10b981',
   completed: '#6b7280',
   cancelled: '#ef4444',
+  pending_online_payment: '#333333'
 };
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
@@ -30,6 +31,7 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   ready: 'Ready',
   completed: 'Completed',
   cancelled: 'Cancelled',
+  pending_online_payment: 'NA'
 };
 
 export default function OrderDetailScreen() {

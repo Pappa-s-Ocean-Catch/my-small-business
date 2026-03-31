@@ -14,18 +14,18 @@ import {
 } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import { Audio } from 'expo-av';
-import { supabase } from '../../lib/supabase';
-import { getAllOrders, updateOrderStatus, getOrder } from '../../lib/orders';
+import { supabase } from '@/lib/supabase';
+import { getAllOrders, updateOrderStatus, getOrder } from '@/lib/orders';
 import type { Order, OrderStatus } from '@my-small-business/types';
-import { playNewOrderSound } from '../../lib/sounds';
-import { DEFAULT_APP_SETTINGS, loadAppSettings, subscribeAppSettings, type AppSettings } from '../../lib/settings';
-import { KitchenAlertOverlay } from '../../lib/KitchenAlertOverlay';
-import { CustomerModal } from '../customer';
-import { LiveOrderListItem } from '../components/LiveOrderListItem';
-import { OrderDetailModal } from '../components/OrderDetailModal';
-import { PrintSimulatorModal } from '../components/PrintSimulatorModal';
-import { useOrderActions } from '../hooks/useOrderActions';
-import { escposPrintKitchenReceipt } from '../../lib/escpos-printer';
+import { playNewOrderSound } from '@/lib/sounds';
+import { DEFAULT_APP_SETTINGS, loadAppSettings, subscribeAppSettings, type AppSettings } from '@/lib/settings';
+import { KitchenAlertOverlay } from '@/lib/KitchenAlertOverlay';
+import { CustomerModal } from '@/components/CustomerModal';
+import { LiveOrderListItem } from '@/components/LiveOrderListItem';
+import { OrderDetailModal } from '@/components/OrderDetailModal';
+import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
+import { useOrderActions } from '@/hooks/useOrderActions';
+import { escposPrintKitchenReceipt } from '@/lib/escpos-printer';
 
 export default function LiveOrdersScreen() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -55,7 +55,7 @@ export default function LiveOrdersScreen() {
       setLoadError(null);
       const since = new Date();
       since.setHours(since.getHours() - 24);
-      
+
       const filters: { since: string } = {
         since: since.toISOString()
       };
@@ -80,10 +80,10 @@ export default function LiveOrdersScreen() {
             const twoMinutesAgo = Date.now() - (2 * 60 * 1000);
             const createdTime = new Date(mostRecentOrder.created_at).getTime();
             if (createdTime > twoMinutesAgo && appSettingsRef.current.soundEnabled) {
-              playNewOrderSound({ 
-                soundId: appSettingsRef.current.soundId, 
-                repeatCount: appSettingsRef.current.soundRepeatCount, 
-                delayMs: 2000 
+              playNewOrderSound({
+                soundId: appSettingsRef.current.soundId,
+                repeatCount: appSettingsRef.current.soundRepeatCount,
+                delayMs: 2000
               });
             }
           }
@@ -156,8 +156,8 @@ export default function LiveOrdersScreen() {
         async (payload) => {
           const s = appSettingsRef.current;
           let shouldPrint = false;
-          let orderId = payload.new.id;
-          
+          let orderId = (payload.new as any).id;
+
           if (payload.eventType === 'INSERT' && payload.new.order_status === 'pending') {
             shouldPrint = true;
           } else if (
@@ -263,7 +263,7 @@ export default function LiveOrdersScreen() {
         phone={customerInfo.phone}
         onClose={() => setShowCustomerModal(false)}
       />
-      
+
       {printingOrderId && (
         <View style={styles.printingOverlay} pointerEvents="none">
           <View style={styles.printingChip}>
