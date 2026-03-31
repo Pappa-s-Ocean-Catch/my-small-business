@@ -86,6 +86,7 @@ export default function CheckoutPage() {
       fetch(`/api/orders/${orderId}`, { method: "DELETE" })
         .then(async (res) => {
           window.localStorage.removeItem("checkout:lastOrderId");
+          posthog.capture('checkout_cancelled', { order_id: orderId });
           setCancelToast(true);
           setTimeout(() => {
             setCancelToast(false);
@@ -275,6 +276,18 @@ export default function CheckoutPage() {
   const subtotal = promoTotals.subtotalAfterPromotions;
   const promotionDiscount = promoTotals.totalDiscount;
   const promotionsApplied = promoTotals.applied;
+
+  const promotionsAppliedRef = useRef(false);
+  useEffect(() => {
+    if (!promotionsAppliedRef.current && promotionsApplied.length > 0) {
+      promotionsAppliedRef.current = true;
+      posthog.capture('promotion_applied', {
+        promotion_ids: promotionsApplied.map((p) => p.id),
+        promotion_titles: promotionsApplied.map((p) => p.title),
+        total_discount: promotionDiscount,
+      });
+    }
+  }, [promotionsApplied, promotionDiscount]);
 
   const rawRewardPointsDiscount =
     useRewardPoints && rewardPointsToUse > 0
@@ -1065,6 +1078,12 @@ export default function CheckoutPage() {
           total,
         });
       }
+      posthog.capture('checkout_error', {
+        error_message: err instanceof Error ? err.message : errorMessage || 'Unknown error',
+        payment_method: paymentMethod,
+        order_type: orderType,
+        total,
+      });
       // Always show error to user
       setError(
         err instanceof Error

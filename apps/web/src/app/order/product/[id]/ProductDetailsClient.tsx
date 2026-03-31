@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import ImageSlider from '@/components/ImageSlider';
 import { getProductImages } from './getProductImages';
 import { useRouter } from 'next/navigation';
@@ -66,6 +66,15 @@ export default function ProductDetailsClient(props: {
 
     const { onlineOrderEnabled } = useFeatureFlag();
     const [showCustomize, setShowCustomize] = useState(false);
+
+    useEffect(() => {
+        posthog.capture('product_viewed', {
+            product_id: product.id,
+            product_name: product.name,
+            price: product.sale_price,
+        });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
     const [customizingProduct, setCustomizingProduct] = useState<HotSellerProduct | null>(null);
 
 

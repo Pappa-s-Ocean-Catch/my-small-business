@@ -2,6 +2,7 @@
 
 import { createServiceRoleClient, createServerSupabaseClient } from '@my-small-business/supabase/server';
 import { CartItemData } from './cart';
+import { getPostHogClient } from '@/lib/posthog-server';
 import { buildDefaultStoreHours, isPickupTimeWithinHours, isStoreOpenNow } from '@/lib/store-hours';
 import type {
   Order,
@@ -305,6 +306,26 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
         console.log('[createOrder] Skipping order placed email for order:', completeOrder.data.order_number, 'status:', status);
       }
     }
+    if (completeOrder.data) {
+      const posthog = getPostHogClient();
+      posthog.capture({
+        distinctId: input.user_id ?? input.customer_email,
+        event: 'order_created',
+        properties: {
+          order_id: completeOrder.data.id,
+          order_number: completeOrder.data.order_number,
+          order_type: input.order_type,
+          payment_method: input.payment_method,
+          subtotal: input.subtotal,
+          total: input.total,
+          item_count: input.items.length,
+          has_promotion: (input.promotion_discount ?? 0) > 0,
+          has_reward_points: (input.reward_points_used ?? 0) > 0,
+        },
+      });
+      await posthog.shutdown();
+    }
+
     return completeOrder;
   } catch (error) {
     console.error('Unexpected error creating order:', error);

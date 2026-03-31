@@ -1,6 +1,7 @@
 'use server';
 
 import { createServiceRoleClient, createServerSupabaseClient } from '@my-small-business/supabase/server';
+import { getPostHogClient } from '@/lib/posthog-server';
 
 export interface RewardPointsSettings {
   points_per_dollar: number; // e.g., 10 (1 dollar = 10 points)
@@ -373,6 +374,20 @@ export async function useRewardPoints(
       console.error('Error creating reward point transaction:', transactionError);
       return { success: false, error: 'Failed to use reward points' };
     }
+
+    const posthog = getPostHogClient();
+    posthog.capture({
+      distinctId: userId,
+      event: 'reward_points_applied',
+      properties: {
+        user_id: userId,
+        order_id: orderId,
+        points_used: pointsToUse,
+        dollar_value: dollarValue,
+        balance_after: balanceAfter,
+      },
+    });
+    await posthog.shutdown();
 
     return { success: true, dollarValue };
   } catch (error) {
