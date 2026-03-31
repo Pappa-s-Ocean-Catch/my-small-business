@@ -153,13 +153,15 @@ export default function OrderSummaryPage() {
         const isOpenNow = isStoreOpenNow(storeHours);
 
         // When store is open: allow scheduled pickup for today + tomorrow.
-        // When store is closed: pre-order only for the next day.
+
+        // Allow scheduled pickup for any of the next 7 days (including today if open)
         const now = new Date();
         const fromDate = new Date(now);
-        let numDays = 2;
+        let numDays = 7;
+        // If store is closed, don't allow today, start from tomorrow
         if (!isOpenNow) {
           fromDate.setDate(fromDate.getDate() + 1);
-          numDays = 1;
+          numDays = 7;
         }
 
         const pickupDayOptions = getPickupTimeSlots(storeHours, fromDate, {

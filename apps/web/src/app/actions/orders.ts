@@ -111,7 +111,7 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
         return { data: null, error: 'Selected pickup time must be within store opening hours.' };
       }
 
-      // Enforce that pre-orders are only for next-day pickup (no multi-day future scheduling).
+      // Allow pre-order pickup for any of the next 7 days (including today if open)
       if (input.scheduled_pickup_at) {
         const melbourneFormatter = new Intl.DateTimeFormat('en-CA', {
           timeZone: 'Australia/Melbourne',
@@ -144,10 +144,10 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
           return { data: null, error: 'Pickup time must be in the future.' };
         }
 
-        if (diffDays > 1) {
+        if (diffDays > 6) {
           return {
             data: null,
-            error: 'Pre-order is only supported for next-day pickup. Please choose tomorrow as your pickup date.',
+            error: 'Pre-order is only supported for up to 7 days in advance. Please choose a date within the next 7 days.',
           };
         }
       }
