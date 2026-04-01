@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Card, Button as PaperButton, IconButton } from 'react-native-paper';
-import type { Order, OrderStatus } from '@my-small-business/types';
+import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { getFriendlyOrderNumber } from '../utils/orderNumber';
 import { STATUS_COLORS, STATUS_LABELS, PAYMENT_STATUS_COLORS, PAYMENT_STATUS_LABELS } from '../utils/constants';
 import { paymentSummary, getNextQuickAction, formatElapsed } from '../utils/orderUtils';
@@ -15,7 +15,7 @@ interface LiveOrderListItemProps {
   onPrintPress: (order: Order) => void;
   onQuickAction: (orderId: string, action: string) => void;
   onStatusUpdate: (orderId: string, status: OrderStatus) => void;
-  onPaymentStatusUpdate: (orderId: string, status: string) => void;
+  onPaymentStatusUpdate: (orderId: string, status: PaymentStatus) => void;
 }
 
 export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
@@ -34,9 +34,18 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
   const paymentColor = PAYMENT_STATUS_COLORS[order.payment_status];
   const paymentLabel = PAYMENT_STATUS_LABELS[order.payment_status];
   const quickAction = getNextQuickAction(order.order_status);
-  const elapsed = formatElapsed(order.created_at, nowMs);
-  const elapsedColor =
-    elapsed && elapsed.minutes < 10 ? '#16a34a' : elapsed && elapsed.minutes < 20 ? '#ca8a04' : '#dc2626';
+  const elapsed = formatElapsed(order.created_at, nowMs, order.scheduled_pickup_at);
+  const elapsedColor = elapsed.isCountdown
+    ? !elapsed.overdue && elapsed.minutes > 15
+      ? '#16a34a'
+      : !elapsed.overdue
+      ? '#ca8a04'
+      : '#dc2626'
+    : elapsed.minutes < 10
+    ? '#16a34a'
+    : elapsed.minutes < 20
+    ? '#ca8a04'
+    : '#dc2626';
   const isPaid = order.payment_status === 'paid';
 
   return (
@@ -52,6 +61,19 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
             </TouchableOpacity>
             <View style={styles.orderMeta}>
               <Text style={styles.orderType}>{paymentSummary(order)}</Text>
+              <View style={[styles.pickupBadge, order.scheduled_pickup_at ? styles.pickupScheduled : styles.pickupAsap]}>
+                <Text style={styles.pickupText}>
+                  {order.scheduled_pickup_at 
+                    ? `PICKUP: ${new Date(order.scheduled_pickup_at).toLocaleString([], { 
+                        weekday: 'short', 
+                        month: 'short', 
+                        day: 'numeric', 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                      })}`
+                    : 'ASAP'}
+                </Text>
+              </View>
             </View>
           </View>
           <View style={styles.badgesContainer}>
@@ -155,13 +177,33 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   orderMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
     marginTop: 4,
+    gap: 4,
   },
   orderType: {
     fontSize: 14,
     color: '#6b7280',
+  },
+  pickupBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+  },
+  pickupScheduled: {
+    backgroundColor: '#fff7ed',
+    borderWidth: 1,
+    borderColor: '#f97316',
+  },
+  pickupAsap: {
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1,
+    borderColor: '#22c55e',
+  },
+  pickupText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#374151',
   },
   badgesContainer: {
     alignItems: 'flex-end',
@@ -171,8 +213,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
-    minWidth: 60,
+    minWidth: 80,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   elapsedText: {
     color: '#fff',

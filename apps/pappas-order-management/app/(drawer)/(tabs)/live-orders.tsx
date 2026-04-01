@@ -7,13 +7,16 @@ import {
   RefreshControl,
   ActivityIndicator,
   Alert,
+  TouchableOpacity,
 } from 'react-native';
 import {
   Button as PaperButton,
   Surface,
+  Badge,
 } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import { Audio } from 'expo-av';
+import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { getAllOrders, updateOrderStatus, getOrder } from '@/lib/orders';
 import type { Order, OrderStatus } from '@my-small-business/types';
@@ -28,6 +31,7 @@ import { useOrderActions } from '@/hooks/useOrderActions';
 import { escposPrintKitchenReceipt } from '@/lib/escpos-printer';
 
 export default function LiveOrdersScreen() {
+  const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -40,6 +44,8 @@ export default function LiveOrdersScreen() {
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [customerInfo, setCustomerInfo] = useState<{ email?: string; phone?: string }>({});
+  const [preOrderSkipNotice, setPreOrderSkipNotice] = useState<string | null>(null);
+  const [preOrderCount, setPreOrderCount] = useState<number>(0);
 
   const lastOrderIdRef = useRef<string | null>(null);
   const autoPrintedOrderIdsRef = useRef<Set<string>>(new Set());
@@ -47,7 +53,24 @@ export default function LiveOrdersScreen() {
   const lastAutoStatusAlertAtRef = useRef<number>(0);
   const subscriptionRef = useRef<any>(null);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const preOrderNoticeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const appSettingsRef = useRef<AppSettings>(DEFAULT_APP_SETTINGS);
+
+  const fetchPreOrderCount = async () => {
+    try {
+      const { count, error } = await supabase
+        .from('orders')
+        .select('id', { count: 'exact', head: true })
+        .not('scheduled_pickup_at', 'is', null)
+        .in('order_status', ['pending', 'confirmed', 'preparing', 'ready'])
+        .neq('payment_status', 'refunded');
+
+      if (error) throw error;
+      setPreOrderCount(count || 0);
+    } catch (err) {
+      console.error('Failed to fetch pre-order count:', err);
+    }
+  };
 
   const loadOrders = async () => {
     try {
@@ -66,13 +89,34 @@ export default function LiveOrdersScreen() {
         Alert.alert('Error', result.error);
       } else {
         let newOrders = result.data || [];
-        // In "Live" mode, only show active orders (exclude completed/cancelled/refunded).
-        newOrders = newOrders.filter(
-          (order) =>
+        // Live Order Filter Logic:
+        // 1. Exclude completed/cancelled/refunded.
+        // 2. Either scheduled_pickup_at is null (ASAP)
+        // 3. Or scheduled_pickup_at is within the next 30 minutes (or was in the past).
+        newOrders = newOrders.filter((order) => {
+          const isNotFinished =
             order.order_status !== 'completed' &&
             order.order_status !== 'cancelled' &&
-            order.payment_status !== 'refunded'
-        );
+            order.payment_status !== 'refunded';
+
+          if (!isNotFinished) return false;
+
+          if (!order.scheduled_pickup_at) return true; // ASAP
+
+          const pickupDate = new Date(order.scheduled_pickup_at);
+          const now = new Date();
+          const diffMinutes = (pickupDate.getTime() - now.getTime()) / (1000 * 60);
+
+          // Show if pickup is within 30 minutes (even if it was in the past, e.g. late pickup)
+          return diffMinutes <= 30;
+        });
+
+        // Sort by pickup date/time (or created_at for ASAP)
+        newOrders.sort((a, b) => {
+          const timeA = new Date(a.scheduled_pickup_at || a.created_at).getTime();
+          const timeB = new Date(b.scheduled_pickup_at || b.created_at).getTime();
+          return timeA - timeB;
+        });
 
         if (newOrders.length > 0) {
           const mostRecentOrder = newOrders[0];
@@ -100,6 +144,7 @@ export default function LiveOrdersScreen() {
     } finally {
       setLoading(false);
       setRefreshing(false);
+      fetchPreOrderCount();
     }
   };
 
@@ -157,6 +202,9 @@ export default function LiveOrdersScreen() {
           const s = appSettingsRef.current;
           let shouldPrint = false;
           let orderId = (payload.new as any).id;
+          const scheduledPickupAt = (payload.new as any)?.scheduled_pickup_at as string | null | undefined;
+          const scheduledPickupAtMs = scheduledPickupAt ? new Date(scheduledPickupAt).getTime() : NaN;
+          const isPreOrder = Number.isFinite(scheduledPickupAtMs) && scheduledPickupAtMs > Date.now();
 
           if (payload.eventType === 'INSERT' && payload.new.order_status === 'pending') {
             shouldPrint = true;
@@ -169,12 +217,31 @@ export default function LiveOrdersScreen() {
           }
 
           if (shouldPrint) {
+            // 1. Play sound for any new relevant order
             if (s.soundEnabled && lastOrderIdRef.current !== orderId) {
               playNewOrderSound({ soundId: s.soundId, repeatCount: s.soundRepeatCount, delayMs: 2000 });
               lastOrderIdRef.current = orderId;
             }
 
-            if ((s.printerEnabled || s.printerSimulator) && s.printerAutoPrint && !autoPrintedOrderIdsRef.current.has(orderId)) {
+            // 2. Handle Auto-Actions
+            if (isPreOrder) {
+              // PRE-ORDER: Set to confirmed and skip printing
+              const orderNumber = (payload.new as any)?.order_number || orderId;
+              setPreOrderSkipNotice(`Pre-order ${orderNumber} received - print skipped`);
+              if (preOrderNoticeTimeoutRef.current) clearTimeout(preOrderNoticeTimeoutRef.current);
+              preOrderNoticeTimeoutRef.current = setTimeout(() => {
+                setPreOrderSkipNotice(null);
+              }, 4500);
+
+              if ((payload.new as any).order_status === 'pending') {
+                await updateOrderStatus(orderId, 'confirmed');
+              }
+            } else if (
+              (s.printerEnabled || s.printerSimulator) &&
+              s.printerAutoPrint &&
+              !autoPrintedOrderIdsRef.current.has(orderId)
+            ) {
+              // ASAP ORDER: Auto-print and set to preparing
               autoPrintedOrderIdsRef.current.add(orderId);
               setPrintingOrderId(orderId);
 
@@ -183,17 +250,13 @@ export default function LiveOrdersScreen() {
                 if (result.error || !result.data) throw new Error(result.error || 'Failed to load order');
 
                 if (s.printerSimulator) {
-                  // Handled by hook local state if we want, but here we need to show simulator
-                  // Actually the hook provides setShowSimulator and setSimulatorOrder
                   setShowSimulator(true);
-                  // We need to set the simulator order in the hook
-                  // Wait, the hook's setSimulatorOrder is not exported but we can use it if we export it
-                  // Let me update the hook to export it or just use it here
                 } else {
                   const selected = s.printerSaved.find((p) => p.target === s.printerSelectedTarget);
                   if (selected) await escposPrintKitchenReceipt(result.data, selected, s.printerCopies);
                 }
 
+                // Update status to preparing after successful print trigger
                 if (result.data.order_status === 'pending' || result.data.order_status === 'confirmed') {
                   await updateOrderStatus(result.data.id, 'preparing');
                 }
@@ -206,12 +269,19 @@ export default function LiveOrdersScreen() {
             }
           }
           loadOrders();
+          fetchPreOrderCount();
         }
       )
       .subscribe();
 
     return () => {
       if (subscriptionRef.current) supabase.removeChannel(subscriptionRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (preOrderNoticeTimeoutRef.current) clearTimeout(preOrderNoticeTimeoutRef.current);
     };
   }, []);
 
@@ -272,6 +342,14 @@ export default function LiveOrdersScreen() {
         </View>
       )}
 
+      {!!preOrderSkipNotice && (
+        <View style={styles.preOrderNoticeOverlay} pointerEvents="none">
+          <View style={styles.preOrderNoticeChip}>
+            <Text style={styles.preOrderNoticeText}>{preOrderSkipNotice}</Text>
+          </View>
+        </View>
+      )}
+
       {(isStale || !!loadError) && (
         <KitchenAlertOverlay
           title={loadError ? 'ERROR' : 'CONNECTION ISSUE'}
@@ -284,8 +362,23 @@ export default function LiveOrdersScreen() {
 
       <Surface style={styles.header} elevation={1}>
         <View style={styles.headerRow}>
-          <Text style={styles.headerTitle}>Live Orders</Text>
+          <Text style={styles.headerTitle}>Orders</Text>
           <View style={styles.headerActions}>
+            <View style={styles.preOrderBadgeContainer}>
+              <PaperButton
+                mode="outlined"
+                onPress={() => router.push('/pre-orders')}
+                style={styles.preOrderButton}
+                icon="calendar-clock"
+              >
+                Pre-orders
+              </PaperButton>
+              {preOrderCount > 0 && (
+                <Badge style={styles.preOrderBadge} size={20}>
+                  {preOrderCount}
+                </Badge>
+              )}
+            </View>
             <PaperButton
               mode="contained"
               onPress={loadOrders}
@@ -366,6 +459,15 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#111827', flexShrink: 1 },
   headerActions: { flexDirection: 'row', gap: 8, flexShrink: 0 },
   filterButton: { borderRadius: 8 },
+  preOrderBadgeContainer: { position: 'relative' },
+  preOrderButton: { borderRadius: 8, borderColor: '#2563eb' },
+  preOrderBadge: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: '#ef4444',
+    fontWeight: 'bold',
+  },
   refreshButton: { borderRadius: 8, minWidth: 100 },
   listContent: { padding: 16 },
   emptyContainer: { flex: 1, alignItems: 'center', marginTop: 100 },
@@ -373,4 +475,13 @@ const styles = StyleSheet.create({
   printingOverlay: { position: 'absolute', top: 24, left: 0, right: 0, alignItems: 'center', zIndex: 100 },
   printingChip: { backgroundColor: '#2563eb', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8 },
   printingText: { color: '#fff', fontWeight: 'bold' },
+  preOrderNoticeOverlay: { position: 'absolute', top: 66, left: 0, right: 0, alignItems: 'center', zIndex: 99 },
+  preOrderNoticeChip: {
+    backgroundColor: '#f59e0b',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    maxWidth: '92%',
+  },
+  preOrderNoticeText: { color: '#111827', fontWeight: '700' },
 });

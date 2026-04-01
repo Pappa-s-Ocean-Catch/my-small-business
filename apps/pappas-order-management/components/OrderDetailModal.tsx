@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity, useWindowDimensions, Alert } from 'react-native';
 import { Button as PaperButton, IconButton, Surface, Card, Divider } from 'react-native-paper';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { getFriendlyOrderNumber } from '../utils/orderNumber';
 import { STATUS_COLORS, STATUS_LABELS, PAYMENT_STATUS_COLORS, PAYMENT_STATUS_LABELS } from '../utils/constants';
@@ -76,6 +77,14 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
             </View>
             <Text style={styles.timeText}>{new Date(order.created_at).toLocaleString()}</Text>
           </View>
+          {order.scheduled_pickup_at && (
+            <View style={styles.scheduledInfo}>
+              <MaterialCommunityIcons name="calendar-clock" size={16} color="#f97316" />
+              <Text style={styles.scheduledText}>
+                Scheduled Pickup: {new Date(order.scheduled_pickup_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+              </Text>
+            </View>
+          )}
         </Surface>
 
         <ScrollView style={styles.scrollContent} contentContainerStyle={styles.scrollContainer}>
@@ -209,6 +218,18 @@ const styles = StyleSheet.create({
   statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
   statusBadgeText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
   timeText: { fontSize: 12, color: '#6b7280', marginLeft: 'auto' },
+  scheduledInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    gap: 6,
+  },
+  scheduledText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#f97316',
+  },
   scrollContent: { flex: 1 },
   scrollContainer: { padding: 16, paddingBottom: 100 },
   infoCard: { marginBottom: 16, backgroundColor: '#fff', borderRadius: 12 },

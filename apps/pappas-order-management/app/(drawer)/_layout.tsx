@@ -45,6 +45,15 @@ export default function DrawerLayout() {
           ),
         }}
       />
+      <Drawer.Screen
+        name="pre-orders"
+        options={{
+          drawerLabel: 'Pre-orders',
+          drawerIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="calendar-clock-outline" color={color} size={size} />
+          ),
+        }}
+      />
     </Drawer>
   );
 }

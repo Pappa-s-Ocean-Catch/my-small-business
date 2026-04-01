@@ -58,6 +58,11 @@ export const HistoryOrderListItem: React.FC<HistoryOrderListItemProps> = ({
 
           <View style={styles.totalContainer}>
             <Text style={styles.orderTotal}>${order.total.toFixed(2)}</Text>
+            {order.scheduled_pickup_at && (
+              <View style={styles.preOrderBadge}>
+                <Text style={styles.preOrderBadgeText}>Pre-Order</Text>
+              </View>
+            )}
           </View>
         </Card.Content>
       </Card>
@@ -88,6 +93,11 @@ export const HistoryOrderListItem: React.FC<HistoryOrderListItemProps> = ({
           </View>
           <View style={styles.totalGroup}>
             <Text style={styles.orderTotal}>${order.total.toFixed(2)}</Text>
+            {order.scheduled_pickup_at && (
+              <View style={[styles.preOrderBadge, { marginLeft: 8 }]}>
+                <Text style={styles.preOrderBadgeText}>Pre-Order</Text>
+              </View>
+            )}
           </View>
         </View>
       </Card.Content>
@@ -188,6 +198,21 @@ const styles = StyleSheet.create({
   totalGroup: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  preOrderBadge: {
+    backgroundColor: '#fff7ed',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#f97316',
+    marginTop: 2,
+  },
+  preOrderBadgeText: {
+    fontSize: 9,
+    color: '#f97316',
+    fontWeight: '800',
+    textTransform: 'uppercase',
   },
   printIconPortrait: {
     margin: 0,

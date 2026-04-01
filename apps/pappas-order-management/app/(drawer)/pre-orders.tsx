@@ -1,0 +1,216 @@
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import {
+  View,
+  Text,
+  FlatList,
+  StyleSheet,
+  RefreshControl,
+  ActivityIndicator,
+  Alert,
+} from 'react-native';
+import {
+  Button as PaperButton,
+  Surface,
+} from 'react-native-paper';
+import { Appbar } from 'react-native-paper';
+import { useNavigation } from '@react-navigation/native';
+import { DrawerNavigationProp } from '@react-navigation/drawer';
+import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
+import { supabase } from '@/lib/supabase';
+import { getAllOrders } from '@/lib/orders';
+import type { Order } from '@my-small-business/types';
+import { CustomerModal } from '@/components/CustomerModal';
+import { LiveOrderListItem } from '@/components/LiveOrderListItem';
+import { OrderDetailModal } from '@/components/OrderDetailModal';
+import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
+import { useOrderActions } from '@/hooks/useOrderActions';
+import { loadAppSettings, DEFAULT_APP_SETTINGS, type AppSettings } from '@/lib/settings';
+
+export default function PreOrdersScreen() {
+  const router = useRouter();
+  const navigation = useNavigation<DrawerNavigationProp<any>>();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [showOrderModal, setShowOrderModal] = useState(false);
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
+  const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
+  const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [customerInfo, setCustomerInfo] = useState<{ email?: string; phone?: string }>({});
+
+  const loadOrders = async () => {
+    try {
+      setLoading(true);
+      // Fetch all pre-orders for the next 7 days
+      const results = await getAllOrders();
+      if (results.error) {
+        Alert.alert('Error', results.error);
+        return;
+      }
+
+      let allOrders = results.data || [];
+      // Filter for pre-orders only (scheduled_pickup_at is set)
+      // and not completed/cancelled/refunded
+      const preOrders = allOrders.filter(
+        (o) => 
+          o.scheduled_pickup_at !== null &&
+          o.order_status !== 'completed' &&
+          o.order_status !== 'cancelled' &&
+          o.payment_status !== 'refunded'
+      ).sort((a, b) => {
+        const timeA = new Date(a.scheduled_pickup_at!).getTime();
+        const timeB = new Date(b.scheduled_pickup_at!).getTime();
+        return timeA - timeB;
+      });
+
+      setOrders(preOrders);
+    } catch (error) {
+      console.error('Failed to load pre-orders:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const {
+    updatingStatus,
+    printingOrderId,
+    handleStatusUpdate,
+    handlePaymentStatusUpdate,
+    handleQuickAction,
+    handlePrint,
+    showSimulator,
+    setShowSimulator,
+    simulatorOrder,
+  } = useOrderActions(appSettings, loadOrders, (updated) => {
+    if (selectedOrder?.id === updated.id) setSelectedOrder(updated);
+  });
+
+  useEffect(() => {
+    loadAppSettings().then(setAppSettings);
+    loadOrders();
+
+    const subscription = supabase
+      .channel('pre-orders-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        () => loadOrders()
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadOrders();
+    }, [])
+  );
+
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadOrders();
+  };
+
+  const handleOrderPress = (order: Order) => {
+    setSelectedOrder(order);
+    setShowOrderModal(true);
+  };
+
+  const handleCustomerPress = (order: Order) => {
+    setCustomerInfo({ email: order.customer_email, phone: order.customer_phone });
+    setShowCustomerModal(true);
+  };
+
+  return (
+    <View style={styles.container}>
+      <CustomerModal
+        visible={showCustomerModal}
+        email={customerInfo.email}
+        phone={customerInfo.phone}
+        onClose={() => setShowCustomerModal(false)}
+      />
+
+      <Appbar.Header style={styles.appbar}>
+        <Appbar.Action icon="menu" onPress={() => navigation.openDrawer()} iconColor="#fff" />
+        <Appbar.Content title="Pre-Orders" titleStyle={styles.appbarTitle} />
+        <Appbar.Action icon="home" onPress={() => router.replace('/(drawer)/(tabs)/live-orders')} iconColor="#fff" />
+      </Appbar.Header>
+
+      <Surface style={styles.subHeader} elevation={1}>
+        <View style={styles.headerRow}>
+          <Text style={styles.countText}>{orders.length} orders scheduled</Text>
+          <PaperButton mode="contained" onPress={loadOrders} loading={loading} style={styles.refreshButton}>
+            Refresh
+          </PaperButton>
+        </View>
+      </Surface>
+
+      <FlatList
+        data={orders}
+        renderItem={({ item }) => (
+          <LiveOrderListItem
+            order={item}
+            nowMs={nowMs}
+            updatingStatus={updatingStatus}
+            onOrderPress={handleOrderPress}
+            onCustomerPress={handleCustomerPress}
+            onPrintPress={handlePrint}
+            onQuickAction={handleQuickAction}
+            onStatusUpdate={handleStatusUpdate}
+            onPaymentStatusUpdate={handlePaymentStatusUpdate}
+          />
+        )}
+        keyExtractor={(item) => item.id}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+        contentContainerStyle={styles.listContent}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>No pre-orders found</Text>
+          </View>
+        }
+      />
+
+      <OrderDetailModal
+        visible={showOrderModal}
+        order={selectedOrder}
+        onClose={() => setShowOrderModal(false)}
+        onPrint={handlePrint}
+        onCustomerPress={handleCustomerPress}
+        onStatusUpdate={handleStatusUpdate}
+        onPaymentStatusUpdate={handlePaymentStatusUpdate}
+        onQuickAction={handleQuickAction}
+        updatingStatus={updatingStatus}
+      />
+
+      <PrintSimulatorModal
+        visible={showSimulator}
+        order={simulatorOrder}
+        onClose={() => setShowSimulator(false)}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#f5f5f5' },
+  appbar: { backgroundColor: '#2563eb' },
+  appbarTitle: { color: '#fff', fontWeight: 'bold' },
+  subHeader: { padding: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e5e5e5' },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  countText: { fontSize: 14, color: '#6b7280', fontWeight: '600' },
+  refreshButton: { borderRadius: 8 },
+  listContent: { padding: 16 },
+  emptyContainer: { flex: 1, alignItems: 'center', marginTop: 100 },
+  emptyText: { fontSize: 16, color: '#6b7280' },
+});

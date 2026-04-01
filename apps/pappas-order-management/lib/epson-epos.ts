@@ -63,11 +63,23 @@ function formatMoney(amount: number): string {
   return amount.toFixed(2);
 }
 
-function formatOrderHeaderLines(order: Order): string[] {
+function formatOrderHeaderLines(order: Order): ReceiptLine[] {
   const created = new Date(order.created_at);
+  const lines: ReceiptLine[] = [];
 
-  const lines: string[] = [];
-  // Removed order number from header
+  if (order.scheduled_pickup_at) {
+    const pickupDisplay = new Date(order.scheduled_pickup_at).toLocaleString([], { 
+      weekday: 'short', 
+      month: 'short', 
+      day: 'numeric', 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+    lines.push({ text: `*** PRE-ORDER ***`, bold: true, large: true, center: true });
+    lines.push({ text: `PICKUP: ${pickupDisplay}`, bold: true, large: true, center: true });
+    lines.push('');
+  }
+
   lines.push(created.toLocaleString());
   lines.push(`${order.order_type === 'delivery' ? 'DELIVERY' : 'PICKUP'}  •  ${order.payment_method.toUpperCase()}`);
   lines.push('');

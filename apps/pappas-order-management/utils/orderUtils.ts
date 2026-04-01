@@ -19,14 +19,53 @@ export const getApiUrl = (path: string) => {
   return base + (path.startsWith('/') ? path : '/' + path);
 };
 
-export const formatElapsed = (createdAtIso: string, nowMs: number): { text: string; minutes: number } => {
+export const formatElapsed = (
+  createdAtIso: string, 
+  nowMs: number, 
+  scheduledPickupAtIso?: string | null
+): { text: string; minutes: number; isCountdown: boolean; overdue: boolean } => {
+  if (scheduledPickupAtIso) {
+    const targetMs = new Date(scheduledPickupAtIso).getTime();
+    const diffSec = Math.floor((targetMs - nowMs) / 1000);
+    const overdue = diffSec < 0;
+    const absSec = Math.abs(diffSec);
+
+    // If more than 1 hour away (or 1 hour overdue), use D H M format
+    if (absSec >= 3600) {
+      const d = Math.floor(absSec / 86400);
+      const h = Math.floor((absSec % 86400) / 3600);
+      const m = Math.floor((absSec % 3600) / 60);
+      
+      let parts = [];
+      if (d > 0) parts.push(`${d}D`);
+      if (h > 0 || d > 0) parts.push(`${h}H`);
+      parts.push(`${m}M`);
+      
+      const prefix = overdue ? '-' : '';
+      return { 
+        text: `${prefix}${parts.join(' ')}`, 
+        minutes: Math.floor(absSec / 60), 
+        isCountdown: true, 
+        overdue 
+      };
+    }
+
+    // Less than 1 hour: MM:SS format
+    const minutes = Math.floor(absSec / 60);
+    const seconds = absSec % 60;
+    const mm = String(minutes).padStart(2, '0');
+    const ss = String(seconds).padStart(2, '0');
+    const prefix = overdue ? '-' : '';
+    return { text: `${prefix}${mm}:${ss}`, minutes, isCountdown: true, overdue };
+  }
+
   const createdMs = new Date(createdAtIso).getTime();
   const diffSec = Math.max(0, Math.floor((nowMs - createdMs) / 1000));
   const minutes = Math.floor(diffSec / 60);
   const seconds = diffSec % 60;
   const mm = String(minutes).padStart(2, '0');
   const ss = String(seconds).padStart(2, '0');
-  return { text: `${mm}:${ss}`, minutes };
+  return { text: `${mm}:${ss}`, minutes, isCountdown: false, overdue: false };
 };
 
 export const paymentSummary = (order: Order): string => {
