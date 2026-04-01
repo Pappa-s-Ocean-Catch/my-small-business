@@ -125,6 +125,12 @@ export default function CustomersScreen() {
                 ${(Number(item.totalSpent) || 0).toFixed(2)} spent
               </Text>
             </View>
+            <View style={styles.stat}>
+              <MaterialCommunityIcons name="star-outline" size={14} color="#f59e0b" />
+              <Text variant="labelSmall" style={styles.statText}>
+                {item.rewardPoints || 0} pts
+              </Text>
+            </View>
           </View>
         </View>
         <IconButton icon="chevron-right" size={20} />

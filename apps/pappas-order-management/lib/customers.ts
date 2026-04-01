@@ -8,6 +8,7 @@ export interface Customer {
   lastOrderDate: string;
   totalOrders: number;
   totalSpent: number;
+  rewardPoints: number;
 }
 
 export async function getRecentCustomers(page = 0, pageSize = 20): Promise<{ data: Customer[] | null; error: string | null }> {
