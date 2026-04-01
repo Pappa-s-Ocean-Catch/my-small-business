@@ -492,6 +492,14 @@ export default function CheckoutPage() {
                 full_name: profile.full_name || undefined,
                 phone: profile.phone || undefined,
               });
+
+              // Identify user in PostHog
+              posthog.identify(profile.id, {
+                email: profile.email,
+                name: profile.full_name,
+                phone: profile.phone,
+                role: profile.role_slug,
+              });
             } else {
               // User is logged in but not a customer
               setIsLoggedInNonCustomer(true);
@@ -500,6 +508,14 @@ export default function CheckoutPage() {
                 email: profile.email || "",
                 full_name: profile.full_name || undefined,
                 phone: profile.phone || undefined,
+              });
+
+              // Identify user in PostHog
+              posthog.identify(profile.id, {
+                email: profile.email,
+                name: profile.full_name,
+                phone: profile.phone,
+                role: profile.role_slug,
               });
             }
 
@@ -628,6 +644,14 @@ export default function CheckoutPage() {
             setCustomerEmail(profile.email || "");
             setCustomerPhone(profile.phone || "");
             setCustomerName(profile.full_name || "");
+
+            // Identify user in PostHog
+            posthog.identify(profile.id, {
+              email: profile.email,
+              name: profile.full_name,
+              phone: profile.phone,
+              role: profile.role_slug,
+            });
           } else {
             // User is logged in but not a customer - they can't use Pay at Store
             // But we don't throw an error, just don't set isAuthenticated
@@ -748,6 +772,14 @@ export default function CheckoutPage() {
       setCustomerEmail(signupEmail);
       setCustomerPhone(signupPhone || "");
       setCustomerName(signupFullName || "");
+
+      // Identify user in PostHog
+      posthog.identify(result.userId, {
+        email: signupEmail,
+        name: signupFullName,
+        phone: signupPhone,
+        role: "customer",
+      });
     } catch (err) {
       console.error("[Checkout] Signup error:", err);
       setError(err instanceof Error ? err.message : "Signup failed");
