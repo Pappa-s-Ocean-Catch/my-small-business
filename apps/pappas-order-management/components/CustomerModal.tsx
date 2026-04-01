@@ -13,6 +13,7 @@ import {
 } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { fetchCustomerSummary, CustomerSummary } from '@/utils/customerSummary';
+import { getFriendlyOrderNumber } from '../utils/orderNumber';
 
 const STATUS_COLORS: Record<string, string> = {
     pending: '#f59e0b',
@@ -232,18 +233,21 @@ export function CustomerModal({
                                 </View>
                             )}
 
-                            {!loading && !error && customer && (
-                                <FlatList
-                                    data={customer.orders}
-                                    keyExtractor={(item) => item.id}
-                                    ListHeaderComponent={renderHeader}
+                             {!loading && !error && customer && (
+                                <ScrollView 
+                                    style={{ flexShrink: 1 }} 
                                     contentContainerStyle={{ paddingBottom: 40 }}
-                                    renderItem={({ item }) => (
-                                        <View style={{ paddingHorizontal: 20 }}>
+                                    showsVerticalScrollIndicator={true}
+                                >
+                                    {renderHeader()}
+                                    {customer.orders.map((item) => (
+                                        <View key={item.id} style={{ paddingHorizontal: 20 }}>
                                             <Card style={styles.orderCard} mode="contained">
                                                 <Card.Content style={styles.orderCardContent}>
                                                     <View style={styles.orderInfo}>
-                                                        <Text variant="titleSmall" style={styles.orderNumber}>#{item.orderNumber}</Text>
+                                                        <Text variant="titleSmall" style={styles.orderNumber}>
+                                                            {getFriendlyOrderNumber(item.orderNumber)}
+                                                        </Text>
                                                         <Text variant="bodySmall" style={styles.orderDate}>{formatDate(item.date)}</Text>
                                                     </View>
                                                     <View style={styles.orderMeta}>
@@ -259,8 +263,8 @@ export function CustomerModal({
                                                 </Card.Content>
                                             </Card>
                                         </View>
-                                    )}
-                                />
+                                    ))}
+                                </ScrollView>
                             )}
                         </Surface>
                     </TouchableWithoutFeedback>
@@ -283,6 +287,8 @@ const styles = StyleSheet.create({
         width: '90%',
         maxWidth: 500,
         maxHeight: '85%',
+        minHeight: 200,
+        flexShrink: 1,
         overflow: 'hidden',
     },
     header: {

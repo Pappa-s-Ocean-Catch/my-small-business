@@ -37,8 +37,6 @@ export default function TabsLayout() {
             iconName = focused ? 'speedometer' : 'speedometer-outline';
           } else if (route.name === 'orders') {
             iconName = focused ? 'receipt' : 'receipt-outline';
-          } else if (route.name === 'customers') {
-            iconName = focused ? 'people' : 'people-outline';
           } else {
             iconName = focused ? 'settings' : 'settings-outline';
           }
@@ -65,13 +63,6 @@ export default function TabsLayout() {
         options={{
           title: 'Order History',
           tabBarLabel: 'History',
-        }}
-      />
-      <Tabs.Screen
-        name="customers"
-        options={{
-          title: 'Customers',
-          tabBarLabel: 'Customers',
         }}
       />
       <Tabs.Screen

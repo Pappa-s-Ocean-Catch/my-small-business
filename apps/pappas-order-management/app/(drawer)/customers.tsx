@@ -8,14 +8,19 @@ import {
   IconButton,
   Card,
   useTheme,
+  Appbar,
 } from 'react-native-paper';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { DrawerNavigationProp } from '@react-navigation/drawer';
+import { useRouter } from 'expo-router';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { getRecentCustomers, searchCustomers, Customer } from '@/lib/customers';
 import { CustomerModal } from '@/components/CustomerModal';
 
 export default function CustomersScreen() {
   const theme = useTheme();
+  const navigation = useNavigation<DrawerNavigationProp<any>>();
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -95,6 +100,12 @@ export default function CustomersScreen() {
 
   return (
     <View style={styles.container}>
+      <Appbar.Header style={styles.appbar}>
+        <Appbar.Action icon="menu" onPress={() => navigation.openDrawer()} iconColor="#fff" />
+        <Appbar.Content title="Customers" titleStyle={styles.appbarTitle} />
+        <Appbar.Action icon="home" onPress={() => router.replace('/(drawer)/(tabs)/live-orders')} iconColor="#fff" />
+      </Appbar.Header>
+
       <Surface style={styles.searchSurface} elevation={1}>
         <Searchbar
           placeholder="Search customers..."
@@ -145,6 +156,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8fafc',
+  },
+  appbar: {
+    backgroundColor: '#2563eb',
+  },
+  appbarTitle: {
+    color: '#fff',
+    fontWeight: 'bold',
   },
   searchSurface: {
     padding: 12,

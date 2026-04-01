@@ -54,6 +54,15 @@ export default function DrawerLayout() {
           ),
         }}
       />
+      <Drawer.Screen
+        name="customers"
+        options={{
+          drawerLabel: 'Customers',
+          drawerIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="account-group-outline" color={color} size={size} />
+          ),
+        }}
+      />
     </Drawer>
   );
 }
