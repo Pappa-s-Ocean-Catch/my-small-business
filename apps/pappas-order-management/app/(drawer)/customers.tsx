@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, StyleSheet, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
 import { 
   Text, 
@@ -17,44 +17,76 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { getRecentCustomers, searchCustomers, Customer } from '@/lib/customers';
 import { CustomerModal } from '@/components/CustomerModal';
 
+const PAGE_SIZE = 20;
+
 export default function CustomersScreen() {
   const theme = useTheme();
   const navigation = useNavigation<DrawerNavigationProp<any>>();
   const router = useRouter();
+  
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<{ email?: string; phone?: string } | null>(null);
 
-  const loadCustomers = async (search?: string) => {
+  // Debounce search query
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
+  const loadCustomers = async (p: number, search: string, append = false) => {
     try {
-      setLoading(true);
-      const { data, error } = search 
-        ? await searchCustomers(search) 
-        : await getRecentCustomers();
+      if (p === 0) setLoading(true);
+      else setLoadingMore(true);
+
+      const { data, error } = search.trim()
+        ? await searchCustomers(search, p, PAGE_SIZE)
+        : await getRecentCustomers(p, PAGE_SIZE);
       
       if (error) {
         console.error('Error fetching customers:', error);
       } else {
-        setCustomers(data || []);
+        const newData = data || [];
+        setCustomers(prev => append ? [...prev, ...newData] : newData);
+        setHasMore(newData.length === PAGE_SIZE);
       }
     } finally {
       setLoading(false);
+      setLoadingMore(false);
       setRefreshing(false);
     }
   };
 
+  // Trigger load on focus or search query change
   useFocusEffect(
     useCallback(() => {
-      loadCustomers(searchQuery);
-    }, [searchQuery])
+      setPage(0);
+      loadCustomers(0, debouncedQuery, false);
+    }, [debouncedQuery])
   );
 
   const handleRefresh = () => {
     setRefreshing(true);
-    loadCustomers(searchQuery);
+    setPage(0);
+    loadCustomers(0, debouncedQuery, false);
+  };
+
+  const handleLoadMore = () => {
+    if (!loadingMore && hasMore && !loading) {
+      const nextPage = page + 1;
+      setPage(nextPage);
+      loadCustomers(nextPage, debouncedQuery, true);
+    }
   };
 
   const handleCustomerPress = (customer: Customer) => {
@@ -75,12 +107,12 @@ export default function CustomersScreen() {
       <Card.Content style={styles.cardContent}>
         <Avatar.Text 
           size={48} 
-          label={getInitials(item.name)} 
+          label={getInitials(item.name || 'Unknown')} 
           style={[styles.avatar, { backgroundColor: theme.colors.primaryContainer }]} 
           labelStyle={{ color: theme.colors.onPrimaryContainer }}
         />
         <View style={styles.infoContainer}>
-          <Text variant="titleMedium" style={styles.name}>{item.name}</Text>
+          <Text variant="titleMedium" style={styles.name}>{item.name || 'Unknown'}</Text>
           <Text variant="bodySmall" style={styles.contact}>{item.email || item.phone}</Text>
           <View style={styles.statsRow}>
             <View style={styles.stat}>
@@ -89,7 +121,9 @@ export default function CustomersScreen() {
             </View>
             <View style={styles.stat}>
               <MaterialCommunityIcons name="currency-usd" size={14} color="#16a34a" />
-              <Text variant="labelSmall" style={styles.statText}>${item.totalSpent.toFixed(2)} spent</Text>
+              <Text variant="labelSmall" style={styles.statText}>
+                ${(Number(item.totalSpent) || 0).toFixed(2)} spent
+              </Text>
             </View>
           </View>
         </View>
@@ -97,6 +131,15 @@ export default function CustomersScreen() {
       </Card.Content>
     </Card>
   );
+
+  const renderFooter = () => {
+    if (!loadingMore) return null;
+    return (
+      <View style={styles.footerLoader}>
+        <ActivityIndicator size="small" color={theme.colors.primary} />
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -124,13 +167,16 @@ export default function CustomersScreen() {
       ) : (
         <FlatList
           data={customers}
-          keyExtractor={(item) => item.email || item.phone}
+          keyExtractor={(item) => item.email + item.phone}
           renderItem={renderCustomerItem}
           ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
           }
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={renderFooter}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <MaterialCommunityIcons name="account-search-outline" size={64} color="#ccc" />
@@ -235,5 +281,9 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: '#94a3b8',
+  },
+  footerLoader: {
+    paddingVertical: 20,
+    alignItems: 'center',
   },
 });
