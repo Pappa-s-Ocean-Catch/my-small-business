@@ -13,8 +13,8 @@ interface LiveOrderListItemProps {
   onOrderPress: (order: Order) => void;
   onCustomerPress: (order: Order) => void;
   onPrintPress: (order: Order) => void;
-  onQuickAction: (orderId: string, action: string) => void;
-  onStatusUpdate: (orderId: string, status: OrderStatus) => void;
+  onQuickAction: (order: Order, action: string) => void;
+  onStatusUpdate: (order: Order, status: OrderStatus) => void;
   onPaymentStatusUpdate: (orderId: string, status: PaymentStatus) => void;
 }
 
@@ -104,7 +104,7 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
           {quickAction && (
             <PaperButton
               mode="contained"
-              onPress={() => onQuickAction(order.id, quickAction.action)}
+              onPress={() => onQuickAction(order, quickAction.action)}
               disabled={updatingStatus === order.id}
               style={styles.bodyQuickButton}
               contentStyle={styles.bodyQuickButtonContent}
@@ -120,7 +120,7 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
             <View style={styles.statusSelectContainer}>
               <TouchableOpacity
                 style={[styles.statusSelect, { backgroundColor: statusColor }]}
-                onPress={() => onStatusUpdate(order.id, order.order_status)}
+                onPress={() => onStatusUpdate(order, order.order_status)}
                 disabled={updatingStatus === order.id}
               >
                 <Text style={styles.statusSelectText}>{statusLabel}</Text>

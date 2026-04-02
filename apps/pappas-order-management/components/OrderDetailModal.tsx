@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity, useWindowDimensions, Alert } from 'react-native';
+import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity, useWindowDimensions, Alert, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button as PaperButton, IconButton, Surface, Card, Divider } from 'react-native-paper';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
@@ -13,9 +14,9 @@ interface OrderDetailModalProps {
   onClose: () => void;
   onPrint: (order: Order) => void;
   onCustomerPress: (order: Order) => void;
-  onStatusUpdate?: (id: string, status: OrderStatus) => void;
+  onStatusUpdate?: (order: Order, status: OrderStatus) => void;
   onPaymentStatusUpdate?: (id: string, status: PaymentStatus) => void;
-  onQuickAction?: (id: string, action: string) => void;
+  onQuickAction?: (order: Order, action: string) => void;
   updatingStatus?: string | null;
 }
 
@@ -31,6 +32,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   updatingStatus,
 }) => {
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   if (!order) return null;
 
   const statusColor = STATUS_COLORS[order.order_status];
@@ -45,7 +47,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     return (
       <PaperButton
         mode="contained"
-        onPress={() => onQuickAction(order.id, quickAction.action)}
+        onPress={() => onQuickAction(order, quickAction.action)}
         loading={isUpdating}
         disabled={isUpdating}
         style={styles.primaryActionButton}
@@ -63,7 +65,13 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={styles.container}>
         {/* Header */}
-        <Surface style={styles.header} elevation={1}>
+        <Surface 
+          style={[
+            styles.header, 
+            { paddingTop: Math.max(insets.top, 8) }
+          ]} 
+          elevation={1}
+        >
           <View style={styles.headerTop}>
             <Text style={styles.headerTitle}>Order {getFriendlyOrderNumber(order.order_number)}</Text>
             <IconButton icon="close" size={24} onPress={onClose} />
@@ -170,7 +178,13 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
         </ScrollView>
 
         {/* Action Bar */}
-        <Surface style={styles.actionBar} elevation={4}>
+        <Surface 
+          style={[
+            styles.actionBar, 
+            { paddingBottom: Math.max(insets.bottom, 16) }
+          ]} 
+          elevation={4}
+        >
           <View style={styles.secondaryActions}>
             <IconButton icon="printer" mode="outlined" onPress={() => onPrint(order)} style={styles.secondaryButton} />
             {showCancelAction && (
@@ -181,7 +195,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 onPress={() => {
                   Alert.alert('Cancel Order', 'Are you sure you want to cancel this order?', [
                     { text: 'No', style: 'cancel' },
-                    { text: 'Yes, Cancel', onPress: () => onStatusUpdate!(order.id, 'cancelled'), style: 'destructive' }
+                    { text: 'Yes, Cancel', onPress: () => onStatusUpdate!(order, 'cancelled'), style: 'destructive' }
                   ]);
                 }} 
                 style={styles.secondaryButton} 
@@ -212,7 +226,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f3f4f6' },
   header: { paddingBottom: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingLeft: 16, paddingRight: 4, paddingTop: 8 },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingLeft: 16, paddingRight: 4 },
   headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#111827' },
   headerSub: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginTop: -4 },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
@@ -231,7 +245,7 @@ const styles = StyleSheet.create({
     color: '#f97316',
   },
   scrollContent: { flex: 1 },
-  scrollContainer: { padding: 16, paddingBottom: 100 },
+  scrollContainer: { padding: 16, paddingBottom: 120 },
   infoCard: { marginBottom: 16, backgroundColor: '#fff', borderRadius: 12 },
   cardTitle: { fontSize: 16, fontWeight: 'bold', color: '#374151' },
   customerName: { fontSize: 18, fontWeight: 'bold', color: '#111827', marginBottom: 4 },
@@ -253,7 +267,20 @@ const styles = StyleSheet.create({
   totalDivider: { marginVertical: 12 },
   finalTotalLabel: { fontSize: 18, fontWeight: 'bold', color: '#111827' },
   finalTotalValue: { fontSize: 22, fontWeight: 'bold', color: '#2563eb' },
-  actionBar: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#e5e7eb', flexDirection: 'row', alignItems: 'center', gap: 12 },
+  actionBar: { 
+    position: 'absolute', 
+    bottom: 0, 
+    left: 0, 
+    right: 0, 
+    paddingHorizontal: 16, 
+    paddingTop: 16,
+    backgroundColor: '#fff', 
+    borderTopWidth: 1, 
+    borderTopColor: '#e5e7eb', 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 12 
+  },
   secondaryActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   secondaryButton: { margin: 0, borderWidth: 1, borderColor: '#e5e7eb' },
   paymentButton: { borderRadius: 8, height: 40 },

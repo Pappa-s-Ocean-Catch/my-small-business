@@ -2,6 +2,7 @@ import * as React from 'react';
 import { EmailLayout } from './components/EmailLayout';
 import { Tailwind } from '@react-email/tailwind';
 import { Container, Section, Text } from '@react-email/components';
+import { format, parseISO, isToday } from 'date-fns';
 import type { Order, OrderItem, OrderItemAddon } from '@my-small-business/types';
 
 interface OrderPlacedEmailProps {
@@ -57,9 +58,19 @@ export const OrderPlacedEmail = ({ order, businessName = 'OperateFlow', logoUrl 
                         <Text className="text-base text-gray-700 mb-2 m-0">
                             You can <a href={orderLink} style={{ color: '#2563eb', textDecoration: 'underline' }} target="_blank" rel="noopener noreferrer">track your order status here</a> at any time.
                         </Text>
-                        <Text className="text-base text-gray-700 mb-2 m-0">
-                            Most orders are ready for pickup about <strong>10 minutes</strong> after being placed. We'll update your order status on the website.
-                        </Text>
+                        {order.scheduled_pickup_at ? (
+                            <Text className="text-base text-gray-700 mb-2 m-0">
+                                Your order is scheduled for {order.order_type === 'delivery' ? 'delivery' : 'pickup'} at <strong>{
+                                    isToday(parseISO(order.scheduled_pickup_at))
+                                        ? format(parseISO(order.scheduled_pickup_at), 'h:mm a')
+                                        : format(parseISO(order.scheduled_pickup_at), 'EEEE, MMMM do @ h:mm a')
+                                }</strong>.
+                            </Text> 
+                        ) : (
+                            <Text className="text-base text-gray-700 mb-2 m-0">
+                                Most orders are ready for pickup about <strong>10 minutes</strong> after being placed. We'll update your order status on the website.
+                            </Text>
+                        )}
                         <Text className="text-base text-gray-700 mb-2 m-0">
                             If you have any questions or need help, please call us at <a href="tel:+61397438150" style={{ color: '#2563eb', textDecoration: 'underline' }}>+61 3 9743 8150</a>.
                         </Text>

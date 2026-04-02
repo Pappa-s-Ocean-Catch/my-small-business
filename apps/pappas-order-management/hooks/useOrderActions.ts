@@ -39,24 +39,53 @@ export const useOrderActions = (
     }
   };
 
-  const handleStatusUpdate = async (orderId: string, newStatus: OrderStatus) => {
+  const handleStatusUpdate = async (order: Order, newStatus: OrderStatus) => {
     try {
-      setUpdatingStatus(orderId);
-      const result = await updateOrderStatus(orderId, newStatus);
-      if (result.error) {
-        Alert.alert('Error', result.error);
-      } else {
-        await loadOrders();
-        if (onOrderUpdated && result.data) {
-          onOrderUpdated(result.data);
-        }
+      setUpdatingStatus(order.id);
+
+      if (newStatus === 'completed' && order.payment_status === 'pending') {
+        Alert.alert('Complete Order', 'Select payment method', [
+          {
+            text: 'Cash',
+            onPress: async () => {
+              const result = await updateOrderStatus(order.id, 'completed', 'paid', 'Cash');
+              processUpdateResult(result);
+            },
+          },
+          {
+            text: 'Card',
+            onPress: async () => {
+              const result = await updateOrderStatus(order.id, 'completed', 'paid', 'Card');
+              processUpdateResult(result);
+            },
+          },
+          { text: 'Cancel', style: 'cancel', onPress: () => setUpdatingStatus(null) },
+        ]);
+        return;
       }
+
+      const result = await updateOrderStatus(order.id, newStatus);
+      processUpdateResult(result);
     } catch (error) {
       Alert.alert('Error', 'Failed to update status');
       console.error('Error updating status:', error);
-    } finally {
       setUpdatingStatus(null);
     }
+  };
+
+  const processUpdateResult = async (result: { data: Order | null; error: string | null }) => {
+    if (result.error) {
+      Alert.alert('Error', result.error);
+    } else {
+      await loadOrders();
+      if (onOrderUpdated && result.data) {
+        onOrderUpdated(result.data);
+      }
+      if (result.data?.order_status === 'ready' || result.data?.order_status === 'completed') {
+        void triggerOrderStatusEmail(result.data.id, result.data.order_status);
+      }
+    }
+    setUpdatingStatus(null);
   };
 
   const handlePaymentStatusUpdate = async (orderId: string, newStatus: PaymentStatus) => {
@@ -79,7 +108,7 @@ export const useOrderActions = (
     }
   };
 
-  const handleQuickAction = async (orderId: string, action: string) => {
+  const handleQuickAction = async (order: Order, action: string) => {
     const statusMap: Record<string, OrderStatus> = {
       accept: 'confirmed',
       prepare: 'preparing',
@@ -90,26 +119,7 @@ export const useOrderActions = (
     const newStatus = statusMap[action];
     if (!newStatus) return;
 
-    try {
-      setUpdatingStatus(orderId);
-      const result = await updateOrderStatus(orderId, newStatus);
-      if (result.error) {
-        Alert.alert('Error', result.error);
-      } else {
-        await loadOrders();
-        if (onOrderUpdated && result.data) {
-          onOrderUpdated(result.data);
-        }
-        if (newStatus === 'ready' || newStatus === 'completed') {
-          void triggerOrderStatusEmail(orderId, newStatus);
-        }
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to update status');
-      console.error('Error updating status:', error);
-    } finally {
-      setUpdatingStatus(null);
-    }
+    await handleStatusUpdate(order, newStatus);
   };
 
   const handlePrint = async (order: Order) => {

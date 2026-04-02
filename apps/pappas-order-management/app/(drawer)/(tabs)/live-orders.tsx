@@ -48,7 +48,7 @@ export default function LiveOrdersScreen() {
   const [preOrderCount, setPreOrderCount] = useState<number>(0);
 
   const lastOrderIdRef = useRef<string | null>(null);
-  const autoPrintedOrderIdsRef = useRef<Set<string>>(new Set());
+  const processedOrderIdsRef = useRef<Set<string>>(new Set());
   const lastPrinterAlertAtRef = useRef<number>(0);
   const lastAutoStatusAlertAtRef = useRef<number>(0);
   const subscriptionRef = useRef<any>(null);
@@ -118,20 +118,16 @@ export default function LiveOrdersScreen() {
           return timeA - timeB;
         });
 
-        if (newOrders.length > 0) {
-          const mostRecentOrder = newOrders[0];
-          if (lastOrderIdRef.current && lastOrderIdRef.current !== mostRecentOrder.id) {
-            const twoMinutesAgo = Date.now() - (2 * 60 * 1000);
-            const createdTime = new Date(mostRecentOrder.created_at).getTime();
-            if (createdTime > twoMinutesAgo && appSettingsRef.current.soundEnabled) {
-              playNewOrderSound({
-                soundId: appSettingsRef.current.soundId,
-                repeatCount: appSettingsRef.current.soundRepeatCount,
-                delayMs: 2000
-              });
-            }
+        // 3. Process Automatic Actions (Sound + Print) for any order entering live range
+        const s = appSettingsRef.current;
+        for (const order of newOrders) {
+          const isPendingOrConfirmed =
+            order.order_status === 'pending' || order.order_status === 'confirmed';
+
+          if (isPendingOrConfirmed && !processedOrderIdsRef.current.has(order.id)) {
+            // All orders in this filtered 'newOrders' list are within 30 mins (or ASAP)
+            announceAndPrintOrder(order);
           }
-          lastOrderIdRef.current = mostRecentOrder.id;
         }
 
         setOrders(newOrders);
@@ -162,6 +158,47 @@ export default function LiveOrdersScreen() {
   } = useOrderActions(appSettings, loadOrders, (updated) => {
     if (selectedOrder?.id === updated.id) setSelectedOrder(updated);
   });
+
+  const announceAndPrintOrder = async (order: Order) => {
+    const s = appSettingsRef.current;
+    if (processedOrderIdsRef.current.has(order.id)) return;
+    processedOrderIdsRef.current.add(order.id);
+
+    // 1. Play sound
+    if (s.soundEnabled) {
+      playNewOrderSound({
+        soundId: s.soundId,
+        repeatCount: s.soundRepeatCount,
+        delayMs: 1000
+      });
+    }
+
+    // 2. Auto-print if enabled
+    if ((s.printerEnabled || s.printerSimulator) && s.printerAutoPrint) {
+      setPrintingOrderId(order.id);
+      try {
+        if (s.printerSimulator) {
+          setShowSimulator(true);
+        } else {
+          const selected = s.printerSaved.find((p) => p.target === s.printerSelectedTarget);
+          if (selected) await escposPrintKitchenReceipt(order, selected, s.printerCopies);
+        }
+      } catch (err) {
+        console.error('Auto print error:', err);
+      } finally {
+        setPrintingOrderId(null);
+      }
+    }
+
+    // 3. Update status to 'preparing' automatically
+    if (order.order_status === 'pending' || order.order_status === 'confirmed') {
+      try {
+        await updateOrderStatus(order.id, 'preparing');
+      } catch (err) {
+        console.error('Failed to update status to preparing:', err);
+      }
+    }
+  };
 
   useEffect(() => {
     appSettingsRef.current = appSettings;
@@ -200,32 +237,20 @@ export default function LiveOrdersScreen() {
         { event: '*', schema: 'public', table: 'orders' },
         async (payload) => {
           const s = appSettingsRef.current;
-          let shouldPrint = false;
           let orderId = (payload.new as any).id;
           const scheduledPickupAt = (payload.new as any)?.scheduled_pickup_at as string | null | undefined;
           const scheduledPickupAtMs = scheduledPickupAt ? new Date(scheduledPickupAt).getTime() : NaN;
-          const isPreOrder = Number.isFinite(scheduledPickupAtMs) && scheduledPickupAtMs > Date.now();
+          const isPreOrderFarAway = Number.isFinite(scheduledPickupAtMs) && (scheduledPickupAtMs - Date.now()) > (30 * 60 * 1000);
 
-          if (payload.eventType === 'INSERT' && payload.new.order_status === 'pending') {
-            shouldPrint = true;
-          } else if (
+          let isSignificantInsert = payload.eventType === 'INSERT' && payload.new.order_status === 'pending';
+          let isSignificantUpdate =
             payload.eventType === 'UPDATE' &&
             payload.old.order_status === 'pending_online_payment' &&
-            (payload.new.order_status === 'confirmed' || payload.new.order_status === 'accepted')
-          ) {
-            shouldPrint = true;
-          }
+            (payload.new.order_status === 'confirmed' || payload.new.order_status === 'accepted');
 
-          if (shouldPrint) {
-            // 1. Play sound for any new relevant order
-            if (s.soundEnabled && lastOrderIdRef.current !== orderId) {
-              playNewOrderSound({ soundId: s.soundId, repeatCount: s.soundRepeatCount, delayMs: 2000 });
-              lastOrderIdRef.current = orderId;
-            }
-
-            // 2. Handle Auto-Actions
-            if (isPreOrder) {
-              // PRE-ORDER: Set to confirmed and skip printing
+          if (isSignificantInsert || isSignificantUpdate) {
+            if (isPreOrderFarAway) {
+              // PRE-ORDER: Set to confirmed and skip printing for now
               const orderNumber = (payload.new as any)?.order_number || orderId;
               setPreOrderSkipNotice(`Pre-order ${orderNumber} received - print skipped`);
               if (preOrderNoticeTimeoutRef.current) clearTimeout(preOrderNoticeTimeoutRef.current);
@@ -233,39 +258,16 @@ export default function LiveOrdersScreen() {
                 setPreOrderSkipNotice(null);
               }, 4500);
 
-              if ((payload.new as any).order_status === 'pending') {
+              if (payload.new.order_status === 'pending') {
                 await updateOrderStatus(orderId, 'confirmed');
               }
-            } else if (
-              (s.printerEnabled || s.printerSimulator) &&
-              s.printerAutoPrint &&
-              !autoPrintedOrderIdsRef.current.has(orderId)
-            ) {
-              // ASAP ORDER: Auto-print and set to preparing
-              autoPrintedOrderIdsRef.current.add(orderId);
-              setPrintingOrderId(orderId);
-
-              try {
-                const result = await getOrder(orderId);
-                if (result.error || !result.data) throw new Error(result.error || 'Failed to load order');
-
-                if (s.printerSimulator) {
-                  setShowSimulator(true);
-                } else {
-                  const selected = s.printerSaved.find((p) => p.target === s.printerSelectedTarget);
-                  if (selected) await escposPrintKitchenReceipt(result.data, selected, s.printerCopies);
-                }
-
-                // Update status to preparing after successful print trigger
-                if (result.data.order_status === 'pending' || result.data.order_status === 'confirmed') {
-                  await updateOrderStatus(result.data.id, 'preparing');
-                }
-              } catch (err) {
-                autoPrintedOrderIdsRef.current.delete(orderId);
-                console.error('Auto print error:', err);
-              } finally {
-                setPrintingOrderId(null);
+              // Still trigger a sound for awareness? User might want it.
+              if (s.soundEnabled) {
+                playNewOrderSound({ soundId: s.soundId, repeatCount: 1, delayMs: 1000 });
               }
+            } else {
+              // ASAP or NEARBY pre-order: loadOrders() loop will pick it up and announceAndPrint
+              // but we call loadOrders() immediately for responsiveness
             }
           }
           loadOrders();
@@ -402,13 +404,13 @@ export default function LiveOrdersScreen() {
             onCustomerPress={handleCustomerPress}
             onPrintPress={handlePrint}
             onQuickAction={handleQuickAction}
-            onStatusUpdate={(id, status) => {
+            onStatusUpdate={(order, status) => {
               Alert.alert('Update Status', 'Select new status', [
-                { text: 'Confirmed', onPress: () => handleStatusUpdate(id, 'confirmed') },
-                { text: 'Preparing', onPress: () => handleStatusUpdate(id, 'preparing') },
-                { text: 'Ready', onPress: () => handleStatusUpdate(id, 'ready') },
-                { text: 'Completed', onPress: () => handleStatusUpdate(id, 'completed') },
-                { text: 'Cancelled', onPress: () => handleStatusUpdate(id, 'cancelled') },
+                { text: 'Confirmed', onPress: () => handleStatusUpdate(order, 'confirmed') },
+                { text: 'Preparing', onPress: () => handleStatusUpdate(order, 'preparing') },
+                { text: 'Ready', onPress: () => handleStatusUpdate(order, 'ready') },
+                { text: 'Completed', onPress: () => handleStatusUpdate(order, 'completed') },
+                { text: 'Cancelled', onPress: () => handleStatusUpdate(order, 'cancelled') },
                 { text: 'Cancel', style: 'cancel' },
               ]);
             }}
