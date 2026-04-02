@@ -20,6 +20,7 @@ interface LiveOrderTrackerProps {
     minimized?: boolean;
     onMinimize?: () => void;
     onExpand?: () => void;
+    hideFloatBubble?: boolean;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -40,7 +41,7 @@ const STATUS_ICONS: Record<string, ReactElement> = {
     cancelled: <Icon icon={FaTimesCircle} className="text-red-500" />,
 };
 
-export function LiveOrderTracker({ userId, minimized = false, onMinimize, onExpand }: LiveOrderTrackerProps) {
+export function LiveOrderTracker({ userId, minimized = false, onMinimize, onExpand, hideFloatBubble = false }: LiveOrderTrackerProps) {
     const [orders, setOrders] = useState<LiveOrder[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -103,7 +104,7 @@ export function LiveOrderTracker({ userId, minimized = false, onMinimize, onExpa
     };
 
     // Only show widget if user is logged in, has live orders, and no error
-    if (!userId || error || orders.length === 0) return null;
+    if (!userId || error || orders.length === 0 || hideFloatBubble) return null;
     // Clamp activeIndex to valid range
     const safeIndex = Math.max(0, Math.min(activeIndex, orders.length - 1));
 

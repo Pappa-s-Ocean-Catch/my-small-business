@@ -578,9 +578,6 @@ export default function OrderPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-neutral-900 pb-24">
-      {/* Live Order Tracker at the very top */}
-      <LiveOrderTracker userId={userId} />
-
       {/* Navigation Header */}
       <OrderHeader />
 
@@ -940,7 +937,7 @@ export default function OrderPage() {
 
       {/* Cart Sidebar */}
       <CartSidebar hideFloatBubble={!!customizingProduct} />
-      <LiveOrderTracker userId={userId} />
+      <LiveOrderTracker userId={userId} hideFloatBubble={!!customizingProduct} />
     </div>
   );
 }
