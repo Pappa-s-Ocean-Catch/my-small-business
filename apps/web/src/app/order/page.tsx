@@ -12,7 +12,7 @@ import { OrderHeader } from '@/components/OrderHeader';
 import { getTopSellingProducts, getFeaturedProducts } from '@/app/actions/top-sellers';
 import { getActivePromotions } from '@/app/actions/promotions';
 import { useFeatureFlag } from '@/hooks/useFeatureFlag';
-import { FaUtensils, FaSearch, FaFire, FaStar, FaClock, FaChevronLeft, FaChevronRight, FaFilter } from 'react-icons/fa';
+import { FaUtensils, FaSearch, FaFire, FaStar, FaClock, FaChevronLeft, FaChevronRight, FaFilter, FaThLarge, FaTimes } from 'react-icons/fa';
 import { Icon } from '@/components/Icon';
 import { LazyImage } from '@/components/LazyImage';
 import type { CartAddonGroup } from '@/contexts/CartContext';
@@ -648,7 +648,7 @@ export default function OrderPage() {
       <div className="sticky top-0 z-30 bg-white/95 dark:bg-neutral-900/95 backdrop-blur border-b border-gray-200 dark:border-neutral-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center">
           {/* Category nav: Arrow buttons for horizontal scroll (all screens) */}
-          <div className="flex items-center w-full relative">
+          <div className="flex items-center flex-1 relative min-w-0">
             <button
               className=" p-2 mr-2 rounded-full bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-neutral-700"
               onClick={() => {
@@ -701,9 +701,19 @@ export default function OrderPage() {
               <FaChevronRight />
             </button>
           </div>
-          {/* Mobile: No modal/filter, use same nav as desktop */}
+          {/* Mobile Categories Modal Trigger */}
+          <div className="ml-2 flex items-center">
+            <div className="h-6 w-[1px] bg-gray-200 dark:bg-neutral-800 mr-2" />
+            <button
+              onClick={() => setShowCategoryModal(true)}
+              className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg whitespace-nowrap text-xs font-bold hover:bg-blue-700 shadow-sm transition-all active:scale-95"
+              aria-label="View all categories"
+            >
+              <Icon icon={FaThLarge} className="w-3.5 h-3.5" />
+              <span>Categories</span>
+            </button>
+          </div>
         </div>
-        {/* Mobile Category Modal removed: unified nav */}
       </div>
 
       {/* Content */}
@@ -844,6 +854,79 @@ export default function OrderPage() {
           </>
         )}
       </div>
+      {/* Category Modal (Mobile) */}
+      {showCategoryModal && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setShowCategoryModal(false)}
+        >
+          <div 
+            className="bg-white dark:bg-neutral-900 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-4 border-b border-gray-100 dark:border-neutral-800 flex items-center justify-between bg-white dark:bg-neutral-900 sticky top-0 z-10">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <Icon icon={FaThLarge} className="text-blue-600" />
+                Categories
+              </h2>
+              <button 
+                onClick={() => setShowCategoryModal(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded-full transition-colors"
+                aria-label="Close modal"
+              >
+                <Icon icon={FaTimes} className="text-gray-500" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  onClick={() => {
+                    handleSelectCategory(null);
+                    setShowCategoryModal(false);
+                  }}
+                  className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${
+                    selectedCategoryId === null
+                      ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
+                      : 'border-transparent bg-gray-50 dark:bg-neutral-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-700'
+                  }`}
+                >
+                  <span className="font-bold text-sm uppercase tracking-wider">All Items</span>
+                </button>
+                
+                {categoryHierarchy.map(category => (
+                  <button
+                    key={category.id}
+                    onClick={() => {
+                      handleSelectCategory(category.id);
+                      setShowCategoryModal(false);
+                    }}
+                    className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all text-center ${
+                      selectedCategoryId === category.id
+                        ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
+                        : 'border-transparent bg-gray-50 dark:bg-neutral-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-700'
+                    }`}
+                  >
+                    <span className="font-bold text-sm leading-tight">{category.name}</span>
+                    <span className="text-[10px] opacity-60 mt-1 uppercase tracking-tighter">
+                      {productsByMainCategoryId.get(category.id)?.length || 0} items
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            <div className="p-4 bg-gray-50 dark:bg-neutral-800/50 border-t border-gray-100 dark:border-neutral-800">
+              <button 
+                onClick={() => setShowCategoryModal(false)}
+                className="w-full py-3 bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-bold rounded-xl hover:opacity-90 transition-opacity"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Item Customization Modal */}
       {customizingProduct && (
