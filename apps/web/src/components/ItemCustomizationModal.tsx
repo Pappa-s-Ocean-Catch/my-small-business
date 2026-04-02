@@ -170,22 +170,48 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart, 
   const setAddonSelection = (group: AddonGroupWithItems, itemId: string | null) => {
     setSelectedAddons((prev) => {
       const current = prev[group.id] || [];
+      const newSelections: Record<string, string[]> = { ...prev };
 
-      // Clear
+      // Determine the change for the current group
+      let updatedGroupSelections: string[] = [];
       if (!itemId) {
-        return { ...prev, [group.id]: [] };
+        updatedGroupSelections = [];
+      } else if (!group.multiple_choice) {
+        updatedGroupSelections = [itemId];
+      } else {
+        // Multiple choice: toggle
+        if (current.includes(itemId)) {
+          updatedGroupSelections = current.filter((id) => id !== itemId);
+        } else {
+          updatedGroupSelections = [...current, itemId];
+        }
       }
 
-      // Single choice: replace selection
-      if (!group.multiple_choice) {
-        return { ...prev, [group.id]: [itemId] };
+      newSelections[group.id] = updatedGroupSelections;
+
+      // Smart Auto-fill:
+      // If this was the first selection for this group (was empty, now has at least one)
+      // AND we are selecting an item (itemId is not null)
+      if (current.length === 0 && itemId && updatedGroupSelections.includes(itemId)) {
+        const selectedItem = group.items.find((i) => i.id === itemId);
+        if (selectedItem) {
+          const itemName = selectedItem.name;
+
+          // Find other groups that are currently empty
+          addonGroups.forEach((otherGroup) => {
+            // Only auto-fill if the other group is empty and not the current group
+            if (otherGroup.id !== group.id && (prev[otherGroup.id] || []).length === 0) {
+              // Find if this group has an item with the exact same name
+              const matchingItem = otherGroup.items.find((i) => i.is_active && i.name === itemName);
+              if (matchingItem) {
+                newSelections[otherGroup.id] = [matchingItem.id];
+              }
+            }
+          });
+        }
       }
 
-      // Multiple choice: toggle
-      if (current.includes(itemId)) {
-        return { ...prev, [group.id]: current.filter((id) => id !== itemId) };
-      }
-      return { ...prev, [group.id]: [...current, itemId] };
+      return newSelections;
     });
     setErrors([]);
   };
