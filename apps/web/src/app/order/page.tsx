@@ -707,7 +707,6 @@ export default function OrderPage() {
               aria-label="View all categories"
             >
               <Icon icon={FaThLarge} className="w-3.5 h-3.5" />
-              <span>Categories</span>
             </button>
           </div>
         </div>
@@ -853,11 +852,11 @@ export default function OrderPage() {
       </div>
       {/* Category Modal (Mobile) */}
       {showCategoryModal && (
-        <div 
+        <div
           className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
           onClick={() => setShowCategoryModal(false)}
         >
-          <div 
+          <div
             className="bg-white dark:bg-neutral-900 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
@@ -866,7 +865,7 @@ export default function OrderPage() {
                 <Icon icon={FaThLarge} className="text-blue-600" />
                 Categories
               </h2>
-              <button 
+              <button
                 onClick={() => setShowCategoryModal(false)}
                 className="p-2 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded-full transition-colors"
                 aria-label="Close modal"
@@ -874,7 +873,7 @@ export default function OrderPage() {
                 <Icon icon={FaTimes} className="text-gray-500" />
               </button>
             </div>
-            
+
             <div className="flex-1 overflow-y-auto p-6">
               <div className="grid grid-cols-2 gap-4">
                 <button
@@ -882,15 +881,14 @@ export default function OrderPage() {
                     handleSelectCategory(null);
                     setShowCategoryModal(false);
                   }}
-                  className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${
-                    selectedCategoryId === null
+                  className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${selectedCategoryId === null
                       ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
                       : 'border-transparent bg-gray-50 dark:bg-neutral-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-700'
-                  }`}
+                    }`}
                 >
                   <span className="font-bold text-sm uppercase tracking-wider">All Items</span>
                 </button>
-                
+
                 {categoryHierarchy.map(category => (
                   <button
                     key={category.id}
@@ -898,11 +896,10 @@ export default function OrderPage() {
                       handleSelectCategory(category.id);
                       setShowCategoryModal(false);
                     }}
-                    className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all text-center ${
-                      selectedCategoryId === category.id
+                    className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all text-center ${selectedCategoryId === category.id
                         ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
                         : 'border-transparent bg-gray-50 dark:bg-neutral-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-700'
-                    }`}
+                      }`}
                   >
                     <span className="font-bold text-sm leading-tight">{category.name}</span>
                     <span className="text-[10px] opacity-60 mt-1 uppercase tracking-tighter">
@@ -912,9 +909,9 @@ export default function OrderPage() {
                 ))}
               </div>
             </div>
-            
+
             <div className="p-4 bg-gray-50 dark:bg-neutral-800/50 border-t border-gray-100 dark:border-neutral-800">
-              <button 
+              <button
                 onClick={() => setShowCategoryModal(false)}
                 className="w-full py-3 bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-bold rounded-xl hover:opacity-90 transition-opacity"
               >
