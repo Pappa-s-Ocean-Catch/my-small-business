@@ -10,6 +10,7 @@ import {
   Modal,
   Platform,
   useWindowDimensions,
+  TouchableOpacity,
 } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import {
@@ -17,6 +18,7 @@ import {
   IconButton,
   Surface,
 } from 'react-native-paper';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useFocusEffect } from '@react-navigation/native';
 import { getRecentCustomers, searchCustomers, Customer } from '@/lib/customers';
 import { CustomerModal } from '@/components/CustomerModal';
@@ -28,7 +30,7 @@ import { getAllOrders } from '@/lib/orders';
 import type { Order } from '@my-small-business/types';
 import { DEFAULT_APP_SETTINGS, loadAppSettings, subscribeAppSettings, type AppSettings } from '@/lib/settings';
 import { useOrderActions } from '@/hooks/useOrderActions';
-import { getTodayDateString, formatDateToLocalISO } from '@/utils/orderUtils';
+import { getTodayDateString, formatDateToLocalISO, getPaymentMethodType } from '@/utils/orderUtils';
 
 export default function HistoryScreen() {
   const { width, height } = useWindowDimensions();
@@ -49,6 +51,8 @@ export default function HistoryScreen() {
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [customerInfo, setCustomerInfo] = useState<{ email?: string; phone?: string }>({});
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState<'all' | 'card' | 'cash'>('all');
+  const [orderMethodFilter, setOrderMethodFilter] = useState<string>('all');
 
   const loadOrders = async () => {
     try {
@@ -111,19 +115,32 @@ export default function HistoryScreen() {
       if (order.payment_status === 'paid') {
         totalOrders++;
         totalSales += order.total;
-        if (order.payment_method === 'store') {
-          if (order.payment_method_detail?.toLowerCase().includes('card')) {
-            totalCard += order.total;
-          } else {
-            totalCash += order.total;
-          }
-        } else if (order.payment_method === 'online') {
+        const methodType = getPaymentMethodType(order);
+        if (methodType === 'card') {
           totalCard += order.total;
+        } else {
+          totalCash += order.total;
         }
       }
     });
     return { totalOrders, totalSales, totalCard, totalCash };
   }, [orders]);
+
+  const filteredOrders = useMemo(() => {
+    let result = orders;
+    
+    // Payment method filter (Card/Cash) from top-level toggles
+    if (paymentMethodFilter !== 'all') {
+      result = result.filter((order) => getPaymentMethodType(order) === paymentMethodFilter);
+    }
+    
+    // Order source filter (Online/Store) from modal
+    if (orderMethodFilter !== 'all') {
+      result = result.filter((order) => order.payment_method === orderMethodFilter);
+    }
+    
+    return result;
+  }, [orders, paymentMethodFilter, orderMethodFilter]);
 
   const navigateDate = (direction: 'prev' | 'next' | 'today') => {
     if (direction === 'today') {
@@ -193,17 +210,64 @@ export default function HistoryScreen() {
         {quickStats && (
           <View style={styles.statsContainer}>
             <View style={styles.statsRow}>
-              <View style={styles.statBox}><Text style={styles.statLabel}>Orders</Text><Text style={styles.statValue}>{quickStats.totalOrders}</Text></View>
-              <View style={styles.statBox}><Text style={styles.statLabel}>Sales</Text><Text style={styles.statValue}>${quickStats.totalSales.toFixed(2)}</Text></View>
-              <View style={styles.statBox}><Text style={styles.statLabel}>Card</Text><Text style={styles.statValue}>${quickStats.totalCard.toFixed(2)}</Text></View>
-              <View style={styles.statBox}><Text style={styles.statLabel}>Cash</Text><Text style={styles.statValue}>${quickStats.totalCash.toFixed(2)}</Text></View>
+              <TouchableOpacity 
+                style={[
+                  styles.statBox, 
+                  paymentMethodFilter === 'all' && styles.statBoxActive
+                ]} 
+                onPress={() => setPaymentMethodFilter('all')}
+              >
+                <Text style={styles.statLabel}>Orders</Text>
+                <Text style={styles.statValue}>{quickStats.totalOrders}</Text>
+              </TouchableOpacity>
+              
+              <View style={styles.statBox}>
+                <Text style={styles.statLabel}>Sales</Text>
+                <Text style={styles.statValue}>${quickStats.totalSales.toFixed(2)}</Text>
+              </View>
+
+              <TouchableOpacity 
+                style={[
+                  styles.statBox, 
+                  paymentMethodFilter === 'card' && styles.statBoxActive
+                ]} 
+                onPress={() => setPaymentMethodFilter(paymentMethodFilter === 'card' ? 'all' : 'card')}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                  <MaterialCommunityIcons 
+                    name="credit-card-outline" 
+                    size={14} 
+                    color={paymentMethodFilter === 'card' ? '#2563eb' : '#6b7280'} 
+                  />
+                  <Text style={[styles.statLabel, { marginBottom: 0 }]}>Card</Text>
+                </View>
+                <Text style={styles.statValue}>${quickStats.totalCard.toFixed(2)}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[
+                  styles.statBox, 
+                  paymentMethodFilter === 'cash' && styles.statBoxActive
+                ]} 
+                onPress={() => setPaymentMethodFilter(paymentMethodFilter === 'cash' ? 'all' : 'cash')}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                  <MaterialCommunityIcons 
+                    name="cash" 
+                    size={14} 
+                    color={paymentMethodFilter === 'cash' ? '#2563eb' : '#6b7280'} 
+                  />
+                  <Text style={[styles.statLabel, { marginBottom: 0 }]}>Cash</Text>
+                </View>
+                <Text style={styles.statValue}>${quickStats.totalCash.toFixed(2)}</Text>
+              </TouchableOpacity>
             </View>
           </View>
         )}
       </Surface>
 
       <FlatList
-        data={orders}
+        data={filteredOrders}
         renderItem={({ item }) => (
           <HistoryOrderListItem
             order={item}
@@ -240,8 +304,10 @@ export default function HistoryScreen() {
         onStatusChange={setStatusFilter}
         onPaymentChange={setPaymentFilter}
         onApply={() => { setIsFiltersModalVisible(false); loadOrders(); }}
-        onReset={() => { setStatusFilter('all'); setPaymentFilter('all'); }}
+        onReset={() => { setStatusFilter('all'); setPaymentFilter('all'); setOrderMethodFilter('all'); }}
         onClose={() => setIsFiltersModalVisible(false)}
+        orderMethodFilter={orderMethodFilter}
+        onOrderMethodChange={setOrderMethodFilter}
       />
 
       <PrintSimulatorModal
@@ -273,7 +339,8 @@ const styles = StyleSheet.create({
   refreshButton: { borderRadius: 8 },
   statsContainer: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#f3f4f6' },
   statsRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
-  statBox: { flex: 1, padding: 8, backgroundColor: '#f9fafb', borderRadius: 8, alignItems: 'center' },
+  statBox: { flex: 1, padding: 8, backgroundColor: '#f9fafb', borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: 'transparent' },
+  statBoxActive: { backgroundColor: '#eff6ff', borderColor: '#2563eb' },
   statLabel: { fontSize: 11, color: '#6b7280', marginBottom: 2, textTransform: 'uppercase' },
   statValue: { fontSize: 14, fontWeight: 'bold', color: '#111827' },
   listContent: { padding: 16 },

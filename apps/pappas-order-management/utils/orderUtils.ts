@@ -199,3 +199,15 @@ export const generatePrintHTML = (order: Order): string => {
     </html>
   `;
 };
+
+export const getPaymentMethodType = (order: Order): 'card' | 'cash' => {
+  if (order.payment_method === 'online') return 'card';
+  if (order.payment_method === 'store') {
+    const detail = (order.payment_method_detail || '').toLowerCase();
+    // Common card-related terms for in-store payments
+    if (detail.includes('card') || detail.includes('eftpos') || detail.includes('visa') || detail.includes('mastercard')) {
+      return 'card';
+    }
+  }
+  return 'cash';
+};

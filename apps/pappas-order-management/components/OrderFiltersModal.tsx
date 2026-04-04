@@ -7,8 +7,10 @@ interface OrderFiltersModalProps {
   visible: boolean;
   statusFilter: string;
   paymentFilter: string;
+  orderMethodFilter: string;
   onStatusChange: (status: string) => void;
   onPaymentChange: (payment: string) => void;
+  onOrderMethodChange: (method: string) => void;
   onApply: () => void;
   onReset: () => void;
   onClose: () => void;
@@ -19,8 +21,10 @@ export const OrderFiltersModal: React.FC<OrderFiltersModalProps> = ({
   visible,
   statusFilter,
   paymentFilter,
+  orderMethodFilter,
   onStatusChange,
   onPaymentChange,
+  onOrderMethodChange,
   onApply,
   onReset,
   onClose,
@@ -58,7 +62,7 @@ export const OrderFiltersModal: React.FC<OrderFiltersModalProps> = ({
               </View>
             )}
             <View style={styles.filterGroup}>
-              <Text style={styles.filterLabel}>Payment</Text>
+              <Text style={styles.filterLabel}>Payment Status</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
                 <Chip selected={paymentFilter === 'all'} onPress={() => onPaymentChange('all')} style={styles.chip}>
                   All
@@ -73,6 +77,33 @@ export const OrderFiltersModal: React.FC<OrderFiltersModalProps> = ({
                     {label}
                   </Chip>
                 ))}
+              </ScrollView>
+            </View>
+
+            <View style={styles.filterGroup}>
+              <Text style={styles.filterLabel}>Order Source</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
+                <Chip 
+                  selected={orderMethodFilter === 'all'} 
+                  onPress={() => onOrderMethodChange('all')} 
+                  style={styles.chip}
+                >
+                  All
+                </Chip>
+                <Chip 
+                  selected={orderMethodFilter === 'online'} 
+                  onPress={() => onOrderMethodChange('online')} 
+                  style={styles.chip}
+                >
+                  Online
+                </Chip>
+                <Chip 
+                  selected={orderMethodFilter === 'store'} 
+                  onPress={() => onOrderMethodChange('store')} 
+                  style={styles.chip}
+                >
+                  At Counter
+                </Chip>
               </ScrollView>
             </View>
           </ScrollView>

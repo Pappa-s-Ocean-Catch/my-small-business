@@ -4,6 +4,8 @@ import { Card, IconButton } from 'react-native-paper';
 import type { Order } from '@my-small-business/types';
 import { getFriendlyOrderNumber } from '../utils/orderNumber';
 import { STATUS_COLORS, STATUS_LABELS, PAYMENT_STATUS_COLORS, PAYMENT_STATUS_LABELS } from '../utils/constants';
+import { getPaymentMethodType } from '../utils/orderUtils';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 interface HistoryOrderListItemProps {
   order: Order;
@@ -24,6 +26,7 @@ export const HistoryOrderListItem: React.FC<HistoryOrderListItemProps> = ({
   const paymentColor = PAYMENT_STATUS_COLORS[order.payment_status];
   const paymentLabel = PAYMENT_STATUS_LABELS[order.payment_status];
   const isPaid = order.payment_status === 'paid';
+  const paymentMethodType = getPaymentMethodType(order);
 
   if (isLandscape) {
     // 1-line layout
@@ -47,7 +50,12 @@ export const HistoryOrderListItem: React.FC<HistoryOrderListItemProps> = ({
           </View>
 
           <View style={styles.paymentContainer}>
-            <View style={[styles.badge, { backgroundColor: paymentColor }]}>
+            <View style={[styles.badge, { backgroundColor: paymentColor, flexDirection: 'row', gap: 4 }]}>
+              <MaterialCommunityIcons 
+                name={paymentMethodType === 'card' ? 'credit-card' : 'cash'} 
+                size={12} 
+                color="#fff" 
+              />
               <Text style={styles.badgeText}>{paymentLabel}</Text>
             </View>
           </View>
@@ -87,7 +95,12 @@ export const HistoryOrderListItem: React.FC<HistoryOrderListItemProps> = ({
             <View style={[styles.badge, { backgroundColor: statusColor, marginRight: 6 }]}>
               <Text style={styles.badgeText}>{statusLabel}</Text>
             </View>
-            <View style={[styles.badge, { backgroundColor: paymentColor }]}>
+            <View style={[styles.badge, { backgroundColor: paymentColor, flexDirection: 'row', gap: 4 }]}>
+              <MaterialCommunityIcons 
+                name={paymentMethodType === 'card' ? 'credit-card' : 'cash'} 
+                size={12} 
+                color="#fff" 
+              />
               <Text style={styles.badgeText}>{paymentLabel}</Text>
             </View>
           </View>
