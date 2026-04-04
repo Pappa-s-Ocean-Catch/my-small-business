@@ -178,12 +178,6 @@ export default function HistoryScreen() {
 
   return (
     <View style={styles.container}>
-      <CustomerModal
-        visible={showCustomerModal}
-        email={customerInfo.email}
-        phone={customerInfo.phone}
-        onClose={() => setShowCustomerModal(false)}
-      />
 
       <Surface style={styles.header} elevation={1}>
         <View style={styles.headerTop}>
@@ -325,6 +319,13 @@ export default function HistoryScreen() {
           maximumDate={new Date()}
         />
       )}
+      
+      <CustomerModal
+        visible={showCustomerModal}
+        email={customerInfo.email}
+        phone={customerInfo.phone}
+        onClose={() => setShowCustomerModal(false)}
+      />
     </View>
   );
 }

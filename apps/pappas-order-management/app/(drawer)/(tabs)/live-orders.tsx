@@ -329,12 +329,6 @@ export default function LiveOrdersScreen() {
 
   return (
     <View style={styles.container}>
-      <CustomerModal
-        visible={showCustomerModal}
-        email={customerInfo.email}
-        phone={customerInfo.phone}
-        onClose={() => setShowCustomerModal(false)}
-      />
 
       {printingOrderId && (
         <View style={styles.printingOverlay} pointerEvents="none">
@@ -449,6 +443,13 @@ export default function LiveOrdersScreen() {
         visible={showSimulator}
         order={simulatorOrder}
         onClose={() => setShowSimulator(false)}
+      />
+      
+      <CustomerModal
+        visible={showCustomerModal}
+        email={customerInfo.email}
+        phone={customerInfo.phone}
+        onClose={() => setShowCustomerModal(false)}
       />
     </View>
   );

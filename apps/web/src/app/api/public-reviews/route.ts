@@ -53,13 +53,16 @@ export async function GET(req: NextRequest) {
             created_at: r.created_at,
             user_name: userMap[r.user_id] || 'Anonymous',
             source: 'internal',
+            response: (r as any).response || null,
         });
 
-        // Normalize external_reviews (use only rating column)
+        // Normalize external_reviews
         const normExternal = (r: any) => ({
             id: String(r.id),
             rating: typeof r.rating === 'number' ? r.rating : 0,
-            comment: r.message || r.response || '',
+            comment: r.message || '',
+            response: r.response || null,
+            replied_at: r.replied_at || null,
             created_at: r.date || r.created_at || null,
             user_name: r.name || 'External',
             source: r.source || 'external',

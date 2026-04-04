@@ -100,7 +100,10 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
           <Card style={styles.infoCard}>
             <Card.Title title="Customer" titleStyle={styles.cardTitle} left={(props) => <IconButton {...props} icon="account" />} />
             <Card.Content>
-              <TouchableOpacity onPress={() => onCustomerPress(order)}>
+              <TouchableOpacity 
+                onPress={() => onCustomerPress(order)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
                 <Text style={styles.customerName}>{order.customer_name || 'N/A'}</Text>
               </TouchableOpacity>
               <Text style={styles.contactText}>{order.customer_email}</Text>

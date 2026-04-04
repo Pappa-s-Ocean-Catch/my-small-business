@@ -37,7 +37,11 @@ export const HistoryOrderListItem: React.FC<HistoryOrderListItemProps> = ({
             <Text style={styles.orderNumber}>#{getFriendlyOrderNumber(order.order_number)}</Text>
           </View>
           
-          <TouchableOpacity style={styles.customerContainer} onPress={() => onCustomerPress(order)}>
+          <TouchableOpacity 
+            style={styles.customerContainer} 
+            onPress={() => onCustomerPress(order)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
             <Text style={styles.customerName} numberOfLines={1}>
               {order.customer_name || order.customer_email}
             </Text>
@@ -83,7 +87,11 @@ export const HistoryOrderListItem: React.FC<HistoryOrderListItemProps> = ({
       <Card.Content style={styles.portraitContent}>
         <View style={styles.portraitRow}>
           <Text style={styles.orderNumber}>#{getFriendlyOrderNumber(order.order_number)}</Text>
-          <TouchableOpacity style={styles.portraitCustomerWrapper} onPress={() => onCustomerPress(order)}>
+          <TouchableOpacity 
+            style={styles.portraitCustomerWrapper} 
+            onPress={() => onCustomerPress(order)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
             <Text style={styles.customerName} numberOfLines={1}>
               {order.customer_name || order.customer_email}
             </Text>
