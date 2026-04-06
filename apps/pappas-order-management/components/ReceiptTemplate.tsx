@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
     fontSize: 36,
     fontWeight: 'bold',
     color: '#000',
-    lineHeight: 36,
+    lineHeight: 40,
   },
   addonText: {
     fontSize: 30,

@@ -210,6 +210,7 @@ export default function LiveOrdersScreen() {
 
   const quickPrintOrder = async (order: Order) => {
     try {
+      const s = appSettingsRef.current;
       setIsCapturing(true);
       setPrintingOrderId(order.id);
       
@@ -229,7 +230,19 @@ export default function LiveOrdersScreen() {
         result: 'tmpfile',
       });
 
-      await handlePrintImage(order, uri);
+      if (s.printerSimulator) {
+        setSimulatorOrder(order);
+        setShowSimulator(true);
+        return;
+      }
+
+      const selected = s.printerSaved.find((p) => p.target === s.printerSelectedTarget) || null;
+      if (!s.printerEnabled || !selected) {
+        Alert.alert('Printer error', 'Auto-print is enabled, but no printer is selected.');
+        return;
+      }
+
+      await escposPrintOrderImage(uri, selected, s.printerCopies);
     } catch (error) {
       console.error('Quick print failed:', error);
       Alert.alert('Print error', 'Failed to capture receipt template image for printing.');
@@ -298,7 +311,7 @@ export default function LiveOrdersScreen() {
                 setPreOrderSkipNotice(null);
               }, 4500);
 
-              if (payload.new.order_status === 'pending') {
+              if ((payload.new as { order_status?: string })?.order_status === 'pending') {
                 await updateOrderStatus(orderId, 'confirmed');
               }
               // Still trigger a sound for awareness? User might want it.

@@ -39,7 +39,6 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const insets = useSafeAreaInsets();
   const [toastVisible, setToastVisible] = React.useState(false);
   const [isCapturing, setIsCapturing] = React.useState(false);
-  const [previewVisible, setPreviewVisible] = React.useState(false);
   const receiptRef = React.useRef(null);
 
   if (!order) return null;
@@ -118,15 +117,6 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
             <View style={{ flex: 1 }}>
               <Text style={styles.headerTitle}>Order {getFriendlyOrderNumber(order.order_number)}</Text>
             </View>
-            <PaperButton
-              mode="outlined"
-              icon="file-search"
-              onPress={() => setPreviewVisible(true)}
-              style={styles.headerPreviewButton}
-              labelStyle={styles.headerPreviewButtonLabel}
-            >
-              Print Review
-            </PaperButton>
             <PaperButton 
               mode="contained" 
               icon="printer" 
@@ -304,53 +294,6 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               <ReceiptTemplate order={order} />
            </View>
         </View>
-
-        <Modal
-          visible={previewVisible}
-          animationType="slide"
-          transparent
-          onRequestClose={() => setPreviewVisible(false)}
-        >
-          <View style={styles.previewOverlay}>
-            <View style={styles.previewCard}>
-              <View style={styles.previewHeader}>
-                <Text style={styles.previewTitle}>Receipt Preview</Text>
-                <IconButton icon="close" size={22} onPress={() => setPreviewVisible(false)} />
-              </View>
-
-              <ScrollView
-                style={styles.previewScroll}
-                contentContainerStyle={styles.previewScrollContent}
-                showsVerticalScrollIndicator={false}
-              >
-                <View style={styles.previewBody}>
-                  <View style={styles.previewReceiptWrapper}>
-                  <ReceiptTemplate order={order} />
-                  </View>
-                </View>
-              </ScrollView>
-
-              <View style={styles.previewActions}>
-                <PaperButton mode="outlined" onPress={() => setPreviewVisible(false)} style={styles.previewActionButton}>
-                  Close
-                </PaperButton>
-                <PaperButton
-                  mode="contained"
-                  icon="printer"
-                  onPress={async () => {
-                    setPreviewVisible(false);
-                    await handleInternalPrint();
-                  }}
-                  loading={isCapturing}
-                  disabled={isCapturing}
-                  style={styles.previewActionButton}
-                >
-                  Print
-                </PaperButton>
-              </View>
-            </View>
-          </View>
-        </Modal>
       </View>
     </Modal>
   );
@@ -424,76 +367,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: '#2563eb',
   },
-  headerPreviewButton: {
-    marginRight: 8,
-    borderRadius: 8,
-    borderColor: '#d1d5db',
-  },
-  headerPreviewButtonLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#374151',
-  },
   headerPrintButtonLabel: {
     fontSize: 14,
     fontWeight: 'bold',
-  },
-  previewOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 24,
-  },
-  previewCard: {
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    overflow: 'hidden',
-    maxHeight: '90%',
-  },
-  previewHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    paddingLeft: 16,
-    paddingRight: 4,
-    paddingVertical: 10,
-  },
-  previewTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  previewScroll: {
-    backgroundColor: '#f9fafb',
-  },
-  previewScrollContent: {
-    paddingBottom: 12,
-  },
-  previewBody: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-  },
-  previewReceiptWrapper: {
-    alignSelf: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 6,
-  },
-  previewActions: {
-    flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-    backgroundColor: '#fff',
-  },
-  previewActionButton: {
-    flex: 1,
   },
   snackbar: {
     marginBottom: 80, // Position above the action bar
