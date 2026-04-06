@@ -228,6 +228,7 @@ export default function LiveOrdersScreen() {
         format: 'png',
         quality: 1,
         result: 'tmpfile',
+        width: 576,
       });
 
       if (s.printerSimulator) {

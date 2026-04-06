@@ -64,6 +64,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
           format: 'png',
           quality: 1,
           result: 'tmpfile',
+          width: 576,
         });
         
         success = await onPrintImage(order, uri);
