@@ -86,6 +86,7 @@ export default function HistoryScreen() {
     handlePaymentStatusUpdate,
     handleQuickAction,
     handlePrint,
+    handlePrintImage,
   } = useOrderActions(appSettings, loadOrders, (updated) => {
     if (selectedOrder?.id === updated.id) setSelectedOrder(updated);
   });
@@ -284,6 +285,7 @@ export default function HistoryScreen() {
         order={selectedOrder}
         onClose={() => setShowOrderModal(false)}
         onPrint={handlePrint}
+        onPrintImage={handlePrintImage}
         onCustomerPress={handleCustomerPress}
         onStatusUpdate={handleStatusUpdate}
         onPaymentStatusUpdate={handlePaymentStatusUpdate}

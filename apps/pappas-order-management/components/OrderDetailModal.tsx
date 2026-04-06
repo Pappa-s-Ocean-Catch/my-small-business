@@ -1,8 +1,10 @@
 import React from 'react';
 import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity, useWindowDimensions, Alert, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Button as PaperButton, IconButton, Surface, Card, Divider } from 'react-native-paper';
+import { Button as PaperButton, IconButton, Surface, Card, Divider, Snackbar } from 'react-native-paper';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { captureRef } from 'react-native-view-shot';
+import { ReceiptTemplate } from './ReceiptTemplate';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { getFriendlyOrderNumber } from '../utils/orderNumber';
 import { STATUS_COLORS, STATUS_LABELS, PAYMENT_STATUS_COLORS, PAYMENT_STATUS_LABELS } from '../utils/constants';
@@ -12,7 +14,8 @@ interface OrderDetailModalProps {
   visible: boolean;
   order: Order | null;
   onClose: () => void;
-  onPrint: (order: Order) => void;
+  onPrint: (order: Order) => Promise<boolean>;
+  onPrintImage?: (order: Order, imageUri: string) => Promise<boolean>;
   onCustomerPress: (order: Order) => void;
   onStatusUpdate?: (order: Order, status: OrderStatus) => void;
   onPaymentStatusUpdate?: (id: string, status: PaymentStatus) => void;
@@ -25,6 +28,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   order,
   onClose,
   onPrint,
+  onPrintImage,
   onCustomerPress,
   onStatusUpdate,
   onPaymentStatusUpdate,
@@ -33,6 +37,11 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
 }) => {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const [toastVisible, setToastVisible] = React.useState(false);
+  const [isCapturing, setIsCapturing] = React.useState(false);
+  const [previewVisible, setPreviewVisible] = React.useState(false);
+  const receiptRef = React.useRef(null);
+
   if (!order) return null;
 
   const statusColor = STATUS_COLORS[order.order_status];
@@ -41,6 +50,39 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const paymentLabel = PAYMENT_STATUS_LABELS[order.payment_status];
   const quickAction = getNextQuickAction(order.order_status);
   const isUpdating = updatingStatus === order.id;
+
+  const handleInternalPrint = async () => {
+    let success = false;
+    
+    // If onPrintImage is provided, capture the template first
+    if (onPrintImage && receiptRef.current) {
+      try {
+        setIsCapturing(true);
+        // Small delay to ensure the hidden view is rendered
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        const uri = await captureRef(receiptRef.current, {
+          format: 'png',
+          quality: 1,
+          result: 'tmpfile',
+        });
+        
+        success = await onPrintImage(order, uri);
+      } catch (error) {
+        console.error('Failed to capture receipt:', error);
+        // Fallback to standard print if capture fails
+        success = await onPrint(order);
+      } finally {
+        setIsCapturing(false);
+      }
+    } else {
+      success = await onPrint(order);
+    }
+
+    if (success) {
+      setToastVisible(true);
+    }
+  };
 
   const renderActionButton = () => {
     if (!onQuickAction || !quickAction) return null;
@@ -73,7 +115,29 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
           elevation={1}
         >
           <View style={styles.headerTop}>
-            <Text style={styles.headerTitle}>Order {getFriendlyOrderNumber(order.order_number)}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.headerTitle}>Order {getFriendlyOrderNumber(order.order_number)}</Text>
+            </View>
+            <PaperButton
+              mode="outlined"
+              icon="file-search"
+              onPress={() => setPreviewVisible(true)}
+              style={styles.headerPreviewButton}
+              labelStyle={styles.headerPreviewButtonLabel}
+            >
+              Print Review
+            </PaperButton>
+            <PaperButton 
+              mode="contained" 
+              icon="printer" 
+              onPress={handleInternalPrint}
+              loading={isCapturing}
+              disabled={isCapturing}
+              style={styles.headerPrintButton}
+              labelStyle={styles.headerPrintButtonLabel}
+            >
+              Print
+            </PaperButton>
             <IconButton icon="close" size={24} onPress={onClose} />
           </View>
           <View style={styles.headerSub}>
@@ -189,7 +253,6 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
           elevation={4}
         >
           <View style={styles.secondaryActions}>
-            <IconButton icon="printer" mode="outlined" onPress={() => onPrint(order)} style={styles.secondaryButton} />
             {showCancelAction && (
               <IconButton 
                 icon="cancel" 
@@ -221,6 +284,73 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
           </View>
           {renderActionButton()}
         </Surface>
+
+        <Snackbar
+          visible={toastVisible}
+          onDismiss={() => setToastVisible(false)}
+          duration={3000}
+          action={{
+            label: 'OK',
+            onPress: () => setToastVisible(false),
+          }}
+          style={styles.snackbar}
+        >
+          Printing successful
+        </Snackbar>
+
+        {/* Hidden Receipt Template for capture */}
+        <View style={styles.hiddenReceiptContainer} pointerEvents="none">
+           <View ref={receiptRef} collapsable={false}>
+              <ReceiptTemplate order={order} />
+           </View>
+        </View>
+
+        <Modal
+          visible={previewVisible}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setPreviewVisible(false)}
+        >
+          <View style={styles.previewOverlay}>
+            <View style={styles.previewCard}>
+              <View style={styles.previewHeader}>
+                <Text style={styles.previewTitle}>Receipt Preview</Text>
+                <IconButton icon="close" size={22} onPress={() => setPreviewVisible(false)} />
+              </View>
+
+              <ScrollView
+                style={styles.previewScroll}
+                contentContainerStyle={styles.previewScrollContent}
+                showsVerticalScrollIndicator={false}
+              >
+                <View style={styles.previewBody}>
+                  <View style={styles.previewReceiptWrapper}>
+                  <ReceiptTemplate order={order} />
+                  </View>
+                </View>
+              </ScrollView>
+
+              <View style={styles.previewActions}>
+                <PaperButton mode="outlined" onPress={() => setPreviewVisible(false)} style={styles.previewActionButton}>
+                  Close
+                </PaperButton>
+                <PaperButton
+                  mode="contained"
+                  icon="printer"
+                  onPress={async () => {
+                    setPreviewVisible(false);
+                    await handleInternalPrint();
+                  }}
+                  loading={isCapturing}
+                  disabled={isCapturing}
+                  style={styles.previewActionButton}
+                >
+                  Print
+                </PaperButton>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </View>
     </Modal>
   );
@@ -289,4 +419,89 @@ const styles = StyleSheet.create({
   paymentButton: { borderRadius: 8, height: 40 },
   primaryActionButton: { flex: 1, borderRadius: 8 },
   primaryActionButtonContent: { height: 48 },
+  headerPrintButton: {
+    marginRight: 8,
+    borderRadius: 8,
+    backgroundColor: '#2563eb',
+  },
+  headerPreviewButton: {
+    marginRight: 8,
+    borderRadius: 8,
+    borderColor: '#d1d5db',
+  },
+  headerPreviewButtonLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  headerPrintButtonLabel: {
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  previewOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 24,
+  },
+  previewCard: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    overflow: 'hidden',
+    maxHeight: '90%',
+  },
+  previewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    paddingLeft: 16,
+    paddingRight: 4,
+    paddingVertical: 10,
+  },
+  previewTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  previewScroll: {
+    backgroundColor: '#f9fafb',
+  },
+  previewScrollContent: {
+    paddingBottom: 12,
+  },
+  previewBody: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  previewReceiptWrapper: {
+    alignSelf: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+  },
+  previewActions: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    backgroundColor: '#fff',
+  },
+  previewActionButton: {
+    flex: 1,
+  },
+  snackbar: {
+    marginBottom: 80, // Position above the action bar
+  },
+  hiddenReceiptContainer: {
+    position: 'absolute',
+    top: -9999,
+    left: -9999,
+    opacity: 0,
+  },
 });

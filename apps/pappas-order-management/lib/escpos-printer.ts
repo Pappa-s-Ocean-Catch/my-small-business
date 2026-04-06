@@ -1,6 +1,6 @@
 import type { Order } from '@my-small-business/types';
 import { Printer, PrinterModelLang, PrinterConstants } from 'react-native-esc-pos-printer';
-import { buildKitchenReceiptLines } from './epson-epos';
+import { buildKitchenReceiptLines, type ReceiptLine } from './epson-epos';
 
 export type SavedPrinter = {
   target: string;
@@ -79,7 +79,9 @@ export async function escposPrintKitchenReceipt(order: Order, printer: SavedPrin
     await withConnectedPrinter(
       printer,
       async (p) => {
-        p.addTextSize({ width: 1.35, height: 1.35 });
+        // Set default text size to 1x1 at start
+        await p.addTextSize({ width: 1, height: 1 });
+        
         for (const line of lines) {
           await printReceiptLine(p, line);
         }
@@ -91,17 +93,54 @@ export async function escposPrintKitchenReceipt(order: Order, printer: SavedPrin
   }
 }
 
+export async function escposPrintOrderImage(imageUri: string, printer: SavedPrinter, copies: number): Promise<void> {
+  assertPrinter(printer);
+  const repeat = normalizeCopies(copies);
+
+  for (let i = 0; i < repeat; i++) {
+    await withConnectedPrinter(
+      printer,
+      async (p) => {
+        // Full 80mm paper width is ~576px at 203 DPI
+        // We use the full width for the rendered image
+        await p.addImage({
+          source: { uri: imageUri },
+          width: 576,
+        });
+        await p.addCut();
+        await p.sendData();
+      },
+      { timeoutMs: 30000 } // Image printing can be slower
+    );
+  }
+}
+
+const ESC_M_FONT_A = new Uint8Array([0x1b, 0x4d, 0]);
+const ESC_M_FONT_B = new Uint8Array([0x1b, 0x4d, 1]);
+
 // Helper to print a single line with formatting
-async function printReceiptLine(p: Printer, line: string | { text: string; bold?: boolean; large?: boolean }) {
+async function printReceiptLine(p: Printer, line: ReceiptLine) {
+  // Reset formatting for each line
+  await p.addCommand(ESC_M_FONT_A);
+  await p.addTextStyle({ em: PrinterConstants.FALSE });
+  await p.addTextSize({ width: 1, height: 1 });
+
   if (typeof line === 'string') {
     await p.addText(line + '\n');
     return;
   }
-  // Set formatting if supported by printer
+
+  // Large font = Font A, 2x2 (standard big)
+  if (line.large) {
+     await p.addTextSize({ width: 2, height: 2 });
+  } 
+  // Medium font = Font B, 2x2 (~1.5x of Font A normal)
+  else if (line.medium) {
+     await p.addCommand(ESC_M_FONT_B);
+     await p.addTextSize({ width: 2, height: 2 });
+  }
+
   if (line.bold) await p.addTextStyle({ em: PrinterConstants.TRUE });
-  if (line.large) await p.addTextSize({ width: 1.75, height: 1.75 });
+  
   await p.addText(line.text + '\n');
-  // Reset formatting after line
-  if (line.bold) await p.addTextStyle({ em: PrinterConstants.FALSE });
-  if (line.large) await p.addTextSize({ width: 1.25, height: 1.25 });
 }

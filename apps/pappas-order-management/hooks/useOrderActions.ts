@@ -3,7 +3,7 @@ import { Alert } from 'react-native';
 import * as Print from 'expo-print';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { updateOrderStatus, updatePaymentStatus, getOrder } from '@/lib/orders';
-import { escposPrintKitchenReceipt, formatPrinterError } from '@/lib/escpos-printer';
+import { escposPrintKitchenReceipt, escposPrintOrderImage, formatPrinterError } from '@/lib/escpos-printer';
 import { generatePrintHTML } from '@/utils/orderUtils';
 import type { AppSettings } from '@/lib/settings';
 
@@ -122,50 +122,63 @@ export const useOrderActions = (
     await handleStatusUpdate(order, newStatus);
   };
 
-  const handlePrint = async (order: Order) => {
+  const handlePrint = async (order: Order): Promise<boolean> => {
     try {
       if (appSettings.printerSimulator) {
         setSimulatorOrder(order);
         setShowSimulator(true);
-        return;
+        return true;
       }
 
       const selected = appSettings.printerSaved.find((p) => p.target === appSettings.printerSelectedTarget) || null;
       if (appSettings.printerEnabled && selected) {
         try {
           await escposPrintKitchenReceipt(order, selected, appSettings.printerCopies);
-          return;
+          return true;
         } catch (printerError) {
           console.error('Print error:', printerError);
-          Alert.alert(
-            'Printer error',
-            formatPrinterError(printerError),
-            [
-              { text: 'Cancel', style: 'cancel' },
-              {
-                text: 'System Print',
-                onPress: async () => {
-                  try {
-                    const html = generatePrintHTML(order);
-                    await Print.printAsync({ html });
-                  } catch (e) {
-                    console.error('System print error:', e);
-                    Alert.alert('Error', e instanceof Error ? e.message : 'System print failed');
-                  }
-                },
-              },
-            ]
-          );
-          return;
+          // Fallback handled in UI or system print
+          return false;
         }
       }
 
       const html = generatePrintHTML(order);
       await Print.printAsync({ html });
+      return true;
     } catch (error) {
-      const detail = error instanceof Error ? error.message : 'Failed to print order';
       console.error('Print error:', error);
-      Alert.alert('Error', detail);
+      return false;
+    }
+  };
+
+  const handlePrintImage = async (order: Order, imageUri: string): Promise<boolean> => {
+    try {
+      if (appSettings.printerSimulator) {
+        setSimulatorOrder(order);
+        setShowSimulator(true);
+        return true;
+      }
+
+      const selected = appSettings.printerSaved.find((p) => p.target === appSettings.printerSelectedTarget) || null;
+      if (appSettings.printerEnabled && selected) {
+        try {
+          await escposPrintOrderImage(imageUri, selected, appSettings.printerCopies);
+          return true;
+        } catch (printerError) {
+          console.error('Print image error:', printerError);
+          Alert.alert('Printer error', formatPrinterError(printerError));
+          return false;
+        }
+      }
+
+      // Fallback to system print if image printing is not available or failed
+      const html = generatePrintHTML(order);
+      await Print.printAsync({ html });
+      return true;
+    } catch (error) {
+      console.error('Print image error:', error);
+      Alert.alert('Error', 'Failed to print receipt image');
+      return false;
     }
   };
 
@@ -181,5 +194,6 @@ export const useOrderActions = (
     handlePaymentStatusUpdate,
     handleQuickAction,
     handlePrint,
+    handlePrintImage,
   };
 };

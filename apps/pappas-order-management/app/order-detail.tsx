@@ -6,7 +6,7 @@ import {
   Alert,
   useWindowDimensions,
 } from 'react-native';
-import { ActivityIndicator, Button, Card, Text } from 'react-native-paper';
+import { ActivityIndicator, Button, Card, Text, Snackbar } from 'react-native-paper';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getOrder, updateOrderStatus } from '../lib/orders';
 import type { Order, OrderStatus } from '@my-small-business/types';
@@ -43,6 +43,7 @@ export default function OrderDetailScreen() {
   const { width, height } = useWindowDimensions();
   const isPortrait = height >= width;
   const isNarrow = width < 420;
+  const [toastVisible, setToastVisible] = useState(false);
 
   useEffect(() => {
     loadOrder();
@@ -101,6 +102,7 @@ export default function OrderDetailScreen() {
             printerDeviceId: s.printerDeviceId,
             printerTimeoutMs: s.printerTimeoutMs,
           });
+          setToastVisible(true);
           return;
         } catch (epsonError) {
           Alert.alert(
@@ -123,6 +125,7 @@ export default function OrderDetailScreen() {
 
       const html = generatePrintHTML(order);
       await Print.printAsync({ html });
+      setToastVisible(true);
     } catch (error) {
       Alert.alert('Error', 'Failed to print order');
       console.error('Print error:', error);
@@ -236,8 +239,18 @@ export default function OrderDetailScreen() {
             {order.customer_phone}
           </Text>
         </View>
-        <View style={[styles.statusBadge, isPortrait && styles.statusBadgePortrait, { backgroundColor: statusColor }]}>
-          <Text style={styles.statusText}>{statusLabel}</Text>
+        <View style={styles.headerRight}>
+          <View style={[styles.statusBadge, isPortrait && styles.statusBadgePortrait, { backgroundColor: statusColor, marginBottom: 8 }]}>
+            <Text style={styles.statusText}>{statusLabel}</Text>
+          </View>
+          <Button 
+            mode="contained" 
+            icon="printer" 
+            onPress={handlePrint}
+            style={styles.headerPrintButton}
+          >
+            Print
+          </Button>
         </View>
       </View>
 
@@ -343,9 +356,6 @@ export default function OrderDetailScreen() {
       </Card>
 
       <View style={styles.actions}>
-        <Button mode="outlined" onPress={handlePrint} style={styles.paperButton}>
-          Print Order
-        </Button>
 
         {order.order_status === 'pending' && (
           <Button
@@ -409,6 +419,19 @@ export default function OrderDetailScreen() {
           </Button>
         )}
       </View>
+
+      <Snackbar
+        visible={toastVisible}
+        onDismiss={() => setToastVisible(false)}
+        duration={3000}
+        action={{
+          label: 'OK',
+          onPress: () => setToastVisible(false),
+        }}
+        style={styles.snackbar}
+      >
+        Printing successful
+      </Snackbar>
     </ScrollView>
   );
 }
@@ -602,5 +625,16 @@ const styles = StyleSheet.create({
   },
   paperButton: {
     alignSelf: 'stretch',
+  },
+  headerRight: {
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  headerPrintButton: {
+    backgroundColor: '#2563eb',
+    borderRadius: 8,
+  },
+  snackbar: {
+    marginBottom: 20,
   },
 });

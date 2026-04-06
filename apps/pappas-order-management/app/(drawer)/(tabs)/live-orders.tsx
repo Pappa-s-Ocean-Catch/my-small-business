@@ -28,7 +28,9 @@ import { LiveOrderListItem } from '@/components/LiveOrderListItem';
 import { OrderDetailModal } from '@/components/OrderDetailModal';
 import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
 import { useOrderActions } from '@/hooks/useOrderActions';
-import { escposPrintKitchenReceipt } from '@/lib/escpos-printer';
+import { escposPrintKitchenReceipt, escposPrintOrderImage } from '@/lib/escpos-printer';
+import { captureRef } from 'react-native-view-shot';
+import { ReceiptTemplate } from '@/components/ReceiptTemplate';
 
 export default function LiveOrdersScreen() {
   const router = useRouter();
@@ -46,6 +48,9 @@ export default function LiveOrdersScreen() {
   const [customerInfo, setCustomerInfo] = useState<{ email?: string; phone?: string }>({});
   const [preOrderSkipNotice, setPreOrderSkipNotice] = useState<string | null>(null);
   const [preOrderCount, setPreOrderCount] = useState<number>(0);
+  const [tempPrintingOrder, setTempPrintingOrder] = useState<Order | null>(null);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const globalReceiptRef = useRef(null);
 
   const lastOrderIdRef = useRef<string | null>(null);
   const processedOrderIdsRef = useRef<Set<string>>(new Set());
@@ -149,12 +154,14 @@ export default function LiveOrdersScreen() {
     printingOrderId,
     setPrintingOrderId,
     simulatorOrder,
+    setSimulatorOrder,
     showSimulator,
     setShowSimulator,
     handleStatusUpdate,
     handlePaymentStatusUpdate,
     handleQuickAction,
     handlePrint,
+    handlePrintImage,
   } = useOrderActions(appSettings, loadOrders, (updated) => {
     if (selectedOrder?.id === updated.id) setSelectedOrder(updated);
   });
@@ -175,19 +182,20 @@ export default function LiveOrdersScreen() {
 
     // 2. Auto-print if enabled
     if ((s.printerEnabled || s.printerSimulator) && s.printerAutoPrint) {
-      setPrintingOrderId(order.id);
-      try {
-        if (s.printerSimulator) {
-          setShowSimulator(true);
-        } else {
-          const selected = s.printerSaved.find((p) => p.target === s.printerSelectedTarget);
-          if (selected) await escposPrintKitchenReceipt(order, selected, s.printerCopies);
-        }
-      } catch (err) {
-        console.error('Auto print error:', err);
-      } finally {
-        setPrintingOrderId(null);
-      }
+       setPrintingOrderId(order.id);
+       try {
+         if (s.printerSimulator) {
+           setShowSimulator(true);
+           setSimulatorOrder(order);
+         } else {
+           // We use the image printer for better font control
+           await quickPrintOrder(order);
+         }
+       } catch (err) {
+         console.error('Auto print error:', err);
+       } finally {
+         setPrintingOrderId(null);
+       }
     }
 
     // 3. Update status to 'preparing' automatically
@@ -197,6 +205,38 @@ export default function LiveOrdersScreen() {
       } catch (err) {
         console.error('Failed to update status to preparing:', err);
       }
+    }
+  };
+
+  const quickPrintOrder = async (order: Order) => {
+    try {
+      setIsCapturing(true);
+      setPrintingOrderId(order.id);
+      
+      // Update the hidden template with this order
+      setTempPrintingOrder(order);
+      
+      // Wait for re-render
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      if (!globalReceiptRef.current) {
+        throw new Error('Receipt template ref not found');
+      }
+
+      const uri = await captureRef(globalReceiptRef.current, {
+        format: 'png',
+        quality: 1,
+        result: 'tmpfile',
+      });
+
+      await handlePrintImage(order, uri);
+    } catch (error) {
+      console.error('Quick print failed:', error);
+      Alert.alert('Print error', 'Failed to capture receipt template image for printing.');
+    } finally {
+      setIsCapturing(false);
+      setPrintingOrderId(null);
+      // We don't clear tempPrintingOrder immediately to avoid flicker if nested
     }
   };
 
@@ -396,7 +436,7 @@ export default function LiveOrdersScreen() {
             updatingStatus={updatingStatus}
             onOrderPress={handleOrderPress}
             onCustomerPress={handleCustomerPress}
-            onPrintPress={handlePrint}
+            onPrintPress={quickPrintOrder}
             onQuickAction={handleQuickAction}
             onStatusUpdate={(order, status) => {
               Alert.alert('Update Status', 'Select new status', [
@@ -432,12 +472,22 @@ export default function LiveOrdersScreen() {
         order={selectedOrder}
         onClose={() => setShowOrderModal(false)}
         onPrint={handlePrint}
+        onPrintImage={handlePrintImage}
         onCustomerPress={handleCustomerPress}
         onStatusUpdate={handleStatusUpdate}
         onPaymentStatusUpdate={handlePaymentStatusUpdate}
         onQuickAction={handleQuickAction}
         updatingStatus={updatingStatus}
       />
+
+      {/* Global Hidden Receipt Template for auto/quick capture */}
+      <View style={styles.hiddenReceiptContainer} pointerEvents="none">
+         {tempPrintingOrder && (
+           <View ref={globalReceiptRef} collapsable={false}>
+              <ReceiptTemplate order={tempPrintingOrder} />
+           </View>
+         )}
+      </View>
 
       <PrintSimulatorModal
         visible={showSimulator}
@@ -487,4 +537,10 @@ const styles = StyleSheet.create({
     maxWidth: '92%',
   },
   preOrderNoticeText: { color: '#111827', fontWeight: '700' },
+  hiddenReceiptContainer: {
+    position: 'absolute',
+    top: -9999,
+    left: -9999,
+    opacity: 0,
+  },
 });

@@ -81,6 +81,7 @@ export default function PreOrdersScreen() {
     handlePaymentStatusUpdate,
     handleQuickAction,
     handlePrint,
+    handlePrintImage,
     showSimulator,
     setShowSimulator,
     simulatorOrder,
@@ -186,6 +187,7 @@ export default function PreOrdersScreen() {
         order={selectedOrder}
         onClose={() => setShowOrderModal(false)}
         onPrint={handlePrint}
+        onPrintImage={handlePrintImage}
         onCustomerPress={handleCustomerPress}
         onStatusUpdate={handleStatusUpdate}
         onPaymentStatusUpdate={handlePaymentStatusUpdate}

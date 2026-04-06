@@ -1,13 +1,12 @@
-b
 import type { Order, OrderItem, OrderItemAddon } from '@my-small-business/types';
 // this file is no longer use
 const FONT_SIZE = {
-
-  large: { width: 0.7, height: 0.7 },
-  normal: { width: 0, height: 0 },
+  large: { width: 2, height: 2 },
+  medium: { width: 1, height: 1 }, // We'll handle this by switching to Font B if needed
+  normal: { width: 1, height: 1 },
 }
 // Extend the type for receipt line objects to allow 'center' alignment
-type ReceiptLine = string | { text: string; bold?: boolean; large?: boolean; center?: boolean };
+export type ReceiptLine = string | { text: string; bold?: boolean; large?: boolean; medium?: boolean; center?: boolean };
 
 export type EpsonPrinterConfig = {
   printerUrl: string; // base URL like http://192.168.0.50 (or full service.cgi URL)
@@ -68,12 +67,12 @@ function formatOrderHeaderLines(order: Order): ReceiptLine[] {
   const lines: ReceiptLine[] = [];
 
   if (order.scheduled_pickup_at) {
-    const pickupDisplay = new Date(order.scheduled_pickup_at).toLocaleString([], { 
-      weekday: 'short', 
-      month: 'short', 
-      day: 'numeric', 
-      hour: '2-digit', 
-      minute: '2-digit' 
+    const pickupDisplay = new Date(order.scheduled_pickup_at).toLocaleString([], {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
     });
     lines.push({ text: `*** PRE-ORDER ***`, bold: true, large: true, center: true });
     lines.push({ text: `PICKUP: ${pickupDisplay}`, bold: true, large: true, center: true });
@@ -134,11 +133,11 @@ function formatAddonLines(addons?: OrderItemAddon[]): ReceiptLine[] {
 
 function formatItemLines(item: OrderItem): ReceiptLine[] {
   const lines: ReceiptLine[] = [];
-  // Product item: bold and large
+  // Product item: bold and medium (as requested)
   lines.push({
     text: `${item.quantity}x ${item.product_name}`,
     bold: true,
-    large: true,
+    medium: true,
   });
   lines.push(...formatAddonLines(item.addons));
   if (item.comment) lines.push(`  Note: ${item.comment}`);
@@ -207,8 +206,14 @@ function buildEposPrintXmlFromLines(lines: ReceiptLine[]): string {
       return `<text lang="en">${escapeXml(line)}</text>`;
     }
     let attrs = '';
-    // if (line.bold) attrs += ' style="bold"';
-    if (line.large) attrs += ` width="${FONT_SIZE.large.width}" height="${FONT_SIZE.large.height}" `;
+    if (line.large) {
+      attrs += ' width="2" height="2"';
+    } else if (line.medium) {
+      // In ePOS XML, we can try to set font to FontB
+      attrs += ' font="font_b" width="2" height="2"';
+    } else {
+      attrs += ' font="font_a" width="1" height="1"';
+    }
     // Center alignment for lines with center: true
     if ((line as any).center) attrs += ' align="center"';
     return `<text lang="en"${attrs}>${escapeXml(line.text)}</text>`;
