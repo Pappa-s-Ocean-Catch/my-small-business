@@ -1,6 +1,8 @@
+import React, { memo, useEffect, useRef, useState } from 'react';
+
 // Persistent cache for loaded image URLs
 const loadedImageCache = new Set<string>();
-import React, { useRef, useState, useEffect } from 'react';
+const requestedImageCache = new Set<string>();
 
 interface LazyImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
     src: string;
@@ -11,7 +13,7 @@ interface LazyImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
 
 
 
-export const LazyImage: React.FC<LazyImageProps> = ({
+export const LazyImage: React.FC<LazyImageProps> = memo(({
     src,
     alt,
     className = '',
@@ -19,42 +21,42 @@ export const LazyImage: React.FC<LazyImageProps> = ({
     ...props
 }) => {
     const imgRef = useRef<HTMLImageElement | null>(null);
-    const [isInView, setIsInView] = useState(false);
-    const [loaded, setLoaded] = useState(false);
-    const [shouldShow, setShouldShow] = useState(false);
+    const isCached = loadedImageCache.has(src);
+    const isRequested = requestedImageCache.has(src);
+    const [loaded, setLoaded] = useState<boolean>(isCached);
+    const [shouldShow, setShouldShow] = useState<boolean>(isCached || isRequested);
 
-    // On mount, check if image is already loaded (from cache)
+    // Keep state in sync when src changes (avoids placeholder flash for cached images).
     useEffect(() => {
         const img = imgRef.current;
-        let debounceTimeout: NodeJS.Timeout | null = null;
-        // Persistent cache check
-        if (loadedImageCache.has(src)) {
+        const cached = loadedImageCache.has(src);
+        const requested = requestedImageCache.has(src);
+        if (cached || requested) {
             setLoaded(true);
             setShouldShow(true);
-            setIsInView(true);
             return;
         }
+
+        // Reset for a new uncached source.
+        setLoaded(false);
+        setShouldShow(false);
+
         if (img && img.complete && img.naturalWidth > 0) {
             loadedImageCache.add(src);
             setLoaded(true);
             setShouldShow(true);
-            setIsInView(true);
             return;
         }
+
         let observer: IntersectionObserver | null = null;
-        if (imgRef.current && !loaded) {
+        if (imgRef.current) {
             observer = new window.IntersectionObserver(
                 ([entry]) => {
                     if (entry.isIntersecting) {
-                        setIsInView(true);
-                        if (!loaded) {
-                            if (debounceTimeout) clearTimeout(debounceTimeout);
-                            debounceTimeout = setTimeout(() => {
-                                setShouldShow(true);
-                            }, 200);
-                        }
+                        requestedImageCache.add(src);
+                        setShouldShow(true);
+                        observer?.disconnect();
                     }
-                    // Do not unset shouldShow after loaded, to avoid blinking
                 },
                 {
                     rootMargin: '200px', // preload before in view
@@ -65,10 +67,8 @@ export const LazyImage: React.FC<LazyImageProps> = ({
         }
         return () => {
             observer?.disconnect();
-            if (debounceTimeout) clearTimeout(debounceTimeout);
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [loaded, src]);
+    }, [src]);
 
 
     return (
@@ -81,6 +81,7 @@ export const LazyImage: React.FC<LazyImageProps> = ({
                 onLoad={() => {
                     loadedImageCache.add(src);
                     setLoaded(true);
+                    setShouldShow(true);
                 }}
                 loading="lazy"
                 style={{
@@ -108,4 +109,4 @@ export const LazyImage: React.FC<LazyImageProps> = ({
             )}
         </span>
     );
-};
+});

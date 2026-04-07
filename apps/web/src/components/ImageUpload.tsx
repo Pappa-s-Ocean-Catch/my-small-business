@@ -1,48 +1,71 @@
 "use client";
 
-import { useState, useRef, useEffect } from 'react';
-import { FaUpload, FaTimes, FaImage, FaSpinner } from 'react-icons/fa';
-import { toast } from 'react-toastify';
-import { Icon } from '@/components/Icon';
+import { useState, useRef, useEffect } from "react";
+import { FaUpload, FaTimes, FaImage, FaSpinner, FaExchangeAlt } from "react-icons/fa";
+import { toast } from "react-toastify";
+import { Icon } from "@/components/Icon";
+import { isVercelBlobUrl } from "@/lib/vercel-blob-url";
+
 interface ImageUploadProps {
   currentImageUrl?: string;
   onImageChange: (url: string | null) => void;
-  type: 'product' | 'sale_product' | 'staff' | 'supplier' | 'brand';
+  type: "product" | "sale_product" | "staff" | "supplier" | "brand";
   className?: string;
   disabled?: boolean;
 }
 
-export function ImageUpload({ 
-  currentImageUrl, 
-  onImageChange, 
-  type, 
-  className = '',
-  disabled = false 
+function shouldDeleteRemoteStorage(url: string): boolean {
+  if (url.includes("blob.vercel-storage.com")) return true;
+  const bunnyBase =
+    process.env.NEXT_PUBLIC_BUNNY_CDN_PUBLIC_URL?.replace(/\/$/, "") ?? "";
+  return Boolean(bunnyBase && url.startsWith(bunnyBase));
+}
+
+export function ImageUpload({
+  currentImageUrl,
+  onImageChange,
+  type,
+  className = "",
+  disabled = false,
 }: ImageUploadProps) {
   const [uploading, setUploading] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(currentImageUrl || null);
-  
-  // Keep preview in sync if parent passes a new currentImageUrl (e.g., when editing existing staff)
+  const [migrating, setMigrating] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(
+    currentImageUrl || null,
+  );
+
   useEffect(() => {
     setPreviewUrl(currentImageUrl || null);
   }, [currentImageUrl]);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadDestinationRef = useRef<"vercel" | "bunny">("vercel");
 
-  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const openFilePicker = (destination: "vercel" | "bunny") => {
+    uploadDestinationRef.current = destination;
+    fileInputRef.current?.click();
+  };
 
-    // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+  const performUpload = async (
+    file: File,
+    destination: "vercel" | "bunny",
+  ): Promise<void> => {
+    const allowedTypes = [
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/webp",
+    ];
     if (!allowedTypes.includes(file.type)) {
-      toast.error('Invalid file type. Only JPEG, PNG, and WebP images are allowed.');
+      toast.error(
+        "Invalid file type. Only JPEG, PNG, and WebP images are allowed.",
+      );
       return;
     }
 
-    // Validate file size (max 5MB)
-    const maxSize = 5 * 1024 * 1024; // 5MB
+    const maxSize = 5 * 1024 * 1024;
     if (file.size > maxSize) {
-      toast.error('File too large. Maximum size is 5MB.');
+      toast.error("File too large. Maximum size is 5MB.");
       return;
     }
 
@@ -50,153 +73,115 @@ export function ImageUpload({
 
     try {
       const formData = new FormData();
-      formData.append('file', file);
-      formData.append('type', type);
+      formData.append("file", file);
+      formData.append("type", type);
+      formData.append("destination", destination);
 
-      // Get the user's access token for authentication
-      const { getSupabaseClient } = await import("@my-small-business/supabase/client");
+      const { getSupabaseClient } = await import(
+        "@my-small-business/supabase/client"
+      );
       const supabase = getSupabaseClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
       if (!session?.access_token) {
-        toast.error('No valid session found. Please log in again.');
+        toast.error("No valid session found. Please log in again.");
         return;
       }
 
-      const response = await fetch('/api/upload', {
-        method: 'POST',
+      const response = await fetch("/api/upload", {
+        method: "POST",
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: formData,
       });
 
-      const result = await response.json();
+      const result: { error?: string; url?: string } = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || 'Upload failed');
+        throw new Error(result.error || "Upload failed");
+      }
+
+      if (!result.url) {
+        throw new Error("Upload response missing URL");
       }
 
       setPreviewUrl(result.url);
       onImageChange(result.url);
-      toast.success('Image uploaded successfully!');
-
+      toast.success(
+        destination === "bunny"
+          ? "Image uploaded to Bunny CDN."
+          : "Image uploaded to Vercel.",
+      );
     } catch (error) {
-      console.error('Upload error:', error);
-      toast.error(error instanceof Error ? error.message : 'Upload failed');
+      console.error("Upload error:", error);
+      toast.error(error instanceof Error ? error.message : "Upload failed");
     } finally {
       setUploading(false);
-      // Reset file input
+      uploadDestinationRef.current = "vercel";
       if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+        fileInputRef.current.value = "";
       }
     }
+  };
+
+  const handleFileSelect = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const destination = uploadDestinationRef.current;
+    await performUpload(file, destination);
   };
 
   const handleRemoveImage = async () => {
     if (!previewUrl) return;
 
     try {
-      // If it's a Vercel Blob URL, delete it from blob storage
-      if (previewUrl.includes('blob.vercel-storage.com')) {
-        // Get the user's access token for authentication
-        const { getSupabaseClient } = await import("@my-small-business/supabase/client");
+      if (shouldDeleteRemoteStorage(previewUrl)) {
+        const { getSupabaseClient } = await import(
+          "@my-small-business/supabase/client"
+        );
         const supabase = getSupabaseClient();
-        const { data: { session } } = await supabase.auth.getSession();
-        
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
         if (session?.access_token) {
-          const response = await fetch('/api/upload', {
-            method: 'DELETE',
+          const response = await fetch("/api/upload", {
+            method: "DELETE",
             headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session.access_token}`,
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session.access_token}`,
             },
             body: JSON.stringify({ url: previewUrl }),
           });
 
           if (!response.ok) {
-            console.warn('Failed to delete image from blob storage');
+            console.warn("Failed to delete image from remote storage");
           }
         }
       }
 
       setPreviewUrl(null);
       onImageChange(null);
-      toast.success('Image removed successfully!');
-
+      toast.success("Image removed successfully!");
     } catch (error) {
-      console.error('Remove error:', error);
-      toast.error('Failed to remove image');
+      console.error("Remove error:", error);
+      toast.error("Failed to remove image");
     }
   };
 
   const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
-    if (disabled || uploading) return;
+    if (disabled || uploading || migrating) return;
 
     const files = event.dataTransfer.files;
     if (files.length > 0) {
       const file = files[0];
-      // Validate file type
-      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-      if (!allowedTypes.includes(file.type)) {
-        toast.error('Invalid file type. Only JPEG, PNG, and WebP images are allowed.');
-        return;
-      }
-
-      // Validate file size (max 5MB)
-      const maxSize = 5 * 1024 * 1024; // 5MB
-      if (file.size > maxSize) {
-        toast.error('File too large. Maximum size is 5MB.');
-        return;
-      }
-
-      setUploading(true);
-
-      const uploadFile = async () => {
-        try {
-          const formData = new FormData();
-          formData.append('file', file);
-          formData.append('type', type);
-
-          // Get the user's access token for authentication
-          const { getSupabaseClient } = await import("@my-small-business/supabase/client");
-          const supabase = getSupabaseClient();
-          const { data: { session } } = await supabase.auth.getSession();
-          
-          if (!session?.access_token) {
-            toast.error('No valid session found. Please log in again.');
-            setUploading(false);
-            return;
-          }
-
-          const response = await fetch('/api/upload', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${session.access_token}`,
-            },
-            body: formData,
-          });
-
-          const result = await response.json();
-
-          if (!response.ok) {
-            throw new Error(result.error || 'Upload failed');
-          }
-
-          setPreviewUrl(result.url);
-          onImageChange(result.url);
-          toast.success('Image uploaded successfully!');
-
-        } catch (error) {
-          console.error('Upload error:', error);
-          toast.error(error instanceof Error ? error.message : 'Upload failed');
-        } finally {
-          setUploading(false);
-        }
-      };
-
-      uploadFile();
+      void performUpload(file, "vercel");
     }
   };
 
@@ -204,27 +189,92 @@ export function ImageUpload({
     event.preventDefault();
   };
 
+  const handleMigrateVercelToBunny = async () => {
+    if (!previewUrl || !isVercelBlobUrl(previewUrl)) {
+      toast.error("Current image is not hosted on Vercel Blob.");
+      return;
+    }
+
+    setMigrating(true);
+    try {
+      const { getSupabaseClient } = await import(
+        "@my-small-business/supabase/client"
+      );
+      const supabase = getSupabaseClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        toast.error("No valid session found. Please log in again.");
+        return;
+      }
+
+      const response = await fetch("/api/upload/migrate-vercel-to-bunny", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ vercelUrl: previewUrl, type }),
+      });
+
+      const result: {
+        error?: string;
+        url?: string;
+        warning?: string;
+      } = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Migration failed");
+      }
+
+      if (!result.url) {
+        throw new Error("Migration response missing URL");
+      }
+
+      setPreviewUrl(result.url);
+      onImageChange(result.url);
+      if (result.warning) {
+        toast.warning(result.warning);
+      }
+      toast.success("Image migrated from Vercel to Bunny. Save to update the record.");
+    } catch (error) {
+      console.error("Migrate error:", error);
+      toast.error(error instanceof Error ? error.message : "Migration failed");
+    } finally {
+      setMigrating(false);
+    }
+  };
+
+  const labelText =
+    type === "product"
+      ? "Product Image"
+      : type === "sale_product"
+        ? "Menu Item Image"
+        : type === "staff"
+          ? "Staff Photo"
+          : type === "supplier"
+            ? "Supplier Logo"
+            : type === "brand"
+              ? "Business Logo"
+              : "Image";
+
   return (
     <div className={`space-y-3 ${className}`}>
       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-        {type === 'product' ? 'Product Image' : 
-         type === 'sale_product' ? 'Menu Item Image' :
-         type === 'staff' ? 'Staff Photo' :
-         type === 'supplier' ? 'Supplier Logo' :
-         type === 'brand' ? 'Business Logo' : 'Image'}
+        {labelText}
       </label>
 
-      {/* Hidden input (always mounted) so Change Image button can trigger it */}
       <input
         ref={fileInputRef}
         type="file"
         accept="image/jpeg,image/jpg,image/png,image/webp"
         onChange={handleFileSelect}
         className="hidden"
-        disabled={disabled || uploading}
+        disabled={disabled || uploading || migrating}
       />
-      
-      {/* Image Preview */}
+
       {previewUrl && (
         <div className="relative inline-block">
           <img
@@ -245,58 +295,117 @@ export function ImageUpload({
         </div>
       )}
 
-      {/* Upload Area */}
       {!previewUrl && (
-        <div
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          className={`
+        <div className="space-y-2">
+          <div
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            className={`
             relative border-2 border-dashed border-gray-300 dark:border-neutral-600 
             rounded-lg p-6 text-center hover:border-gray-400 dark:hover:border-neutral-500 
             transition-colors cursor-pointer
-            ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
-            ${uploading ? 'opacity-50 cursor-not-allowed' : ''}
+            ${disabled ? "opacity-50 cursor-not-allowed" : ""}
+            ${uploading || migrating ? "opacity-50 cursor-not-allowed" : ""}
           `}
-          onClick={() => !disabled && !uploading && fileInputRef.current?.click()}
-        >
-          <div className="space-y-2">
-            {uploading ? (
-              <Icon icon={FaSpinner} className="w-8 h-8 text-gray-400 mx-auto animate-spin" />
-            ) : (
-              <Icon icon={FaImage} className="w-8 h-8 text-gray-400 mx-auto" />
-            )}
-            
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              {uploading ? (
-                'Uploading...'
+            onClick={() =>
+              !disabled && !uploading && !migrating && openFilePicker("vercel")
+            }
+            onKeyDown={(e) => {
+              if (
+                (e.key === "Enter" || e.key === " ") &&
+                !disabled &&
+                !uploading &&
+                !migrating
+              ) {
+                e.preventDefault();
+                openFilePicker("vercel");
+              }
+            }}
+            role="button"
+            tabIndex={disabled || uploading || migrating ? -1 : 0}
+          >
+            <div className="space-y-2">
+              {uploading || migrating ? (
+                <Icon
+                  icon={FaSpinner}
+                  className="w-8 h-8 text-gray-400 mx-auto animate-spin"
+                />
               ) : (
-                <>
-                  <span className="font-medium text-blue-600 dark:text-blue-400">
-                    Click to upload
-                  </span>
-                  {' '}or drag and drop
-                </>
+                <Icon
+                  icon={FaImage}
+                  className="w-8 h-8 text-gray-400 mx-auto"
+                />
               )}
-            </div>
-            
-            <div className="text-xs text-gray-500 dark:text-gray-500">
-              PNG, JPG, WebP up to 5MB
+
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                {uploading ? (
+                  "Uploading..."
+                ) : (
+                  <>
+                    <span className="font-medium text-blue-600 dark:text-blue-400">
+                      Click to upload to Vercel
+                    </span>{" "}
+                    or drag and drop
+                  </>
+                )}
+              </div>
+
+              <div className="text-xs text-gray-500 dark:text-gray-500">
+                PNG, JPG, WebP up to 5MB (drop zone uses Vercel)
+              </div>
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!disabled && !uploading && !migrating) openFilePicker("bunny");
+            }}
+            disabled={disabled || uploading || migrating}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 rounded-lg border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-950/60 transition-colors disabled:opacity-50"
+          >
+            <Icon icon={FaUpload} className="w-4 h-4" />
+            Upload to Bunny
+          </button>
         </div>
       )}
 
-      {/* Upload Button (when image exists) */}
       {previewUrl && !disabled && (
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-neutral-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-neutral-600 transition-colors disabled:opacity-50"
-        >
-          <Icon icon={FaUpload} className="w-4 h-4" />
-          {uploading ? 'Uploading...' : 'Change Image'}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          {isVercelBlobUrl(previewUrl) && (
+            <button
+              type="button"
+              onClick={() => void handleMigrateVercelToBunny()}
+              disabled={uploading || migrating}
+              className="flex items-center gap-2 px-3 py-2 text-sm bg-teal-50 dark:bg-teal-950/40 text-teal-900 dark:text-teal-200 rounded-lg border border-teal-200 dark:border-teal-800 hover:bg-teal-100 dark:hover:bg-teal-950/60 transition-colors disabled:opacity-50"
+            >
+              <Icon
+                icon={migrating ? FaSpinner : FaExchangeAlt}
+                className={`w-4 h-4 ${migrating ? "animate-spin" : ""}`}
+              />
+              {migrating ? "Migrating..." : "Migrate Vercel → Bunny"}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => openFilePicker("vercel")}
+            disabled={uploading || migrating}
+            className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-neutral-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-neutral-600 transition-colors disabled:opacity-50"
+          >
+            <Icon icon={FaUpload} className="w-4 h-4" />
+            {uploading ? "Uploading..." : "Upload to Vercel"}
+          </button>
+          <button
+            type="button"
+            onClick={() => openFilePicker("bunny")}
+            disabled={uploading || migrating}
+            className="flex items-center gap-2 px-3 py-2 text-sm bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 rounded-lg border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-950/60 transition-colors disabled:opacity-50"
+          >
+            <Icon icon={FaUpload} className="w-4 h-4" />
+            {uploading ? "Uploading..." : "Upload to Bunny"}
+          </button>
+        </div>
       )}
     </div>
   );

@@ -6,6 +6,10 @@ const channel = process.env.BUILD_CHANNEL?.trim();
 
 const baseConfig: NextConfig = {
   distDir: channel ? `.next-${channel}` : ".next",
+  // Expose Bunny pull-zone base to the client so ImageUpload can detect Bunny URLs for remote delete.
+  env: {
+    NEXT_PUBLIC_BUNNY_CDN_PUBLIC_URL: process.env.BUNNY_CDN_PUBLIC_URL ?? '',
+  },
   // Transpile workspace packages (shared libraries)
   transpilePackages: [
     '@my-small-business/types',

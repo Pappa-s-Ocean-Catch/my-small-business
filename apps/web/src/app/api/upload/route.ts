@@ -1,6 +1,13 @@
 import { put } from '@vercel/blob';
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@my-small-business/supabase/server';
+import {
+  deleteFromBunnyStorage,
+  getBunnyConfigErrorMessage,
+  isBunnyStorageConfigured,
+  uploadToBunnyStorage,
+  bunnyPublicUrlToObjectPath,
+} from '@/lib/bunny-storage';
 
 export async function POST(request: NextRequest) {
   try {
@@ -52,6 +59,9 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const type = formData.get('type') as string; // 'product' or 'sale_product'
+    const destinationRaw = formData.get('destination');
+    const destination: 'vercel' | 'bunny' =
+      destinationRaw === 'bunny' ? 'bunny' : 'vercel';
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
@@ -83,16 +93,32 @@ export async function POST(request: NextRequest) {
     const fileExtension = file.name.split('.').pop();
     const filename = `${type}_${timestamp}_${randomString}.${fileExtension}`;
 
+    if (destination === 'bunny') {
+      if (!isBunnyStorageConfigured()) {
+        return NextResponse.json({ error: getBunnyConfigErrorMessage() }, { status: 500 });
+      }
+      const objectPath = `${type}/${filename}`;
+      const buffer = await file.arrayBuffer();
+      const publicUrl = await uploadToBunnyStorage(buffer, file.type, objectPath);
+      return NextResponse.json({
+        success: true,
+        url: publicUrl,
+        filename,
+        destination: 'bunny' as const,
+      });
+    }
+
     // Upload to Vercel Blob
     const blob = await put(filename, file, {
       access: 'public',
       contentType: file.type,
     });
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       url: blob.url,
-      filename: filename 
+      filename,
+      destination: 'vercel' as const,
     });
 
   } catch (error) {
@@ -153,13 +179,21 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'No URL provided' }, { status: 400 });
     }
 
-    // Delete from Vercel Blob
-    const { del } = await import('@vercel/blob');
-    await del(url);
+    if (url.includes('blob.vercel-storage.com')) {
+      const { del } = await import('@vercel/blob');
+      await del(url);
+    } else if (isBunnyStorageConfigured() && bunnyPublicUrlToObjectPath(url) !== null) {
+      await deleteFromBunnyStorage(url);
+    } else {
+      return NextResponse.json(
+        { error: 'URL is not a Vercel Blob or configured Bunny CDN object' },
+        { status: 400 },
+      );
+    }
 
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Image deleted successfully' 
+    return NextResponse.json({
+      success: true,
+      message: 'Image deleted successfully',
     });
 
   } catch (error) {
