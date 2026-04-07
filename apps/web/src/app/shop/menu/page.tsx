@@ -31,6 +31,7 @@ import { ImageUpload } from '@/components/ImageUpload';
 import { AIImageGenerator } from '@/components/AIImageGenerator';
 import { ImageDownloadButton } from '@/components/ImageDownloadButton';
 import { ImagePlaceholder } from '@/components/ImagePlaceholder';
+import { MenuProductImageStorageChip } from '@/components/MenuProductImageStorageChip';
 import { useAdmin } from '@/hooks/useAdmin';
 import { toast } from 'react-toastify';
 import {
@@ -687,6 +688,11 @@ export default function MenuPage() {
     <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 overflow-hidden">
       {product.image_url ? (
         <div className="h-48 bg-gray-200 dark:bg-neutral-700 relative group">
+          {isAdmin && (
+            <div className="absolute top-2 left-2 z-20 flex max-w-[calc(100%-4rem)] flex-wrap gap-1">
+              <MenuProductImageStorageChip imageUrl={product.image_url} />
+            </div>
+          )}
           <img
             src={product.image_url}
             alt={product.name}
@@ -705,37 +711,44 @@ export default function MenuPage() {
           )}
         </div>
       ) : (
-        <ImagePlaceholder
-          productName={product.name}
-          description={product.description ?? undefined}
-          ingredients={(product.ingredients?.map((ing) => {
-            const maybeName = (ing as unknown as { name?: string }).name;
-            return maybeName ?? String(ing);
-          }) || []).filter(Boolean)}
-          category={undefined}
-          onImageGenerated={async (imageUrl) => {
-            try {
-              const { error } = await updateSaleProductImage(product.id, imageUrl);
+        <div className="relative">
+          {isAdmin && (
+            <div className="absolute top-2 left-2 z-20 flex max-w-[calc(100%-1rem)] flex-wrap gap-1">
+              <MenuProductImageStorageChip imageUrl={null} />
+            </div>
+          )}
+          <ImagePlaceholder
+            productName={product.name}
+            description={product.description ?? undefined}
+            ingredients={(product.ingredients?.map((ing) => {
+              const maybeName = (ing as unknown as { name?: string }).name;
+              return maybeName ?? String(ing);
+            }) || []).filter(Boolean)}
+            category={undefined}
+            onImageGenerated={async (imageUrl) => {
+              try {
+                const { error } = await updateSaleProductImage(product.id, imageUrl);
 
-              if (error) {
+                if (error) {
+                  toast.error('Failed to update product with new image');
+                  return;
+                }
+
+                setSaleProducts(prev =>
+                  prev.map(p =>
+                    p.id === product.id
+                      ? ({ ...p, image_url: imageUrl } as SaleProductWithDetails)
+                      : p
+                  )
+                );
+                toast.success('Image generated and updated successfully!');
+              } catch (error) {
+                console.error('Error updating product:', error);
                 toast.error('Failed to update product with new image');
-                return;
               }
-
-              setSaleProducts(prev =>
-                prev.map(p =>
-                  p.id === product.id
-                    ? ({ ...p, image_url: imageUrl } as SaleProductWithDetails)
-                    : p
-                )
-              );
-              toast.success('Image generated and updated successfully!');
-            } catch (error) {
-              console.error('Error updating product:', error);
-              toast.error('Failed to update product with new image');
-            }
-          }}
-        />
+            }}
+          />
+        </div>
       )}
 
       <div className="p-4">
