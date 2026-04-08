@@ -51,6 +51,16 @@ const phoneLoginEnabled =
   typeof process.env.NEXT_PUBLIC_ENABLE_CHECKOUT_PHONE_LOGIN === "string" &&
   (process.env.NEXT_PUBLIC_ENABLE_CHECKOUT_PHONE_LOGIN === "true" ||
     process.env.NEXT_PUBLIC_ENABLE_CHECKOUT_PHONE_LOGIN === "1");
+const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? "";
+
+declare global {
+  interface Window {
+    grecaptcha?: {
+      ready: (cb: () => void) => void;
+      execute: (siteKey: string, options: { action: string }) => Promise<string>;
+    };
+  }
+}
 
 function normalizeAuPhone(phone: string): string {
   const digits = phone.replace(/\D/g, "");
@@ -69,6 +79,14 @@ function normalizeAuPhone(phone: string): string {
 function buildFallbackOrderEmail(phone: string): string {
   const normalizedDigits = phone.replace(/\D/g, "");
   return `phone-${normalizedDigits}@no-email.local`;
+}
+
+/** True when profile has no real email (phone OTP / fallback-only). Changing phone then requires re-verification. */
+function isPlaceholderCustomerEmail(email: string | undefined | null): boolean {
+  if (!email || !email.trim()) {
+    return true;
+  }
+  return /^phone-\d+@no-email\.local$/i.test(email.trim());
 }
 
 function mapPhoneAuthError(errorMessage: string): string {
@@ -238,6 +256,7 @@ export default function CheckoutPage() {
     useState(false);
   const [profileFullName, setProfileFullName] = useState("");
   const [profileEmail, setProfileEmail] = useState("");
+  const [phoneReauthNonce, setPhoneReauthNonce] = useState(0);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<{
     id: string;
@@ -289,6 +308,55 @@ export default function CheckoutPage() {
   const [activePromotions, setActivePromotions] = useState<
     PromotionWithProducts[]
   >([]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!recaptchaSiteKey) return;
+
+    const existingScript = document.querySelector<HTMLScriptElement>(
+      'script[data-recaptcha-v3="true"]',
+    );
+    if (existingScript) {
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = `https://www.google.com/recaptcha/api.js?render=${recaptchaSiteKey}`;
+    script.async = true;
+    script.defer = true;
+    script.setAttribute("data-recaptcha-v3", "true");
+    document.head.appendChild(script);
+  }, []);
+
+  const getRecaptchaV3Token = async (): Promise<string> => {
+    if (!recaptchaSiteKey) {
+      return "";
+    }
+    if (typeof window === "undefined" || !window.grecaptcha) {
+      throw new Error("reCAPTCHA is still loading. Please try again in a moment.");
+    }
+
+    return await new Promise<string>((resolve, reject) => {
+      window.grecaptcha?.ready(async () => {
+        try {
+          const token = await window.grecaptcha?.execute(recaptchaSiteKey, {
+            action: "phone_otp_send",
+          });
+          if (!token) {
+            reject(new Error("Failed to generate reCAPTCHA token."));
+            return;
+          }
+          resolve(token);
+        } catch (error) {
+          reject(
+            error instanceof Error
+              ? error
+              : new Error("Failed to execute reCAPTCHA."),
+          );
+        }
+      });
+    });
+  };
 
   useEffect(() => {
     if (otpResendCountdown <= 0) {
@@ -869,6 +937,33 @@ export default function CheckoutPage() {
 
     setIsSubmitting(true);
     try {
+      if (recaptchaSiteKey) {
+        const recaptchaToken = await getRecaptchaV3Token();
+        const verificationResponse = await fetch(
+          "/api/security/verify-recaptcha",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              token: recaptchaToken,
+              action: "phone_otp_send",
+            }),
+          },
+        );
+
+        const verificationResult = (await verificationResponse.json()) as {
+          success?: boolean;
+          error?: string;
+        };
+
+        if (!verificationResponse.ok || !verificationResult.success) {
+          throw new Error(
+            verificationResult.error ||
+              "reCAPTCHA verification failed. Please try again.",
+          );
+        }
+      }
+
       const normalizedPhone = normalizeAuPhone(loginPhone);
       if (!normalizedPhone.startsWith("+614")) {
         throw new Error(
@@ -959,6 +1054,20 @@ export default function CheckoutPage() {
       setCustomerName(profile.full_name || "");
       setCustomerEmail(profile.email || "");
 
+      // Identify user in PostHog after successful phone OTP login
+      posthog.identify(profile.id, {
+        email: profile.email,
+        name: profile.full_name,
+        phone: profilePhone,
+        role: profile.role_slug,
+        auth_method: "phone_otp",
+      });
+      posthog.capture("customer_phone_login_verified", {
+        user_id: profile.id,
+        has_email: Boolean(profile.email),
+        has_full_name: Boolean(profile.full_name),
+      });
+
       const isNewProfile = !profile.full_name;
       if (isNewProfile) {
         setRequiresProfileCompletion(true);
@@ -1019,6 +1128,78 @@ export default function CheckoutPage() {
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to complete profile.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const clearSessionAfterSignOut = () => {
+    setRequiresProfileCompletion(false);
+    setCurrentUser(null);
+    setOtpCode("");
+    setOtpSent(false);
+    setOtpResendCountdown(0);
+    setProfileFullName("");
+    setProfileEmail("");
+    setCustomerName("");
+    setCustomerEmail("");
+    setCustomerPhone("");
+    setUserId(null);
+  };
+
+  const handleSignOutPhoneSession = async () => {
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const supabase = getSupabaseClient();
+      const { error: signOutError } = await supabase.auth.signOut();
+      if (signOutError) {
+        throw new Error(signOutError.message);
+      }
+      clearSessionAfterSignOut();
+      setLoginPhone("");
+      setIsAuthenticated(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sign out failed.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  /** Phone-primary user clicked Change: sign out and show mobile OTP form again. */
+  const handleRequestPhoneNumberChange = async () => {
+    const raw = customerPhone || currentUser?.phone || "";
+    const prefill = normalizeAuPhone(raw);
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const supabase = getSupabaseClient();
+      const { error: signOutError } = await supabase.auth.signOut();
+      if (signOutError) {
+        throw new Error(signOutError.message);
+      }
+      clearSessionAfterSignOut();
+      setIsAuthenticated(false);
+      if (phoneLoginEnabled && prefill.startsWith("+614")) {
+        setLoginPhone(prefill);
+        setPhoneReauthNonce((n) => n + 1);
+        setError(
+          "Enter your mobile number and request a code to sign in again (you can use the same or a new number).",
+        );
+      } else if (phoneLoginEnabled) {
+        setLoginPhone("");
+        setPhoneReauthNonce((n) => n + 1);
+        setError(
+          "Please sign in with your mobile number and request a verification code.",
+        );
+      } else {
+        setLoginPhone("");
+        setError("Please sign in again to continue checkout.");
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Could not sign out. Try again.",
       );
     } finally {
       setIsSubmitting(false);
@@ -1531,6 +1712,8 @@ export default function CheckoutPage() {
             signupConfirmPassword={signupConfirmPassword}
             setSignupConfirmPassword={setSignupConfirmPassword}
             handleCustomerSignup={handleCustomerSignup}
+            handleSignOutPhoneSession={handleSignOutPhoneSession}
+            phoneReauthNonce={phoneReauthNonce}
           />
           {/* Authenticated Info Block for Pay at Store and Pay Online */}
           <AuthenticatedCustomerInfo
@@ -1538,6 +1721,16 @@ export default function CheckoutPage() {
             currentUser={currentUser}
             customerPhone={customerPhone}
             setCustomerPhone={setCustomerPhone}
+            phoneLoginEnabled={phoneLoginEnabled}
+            isPhonePrimaryAccount={
+              Boolean(
+                isAuthenticated &&
+                  currentUser &&
+                  isPlaceholderCustomerEmail(currentUser.email),
+              )
+            }
+            onRequestPhoneNumberChange={handleRequestPhoneNumberChange}
+            authActionPending={isSubmitting}
           />
           {isAuthenticated && (
             <>

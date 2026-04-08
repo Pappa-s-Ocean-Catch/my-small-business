@@ -16,6 +16,14 @@ const getEmailOverride = (originalEmail: string): string => {
   return process.env.OVERRIDE_EMAIL_ADDRESS || originalEmail;
 };
 
+const shouldSkipCustomerEmail = (email: string | null | undefined): boolean => {
+  const trimmed = email?.trim() ?? "";
+  if (!trimmed) {
+    return true;
+  }
+  return /^phone-\d+@no-email\.local$/i.test(trimmed);
+};
+
 export async function sendShiftReminder(
   staffEmail: string,
   staffName: string,
@@ -70,15 +78,15 @@ export async function sendOrderReadyEmail(order: Order) {
       throw new Error('RESEND_API_KEY is not configured');
     }
 
-    if (!order.customer_email) {
-      throw new Error('Order has no customer_email');
+    if (shouldSkipCustomerEmail(order.customer_email)) {
+      return { success: true, skipped: true as const };
     }
 
     const brandSettings = await getBrandSettings();
     const businessName = brandSettings?.business_name || 'OperateFlow';
     const logoUrl = brandSettings?.logo_url;
 
-    const emailTo = getEmailOverride(order.customer_email);
+    const emailTo = getEmailOverride(order.customer_email!);
     const emailFrom = process.env.EMAIL_FROM!;
 
     const { data, error } = await resend.emails.send({
@@ -275,13 +283,13 @@ export async function sendOrderPlacedEmail(order: Order) {
     if (!resend || !process.env.RESEND_API_KEY) {
       throw new Error('RESEND_API_KEY is not configured');
     }
-    if (!order.customer_email) {
-      throw new Error('Order has no customer_email');
+    if (shouldSkipCustomerEmail(order.customer_email)) {
+      return { success: true, skipped: true as const };
     }
     const brandSettings = await getBrandSettings();
     const businessName = brandSettings?.business_name || 'OperateFlow';
     const logoUrl = brandSettings?.logo_url;
-    const emailTo = getEmailOverride(order.customer_email);
+    const emailTo = getEmailOverride(order.customer_email!);
     const emailFrom = process.env.EMAIL_FROM!;
     const { data, error } = await resend.emails.send({
       from: emailFrom,
@@ -312,13 +320,13 @@ export async function sendOrderCompletedEmail(order: Order) {
     if (!resend || !process.env.RESEND_API_KEY) {
       throw new Error('RESEND_API_KEY is not configured');
     }
-    if (!order.customer_email) {
-      throw new Error('Order has no customer_email');
+    if (shouldSkipCustomerEmail(order.customer_email)) {
+      return { success: true, skipped: true as const };
     }
     const brandSettings = await getBrandSettings();
     const businessName = brandSettings?.business_name || 'OperateFlow';
     const logoUrl = brandSettings?.logo_url;
-    const emailTo = getEmailOverride(order.customer_email);
+    const emailTo = getEmailOverride(order.customer_email!);
     const emailFrom = process.env.EMAIL_FROM!;
     const { OrderCompletedEmail } = require('@/emails/OrderCompletedEmail');
     const { data, error } = await resend.emails.send({

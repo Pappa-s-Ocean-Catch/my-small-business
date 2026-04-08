@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
-import { FaUser } from "react-icons/fa";
+import { FaSignOutAlt, FaUser } from "react-icons/fa";
 import { LoadingSpinner } from "@/components/Loading";
 
 interface CustomerAuthSectionProps {
@@ -40,6 +40,9 @@ interface CustomerAuthSectionProps {
   signupConfirmPassword: string;
   setSignupConfirmPassword: (val: string) => void;
   handleCustomerSignup: (e: React.FormEvent) => Promise<void>;
+  handleSignOutPhoneSession: () => Promise<void>;
+  /** Incremented after phone change forces re-auth; switches tab to Mobile Login. */
+  phoneReauthNonce: number;
 }
 
 export function CustomerAuthSection({
@@ -78,6 +81,8 @@ export function CustomerAuthSection({
   signupConfirmPassword,
   setSignupConfirmPassword,
   handleCustomerSignup,
+  handleSignOutPhoneSession,
+  phoneReauthNonce,
 }: CustomerAuthSectionProps) {
   const [authMode, setAuthMode] = useState<"mobile" | "login" | "signup">(() =>
     phoneLoginEnabled ? "mobile" : "login",
@@ -88,6 +93,12 @@ export function CustomerAuthSection({
       setAuthMode("login");
     }
   }, [phoneLoginEnabled, authMode]);
+
+  useEffect(() => {
+    if (phoneLoginEnabled && phoneReauthNonce > 0) {
+      setAuthMode("mobile");
+    }
+  }, [phoneReauthNonce, phoneLoginEnabled]);
 
   if (isAuthenticated) return null;
 
@@ -106,7 +117,8 @@ export function CustomerAuthSection({
         Please sign in or create an account to proceed with your order.
       </p>
 
-      {/* Auth Mode Toggle */}
+      {/* Auth Mode Toggle — hidden during phone profile completion */}
+      {!requiresProfileCompletion && (
       <div className="flex bg-gray-100 dark:bg-neutral-800 rounded-lg p-1 mb-6">
         {phoneLoginEnabled && (
           <button
@@ -153,6 +165,7 @@ export function CustomerAuthSection({
           Create Account
         </button>
       </div>
+      )}
 
       {phoneLoginEnabled &&
         authMode === "mobile" &&
@@ -227,9 +240,24 @@ export function CustomerAuthSection({
 
       {phoneLoginEnabled && requiresProfileCompletion && (
         <div className="mt-4 p-4 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 space-y-3">
-          <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-100">
-            Complete your profile
-          </h3>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+              Complete your profile
+            </h3>
+            <button
+              type="button"
+              onClick={() => void handleSignOutPhoneSession()}
+              disabled={isSubmitting}
+              className="inline-flex items-center justify-center gap-1.5 text-sm font-medium text-amber-800 dark:text-amber-200 underline-offset-2 hover:underline disabled:opacity-50 shrink-0"
+            >
+              <Icon icon={FaSignOutAlt} className="w-3.5 h-3.5" />
+              Sign out
+            </button>
+          </div>
+          <p className="text-xs text-amber-800/90 dark:text-amber-100/80">
+            Signed in with your mobile number. Sign out to use a different number
+            or sign in with email instead.
+          </p>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Full Name <span className="text-red-500">*</span>
