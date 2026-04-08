@@ -10,6 +10,7 @@ import { OrderHeader } from "@/components/OrderHeader";
 import { createOrder, type OrderInput } from "@/app/actions/orders";
 import type { Order, OrderItem } from "@my-small-business/types/order";
 import { signUpCustomer } from "@/app/actions/customer-auth";
+import { completePhoneCustomerProfile } from "@/app/actions/customer-phone-auth";
 import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { getActivePromotions } from "@/app/actions/promotions";
 import {
@@ -44,6 +45,52 @@ import { DuplicateOrderModal } from "./components/DuplicateOrderModal";
 import { DuplicateOrderWarning } from "./components/DuplicateOrderWarning";
 
 type PaymentMethod = "online" | "store";
+
+/** Set NEXT_PUBLIC_ENABLE_CHECKOUT_PHONE_LOGIN=true in .env.local to show mobile OTP login (after webhook is ready). */
+const phoneLoginEnabled =
+  typeof process.env.NEXT_PUBLIC_ENABLE_CHECKOUT_PHONE_LOGIN === "string" &&
+  (process.env.NEXT_PUBLIC_ENABLE_CHECKOUT_PHONE_LOGIN === "true" ||
+    process.env.NEXT_PUBLIC_ENABLE_CHECKOUT_PHONE_LOGIN === "1");
+
+function normalizeAuPhone(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.startsWith("61") && digits.length === 11) {
+    return `+${digits}`;
+  }
+  if (digits.startsWith("04") && digits.length === 10) {
+    return `+61${digits.slice(1)}`;
+  }
+  if (phone.startsWith("+614") && phone.replace(/\D/g, "").length === 11) {
+    return `+${phone.replace(/\D/g, "")}`;
+  }
+  return phone.trim();
+}
+
+function buildFallbackOrderEmail(phone: string): string {
+  const normalizedDigits = phone.replace(/\D/g, "");
+  return `phone-${normalizedDigits}@no-email.local`;
+}
+
+function mapPhoneAuthError(errorMessage: string): string {
+  const normalized = errorMessage.toLowerCase();
+
+  if (normalized.includes("unsupported phone provider")) {
+    return "Phone login is not enabled in Supabase yet. Please configure Phone Auth provider in Supabase Auth settings (or enable the SMS hook provider) and try again.";
+  }
+
+  if (
+    normalized.includes("sms") &&
+    (normalized.includes("not configured") || normalized.includes("provider"))
+  ) {
+    return "SMS provider is not fully configured. Please check Supabase Phone Auth provider settings and your SMS hook endpoint configuration.";
+  }
+
+  if (normalized.includes("invalid phone")) {
+    return "Invalid mobile number format. Please use an Australian mobile number like +614XXXXXXXX.";
+  }
+
+  return errorMessage;
+}
 
 // Utility to compare two arrays of items for equality (ignoring order)
 function areItemsEqual(
@@ -183,6 +230,14 @@ export default function CheckoutPage() {
   const [signupConfirmPassword, setSignupConfirmPassword] = useState("");
   const [signupFullName, setSignupFullName] = useState("");
   const [signupPhone, setSignupPhone] = useState("");
+  const [loginPhone, setLoginPhone] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpResendCountdown, setOtpResendCountdown] = useState(0);
+  const [requiresProfileCompletion, setRequiresProfileCompletion] =
+    useState(false);
+  const [profileFullName, setProfileFullName] = useState("");
+  const [profileEmail, setProfileEmail] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<{
     id: string;
@@ -234,6 +289,20 @@ export default function CheckoutPage() {
   const [activePromotions, setActivePromotions] = useState<
     PromotionWithProducts[]
   >([]);
+
+  useEffect(() => {
+    if (otpResendCountdown <= 0) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setOtpResendCountdown((previous) =>
+        previous > 0 ? previous - 1 : 0,
+      );
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [otpResendCountdown]);
 
   // Restore last used phone number from localStorage so customers don't need
   // to re-enter it every visit, even if their profile phone is empty.
@@ -788,6 +857,174 @@ export default function CheckoutPage() {
     }
   };
 
+  const handleSendPhoneOtp = async () => {
+    setError(null);
+
+    if (otpSent && otpResendCountdown > 0) {
+      setError(
+        `Please wait ${otpResendCountdown} seconds before requesting a new code.`,
+      );
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const normalizedPhone = normalizeAuPhone(loginPhone);
+      if (!normalizedPhone.startsWith("+614")) {
+        throw new Error(
+          "Please enter a valid Australian mobile number (e.g. +61 4XX XXX XXX).",
+        );
+      }
+
+      const supabase = getSupabaseClient();
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        phone: normalizedPhone,
+        options: {
+          shouldCreateUser: true,
+          data: {
+            phone: normalizedPhone,
+          },
+        },
+      });
+
+      if (otpError) {
+        console.error("[Checkout] Phone OTP send failed:", {
+          message: otpError.message,
+          status: otpError.status,
+          name: otpError.name,
+        });
+        throw new Error(mapPhoneAuthError(otpError.message));
+      }
+
+      setLoginPhone(normalizedPhone);
+      setOtpSent(true);
+      setOtpResendCountdown(30);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to send OTP.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleVerifyPhoneOtp = async () => {
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const normalizedPhone = normalizeAuPhone(loginPhone);
+      if (!otpCode || otpCode.length < 6) {
+        throw new Error("Please enter the 6-digit verification code.");
+      }
+
+      const supabase = getSupabaseClient();
+      const { data, error: verifyError } = await supabase.auth.verifyOtp({
+        phone: normalizedPhone,
+        token: otpCode,
+        type: "sms",
+      });
+
+      if (verifyError) {
+        console.error("[Checkout] Phone OTP verify failed:", {
+          message: verifyError.message,
+          status: verifyError.status,
+          name: verifyError.name,
+        });
+        throw new Error(mapPhoneAuthError(verifyError.message));
+      }
+
+      const user = data.user;
+      if (!user) {
+        throw new Error("Verification succeeded but no user session was found.");
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("id, email, full_name, phone, role_slug")
+        .eq("id", user.id)
+        .single();
+
+      if (profileError || !profile) {
+        throw new Error(
+          "Phone verified, but profile could not be loaded. Please try again.",
+        );
+      }
+
+      const profilePhone = profile.phone || normalizedPhone;
+      setCurrentUser({
+        id: profile.id,
+        email: profile.email || "",
+        full_name: profile.full_name || undefined,
+        phone: profilePhone,
+      });
+      setCustomerPhone(profilePhone);
+      setCustomerName(profile.full_name || "");
+      setCustomerEmail(profile.email || "");
+
+      const isNewProfile = !profile.full_name;
+      if (isNewProfile) {
+        setRequiresProfileCompletion(true);
+        setProfileFullName(profile.full_name || "");
+        setProfileEmail(profile.email || "");
+        setIsAuthenticated(false);
+      } else {
+        setRequiresProfileCompletion(false);
+        setIsAuthenticated(true);
+      }
+
+      setOtpCode("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to verify OTP.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCompletePhoneProfile = async () => {
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      if (!currentUser?.id) {
+        throw new Error("Missing authenticated user.");
+      }
+      if (!profileFullName.trim()) {
+        throw new Error("Please enter your full name.");
+      }
+
+      const result = await completePhoneCustomerProfile({
+        userId: currentUser.id,
+        fullName: profileFullName.trim(),
+        email: profileEmail.trim() || undefined,
+        phone: loginPhone || customerPhone,
+      });
+
+      if (!result.success) {
+        throw new Error(result.error || "Failed to update profile.");
+      }
+
+      const finalPhone = normalizeAuPhone(loginPhone || customerPhone);
+      setCurrentUser((prev) =>
+        prev
+          ? {
+              ...prev,
+              email: profileEmail.trim() || prev.email,
+              full_name: profileFullName.trim(),
+              phone: finalPhone,
+            }
+          : prev,
+      );
+      setCustomerName(profileFullName.trim());
+      setCustomerPhone(finalPhone);
+      setCustomerEmail(profileEmail.trim());
+      setRequiresProfileCompletion(false);
+      setIsAuthenticated(true);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to complete profile.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -810,8 +1047,9 @@ export default function CheckoutPage() {
     let errorMessage = null;
     try {
       // Validate required contact fields
-      if (!customerEmail || !customerPhone) {
-        errorMessage = "Please enter your email and phone number so we can contact you about your order.";
+      if (!customerPhone) {
+        errorMessage =
+          "Please enter your phone number so we can contact you about your order.";
         throw new Error(errorMessage);
       }
 
@@ -845,7 +1083,7 @@ export default function CheckoutPage() {
 
       // Prepare order input
       const orderInput: OrderInput = {
-        customer_email: customerEmail,
+        customer_email: customerEmail || buildFallbackOrderEmail(customerPhone),
         customer_phone: customerPhone,
         customer_name: customerName || undefined,
         payment_method: paymentMethod,
@@ -1258,7 +1496,22 @@ export default function CheckoutPage() {
 
           {/* Require login/signup for all payment methods */}
           <CustomerAuthSection
+            phoneLoginEnabled={phoneLoginEnabled}
             isAuthenticated={isAuthenticated}
+            requiresProfileCompletion={requiresProfileCompletion}
+            profileFullName={profileFullName}
+            setProfileFullName={setProfileFullName}
+            profileEmail={profileEmail}
+            setProfileEmail={setProfileEmail}
+            handleCompletePhoneProfile={handleCompletePhoneProfile}
+            loginPhone={loginPhone}
+            setLoginPhone={setLoginPhone}
+            otpCode={otpCode}
+            setOtpCode={setOtpCode}
+            otpSent={otpSent}
+            otpResendCountdown={otpResendCountdown}
+            handleSendPhoneOtp={handleSendPhoneOtp}
+            handleVerifyPhoneOtp={handleVerifyPhoneOtp}
             loginEmail={loginEmail}
             setLoginEmail={setLoginEmail}
             loginPassword={loginPassword}
