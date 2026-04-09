@@ -4,7 +4,9 @@ import { FaCheckCircle, FaUser } from "react-icons/fa";
 
 interface AuthenticatedCustomerInfoProps {
   isAuthenticated: boolean;
-  currentUser: { email: string; phone?: string } | null;
+  currentUser: { email: string; phone?: string; full_name?: string } | null;
+  customerName: string;
+  setCustomerName: (val: string) => void;
   customerPhone: string;
   setCustomerPhone: (val: string) => void;
   phoneLoginEnabled: boolean;
@@ -35,6 +37,8 @@ function formatDisplayPhone(phone: string | undefined): string {
 export function AuthenticatedCustomerInfo({
   isAuthenticated,
   currentUser,
+  customerName,
+  setCustomerName,
   customerPhone,
   setCustomerPhone,
   phoneLoginEnabled,
@@ -44,7 +48,9 @@ export function AuthenticatedCustomerInfo({
 }: AuthenticatedCustomerInfoProps) {
   const [editing, setEditing] = useState(false);
   const phoneBaselineRef = useRef<string>("");
+  const nameBaselineRef = useRef<string>("");
   const valid = isValidPhone(customerPhone);
+  const hasName = Boolean(customerName.trim());
 
   const displayNumber =
     formatDisplayPhone(customerPhone) ||
@@ -80,6 +86,7 @@ export function AuthenticatedCustomerInfo({
   const beginEditPhone = () => {
     phoneBaselineRef.current =
       customerPhone.trim() || currentUser?.phone?.trim() || "";
+    nameBaselineRef.current = customerName.trim() || currentUser?.full_name?.trim() || "";
     setEditing(true);
   };
 
@@ -111,6 +118,39 @@ export function AuthenticatedCustomerInfo({
           changed.
         </p>
       ) : null}
+
+      {!hasName || editing ? (
+        <div className="mt-1 mb-4 p-4 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20">
+          <p className="text-sm font-medium text-amber-800 dark:text-amber-100 mb-2">
+            Please provide your full name so we can attach it to this order.
+          </p>
+          <label className="block text-xs font-medium text-gray-800 dark:text-gray-200 mb-1">
+            Full Name <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            value={customerName}
+            onChange={(e) => setCustomerName(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-white"
+            placeholder="Enter your full name"
+            autoComplete="name"
+          />
+          {!hasName ? (
+            <p className="text-xs text-red-600 mt-2">
+              Full name is required to place your order.
+            </p>
+          ) : null}
+        </div>
+      ) : (
+        <div className="mt-1 mb-4 p-4 rounded-lg border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20">
+          <p className="text-sm font-medium text-green-800 dark:text-green-100 mb-1">
+            Customer Name
+          </p>
+          <span className="text-base font-semibold text-green-900 dark:text-green-100">
+            {customerName}
+          </span>
+        </div>
+      )}
 
       {changePhoneViaSignOut ? (
         <>
@@ -199,6 +239,11 @@ export function AuthenticatedCustomerInfo({
               className="px-3 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
               onClick={() => {
                 setEditing(false);
+                setCustomerName(
+                  currentUser?.full_name?.trim() ||
+                    nameBaselineRef.current ||
+                    "",
+                );
                 setCustomerPhone(
                   currentUser?.phone?.trim() || phoneBaselineRef.current || "",
                 );

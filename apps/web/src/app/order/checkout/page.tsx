@@ -1228,6 +1228,16 @@ export default function CheckoutPage() {
     let errorMessage = null;
     try {
       // Validate required contact fields
+      if (!customerName.trim()) {
+        errorMessage = "Please enter your full name to continue checkout.";
+        throw new Error(errorMessage);
+      }
+
+      if (!customerEmail.trim()) {
+        errorMessage = "Please enter your email to continue checkout.";
+        throw new Error(errorMessage);
+      }
+
       if (!customerPhone) {
         errorMessage =
           "Please enter your phone number so we can contact you about your order.";
@@ -1264,9 +1274,9 @@ export default function CheckoutPage() {
 
       // Prepare order input
       const orderInput: OrderInput = {
-        customer_email: customerEmail || buildFallbackOrderEmail(customerPhone),
+        customer_email: customerEmail.trim(),
         customer_phone: customerPhone,
-        customer_name: customerName || undefined,
+        customer_name: customerName.trim(),
         payment_method: paymentMethod,
         order_type: orderType || "pickup",
         user_id: currentUser?.id,
@@ -1605,6 +1615,8 @@ export default function CheckoutPage() {
         return totalMatch && itemsMatch;
       })
       : null;
+  const hasRequiredContactInfo =
+    Boolean(customerPhone.trim()) && Boolean(customerEmail.trim());
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-neutral-900">
@@ -1719,6 +1731,8 @@ export default function CheckoutPage() {
           <AuthenticatedCustomerInfo
             isAuthenticated={isAuthenticated}
             currentUser={currentUser}
+            customerName={customerName}
+            setCustomerName={setCustomerName}
             customerPhone={customerPhone}
             setCustomerPhone={setCustomerPhone}
             phoneLoginEnabled={phoneLoginEnabled}
@@ -1732,7 +1746,15 @@ export default function CheckoutPage() {
             onRequestPhoneNumberChange={handleRequestPhoneNumberChange}
             authActionPending={isSubmitting}
           />
-          {isAuthenticated && (
+          {isAuthenticated && !hasRequiredContactInfo && (
+            <div className="rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-4">
+              <p className="text-sm text-amber-800 dark:text-amber-100">
+                Please complete your phone number and email before choosing a
+                payment method.
+              </p>
+            </div>
+          )}
+          {isAuthenticated && hasRequiredContactInfo && (
             <>
               {/* Payment Method Selection */}
               <PaymentMethodSelector
@@ -1799,6 +1821,8 @@ export default function CheckoutPage() {
                 disabled={
                   isSubmitting ||
                   isRedirecting ||
+                  !customerName.trim() ||
+                  !customerEmail.trim() ||
                   !customerPhone ||
                   (!isAuthenticated &&
                     paymentMethod === "online" &&
