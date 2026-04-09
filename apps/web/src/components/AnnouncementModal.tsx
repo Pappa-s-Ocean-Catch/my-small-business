@@ -85,7 +85,7 @@ export function AnnouncementModal({ announcements }: { announcements: Announceme
       if (bStart !== aStart) return bStart - aStart;
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
-  }, [announcements, hiddenIds]);
+  }, [announcements, hiddenIds, dismissedById]);
 
   useEffect(() => {
     if (index >= visible.length) setIndex(0);
