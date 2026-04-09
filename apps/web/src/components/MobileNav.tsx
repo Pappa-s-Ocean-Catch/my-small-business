@@ -23,7 +23,8 @@ import {
   FaShoppingBag,
   FaMoneyBillWave,
   FaChartPie,
-  FaExclamationTriangle
+  FaExclamationTriangle,
+  FaBullhorn
 } from "react-icons/fa";
 import { Icon } from "@/components/Icon";
 
@@ -200,6 +201,10 @@ export function MobileNav() {
                           <Link href="/admin/orders" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
                             <Icon icon={FaShoppingBag} className="w-4 h-4 mr-2 text-blue-400" />
                             Orders
+                          </Link>
+                          <Link href="/admin/announcements" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                            <Icon icon={FaBullhorn} className="w-4 h-4 mr-2 text-purple-400" />
+                            Announcements
                           </Link>
                           <Link href="/shop/products" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
                             <Icon icon={FaBox} className="w-4 h-4 mr-2 text-blue-400" />

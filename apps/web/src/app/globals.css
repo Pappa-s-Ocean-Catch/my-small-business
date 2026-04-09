@@ -205,3 +205,9 @@ input[type="month"]::-webkit-calendar-picker-indicator {
 .print-only {
   display: none;
 }
+
+/* Keep reCAPTCHA v3 badge visible but less intrusive */
+.grecaptcha-badge {
+  transform: scale(0.85);
+  transform-origin: bottom right;
+}

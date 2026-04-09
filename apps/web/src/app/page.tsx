@@ -15,6 +15,8 @@ import type { Promotion } from "@/lib/promotions";
 import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { PublicReviewBlock } from "@/components/PublicReviewBlock";
 import { ReviewSummaryWidget } from "@/components/ReviewSummaryWidget";
+import { AnnouncementModal } from "@/components/AnnouncementModal";
+import type { Announcement } from "@my-small-business/types";
 
 interface FeaturedProduct {
   id: string;
@@ -36,6 +38,7 @@ export default function Home() {
   const [featuredProducts, setFeaturedProducts] = useState<FeaturedProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [contactForm, setContactForm] = useState<ContactFormData>({
     name: "",
     email: "",
@@ -79,6 +82,20 @@ export default function Home() {
     const fetchData = async () => {
       try {
         const supabase = getSupabaseClient();
+
+        // Public RLS ensures only active published announcements are visible
+        const { data: announcementData, error: announcementError } = await supabase
+          .from("announcements")
+          .select("*")
+          .order("priority", { ascending: false })
+          .order("starts_at", { ascending: false });
+
+        if (announcementError) {
+          console.error("Error fetching announcements:", announcementError);
+        } else {
+          setAnnouncements((announcementData ?? []) as Announcement[]);
+        }
+
         // Fetch featured products marked with is_featured flag
         const { data, error } = await supabase
           .from("sale_products")
@@ -218,6 +235,7 @@ export default function Home() {
 
   return (
     <>
+      <AnnouncementModal announcements={announcements} />
       <div className="min-h-screen bg-white">
         {/* PWA Install Prompt Button */}
         {showInstall && (
