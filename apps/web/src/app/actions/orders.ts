@@ -901,58 +901,78 @@ export async function getCustomerOrders(): Promise<{ data: Order[] | null; error
       return { data: null, error: ordersError.message };
     }
 
-    // Fetch items and addons for each order
     const ordersWithItems: Order[] = [];
-    if (orders) {
-      for (const order of orders) {
-        const { data: items, error: itemsError } = await supabase
-          .from('order_items')
+    if (!orders || orders.length === 0) {
+      return { data: ordersWithItems, error: null };
+    }
+
+    // Load all order items in a single query to avoid N+1 database calls.
+    const orderIds = orders.map((order) => order.id);
+    const { data: allItems, error: itemsError } = await supabase
+      .from('order_items')
+      .select('*')
+      .in('order_id', orderIds)
+      .order('created_at', { ascending: true });
+
+    if (itemsError) {
+      console.error('Error fetching order items:', itemsError);
+    }
+
+    // Load all addons in a single query to avoid N+1 database calls.
+    const itemIds = (allItems ?? []).map((item) => item.id);
+    const { data: allAddons, error: addonsError } = itemIds.length > 0
+      ? await supabase
+          .from('order_item_addons')
           .select('*')
-          .eq('order_id', order.id)
-          .order('created_at', { ascending: true });
+          .in('order_item_id', itemIds)
+      : { data: [], error: null };
 
-        if (itemsError) {
-          console.error('Error fetching order items:', itemsError);
-        }
+    if (addonsError) {
+      console.error('Error fetching order item addons:', addonsError);
+    }
 
-        const itemsWithAddons: OrderItem[] = [];
-        if (items) {
-          for (const item of items) {
-            const { data: addons } = await supabase
-              .from('order_item_addons')
-              .select('*')
-              .eq('order_item_id', item.id);
+    const addonsByOrderItemId = new Map<string, typeof allAddons>();
+    (allAddons ?? []).forEach((addon) => {
+      const existing = addonsByOrderItemId.get(addon.order_item_id) ?? [];
+      existing.push(addon);
+      addonsByOrderItemId.set(addon.order_item_id, existing);
+    });
 
-            itemsWithAddons.push({
-              ...item,
-              base_price: Number(item.base_price),
-              quantity: item.quantity,
-              subtotal: Number(item.subtotal),
-              removed_ingredients: (item.removed_ingredients as string[] | null) || [],
-              addons: addons?.map(addon => ({
-                id: addon.id,
-                order_item_id: addon.order_item_id,
-                addon_group_id: addon.addon_group_id,
-                addon_group_name: addon.addon_group_name,
-                addon_item_id: addon.addon_item_id,
-                addon_item_name: addon.addon_item_name,
-                addon_item_price: Number(addon.addon_item_price),
-                created_at: addon.created_at
-              })) || []
-            });
-          }
-        }
+    const itemsByOrderId = new Map<string, OrderItem[]>();
+    (allItems ?? []).forEach((item) => {
+      const mappedItem: OrderItem = {
+        ...item,
+        base_price: Number(item.base_price),
+        quantity: item.quantity,
+        subtotal: Number(item.subtotal),
+        removed_ingredients: (item.removed_ingredients as string[] | null) || [],
+        addons: (addonsByOrderItemId.get(item.id) ?? []).map((addon) => ({
+          id: addon.id,
+          order_item_id: addon.order_item_id,
+          addon_group_id: addon.addon_group_id,
+          addon_group_name: addon.addon_group_name,
+          addon_item_id: addon.addon_item_id,
+          addon_item_name: addon.addon_item_name,
+          addon_item_price: Number(addon.addon_item_price),
+          created_at: addon.created_at
+        }))
+      };
 
-        ordersWithItems.push({
-          ...order,
-          subtotal: Number(order.subtotal),
-          tax: Number(order.tax),
-          delivery_fee: Number(order.delivery_fee),
-          service_fee: Number(order.service_fee),
-          total: Number(order.total),
-          items: itemsWithAddons
-        });
-      }
+      const existingItems = itemsByOrderId.get(item.order_id) ?? [];
+      existingItems.push(mappedItem);
+      itemsByOrderId.set(item.order_id, existingItems);
+    });
+
+    for (const order of orders) {
+      ordersWithItems.push({
+        ...order,
+        subtotal: Number(order.subtotal),
+        tax: Number(order.tax),
+        delivery_fee: Number(order.delivery_fee),
+        service_fee: Number(order.service_fee),
+        total: Number(order.total),
+        items: itemsByOrderId.get(order.id) ?? []
+      });
     }
 
     return { data: ordersWithItems, error: null };

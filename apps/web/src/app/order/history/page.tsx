@@ -8,7 +8,6 @@ import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types
 import { useCart } from '@/contexts/CartContext';
 import { FaClock, FaCheckCircle, FaUtensils, FaSpinner, FaTimesCircle, FaShoppingCart, FaPrint } from 'react-icons/fa';
 import { Icon } from '@/components/Icon';
-import { getSupabaseClient } from '@my-small-business/supabase/client';
 import Link from 'next/link';
 
 export default function OrderHistoryPage() {
@@ -22,15 +21,12 @@ export default function OrderHistoryPage() {
   useEffect(() => {
     const checkAuthAndLoadOrders = async () => {
       try {
-        const supabase = getSupabaseClient();
-        const { data: { user } } = await supabase.auth.getUser();
-
-        if (!user) {
+        const result = await getCustomerOrders();
+        if (result.error === 'Not authenticated') {
           router.push('/login');
           return;
         }
 
-        const result = await getCustomerOrders();
         if (result.error) {
           setError(result.error);
         } else {
