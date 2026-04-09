@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createServiceRoleClient } from '@my-small-business/supabase/server';
 import { updatePaymentStatus, updateOrderStatus } from '@/app/actions/orders';
+import { ensureOrderRewardPoints } from '@/app/actions/reward-points';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const stripe = stripeSecretKey ? new Stripe(stripeSecretKey) : null;
@@ -88,6 +89,10 @@ export async function POST(request: Request) {
 
       // SECURITY: Prevent duplicate updates if already paid (idempotency)
       if (existingOrder.payment_status === 'paid') {
+        const ensureResult = await ensureOrderRewardPoints(orderId);
+        if (!ensureResult.success) {
+          console.error('[Stripe] Failed to ensure reward points for already-paid order:', ensureResult.error);
+        }
         console.log('[Stripe] Order already marked as paid, skipping update');
         return NextResponse.json({
           success: true,
@@ -130,33 +135,10 @@ export async function POST(request: Request) {
           console.error('[verify-session] Failed to send order placed email:', emailErr);
         }
       }
-      // Award reward points if user is logged in and order is paid
-      // Points are earned only on food subtotal, not on fees, tax, or delivery
-      if (paymentResult.data?.user_id && paymentResult.data?.payment_status === 'paid') {
-        try {
-          const { earnRewardPoints } = await import('@/app/actions/reward-points');
-          // Use subtotal (food price only) instead of total (which includes fees/tax/delivery)
-          const foodSubtotal = parseFloat(paymentResult.data.subtotal.toString());
-          const pointsResult = await earnRewardPoints(
-            paymentResult.data.user_id,
-            orderId,
-            foodSubtotal
-          );
-
-          if (pointsResult.success) {
-            console.log('[Stripe Verify] Reward points awarded:', {
-              userId: paymentResult.data.user_id,
-              orderId,
-              foodSubtotal,
-              pointsEarned: pointsResult.pointsEarned,
-            });
-          } else {
-            console.error('[Stripe Verify] Failed to award reward points:', pointsResult.error);
-          }
-        } catch (error) {
-          console.error('[Stripe Verify] Error awarding reward points:', error);
-          // Don't fail the verification if points fail
-        }
+      // Ensure reward points are allocated once for paid orders.
+      const ensureResult = await ensureOrderRewardPoints(orderId);
+      if (!ensureResult.success) {
+        console.error('[Stripe Verify] Failed to ensure reward points:', ensureResult.error);
       }
 
       console.log('[Stripe] Order updated successfully:', {

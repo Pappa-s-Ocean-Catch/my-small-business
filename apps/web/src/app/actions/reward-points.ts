@@ -214,6 +214,26 @@ export async function earnRewardPoints(
       return { success: false, error: 'Reward points are disabled' };
     }
 
+    // Prevent duplicate earned transactions for the same order.
+    const { data: existingEarnedTx, error: existingEarnedTxError } = await supabase
+      .from('reward_point_transactions')
+      .select('id, points')
+      .eq('user_id', userId)
+      .eq('order_id', orderId)
+      .eq('transaction_type', 'earned')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingEarnedTxError && existingEarnedTxError.code !== 'PGRST116') {
+      console.error('Error checking existing reward transaction:', existingEarnedTxError);
+      return { success: false, error: 'Failed to check existing reward points' };
+    }
+
+    if (existingEarnedTx) {
+      return { success: true, pointsEarned: existingEarnedTx.points };
+    }
+
     // Calculate points earned (only on food subtotal)
     const pointsEarned = Math.floor(foodSubtotal * settings.points_per_dollar);
 
@@ -257,6 +277,47 @@ export async function earnRewardPoints(
   } catch (error) {
     console.error('Error earning reward points:', error);
     return { success: false, error: 'An unexpected error occurred' };
+  }
+}
+
+export async function ensureOrderRewardPoints(
+  orderId: string
+): Promise<{ success: boolean; error?: string; pointsEarned?: number; skipped?: boolean }> {
+  try {
+    const supabase = await createServiceRoleClient();
+
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .select('id, user_id, payment_status, subtotal')
+      .eq('id', orderId)
+      .maybeSingle();
+
+    if (orderError) {
+      console.error('Error fetching order for reward points:', orderError);
+      return { success: false, error: 'Failed to load order for reward points' };
+    }
+
+    if (!order) {
+      return { success: false, error: 'Order not found for reward points' };
+    }
+
+    if (!order.user_id) {
+      return { success: true, skipped: true };
+    }
+
+    if (order.payment_status !== 'paid') {
+      return { success: true, skipped: true };
+    }
+
+    const foodSubtotal = Number(order.subtotal ?? 0);
+    if (!Number.isFinite(foodSubtotal) || foodSubtotal <= 0) {
+      return { success: true, skipped: true };
+    }
+
+    return await earnRewardPoints(order.user_id, order.id, foodSubtotal);
+  } catch (error) {
+    console.error('Error ensuring order reward points:', error);
+    return { success: false, error: 'An unexpected error occurred while ensuring reward points' };
   }
 }
 

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createServiceRoleClient } from '@my-small-business/supabase/server';
 import { getPostHogClient } from '@/lib/posthog-server';
+import { ensureOrderRewardPoints } from '@/app/actions/reward-points';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const stripe = stripeSecretKey ? new Stripe(stripeSecretKey) : null;
@@ -77,33 +78,9 @@ export async function POST(request: Request) {
         );
       }
 
-      // Award reward points if user is logged in and order is paid
-      // Points are earned only on food subtotal, not on fees, tax, or delivery
-      if (order.user_id && order.payment_status === 'paid') {
-        try {
-          const { earnRewardPoints } = await import('@/app/actions/reward-points');
-          // Use subtotal (food price only) instead of total (which includes fees/tax/delivery)
-          const foodSubtotal = parseFloat(order.subtotal.toString());
-          const pointsResult = await earnRewardPoints(
-            order.user_id,
-            order.id,
-            foodSubtotal
-          );
-
-          if (pointsResult.success) {
-            console.log('[Stripe Webhook] Reward points awarded:', {
-              userId: order.user_id,
-              orderId: order.id,
-              foodSubtotal,
-              pointsEarned: pointsResult.pointsEarned,
-            });
-          } else {
-            console.error('[Stripe Webhook] Failed to award reward points:', pointsResult.error);
-          }
-        } catch (error) {
-          console.error('[Stripe Webhook] Error awarding reward points:', error);
-          // Don't fail the webhook if points fail
-        }
+      const ensureResult = await ensureOrderRewardPoints(order.id);
+      if (!ensureResult.success) {
+        console.error('[Stripe Webhook] Failed to ensure reward points:', ensureResult.error);
       }
 
       console.log('[Stripe Webhook] Order updated successfully:', {
@@ -161,6 +138,10 @@ export async function POST(request: Request) {
         if (updateError) {
           console.error('[Stripe Webhook] Error updating order from payment_intent:', updateError);
         } else {
+          const ensureResult = await ensureOrderRewardPoints(order.id);
+          if (!ensureResult.success) {
+            console.error('[Stripe Webhook] Failed to ensure reward points from payment_intent:', ensureResult.error);
+          }
           console.log('[Stripe Webhook] Order updated from payment_intent:', {
             orderId: order.id,
             orderNumber: order.order_number,
