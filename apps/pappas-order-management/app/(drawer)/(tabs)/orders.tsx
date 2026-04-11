@@ -26,7 +26,7 @@ import { HistoryOrderListItem } from '@/components/HistoryOrderListItem';
 import { OrderDetailModal } from '@/components/OrderDetailModal';
 import { OrderFiltersModal } from '@/components/OrderFiltersModal';
 import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
-import { getAllOrders } from '@/lib/orders';
+import { getAllOrders, getOrder } from '@/lib/orders';
 import type { Order } from '@my-small-business/types';
 import { DEFAULT_APP_SETTINGS, loadAppSettings, subscribeAppSettings, type AppSettings } from '@/lib/settings';
 import { useOrderActions } from '@/hooks/useOrderActions';
@@ -175,6 +175,19 @@ export default function HistoryScreen() {
   const handleCustomerPress = (order: Order) => {
     setCustomerInfo({ email: order.customer_email, phone: order.customer_phone });
     setShowCustomerModal(true);
+  };
+
+  const handleOpenOrderFromCustomerModal = async (orderId: string) => {
+    setShowCustomerModal(false);
+    const result = await getOrder(orderId);
+    if (result.error) {
+      Alert.alert('Error', result.error);
+      return;
+    }
+    if (result.data) {
+      setSelectedOrder(result.data);
+      setShowOrderModal(true);
+    }
   };
 
   return (
@@ -327,6 +340,7 @@ export default function HistoryScreen() {
         email={customerInfo.email}
         phone={customerInfo.phone}
         onClose={() => setShowCustomerModal(false)}
+        onOrderPress={handleOpenOrderFromCustomerModal}
       />
     </View>
   );

@@ -1,45 +1,47 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, FlatList, ActivityIndicator, Modal, TouchableWithoutFeedback, Linking, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView, ActivityIndicator, Modal, TouchableWithoutFeedback, Linking, Alert } from 'react-native';
 import { 
     Text, 
     Avatar, 
     Card, 
     IconButton, 
     Divider, 
-    Chip, 
     Surface,
     useTheme,
-    MD3Theme
 } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import type { OrderStatus } from '@my-small-business/types';
 import { fetchCustomerSummary, CustomerSummary } from '@/utils/customerSummary';
 import { getFriendlyOrderNumber } from '../utils/orderNumber';
+import { STATUS_COLORS, STATUS_LABELS } from '../utils/constants';
 
-const STATUS_COLORS: Record<string, string> = {
-    pending: '#f59e0b',
-    confirmed: '#3b82f6',
-    preparing: '#8b5cf6',
-    ready: '#10b981',
-    completed: '#6b7280',
-    cancelled: '#ef4444',
-};
+function orderStatusColor(status: string): string {
+    if (Object.prototype.hasOwnProperty.call(STATUS_COLORS, status)) {
+        return STATUS_COLORS[status as OrderStatus];
+    }
+    return '#64748b';
+}
 
-const STATUS_LABELS: Record<string, string> = {
-    pending: 'Pending',
-    confirmed: 'Confirmed',
-    preparing: 'Preparing',
-    ready: 'Ready',
-    completed: 'Completed',
-    cancelled: 'Cancelled',
-};
+function orderStatusLabel(status: string): string {
+    if (Object.prototype.hasOwnProperty.call(STATUS_LABELS, status)) {
+        return STATUS_LABELS[status as OrderStatus];
+    }
+    return status.replace(/_/g, ' ');
+}
 
 export function CustomerModal({
-    email, phone, visible, onClose
+    email,
+    phone,
+    visible,
+    onClose,
+    onOrderPress,
 }: {
     email?: string;
     phone?: string;
     visible: boolean;
     onClose: () => void;
+    /** Open the same order detail UI as the order list (e.g. OrderDetailModal). */
+    onOrderPress: (orderId: string) => void;
 }) {
     const [customer, setCustomer] = useState<CustomerSummary | null>(null);
     const [loading, setLoading] = useState(false);
@@ -242,23 +244,38 @@ export function CustomerModal({
                                     {renderHeader()}
                                     {customer.orders.map((item) => (
                                         <View key={item.id} style={{ paddingHorizontal: 20 }}>
-                                            <Card style={styles.orderCard} mode="contained">
+                                            <Card
+                                                style={styles.orderCard}
+                                                mode="contained"
+                                                onPress={() => onOrderPress(item.id)}
+                                            >
                                                 <Card.Content style={styles.orderCardContent}>
-                                                    <View style={styles.orderInfo}>
-                                                        <Text variant="titleSmall" style={styles.orderNumber}>
-                                                            {getFriendlyOrderNumber(item.orderNumber)}
-                                                        </Text>
-                                                        <Text variant="bodySmall" style={styles.orderDate}>{formatDate(item.date)}</Text>
-                                                    </View>
-                                                    <View style={styles.orderMeta}>
-                                                        <Text variant="titleSmall" style={styles.orderPrice}>${item.total.toFixed(2)}</Text>
-                                                        <Chip 
-                                                            compact 
-                                                            textStyle={{ fontSize: 10, color: '#fff' }} 
-                                                            style={[styles.statusChip, { backgroundColor: STATUS_COLORS[item.status] || '#64748b' }]}
-                                                        >
-                                                            {STATUS_LABELS[item.status] || item.status}
-                                                        </Chip>
+                                                    <View style={styles.orderTopRow}>
+                                                        <View style={styles.orderInfo}>
+                                                            <Text variant="titleSmall" style={styles.orderNumber}>
+                                                                {getFriendlyOrderNumber(item.orderNumber)}
+                                                            </Text>
+                                                            <View style={styles.orderDateStatusRow}>
+                                                                <Text variant="bodySmall" style={styles.orderDateMuted}>
+                                                                    {formatDate(item.date)}
+                                                                </Text>
+                                                                <Text
+                                                                    variant="bodySmall"
+                                                                    style={[
+                                                                        styles.orderStatusLabel,
+                                                                        { color: orderStatusColor(item.status) },
+                                                                    ]}
+                                                                >
+                                                                    {orderStatusLabel(item.status)}
+                                                                </Text>
+                                                            </View>
+                                                        </View>
+                                                        <View style={styles.orderPriceChevron}>
+                                                            <Text variant="titleSmall" style={styles.orderPrice}>
+                                                                ${item.total.toFixed(2)}
+                                                            </Text>
+                                                            <MaterialCommunityIcons name="chevron-right" size={18} color="#94a3b8" />
+                                                        </View>
                                                     </View>
                                                 </Card.Content>
                                             </Card>
@@ -407,31 +424,50 @@ const styles = StyleSheet.create({
         backgroundColor: '#f8fafc',
     },
     orderCardContent: {
+        paddingVertical: 10,
+    },
+    orderTopRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: 12,
+        alignItems: 'flex-start',
+        gap: 10,
     },
     orderInfo: {
         flex: 1,
+        minWidth: 0,
+    },
+    orderDateStatusRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginTop: 4,
+        width: '100%',
+        gap: 8,
+    },
+    orderDateMuted: {
+        color: '#64748b',
+        flexShrink: 0,
+    },
+    orderStatusLabel: {
+        fontWeight: '600',
+        textAlign: 'right',
+        flexGrow: 1,
+        flexShrink: 1,
+        minWidth: 0,
+    },
+    orderPriceChevron: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 2,
+        flexShrink: 0,
     },
     orderNumber: {
         fontWeight: 'bold',
         color: '#1e293b',
     },
-    orderDate: {
-        color: '#64748b',
-    },
-    orderMeta: {
-        alignItems: 'flex-end',
-    },
     orderPrice: {
         fontWeight: 'bold',
         color: '#1e293b',
-        marginBottom: 4,
-    },
-    statusChip: {
-        height: 22,
     },
     emptyText: {
         color: '#94a3b8',

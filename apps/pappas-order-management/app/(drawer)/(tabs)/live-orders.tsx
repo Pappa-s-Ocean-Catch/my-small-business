@@ -381,6 +381,19 @@ export default function LiveOrdersScreen() {
     setShowCustomerModal(true);
   };
 
+  const handleOpenOrderFromCustomerModal = async (orderId: string) => {
+    setShowCustomerModal(false);
+    const result = await getOrder(orderId);
+    if (result.error) {
+      Alert.alert('Error', result.error);
+      return;
+    }
+    if (result.data) {
+      setSelectedOrder(result.data);
+      setShowOrderModal(true);
+    }
+  };
+
   return (
     <View style={styles.container}>
 
@@ -514,6 +527,7 @@ export default function LiveOrdersScreen() {
         email={customerInfo.email}
         phone={customerInfo.phone}
         onClose={() => setShowCustomerModal(false)}
+        onOrderPress={handleOpenOrderFromCustomerModal}
       />
     </View>
   );

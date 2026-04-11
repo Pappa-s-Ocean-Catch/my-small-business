@@ -891,6 +891,20 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
     setShowCustomerModal(true);
   };
 
+  const handleOpenOrderFromCustomerModal = async (orderId: string) => {
+    setShowCustomerModal(false);
+    setCustomerModalContact(null);
+    const result = await getOrder(orderId);
+    if (result.error) {
+      Alert.alert('Error', result.error);
+      return;
+    }
+    if (result.data) {
+      setSelectedOrder(result.data);
+      setShowOrderModal(true);
+    }
+  };
+
   if (loading && orders.length === 0) {
     return (
       <View style={styles.centerContainer}>
@@ -1328,6 +1342,7 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
             setShowCustomerModal(false);
             setCustomerModalContact(null);
           }}
+          onOrderPress={handleOpenOrderFromCustomerModal}
         />
       )}
     </View>

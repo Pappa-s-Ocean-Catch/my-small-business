@@ -18,7 +18,7 @@ import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '@/lib/supabase';
-import { getAllOrders } from '@/lib/orders';
+import { getAllOrders, getOrder } from '@/lib/orders';
 import type { Order } from '@my-small-business/types';
 import { CustomerModal } from '@/components/CustomerModal';
 import { LiveOrderListItem } from '@/components/LiveOrderListItem';
@@ -133,6 +133,19 @@ export default function PreOrdersScreen() {
     setShowCustomerModal(true);
   };
 
+  const handleOpenOrderFromCustomerModal = async (orderId: string) => {
+    setShowCustomerModal(false);
+    const result = await getOrder(orderId);
+    if (result.error) {
+      Alert.alert('Error', result.error);
+      return;
+    }
+    if (result.data) {
+      setSelectedOrder(result.data);
+      setShowOrderModal(true);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <CustomerModal
@@ -140,6 +153,7 @@ export default function PreOrdersScreen() {
         email={customerInfo.email}
         phone={customerInfo.phone}
         onClose={() => setShowCustomerModal(false)}
+        onOrderPress={handleOpenOrderFromCustomerModal}
       />
 
       <Appbar.Header style={styles.appbar}>

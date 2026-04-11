@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { View, StyleSheet, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
+import React, { useState, useCallback, useEffect } from 'react';
+import { View, StyleSheet, FlatList, RefreshControl, ActivityIndicator, Alert } from 'react-native';
 import { 
   Text, 
   Searchbar, 
@@ -14,8 +14,14 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { useRouter } from 'expo-router';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import type { Order } from '@my-small-business/types';
 import { getRecentCustomers, searchCustomers, Customer } from '@/lib/customers';
+import { getOrder } from '@/lib/orders';
 import { CustomerModal } from '@/components/CustomerModal';
+import { OrderDetailModal } from '@/components/OrderDetailModal';
+import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
+import { useOrderActions } from '@/hooks/useOrderActions';
+import { DEFAULT_APP_SETTINGS, loadAppSettings, subscribeAppSettings, type AppSettings } from '@/lib/settings';
 
 const PAGE_SIZE = 20;
 
@@ -35,6 +41,9 @@ export default function CustomersScreen() {
   
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<{ email?: string; phone?: string } | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [showOrderModal, setShowOrderModal] = useState(false);
+  const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
 
   // Debounce search query
   useEffect(() => {
@@ -43,6 +52,17 @@ export default function CustomersScreen() {
     }, 500);
     return () => clearTimeout(handler);
   }, [searchQuery]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeAppSettings(setAppSettings);
+    return unsubscribe;
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadAppSettings().then(setAppSettings);
+    }, [])
+  );
 
   const loadCustomers = async (p: number, search: string, append = false) => {
     try {
@@ -66,6 +86,27 @@ export default function CustomersScreen() {
       setRefreshing(false);
     }
   };
+
+  const {
+    updatingStatus,
+    simulatorOrder,
+    showSimulator,
+    setShowSimulator,
+    handleStatusUpdate,
+    handlePaymentStatusUpdate,
+    handleQuickAction,
+    handlePrint,
+    handlePrintImage,
+  } = useOrderActions(
+    appSettings,
+    async () => {
+      setPage(0);
+      await loadCustomers(0, debouncedQuery, false);
+    },
+    (updated) => {
+      if (selectedOrder?.id === updated.id) setSelectedOrder(updated);
+    }
+  );
 
   // Trigger load on focus or search query change
   useFocusEffect(
@@ -92,6 +133,25 @@ export default function CustomersScreen() {
   const handleCustomerPress = (customer: Customer) => {
     setSelectedCustomer({ email: customer.email, phone: customer.phone });
     setShowCustomerModal(true);
+  };
+
+  const handleCustomerPressFromOrder = (order: Order) => {
+    setShowOrderModal(false);
+    setSelectedCustomer({ email: order.customer_email, phone: order.customer_phone });
+    setShowCustomerModal(true);
+  };
+
+  const handleOpenOrderFromCustomerModal = async (orderId: string) => {
+    setShowCustomerModal(false);
+    const result = await getOrder(orderId);
+    if (result.error) {
+      Alert.alert('Error', result.error);
+      return;
+    }
+    if (result.data) {
+      setSelectedOrder(result.data);
+      setShowOrderModal(true);
+    }
   };
 
   const getInitials = (name: string) => {
@@ -198,8 +258,28 @@ export default function CustomersScreen() {
           email={selectedCustomer.email}
           phone={selectedCustomer.phone}
           onClose={() => setShowCustomerModal(false)}
+          onOrderPress={handleOpenOrderFromCustomerModal}
         />
       )}
+
+      <OrderDetailModal
+        visible={showOrderModal}
+        order={selectedOrder}
+        onClose={() => setShowOrderModal(false)}
+        onPrint={handlePrint}
+        onPrintImage={handlePrintImage}
+        onCustomerPress={handleCustomerPressFromOrder}
+        onStatusUpdate={handleStatusUpdate}
+        onPaymentStatusUpdate={handlePaymentStatusUpdate}
+        onQuickAction={handleQuickAction}
+        updatingStatus={updatingStatus}
+      />
+
+      <PrintSimulatorModal
+        visible={showSimulator}
+        order={simulatorOrder}
+        onClose={() => setShowSimulator(false)}
+      />
     </View>
   );
 }
