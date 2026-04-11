@@ -33,11 +33,12 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
 import { escposPrintKitchenReceipt, formatPrinterError } from '../../lib/escpos-printer';
 import { KitchenAlertOverlay } from '../../lib/KitchenAlertOverlay';
-import { getFriendlyOrderNumber } from '../utils/orderNumber';
-import { CustomerModal } from '../customer';
+import { getFriendlyOrderNumber } from '../../utils/orderNumber';
+import { CustomerModal } from '../../components/CustomerModal';
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
   pending: '#f59e0b',
+  pending_online_payment: '#d97706',
   confirmed: '#3b82f6',
   preparing: '#8b5cf6',
   ready: '#10b981',
@@ -47,6 +48,7 @@ const STATUS_COLORS: Record<OrderStatus, string> = {
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
   pending: 'Pending',
+  pending_online_payment: 'Awaiting payment',
   confirmed: 'Confirmed',
   preparing: 'Preparing',
   ready: 'Ready',
@@ -101,7 +103,10 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
   const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
   const [showCustomerModal, setShowCustomerModal] = useState(false);
-  const [customerUserId, setCustomerUserId] = useState<string | null>(null);
+  const [customerModalContact, setCustomerModalContact] = useState<{
+    email?: string;
+    phone?: string;
+  } | null>(null);
 
   // Quick stats for history mode
   const quickStats = useMemo(() => {
@@ -876,7 +881,13 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
   };
 
   const handleCustomerPress = (order: Order) => {
-    setCustomer(order.user_id || null);
+    const email = order.customer_email?.trim() || undefined;
+    const phone = order.customer_phone?.trim() || undefined;
+    if (!email && !phone) {
+      Alert.alert('No contact', 'This order has no customer email or phone.');
+      return;
+    }
+    setCustomerModalContact({ email, phone });
     setShowCustomerModal(true);
   };
 
@@ -1308,11 +1319,15 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
       )}
 
       {/* Customer Modal */}
-      {showCustomerModal && customerUserId && (
+      {showCustomerModal && customerModalContact && (customerModalContact.email || customerModalContact.phone) && (
         <CustomerModal
           visible={showCustomerModal}
-          userId={customerUserId}
-          onClose={() => setShowCustomerModal(false)}
+          email={customerModalContact.email}
+          phone={customerModalContact.phone}
+          onClose={() => {
+            setShowCustomerModal(false);
+            setCustomerModalContact(null);
+          }}
         />
       )}
     </View>

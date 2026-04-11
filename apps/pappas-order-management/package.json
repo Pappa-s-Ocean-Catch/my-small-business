@@ -14,7 +14,9 @@
     "generate-assets": "node scripts/generate-assets.js",
     "ios:tablet": "expo start --ios --device",
     "android:tablet": "expo start --android --device",
-    "build:android:apk": "expo prebuild --platform android && cd android && ./gradlew assembleRelease"
+    "build:android:apk": "expo prebuild --platform android && cd android && ./gradlew assembleRelease",
+    "build:release:android": "dotenv -e release.env -- sh -c 'expo prebuild --platform android && cd android && ./gradlew assembleRelease'",
+    "build:release:ios": "dotenv -e release.env -- expo run:ios --configuration Release"
   },
   "dependencies": {
     "@expo/metro-runtime": "^6.1.2",
@@ -50,6 +52,7 @@
     "@babel/core": "^7.25.0",
     "@types/react": "~19.1.10",
     "babel-plugin-module-resolver": "^5.0.3",
+    "dotenv-cli": "^11.0.0",
     "sharp": "^0.34.5",
     "typescript": "^5.3.3"
   },

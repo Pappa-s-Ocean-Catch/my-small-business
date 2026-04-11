@@ -22,6 +22,9 @@ export type AppSettings = {
     printerSaved: SavedPrinter[];
     printerSimulator: boolean;
 
+    /** Seconds to wait before auto-printing a new kitchen ticket. */
+    printerDelayPrintSec: number;
+
 };
 
 const STORAGE_KEY = 'pappas-order-management.settings.v1';
@@ -71,6 +74,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     printerSelectedTarget: null,
     printerSaved: [],
     printerSimulator: false,
+
+    printerDelayPrintSec: 3,
 };
 
 function clampInt(value: number, min: number, max: number) {
@@ -127,6 +132,14 @@ export async function loadAppSettings(): Promise<AppSettings> {
             ? ((parsed as any).printerSaved as unknown[]).filter(isSavedPrinter)
             : DEFAULT_APP_SETTINGS.printerSaved;
 
+        const printerDelayPrintSec = clampInt(
+            typeof parsed?.printerDelayPrintSec === 'number'
+                ? parsed.printerDelayPrintSec
+                : DEFAULT_APP_SETTINGS.printerDelayPrintSec,
+            0,
+            120
+        );
+
         const result: AppSettings = {
             refreshIntervalSec,
             soundEnabled,
@@ -142,6 +155,8 @@ export async function loadAppSettings(): Promise<AppSettings> {
             printerSimulator: typeof (parsed as any)?.printerSimulator === 'boolean'
                 ? (parsed as any).printerSimulator
                 : DEFAULT_APP_SETTINGS.printerSimulator,
+
+            printerDelayPrintSec,
         };
         cachedSettings = result;
         return result;
@@ -165,6 +180,8 @@ export async function saveAppSettings(settings: AppSettings): Promise<void> {
         printerSelectedTarget: settings.printerSelectedTarget ? String(settings.printerSelectedTarget) : null,
         printerSaved: Array.isArray(settings.printerSaved) ? settings.printerSaved.filter(isSavedPrinter) : [],
         printerSimulator: !!settings.printerSimulator,
+
+        printerDelayPrintSec: clampInt(settings.printerDelayPrintSec, 0, 120),
     };
 
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));

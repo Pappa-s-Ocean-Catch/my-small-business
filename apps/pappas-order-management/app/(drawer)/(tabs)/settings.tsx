@@ -19,6 +19,9 @@ export default function SettingsScreen() {
     const [printerSaved, setPrinterSaved] = useState<SavedPrinter[]>(DEFAULT_APP_SETTINGS.printerSaved);
     const [printerSelectedTarget, setPrinterSelectedTarget] = useState<string | null>(DEFAULT_APP_SETTINGS.printerSelectedTarget);
     const [printerSimulator, setPrinterSimulator] = useState<boolean>(DEFAULT_APP_SETTINGS.printerSimulator);
+    const [printerDelayPrintSecText, setPrinterDelayPrintSecText] = useState(
+        String(DEFAULT_APP_SETTINGS.printerDelayPrintSec)
+    );
 
     const [saving, setSaving] = useState(false);
     const [testingPrinter, setTestingPrinter] = useState(false);
@@ -38,6 +41,7 @@ export default function SettingsScreen() {
             setPrinterSaved(s.printerSaved);
             setPrinterSelectedTarget(s.printerSelectedTarget);
             setPrinterSimulator(s.printerSimulator);
+            setPrinterDelayPrintSecText(String(s.printerDelayPrintSec));
         });
     }, []);
 
@@ -136,6 +140,7 @@ export default function SettingsScreen() {
         const refreshIntervalSec = parseIntOr(refreshIntervalSecText, DEFAULT_APP_SETTINGS.refreshIntervalSec);
         const soundRepeatCount = parseIntOr(repeatCountText, DEFAULT_APP_SETTINGS.soundRepeatCount);
         const printerCopies = parseIntOr(printerCopiesText, DEFAULT_APP_SETTINGS.printerCopies);
+        const printerDelayPrintSec = parseIntOr(printerDelayPrintSecText, DEFAULT_APP_SETTINGS.printerDelayPrintSec);
 
         if (refreshIntervalSec < 5 || refreshIntervalSec > 600) {
             Alert.alert('Invalid refresh interval', 'Please enter a value between 5 and 600 seconds.');
@@ -148,6 +153,10 @@ export default function SettingsScreen() {
 
         if (printerCopies < 1 || printerCopies > 10) {
             Alert.alert('Invalid copies', 'Please enter a value between 1 and 10.');
+            return;
+        }
+        if (printerDelayPrintSec < 0 || printerDelayPrintSec > 120) {
+            Alert.alert('Invalid print delay', 'Please enter a value between 0 and 120 seconds.');
             return;
         }
 
@@ -166,6 +175,8 @@ export default function SettingsScreen() {
                 printerSelectedTarget,
                 printerSaved,
                 printerSimulator,
+
+                printerDelayPrintSec,
             });
             Alert.alert('Saved', 'Settings updated.');
         } catch (e) {
@@ -315,6 +326,17 @@ export default function SettingsScreen() {
                         <Text style={styles.label}>Auto print new orders</Text>
                         <Switch value={printerAutoPrint} onValueChange={setPrinterAutoPrint} disabled={!printerEnabled} />
                     </View>
+
+                    <TextInput
+                        mode="outlined"
+                        label="Auto-print delay (seconds)"
+                        value={printerDelayPrintSecText}
+                        onChangeText={setPrinterDelayPrintSecText}
+                        keyboardType="number-pad"
+                        style={styles.input}
+                        disabled={!printerEnabled || !printerAutoPrint}
+                    />
+                    <Text style={styles.helper}>Wait before printing a new order (0 to 120).</Text>
 
                     <Button
                         mode="outlined"
