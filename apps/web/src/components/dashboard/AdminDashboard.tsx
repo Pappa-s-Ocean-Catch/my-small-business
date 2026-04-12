@@ -55,7 +55,7 @@ export function AdminDashboard({ businessStats }: AdminDashboardProps) {
         </div>
 
         <Link 
-          href={`/cash-flow?${currentWeekParams}`}
+          href={`/admin/cash-flow?${currentWeekParams}`}
           className="bg-white dark:bg-neutral-800 rounded-xl p-6 border border-gray-200 dark:border-neutral-700 hover:shadow-lg transition-shadow group"
         >
           <div className="flex items-center justify-between">
@@ -81,7 +81,7 @@ export function AdminDashboard({ businessStats }: AdminDashboardProps) {
         </Link>
 
         <Link 
-          href={`/cash-flow?${previousWeekParams}`}
+          href={`/admin/cash-flow?${previousWeekParams}`}
           className="bg-white dark:bg-neutral-800 rounded-xl p-6 border border-gray-200 dark:border-neutral-700 hover:shadow-lg transition-shadow group"
         >
           <div className="flex items-center justify-between">
@@ -136,7 +136,7 @@ export function AdminDashboard({ businessStats }: AdminDashboardProps) {
         </Link>
 
         <Link 
-          href="/analytics" 
+          href="/admin/analytics" 
           className="bg-white dark:bg-neutral-800 rounded-xl p-6 border border-gray-200 dark:border-neutral-700 hover:shadow-lg transition-shadow group"
         >
           <div className="flex items-center gap-4">
@@ -149,7 +149,7 @@ export function AdminDashboard({ businessStats }: AdminDashboardProps) {
         </Link>
 
         <Link 
-          href="/reports" 
+          href="/admin/reports" 
           className="bg-white dark:bg-neutral-800 rounded-xl p-6 border border-gray-200 dark:border-neutral-700 hover:shadow-lg transition-shadow group"
         >
           <div className="flex items-center gap-4">

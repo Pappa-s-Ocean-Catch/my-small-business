@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@my-small-business/supabase/server';
 import { Resend } from 'resend';
 import { verifyAutomationWebhook } from '@/lib/webhook-verification';
+import { getPublicSiteUrl } from '@/lib/public-site-url';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -197,6 +198,8 @@ export async function POST(request: NextRequest) {
       });
     };
 
+    const siteBase = getPublicSiteUrl();
+
     // Prepare email content
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -227,7 +230,7 @@ export async function POST(request: NextRequest) {
           <p style="margin: 0; color: #6b7280;">
             Please review your schedule and allocate shifts for these days.
             <br><br>
-            <a href="${process.env.NEXT_PUBLIC_SITE_URL}/calendar" style="color: #3b82f6; text-decoration: none;">
+            <a href="${siteBase}/calendar" style="color: #3b82f6; text-decoration: none;">
               View Calendar Dashboard →
             </a>
           </p>

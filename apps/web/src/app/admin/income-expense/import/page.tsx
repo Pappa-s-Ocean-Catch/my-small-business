@@ -207,7 +207,7 @@ export default function IncomeExpenseImportPage() {
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Import Income/Expense</h1>
             <p className="text-sm text-gray-600 dark:text-gray-400">Import data from providers and confirm before saving</p>
           </div>
-          <Link href="/income-expense" className="text-blue-600 dark:text-blue-400 hover:underline">Back</Link>
+          <Link href="/admin/income-expense" className="text-blue-600 dark:text-blue-400 hover:underline">Back</Link>
         </div>
 
         <div className="grid gap-6">

@@ -93,7 +93,7 @@ export async function createHoliday(data: CreateHolidayData): Promise<{ success:
     return { success: false, error: "Failed to create holiday" };
   }
 
-  revalidatePath("/holidays");
+  revalidatePath("/admin/holidays");
   return { success: true };
 }
 
@@ -112,7 +112,7 @@ export async function updateHoliday(data: UpdateHolidayData): Promise<{ success:
     return { success: false, error: "Failed to update holiday" };
   }
 
-  revalidatePath("/holidays");
+  revalidatePath("/admin/holidays");
   return { success: true };
 }
 
@@ -129,7 +129,7 @@ export async function deleteHoliday(id: string): Promise<{ success: boolean; err
     return { success: false, error: "Failed to delete holiday" };
   }
 
-  revalidatePath("/holidays");
+  revalidatePath("/admin/holidays");
   return { success: true };
 }
 
@@ -166,7 +166,7 @@ export async function cloneHolidaysToYear(sourceYear: number, targetYear: number
     return { success: false, error: "Failed to clone holidays" };
   }
 
-  revalidatePath("/holidays");
+  revalidatePath("/admin/holidays");
   return { success: true, clonedCount: data };
 }
 

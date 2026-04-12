@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@my-small-business/supabase/server';
 import { Resend } from 'resend';
 import { verifyAutomationWebhook } from '@/lib/webhook-verification';
+import { getPublicSiteUrl } from '@/lib/public-site-url';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -77,6 +78,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No admin emails found' }, { status: 500 });
     }
 
+    const siteBase = getPublicSiteUrl();
+
     // Prepare email content
     const alertProducts = lowStockProducts.filter(p => p.quantity_in_stock <= (p.alert_threshold || 0));
     const warningProducts = lowStockProducts.filter(p => 
@@ -144,7 +147,7 @@ export async function POST(request: NextRequest) {
           <p style="margin: 0; color: #6b7280;">
             Please review your inventory and consider placing orders for these products.
             <br><br>
-            <a href="${process.env.NEXT_PUBLIC_SITE_URL}/shop/inventory" style="color: #3b82f6; text-decoration: none;">
+            <a href="${siteBase}/shop/inventory" style="color: #3b82f6; text-decoration: none;">
               View Inventory Dashboard →
             </a>
           </p>

@@ -192,7 +192,7 @@ function CashFlowContent() {
     const params = new URLSearchParams();
     params.set('start', format(start, "yyyy-MM-dd"));
     params.set('end', format(end, "yyyy-MM-dd"));
-    router.replace(`/cash-flow?${params.toString()}`, { scroll: false });
+    router.replace(`/admin/cash-flow?${params.toString()}`, { scroll: false });
   };
 
   // Calculate summary data

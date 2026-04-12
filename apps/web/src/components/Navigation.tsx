@@ -9,7 +9,7 @@ export function Navigation() {
   const navItems = [
     { href: "/staff", label: "Staff" },
     { href: "/calendar", label: "Calendar" },
-    { href: "/settings", label: "Settings" },
+    { href: "/admin/settings", label: "Settings" },
   ];
 
   return (

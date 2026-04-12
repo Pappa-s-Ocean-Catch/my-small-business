@@ -293,7 +293,7 @@ export default function IncomeExpensePage() {
             {/* Action buttons */}
             <div className="flex items-center gap-3">
               <Link
-                href="/income-expense/import"
+                href="/admin/income-expense/import"
                 className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
               >
                 <Icon icon={FaFileImport} className="w-4 h-4" />

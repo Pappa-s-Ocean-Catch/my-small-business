@@ -21,7 +21,7 @@ export default function ReportsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {/* Shift Reports */}
             <Link 
-              href="/reports/shift-reports" 
+              href="/admin/reports/shift-reports" 
               className="bg-white dark:bg-neutral-800 rounded-xl p-6 border border-gray-200 dark:border-neutral-700 hover:shadow-lg transition-shadow group"
             >
               <div className="flex items-center gap-4">
@@ -41,7 +41,7 @@ export default function ReportsPage() {
 
             {/* Cash Flow Analysis */}
             <Link 
-              href="/cash-flow" 
+              href="/admin/cash-flow" 
               className="bg-white dark:bg-neutral-800 rounded-xl p-6 border border-gray-200 dark:border-neutral-700 hover:shadow-lg transition-shadow group"
             >
               <div className="flex items-center gap-4">
@@ -61,7 +61,7 @@ export default function ReportsPage() {
 
             {/* Income & Expenses */}
             <Link 
-              href="/income-expense" 
+              href="/admin/income-expense" 
               className="bg-white dark:bg-neutral-800 rounded-xl p-6 border border-gray-200 dark:border-neutral-700 hover:shadow-lg transition-shadow group"
             >
               <div className="flex items-center gap-4">
@@ -81,7 +81,7 @@ export default function ReportsPage() {
 
             {/* Wages Report */}
             <Link 
-              href="/wages-report" 
+              href="/admin/wages-report" 
               className="bg-white dark:bg-neutral-800 rounded-xl p-6 border border-gray-200 dark:border-neutral-700 hover:shadow-lg transition-shadow group"
             >
               <div className="flex items-center gap-4">
@@ -101,7 +101,7 @@ export default function ReportsPage() {
 
             {/* Payment Report */}
             <Link 
-              href="/payment-report" 
+              href="/admin/payment-report" 
               className="bg-white dark:bg-neutral-800 rounded-xl p-6 border border-gray-200 dark:border-neutral-700 hover:shadow-lg transition-shadow group"
             >
               <div className="flex items-center gap-4">
@@ -121,7 +121,7 @@ export default function ReportsPage() {
 
             {/* Paid Payments */}
             <Link 
-              href="/paid-payments" 
+              href="/admin/paid-payments" 
               className="bg-white dark:bg-neutral-800 rounded-xl p-6 border border-gray-200 dark:border-neutral-700 hover:shadow-lg transition-shadow group"
             >
               <div className="flex items-center gap-4">
@@ -145,7 +145,7 @@ export default function ReportsPage() {
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Quick Access</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <Link 
-                href="/analytics" 
+                href="/admin/analytics" 
                 className="bg-white dark:bg-neutral-800 rounded-lg p-4 border border-gray-200 dark:border-neutral-700 hover:shadow-md transition-shadow group"
               >
                 <div className="flex items-center gap-3">
@@ -157,7 +157,7 @@ export default function ReportsPage() {
               </Link>
 
               <Link 
-                href="/reports" 
+                href="/admin/reports" 
                 className="bg-white dark:bg-neutral-800 rounded-lg p-4 border border-gray-200 dark:border-neutral-700 hover:shadow-md transition-shadow group"
               >
                 <div className="flex items-center gap-3">
@@ -169,7 +169,7 @@ export default function ReportsPage() {
               </Link>
 
               <Link 
-                href="/cash-flow" 
+                href="/admin/cash-flow" 
                 className="bg-white dark:bg-neutral-800 rounded-lg p-4 border border-gray-200 dark:border-neutral-700 hover:shadow-md transition-shadow group"
               >
                 <div className="flex items-center gap-3">
@@ -181,7 +181,7 @@ export default function ReportsPage() {
               </Link>
 
               <Link 
-                href="/income-expense" 
+                href="/admin/income-expense" 
                 className="bg-white dark:bg-neutral-800 rounded-lg p-4 border border-gray-200 dark:border-neutral-700 hover:shadow-md transition-shadow group"
               >
                 <div className="flex items-center gap-3">

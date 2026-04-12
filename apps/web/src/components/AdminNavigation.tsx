@@ -144,7 +144,10 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
   }, [isMgmtOpen, isReportOpen, isSystemOpen, isShopOpen]);
 
   const isActive = (path: string) => {
-    return pathname === path;
+    if (path === "/admin") {
+      return pathname === "/admin";
+    }
+    return pathname === path || pathname.startsWith(`${path}/`);
   };
 
   const getLinkClasses = (path: string) => {
@@ -172,10 +175,10 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
             <div className="px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-200">Management</div>
             <div className="pl-2">
               <Link className={getLinkClasses("/staff")} href="/staff" aria-label="Staff">Staff</Link>
-              <Link className={getLinkClasses("/sections")} href="/sections" aria-label="Sections">Sections</Link>
+              <Link className={getLinkClasses("/admin/sections")} href="/admin/sections" aria-label="Sections">Sections</Link>
               <Link className={getLinkClasses("/shop/menu-screens")} href="/shop/menu-screens" aria-label="Menu Builder">Menu Builder</Link>
-              <Link className={getLinkClasses("/planner")} href="/planner" aria-label="AI Planner">AI Planner</Link>
-              <Link className={getLinkClasses("/holidays")} href="/holidays" aria-label="Public Holidays">Public Holidays</Link>
+              <Link className={getLinkClasses("/admin/planner")} href="/admin/planner" aria-label="AI Planner">AI Planner</Link>
+              <Link className={getLinkClasses("/admin/holidays")} href="/admin/holidays" aria-label="Public Holidays">Public Holidays</Link>
             </div>
           </div>
         ) : (
@@ -209,7 +212,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                       </div>
                     </div>
                   </Link>
-                  <Link href="/sections" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                  <Link href="/admin/sections" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-orange-600 dark:text-orange-400">
                         <Icon icon={FaPalette} className="w-5 h-5" />
@@ -231,7 +234,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                       </div>
                     </div>
                   </Link>
-                  <Link href="/planner" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                  <Link href="/admin/planner" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-purple-600 dark:text-purple-400">
                         <Icon icon={FaRobot} className="w-5 h-5" />
@@ -242,7 +245,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                       </div>
                     </div>
                   </Link>
-                  <Link href="/holidays" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                  <Link href="/admin/holidays" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-green-600 dark:text-green-400">
                         <Icon icon={FaCalendarAlt} className="w-5 h-5" />
@@ -291,8 +294,8 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
               <div className="pl-2 mt-2">
                 <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Finance</div>
                 <div className="pl-2 space-y-1">
-                  <Link className={getLinkClasses("/income-expense")} href="/income-expense" aria-label="Income & Expenses">Income & Expenses</Link>
-                  <Link className={getLinkClasses("/cash-flow")} href="/cash-flow" aria-label="Cash Flow Analysis">Cash Flow Analysis</Link>
+              <Link className={getLinkClasses("/admin/income-expense")} href="/admin/income-expense" aria-label="Income & Expenses">Income & Expenses</Link>
+              <Link className={getLinkClasses("/admin/cash-flow")} href="/admin/cash-flow" aria-label="Cash Flow Analysis">Cash Flow Analysis</Link>
                 </div>
               </div>
             </div>
@@ -478,7 +481,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                     <div className="mb-2">
                       <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Finance</h3>
                       <div className="space-y-2">
-                        <Link href="/income-expense" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                        <Link href="/admin/income-expense" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                           <div className="flex items-start gap-3">
                             <div className="mt-0.5 text-orange-600 dark:text-orange-400">
                               <Icon icon={FaDollarSign} className="w-4 h-4" />
@@ -489,7 +492,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                             </div>
                           </div>
                         </Link>
-                        <Link href="/cash-flow" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                        <Link href="/admin/cash-flow" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                           <div className="flex items-start gap-3">
                             <div className="mt-0.5 text-blue-600 dark:text-blue-400">
                               <Icon icon={FaChartLine} className="w-4 h-4" />
@@ -516,14 +519,14 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
       {userRole === 'admin' && (
         orientation === 'vertical' ? (
           <div className="w-full">
-            <Link className={getLinkClasses("/analysis-report")} href="/analysis-report" aria-label="Analysis & Report">Analysis & Report</Link>
+            <Link className={getLinkClasses("/admin/analysis-report")} href="/admin/analysis-report" aria-label="Analysis & Report">Analysis & Report</Link>
             <div className="pl-2">
-              <Link className={getLinkClasses("/orders")} href="/orders" aria-label="Orders">Orders</Link>
-              <Link className={getLinkClasses("/reports/shift-reports")} href="/reports/shift-reports" aria-label="Weekly shift report">Weekly shift report</Link>
-              <Link className={getLinkClasses("/analytics")} href="/analytics" aria-label="Analysis">Analysis</Link>
-              <Link className={getLinkClasses("/wages-report")} href="/wages-report" aria-label="Wages Report">Wages Report</Link>
-              <Link className={getLinkClasses("/payment-report")} href="/payment-report" aria-label="Payment Report">Payment Report</Link>
-              <Link className={getLinkClasses("/paid-payments")} href="/paid-payments" aria-label="Paid Payments">Paid Payments</Link>
+              <Link className={getLinkClasses("/admin/pos-orders")} href="/admin/pos-orders" aria-label="POS orders (TryPosHub)">POS orders</Link>
+              <Link className={getLinkClasses("/admin/reports/shift-reports")} href="/admin/reports/shift-reports" aria-label="Weekly shift report">Weekly shift report</Link>
+              <Link className={getLinkClasses("/admin/analytics")} href="/admin/analytics" aria-label="Analysis">Analysis</Link>
+              <Link className={getLinkClasses("/admin/wages-report")} href="/admin/wages-report" aria-label="Wages Report">Wages Report</Link>
+              <Link className={getLinkClasses("/admin/payment-report")} href="/admin/payment-report" aria-label="Payment Report">Payment Report</Link>
+              <Link className={getLinkClasses("/admin/paid-payments")} href="/admin/paid-payments" aria-label="Paid Payments">Paid Payments</Link>
             </div>
           </div>
         ) : (
@@ -546,18 +549,18 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
               <div className="absolute top-full mt-0.5 w-screen max-w-[640px] sm:w-[640px] rounded-xl bg-white/95 dark:bg-neutral-950/95 backdrop-blur shadow-lg z-50 p-3 overflow-hidden"
                 style={{ left: reportOffset === 0 ? 'auto' : reportOffset, right: reportOffset === 0 ? '0' : 'auto' }}>
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
-                  <Link href="/orders" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                  <Link href="/admin/pos-orders" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-emerald-600 dark:text-emerald-400">
                         <Icon icon={FaShoppingCart} className="w-5 h-5" />
                       </div>
                       <div>
-                        <div className="font-medium text-gray-900 dark:text-white">Orders</div>
+                        <div className="font-medium text-gray-900 dark:text-white">POS orders</div>
                         <div className="text-xs text-gray-600 dark:text-gray-400">TryPosHub order management and tracking</div>
                       </div>
                     </div>
                   </Link>
-                  <Link href="/reports/shift-reports" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                  <Link href="/admin/reports/shift-reports" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-blue-600 dark:text-blue-400">
                         <Icon icon={FaFileAlt} className="w-5 h-5" />
@@ -568,7 +571,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                       </div>
                     </div>
                   </Link>
-                  <Link href="/analytics" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                  <Link href="/admin/analytics" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-emerald-600 dark:text-emerald-400">
                         <Icon icon={FaChartPie} className="w-5 h-5" />
@@ -579,7 +582,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                       </div>
                     </div>
                   </Link>
-                  <Link href="/wages-report" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                  <Link href="/admin/wages-report" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-purple-600 dark:text-purple-400">
                         <Icon icon={FaMoneyBillWave} className="w-5 h-5" />
@@ -590,7 +593,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                       </div>
                     </div>
                   </Link>
-                  <Link href="/payment-report" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                  <Link href="/admin/payment-report" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-green-600 dark:text-green-400">
                         <Icon icon={FaMoneyBillWave} className="w-5 h-5" />
@@ -601,7 +604,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                       </div>
                     </div>
                   </Link>
-                  <Link href="/paid-payments" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                  <Link href="/admin/paid-payments" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-blue-600 dark:text-blue-400">
                         <Icon icon={FaMoneyBillWave} className="w-5 h-5" />
@@ -625,11 +628,11 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
           <div className="w-full">
             <div className="px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-200">System</div>
             <div className="pl-2">
-              <Link className={getLinkClasses("/users")} href="/users" aria-label="Users">Users</Link>
-              <Link className={getLinkClasses("/automation")} href="/automation" aria-label="Automation">Automation</Link>
-              <Link className={getLinkClasses("/webhooks")} href="/webhooks" aria-label="Webhooks">Webhooks</Link>
+              <Link className={getLinkClasses("/admin/users")} href="/admin/users" aria-label="Users">Users</Link>
+              <Link className={getLinkClasses("/admin/automation")} href="/admin/automation" aria-label="Automation">Automation</Link>
+              <Link className={getLinkClasses("/admin/webhooks")} href="/admin/webhooks" aria-label="Webhooks">Webhooks</Link>
               <Link className={getLinkClasses("/admin/qr")} href="/admin/qr" aria-label="QR Generator">QR Generator</Link>
-              <Link className={getLinkClasses("/settings")} href="/settings" aria-label="Settings">Settings</Link>
+              <Link className={getLinkClasses("/admin/settings")} href="/admin/settings" aria-label="Settings">Settings</Link>
             </div>
           </div>
         ) : (
@@ -652,7 +655,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
               <div className="absolute top-full mt-0.5 w-screen max-w-[640px] sm:w-[640px] rounded-xl bg-white/95 dark:bg-neutral-950/95 backdrop-blur shadow-lg z-50 p-3 overflow-hidden"
                 style={{ left: systemOffset === 0 ? 'auto' : systemOffset, right: systemOffset === 0 ? '0' : 'auto' }}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-                  <Link href="/users" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                  <Link href="/admin/users" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-purple-600 dark:text-purple-400">
                         <Icon icon={FaUserShield} className="w-5 h-5" />
@@ -663,7 +666,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                       </div>
                     </div>
                   </Link>
-                  <Link href="/automation" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                  <Link href="/admin/automation" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-orange-600 dark:text-orange-400">
                         <Icon icon={FaRobot} className="w-5 h-5" />
@@ -674,7 +677,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                       </div>
                     </div>
                   </Link>
-                  <Link href="/webhooks" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                  <Link href="/admin/webhooks" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-green-600 dark:text-green-400">
                         <Icon icon={FaGlobe} className="w-5 h-5" />
@@ -685,7 +688,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                       </div>
                     </div>
                   </Link>
-                  <Link href="/settings" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                  <Link href="/admin/settings" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-gray-600 dark:text-gray-400">
                         <Icon icon={FaCog} className="w-5 h-5" />

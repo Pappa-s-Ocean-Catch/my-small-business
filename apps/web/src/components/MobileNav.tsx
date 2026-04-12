@@ -24,7 +24,8 @@ import {
   FaMoneyBillWave,
   FaChartPie,
   FaExclamationTriangle,
-  FaBullhorn
+  FaBullhorn,
+  FaGlobe,
 } from "react-icons/fa";
 import { Icon } from "@/components/Icon";
 
@@ -103,7 +104,7 @@ export function MobileNav() {
                     <span className="text-xs font-medium text-white">Work Shift</span>
                   </Link>
                   <Link
-                    href="/income-expense"
+                    href="/admin/income-expense"
                     onClick={closeMenu}
                     className="p-3 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200 active:scale-95 flex flex-col items-center gap-1"
                   >
@@ -111,7 +112,7 @@ export function MobileNav() {
                     <span className="text-xs font-medium text-white">Income</span>
                   </Link>
                   <Link
-                    href="/cash-flow"
+                    href="/admin/cash-flow"
                     onClick={closeMenu}
                     className="p-3 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200 active:scale-95 flex flex-col items-center gap-1"
                   >
@@ -153,7 +154,7 @@ export function MobileNav() {
                             <Icon icon={FaUsers} className="w-4 h-4 mr-2 text-blue-400" />
                             Staff
                           </Link>
-                          <Link href="/sections" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                          <Link href="/admin/sections" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
                             <Icon icon={FaCog} className="w-4 h-4 mr-2 text-gray-400" />
                             Sections
                           </Link>
@@ -161,11 +162,11 @@ export function MobileNav() {
                             <Icon icon={FaUtensils} className="w-4 h-4 mr-2 text-orange-400" />
                             Menu Builder
                           </Link>
-                          <Link href="/planner" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                          <Link href="/admin/planner" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
                             <Icon icon={FaChartLine} className="w-4 h-4 mr-2 text-purple-400" />
                             AI Planner
                           </Link>
-                          <Link href="/holidays" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                          <Link href="/admin/holidays" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
                             <Icon icon={FaCalendarAlt} className="w-4 h-4 mr-2 text-green-400" />
                             Public Holidays
                           </Link>
@@ -238,11 +239,11 @@ export function MobileNav() {
                             <Icon icon={FaUtensils} className="w-4 h-4 mr-2 text-emerald-400" />
                             Combo
                           </Link>
-                          <Link href="/income-expense" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                          <Link href="/admin/income-expense" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
                             <Icon icon={FaDollarSign} className="w-4 h-4 mr-2 text-yellow-400" />
                             Income & Expenses
                           </Link>
-                          <Link href="/cash-flow" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                          <Link href="/admin/cash-flow" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
                             <Icon icon={FaChartLine} className="w-4 h-4 mr-2 text-purple-400" />
                             Cash Flow Analysis
                           </Link>
@@ -271,27 +272,27 @@ export function MobileNav() {
                       </button>
                       {reportsOpen && (
                         <div className="ml-8 mt-2 space-y-1">
-                          <Link href="/analysis-report" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                          <Link href="/admin/analysis-report" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
                             <Icon icon={FaChartPie} className="w-4 h-4 mr-2 text-purple-400" />
                             Analysis & Report
                           </Link>
-                          <Link href="/reports/shift-reports" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                          <Link href="/admin/reports/shift-reports" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
                             <Icon icon={FaFileAlt} className="w-4 h-4 mr-2 text-blue-400" />
                             Weekly Shift Report
                           </Link>
-                          <Link href="/analytics" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                          <Link href="/admin/analytics" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
                             <Icon icon={FaChartLine} className="w-4 h-4 mr-2 text-green-400" />
                             Analytics
                           </Link>
-                          <Link href="/wages-report" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                          <Link href="/admin/wages-report" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
                             <Icon icon={FaMoneyBillWave} className="w-4 h-4 mr-2 text-yellow-400" />
                             Wages Report
                           </Link>
-                          <Link href="/payment-report" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                          <Link href="/admin/payment-report" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
                             <Icon icon={FaMoneyBillWave} className="w-4 h-4 mr-2 text-green-400" />
                             Payment Report
                           </Link>
-                          <Link href="/paid-payments" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                          <Link href="/admin/paid-payments" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
                             <Icon icon={FaMoneyBillWave} className="w-4 h-4 mr-2 text-blue-400" />
                             Paid Payments
                           </Link>
@@ -320,15 +321,19 @@ export function MobileNav() {
                       </button>
                       {systemOpen && (
                         <div className="ml-8 mt-2 space-y-1">
-                          <Link href="/users" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                          <Link href="/admin/users" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
                             <Icon icon={FaUsers} className="w-4 h-4 mr-2 text-blue-400" />
                             Users
                           </Link>
-                          <Link href="/automation" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                          <Link href="/admin/automation" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
                             <Icon icon={FaCog} className="w-4 h-4 mr-2 text-orange-400" />
                             Automation
                           </Link>
-                          <Link href="/settings" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                          <Link href="/admin/webhooks" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                            <Icon icon={FaGlobe} className="w-4 h-4 mr-2 text-green-400" />
+                            Webhooks
+                          </Link>
+                          <Link href="/admin/settings" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
                             <Icon icon={FaCog} className="w-4 h-4 mr-2 text-gray-400" />
                             Settings
                           </Link>
