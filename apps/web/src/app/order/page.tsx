@@ -22,7 +22,6 @@ import { buildDefaultStoreHours, isStoreOpenNow } from '@/lib/store-hours';
 import { toast } from 'react-toastify';
 import dynamic from 'next/dynamic';
 import posthog from 'posthog-js';
-import Script from 'next/script';
 
 const LikeDislikeWidget = dynamic(() => import('@/components/LikeDislikeWidget').then(m => m.LikeDislikeWidget), { ssr: false });
 const ReviewWidget = dynamic(() => import('@/components/ReviewWidget').then(m => m.ReviewWidget), { ssr: false });
@@ -579,20 +578,6 @@ export default function OrderPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-neutral-900 pb-24">
-      <Script
-        async
-        src="https://www.googletagmanager.com/gtag/js?id=AW-17948047773"
-        strategy="afterInteractive"
-      />
-      <Script id="google-tag-manager" strategy="afterInteractive">
-        {`
-          window.dataLayer = window.dataLayer || [];
-          function gtag(){dataLayer.push(arguments);}
-          gtag('js', new Date());
-
-          gtag('config', 'AW-17948047773');
-        `}
-      </Script>
       {/* Navigation Header */}
       <OrderHeader />
 

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { DynamicHeader } from "@/components/DynamicHeader";
 import { AppHeader } from "@/components/AppHeader";
 import { SnackbarProvider } from "@/components/Snackbar";
@@ -35,6 +36,20 @@ export default function RootLayout({
         <meta name="theme-color" content="#2563eb" />
         <link rel="icon" href="/favicon/android-chrome-192x192.png" sizes="192x192" />
         <link rel="apple-touch-icon" href="/favicon/android-chrome-512x512.png" />
+        <Script
+          async
+          src="https://www.googletagmanager.com/gtag/js?id=AW-17948047773"
+          strategy="afterInteractive"
+        />
+        <Script id="google-tag-manager" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+
+            gtag('config', 'AW-17948047773');
+          `}
+        </Script>
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <SpeedInsights></SpeedInsights>
