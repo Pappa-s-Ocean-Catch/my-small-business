@@ -66,9 +66,12 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ order }) => {
       {/* Items */}
       {order.items?.map((item, idx) => (
         <View key={idx} style={styles.itemContainer}>
-          <Text style={styles.mediumText}>
-            {item.quantity}x {item.product_name}
-          </Text>
+          <View style={styles.itemLineRow}>
+            <Text style={styles.itemNameLine} numberOfLines={3}>
+              {item.quantity}x {item.product_name}
+            </Text>
+            <Text style={styles.itemLinePrice}>${formatMoney(item.subtotal)}</Text>
+          </View>
           {item.addons?.map((addon, aIdx) => (
             <Text key={aIdx} style={styles.addonText}>
               + {addon.addon_item_name} {addon.addon_item_price ? `($${formatMoney(addon.addon_item_price)})` : ''}
@@ -115,7 +118,7 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ order }) => {
         </Text>
       </View>
       <View style={styles.footerContainer}>
-        <Text style={styles.footerText}>print by view</Text>
+        <Text style={styles.footerText}>Thanks for your order!</Text>
       </View>
     </View>
   );
@@ -171,7 +174,20 @@ const styles = StyleSheet.create({
   itemContainer: {
     marginBottom: 8,
   },
-  mediumText: {
+  itemLineRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  itemNameLine: {
+    flex: 1,
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: '#000',
+    lineHeight: 40,
+  },
+  itemLinePrice: {
     fontSize: 36,
     fontWeight: 'bold',
     color: '#000',
