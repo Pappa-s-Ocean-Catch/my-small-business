@@ -8,6 +8,8 @@ interface OrderSummaryProps {
   promotionDiscount: number;
   subtotal: number;
   rewardPointsDiscount: number;
+  couponDiscount?: number;
+  couponCode?: string | null;
   tax: number;
   deliveryFee: number;
   serviceFee: number;
@@ -25,6 +27,8 @@ export function OrderSummary({
   promotionDiscount,
   subtotal,
   rewardPointsDiscount,
+  couponDiscount = 0,
+  couponCode,
   tax,
   deliveryFee,
   serviceFee,
@@ -64,6 +68,15 @@ export function OrderSummary({
               Reward Points Discount
             </span>
             <span>-${rewardPointsDiscount.toFixed(2)}</span>
+          </div>
+        )}
+        {couponDiscount > 0 && (
+          <div className="flex justify-between text-green-600 dark:text-green-400 font-medium">
+            <span className="flex items-center gap-2">
+              <Icon icon={FaGift} className="w-4 h-4" />
+              Coupon ({couponCode})
+            </span>
+            <span>-${couponDiscount.toFixed(2)}</span>
           </div>
         )}
         {tax > 0 && (

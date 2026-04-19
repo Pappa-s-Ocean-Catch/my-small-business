@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { getSupabaseClient } from "@my-small-business/supabase/client";
-import { FaUsers, FaStore, FaUserShield, FaChartPie, FaFileAlt, FaMoneyBillWave, FaPalette, FaCog, FaRobot, FaBox, FaTags, FaTag, FaWarehouse, FaUtensils, FaCalendarAlt, FaDollarSign, FaChartLine, FaGlobe, FaShoppingCart, FaGoogle, FaQrcode, FaBullhorn } from "react-icons/fa";
+import { FaUsers, FaStore, FaUserShield, FaChartPie, FaFileAlt, FaMoneyBillWave, FaPalette, FaCog, FaRobot, FaBox, FaTags, FaTag, FaWarehouse, FaUtensils, FaCalendarAlt, FaDollarSign, FaChartLine, FaGlobe, FaShoppingCart, FaGoogle, FaQrcode, FaBullhorn, FaTicketAlt } from "react-icons/fa";
 import { Icon } from "@/components/Icon";
 
 export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 'horizontal' | 'vertical' }) {
@@ -286,6 +286,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                   <Link className={getLinkClasses("/admin/announcements")} href="/admin/announcements" aria-label="Announcements">Announcements</Link>
                   <Link className={getLinkClasses("/shop/menu")} href="/shop/menu" aria-label="Menu">Menu</Link>
                   <Link className={getLinkClasses("/shop/promotions")} href="/shop/promotions" aria-label="Promotions">Promotions</Link>
+                  <Link className={getLinkClasses("/shop/coupons")} href="/shop/coupons" aria-label="Coupons">Coupons</Link>
                   <Link className={getLinkClasses("/shop/addons")} href="/shop/addons" aria-label="Add-ons">Add-ons</Link>
                   <Link className={getLinkClasses("/shop/combo")} href="/shop/combo" aria-label="Combo">Combo</Link>
                   <Link className={getLinkClasses("/shop/google-business-sync")} href="/shop/google-business-sync" aria-label="Google Business Sync">Google Business Sync</Link>
@@ -436,6 +437,17 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                             <div>
                               <div className="font-medium text-gray-900 dark:text-white">Promotions</div>
                               <div className="text-xs text-gray-600 dark:text-gray-400">Manage discounts and promo schedules</div>
+                            </div>
+                          </div>
+                        </Link>
+                        <Link href="/shop/coupons" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                          <div className="flex items-start gap-3">
+                            <div className="mt-0.5 text-blue-600 dark:text-blue-400">
+                              <Icon icon={FaTicketAlt} className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="font-medium text-gray-900 dark:text-white">Coupons</div>
+                              <div className="text-xs text-gray-600 dark:text-gray-400">Manual discount codes and usage</div>
                             </div>
                           </div>
                         </Link>

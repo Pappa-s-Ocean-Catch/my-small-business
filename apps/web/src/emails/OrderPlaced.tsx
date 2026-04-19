@@ -80,6 +80,12 @@ export const OrderPlacedEmail = ({ order, businessName = 'OperateFlow', logoUrl 
                         {order.items?.map(renderItem)}
                         <Section className="mt-4">
                             <Text className="text-base text-gray-700 m-0">Subtotal: ${order.subtotal.toFixed(2)}</Text>
+                            {(order.promotion_discount ?? 0) > 0 && (
+                                <Text className="text-base text-green-700 m-0">Promotions: -${Number(order.promotion_discount).toFixed(2)}</Text>
+                            )}
+                            {(order.coupon_discount ?? 0) > 0 && (
+                                <Text className="text-base text-green-700 m-0">Coupon ({order.coupon_code}): -${Number(order.coupon_discount).toFixed(2)}</Text>
+                            )}
                             {order.tax > 0 && <Text className="text-base text-gray-700 m-0">Tax: ${order.tax.toFixed(2)}</Text>}
                             {order.delivery_fee > 0 && <Text className="text-base text-gray-700 m-0">Delivery: ${order.delivery_fee.toFixed(2)}</Text>}
                             {order.service_fee > 0 && <Text className="text-base text-gray-700 m-0">Service Fee: ${order.service_fee.toFixed(2)}</Text>}

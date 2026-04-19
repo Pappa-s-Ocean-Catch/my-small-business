@@ -95,10 +95,22 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ order }) => {
             <Text style={styles.normalText}>${formatMoney(order.tax)}</Text>
           </View>
         )}
-        {order.delivery_fee > 0 && (
+        {order.promotion_discount > 0 && (
           <View style={styles.totalRow}>
-            <Text style={styles.normalText}>Delivery:</Text>
-            <Text style={styles.normalText}>${formatMoney(order.delivery_fee)}</Text>
+            <Text style={styles.normalText}>Promotions:</Text>
+            <Text style={styles.normalText}>-${formatMoney(order.promotion_discount)}</Text>
+          </View>
+        )}
+        {order.coupon_discount > 0 && (
+          <View style={styles.totalRow}>
+            <Text style={styles.normalText}>Coupon ({order.coupon_code}):</Text>
+            <Text style={styles.normalText}>-${formatMoney(order.coupon_discount)}</Text>
+          </View>
+        )}
+        {order.service_fee > 0 && (
+          <View style={styles.totalRow}>
+            <Text style={styles.normalText}>Service Fee:</Text>
+            <Text style={styles.normalText}>${formatMoney(order.service_fee)}</Text>
           </View>
         )}
         <View style={[styles.totalRow, { marginTop: 8 }]}>

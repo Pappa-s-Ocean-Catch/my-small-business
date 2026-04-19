@@ -38,6 +38,8 @@ export interface OrderInput {
   // Promotions (optional)
   promotion_discount?: number;
   promotions_applied?: any[];
+  coupon_code?: string | null;
+  coupon_discount?: number;
 
   /** When the customer wants to pick up (for pickup orders). Required when ordering outside open hours (pre-order). */
   scheduled_pickup_at?: string | null; // ISO datetime
@@ -101,6 +103,8 @@ export interface Order {
   service_fee: number;
   promotion_discount: number;
   promotions_applied: any[];
+  coupon_code: string | null;
+  coupon_discount: number;
   total: number;
   reward_points_used: number | null;
   reward_points_value: number | null;

@@ -220,6 +220,18 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                   <Text style={styles.totalValue}>${order.delivery_fee.toFixed(2)}</Text>
                 </View>
               )}
+              {order.promotion_discount > 0 && (
+                <View style={styles.totalRow}>
+                  <Text style={[styles.totalLabel, { color: '#10b981' }]}>Promotion Discount</Text>
+                  <Text style={[styles.totalValue, { color: '#10b981' }]}>-${order.promotion_discount.toFixed(2)}</Text>
+                </View>
+              )}
+              {order.coupon_discount > 0 && (
+                <View style={styles.totalRow}>
+                  <Text style={[styles.totalLabel, { color: '#10b981' }]}>Coupon ({order.coupon_code})</Text>
+                  <Text style={[styles.totalValue, { color: '#10b981' }]}>-${order.coupon_discount.toFixed(2)}</Text>
+                </View>
+              )}
               {order.service_fee > 0 && (
                 <View style={styles.totalRow}>
                   <Text style={styles.totalLabel}>Service Fee</Text>

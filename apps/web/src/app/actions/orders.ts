@@ -39,9 +39,11 @@ export interface OrderInput {
   reward_points_used?: number;
   reward_points_value?: number;
 
-  // Promotions
+  // Promotions & Coupons
   promotion_discount?: number;
   promotions_applied?: any[];
+  coupon_code?: string;
+  coupon_discount?: number;
 
   /** When the customer wants to pick up (for pickup orders). Required when ordering outside open hours (pre-order). */
   scheduled_pickup_at?: string | null;
@@ -169,6 +171,8 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
       service_fee: input.service_fee || 0,
       promotion_discount: input.promotion_discount || 0,
       promotions_applied: input.promotions_applied || [],
+      coupon_code: input.coupon_code || null,
+      coupon_discount: input.coupon_discount || 0,
       total: input.total,
       reward_points_used: input.reward_points_used ?? null,
       reward_points_value: input.reward_points_value ?? null,
@@ -320,9 +324,40 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
           total: input.total,
           item_count: input.items.length,
           has_promotion: (input.promotion_discount ?? 0) > 0,
+          has_coupon: !!input.coupon_code,
+          coupon_code: input.coupon_code,
           has_reward_points: (input.reward_points_used ?? 0) > 0,
         },
       });
+
+      // Handle coupon redemption record and count increment
+      if (input.coupon_code) {
+        try {
+          const { data: coupon } = await supabase
+            .from('coupons')
+            .select('id, usage_count')
+            .ilike('code', input.coupon_code.trim())
+            .single();
+
+          if (coupon) {
+            // 1. Record redemption
+            await supabase.from('coupon_redemptions').insert({
+              coupon_id: coupon.id,
+              user_id: input.user_id || null,
+              order_id: completeOrder.data.id,
+            });
+
+            // 2. Increment usage count
+            await supabase
+              .from('coupons')
+              .update({ usage_count: (coupon.usage_count || 0) + 1 })
+              .eq('id', coupon.id);
+          }
+        } catch (couponErr) {
+          console.error('[createOrder] Failed to record coupon redemption:', couponErr);
+        }
+      }
+
       await posthog.shutdown();
     }
 

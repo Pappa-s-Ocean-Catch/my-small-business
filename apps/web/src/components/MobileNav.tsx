@@ -26,6 +26,7 @@ import {
   FaExclamationTriangle,
   FaBullhorn,
   FaGlobe,
+  FaTicketAlt,
 } from "react-icons/fa";
 import { Icon } from "@/components/Icon";
 
@@ -230,6 +231,10 @@ export function MobileNav() {
                           <Link href="/shop/promotions" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
                             <Icon icon={FaMoneyBillWave} className="w-4 h-4 mr-2 text-yellow-400" />
                             Promotions
+                          </Link>
+                          <Link href="/shop/coupons" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                            <Icon icon={FaTicketAlt} className="w-4 h-4 mr-2 text-blue-400" />
+                            Coupons
                           </Link>
                           <Link href="/shop/addons" onClick={closeMenu} className="flex items-center px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
                             <Icon icon={FaTag} className="w-4 h-4 mr-2 text-blue-400" />

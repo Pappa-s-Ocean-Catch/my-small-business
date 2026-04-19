@@ -23,6 +23,7 @@ import {
   FaArrowLeft,
   FaLock,
   FaCheckCircle,
+  FaGift,
 } from "react-icons/fa";
 import { Icon } from "@/components/Icon";
 import Link from "next/link";
@@ -31,6 +32,8 @@ import {
   computeCartPromotionTotals,
   type PromotionWithProducts,
 } from "@/lib/promotions";
+import { validateCouponCode } from "@/app/actions/coupons";
+import { getCouponErrorMessage, type CouponValidationResult } from "@/lib/coupons";
 import posthog from "posthog-js";
 
 import { OrderTypeDisplay } from "./components/OrderTypeDisplay";
@@ -295,6 +298,12 @@ export default function CheckoutPage() {
   const [serviceFee, setServiceFee] = useState(0);
   const [isRedirecting, setIsRedirecting] = useState(false);
 
+  // Coupon state
+  const [couponCodeInput, setCouponCodeInput] = useState("");
+  const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
+  const [couponResult, setCouponResult] = useState<CouponValidationResult | null>(null);
+  const [couponError, setCouponError] = useState<string | null>(null);
+
   const { flags: flagsFromHook, isLoading: featureFlagsLoading } =
     useFeatureFlag();
   const featureFlagsLoaded = !featureFlagsLoading;
@@ -449,8 +458,11 @@ export default function CheckoutPage() {
   const estimatedPointsValue =
     estimatedPointsEarned * rewardPointsSettings.dollars_per_point;
 
-  const total =
-    subtotal + tax + deliveryFee + serviceFee - rewardPointsDiscount;
+  // Coupon discount calculation
+  const couponDiscount = couponResult?.isValid ? couponResult.discountAmount : 0;
+
+  const totalBeforeCoupon = subtotal + tax + deliveryFee + serviceFee - rewardPointsDiscount;
+  const total = Math.max(0, totalBeforeCoupon - couponDiscount);
 
   // Keep service fee derived from current payable amount (online only)
   useEffect(() => {
@@ -692,6 +704,46 @@ export default function CheckoutPage() {
     // Reset service fee when switching payment methods
     setServiceFee(0);
     posthog.capture("payment_method_selected", { payment_method: method });
+  };
+
+  const handleApplyCoupon = async () => {
+    if (!couponCodeInput.trim()) return;
+    setIsValidatingCoupon(true);
+    setCouponError(null);
+    try {
+      const result = await validateCouponCode({
+        code: couponCodeInput.trim(),
+        userId: currentUser?.id,
+        customerEmail: customerEmail,
+        cartSubtotal,
+      });
+
+      if (result.data) {
+        if (result.data.isValid) {
+          setCouponResult(result.data);
+          setCouponError(null);
+          posthog.capture("coupon_applied", { 
+            coupon_code: result.data.coupon?.code,
+            discount_amount: result.data.discountAmount 
+          });
+        } else {
+          setCouponResult(null);
+          setCouponError(getCouponErrorMessage(result.data.error));
+        }
+      } else {
+        setCouponError("Failed to validate coupon. Please try again.");
+      }
+    } catch (err) {
+      setCouponError("An unexpected error occurred.");
+    } finally {
+      setIsValidatingCoupon(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setCouponResult(null);
+    setCouponCodeInput("");
+    setCouponError(null);
   };
 
   const handleCustomerLogin = async (e: React.FormEvent) => {
@@ -1301,9 +1353,11 @@ export default function CheckoutPage() {
             })),
           ),
         })),
-        subtotal,
+        subtotal: cartSubtotal,
         promotion_discount: promotionDiscount,
         promotions_applied: promotionsApplied,
+        coupon_code: couponResult?.isValid ? couponResult.coupon?.code : undefined,
+        coupon_discount: couponDiscount,
         tax,
         delivery_fee: deliveryFee,
         service_fee: serviceFee,
@@ -1772,6 +1826,62 @@ export default function CheckoutPage() {
             specialInstructions={specialInstructions}
             setSpecialInstructions={setSpecialInstructions}
           />
+          {/* Coupon Section */}
+          <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              Coupon Code
+            </h3>
+            {couponResult?.isValid ? (
+              <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-800 flex items-center justify-center text-green-600 dark:text-green-400">
+                    <Icon icon={FaGift} className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-green-800 dark:text-green-300">
+                      {couponResult.coupon?.code} applied!
+                    </p>
+                    <p className="text-sm text-green-600 dark:text-green-400">
+                      -${couponDiscount.toFixed(2)} savings
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleRemoveCoupon}
+                  className="text-sm font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={couponCodeInput}
+                    onChange={(e) => setCouponCodeInput(e.target.value.toUpperCase())}
+                    placeholder="Enter code (e.g. SAVE10)"
+                    className="flex-1 px-4 py-2 bg-gray-50 dark:bg-neutral-900 border border-gray-200 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none uppercase text-gray-900 dark:text-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleApplyCoupon}
+                    disabled={isValidatingCoupon || !couponCodeInput.trim()}
+                    className="px-6 py-2 bg-gray-900 dark:bg-blue-600 hover:bg-black dark:hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {isValidatingCoupon ? <LoadingSpinner size="sm" /> : "Apply"}
+                  </button>
+                </div>
+                {couponError && (
+                  <p className="text-sm text-red-600 dark:text-red-400">
+                    {couponError}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Order Summary */}
           <OrderSummary
             paymentMethod={paymentMethod}
@@ -1779,6 +1889,8 @@ export default function CheckoutPage() {
             promotionDiscount={promotionDiscount}
             subtotal={subtotal}
             rewardPointsDiscount={rewardPointsDiscount}
+            couponDiscount={couponDiscount}
+            couponCode={couponResult?.coupon?.code}
             tax={tax}
             deliveryFee={deliveryFee}
             serviceFee={serviceFee}

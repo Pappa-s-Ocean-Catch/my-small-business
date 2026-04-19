@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { getSupabaseClient } from "@my-small-business/supabase/client";
 import { ensureProfile } from "@/app/actions/profile";
 import { AdminGuard } from "@/components/AdminGuard";
-import { FaBox, FaTags, FaTruck, FaWarehouse, FaExclamationTriangle, FaPlus, FaChartLine, FaUtensils, FaPercent } from "react-icons/fa";
+import { FaBox, FaTags, FaTruck, FaWarehouse, FaExclamationTriangle, FaPlus, FaChartLine, FaUtensils, FaPercent, FaTicketAlt } from "react-icons/fa";
 import { FaEye } from "react-icons/fa6";
 import { Icon } from "@/components/Icon";
 import Link from "next/link";
@@ -213,6 +213,19 @@ export default function ShopPage() {
                 <div>
                   <h3 className="font-medium text-gray-900 dark:text-white">Promotions</h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Discount rules</p>
+                </div>
+              </div>
+            </Link>
+
+            <Link
+              href="/shop/coupons"
+              className="p-4 bg-white dark:bg-neutral-900 rounded-lg border hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <Icon icon={FaTicketAlt} className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                <div>
+                  <h3 className="font-medium text-gray-900 dark:text-white">Coupons</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Manual codes</p>
                 </div>
               </div>
             </Link>
