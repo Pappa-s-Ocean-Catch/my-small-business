@@ -22,6 +22,8 @@ export default function SettingsScreen() {
     const [printerDelayPrintSecText, setPrinterDelayPrintSecText] = useState(
         String(DEFAULT_APP_SETTINGS.printerDelayPrintSec)
     );
+    const [printerPaperWidth, setPrinterPaperWidth] = useState<'58mm' | '80mm'>(DEFAULT_APP_SETTINGS.printerPaperWidth);
+    const [printerHighQuality, setPrinterHighQuality] = useState<boolean>(DEFAULT_APP_SETTINGS.printerHighQuality);
 
     const [saving, setSaving] = useState(false);
     const [testingPrinter, setTestingPrinter] = useState(false);
@@ -42,6 +44,8 @@ export default function SettingsScreen() {
             setPrinterSelectedTarget(s.printerSelectedTarget);
             setPrinterSimulator(s.printerSimulator);
             setPrinterDelayPrintSecText(String(s.printerDelayPrintSec));
+            setPrinterPaperWidth(s.printerPaperWidth);
+            setPrinterHighQuality(s.printerHighQuality);
         });
     }, []);
 
@@ -177,6 +181,8 @@ export default function SettingsScreen() {
                 printerSimulator,
 
                 printerDelayPrintSec,
+                printerPaperWidth,
+                printerHighQuality,
             });
             Alert.alert('Saved', 'Settings updated.');
         } catch (e) {
@@ -338,6 +344,33 @@ export default function SettingsScreen() {
                     />
                     <Text style={styles.helper}>Wait before printing a new order (0 to 120).</Text>
 
+                    <View style={styles.separator} />
+
+                    <Text style={styles.label}>Paper & Quality</Text>
+                    <View style={styles.buttonGroup}>
+                        <Button
+                            mode={printerPaperWidth === '80mm' ? 'contained' : 'outlined'}
+                            onPress={() => setPrinterPaperWidth('80mm')}
+                            style={styles.flexButton}
+                        >
+                            80mm
+                        </Button>
+                        <Button
+                            mode={printerPaperWidth === '58mm' ? 'contained' : 'outlined'}
+                            onPress={() => setPrinterPaperWidth('58mm')}
+                            style={styles.flexButton}
+                        >
+                            58mm
+                        </Button>
+                    </View>
+                    <Text style={styles.helper}>Choose your paper width (80mm is standard).</Text>
+
+                    <View style={[styles.switchRow, { marginTop: 12 }]}>
+                        <Text style={styles.label}>High Quality Capture (2x DPI)</Text>
+                        <Switch value={printerHighQuality} onValueChange={setPrinterHighQuality} />
+                    </View>
+                    <Text style={styles.helper}>Improves sharpness on high-end thermal printers by capturing at 2x resolution.</Text>
+
                     <Button
                         mode="outlined"
                         loading={testingPrinter}
@@ -434,5 +467,18 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: '#666',
         textAlign: 'center',
+    },
+    separator: {
+        height: 1,
+        backgroundColor: '#e5e5e5',
+        marginVertical: 16,
+    },
+    buttonGroup: {
+        flexDirection: 'row',
+        gap: 8,
+        marginTop: 8,
+    },
+    flexButton: {
+        flex: 1,
     },
 });

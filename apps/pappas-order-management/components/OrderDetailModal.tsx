@@ -5,10 +5,13 @@ import { Button as PaperButton, IconButton, Surface, Card, Divider, Snackbar } f
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { captureRef } from 'react-native-view-shot';
 import { ReceiptTemplate } from './ReceiptTemplate';
+import { PrintSimulatorModal } from './PrintSimulatorModal';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { getFriendlyOrderNumber } from '../utils/orderNumber';
 import { STATUS_COLORS, STATUS_LABELS, PAYMENT_STATUS_COLORS, PAYMENT_STATUS_LABELS } from '../utils/constants';
-import { paymentSummary, getNextQuickAction } from '../utils/orderUtils';
+import { paymentSummary, getNextQuickAction, groupAddons } from '../utils/orderUtils';
+import type { AppSettings } from '../lib/settings';
+import { DEFAULT_APP_SETTINGS } from '../lib/settings';
 
 interface OrderDetailModalProps {
   visible: boolean;
@@ -21,6 +24,12 @@ interface OrderDetailModalProps {
   onPaymentStatusUpdate?: (id: string, status: PaymentStatus) => void;
   onQuickAction?: (order: Order, action: string) => void;
   updatingStatus?: string | null;
+  // Simulator props to ensure it can be rendered on top of this modal
+  showSimulator?: boolean;
+  setShowSimulator?: (visible: boolean) => void;
+  simulatorOrder?: Order | null;
+  printImageUri?: string | null;
+  appSettings?: AppSettings;
 }
 
 export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
@@ -34,6 +43,11 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   onPaymentStatusUpdate,
   onQuickAction,
   updatingStatus,
+  showSimulator,
+  setShowSimulator,
+  simulatorOrder,
+  printImageUri,
+  appSettings = DEFAULT_APP_SETTINGS,
 }) => {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -58,13 +72,16 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       try {
         setIsCapturing(true);
         // Small delay to ensure the hidden view is rendered
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        const targetDots = appSettings.printerPaperWidth === '58mm' ? 384 : 576;
+        const scale = appSettings.printerHighQuality ? 2 : 1;
         
         const uri = await captureRef(receiptRef.current, {
           format: 'png',
           quality: 1,
           result: 'tmpfile',
-          width: 576,
+          width: targetDots * scale,
         });
         
         success = await onPrintImage(order, uri);
@@ -79,10 +96,13 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       success = await onPrint(order);
     }
 
-    if (success) {
+    // Only show "Printing successful" toast if we are NOT in simulator mode
+    // (In simulator mode, the modal will show up instead)
+    if (success && !showSimulator && setShowSimulator) {
       setToastVisible(true);
     }
   };
+
 
   const renderActionButton = () => {
     if (!onQuickAction || !quickAction) return null;
@@ -180,8 +200,10 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                   {item.comment && <Text style={styles.itemComment}>Note: {item.comment}</Text>}
                   {item.addons && item.addons.length > 0 && (
                     <View style={styles.addonsList}>
-                      {item.addons.map((addon, aIdx) => (
-                        <Text key={aIdx} style={styles.addonText}>+ {addon.addon_item_name} {addon.addon_item_price > 0 ? `($${addon.addon_item_price.toFixed(2)})` : ''}</Text>
+                      {groupAddons(item.addons).map((addon, aIdx) => (
+                        <Text key={aIdx} style={styles.addonText}>
+                          {addon.quantity > 1 ? `${addon.quantity}x ` : '+ '}{addon.name} {addon.price > 0 ? `($${addon.price.toFixed(2)})` : ''}
+                        </Text>
                       ))}
                     </View>
                   )}
@@ -304,9 +326,20 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
         {/* Hidden Receipt Template for capture */}
         <View style={styles.hiddenReceiptContainer} pointerEvents="none">
            <View ref={receiptRef} collapsable={false}>
-              <ReceiptTemplate order={order} />
+              <ReceiptTemplate 
+                order={order} 
+                width={appSettings.printerPaperWidth === '58mm' ? 384 : 576} 
+              />
            </View>
         </View>
+
+        {/* Simulator Modal - rendered inside to appear on top on iOS */}
+        <PrintSimulatorModal
+          visible={!!showSimulator}
+          order={simulatorOrder || null}
+          imageUri={printImageUri || null}
+          onClose={() => setShowSimulator?.(false)}
+        />
       </View>
     </Modal>
   );

@@ -1,6 +1,35 @@
-import type { Order, OrderStatus } from '@my-small-business/types';
+import type { Order, OrderStatus, OrderItemAddon } from '@my-small-business/types';
 import { getFriendlyOrderNumber } from './orderNumber';
 import { STATUS_LABELS, PAYMENT_STATUS_LABELS } from './constants';
+
+export const groupAddons = (addons: OrderItemAddon[]) => {
+  if (!addons || addons.length === 0) return [];
+  
+  const grouped: Record<string, { 
+    name: string; 
+    group: string; 
+    price: number; 
+    quantity: number 
+  }> = {};
+  
+  addons.forEach(addon => {
+    // Group by name + price + group name to be safe
+    // We avoid using addon_item_id because it might be unique per order entry in some DB schemas
+    const key = `${addon.addon_item_name}-${addon.addon_group_name}-${addon.addon_item_price}`;
+    if (grouped[key]) {
+      grouped[key].quantity += 1;
+    } else {
+      grouped[key] = {
+        name: addon.addon_item_name,
+        group: addon.addon_group_name,
+        price: addon.addon_item_price,
+        quantity: 1
+      };
+    }
+  });
+  
+  return Object.values(grouped);
+};
 
 export const formatDateToLocalISO = (date: Date) => {
   const year = date.getFullYear();
@@ -97,8 +126,9 @@ export const getNextQuickAction = (currentStatus: OrderStatus): { action: string
 export const generatePrintHTML = (order: Order): string => {
   const ticketOrderNumber = getFriendlyOrderNumber(order.order_number);
   const itemsHTML = order.items?.map(item => {
-    const addonsHTML = item.addons?.map(addon =>
-      `<li>+ ${addon.addon_item_name} (${addon.addon_group_name}) - $${addon.addon_item_price.toFixed(2)}</li>`
+    const grouped = groupAddons(item.addons || []);
+    const addonsHTML = grouped.map(addon =>
+      `<li>${addon.quantity > 1 ? `${addon.quantity}x ` : '+ '}${addon.name} (${addon.group}) - $${addon.price.toFixed(2)}</li>`
     ).join('') || '';
     const removedHTML =
       Array.isArray(item.removed_ingredients) && item.removed_ingredients.length > 0

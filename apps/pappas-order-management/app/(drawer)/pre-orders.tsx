@@ -26,6 +26,9 @@ import { OrderDetailModal } from '@/components/OrderDetailModal';
 import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
 import { useOrderActions } from '@/hooks/useOrderActions';
 import { loadAppSettings, DEFAULT_APP_SETTINGS, type AppSettings } from '@/lib/settings';
+import { captureRef } from 'react-native-view-shot';
+import { ReceiptTemplate } from '@/components/ReceiptTemplate';
+import { escposPrintOrderImage } from '@/lib/escpos-printer';
 
 export default function PreOrdersScreen() {
   const router = useRouter();
@@ -39,6 +42,10 @@ export default function PreOrdersScreen() {
   const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [customerInfo, setCustomerInfo] = useState<{ email?: string; phone?: string }>({});
+  const [tempPrintingOrder, setTempPrintingOrder] = useState<Order | null>(null);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const globalReceiptRef = useRef(null);
+  const appSettingsRef = useRef<AppSettings>(DEFAULT_APP_SETTINGS);
 
   const loadOrders = async () => {
     try {
@@ -77,6 +84,7 @@ export default function PreOrdersScreen() {
   const {
     updatingStatus,
     printingOrderId,
+    setPrintingOrderId,
     handleStatusUpdate,
     handlePaymentStatusUpdate,
     handleQuickAction,
@@ -85,9 +93,65 @@ export default function PreOrdersScreen() {
     showSimulator,
     setShowSimulator,
     simulatorOrder,
+    setSimulatorOrder,
+    printImageUri,
+    setPrintImageUri,
   } = useOrderActions(appSettings, loadOrders, (updated) => {
     if (selectedOrder?.id === updated.id) setSelectedOrder(updated);
   });
+
+  const quickPrintOrder = async (order: Order) => {
+    try {
+      const s = appSettingsRef.current;
+      setIsCapturing(true);
+      setPrintingOrderId(order.id);
+      
+      // Update the hidden template with this order
+      setTempPrintingOrder(order);
+      
+      // Wait for re-render
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      if (!globalReceiptRef.current) {
+        throw new Error('Receipt template ref not found');
+      }
+
+      const targetDots = s.printerPaperWidth === '58mm' ? 384 : 576;
+      const scale = s.printerHighQuality ? 2 : 1;
+
+      const uri = await captureRef(globalReceiptRef.current, {
+        format: 'png',
+        quality: 1,
+        result: 'tmpfile',
+        width: targetDots * scale,
+      });
+
+      if (s.printerSimulator) {
+        setSimulatorOrder(order);
+        setPrintImageUri(uri);
+        setShowSimulator(true);
+        return;
+      }
+
+      const selected = s.printerSaved.find((p) => p.target === s.printerSelectedTarget) || null;
+      if (!s.printerEnabled || !selected) {
+        Alert.alert('Printer error', 'Print is enabled, but no printer is selected.');
+        return;
+      }
+
+      await escposPrintOrderImage(uri, selected, s.printerCopies);
+    } catch (error) {
+      console.error('Quick print failed:', error);
+      Alert.alert('Print error', 'Failed to capture receipt template image for printing.');
+    } finally {
+      setIsCapturing(false);
+      setPrintingOrderId(null);
+    }
+  };
+
+  useEffect(() => {
+    appSettingsRef.current = appSettings;
+  }, [appSettings]);
 
   useEffect(() => {
     loadAppSettings().then(setAppSettings);
@@ -180,7 +244,7 @@ export default function PreOrdersScreen() {
             updatingStatus={updatingStatus}
             onOrderPress={handleOrderPress}
             onCustomerPress={handleCustomerPress}
-            onPrintPress={handlePrint}
+            onPrintPress={quickPrintOrder}
             onQuickAction={handleQuickAction}
             onStatusUpdate={handleStatusUpdate}
             onPaymentStatusUpdate={handlePaymentStatusUpdate}
@@ -207,13 +271,39 @@ export default function PreOrdersScreen() {
         onPaymentStatusUpdate={handlePaymentStatusUpdate}
         onQuickAction={handleQuickAction}
         updatingStatus={updatingStatus}
+        showSimulator={showSimulator}
+        setShowSimulator={setShowSimulator}
+        simulatorOrder={simulatorOrder}
+        printImageUri={printImageUri}
+        appSettings={appSettings}
       />
 
       <PrintSimulatorModal
         visible={showSimulator}
         order={simulatorOrder}
+        imageUri={printImageUri}
         onClose={() => setShowSimulator(false)}
       />
+
+      {/* Global Hidden Receipt Template for auto/quick capture */}
+      <View style={styles.hiddenReceiptContainer} pointerEvents="none">
+         {tempPrintingOrder && (
+           <View ref={globalReceiptRef} collapsable={false}>
+              <ReceiptTemplate 
+                order={tempPrintingOrder} 
+                width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
+              />
+           </View>
+         )}
+      </View>
+
+      {printingOrderId && (
+        <View style={styles.printingOverlay} pointerEvents="none">
+          <View style={styles.printingChip}>
+            <Text style={styles.printingText}>Printing...</Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -229,4 +319,13 @@ const styles = StyleSheet.create({
   listContent: { padding: 16 },
   emptyContainer: { flex: 1, alignItems: 'center', marginTop: 100 },
   emptyText: { fontSize: 16, color: '#6b7280' },
+  hiddenReceiptContainer: {
+    position: 'absolute',
+    top: -9999,
+    left: -9999,
+    opacity: 0,
+  },
+  printingOverlay: { position: 'absolute', top: 24, left: 0, right: 0, alignItems: 'center', zIndex: 100 },
+  printingChip: { backgroundColor: '#2563eb', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8 },
+  printingText: { color: '#fff', fontWeight: 'bold' },
 });

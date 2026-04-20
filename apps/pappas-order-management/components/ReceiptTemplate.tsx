@@ -1,12 +1,14 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import type { Order } from '@my-small-business/types';
+import { groupAddons } from '../utils/orderUtils';
 
 interface ReceiptTemplateProps {
   order: Order;
+  width?: number;
 }
 
-export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ order }) => {
+export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ order, width = 576 }) => {
   const formatMoney = (amount: number) => {
     return (amount || 0).toFixed(2);
   };
@@ -23,7 +25,7 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ order }) => {
     : null;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { width }]}>
       {/* Header */}
       {pickupDisplay && (
         <View style={styles.preOrderContainer}>
@@ -41,8 +43,8 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ order }) => {
 
       {/* Customer Info */}
       <View style={styles.section}>
-        <Text style={styles.normalText}>Customer: {order.customer_name || order.customer_email}</Text>
-        {order.customer_phone && <Text style={styles.normalText}>Phone: {order.customer_phone}</Text>}
+        <Text style={styles.largeBoldText}>{order.customer_name || order.customer_email}</Text>
+        {order.customer_phone && <Text style={styles.largeBoldText}>{order.customer_phone}</Text>}
         {order.order_type === 'delivery' && order.delivery_address_line1 && (
           <View style={styles.deliveryContainer}>
             <Text style={styles.normalText}>Delivery Address:</Text>
@@ -72,9 +74,9 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ order }) => {
             </Text>
             <Text style={styles.itemLinePrice}>${formatMoney(item.subtotal)}</Text>
           </View>
-          {item.addons?.map((addon, aIdx) => (
+          {groupAddons(item.addons || []).map((addon, aIdx) => (
             <Text key={aIdx} style={styles.addonText}>
-              + {addon.addon_item_name} {addon.addon_item_price ? `($${formatMoney(addon.addon_item_price)})` : ''}
+              {addon.quantity > 1 ? `${addon.quantity}x ` : '+ '}{addon.name} {addon.price ? `($${formatMoney(addon.price)})` : ''}
             </Text>
           ))}
           {item.comment && <Text style={styles.itemNote}>Note: {item.comment}</Text>}
@@ -138,14 +140,13 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ order }) => {
 
 const styles = StyleSheet.create({
   container: {
-    width: 576, // Full thermal width for 80mm (203 DPI)
     backgroundColor: 'white',
-    paddingHorizontal: 5,
+    paddingHorizontal: 10,
     paddingVertical: 8,
   },
   preOrderContainer: {
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 16,
   },
   preOrderLabel: {
     fontSize: 48,
@@ -163,13 +164,13 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     backgroundColor: '#000',
-    marginVertical: 8,
+    marginVertical: 12,
     borderStyle: 'dashed',
     borderWidth: 1,
     borderRadius: 1,
   },
   section: {
-    marginBottom: 4,
+    marginBottom: 12,
   },
   normalText: {
     fontSize: 30,
@@ -180,11 +181,16 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#000',
   },
+  largeBoldText: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: '#000',
+  },
   deliveryContainer: {
     marginTop: 4,
   },
   itemContainer: {
-    marginBottom: 8,
+    marginBottom: 12,
   },
   itemLineRow: {
     flexDirection: 'row',
@@ -218,7 +224,7 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
   totalsContainer: {
-    marginTop: 4,
+    marginTop: 12,
   },
   totalRow: {
     flexDirection: 'row',

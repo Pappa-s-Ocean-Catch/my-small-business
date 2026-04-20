@@ -18,6 +18,7 @@ export const useOrderActions = (
   const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
   const [simulatorOrder, setSimulatorOrder] = useState<Order | null>(null);
   const [showSimulator, setShowSimulator] = useState(false);
+  const [printImageUri, setPrintImageUri] = useState<string | null>(null);
 
   const triggerOrderStatusEmail = async (orderId: string, status: string) => {
     if (!webBaseUrl) {
@@ -126,6 +127,7 @@ export const useOrderActions = (
     try {
       if (appSettings.printerSimulator) {
         setSimulatorOrder(order);
+        setPrintImageUri(null); // No image URI for standard fallback print usually
         setShowSimulator(true);
         return true;
       }
@@ -155,6 +157,7 @@ export const useOrderActions = (
     try {
       if (appSettings.printerSimulator) {
         setSimulatorOrder(order);
+        setPrintImageUri(imageUri);
         setShowSimulator(true);
         return true;
       }
@@ -162,7 +165,8 @@ export const useOrderActions = (
       const selected = appSettings.printerSaved.find((p) => p.target === appSettings.printerSelectedTarget) || null;
       if (appSettings.printerEnabled && selected) {
         try {
-          await escposPrintOrderImage(imageUri, selected, appSettings.printerCopies);
+          const targetDots = appSettings.printerPaperWidth === '58mm' ? 384 : 576;
+          await escposPrintOrderImage(imageUri, selected, appSettings.printerCopies, targetDots);
           return true;
         } catch (printerError) {
           console.error('Print image error:', printerError);
@@ -190,10 +194,13 @@ export const useOrderActions = (
     setSimulatorOrder,
     showSimulator,
     setShowSimulator,
+    printImageUri,
+    setPrintImageUri,
     handleStatusUpdate,
     handlePaymentStatusUpdate,
     handleQuickAction,
     handlePrint,
     handlePrintImage,
   };
+
 };

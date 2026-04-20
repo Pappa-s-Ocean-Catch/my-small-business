@@ -93,7 +93,12 @@ export async function escposPrintKitchenReceipt(order: Order, printer: SavedPrin
   }
 }
 
-export async function escposPrintOrderImage(imageUri: string, printer: SavedPrinter, copies: number): Promise<void> {
+export async function escposPrintOrderImage(
+  imageUri: string, 
+  printer: SavedPrinter, 
+  copies: number,
+  width: number = 576
+): Promise<void> {
   assertPrinter(printer);
   const repeat = normalizeCopies(copies);
 
@@ -101,11 +106,10 @@ export async function escposPrintOrderImage(imageUri: string, printer: SavedPrin
     await withConnectedPrinter(
       printer,
       async (p) => {
-        // Full 80mm paper width is ~576px at 203 DPI
-        // We use the full width for the rendered image
+        // Use the specified target width (e.g. 576 for 80mm, 384 for 58mm)
         await p.addImage({
           source: { uri: imageUri },
-          width: 576,
+          width: width,
         });
         await p.addCut();
         await p.sendData();

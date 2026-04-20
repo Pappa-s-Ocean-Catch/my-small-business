@@ -97,6 +97,7 @@ export default function CustomersScreen() {
     handleQuickAction,
     handlePrint,
     handlePrintImage,
+    printImageUri,
   } = useOrderActions(
     appSettings,
     async () => {
@@ -273,11 +274,16 @@ export default function CustomersScreen() {
         onPaymentStatusUpdate={handlePaymentStatusUpdate}
         onQuickAction={handleQuickAction}
         updatingStatus={updatingStatus}
+        showSimulator={showSimulator}
+        setShowSimulator={setShowSimulator}
+        simulatorOrder={simulatorOrder}
+        printImageUri={printImageUri}
       />
 
       <PrintSimulatorModal
         visible={showSimulator}
         order={simulatorOrder}
+        imageUri={printImageUri}
         onClose={() => setShowSimulator(false)}
       />
     </View>

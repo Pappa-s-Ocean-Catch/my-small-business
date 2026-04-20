@@ -25,6 +25,8 @@ export type AppSettings = {
     /** Seconds to wait before auto-printing a new kitchen ticket. */
     printerDelayPrintSec: number;
 
+    printerPaperWidth: '58mm' | '80mm';
+    printerHighQuality: boolean;
 };
 
 const STORAGE_KEY = 'pappas-order-management.settings.v1';
@@ -76,6 +78,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     printerSimulator: false,
 
     printerDelayPrintSec: 3,
+    printerPaperWidth: '80mm',
+    printerHighQuality: true,
 };
 
 function clampInt(value: number, min: number, max: number) {
@@ -157,6 +161,10 @@ export async function loadAppSettings(): Promise<AppSettings> {
                 : DEFAULT_APP_SETTINGS.printerSimulator,
 
             printerDelayPrintSec,
+            printerPaperWidth: parsed?.printerPaperWidth === '58mm' ? '58mm' : '80mm',
+            printerHighQuality: typeof (parsed as any)?.printerHighQuality === 'boolean'
+                ? (parsed as any).printerHighQuality
+                : DEFAULT_APP_SETTINGS.printerHighQuality,
         };
         cachedSettings = result;
         return result;
@@ -182,6 +190,8 @@ export async function saveAppSettings(settings: AppSettings): Promise<void> {
         printerSimulator: !!settings.printerSimulator,
 
         printerDelayPrintSec: clampInt(settings.printerDelayPrintSec, 0, 120),
+        printerPaperWidth: settings.printerPaperWidth === '58mm' ? '58mm' : '80mm',
+        printerHighQuality: !!settings.printerHighQuality,
     };
 
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));

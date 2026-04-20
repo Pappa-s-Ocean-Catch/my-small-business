@@ -157,6 +157,8 @@ export default function LiveOrdersScreen() {
     setSimulatorOrder,
     showSimulator,
     setShowSimulator,
+    printImageUri,
+    setPrintImageUri,
     handleStatusUpdate,
     handlePaymentStatusUpdate,
     handleQuickAction,
@@ -182,19 +184,11 @@ export default function LiveOrdersScreen() {
 
     // 2. Auto-print if enabled
     if ((s.printerEnabled || s.printerSimulator) && s.printerAutoPrint) {
-       setPrintingOrderId(order.id);
        try {
-         if (s.printerSimulator) {
-           setShowSimulator(true);
-           setSimulatorOrder(order);
-         } else {
-           // We use the image printer for better font control
-           await quickPrintOrder(order);
-         }
+         // quickPrintOrder handles both simulator and real printing with image capture
+         await quickPrintOrder(order);
        } catch (err) {
          console.error('Auto print error:', err);
-       } finally {
-         setPrintingOrderId(null);
        }
     }
 
@@ -224,15 +218,19 @@ export default function LiveOrdersScreen() {
         throw new Error('Receipt template ref not found');
       }
 
+      const targetDots = s.printerPaperWidth === '58mm' ? 384 : 576;
+      const scale = s.printerHighQuality ? 2 : 1;
+
       const uri = await captureRef(globalReceiptRef.current, {
         format: 'png',
         quality: 1,
         result: 'tmpfile',
-        width: 576,
+        width: targetDots * scale,
       });
 
       if (s.printerSimulator) {
         setSimulatorOrder(order);
+        setPrintImageUri(uri);
         setShowSimulator(true);
         return;
       }
@@ -505,13 +503,21 @@ export default function LiveOrdersScreen() {
         onPaymentStatusUpdate={handlePaymentStatusUpdate}
         onQuickAction={handleQuickAction}
         updatingStatus={updatingStatus}
+        showSimulator={showSimulator}
+        setShowSimulator={setShowSimulator}
+        simulatorOrder={simulatorOrder}
+        printImageUri={printImageUri}
+        appSettings={appSettings}
       />
 
       {/* Global Hidden Receipt Template for auto/quick capture */}
       <View style={styles.hiddenReceiptContainer} pointerEvents="none">
          {tempPrintingOrder && (
            <View ref={globalReceiptRef} collapsable={false}>
-              <ReceiptTemplate order={tempPrintingOrder} />
+              <ReceiptTemplate 
+                order={tempPrintingOrder} 
+                width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
+              />
            </View>
          )}
       </View>
@@ -519,6 +525,7 @@ export default function LiveOrdersScreen() {
       <PrintSimulatorModal
         visible={showSimulator}
         order={simulatorOrder}
+        imageUri={printImageUri}
         onClose={() => setShowSimulator(false)}
       />
       

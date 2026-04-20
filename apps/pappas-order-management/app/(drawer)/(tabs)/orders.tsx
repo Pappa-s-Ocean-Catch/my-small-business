@@ -82,6 +82,7 @@ export default function HistoryScreen() {
     simulatorOrder,
     showSimulator,
     setShowSimulator,
+    printImageUri,
     handleStatusUpdate,
     handlePaymentStatusUpdate,
     handleQuickAction,
@@ -304,6 +305,11 @@ export default function HistoryScreen() {
         onPaymentStatusUpdate={handlePaymentStatusUpdate}
         onQuickAction={handleQuickAction}
         updatingStatus={updatingStatus}
+        showSimulator={showSimulator}
+        setShowSimulator={setShowSimulator}
+        simulatorOrder={simulatorOrder}
+        printImageUri={printImageUri}
+        appSettings={appSettings}
       />
 
       <OrderFiltersModal
@@ -322,6 +328,7 @@ export default function HistoryScreen() {
       <PrintSimulatorModal
         visible={showSimulator}
         order={simulatorOrder}
+        imageUri={printImageUri}
         onClose={() => setShowSimulator(false)}
       />
 
