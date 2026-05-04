@@ -644,9 +644,18 @@ export default function CheckoutPage() {
 
               // Identify user in PostHog
               posthog.identify(profile.id, {
-                email: profile.email,
+                email: isPlaceholderCustomerEmail(profile.email)
+                  ? undefined
+                  : profile.email,
                 name: profile.full_name,
+                phone: profile.phone ? normalizeAuPhone(profile.phone) : undefined,
+                role: profile.role_slug,
+              });
+
+              posthog.capture("customer_session_detected", {
+                email: profile.email,
                 phone: profile.phone,
+                name: profile.full_name,
                 role: profile.role_slug,
               });
             } else {
@@ -661,9 +670,18 @@ export default function CheckoutPage() {
 
               // Identify user in PostHog
               posthog.identify(profile.id, {
-                email: profile.email,
+                email: isPlaceholderCustomerEmail(profile.email)
+                  ? undefined
+                  : profile.email,
                 name: profile.full_name,
+                phone: profile.phone ? normalizeAuPhone(profile.phone) : undefined,
+                role: profile.role_slug,
+              });
+
+              posthog.capture("customer_session_detected", {
+                email: profile.email,
                 phone: profile.phone,
+                name: profile.full_name,
                 role: profile.role_slug,
               });
             }
@@ -838,8 +856,16 @@ export default function CheckoutPage() {
             posthog.identify(profile.id, {
               email: profile.email,
               name: profile.full_name,
-              phone: profile.phone,
+              phone: profile.phone ? normalizeAuPhone(profile.phone) : undefined,
               role: profile.role_slug,
+            });
+
+            posthog.capture("customer_login_success", {
+              email: profile.email,
+              phone: profile.phone,
+              name: profile.full_name,
+              role: profile.role_slug,
+              method: "email",
             });
           } else {
             // User is logged in but not a customer - they can't use Pay at Store
@@ -966,8 +992,16 @@ export default function CheckoutPage() {
       posthog.identify(result.userId, {
         email: signupEmail,
         name: signupFullName,
-        phone: signupPhone,
+        phone: signupPhone ? normalizeAuPhone(signupPhone) : undefined,
         role: "customer",
+      });
+
+      posthog.capture("customer_signup_success", {
+        email: signupEmail,
+        phone: signupPhone,
+        name: signupFullName,
+        role: "customer",
+        method: "email",
       });
     } catch (err) {
       console.error("[Checkout] Signup error:", err);
@@ -1108,14 +1142,19 @@ export default function CheckoutPage() {
 
       // Identify user in PostHog after successful phone OTP login
       posthog.identify(profile.id, {
-        email: profile.email,
+        email: isPlaceholderCustomerEmail(profile.email)
+          ? undefined
+          : profile.email,
         name: profile.full_name,
-        phone: profilePhone,
+        phone: normalizeAuPhone(profilePhone),
         role: profile.role_slug,
         auth_method: "phone_otp",
       });
       posthog.capture("customer_phone_login_verified", {
         user_id: profile.id,
+        email: profile.email,
+        phone: profilePhone,
+        name: profile.full_name,
         has_email: Boolean(profile.email),
         has_full_name: Boolean(profile.full_name),
       });
@@ -1179,6 +1218,21 @@ export default function CheckoutPage() {
       setCustomerEmail(profileEmail.trim() || customerEmail);
       setRequiresProfileCompletion(false);
       setIsAuthenticated(true);
+
+      // Identify and track profile completion
+      posthog.identify(currentUser.id, {
+        email: isPlaceholderCustomerEmail(profileEmail.trim() || customerEmail)
+          ? undefined
+          : profileEmail.trim() || customerEmail,
+        name: profileFullName.trim(),
+        phone: normalizeAuPhone(finalPhone),
+      });
+
+      posthog.capture("customer_profile_completed", {
+        email: profileEmail.trim() || customerEmail,
+        name: profileFullName.trim(),
+        phone: finalPhone,
+      });
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to complete profile.",
