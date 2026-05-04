@@ -1,6 +1,6 @@
 import React, { useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
-import { FaCheckCircle, FaUser } from "react-icons/fa";
+import { FaCheckCircle, FaUser, FaInfoCircle } from "react-icons/fa";
 
 interface AuthenticatedCustomerInfoProps {
   isAuthenticated: boolean;
@@ -46,7 +46,8 @@ export function AuthenticatedCustomerInfo({
   onRequestPhoneNumberChange,
   authActionPending,
 }: AuthenticatedCustomerInfoProps) {
-  const [editing, setEditing] = useState(false);
+   const [editing, setEditing] = useState(false);
+  const [showPhoneInfo, setShowPhoneInfo] = useState(false);
   const phoneBaselineRef = useRef<string>("");
   const nameBaselineRef = useRef<string>("");
   const valid = isValidPhone(customerPhone);
@@ -152,18 +153,21 @@ export function AuthenticatedCustomerInfo({
         </div>
       )}
 
-      {changePhoneViaSignOut ? (
+       {changePhoneViaSignOut ? (
         <>
-          <p className="text-xs text-amber-800 dark:text-amber-200/90 mb-3 rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-950/30 px-3 py-2">
-            Your account uses this mobile number. To use a different number,
-            tap Change — you&apos;ll sign out and verify the number you want with
-            a code.
-          </p>
           {phoneOk ? (
             <div className="mt-1 p-4 rounded-lg border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-green-800 dark:text-green-100 mb-1">
+                <p className="text-sm font-medium text-green-800 dark:text-green-100 mb-1 flex items-center gap-1.5">
                   Contact Phone Number
+                  <button
+                    type="button"
+                    onClick={() => setShowPhoneInfo(!showPhoneInfo)}
+                    className="text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 transition-colors focus:outline-none"
+                    title="Learn more about changing your phone number"
+                  >
+                    <Icon icon={FaInfoCircle} className="w-3.5 h-3.5" />
+                  </button>
                 </p>
                 <span className="text-base font-semibold text-green-900 dark:text-green-100">
                   {displayNumber}
@@ -182,6 +186,13 @@ export function AuthenticatedCustomerInfo({
             <p className="text-sm text-red-600 dark:text-red-400">
               Your profile does not have a valid Australian mobile number.
               Please contact support or use Sign out from the sign-in section.
+            </p>
+          )}
+          {showPhoneInfo && (
+            <p className="mt-3 text-xs text-amber-800 dark:text-amber-200/90 rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-950/30 px-3 py-2">
+              Your account uses this mobile number. To use a different number,
+              tap Change — you&apos;ll sign out and verify the number you want with
+              a code.
             </p>
           )}
         </>

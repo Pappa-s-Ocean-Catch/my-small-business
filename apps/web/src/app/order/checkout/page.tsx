@@ -1124,7 +1124,9 @@ export default function CheckoutPage() {
       if (isNewProfile) {
         setRequiresProfileCompletion(true);
         setProfileFullName(profile.full_name || "");
-        setProfileEmail(profile.email || "");
+        setProfileEmail(
+          isPlaceholderCustomerEmail(profile.email) ? "" : profile.email || "",
+        );
         setIsAuthenticated(false);
       } else {
         setRequiresProfileCompletion(false);
@@ -1174,7 +1176,7 @@ export default function CheckoutPage() {
       );
       setCustomerName(profileFullName.trim());
       setCustomerPhone(finalPhone);
-      setCustomerEmail(profileEmail.trim());
+      setCustomerEmail(profileEmail.trim() || customerEmail);
       setRequiresProfileCompletion(false);
       setIsAuthenticated(true);
     } catch (err) {
