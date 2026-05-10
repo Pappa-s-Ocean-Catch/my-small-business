@@ -132,7 +132,7 @@ export const generatePrintHTML = (order: Order): string => {
     ).join('') || '';
     const removedHTML =
       Array.isArray(item.removed_ingredients) && item.removed_ingredients.length > 0
-        ? `<p><em>Removed: ${item.removed_ingredients.join(', ')}</em></p>`
+        ? `<p style="margin: 4px 0; font-weight: bold; color: #d97706;">REMOVE: ${item.removed_ingredients.join(', ')}</p>`
         : '';
 
     return `
@@ -140,7 +140,7 @@ export const generatePrintHTML = (order: Order): string => {
         <td>${item.quantity}x ${item.product_name}</td>
         <td>$${item.subtotal.toFixed(2)}</td>
       </tr>
-      ${item.comment ? `<tr><td colspan="2"><em>Note: ${item.comment}</em></td></tr>` : ''}
+      ${item.comment?.trim() ? `<tr><td colspan="2"><strong style="font-style: italic;">NOTE: ${item.comment}</strong></td></tr>` : ''}
       ${addonsHTML ? `<tr><td colspan="2"><ul style="margin: 0; padding-left: 20px;">${addonsHTML}</ul></td></tr>` : ''}
       ${removedHTML ? `<tr><td colspan="2">${removedHTML}</td></tr>` : ''}
     `;
@@ -204,7 +204,11 @@ export const generatePrintHTML = (order: Order): string => {
             ${order.delivery_city}, ${order.delivery_state} ${order.delivery_postcode}
             </p>
           ` : ''}
-          ${order.special_instructions ? `<p><strong>Special Instructions:</strong> ${order.special_instructions}</p>` : ''}
+          ${order.special_instructions?.trim() ? `
+          <div style="margin: 15px 0; padding: 10px; background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 4px;">
+            <strong>SPECIAL INSTRUCTIONS:</strong><br/>
+            ${order.special_instructions}
+          </div>` : ''}
         </div>
         <table>
           <thead>

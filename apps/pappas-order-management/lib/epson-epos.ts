@@ -96,9 +96,9 @@ function formatOrderHeaderLines(order: Order): ReceiptLine[] {
     if (cityLine) lines.push(cityLine);
   }
 
-  if (order.special_instructions) {
+  if (order.special_instructions?.trim()) {
     lines.push('');
-    lines.push(`Notes: ${order.special_instructions}`);
+    lines.push({ text: `NOTES: ${order.special_instructions}`, bold: true });
   }
 
   lines.push('');
@@ -140,7 +140,12 @@ function formatItemLines(item: OrderItem): ReceiptLine[] {
     medium: true,
   });
   lines.push(...formatAddonLines(item.addons));
-  if (item.comment) lines.push(`  Note: ${item.comment}`);
+  if (item.removed_ingredients && item.removed_ingredients.length > 0) {
+    lines.push({ text: `  REMOVE: ${item.removed_ingredients.join(', ')}`, bold: true });
+  }
+  if (item.comment?.trim()) {
+    lines.push({ text: `  NOTE: ${item.comment}`, bold: true });
+  }
   return lines;
 }
 

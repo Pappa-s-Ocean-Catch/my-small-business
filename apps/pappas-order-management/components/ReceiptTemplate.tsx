@@ -57,9 +57,10 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ order, width =
         )}
       </View>
 
-      {order.special_instructions && (
-        <View style={styles.section}>
-          <Text style={styles.normalText}>Notes: {order.special_instructions}</Text>
+      {order.special_instructions?.trim() && (
+        <View style={styles.noteSection}>
+          <Text style={styles.noteTitle}>ORDER NOTES:</Text>
+          <Text style={styles.noteText}>{order.special_instructions}</Text>
         </View>
       )}
 
@@ -79,7 +80,16 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ order, width =
               {addon.quantity > 1 ? `${addon.quantity}x ` : '+ '}{addon.name} {addon.price ? `($${formatMoney(addon.price)})` : ''}
             </Text>
           ))}
-          {item.comment && <Text style={styles.itemNote}>Note: {item.comment}</Text>}
+          {item.removed_ingredients && item.removed_ingredients.length > 0 && (
+            <Text style={styles.removedText}>
+              REMOVE: {item.removed_ingredients.join(', ')}
+            </Text>
+          )}
+          {item.comment?.trim() && (
+            <Text style={styles.itemNote}>
+              Notes: {item.comment}
+            </Text>
+          )}
         </View>
       ))}
 
@@ -217,11 +227,39 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     lineHeight: 36,
   },
-  itemNote: {
-    fontSize: 30,
-    fontStyle: 'italic',
+  noteSection: {
+    marginBottom: 16,
+    padding: 10,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#ccc',
+  },
+  noteTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
     color: '#000',
+    marginBottom: 4,
+  },
+  noteText: {
+    fontSize: 28,
+    color: '#000',
+  },
+  itemNote: {
+    fontSize: 28,
+    fontStyle: 'italic',
+    fontWeight: 'bold',
+    color: '#000',
+    marginTop: 4,
     marginLeft: 10,
+  },
+  removedText: {
+    fontSize: 26,
+    color: '#000',
+    fontWeight: 'bold',
+    marginTop: 4,
+    marginLeft: 10,
+    textDecorationLine: 'line-through',
   },
   totalsContainer: {
     marginTop: 12,
