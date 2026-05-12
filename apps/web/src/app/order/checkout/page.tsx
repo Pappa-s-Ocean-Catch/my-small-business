@@ -298,6 +298,21 @@ export default function CheckoutPage() {
   const [serviceFee, setServiceFee] = useState(0);
   const [isRedirecting, setIsRedirecting] = useState(false);
 
+  const hasRequiredContactInfo =
+    Boolean(customerPhone.trim()) || Boolean(customerEmail.trim());
+
+  // Auto-trigger profile completion if authenticated but missing required contact info
+  useEffect(() => {
+    if (isAuthenticated && !hasRequiredContactInfo && !requiresProfileCompletion) {
+      setRequiresProfileCompletion(true);
+      setIsAuthenticated(false);
+      // Pre-fill profile completion fields
+      setProfileFullName(customerName || currentUser?.full_name || "");
+      const currentEmail = profileEmail || customerEmail || currentUser?.email || "";
+      setProfileEmail(isPlaceholderCustomerEmail(currentEmail) ? "" : currentEmail);
+    }
+  }, [isAuthenticated, hasRequiredContactInfo, requiresProfileCompletion, customerName, customerEmail, currentUser, profileEmail]);
+
   // Coupon state
   const [couponCodeInput, setCouponCodeInput] = useState("");
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
@@ -740,9 +755,9 @@ export default function CheckoutPage() {
         if (result.data.isValid) {
           setCouponResult(result.data);
           setCouponError(null);
-          posthog.capture("coupon_applied", { 
+          posthog.capture("coupon_applied", {
             coupon_code: result.data.coupon?.code,
-            discount_amount: result.data.discountAmount 
+            discount_amount: result.data.discountAmount
           });
         } else {
           setCouponResult(null);
@@ -1045,7 +1060,7 @@ export default function CheckoutPage() {
         if (!verificationResponse.ok || !verificationResult.success) {
           throw new Error(
             verificationResult.error ||
-              "reCAPTCHA verification failed. Please try again.",
+            "reCAPTCHA verification failed. Please try again.",
           );
         }
       }
@@ -1130,15 +1145,16 @@ export default function CheckoutPage() {
       }
 
       const profilePhone = profile.phone || normalizedPhone;
+      const finalEmail = profile.email || buildFallbackOrderEmail(profilePhone);
       setCurrentUser({
         id: profile.id,
-        email: profile.email || "",
+        email: finalEmail,
         full_name: profile.full_name || undefined,
         phone: profilePhone,
       });
       setCustomerPhone(profilePhone);
       setCustomerName(profile.full_name || "");
-      setCustomerEmail(profile.email || "");
+      setCustomerEmail(finalEmail);
 
       // Identify user in PostHog after successful phone OTP login
       posthog.identify(profile.id, {
@@ -1206,16 +1222,16 @@ export default function CheckoutPage() {
       setCurrentUser((prev) =>
         prev
           ? {
-              ...prev,
-              email: profileEmail.trim() || prev.email,
-              full_name: profileFullName.trim(),
-              phone: finalPhone,
-            }
+            ...prev,
+            email: profileEmail.trim() || prev.email,
+            full_name: profileFullName.trim(),
+            phone: finalPhone,
+          }
           : prev,
       );
       setCustomerName(profileFullName.trim());
       setCustomerPhone(finalPhone);
-      setCustomerEmail(profileEmail.trim() || customerEmail);
+      setCustomerEmail(profileEmail.trim() || customerEmail || buildFallbackOrderEmail(finalPhone));
       setRequiresProfileCompletion(false);
       setIsAuthenticated(true);
 
@@ -1725,9 +1741,6 @@ export default function CheckoutPage() {
         return totalMatch && itemsMatch;
       })
       : null;
-  const hasRequiredContactInfo =
-    Boolean(customerPhone.trim()) && Boolean(customerEmail.trim());
-
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-neutral-900">
       {cancelToast && (
@@ -1849,8 +1862,8 @@ export default function CheckoutPage() {
             isPhonePrimaryAccount={
               Boolean(
                 isAuthenticated &&
-                  currentUser &&
-                  isPlaceholderCustomerEmail(currentUser.email),
+                currentUser &&
+                isPlaceholderCustomerEmail(currentUser.email),
               )
             }
             onRequestPhoneNumberChange={handleRequestPhoneNumberChange}

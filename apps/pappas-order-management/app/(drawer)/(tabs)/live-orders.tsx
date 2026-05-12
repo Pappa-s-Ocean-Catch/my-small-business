@@ -130,8 +130,11 @@ export default function LiveOrdersScreen() {
             order.order_status === 'pending' || order.order_status === 'confirmed';
 
           if (isPendingOrConfirmed && !processedOrderIdsRef.current.has(order.id)) {
-            // All orders in this filtered 'newOrders' list are within 30 mins (or ASAP)
-            announceAndPrintOrder(order);
+            // Ensure order has items before announcing/printing to avoid race condition
+            // (Supabase might emit 'orders' insert before 'order_items' are fully ready)
+            if (order.items && order.items.length > 0) {
+              announceAndPrintOrder(order);
+            }
           }
         }
 
@@ -324,6 +327,16 @@ export default function LiveOrdersScreen() {
           }
           loadOrders();
           fetchPreOrderCount();
+
+          // If it's a new order that needs printing/announcing, schedule a second refresh
+          // to ensure line items are ready (respecting printerDelayPrintSec setting)
+          if (isSignificantInsert || isSignificantUpdate) {
+            const delayMs = Math.max(2000, (appSettingsRef.current.printerDelayPrintSec || 3) * 1000);
+            setTimeout(() => {
+              loadOrders();
+              fetchPreOrderCount();
+            }, delayMs);
+          }
         }
       )
       .subscribe();
