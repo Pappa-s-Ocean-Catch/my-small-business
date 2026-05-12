@@ -736,6 +736,9 @@ export default function CheckoutPage() {
     setError(null);
     // Reset service fee when switching payment methods
     setServiceFee(0);
+    // Reset submission states if user changes payment method (e.g. they started online payment but came back to choose store)
+    setIsSubmitting(false);
+    setIsRedirecting(false);
     posthog.capture("payment_method_selected", { payment_method: method });
   };
 
