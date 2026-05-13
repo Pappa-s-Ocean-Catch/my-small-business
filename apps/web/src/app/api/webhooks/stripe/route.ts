@@ -78,7 +78,25 @@ export async function POST(request: Request) {
         );
       }
 
+      // Trigger Shipday order creation if it's a delivery order
+      if (order.order_type === 'delivery') {
+        try {
+          console.log(`[Stripe Webhook] Order ${order.id} is delivery. Triggering Shipday...`);
+          const { createShipdayOrder } = await import('@/app/actions/shipday');
+
+          const shipdayResult = await createShipdayOrder(order.id);
+          if (!shipdayResult.success) {
+            console.error('[Stripe Webhook] Failed to create Shipday order:', shipdayResult.error);
+          } else {
+            console.log('[Stripe Webhook] Shipday order created successfully:', shipdayResult.deliveryId);
+          }
+        } catch (shipdayErr) {
+          console.error('[Stripe Webhook] Error calling createShipdayOrder:', shipdayErr);
+        }
+      }
+
       const ensureResult = await ensureOrderRewardPoints(order.id);
+
       if (!ensureResult.success) {
         console.error('[Stripe Webhook] Failed to ensure reward points:', ensureResult.error);
       }

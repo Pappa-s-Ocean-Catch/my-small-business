@@ -12,7 +12,8 @@ import { OrderTypeSelector, type OrderType } from '@/components/OrderTypeSelecto
 import { DeliveryAddressForm, type DeliveryAddressInput } from '@/components/DeliveryAddressForm';
 import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 import { getActivePromotions } from '@/app/actions/promotions';
-import { FaShoppingCart, FaArrowLeft, FaCheck, FaDollarSign, FaEdit, FaComment, FaTruck, FaClock, FaSpinner, FaTrash, FaMinus, FaPlus } from 'react-icons/fa';
+import { FaShoppingCart, FaArrowLeft, FaCheck, FaDollarSign, FaEdit, FaComment, FaTruck, FaClock, FaSpinner, FaTrash, FaMinus, FaPlus, FaMapMarkerAlt } from 'react-icons/fa';
+
 import { Icon } from '@/components/Icon';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 import Link from 'next/link';
@@ -63,6 +64,7 @@ export default function OrderSummaryPage() {
   const [loadingQuote, setLoadingQuote] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isChangingAddress, setIsChangingAddress] = useState(false);
 
   // Pickup time: when store is open user can choose "asap" or "scheduled"; when closed, must choose scheduled (pre-order)
   const [storeHoursLoading, setStoreHoursLoading] = useState(false);
@@ -103,6 +105,38 @@ export default function OrderSummaryPage() {
   const subtotalExGst = total / 1.1;
   const gstAmount = total - subtotalExGst;
 
+  // Load order type and delivery info from sessionStorage
+  useEffect(() => {
+    const savedType = sessionStorage.getItem('order_type') as OrderType;
+    if (savedType) {
+      setOrderType(savedType);
+    } else {
+      // Default to pickup if not set
+      setOrderType('pickup');
+    }
+
+    if (savedType === 'delivery') {
+      const savedAddress = sessionStorage.getItem('delivery_address');
+      const savedQuote = sessionStorage.getItem('delivery_quote');
+      
+      if (savedAddress) {
+        try {
+          setDeliveryAddress(JSON.parse(savedAddress));
+        } catch (e) {
+          console.error('Failed to parse delivery address', e);
+        }
+      }
+      
+      if (savedQuote) {
+        try {
+          setDeliveryQuote(JSON.parse(savedQuote));
+        } catch (e) {
+          console.error('Failed to parse delivery quote', e);
+        }
+      }
+    }
+  }, []);
+
   // Check auth status
   useEffect(() => {
     const checkAuth = async () => {
@@ -112,6 +146,7 @@ export default function OrderSummaryPage() {
     };
     void checkAuth();
   }, []);
+
 
   // Get delivery quote when address is provided
   useEffect(() => {
@@ -206,11 +241,13 @@ export default function OrderSummaryPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           pickup_address: {
-            address_line1: process.env.NEXT_PUBLIC_STORE_ADDRESS_LINE1 || '123 Main Street',
+            address_line1: process.env.NEXT_PUBLIC_STORE_ADDRESS_LINE1 || 'Shop 2/87 Unitt Street',
             city: process.env.NEXT_PUBLIC_STORE_CITY || 'Melton',
             state: process.env.NEXT_PUBLIC_STORE_STATE || 'VIC',
             postcode: process.env.NEXT_PUBLIC_STORE_POSTCODE || '3337',
             country: 'AU',
+            latitude: parseFloat(process.env.NEXT_PUBLIC_STORE_LATITUDE || '-37.678'),
+            longitude: parseFloat(process.env.NEXT_PUBLIC_STORE_LONGITUDE || '144.579'),
           },
           dropoff_address: deliveryAddress,
         }),
@@ -223,6 +260,7 @@ export default function OrderSummaryPage() {
       }
 
       setDeliveryQuote(data.data);
+      sessionStorage.setItem('delivery_quote', JSON.stringify(data.data));
     } catch (error) {
       console.error('Error getting delivery quote:', error);
       setQuoteError(error instanceof Error ? error.message : 'Failed to get delivery quote');
@@ -230,6 +268,7 @@ export default function OrderSummaryPage() {
       setLoadingQuote(false);
     }
   };
+
 
   const handleOrderTypeSelect = (type: OrderType) => {
     setOrderType(type);
@@ -244,6 +283,9 @@ export default function OrderSummaryPage() {
     setDeliveryAddress(address);
     setDeliveryQuote(null); // Reset quote to get new one
     setQuoteError(null);
+    setIsChangingAddress(false);
+    sessionStorage.setItem('delivery_address', JSON.stringify(address));
+    sessionStorage.removeItem('delivery_quote');
   };
 
   const handleProceedToCheckout = () => {
@@ -266,6 +308,7 @@ export default function OrderSummaryPage() {
 
     router.push('/order/checkout');
   };
+
 
   const pickupRequiresTime = storeHoursResult && !storeHoursResult.isOpenNow;
   const canProceedPickup = orderType !== 'pickup' || !pickupRequiresTime || !!scheduledPickupAt;
@@ -342,36 +385,50 @@ export default function OrderSummaryPage() {
               </div>
             )}
 
-            {/* Delivery Address Form */}
+            {/* Delivery Address Section */}
             {orderType === 'delivery' && (
               <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-6">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                  <Icon icon={FaTruck} className="w-5 h-5 text-green-600" />
-                  Delivery Address
-                </h2>
-                <DeliveryAddressForm
-                  onAddressSelect={handleAddressSelect}
-                  allowSave={isAuthenticated}
-                  isAuthenticated={isAuthenticated}
-                />
-
-                {/* Delivery Quote Display */}
-                {loadingQuote && (
-                  <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center gap-3">
-                    <Icon icon={FaSpinner} className="w-5 h-5 text-blue-600 animate-spin" />
-                    <span className="text-sm text-blue-700 dark:text-blue-300">Getting delivery quote...</span>
-                  </div>
-                )}
-
-                {quoteError && (
-                  <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                    <p className="text-sm text-red-700 dark:text-red-300">{quoteError}</p>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <Icon icon={FaTruck} className="w-5 h-5 text-green-600" />
+                    Delivery Address
+                  </h2>
+                  {deliveryAddress && !isChangingAddress && (
                     <button
-                      onClick={getDeliveryQuote}
-                      className="mt-2 text-sm text-red-600 dark:text-red-400 hover:underline"
+                      onClick={() => setIsChangingAddress(true)}
+                      className="text-sm text-blue-600 hover:text-blue-700 font-medium"
                     >
-                      Try again
+                      Change
                     </button>
+                  )}
+                </div>
+
+                {(!deliveryAddress || isChangingAddress) ? (
+                  <div className="animate-in fade-in duration-300">
+                    <DeliveryAddressForm
+                      onAddressSelect={handleAddressSelect}
+                      allowSave={isAuthenticated}
+                      isAuthenticated={isAuthenticated}
+                      initialAddress={deliveryAddress}
+                    />
+                    {deliveryAddress && (
+                      <button
+                        onClick={() => setIsChangingAddress(false)}
+                        className="mt-4 text-sm text-gray-500 hover:text-gray-700"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-4 bg-gray-50 dark:bg-neutral-900/50 rounded-xl border border-gray-100 dark:border-neutral-700 flex items-start gap-3">
+                    <Icon icon={FaMapMarkerAlt} className="w-5 h-5 text-blue-600 mt-1" />
+                    <div>
+                      <p className="font-bold text-gray-900 dark:text-white">{deliveryAddress.address_line1}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {deliveryAddress.city}, {deliveryAddress.state} {deliveryAddress.postcode}
+                      </p>
+                    </div>
                   </div>
                 )}
 
@@ -384,28 +441,21 @@ export default function OrderSummaryPage() {
                           Delivery Quote
                         </h3>
                         <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                          Estimated delivery time
+                          Estimated delivery time: {deliveryQuote.estimated_duration_minutes} mins
                         </p>
                       </div>
                       <div className="text-right">
                         <p className="text-lg font-bold text-green-600 dark:text-green-400">
                           ${deliveryQuote.fee.toFixed(2)}
                         </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-500">
-                          {deliveryQuote.currency}
+                        <p className="text-xs text-gray-500 dark:text-gray-500 uppercase">
+                          {deliveryQuote.distance_km} km
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 mt-3 pt-3 border-t border-green-200 dark:border-green-800">
-                      <Icon icon={FaClock} className="w-4 h-4 text-green-600" />
-                      <span>Estimated delivery: {deliveryQuote.estimated_duration_minutes} minutes</span>
-                    </div>
                     <button
-                      onClick={() => {
-                        setDeliveryQuote(null);
-                        getDeliveryQuote();
-                      }}
-                      className="mt-3 text-sm text-green-600 dark:text-green-400 hover:underline"
+                      onClick={getDeliveryQuote}
+                      className="mt-3 text-xs text-green-600 dark:text-green-400 hover:underline"
                     >
                       Refresh quote
                     </button>
@@ -426,6 +476,7 @@ export default function OrderSummaryPage() {
                 </button>
               </div>
             )}
+
 
             {/* Pickup: store hours and pickup time */}
             {orderType === 'pickup' && (

@@ -23,19 +23,21 @@ interface DeliveryAddressFormProps {
   selectedAddressId?: string | null;
   allowSave?: boolean;
   isAuthenticated?: boolean;
+  initialAddress?: DeliveryAddressInput | null;
 }
 
 export function DeliveryAddressForm({ 
   onAddressSelect, 
   selectedAddressId,
   allowSave = true,
-  isAuthenticated = false 
+  isAuthenticated = false,
+  initialAddress = null
 }: DeliveryAddressFormProps) {
   const [savedAddresses, setSavedAddresses] = useState<DeliveryAddress[]>([]);
   const [loadingAddresses, setLoadingAddresses] = useState(false);
   const [showNewAddressForm, setShowNewAddressForm] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
-  const [formData, setFormData] = useState<DeliveryAddressInput>({
+  const [formData, setFormData] = useState<DeliveryAddressInput>(initialAddress || {
     address_line1: '',
     address_line2: '',
     city: '',
@@ -43,6 +45,7 @@ export function DeliveryAddressForm({
     postcode: '',
     country: 'AU',
   });
+
   const [saving, setSaving] = useState(false);
   const [saveLabel, setSaveLabel] = useState('');
 
@@ -215,7 +218,7 @@ export function DeliveryAddressForm({
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Street Address *
               </label>
-              {process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ? (
+              {(process.env.NEXT_PUBLIC_GEOAPIFY_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY) ? (
                 <>
                   <AddressAutocomplete
                     value={formData.address_line1}
@@ -252,10 +255,11 @@ export function DeliveryAddressForm({
                     required
                   />
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
-                    Add NEXT_PUBLIC_GOOGLE_MAPS_API_KEY to enable address autocomplete
+                    Add NEXT_PUBLIC_GEOAPIFY_API_KEY to enable address autocomplete
                   </p>
                 </>
               )}
+
             </div>
 
             <div>

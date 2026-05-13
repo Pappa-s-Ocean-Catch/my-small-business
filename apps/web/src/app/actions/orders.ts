@@ -70,6 +70,11 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
       return { data: null, error: 'Order must contain at least one item' };
     }
 
+    // Enforce online payment for delivery orders
+    if (input.order_type === 'delivery' && input.payment_method !== 'online') {
+      return { data: null, error: 'Delivery orders require online payment' };
+    }
+
     // Pickup-time rules:
     // - If store is closed now: customer must pre-order and choose scheduled_pickup_at
     // - If scheduled_pickup_at is provided: it must fall within store opening hours

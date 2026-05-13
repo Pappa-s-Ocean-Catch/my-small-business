@@ -3,6 +3,7 @@ import Stripe from 'stripe';
 import { createServiceRoleClient } from '@my-small-business/supabase/server';
 import { updatePaymentStatus, updateOrderStatus } from '@/app/actions/orders';
 import { ensureOrderRewardPoints } from '@/app/actions/reward-points';
+import { getShipdayClient } from '@my-small-business/shipday';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const stripe = stripeSecretKey ? new Stripe(stripeSecretKey) : null;
@@ -139,6 +140,75 @@ export async function POST(request: Request) {
       const ensureResult = await ensureOrderRewardPoints(orderId);
       if (!ensureResult.success) {
         console.error('[Stripe Verify] Failed to ensure reward points:', ensureResult.error);
+      }
+
+      // Automatically create delivery in Shipday for delivery orders (post-payment)
+      try {
+        if (orderResult.data && orderResult.data.order_type === 'delivery') {
+          const shipdayKey = process.env.SHIPDAY_API_KEY;
+          if (!shipdayKey) {
+            console.log('[Shipday] SHIPDAY_API_KEY not configured — skipping delivery creation');
+          } else {
+            const client = getShipdayClient();
+
+            const pickupAddress = {
+              address_line1: process.env.STORE_ADDRESS_LINE1 || '123 Main Street',
+              address_line2: process.env.STORE_ADDRESS_LINE2 || null,
+              city: process.env.STORE_CITY || 'Melton',
+              state: process.env.STORE_STATE || 'VIC',
+              postcode: process.env.STORE_POSTCODE || '3337',
+              country: process.env.STORE_COUNTRY || 'AU',
+              latitude: process.env.STORE_LATITUDE ? Number(process.env.STORE_LATITUDE) : null,
+              longitude: process.env.STORE_LONGITUDE ? Number(process.env.STORE_LONGITUDE) : null,
+            };
+
+            const dropoffAddress = {
+              address_line1: orderResult.data.delivery_address_line1 || '',
+              address_line2: orderResult.data.delivery_address_line2 || null,
+              city: orderResult.data.delivery_city || '',
+              state: orderResult.data.delivery_state || '',
+              postcode: orderResult.data.delivery_postcode || '',
+              country: orderResult.data.delivery_country || 'AU',
+              latitude: orderResult.data.delivery_latitude ?? null,
+              longitude: orderResult.data.delivery_longitude ?? null,
+            };
+
+            const items = (orderResult.data.items || []).map((it: any) => ({
+              name: it.product_name,
+              quantity: Number(it.quantity) || 1,
+            }));
+
+            const assignDriver = !(process.env.SHIPDAY_TEST_MODE === 'true' || process.env.NODE_ENV !== 'production');
+
+            const shipRes = await client.createDelivery({
+              pickup_address: pickupAddress,
+              dropoff_address: dropoffAddress,
+              dropoff_phone_number: orderResult.data.customer_phone || undefined,
+              dropoff_contact_name: orderResult.data.customer_name || orderResult.data.customer_email || undefined,
+              external_order_id: orderId,
+              items,
+              special_instructions: orderResult.data.special_instructions || undefined,
+              assign_driver: assignDriver,
+            });
+
+            // Persist Shipday response to orders table (best-effort)
+            try {
+              const supabase = await createServiceRoleClient();
+              await supabase.from('orders').update({
+                delivery_provider: 'shipday',
+                delivery_provider_id: shipRes.delivery_id || null,
+                delivery_status: shipRes.status || 'delivery_created',
+                delivery_tracking_url: shipRes.tracking_url || null,
+                delivery_provider_response: shipRes.raw ? JSON.stringify(shipRes.raw) : null,
+              }).eq('id', orderId);
+              console.log('[Shipday] Delivery created and saved for order', orderId, shipRes.delivery_id);
+            } catch (dbErr) {
+              console.error('[Shipday] Failed to persist delivery info for order', orderId, dbErr);
+            }
+          }
+        }
+      } catch (shipErr) {
+        console.error('[Shipday] Error while creating delivery for order', orderId, shipErr);
       }
 
       console.log('[Stripe] Order updated successfully:', {

@@ -35,6 +35,7 @@ interface CreateCheckoutSessionBody {
   deliveryFee: number;
   rewardPointsDiscount?: number;
   currency?: string;
+  orderType?: 'pickup' | 'delivery' | null;
 }
 
 export async function POST(request: Request) {
@@ -69,9 +70,19 @@ export async function POST(request: Request) {
 
     // Calculate service fee (on amount after discounts)
     const rewardPointsDiscount = body.rewardPointsDiscount || 0;
-    const baseAmount = Math.max(0, body.subtotal + body.tax + body.deliveryFee - rewardPointsDiscount);
-    const serviceFee = baseAmount * STRIPE_PERCENT_FEE + STRIPE_FIXED_FEE;
-    const totalAmount = baseAmount + serviceFee;
+    
+    // Base amount is subtotal + tax - discounts (excluding delivery)
+    const orderBaseAmount = Math.max(0, body.subtotal + body.tax - rewardPointsDiscount);
+    
+    // Service fee calculation (matches frontend)
+    // 1.75% + 0.30c + $1.50 if delivery
+    const totalForFeeCalculation = Math.max(0, orderBaseAmount + body.deliveryFee);
+    let serviceFee = totalForFeeCalculation * STRIPE_PERCENT_FEE + STRIPE_FIXED_FEE;
+    if (body.orderType === 'delivery') {
+      serviceFee += 1.5;
+    }
+
+    const totalAmount = orderBaseAmount + body.deliveryFee + serviceFee;
 
     // Ensure minimum amount (Stripe requires at least $0.50 AUD = 50 cents)
     const amountInCents = Math.round(totalAmount * 100);
@@ -82,21 +93,34 @@ export async function POST(request: Request) {
     }
 
     // Build line items for Stripe Checkout
-    // Note: Promotions/reward points can change the payable amount while keeping item prices unchanged.
-    // To avoid mismatched totals, we charge a single "Order" line item and keep the breakdown in metadata.
     const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
       {
         price_data: {
           currency,
           product_data: {
             name: 'Order',
-            description: 'Food, tax, and delivery (after discounts)',
+            description: 'Food and tax (after discounts)',
           },
-          unit_amount: Math.round(baseAmount * 100),
+          unit_amount: Math.round(orderBaseAmount * 100),
         },
         quantity: 1,
       },
     ];
+
+    // Add delivery fee as a separate line item
+    if (body.deliveryFee > 0) {
+      lineItems.push({
+        price_data: {
+          currency,
+          product_data: {
+            name: 'Delivery Fee',
+            description: 'Shipping and handling',
+          },
+          unit_amount: Math.round(body.deliveryFee * 100),
+        },
+        quantity: 1,
+      });
+    }
 
     // Add service fee as a separate line item
     if (serviceFee > 0) {
@@ -105,13 +129,14 @@ export async function POST(request: Request) {
           currency,
           product_data: {
             name: 'Service Fee',
-            description: 'Payment processing fee',
+            description: body.orderType === 'delivery' ? 'Payment & Delivery Processing Fee' : 'Payment Processing Fee',
           },
           unit_amount: Math.round(serviceFee * 100),
         },
         quantity: 1,
       });
     }
+
 
     // Create Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({

@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { useCart } from "@/contexts/CartContext";
 import { OrderHeader } from "@/components/OrderHeader";
 import { createOrder, type OrderInput } from "@/app/actions/orders";
+import { createShipdayOrder } from "@/app/actions/shipday";
 import type { Order, OrderItem } from "@my-small-business/types/order";
 import { signUpCustomer } from "@/app/actions/customer-auth";
 import { completePhoneCustomerProfile } from "@/app/actions/customer-phone-auth";
@@ -490,9 +491,16 @@ export default function CheckoutPage() {
       0,
       subtotal + tax + deliveryFee - rewardPointsDiscount,
     );
-    const calculatedServiceFee = baseAmount * 0.0175 + 0.3; // Stripe fees
+    let calculatedServiceFee = baseAmount * 0.0175 + 0.3; // Stripe fees
+    
+    // Additional $1.50 processing fee for delivery orders
+    if (orderType === "delivery") {
+      calculatedServiceFee += 1.5;
+    }
+    
     setServiceFee(calculatedServiceFee);
-  }, [paymentMethod, subtotal, tax, deliveryFee, rewardPointsDiscount]);
+  }, [paymentMethod, subtotal, tax, deliveryFee, rewardPointsDiscount, orderType]);
+
 
   // Load order type and delivery info from sessionStorage
   useEffect(() => {
@@ -530,6 +538,14 @@ export default function CheckoutPage() {
       setScheduledPickupAt(storedScheduledPickupAt);
     }
   }, []);
+
+  // Set default payment method for delivery
+  useEffect(() => {
+    if (orderType === "delivery" && !paymentMethod) {
+      setPaymentMethod("online");
+    }
+  }, [orderType, paymentMethod]);
+
 
   // Load reward points if user is authenticated
   useEffect(() => {
@@ -732,6 +748,10 @@ export default function CheckoutPage() {
   }
 
   const handlePaymentMethodSelect = (method: PaymentMethod) => {
+    if (orderType === 'delivery' && method === 'store') {
+      setError("Delivery orders must be paid online.");
+      return;
+    }
     setPaymentMethod(method);
     setError(null);
     // Reset service fee when switching payment methods
@@ -1495,6 +1515,43 @@ export default function CheckoutPage() {
       });
 
       // Create order first (for both payment methods)
+      // For delivery, re-verify quote before creating order
+      if (orderType === 'delivery') {
+        try {
+          const qRes = await fetch('/api/delivery/quote', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              pickup_address: {
+                address_line1: process.env.NEXT_PUBLIC_STORE_ADDRESS_LINE1 || 'Shop 2/87 Unitt Street',
+                city: process.env.NEXT_PUBLIC_STORE_CITY || 'Melton',
+                state: process.env.NEXT_PUBLIC_STORE_STATE || 'VIC',
+                postcode: process.env.NEXT_PUBLIC_STORE_POSTCODE || '3337',
+                country: 'AU',
+                latitude: parseFloat(process.env.NEXT_PUBLIC_STORE_LATITUDE || '-37.678'),
+                longitude: parseFloat(process.env.NEXT_PUBLIC_STORE_LONGITUDE || '144.579'),
+              },
+
+              dropoff_address: deliveryAddress,
+            }),
+          });
+          const qData = await qRes.json();
+          if (!qRes.ok || !qData.success) {
+            throw new Error(qData.error || "Failed to re-verify delivery quote. Please try again.");
+          }
+          // Update local delivery fee if it changed
+          if (qData.data.fee !== deliveryFee) {
+            setDeliveryFee(qData.data.fee);
+            setDeliveryQuote(qData.data);
+            throw new Error(`Delivery fee has changed to $${qData.data.fee.toFixed(2)}. Please review your total and try again.`);
+          }
+        } catch (err: any) {
+          setError(err.message);
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       const result = await createOrder(orderInput);
 
       if (result.error) {
@@ -1596,7 +1653,9 @@ export default function CheckoutPage() {
               deliveryFee,
               rewardPointsDiscount: rewardPointsDiscount,
               currency: "aud",
+              orderType: orderType,
             }),
+
           },
         );
 

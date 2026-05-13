@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUberDirectClient } from '@/lib/uber-direct';
-import type { DeliveryAddress } from '@/lib/uber-direct';
+import { getShipdayClient } from '@my-small-business/shipday';
+import type { DeliveryAddress } from '@my-small-business/shipday';
 
 interface QuoteRequest {
   pickup_address: DeliveryAddress;
@@ -20,42 +20,26 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate address fields
-    if (!body.pickup_address.address_line1 || !body.pickup_address.city || 
-        !body.pickup_address.state || !body.pickup_address.postcode) {
+    if (!body.pickup_address.address_line1 || !body.pickup_address.city ||
+      !body.pickup_address.state || !body.pickup_address.postcode) {
       return NextResponse.json(
         { error: 'Pickup address is incomplete' },
         { status: 400 }
       );
     }
 
-    if (!body.dropoff_address.address_line1 || !body.dropoff_address.city || 
-        !body.dropoff_address.state || !body.dropoff_address.postcode) {
+    if (!body.dropoff_address.address_line1 || !body.dropoff_address.city ||
+      !body.dropoff_address.state || !body.dropoff_address.postcode) {
       return NextResponse.json(
         { error: 'Dropoff address is incomplete' },
         { status: 400 }
       );
     }
 
-    // Get store address from environment or use default
-    // TODO: Make this configurable in settings
-    const storeAddress: DeliveryAddress = {
-      address_line1: process.env.STORE_ADDRESS_LINE1 || '123 Main Street',
-      address_line2: process.env.STORE_ADDRESS_LINE2,
-      city: process.env.STORE_CITY || 'Melton',
-      state: process.env.STORE_STATE || 'VIC',
-      postcode: process.env.STORE_POSTCODE || '3337',
-      country: 'AU',
-      latitude: process.env.STORE_LATITUDE ? parseFloat(process.env.STORE_LATITUDE) : undefined,
-      longitude: process.env.STORE_LONGITUDE ? parseFloat(process.env.STORE_LONGITUDE) : undefined,
-    };
-
-    // Request quote from Uber Direct
-    const client = getUberDirectClient();
-    const quote = await client.requestQuote(storeAddress, body.dropoff_address);
-
-    // Calculate ETA in minutes
-    const etaMinutes = Math.ceil(quote.estimated_duration_seconds / 60);
-
+    // Request quote from Shipday
+    const client = getShipdayClient();
+    const quote = await client.requestQuote(body.pickup_address, body.dropoff_address);
+    console.log('[Delivery Quote] Received quote:', quote);
     return NextResponse.json({
       success: true,
       data: {
@@ -63,10 +47,9 @@ export async function POST(request: NextRequest) {
         fee: quote.fee,
         currency: quote.currency,
         expires_at: quote.expires_at,
-        estimated_pickup_time: quote.estimated_pickup_time,
-        estimated_delivery_time: quote.estimated_delivery_time,
         estimated_duration_seconds: quote.estimated_duration_seconds,
-        estimated_duration_minutes: etaMinutes,
+        estimated_duration_minutes: quote.estimated_duration_minutes,
+        distance_km: quote.distance_km,
       },
     });
   } catch (error) {
@@ -80,3 +63,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
