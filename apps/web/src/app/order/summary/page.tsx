@@ -10,6 +10,7 @@ import { OrderHeader } from '@/components/OrderHeader';
 import { ItemCustomizationModal } from '@/components/ItemCustomizationModal';
 import { OrderTypeSelector, type OrderType } from '@/components/OrderTypeSelector';
 import { DeliveryAddressForm, type DeliveryAddressInput } from '@/components/DeliveryAddressForm';
+import type { DeliveryQuote } from '@my-small-business/shipday';
 import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 import { getActivePromotions } from '@/app/actions/promotions';
 import { FaShoppingCart, FaArrowLeft, FaCheck, FaDollarSign, FaEdit, FaComment, FaTruck, FaClock, FaSpinner, FaTrash, FaMinus, FaPlus, FaMapMarkerAlt } from 'react-icons/fa';
@@ -54,13 +55,7 @@ export default function OrderSummaryPage() {
   const [orderType, setOrderType] = useState<OrderType | null>(null);
   const enableDelivery = flags?.enable_online_delivery ?? false;
   const [deliveryAddress, setDeliveryAddress] = useState<DeliveryAddressInput | null>(null);
-  const [deliveryQuote, setDeliveryQuote] = useState<{
-    quote_id: string;
-    fee: number;
-    currency: string;
-    expires_at: string;
-    estimated_duration_minutes: number;
-  } | null>(null);
+  const [deliveryQuote, setDeliveryQuote] = useState<DeliveryQuote | null>(null);
   const [loadingQuote, setLoadingQuote] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);

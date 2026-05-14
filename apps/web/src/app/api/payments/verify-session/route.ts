@@ -180,16 +180,39 @@ export async function POST(request: Request) {
 
             const assignDriver = !(process.env.SHIPDAY_TEST_MODE === 'true' || process.env.NODE_ENV !== 'production');
 
+            const pickupAddressStr = [
+              pickupAddress.address_line1,
+              pickupAddress.address_line2,
+              pickupAddress.city,
+              pickupAddress.state,
+              pickupAddress.postcode,
+              pickupAddress.country || 'AU'
+            ].filter(Boolean).join(', ');
+
+            const dropoffAddressStr = [
+              dropoffAddress.address_line1,
+              dropoffAddress.address_line2,
+              dropoffAddress.city,
+              dropoffAddress.state,
+              dropoffAddress.postcode,
+              dropoffAddress.country || 'AU'
+            ].filter(Boolean).join(', ');
+
             const shipRes = await client.createDelivery({
-              pickup_address: pickupAddress,
-              dropoff_address: dropoffAddress,
-              dropoff_phone_number: orderResult.data.customer_phone || undefined,
-              dropoff_contact_name: orderResult.data.customer_name || orderResult.data.customer_email || undefined,
-              external_order_id: orderId,
+              pickup_address: pickupAddressStr,
+              delivery_address: dropoffAddressStr,
+              customer_phone: orderResult.data.customer_phone || '',
+              customer_name: orderResult.data.customer_name || orderResult.data.customer_email || 'Customer',
+              customer_email: orderResult.data.customer_email || '',
+              external_order_id: orderResult.data.order_number || orderId,
               items,
-              special_instructions: orderResult.data.special_instructions || undefined,
+              special_instructions: [
+                orderResult.data.special_instructions,
+                orderResult.data.delivery_instructions ? `Delivery Instructions: ${orderResult.data.delivery_instructions}` : null
+              ].filter(Boolean).join('\n') || undefined,
               assign_driver: assignDriver,
             });
+
 
             // Persist Shipday response to orders table (best-effort)
             try {

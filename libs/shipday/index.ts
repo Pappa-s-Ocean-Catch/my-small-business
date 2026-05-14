@@ -1,3 +1,4 @@
+// @ts-ignore
 import Shipday from 'shipday';
 
 export interface DeliveryAddress {
@@ -44,6 +45,7 @@ export interface CreateDeliveryResponse {
   delivery_id: string;
   order_number: string;
   status: string;
+  tracking_url?: string;
   raw?: any;
 }
 
@@ -179,6 +181,7 @@ class ShipdayClient {
         delivery_id: response.orderId || response.id || '',
         order_number: response.orderNumber || '',
         status: 'created',
+        tracking_url: response.trackingUrl || response.tracking_url || '',
         raw: response
       };
     } catch (error) {

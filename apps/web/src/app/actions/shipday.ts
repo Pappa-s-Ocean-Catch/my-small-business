@@ -56,7 +56,10 @@ export async function createShipdayOrder(orderId: string) {
         quantity: item.quantity,
         unit_price: Number(item.base_price)
       })),
-      special_instructions: order.special_instructions,
+      special_instructions: [
+        order.special_instructions,
+        order.delivery_instructions ? `Delivery Instructions: ${order.delivery_instructions}` : null
+      ].filter(Boolean).join('\n'),
       // Dev mode: if SHIPDAY_TEST_MODE is true, we might want to flag it or handle it in the client
       assign_driver: process.env.SHIPDAY_TEST_MODE !== 'true'
     };

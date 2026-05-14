@@ -7,6 +7,7 @@ export interface DeliveryAddressInput {
   country?: string;
   latitude?: number;
   longitude?: number;
+  delivery_instructions?: string;
 }
 
 // Note: items type is flexible to allow different implementations
@@ -30,10 +31,11 @@ export interface OrderInput {
   delivery_quote_id?: string;
   delivery_quote_amount?: number;
   delivery_quote_currency?: string;
-  delivery_quote_expires_at?: string;
-  delivery_eta_minutes?: number;
+  delivery_quote_expires_at?: string | null;
+  delivery_eta_minutes?: number | null;
   reward_points_used?: number;
   reward_points_value?: number;
+  delivery_instructions?: string;
 
   // Promotions (optional)
   promotion_discount?: number;
@@ -129,6 +131,7 @@ export interface Order {
   delivery_driver_name: string | null;
   delivery_driver_phone: string | null;
   delivery_vehicle_info: string | null;
+  delivery_instructions: string | null;
   created_at: string;
   updated_at: string;
   scheduled_pickup_at: string | null;

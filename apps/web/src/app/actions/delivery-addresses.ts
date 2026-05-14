@@ -15,6 +15,7 @@ export interface DeliveryAddress {
   latitude: number | null;
   longitude: number | null;
   is_default: boolean;
+  delivery_instructions: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -30,6 +31,7 @@ export interface DeliveryAddressInput {
   latitude?: number;
   longitude?: number;
   is_default?: boolean;
+  delivery_instructions?: string;
 }
 
 /**
@@ -92,6 +94,7 @@ export async function createDeliveryAddress(
         latitude: input.latitude || null,
         longitude: input.longitude || null,
         is_default: input.is_default || false,
+        delivery_instructions: input.delivery_instructions || null,
       })
       .select()
       .single();
@@ -145,6 +148,7 @@ export async function updateDeliveryAddress(
     if (input.latitude !== undefined) updateData.latitude = input.latitude || null;
     if (input.longitude !== undefined) updateData.longitude = input.longitude || null;
     if (input.is_default !== undefined) updateData.is_default = input.is_default;
+    if (input.delivery_instructions !== undefined) updateData.delivery_instructions = input.delivery_instructions || null;
 
     const { data, error } = await supabase
       .from('delivery_addresses')

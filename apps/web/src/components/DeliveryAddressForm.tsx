@@ -16,6 +16,7 @@ export interface DeliveryAddressInput {
   country?: string;
   latitude?: number;
   longitude?: number;
+  delivery_instructions?: string;
 }
 
 interface DeliveryAddressFormProps {
@@ -44,6 +45,7 @@ export function DeliveryAddressForm({
     state: '',
     postcode: '',
     country: 'AU',
+    delivery_instructions: '',
   });
 
   const [saving, setSaving] = useState(false);
@@ -85,7 +87,9 @@ export function DeliveryAddressForm({
       country: address.country || 'AU',
       latitude: address.latitude || undefined,
       longitude: address.longitude || undefined,
+      delivery_instructions: (address as any).delivery_instructions || undefined,
     };
+
     onAddressSelect(addressInput);
     setShowNewAddressForm(false);
     setEditingAddressId(null);
@@ -317,6 +321,21 @@ export function DeliveryAddressForm({
                 placeholder="3337"
                 required
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Delivery Instructions (Optional)
+              </label>
+              <textarea
+                value={formData.delivery_instructions}
+                onChange={(e) => setFormData({ ...formData, delivery_instructions: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white min-h-[80px]"
+                placeholder="Gate code, drop-off spot, etc."
+              />
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
+                Visible to the delivery driver
+              </p>
             </div>
 
             {/* Save Address Option */}

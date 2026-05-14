@@ -14,6 +14,8 @@ import { signUpCustomer } from "@/app/actions/customer-auth";
 import { completePhoneCustomerProfile } from "@/app/actions/customer-phone-auth";
 import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { getActivePromotions } from "@/app/actions/promotions";
+import type { DeliveryQuote } from "@my-small-business/shipday";
+import type { DeliveryAddressInput } from "@my-small-business/types";
 import {
   getUserRewardPoints,
   useRewardPoints as useRewardPointsAction,
@@ -274,8 +276,8 @@ export default function CheckoutPage() {
   const [orderType, setOrderType] = useState<"pickup" | "delivery" | null>(
     null,
   );
-  const [deliveryAddress, setDeliveryAddress] = useState<any>(null);
-  const [deliveryQuote, setDeliveryQuote] = useState<any>(null);
+  const [deliveryAddress, setDeliveryAddress] = useState<DeliveryAddressInput | null>(null);
+  const [deliveryQuote, setDeliveryQuote] = useState<DeliveryQuote | null>(null);
   const [deliveryAddressEditable, setDeliveryAddressEditable] = useState(false);
   const [scheduledPickupAt, setScheduledPickupAt] = useState<string | null>(
     null,
@@ -1482,7 +1484,9 @@ export default function CheckoutPage() {
           country: deliveryAddress.country || "AU",
           latitude: deliveryAddress.latitude,
           longitude: deliveryAddress.longitude,
+          delivery_instructions: deliveryAddress.delivery_instructions,
         };
+        orderInput.delivery_instructions = deliveryAddress.delivery_instructions;
         orderInput.delivery_quote_id = deliveryQuote.quote_id;
         orderInput.delivery_quote_amount = deliveryQuote.fee;
         orderInput.delivery_quote_currency = deliveryQuote.currency;

@@ -34,10 +34,11 @@ export interface OrderInput {
   delivery_quote_id?: string;
   delivery_quote_amount?: number;
   delivery_quote_currency?: string;
-  delivery_quote_expires_at?: string;
-  delivery_eta_minutes?: number;
+  delivery_quote_expires_at?: string | null;
+  delivery_eta_minutes?: number | null;
   reward_points_used?: number;
   reward_points_value?: number;
+  delivery_instructions?: string;
 
   // Promotions & Coupons
   promotion_discount?: number;
@@ -182,6 +183,7 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
       reward_points_used: input.reward_points_used ?? null,
       reward_points_value: input.reward_points_value ?? null,
       special_instructions: input.special_instructions || null,
+      delivery_instructions: input.delivery_instructions || null,
       scheduled_pickup_at: input.scheduled_pickup_at ?? null,
     };
 
