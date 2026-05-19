@@ -75,7 +75,7 @@ export async function createShipdayOrder(orderId: string) {
       .from('orders')
       .update({
         delivery_quote_id: res.delivery_id, // Store Shipday delivery ID here
-        delivery_status: 'ready_for_pickup' // Shipday status equivalent
+        delivery_status: 'delivery_created' // Shipday status equivalent
       })
       .eq('id', orderId);
 

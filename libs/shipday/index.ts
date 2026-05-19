@@ -163,8 +163,9 @@ class ShipdayClient {
       expectedDeliveryTime: new Date(Date.now() + 45 * 60 * 1000).toLocaleTimeString('en-AU', { hour12: false }),
       deliveryFee: req.delivery_fee || 0,
       tips: req.tips || 0,
-      totalAmount: req.total_amount || 0,
+      totalOrderCost: req.total_amount || 0,
       tax: req.tax || 0,
+      deliveryInstruction: req.special_instructions || '',
       orderItem: req.items?.map(i => ({
         name: i.name,
         quantity: i.quantity,
@@ -175,7 +176,12 @@ class ShipdayClient {
     console.log('[Shipday SDK] Inserting order with payload:', JSON.stringify(payload, null, 2));
 
     try {
-      const response = await this.sdk.orderService.insertOrder(payload);
+      // The shipday SDK expects an OrderInfoRequest object that has a getRequestBody() method
+      const shipdayRequest = {
+        getRequestBody: () => payload
+      };
+      
+      const response = await this.sdk.orderService.insertOrder(shipdayRequest);
       console.log('[Shipday SDK] Response received:', JSON.stringify(response, null, 2));
       return {
         delivery_id: response.orderId || response.id || '',

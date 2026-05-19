@@ -79,6 +79,7 @@ export async function POST(request: Request) {
       }
 
       // Trigger Shipday order creation if it's a delivery order
+      console.log(`[Stripe Webhook] Checking if order requires Shipday. Order type: ${order?.order_type}`);
       if (order.order_type === 'delivery') {
         try {
           console.log(`[Stripe Webhook] Order ${order.id} is delivery. Triggering Shipday...`);
@@ -138,6 +139,7 @@ export async function POST(request: Request) {
   if (event.type === 'payment_intent.succeeded') {
     const paymentIntent = event.data.object as Stripe.PaymentIntent;
     const orderId = paymentIntent.metadata?.order_id;
+    console.log(`[Stripe Webhook] Handling payment_intent.succeeded. Order ID from metadata: ${orderId}`);
 
     if (orderId) {
       try {
@@ -163,7 +165,24 @@ export async function POST(request: Request) {
           console.log('[Stripe Webhook] Order updated from payment_intent:', {
             orderId: order.id,
             orderNumber: order.order_number,
+            orderType: order.order_type
           });
+
+          // Also trigger Shipday if it is delivery here, just in case session completed was missed
+          if (order.order_type === 'delivery') {
+            try {
+              console.log(`[Stripe Webhook] Order ${order.id} is delivery (from payment_intent fallback). Triggering Shipday...`);
+              const { createShipdayOrder } = await import('@/app/actions/shipday');
+              const shipdayResult = await createShipdayOrder(order.id);
+              if (!shipdayResult.success) {
+                console.error('[Stripe Webhook] Failed to create Shipday order (fallback):', shipdayResult.error);
+              } else {
+                console.log('[Stripe Webhook] Shipday order created successfully (fallback):', shipdayResult.deliveryId);
+              }
+            } catch (shipdayErr) {
+              console.error('[Stripe Webhook] Error calling createShipdayOrder (fallback):', shipdayErr);
+            }
+          }
         }
       } catch (error) {
         console.error('[Stripe Webhook] Error processing payment_intent.succeeded:', error);
