@@ -3,11 +3,11 @@ import { GoogleGenerativeAI, Part } from '@google/generative-ai';
 // Initialize Google Generative AI
 export function getGoogleGenAI() {
   const apiKey = process.env.GOOGLE_AI_API_KEY;
-  
+
   if (!apiKey) {
     throw new Error('GOOGLE_AI_API_KEY environment variable is not set');
   }
-  
+
   return new GoogleGenerativeAI(apiKey);
 }
 
@@ -150,7 +150,7 @@ export async function generateProductImage({
 }): Promise<{ imageBase64: string; error?: string }> {
   try {
     const genAI = getGoogleGenAI();
-    
+
     // Build the prompt - be very explicit about wanting an image
     let prompt = `Generate a high-quality, appetizing food product image for "${productName}". 
     
@@ -172,15 +172,15 @@ export async function generateProductImage({
       - CRITICAL: Text must be positioned in the top-right corner only, not near the food
       - Use dim, muted colors (light gray, off-white) to ensure text doesn't compete with food
       - Text should be subtle and not draw attention away from the main food subject`;
-    
+
     if (category) {
       prompt += `Category: ${category}. `;
     }
-    
+
     if (description) {
       prompt += `Description: ${description}. `;
     }
-    
+
     if (ingredients && ingredients.length > 0) {
       // Process ingredients to make them more specific for food photography
       const processedIngredients = ingredients.map(ingredient => {
@@ -209,14 +209,14 @@ export async function generateProductImage({
       });
       prompt += `Key ingredients: ${processedIngredients.join(', ')}. `;
     }
-    
+
     if (context) {
       prompt += `Context: ${context}. `;
     }
-    
-        // Enhanced prompt for reference image usage
-        if (referenceImageBase64) {
-          prompt += `CRITICAL INSTRUCTIONS: You must create a COMPLETELY NEW and ENHANCED image based on the reference. Do NOT simply copy or reproduce the reference image. Instead, create a dramatically improved version with these specific transformations:
+
+    // Enhanced prompt for reference image usage
+    if (referenceImageBase64) {
+      prompt += `CRITICAL INSTRUCTIONS: You must create a COMPLETELY NEW and ENHANCED image based on the reference. Do NOT simply copy or reproduce the reference image. Instead, create a dramatically improved version with these specific transformations:
 
           MANDATORY TRANSFORMATIONS:
           - COMPLETELY REMOVE the background - replace with clean white or transparent background
@@ -260,8 +260,8 @@ export async function generateProductImage({
       - Professional quality suitable for restaurant use
       
       IMPORTANT: Generate the image in JPEG format for web optimization and smaller file size.`;
-        } else {
-          prompt += `Create a professional, well-lit food photography image that showcases the product attractively. Style: clean, modern food photography with good composition and appetizing presentation. This should be a restaurant menu item photo - generate an actual image file, not just a description.
+    } else {
+      prompt += `Create a professional, well-lit food photography image that showcases the product attractively. Style: clean, modern food photography with good composition and appetizing presentation. This should be a restaurant menu item photo - generate an actual image file, not just a description.
           
           FOOD PREPARATION GUIDELINES:
           - For burgers and sandwiches: use sliced lettuce leaves, not whole lettuce heads
@@ -297,7 +297,7 @@ export async function generateProductImage({
       
       IMPORTANT: Generate the image in JPEG format for web optimization and smaller file size.`;
     }
-    
+
     // Debug: Log the full prompt being sent to AI
     console.log('🤖 AI Image Generation Prompt:', {
       productName,
@@ -309,7 +309,7 @@ export async function generateProductImage({
       context,
       hasReferenceImage: !!referenceImageBase64
     });
-    
+
     // Use the correct model that supports image generation
     const modelsToTry = [
       'gemini-2.5-flash-image',
@@ -317,20 +317,20 @@ export async function generateProductImage({
       'gemini-1.5-pro',
       'gemini-1.5-flash'
     ];
-    
+
     let lastError = null;
-    
+
     for (const modelName of modelsToTry) {
       try {
         const model = genAI.getGenerativeModel({ model: modelName });
-    
+
         // Prepare the content parts
         const parts: Part[] = [
           {
             text: prompt
           }
         ];
-        
+
         // Add reference image if provided
         if (referenceImageBase64) {
           parts.push({
@@ -344,12 +344,12 @@ export async function generateProductImage({
             text: "This is the reference image. DO NOT copy it directly. Instead, use it as inspiration to create a COMPLETELY NEW, dramatically enhanced version with professional food photography styling, background removal, enhanced colors, and square format. The result should look like a different, more professional photo."
           });
         }
-        
+
         // Try streaming first for image generation
         let imageData = null;
         try {
           const result = await model.generateContentStream(parts);
-          
+
           for await (const chunk of result.stream) {
             if (chunk.candidates?.[0]?.content?.parts) {
               for (const part of chunk.candidates[0].content.parts) {
@@ -365,7 +365,7 @@ export async function generateProductImage({
           // Fallback to regular generateContent
           const result = await model.generateContent(parts);
           const response = await result.response;
-          
+
           // Get the generated image - check multiple possible locations
           if (response.candidates?.[0]?.content?.parts) {
             for (const part of response.candidates[0].content.parts) {
@@ -376,51 +376,51 @@ export async function generateProductImage({
             }
           }
         }
-        
+
         // If still no image, log that no image was generated
         if (!imageData) {
           console.log(`Model ${modelName} returned text instead of image or no image data found`);
           console.log('Available models for image generation may be limited. Consider using specialized image generation services.');
         }
-        
+
         if (imageData) {
           // Convert to base64 and compress if needed
           const imageBase64 = imageData.data;
-          
+
           // Check size and compress if necessary
           const sizeInBytes = (imageBase64.length * 3) / 4; // Approximate size
           const sizeInKB = sizeInBytes / 1024;
-          
+
           if (sizeInKB > maxSizeKB) {
             console.warn(`Generated image is ${sizeInKB.toFixed(2)}KB, which exceeds the ${maxSizeKB}KB limit`);
           }
-          
+
           return { imageBase64 };
         } else {
           console.log(`Model ${modelName} did not generate an image, trying next model...`);
           lastError = new Error(`Model ${modelName} did not generate an image`);
         }
-        
+
       } catch (modelError) {
         lastError = modelError;
         continue; // Try next model
       }
     }
-    
+
     // If we get here, all models failed to generate images
     console.error('All models failed to generate images. This may be due to API limitations or model availability.');
-    
+
     // Return a helpful error message
-    return { 
-      imageBase64: '', 
-      error: 'Unable to generate image at this time. Please try again later or use the traditional image upload feature.' 
+    return {
+      imageBase64: '',
+      error: 'Unable to generate image at this time. Please try again later or use the traditional image upload feature.'
     };
-    
+
   } catch (error) {
     console.error('Error generating image:', error);
-    return { 
-      imageBase64: '', 
-      error: error instanceof Error ? error.message : 'Failed to generate image' 
+    return {
+      imageBase64: '',
+      error: error instanceof Error ? error.message : 'Failed to generate image'
     };
   }
 }
@@ -430,7 +430,7 @@ export async function analyzeAndEnhanceImage(imageBase64: string, prompt: string
   try {
     const genAI = getGoogleGenAI();
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-image' });
-    
+
     const result = await model.generateContent([
       {
         inlineData: {
@@ -440,17 +440,17 @@ export async function analyzeAndEnhanceImage(imageBase64: string, prompt: string
       },
       prompt
     ]);
-    
+
     const response = await result.response;
     const analysis = response.text();
-    
+
     return { analysis };
-    
+
   } catch (error) {
     console.error('Error analyzing image:', error);
-    return { 
-      analysis: '', 
-      error: error instanceof Error ? error.message : 'Failed to analyze image' 
+    return {
+      analysis: '',
+      error: error instanceof Error ? error.message : 'Failed to analyze image'
     };
   }
 }
@@ -465,7 +465,7 @@ export async function generateMarketingEmail({
 }): Promise<{ subject: string; htmlBody: string; error?: string }> {
   try {
     const genAI = getGoogleGenAI();
-    const modelsToTry = ['gemini-2.5-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'];
+    const modelsToTry = ['gemini-flash-latest'];
     let parsedResult: { subject: string; htmlBody: string } | null = null;
     let lastError: any = null;
     const prompt = `You are a professional marketing copywriter for a restaurant/shop named "${storeName}".

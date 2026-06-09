@@ -133,6 +133,8 @@ export default function OrderDetailScreen() {
   };
 
   const generatePrintHTML = (order: Order): string => {
+    const rewardPointsUsed = order.reward_points_used ?? 0;
+    const rewardPointsValue = order.reward_points_value ?? 0;
     const itemsHTML = order.items?.map(item => {
       const addonsHTML = item.addons?.map(addon =>
         `<li>+ ${addon.addon_item_name} (${addon.addon_group_name}) - $${addon.addon_item_price.toFixed(2)}</li>`
@@ -196,6 +198,9 @@ export default function OrderDetailScreen() {
             <p>Subtotal: $${order.subtotal.toFixed(2)}</p>
             ${order.tax > 0 ? `<p>Tax: $${order.tax.toFixed(2)}</p>` : ''}
             ${order.delivery_fee > 0 ? `<p>Delivery Fee: $${order.delivery_fee.toFixed(2)}</p>` : ''}
+            ${order.promotion_discount > 0 ? `<p style="color: #16a34a;">Promotion Discount: -$${order.promotion_discount.toFixed(2)}</p>` : ''}
+            ${order.coupon_discount > 0 ? `<p style="color: #16a34a;">Coupon (${order.coupon_code}): -$${order.coupon_discount.toFixed(2)}</p>` : ''}
+            ${rewardPointsUsed > 0 && rewardPointsValue > 0 ? `<p style="color: #16a34a;">Points Applied (${rewardPointsUsed.toLocaleString()} pts): -$${rewardPointsValue.toFixed(2)}</p>` : ''}
             ${order.service_fee > 0 ? `<p>Service Fee: $${order.service_fee.toFixed(2)}</p>` : ''}
             <p>Total: $${order.total.toFixed(2)}</p>
           </div>
@@ -226,6 +231,8 @@ export default function OrderDetailScreen() {
 
   const statusColor = STATUS_COLORS[order.order_status];
   const statusLabel = STATUS_LABELS[order.order_status];
+  const rewardPointsUsed = order.reward_points_used ?? 0;
+  const rewardPointsValue = order.reward_points_value ?? 0;
 
   return (
     <ScrollView style={styles.container}>
@@ -243,14 +250,27 @@ export default function OrderDetailScreen() {
           <View style={[styles.statusBadge, isPortrait && styles.statusBadgePortrait, { backgroundColor: statusColor, marginBottom: 8 }]}>
             <Text style={styles.statusText}>{statusLabel}</Text>
           </View>
-          <Button 
-            mode="contained" 
-            icon="printer" 
-            onPress={handlePrint}
-            style={styles.headerPrintButton}
-          >
-            Print
-          </Button>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {order.order_status !== 'completed' && order.order_status !== 'cancelled' && (
+              <Button 
+                mode="contained" 
+                icon="pencil" 
+                onPress={() => router.push(`/pos?orderId=${order.id}`)}
+                style={styles.headerEditButton}
+                buttonColor="#2563eb"
+              >
+                Edit
+              </Button>
+            )}
+            <Button 
+              mode="contained" 
+              icon="printer" 
+              onPress={handlePrint}
+              style={styles.headerPrintButton}
+            >
+              Print
+            </Button>
+          </View>
         </View>
       </View>
 
@@ -339,6 +359,26 @@ export default function OrderDetailScreen() {
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Delivery Fee:</Text>
               <Text style={styles.totalValue}>${order.delivery_fee.toFixed(2)}</Text>
+            </View>
+          )}
+          {order.promotion_discount > 0 && (
+            <View style={styles.totalRow}>
+              <Text style={[styles.totalLabel, styles.discountLabel]}>Promotion Discount:</Text>
+              <Text style={[styles.totalValue, styles.discountValue]}>-${order.promotion_discount.toFixed(2)}</Text>
+            </View>
+          )}
+          {order.coupon_discount > 0 && (
+            <View style={styles.totalRow}>
+              <Text style={[styles.totalLabel, styles.discountLabel]}>Coupon ({order.coupon_code}):</Text>
+              <Text style={[styles.totalValue, styles.discountValue]}>-${order.coupon_discount.toFixed(2)}</Text>
+            </View>
+          )}
+          {rewardPointsUsed > 0 && rewardPointsValue > 0 && (
+            <View style={styles.totalRow}>
+              <Text style={[styles.totalLabel, styles.discountLabel]}>
+                Points Applied ({rewardPointsUsed.toLocaleString()} pts):
+              </Text>
+              <Text style={[styles.totalValue, styles.discountValue]}>-${rewardPointsValue.toFixed(2)}</Text>
             </View>
           )}
           {order.service_fee > 0 && (
@@ -603,6 +643,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#1a1a1a',
   },
+  discountLabel: {
+    color: '#10b981',
+  },
+  discountValue: {
+    color: '#10b981',
+  },
   finalTotal: {
     marginTop: 12,
     paddingTop: 12,
@@ -632,6 +678,9 @@ const styles = StyleSheet.create({
   },
   headerPrintButton: {
     backgroundColor: '#2563eb',
+    borderRadius: 8,
+  },
+  headerEditButton: {
     borderRadius: 8,
   },
   snackbar: {

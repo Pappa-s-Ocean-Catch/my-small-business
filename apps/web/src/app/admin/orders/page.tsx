@@ -404,6 +404,8 @@ export default function OrdersPage() {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
+    const rewardPointsUsed = order.reward_points_used ?? 0;
+    const rewardPointsValue = order.reward_points_value ?? 0;
     const printContent = `
       <!DOCTYPE html>
       <html>
@@ -454,6 +456,9 @@ export default function OrdersPage() {
             <p>Subtotal: $${order.subtotal.toFixed(2)}</p>
             ${order.tax > 0 ? `<p>Tax: $${order.tax.toFixed(2)}</p>` : ''}
             ${order.delivery_fee > 0 ? `<p>Delivery Fee: $${order.delivery_fee.toFixed(2)}</p>` : ''}
+            ${order.promotion_discount > 0 ? `<p style="color: #16a34a;">Promotion Discount: -$${order.promotion_discount.toFixed(2)}</p>` : ''}
+            ${order.coupon_discount > 0 ? `<p style="color: #16a34a;">Coupon (${order.coupon_code}): -$${order.coupon_discount.toFixed(2)}</p>` : ''}
+            ${rewardPointsUsed > 0 && rewardPointsValue > 0 ? `<p style="color: #16a34a;">Points Applied (${rewardPointsUsed.toLocaleString()} pts): -$${rewardPointsValue.toFixed(2)}</p>` : ''}
             ${order.service_fee > 0 ? `<p>Service Fee: $${order.service_fee.toFixed(2)}</p>` : ''}
             <p>Total: $${order.total.toFixed(2)}</p>
           </div>
@@ -945,6 +950,26 @@ export default function OrdersPage() {
                           <div className="flex justify-between items-center mb-2">
                             <span className="text-gray-600 dark:text-gray-400">Delivery Fee</span>
                             <span className="text-gray-900 dark:text-white">${selectedOrder.delivery_fee.toFixed(2)}</span>
+                          </div>
+                        )}
+                        {selectedOrder.promotion_discount > 0 && (
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-green-700 dark:text-green-400">Promotion Discount</span>
+                            <span className="text-green-700 dark:text-green-400">-${selectedOrder.promotion_discount.toFixed(2)}</span>
+                          </div>
+                        )}
+                        {selectedOrder.coupon_discount > 0 && (
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-green-700 dark:text-green-400">Coupon ({selectedOrder.coupon_code})</span>
+                            <span className="text-green-700 dark:text-green-400">-${selectedOrder.coupon_discount.toFixed(2)}</span>
+                          </div>
+                        )}
+                        {(selectedOrder.reward_points_used ?? 0) > 0 && (selectedOrder.reward_points_value ?? 0) > 0 && (
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-green-700 dark:text-green-400">
+                              Points Applied ({selectedOrder.reward_points_used?.toLocaleString()} pts)
+                            </span>
+                            <span className="text-green-700 dark:text-green-400">-${selectedOrder.reward_points_value?.toFixed(2)}</span>
                           </div>
                         )}
                         {selectedOrder.service_fee > 0 && (

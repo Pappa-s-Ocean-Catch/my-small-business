@@ -2,13 +2,60 @@ import * as React from 'react';
 import { EmailLayout } from './components/EmailLayout';
 import { Tailwind } from '@react-email/tailwind';
 import { Container, Section, Text } from '@react-email/components';
-import { format, parseISO, isToday } from 'date-fns';
 import type { Order, OrderItem, OrderItemAddon } from '@my-small-business/types';
 
 interface OrderPlacedEmailProps {
     order: Order;
     businessName?: string;
     logoUrl?: string;
+}
+
+const STORE_TIME_ZONE = 'Australia/Melbourne';
+
+function getDateTimeParts(date: Date, options: Intl.DateTimeFormatOptions) {
+    return Object.fromEntries(
+        new Intl.DateTimeFormat('en-US', {
+            timeZone: STORE_TIME_ZONE,
+            ...options,
+        }).formatToParts(date).map((part) => [part.type, part.value])
+    );
+}
+
+function formatMelbournePickupTime(dateValue: string) {
+    const date = new Date(dateValue);
+    if (Number.isNaN(date.getTime())) return dateValue;
+
+    const todayInMelbourne = new Intl.DateTimeFormat('en-CA', {
+        timeZone: STORE_TIME_ZONE,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    }).format(new Date());
+    const pickupDayInMelbourne = new Intl.DateTimeFormat('en-CA', {
+        timeZone: STORE_TIME_ZONE,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    }).format(date);
+
+    if (pickupDayInMelbourne === todayInMelbourne) {
+        const parts = getDateTimeParts(date, {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+        });
+        return `${parts.hour}:${parts.minute} ${parts.dayPeriod}`;
+    }
+
+    const parts = getDateTimeParts(date, {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+    });
+    return `${parts.weekday}, ${parts.month} ${parts.day} @ ${parts.hour}:${parts.minute} ${parts.dayPeriod}`;
 }
 
 function renderItem(item: OrderItem) {
@@ -32,6 +79,8 @@ function renderItem(item: OrderItem) {
 }
 export const OrderPlacedEmail = ({ order, businessName = 'OperateFlow', logoUrl }: OrderPlacedEmailProps) => {
     const greetingName = order.customer_name && order.customer_name.trim().length > 0 ? order.customer_name : 'there';
+    const rewardPointsUsed = order.reward_points_used ?? 0;
+    const rewardPointsValue = order.reward_points_value ?? 0;
     // Use env or fallback for site URL
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.pappasfishnchips.com.au';
     const orderLink = `${siteUrl}/order/confirmation?order=${order.order_number}`;
@@ -61,9 +110,7 @@ export const OrderPlacedEmail = ({ order, businessName = 'OperateFlow', logoUrl 
                         {order.scheduled_pickup_at ? (
                             <Text className="text-base text-gray-700 mb-2 m-0">
                                 Your order is scheduled for {order.order_type === 'delivery' ? 'delivery' : 'pickup'} at <strong>{
-                                    isToday(parseISO(order.scheduled_pickup_at))
-                                        ? format(parseISO(order.scheduled_pickup_at), 'h:mm a')
-                                        : format(parseISO(order.scheduled_pickup_at), 'EEEE, MMMM do @ h:mm a')
+                                    formatMelbournePickupTime(order.scheduled_pickup_at)
                                 }</strong>.
                             </Text> 
                         ) : (
@@ -85,6 +132,9 @@ export const OrderPlacedEmail = ({ order, businessName = 'OperateFlow', logoUrl 
                             )}
                             {(order.coupon_discount ?? 0) > 0 && (
                                 <Text className="text-base text-green-700 m-0">Coupon ({order.coupon_code}): -${Number(order.coupon_discount).toFixed(2)}</Text>
+                            )}
+                            {rewardPointsUsed > 0 && rewardPointsValue > 0 && (
+                                <Text className="text-base text-green-700 m-0">Points Applied ({rewardPointsUsed.toLocaleString()} pts): -${rewardPointsValue.toFixed(2)}</Text>
                             )}
                             {order.tax > 0 && <Text className="text-base text-gray-700 m-0">Tax: ${order.tax.toFixed(2)}</Text>}
                             {order.delivery_fee > 0 && <Text className="text-base text-gray-700 m-0">Delivery: ${order.delivery_fee.toFixed(2)}</Text>}

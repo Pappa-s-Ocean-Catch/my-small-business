@@ -13,6 +13,8 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ order, width =
     return (amount || 0).toFixed(2);
   };
 
+  const rewardPointsUsed = order.reward_points_used ?? 0;
+  const rewardPointsValue = order.reward_points_value ?? 0;
   const createdDate = new Date(order.created_at).toLocaleString();
   const pickupDisplay = order.scheduled_pickup_at
     ? new Date(order.scheduled_pickup_at).toLocaleString([], {
@@ -107,6 +109,12 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ order, width =
             <Text style={styles.normalText}>${formatMoney(order.tax)}</Text>
           </View>
         )}
+        {order.delivery_fee > 0 && (
+          <View style={styles.totalRow}>
+            <Text style={styles.normalText}>Delivery Fee:</Text>
+            <Text style={styles.normalText}>${formatMoney(order.delivery_fee)}</Text>
+          </View>
+        )}
         {order.promotion_discount > 0 && (
           <View style={styles.totalRow}>
             <Text style={styles.normalText}>Promotions:</Text>
@@ -117,6 +125,12 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ order, width =
           <View style={styles.totalRow}>
             <Text style={styles.normalText}>Coupon ({order.coupon_code}):</Text>
             <Text style={styles.normalText}>-${formatMoney(order.coupon_discount)}</Text>
+          </View>
+        )}
+        {rewardPointsUsed > 0 && rewardPointsValue > 0 && (
+          <View style={styles.totalRow}>
+            <Text style={styles.normalText}>Points ({rewardPointsUsed.toLocaleString()}):</Text>
+            <Text style={styles.normalText}>-${formatMoney(rewardPointsValue)}</Text>
           </View>
         )}
         {order.service_fee > 0 && (

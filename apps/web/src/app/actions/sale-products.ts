@@ -129,6 +129,7 @@ export interface SaleProduct {
   slug: string | null;
   name: string;
   description: string | null;
+  search_term: string | null;
   seo_title: string | null;
   seo_description: string | null;
   seo_text: string | null;
@@ -350,6 +351,7 @@ export async function getSaleProducts(): Promise<{ data: SaleProductWithDetails[
         slug,
         name,
         description,
+        search_term,
         seo_title,
         seo_description,
         seo_text,
@@ -622,6 +624,7 @@ export async function getSaleProduct(id: string): Promise<{ data: SaleProductWit
 export async function createSaleProduct(formData: {
   name: string;
   description?: string;
+  search_term?: string;
   slug?: string;
   seo_title?: string;
   seo_description?: string;
@@ -658,6 +661,7 @@ export async function createSaleProduct(formData: {
       .insert([{
         name: formData.name,
         description: formData.description || null,
+        search_term: formData.search_term && formData.search_term.trim() ? formData.search_term.trim() : null,
         slug: formData.slug && formData.slug.trim() ? formData.slug.trim() : null,
         seo_title: formData.seo_title && formData.seo_title.trim() ? formData.seo_title.trim() : null,
         seo_description: formData.seo_description && formData.seo_description.trim() ? formData.seo_description.trim() : null,
@@ -789,6 +793,7 @@ export async function updateSaleProduct(
   formData: {
     name: string;
     description?: string;
+    search_term?: string;
     slug?: string;
     seo_title?: string;
     seo_description?: string;
@@ -827,6 +832,7 @@ export async function updateSaleProduct(
       .update({
         name: formData.name,
         description: formData.description || null,
+        search_term: formData.search_term && formData.search_term.trim() ? formData.search_term.trim() : null,
         slug: formData.slug && formData.slug.trim() ? formData.slug.trim() : null,
         seo_title: formData.seo_title && formData.seo_title.trim() ? formData.seo_title.trim() : null,
         seo_description: formData.seo_description && formData.seo_description.trim() ? formData.seo_description.trim() : null,

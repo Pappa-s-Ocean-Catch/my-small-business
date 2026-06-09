@@ -169,6 +169,11 @@ export function buildKitchenReceiptLines(order: Order): ReceiptLine[] {
   lines.push(`Subtotal: $${formatMoney(order.subtotal)}`);
   if (order.tax > 0) lines.push(`Tax:      $${formatMoney(order.tax)}`);
   if (order.delivery_fee > 0) lines.push(`Delivery: $${formatMoney(order.delivery_fee)}`);
+  if (order.promotion_discount > 0) lines.push(`Promo:   -$${formatMoney(order.promotion_discount)}`);
+  if (order.coupon_discount > 0) lines.push(`Coupon:  -$${formatMoney(order.coupon_discount)}`);
+  if ((order.reward_points_used ?? 0) > 0 && (order.reward_points_value ?? 0) > 0) {
+    lines.push(`Points:  -$${formatMoney(order.reward_points_value ?? 0)} (${(order.reward_points_used ?? 0).toLocaleString()} pts)`);
+  }
   if (order.service_fee > 0) lines.push(`Service:  $${formatMoney(order.service_fee)}`);
 
   // Payment status to the right of TOTAL line

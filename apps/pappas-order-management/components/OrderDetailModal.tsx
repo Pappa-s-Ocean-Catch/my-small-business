@@ -12,6 +12,7 @@ import { STATUS_COLORS, STATUS_LABELS, PAYMENT_STATUS_COLORS, PAYMENT_STATUS_LAB
 import { paymentSummary, getNextQuickAction, groupAddons } from '../utils/orderUtils';
 import type { AppSettings } from '../lib/settings';
 import { DEFAULT_APP_SETTINGS } from '../lib/settings';
+import { useRouter } from 'expo-router';
 
 interface OrderDetailModalProps {
   visible: boolean;
@@ -49,6 +50,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   printImageUri,
   appSettings = DEFAULT_APP_SETTINGS,
 }) => {
+  const router = useRouter();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [toastVisible, setToastVisible] = React.useState(false);
@@ -63,6 +65,8 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const paymentLabel = PAYMENT_STATUS_LABELS[order.payment_status];
   const quickAction = getNextQuickAction(order.order_status);
   const isUpdating = updatingStatus === order.id;
+  const rewardPointsUsed = order.reward_points_used ?? 0;
+  const rewardPointsValue = order.reward_points_value ?? 0;
 
   const handleInternalPrint = async () => {
     let success = false;
@@ -261,6 +265,14 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                   <Text style={[styles.totalValue, { color: '#10b981' }]}>-${order.coupon_discount.toFixed(2)}</Text>
                 </View>
               )}
+              {rewardPointsUsed > 0 && rewardPointsValue > 0 && (
+                <View style={styles.totalRow}>
+                  <Text style={[styles.totalLabel, { color: '#10b981' }]}>
+                    Points Applied ({rewardPointsUsed.toLocaleString()} pts)
+                  </Text>
+                  <Text style={[styles.totalValue, { color: '#10b981' }]}>-${rewardPointsValue.toFixed(2)}</Text>
+                </View>
+              )}
               {order.service_fee > 0 && (
                 <View style={styles.totalRow}>
                   <Text style={styles.totalLabel}>Service Fee</Text>
@@ -295,6 +307,18 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     { text: 'No', style: 'cancel' },
                     { text: 'Yes, Cancel', onPress: () => onStatusUpdate!(order, 'cancelled'), style: 'destructive' }
                   ]);
+                }} 
+                style={styles.secondaryButton} 
+              />
+            )}
+            {order.order_status !== 'completed' && order.order_status !== 'cancelled' && (
+              <IconButton 
+                icon="pencil" 
+                mode="outlined" 
+                iconColor="#2563eb" 
+                onPress={() => {
+                  onClose();
+                  router.push(`/pos?orderId=${order.id}`);
                 }} 
                 style={styles.secondaryButton} 
               />

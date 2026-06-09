@@ -1,3 +1,4 @@
+import React from 'react';
 import { Tabs } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'expo-router';
@@ -29,7 +30,10 @@ export default function TabsLayout() {
           <Appbar.Action icon="menu" onPress={handleOpenDrawer} iconColor="#fff" />
         ),
         headerRight: () => (
-          <Appbar.Action icon="account-circle" onPress={handleOpenDrawer} iconColor="#fff" />
+          <React.Fragment>
+            <Appbar.Action icon="cash-register" onPress={() => router.push('/pos')} iconColor="#fff" />
+            <Appbar.Action icon="account-circle" onPress={handleOpenDrawer} iconColor="#fff" />
+          </React.Fragment>
         ),
         tabBarIcon: ({ color, size, focused }) => {
           let iconName: string;

@@ -31,6 +31,8 @@ function mapEmbeddedOrder(row: OrderWithEmbeddedItemsRow): Order {
     service_fee: Number(mappedOrder.service_fee ?? 0),
     promotion_discount: Number(mappedOrder.promotion_discount ?? 0),
     coupon_discount: Number(mappedOrder.coupon_discount ?? 0),
+    reward_points_used: mappedOrder.reward_points_used == null ? null : Number(mappedOrder.reward_points_used),
+    reward_points_value: mappedOrder.reward_points_value == null ? null : Number(mappedOrder.reward_points_value),
     total: Number(mappedOrder.total ?? 0),
     items,
   };
@@ -188,5 +190,136 @@ export async function updatePaymentStatus(
       data: null,
       error: error instanceof Error ? error.message : 'Failed to update payment status',
     };
+  }
+}
+
+export async function savePosOrder(
+  orderPayload: Omit<Order, 'id' | 'order_number' | 'created_at' | 'updated_at' | 'items'>,
+  items: Array<Omit<OrderItem, 'id' | 'order_id' | 'created_at' | 'addons'> & { addons?: Omit<OrderItemAddon, 'id' | 'order_item_id' | 'created_at'>[] }>
+): Promise<{ data: Order | null; error: string | null }> {
+  try {
+    const { data: orderData, error: orderError } = await supabase
+      .from('orders')
+      .insert({
+        ...orderPayload,
+      })
+      .select()
+      .single();
+
+    if (orderError) throw new Error(orderError.message);
+    const orderId = orderData.id;
+
+    for (const item of items) {
+      const { addons, id, order_id, created_at, ...itemData } = item as any;
+      const { data: insertedItem, error: itemError } = await supabase
+        .from('order_items')
+        .insert({
+          ...itemData,
+          order_id: orderId,
+        })
+        .select()
+        .single();
+
+      if (itemError) throw new Error(itemError.message);
+      const itemId = insertedItem.id;
+
+      if (addons && addons.length > 0) {
+        const addonsToInsert = addons.map((addon: any) => ({
+          order_item_id: itemId,
+          addon_group_id: addon.addon_group_id,
+          addon_group_name: addon.addon_group_name,
+          addon_item_id: addon.addon_item_id,
+          addon_item_name: addon.addon_item_name,
+          addon_item_price: addon.addon_item_price,
+        }));
+        
+        const { error: addonError } = await supabase
+          .from('order_item_addons')
+          .insert(addonsToInsert);
+
+        if (addonError) throw new Error(addonError.message);
+      }
+    }
+
+    return getOrder(orderId);
+  } catch (error) {
+    console.error('Error saving POS order:', error);
+    return { data: null, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
+export async function updatePosOrder(
+  orderId: string,
+  updatedItems: Array<Omit<OrderItem, 'id' | 'order_id' | 'created_at' | 'addons'> & { addons?: Omit<OrderItemAddon, 'id' | 'order_item_id' | 'created_at'>[] }>,
+  orderTotalsUpdate: { subtotal: number; tax: number; total: number },
+  orderUpdate: Partial<Pick<Order, 'payment_status' | 'payment_method_detail'>> = {}
+): Promise<{ data: Order | null; error: string | null }> {
+  try {
+    // Update order totals first
+    const { error: orderError } = await supabase
+      .from('orders')
+      .update({
+        subtotal: orderTotalsUpdate.subtotal,
+        tax: orderTotalsUpdate.tax,
+        total: orderTotalsUpdate.total,
+        ...orderUpdate,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', orderId);
+
+    if (orderError) throw new Error(orderError.message);
+
+    // Delete existing items and addons
+    const { data: existingItems, error: existingItemsError } = await supabase
+      .from('order_items')
+      .select('id')
+      .eq('order_id', orderId);
+    if (existingItemsError) throw new Error(existingItemsError.message);
+
+    const existingItemIds = (existingItems || []).map((item) => item.id);
+    if (existingItemIds.length > 0) {
+      const { error: deleteAddonError } = await supabase
+        .from('order_item_addons')
+        .delete()
+        .in('order_item_id', existingItemIds);
+      if (deleteAddonError) throw new Error(deleteAddonError.message);
+    }
+    await supabase.from('order_items').delete().eq('order_id', orderId);
+
+    // Insert updated items
+    for (const item of updatedItems) {
+      const { addons, id, order_id, created_at, ...itemData } = item as any;
+      const { data: insertedItem, error: itemError } = await supabase
+        .from('order_items')
+        .insert({
+          ...itemData,
+          order_id: orderId,
+        })
+        .select()
+        .single();
+
+      if (itemError) throw new Error(itemError.message);
+      const itemId = insertedItem.id;
+
+      if (addons && addons.length > 0) {
+        const addonsToInsert = addons.map((addon: any) => ({
+          order_item_id: itemId,
+          addon_group_id: addon.addon_group_id,
+          addon_group_name: addon.addon_group_name,
+          addon_item_id: addon.addon_item_id,
+          addon_item_name: addon.addon_item_name,
+          addon_item_price: addon.addon_item_price,
+        }));
+        const { error: addonError } = await supabase
+          .from('order_item_addons')
+          .insert(addonsToInsert);
+        if (addonError) throw new Error(addonError.message);
+      }
+    }
+
+    return getOrder(orderId);
+  } catch (error) {
+    console.error('Error updating POS order:', error);
+    return { data: null, error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }

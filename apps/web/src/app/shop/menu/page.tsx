@@ -143,6 +143,7 @@ export default function MenuPage() {
   const [productForm, setProductForm] = useState({
     name: '',
     description: '',
+    search_term: '',
     slug: '',
     seo_title: '',
     seo_description: '',
@@ -410,6 +411,7 @@ export default function MenuPage() {
     if (searchTerm) {
       filtered = filtered.filter(product =>
         product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        product.search_term?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         product.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         product.category_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         product.sub_category_name?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -456,6 +458,7 @@ export default function MenuPage() {
       setProductForm({
         name: product.name,
         description: product.description || '',
+        search_term: (product as unknown as { search_term?: string | null }).search_term ?? '',
         slug: (product as unknown as { slug?: string | null }).slug ?? '',
         seo_title: (product as unknown as { seo_title?: string | null }).seo_title ?? '',
         seo_description: (product as unknown as { seo_description?: string | null }).seo_description ?? '',
@@ -500,6 +503,7 @@ export default function MenuPage() {
       setProductForm({
         name: '',
         description: '',
+        search_term: '',
         slug: '',
         seo_title: '',
         seo_description: '',
@@ -1317,6 +1321,17 @@ export default function MenuPage() {
                     rows={3}
                     className="min-h-20 rounded-xl border px-3 py-2 bg-white/80 dark:bg-neutral-900 resize-y"
                     placeholder="Enter product description"
+                  />
+                </label>
+
+                <label className="grid gap-2">
+                  <span className="text-sm text-gray-700 dark:text-gray-300">Search Terms / Aliases</span>
+                  <input
+                    type="text"
+                    value={productForm.search_term}
+                    onChange={(e) => setProductForm({ ...productForm, search_term: e.target.value })}
+                    className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
+                    placeholder="e.g. crab stick, seafood stick"
                   />
                 </label>
 
