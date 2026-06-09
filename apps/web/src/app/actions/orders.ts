@@ -553,6 +553,8 @@ export async function getOrderByNumber(orderNumber: string): Promise<{ data: Ord
         service_fee: Number(order.service_fee),
         promotion_discount: Number(order.promotion_discount ?? 0),
         promotions_applied: (order.promotions_applied as any[]) ?? [],
+        coupon_discount: Number(order.coupon_discount ?? 0),
+        coupon_code: order.coupon_code || null,
         total: Number(order.total),
         items: itemsWithAddons
       },
@@ -741,6 +743,8 @@ export async function getOrder(orderId: string): Promise<{ data: Order | null; e
         service_fee: Number(order.service_fee),
         promotion_discount: Number(order.promotion_discount ?? 0),
         promotions_applied: (order.promotions_applied as any[]) ?? [],
+        coupon_discount: Number(order.coupon_discount ?? 0),
+        coupon_code: order.coupon_code || null,
         total: Number(order.total),
         items: itemsWithAddons
       },
@@ -819,6 +823,9 @@ export async function getAllOrders(filters?: {
           tax: Number(order.tax),
           delivery_fee: Number(order.delivery_fee),
           service_fee: Number(order.service_fee),
+          promotion_discount: Number(order.promotion_discount ?? 0),
+          coupon_discount: Number(order.coupon_discount ?? 0),
+          coupon_code: order.coupon_code || null,
           total: Number(order.total),
           items: items?.map(item => ({
             ...item,
@@ -1012,6 +1019,9 @@ export async function getCustomerOrders(): Promise<{ data: Order[] | null; error
         tax: Number(order.tax),
         delivery_fee: Number(order.delivery_fee),
         service_fee: Number(order.service_fee),
+        promotion_discount: Number(order.promotion_discount ?? 0),
+        coupon_discount: Number(order.coupon_discount ?? 0),
+        coupon_code: order.coupon_code || null,
         total: Number(order.total),
         items: itemsByOrderId.get(order.id) ?? []
       });

@@ -6,6 +6,7 @@ interface CustomerSummaryRewardRow {
 }
 
 export interface CustomerSummary {
+    profileId?: string;
     name: string;
     email: string;
     phone: string;
@@ -48,20 +49,21 @@ export async function fetchCustomerSummary({ email, phone }: { email?: string; p
     const rowEmail = (orders[0].customer_email ?? '').trim();
     const rowPhone = (orders[0].customer_phone ?? '').trim();
     let rewardPoints = 0;
+    let profileId: string | undefined = undefined;
     if (rowEmail || rowPhone) {
-        let summaryQuery = supabase.from('customer_summary').select('rewardPoints');
+        let summaryQuery = supabase.from('customer_summary').select('rewardPoints, profileId');
         if (rowEmail) {
             summaryQuery = summaryQuery.eq('email', rowEmail);
-        }
-        if (rowPhone) {
+        } else if (rowPhone) {
             summaryQuery = summaryQuery.eq('phone', rowPhone);
         }
         const { data: summaryRows, error: summaryError } = await summaryQuery.limit(1);
         if (summaryError) {
             throw new Error(summaryError.message);
         }
-        const raw = (summaryRows as CustomerSummaryRewardRow[] | null)?.[0]?.rewardPoints;
+        const raw = (summaryRows as any[] | null)?.[0]?.rewardPoints;
         rewardPoints = Number(raw ?? 0);
+        profileId = (summaryRows as any[] | null)?.[0]?.profileId;
     }
     const orderList = orders.map((o: Order) => ({
         id: o.id,
@@ -71,6 +73,7 @@ export async function fetchCustomerSummary({ email, phone }: { email?: string; p
         status: o.order_status,
     }));
     return {
+        profileId,
         name,
         email: orders[0].customer_email,
         phone: orders[0].customer_phone,

@@ -764,13 +764,14 @@ export default function CheckoutPage() {
     posthog.capture("payment_method_selected", { payment_method: method });
   };
 
-  const handleApplyCoupon = async () => {
-    if (!couponCodeInput.trim()) return;
+  const handleApplyCoupon = async (codeToApply?: string) => {
+    const code = typeof codeToApply === 'string' ? codeToApply : couponCodeInput;
+    if (!code.trim()) return;
     setIsValidatingCoupon(true);
     setCouponError(null);
     try {
       const result = await validateCouponCode({
-        code: couponCodeInput.trim(),
+        code: code.trim(),
         userId: currentUser?.id,
         customerEmail: customerEmail,
         cartSubtotal,
@@ -780,6 +781,7 @@ export default function CheckoutPage() {
         if (result.data.isValid) {
           setCouponResult(result.data);
           setCouponError(null);
+          setCouponCodeInput(code.trim());
           posthog.capture("coupon_applied", {
             coupon_code: result.data.coupon?.code,
             discount_amount: result.data.discountAmount
@@ -797,6 +799,21 @@ export default function CheckoutPage() {
       setIsValidatingCoupon(false);
     }
   };
+
+  // Auto-apply coupon from URL redirection
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const autoCoupon = window.localStorage.getItem('checkout:autoCoupon');
+    if (autoCoupon) {
+      window.localStorage.removeItem('checkout:autoCoupon');
+      setCouponCodeInput(autoCoupon);
+      // Wait for email/user id to load if needed, but if it doesn't need email we can just apply
+      // Actually cartSubtotal needs to be ready, which it is synchronously.
+      // Call it on next tick to ensure cart is ready
+      setTimeout(() => handleApplyCoupon(autoCoupon), 100);
+    }
+  }, [cartSubtotal]); // run when cart is ready
+
 
   const handleRemoveCoupon = () => {
     setCouponResult(null);
@@ -1955,67 +1972,65 @@ export default function CheckoutPage() {
               />
             </>
           )}
-          {/* Special Instructions */}
-          <SpecialInstructions
-            paymentMethod={paymentMethod}
-            specialInstructions={specialInstructions}
-            setSpecialInstructions={setSpecialInstructions}
-          />
+
           {/* Coupon Section */}
-          <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Coupon Code
-            </h3>
-            {couponResult?.isValid ? (
-              <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-800 flex items-center justify-center text-green-600 dark:text-green-400">
-                    <Icon icon={FaGift} className="w-5 h-5" />
+          {paymentMethod && (
+            <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                Coupon Code
+              </h3>
+              {couponResult?.isValid ? (
+                <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-800 flex items-center justify-center text-green-600 dark:text-green-400">
+                      <Icon icon={FaGift} className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-green-800 dark:text-green-300">
+                        {couponResult.coupon?.code} applied!
+                      </p>
+                      <p className="text-sm text-green-600 dark:text-green-400">
+                        -${couponDiscount.toFixed(2)} savings
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-semibold text-green-800 dark:text-green-300">
-                      {couponResult.coupon?.code} applied!
-                    </p>
-                    <p className="text-sm text-green-600 dark:text-green-400">
-                      -${couponDiscount.toFixed(2)} savings
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleRemoveCoupon}
-                  className="text-sm font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                >
-                  Remove
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={couponCodeInput}
-                    onChange={(e) => setCouponCodeInput(e.target.value.toUpperCase())}
-                    placeholder="Enter code (e.g. SAVE10)"
-                    className="flex-1 px-4 py-2 bg-gray-50 dark:bg-neutral-900 border border-gray-200 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none uppercase text-gray-900 dark:text-white"
-                  />
                   <button
                     type="button"
-                    onClick={handleApplyCoupon}
-                    disabled={isValidatingCoupon || !couponCodeInput.trim()}
-                    className="px-6 py-2 bg-gray-900 dark:bg-blue-600 hover:bg-black dark:hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50"
+                    onClick={handleRemoveCoupon}
+                    className="text-sm font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                   >
-                    {isValidatingCoupon ? <LoadingSpinner size="sm" /> : "Apply"}
+                    Remove
                   </button>
                 </div>
-                {couponError && (
-                  <p className="text-sm text-red-600 dark:text-red-400">
-                    {couponError}
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={couponCodeInput}
+                      onChange={(e) => setCouponCodeInput(e.target.value.toUpperCase())}
+                      placeholder="Enter code (e.g. SAVE10)"
+                      className="flex-1 px-4 py-2 bg-gray-50 dark:bg-neutral-900 border border-gray-200 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none uppercase text-gray-900 dark:text-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleApplyCoupon()}
+                      disabled={isValidatingCoupon || !couponCodeInput.trim()}
+                      className="px-6 py-2 bg-gray-900 dark:bg-blue-600 hover:bg-black dark:hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      {isValidatingCoupon ? <LoadingSpinner size="sm" /> : "Apply"}
+                    </button>
+                  </div>
+                  {couponError && (
+                    <p className="text-sm text-red-600 dark:text-red-400">
+                      {couponError}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
 
           {/* Order Summary */}
           <OrderSummary
@@ -2048,6 +2063,12 @@ export default function CheckoutPage() {
             setRewardPointsToUse={setRewardPointsToUse}
             maxPointsToUse={maxPointsToUse}
             maxPointsForOrder={maxPointsForOrder}
+          />
+          {/* Special Instructions */}
+          <SpecialInstructions
+            paymentMethod={paymentMethod}
+            specialInstructions={specialInstructions}
+            setSpecialInstructions={setSpecialInstructions}
           />
           {/* Trust Messaging */}
           <SecurePaymentMessage paymentMethod={paymentMethod} />

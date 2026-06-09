@@ -46,6 +46,7 @@ export default function CouponsAdminPage() {
     const [error, setError] = useState<string | null>(null);
 
     const [coupons, setCoupons] = useState<Coupon[]>([]);
+    const [searchTerm, setSearchTerm] = useState('');
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -184,10 +185,21 @@ export default function CouponsAdminPage() {
         );
     };
 
+    const filteredCoupons = coupons.filter(c => {
+        if (!searchTerm.trim()) return true;
+        const q = searchTerm.toLowerCase();
+        return (
+            c.code.toLowerCase().includes(q) ||
+            c.title.toLowerCase().includes(q) ||
+            c.target_email?.toLowerCase().includes(q) ||
+            c.user_id?.toLowerCase().includes(q)
+        );
+    });
+
     return (
         <AdminGuard>
             <div className="p-6 max-w-6xl mx-auto">
-                <div className="flex items-center justify-between mb-8">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
                     <div>
                         <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
                             <Icon icon={FaTicketAlt} className="text-blue-600" />
@@ -195,13 +207,24 @@ export default function CouponsAdminPage() {
                         </h1>
                         <p className="text-gray-600 dark:text-gray-400 mt-1">Manage manual coupon codes for discounts.</p>
                     </div>
-                    <button
-                        onClick={openCreate}
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-colors shadow-sm"
-                    >
-                        <Icon icon={FaPlus} />
-                        New Coupon
-                    </button>
+                    <div className="flex items-center gap-4">
+                        <div className="relative w-64">
+                            <input
+                                type="text"
+                                placeholder="Search coupons..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                            />
+                        </div>
+                        <button
+                            onClick={openCreate}
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-colors shadow-sm whitespace-nowrap"
+                        >
+                            <Icon icon={FaPlus} />
+                            New Coupon
+                        </button>
+                    </div>
                 </div>
 
                 {error && (
@@ -245,7 +268,7 @@ export default function CouponsAdminPage() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100 dark:divide-neutral-800">
-                                    {coupons.map((c) => (
+                                    {filteredCoupons.map((c) => (
                                         <tr key={c.id} className="hover:bg-gray-50 dark:hover:bg-neutral-800/50 transition-colors">
                                             <td className="px-6 py-4">
                                                 <div className="font-mono font-bold text-blue-600 dark:text-blue-400 text-lg uppercase">{c.code}</div>

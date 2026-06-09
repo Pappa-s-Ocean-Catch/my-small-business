@@ -628,7 +628,7 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
       ).join('') || '';
       const removedHTML =
         Array.isArray(item.removed_ingredients) && item.removed_ingredients.length > 0
-          ? `<p><em>Removed: ${item.removed_ingredients.join(', ')}</em></p>`
+          ? item.removed_ingredients.map(ing => `<p style="margin: 4px 0; font-weight: bold;">No ${ing}</p>`).join('')
           : '';
 
       return `
@@ -637,8 +637,8 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
           <td>$${item.subtotal.toFixed(2)}</td>
         </tr>
         ${item.comment ? `<tr><td colspan="2"><em>Note: ${item.comment}</em></td></tr>` : ''}
-        ${addonsHTML ? `<tr><td colspan="2"><ul style="margin: 0; padding-left: 20px;">${addonsHTML}</ul></td></tr>` : ''}
         ${removedHTML ? `<tr><td colspan="2">${removedHTML}</td></tr>` : ''}
+        ${addonsHTML ? `<tr><td colspan="2"><ul style="margin: 0; padding-left: 20px;">${addonsHTML}</ul></td></tr>` : ''}
       `;
     }).join('') || '';
 
@@ -1242,36 +1242,41 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
                         {item.comment && (
                           <Text style={styles.modalItemComment}>Note: {item.comment}</Text>
                         )}
-                        {Array.isArray(item.removed_ingredients) && item.removed_ingredients.length > 0 && (
-                          <Text style={styles.modalRemovedText}>
-                            Removed: {item.removed_ingredients.join(', ')}
-                          </Text>
-                        )}
-                        {item.addons && item.addons.length > 0 && (
+                        {((Array.isArray(item.removed_ingredients) && item.removed_ingredients.length > 0) || (item.addons && item.addons.length > 0)) && (
                           <View style={styles.modalAddonsContainer}>
-                            {Object.values(
-                              item.addons.reduce((acc, addon) => {
-                                const key = `${addon.addon_item_name}__${addon.addon_item_price}`;
-                                if (!acc[key]) acc[key] = { ...addon, qty: 0 };
-                                acc[key].qty += 1;
-                                return acc;
-                              }, {} as Record<string, any>)
-                            ).map((groupedAddon: any) => {
-                              const qty = groupedAddon.qty;
-                              const name = groupedAddon.addon_item_name;
-                              const price = groupedAddon.addon_item_price;
-                              let label = qty > 1 ? `${qty}x ${name}` : name;
-                              const isPaid = price > 0;
-                              if (isPaid) label += ` - $${price.toFixed(2)}`;
-                              return (
+                            {Array.isArray(item.removed_ingredients) &&
+                              item.removed_ingredients.map((ing, rIdx) => (
                                 <Text
-                                  key={groupedAddon.addon_item_id + '_' + price}
-                                  style={[styles.modalAddonText, isPaid && { fontWeight: 'bold' }]}
+                                  key={`rm-${rIdx}`}
+                                  style={[styles.modalAddonText, { fontWeight: 'bold', textDecorationLine: 'none' }]}
                                 >
-                                  + {label}
+                                  No {ing}
                                 </Text>
-                              );
-                            })}
+                              ))}
+                            {item.addons && item.addons.length > 0 &&
+                              Object.values(
+                                item.addons.reduce((acc, addon) => {
+                                  const key = `${addon.addon_item_name}__${addon.addon_item_price}`;
+                                  if (!acc[key]) acc[key] = { ...addon, qty: 0 };
+                                  acc[key].qty += 1;
+                                  return acc;
+                                }, {} as Record<string, any>)
+                              ).map((groupedAddon: any) => {
+                                const qty = groupedAddon.qty;
+                                const name = groupedAddon.addon_item_name;
+                                const price = groupedAddon.addon_item_price;
+                                let label = qty > 1 ? `${qty}x ${name}` : name;
+                                const isPaid = price > 0;
+                                if (isPaid) label += ` - $${price.toFixed(2)}`;
+                                return (
+                                  <Text
+                                    key={groupedAddon.addon_item_id + '_' + price}
+                                    style={[styles.modalAddonText, isPaid && { fontWeight: 'bold' }]}
+                                  >
+                                    + {label}
+                                  </Text>
+                                );
+                              })}
                           </View>
                         )}
                       </View>

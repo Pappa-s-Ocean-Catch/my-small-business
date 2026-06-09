@@ -82,10 +82,18 @@ export function validateCoupon(params: {
     }
 
     // 5. User targeting
-    if (coupon.user_id && userId !== coupon.user_id) {
-        return { isValid: false, coupon, error: 'wrong_user', discountAmount: 0 };
+    let userMatches = false;
+    let emailMatches = false;
+
+    if (!coupon.user_id && !coupon.target_email) {
+        userMatches = true;
+        emailMatches = true;
+    } else {
+        if (coupon.user_id && userId === coupon.user_id) userMatches = true;
+        if (coupon.target_email && customerEmail?.toLowerCase() === coupon.target_email.toLowerCase()) emailMatches = true;
     }
-    if (coupon.target_email && customerEmail?.toLowerCase() !== coupon.target_email.toLowerCase()) {
+
+    if (!userMatches && !emailMatches) {
         return { isValid: false, coupon, error: 'wrong_user', discountAmount: 0 };
     }
 

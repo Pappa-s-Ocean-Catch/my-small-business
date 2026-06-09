@@ -96,9 +96,7 @@ export function Hero({ homePromotions, enablePickupOrder, reviewSectionId }: Her
                         </Link>
                     )}
                     <Link
-                        href="https://pappasoceancatch-ea.com.au/"
-                        target="_blank"
-                        rel="noopener noreferrer"
+                        href="/order/delivery"
                         className="inline-flex items-center justify-center gap-2 px-8 py-3 md:py-4 bg-white/10 backdrop-blur-sm text-white rounded-lg font-semibold text-lg hover:bg-white/20 transition-colors border-2 border-white/30"
                     >
                         Delivery Order

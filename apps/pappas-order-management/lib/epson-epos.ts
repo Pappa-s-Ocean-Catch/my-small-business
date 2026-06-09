@@ -139,10 +139,12 @@ function formatItemLines(item: OrderItem): ReceiptLine[] {
     bold: true,
     medium: true,
   });
-  lines.push(...formatAddonLines(item.addons));
   if (item.removed_ingredients && item.removed_ingredients.length > 0) {
-    lines.push({ text: `  REMOVE: ${item.removed_ingredients.join(', ')}`, bold: true });
+    for (const ing of item.removed_ingredients) {
+      lines.push({ text: `  No ${ing}`, bold: true });
+    }
   }
+  lines.push(...formatAddonLines(item.addons));
   if (item.comment?.trim()) {
     lines.push({ text: `  NOTE: ${item.comment}`, bold: true });
   }

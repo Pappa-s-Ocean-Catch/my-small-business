@@ -132,7 +132,7 @@ export const generatePrintHTML = (order: Order): string => {
     ).join('') || '';
     const removedHTML =
       Array.isArray(item.removed_ingredients) && item.removed_ingredients.length > 0
-        ? `<p style="margin: 4px 0; font-weight: bold; color: #d97706;">REMOVE: ${item.removed_ingredients.join(', ')}</p>`
+        ? item.removed_ingredients.map(ing => `<p style="margin: 4px 0; font-weight: bold;">No ${ing}</p>`).join('')
         : '';
 
     return `
@@ -141,8 +141,8 @@ export const generatePrintHTML = (order: Order): string => {
         <td>$${item.subtotal.toFixed(2)}</td>
       </tr>
       ${item.comment?.trim() ? `<tr><td colspan="2"><strong style="font-style: italic;">NOTE: ${item.comment}</strong></td></tr>` : ''}
-      ${addonsHTML ? `<tr><td colspan="2"><ul style="margin: 0; padding-left: 20px;">${addonsHTML}</ul></td></tr>` : ''}
       ${removedHTML ? `<tr><td colspan="2">${removedHTML}</td></tr>` : ''}
+      ${addonsHTML ? `<tr><td colspan="2"><ul style="margin: 0; padding-left: 20px;">${addonsHTML}</ul></td></tr>` : ''}
     `;
   }).join('') || '';
 

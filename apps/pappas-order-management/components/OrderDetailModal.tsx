@@ -198,13 +198,20 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     <Text style={styles.itemPrice}>${item.subtotal.toFixed(2)}</Text>
                   </View>
                   {item.comment && <Text style={styles.itemComment}>Note: {item.comment}</Text>}
-                  {item.addons && item.addons.length > 0 && (
+                  {((item.removed_ingredients && item.removed_ingredients.length > 0) || (item.addons && item.addons.length > 0)) && (
                     <View style={styles.addonsList}>
-                      {groupAddons(item.addons).map((addon, aIdx) => (
-                        <Text key={aIdx} style={styles.addonText}>
-                          {addon.quantity > 1 ? `${addon.quantity}x ` : '+ '}{addon.name} {addon.price > 0 ? `($${addon.price.toFixed(2)})` : ''}
+                      {item.removed_ingredients?.map((ing, rIdx) => (
+                        <Text key={`rm-${rIdx}`} style={styles.removedText}>
+                          No {ing}
                         </Text>
                       ))}
+                      {item.addons && item.addons.length > 0 &&
+                        groupAddons(item.addons).map((addon, aIdx) => (
+                          <Text key={`ad-${aIdx}`} style={styles.addonText}>
+                            {addon.quantity > 1 ? `${addon.quantity}x ` : '+ '}{addon.name} {addon.price > 0 ? `($${addon.price.toFixed(2)})` : ''}
+                          </Text>
+                        ))
+                      }
                     </View>
                   )}
                   {index < (order.items?.length || 0) - 1 && <Divider style={styles.divider} />}
@@ -380,6 +387,7 @@ const styles = StyleSheet.create({
   itemComment: { fontSize: 14, color: '#d97706', fontStyle: 'italic', marginTop: 4 },
   addonsList: { marginTop: 4, paddingLeft: 12 },
   addonText: { fontSize: 13, color: '#6b7280' },
+  removedText: { fontSize: 13, color: '#111827', fontWeight: 'bold' },
   divider: { marginTop: 12 },
   instructionsCard: { borderLeftWidth: 4, borderLeftColor: '#f59e0b' },
   instructionsText: { fontSize: 15, color: '#4b5563', lineHeight: 22 },

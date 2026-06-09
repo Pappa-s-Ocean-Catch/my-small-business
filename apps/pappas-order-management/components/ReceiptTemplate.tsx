@@ -75,16 +75,16 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ order, width =
             </Text>
             <Text style={styles.itemLinePrice}>${formatMoney(item.subtotal)}</Text>
           </View>
+          {item.removed_ingredients?.map((ing, rIdx) => (
+            <Text key={`rm-${rIdx}`} style={styles.removedText}>
+              No {ing}
+            </Text>
+          ))}
           {groupAddons(item.addons || []).map((addon, aIdx) => (
-            <Text key={aIdx} style={styles.addonText}>
+            <Text key={`ad-${aIdx}`} style={styles.addonText}>
               {addon.quantity > 1 ? `${addon.quantity}x ` : '+ '}{addon.name} {addon.price ? `($${formatMoney(addon.price)})` : ''}
             </Text>
           ))}
-          {item.removed_ingredients && item.removed_ingredients.length > 0 && (
-            <Text style={styles.removedText}>
-              REMOVE: {item.removed_ingredients.join(', ')}
-            </Text>
-          )}
           {item.comment?.trim() && (
             <Text style={styles.itemNote}>
               Notes: {item.comment}
@@ -254,12 +254,11 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
   removedText: {
-    fontSize: 26,
+    fontSize: 30,
     color: '#000',
     fontWeight: 'bold',
-    marginTop: 4,
     marginLeft: 10,
-    textDecorationLine: 'line-through',
+    lineHeight: 36,
   },
   totalsContainer: {
     marginTop: 12,

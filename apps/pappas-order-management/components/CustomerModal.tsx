@@ -7,6 +7,7 @@ import {
     IconButton, 
     Divider, 
     Surface,
+    Button,
     useTheme,
 } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -14,6 +15,7 @@ import type { OrderStatus } from '@my-small-business/types';
 import { fetchCustomerSummary, CustomerSummary } from '@/utils/customerSummary';
 import { getFriendlyOrderNumber } from '../utils/orderNumber';
 import { STATUS_COLORS, STATUS_LABELS } from '../utils/constants';
+import { getApiUrl } from '../utils/orderUtils';
 
 function orderStatusColor(status: string): string {
     if (Object.prototype.hasOwnProperty.call(STATUS_COLORS, status)) {
@@ -46,6 +48,7 @@ export function CustomerModal({
     const [customer, setCustomer] = useState<CustomerSummary | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [sendingMarketing, setSendingMarketing] = useState(false);
     const theme = useTheme();
 
     useEffect(() => {
@@ -105,6 +108,46 @@ export function CustomerModal({
         });
     };
 
+    const handleSendMarketing = async () => {
+        if (!customer?.profileId) {
+            Alert.alert('Error', 'This customer does not have a registered profile ID and cannot receive marketing emails.');
+            return;
+        }
+
+        Alert.alert(
+            'Confirm',
+            `Send a marketing email with a 1-time coupon to ${customer.name}?`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Send',
+                    onPress: async () => {
+                        setSendingMarketing(true);
+                        try {
+                            const url = getApiUrl('/api/marketing/send');
+                            const response = await fetch(url, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ customerIds: [customer.profileId] }),
+                            });
+
+                            const result = await response.json();
+                            if (!response.ok) {
+                                throw new Error(result.error || 'Failed to send marketing email');
+                            }
+
+                            Alert.alert('Success', `Marketing email sent successfully to ${customer.name}`);
+                        } catch (err: any) {
+                            Alert.alert('Error', err.message);
+                        } finally {
+                            setSendingMarketing(false);
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
     const renderHeader = () => {
         if (!customer) return null;
         return (
@@ -162,6 +205,20 @@ export function CustomerModal({
                             Last order: <Text style={styles.bold}>{formatDate(customer.lastOrderDate)}</Text>
                         </Text>
                     </View>
+                </View>
+
+                {/* Actions Section */}
+                <View style={styles.section}>
+                    <Button
+                        mode="contained-tonal"
+                        icon="email-fast"
+                        loading={sendingMarketing}
+                        disabled={sendingMarketing || !customer.profileId}
+                        onPress={handleSendMarketing}
+                        style={{ marginTop: 8 }}
+                    >
+                        Send Marketing Email
+                    </Button>
                 </View>
 
                 <View style={styles.section}>

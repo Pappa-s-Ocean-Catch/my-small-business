@@ -202,6 +202,10 @@ function OrderConfirmationContent() {
     ? ((order as any).promotion_discount as number)
     : Number((order as any)?.promotion_discount ?? 0) || 0;
 
+  const couponDiscount = typeof (order as any)?.coupon_discount === 'number'
+    ? ((order as any).coupon_discount as number)
+    : Number((order as any)?.coupon_discount ?? 0) || 0;
+
   const aggregatedPromotions = (() => {
     const byKey = new Map<string, { title: string; amount: number }>();
     for (const p of promotionsApplied) {
@@ -743,6 +747,12 @@ function OrderConfirmationContent() {
               <div className="flex justify-between items-center mb-2">
                 <span className="text-green-700 dark:text-green-300">Promotions</span>
                 <span className="text-green-700 dark:text-green-300">-${promotionDiscount.toFixed(2)}</span>
+              </div>
+            )}
+            {couponDiscount > 0.009 && (
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-green-700 dark:text-green-300">Coupon ({order.coupon_code})</span>
+                <span className="text-green-700 dark:text-green-300">-${couponDiscount.toFixed(2)}</span>
               </div>
             )}
             <div className="flex justify-between items-center mb-2">

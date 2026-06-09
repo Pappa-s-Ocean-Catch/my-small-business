@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { LiveOrderTracker } from '@/components/LiveOrderTracker';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useCart } from '@/contexts/CartContext';
 import { ItemCustomizationModal } from '@/components/ItemCustomizationModal';
@@ -21,6 +21,7 @@ import type { StoreHours } from '@my-small-business/types';
 import { buildDefaultStoreHours, isStoreOpenNow } from '@/lib/store-hours';
 import { toast } from 'react-toastify';
 import dynamic from 'next/dynamic';
+import { Suspense } from 'react';
 import posthog from 'posthog-js';
 
 const LikeDislikeWidget = dynamic(() => import('@/components/LikeDislikeWidget').then(m => m.LikeDislikeWidget), { ssr: false });
@@ -47,7 +48,7 @@ interface MenuCategory {
 
 type FilterType = 'all' | 'category' | 'top-sellers' | 'featured';
 
-export default function OrderPage() {
+function OrderPageContent() {
   const [userId, setUserId] = useState<string | null>(null);
   useEffect(() => {
     (async () => {
@@ -63,6 +64,21 @@ export default function OrderPage() {
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const categoryNavRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Capture coupon from URL to apply at checkout
+  useEffect(() => {
+    const coupon = searchParams?.get('coupon');
+    if (coupon) {
+      try {
+        window.localStorage.setItem('checkout:autoCoupon', coupon);
+        toast.info(`Coupon ${coupon} will be applied at checkout!`, { autoClose: 5000 });
+      } catch (err) {
+        console.error('Failed to save coupon to localStorage', err);
+      }
+    }
+  }, [searchParams]);
+
   const { addItem, isLoading: cartLoading } = useCart();
   const [products, setProducts] = useState<MenuProduct[]>([]);
   const [topSellers, setTopSellers] = useState<MenuProduct[]>([]);
@@ -577,229 +593,158 @@ export default function OrderPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-neutral-900 pb-24">
-      {/* Navigation Header */}
-      <OrderHeader />
-
-      {/* Page Header */}
-      <div className="bg-white dark:bg-neutral-800 shadow-sm border-b border-gray-200 dark:border-neutral-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-1">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Browse the menu, add items to your cart, then checkout when you’re ready.
-              </p>
-              {todayLabel && todayHoursLabel && (
-                <div className="mt-1 flex items-start gap-2 text-xs sm:text-sm">
-                  <Icon icon={FaClock} className="w-4 h-4 text-gray-500 mt-0.5" />
-                  <div>
-                    <p className="text-gray-700 dark:text-gray-300">
-                      <span className="font-semibold">{todayLabel}</span>{' '}
-                      <span className="text-gray-600 dark:text-gray-400">hours:</span>{' '}
-                      <span className="font-medium">{todayHoursLabel}</span>
-                    </p>
-                    {isStoreOpen === false && (
-                      <p className="text-amber-700 dark:text-amber-400 mt-0.5">
-                        Online ordering is closed right now. You can still build your cart and place a
-                        <span className="font-semibold"> pre-order</span> at checkout.
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-            <Link
-              href="/order/summary"
-              className="hidden sm:inline-flex items-center justify-center px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors"
-            >
-              Go to cart
-            </Link>
-          </div>
-
-          {topCartPromo && (
-            <div className="mt-3 rounded-lg border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-900/20 px-4 py-3 text-sm text-green-900 dark:text-green-100">
-              <div className="font-semibold">{topCartPromo.title}</div>
-              <div className="opacity-90">
-                {topCartPromo.cart_scope === 'subtotal_min' && typeof topCartPromo.min_cart_subtotal === 'number'
-                  ? `Spend $${topCartPromo.min_cart_subtotal.toFixed(2)}+ and get ${promotionLabel(topCartPromo)} (excludes delivery fee).`
-                  : `${promotionLabel(topCartPromo)} (excludes delivery fee).`}
-              </div>
-            </div>
-          )}
-
-          {/* Search */}
-          <div className="relative mt-4">
-            <Icon icon={FaSearch} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search dishes, burgers, sides..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
-            />
-          </div>
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          Loading…
         </div>
       </div>
+    }>
+      <div className="min-h-screen bg-gray-50 dark:bg-neutral-900 pb-24">
+        {/* Navigation Header */}
+        <OrderHeader />
 
-      {/* Category navigation */}
-      <div className="sticky top-0 z-30 bg-white/95 dark:bg-neutral-900/95 backdrop-blur border-b border-gray-200 dark:border-neutral-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center">
-          {/* Category nav: Arrow buttons for horizontal scroll (all screens) */}
-          <div className="flex items-center flex-1 relative min-w-0">
-            <button
-              className=" p-2 mr-2 rounded-full bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-neutral-700"
-              onClick={() => {
-                if (categoryNavRef.current) {
-                  categoryNavRef.current.scrollBy({ left: -200, behavior: 'smooth' });
-                }
-              }}
-              aria-label="Scroll categories left"
-              type="button"
-            >
-              <FaChevronLeft />
-            </button>
-            <div
-              ref={categoryNavRef}
-              className="flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1 scrollbar-hide"
-              style={{ scrollBehavior: 'smooth' }}
-            >
-              <button
-                onClick={() => handleSelectCategory(null)}
-                className={`cursor-pointer px-4 py-2 rounded-full text-sm font-semibold transition-colors ${selectedCategoryId === null
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-neutral-700'
-                  }`}
+        {/* Page Header */}
+        <div className="bg-white dark:bg-neutral-800 shadow-sm border-b border-gray-200 dark:border-neutral-700">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-1">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Browse the menu, add items to your cart, then checkout when you’re ready.
+                </p>
+                {todayLabel && todayHoursLabel && (
+                  <div className="mt-1 flex items-start gap-2 text-xs sm:text-sm">
+                    <Icon icon={FaClock} className="w-4 h-4 text-gray-500 mt-0.5" />
+                    <div>
+                      <p className="text-gray-700 dark:text-gray-300">
+                        <span className="font-semibold">{todayLabel}</span>{' '}
+                        <span className="text-gray-600 dark:text-gray-400">hours:</span>{' '}
+                        <span className="font-medium">{todayHoursLabel}</span>
+                      </p>
+                      {isStoreOpen === false && (
+                        <p className="text-amber-700 dark:text-amber-400 mt-0.5">
+                          Online ordering is closed right now. You can still build your cart and place a
+                          <span className="font-semibold"> pre-order</span> at checkout.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <Link
+                href="/order/summary"
+                className="hidden sm:inline-flex items-center justify-center px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors"
               >
-                All
+                Go to cart
+              </Link>
+            </div>
+
+            {topCartPromo && (
+              <div className="mt-3 rounded-lg border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-900/20 px-4 py-3 text-sm text-green-900 dark:text-green-100">
+                <div className="font-semibold">{topCartPromo.title}</div>
+                <div className="opacity-90">
+                  {topCartPromo.cart_scope === 'subtotal_min' && typeof topCartPromo.min_cart_subtotal === 'number'
+                    ? `Spend $${topCartPromo.min_cart_subtotal.toFixed(2)}+ and get ${promotionLabel(topCartPromo)} (excludes delivery fee).`
+                    : `${promotionLabel(topCartPromo)} (excludes delivery fee).`}
+                </div>
+              </div>
+            )}
+
+            {/* Search */}
+            <div className="relative mt-4">
+              <Icon icon={FaSearch} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search dishes, burgers, sides..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Category navigation */}
+        <div className="sticky top-0 z-30 bg-white/95 dark:bg-neutral-900/95 backdrop-blur border-b border-gray-200 dark:border-neutral-800">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center">
+            {/* Category nav: Arrow buttons for horizontal scroll (all screens) */}
+            <div className="flex items-center flex-1 relative min-w-0">
+              <button
+                className=" p-2 mr-2 rounded-full bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-neutral-700"
+                onClick={() => {
+                  if (categoryNavRef.current) {
+                    categoryNavRef.current.scrollBy({ left: -200, behavior: 'smooth' });
+                  }
+                }}
+                aria-label="Scroll categories left"
+                type="button"
+              >
+                <FaChevronLeft />
               </button>
-              {categoryHierarchy.map(category => (
+              <div
+                ref={categoryNavRef}
+                className="flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1 scrollbar-hide"
+                style={{ scrollBehavior: 'smooth' }}
+              >
                 <button
-                  key={category.id}
-                  onClick={() => handleSelectCategory(category.id)}
-                  className={`cursor-pointer px-4 py-2 rounded-full text-sm font-semibold transition-colors ${selectedCategoryId === category.id
+                  onClick={() => handleSelectCategory(null)}
+                  className={`cursor-pointer px-4 py-2 rounded-full text-sm font-semibold transition-colors ${selectedCategoryId === null
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-neutral-700'
                     }`}
                 >
-                  {category.name}
+                  All
                 </button>
-              ))}
-            </div>
-            <button
-              className=" cursor-pointer p-2 ml-2 rounded-full bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-neutral-700"
-              onClick={() => {
-                if (categoryNavRef.current) {
-                  categoryNavRef.current.scrollBy({ left: 200, behavior: 'smooth' });
-                }
-              }}
-              aria-label="Scroll categories right"
-              type="button"
-            >
-              <FaChevronRight />
-            </button>
-          </div>
-          {/* Mobile Categories Modal Trigger */}
-          <div className="ml-2 flex items-center">
-            <div className="h-6 w-[1px] bg-gray-200 dark:bg-neutral-800 mr-2" />
-            <button
-              onClick={() => setShowCategoryModal(true)}
-              className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg whitespace-nowrap text-xs font-bold hover:bg-blue-700 shadow-sm transition-all active:scale-95"
-              aria-label="View all categories"
-            >
-              <Icon icon={FaThLarge} className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-10">
-        {/* Search results */}
-        {searchTerm.trim() ? (
-          <section>
-            <div className="flex items-end justify-between gap-4 mb-4">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Search results</h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {searchResults.length} item{searchResults.length === 1 ? '' : 's'} matching “{searchTerm.trim()}”
-                </p>
-              </div>
-              {selectedCategoryId !== null && (
-                <button
-                  onClick={() => handleSelectCategory(null)}
-                  className="text-sm font-semibold text-blue-600 hover:text-blue-700"
-                >
-                  Back to top
-                </button>
-              )}
-            </div>
-
-            {searchResults.length === 0 ? (
-              <div className="text-center py-12">
-                <Icon icon={FaUtensils} className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-                <p className="text-gray-500 dark:text-gray-400">No items found</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {searchResults.map(product => (
-                  <ProductCard key={product.id} product={product} />
+                {categoryHierarchy.map(category => (
+                  <button
+                    key={category.id}
+                    onClick={() => handleSelectCategory(category.id)}
+                    className={`cursor-pointer px-4 py-2 rounded-full text-sm font-semibold transition-colors ${selectedCategoryId === category.id
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-neutral-700'
+                      }`}
+                  >
+                    {category.name}
+                  </button>
                 ))}
               </div>
-            )}
-          </section>
-        ) : (
-          <>
-            {/* Featured section */}
-            {featuredProducts.length > 0 && (
-              <section>
-                <div className="flex items-end justify-between gap-4 mb-4">
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                      <Icon icon={FaStar} className="text-yellow-500" />
-                      Featured picks
-                    </h2>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Customer favorites and seasonal highlights.
-                    </p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {featuredProducts.slice(0, 12).map(product => (
-                    <ProductCard key={product.id} product={product} />
-                  ))}
-                </div>
-              </section>
-            )}
+              <button
+                className=" cursor-pointer p-2 ml-2 rounded-full bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-neutral-700"
+                onClick={() => {
+                  if (categoryNavRef.current) {
+                    categoryNavRef.current.scrollBy({ left: 200, behavior: 'smooth' });
+                  }
+                }}
+                aria-label="Scroll categories right"
+                type="button"
+              >
+                <FaChevronRight />
+              </button>
+            </div>
+            {/* Mobile Categories Modal Trigger */}
+            <div className="ml-2 flex items-center">
+              <div className="h-6 w-[1px] bg-gray-200 dark:bg-neutral-800 mr-2" />
+              <button
+                onClick={() => setShowCategoryModal(true)}
+                className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg whitespace-nowrap text-xs font-bold hover:bg-blue-700 shadow-sm transition-all active:scale-95"
+                aria-label="View all categories"
+              >
+                <Icon icon={FaThLarge} className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
 
-            {/* Top sellers section */}
-            {topSellers.length > 0 && (
-              <section>
-                <div className="flex items-end justify-between gap-4 mb-4">
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                      <Icon icon={FaFire} className="text-orange-500" />
-                      Popular right now
-                    </h2>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      The most ordered items recently.
-                    </p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {topSellers.slice(0, 12).map(product => (
-                    <ProductCard key={product.id} product={product} />
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {/* Category browse */}
+        {/* Content */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-10">
+          {/* Search results */}
+          {searchTerm.trim() ? (
             <section>
               <div className="flex items-end justify-between gap-4 mb-4">
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">Browse by category</h2>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">Search results</h2>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Pick a category above, or scroll to explore everything.
+                    {searchResults.length} item{searchResults.length === 1 ? '' : 's'} matching “{searchTerm.trim()}”
                   </p>
                 </div>
                 {selectedCategoryId !== null && (
@@ -812,129 +757,220 @@ export default function OrderPage() {
                 )}
               </div>
 
-              <div className="space-y-10">
-                {categoryHierarchy.map(category => {
-                  const items = productsByMainCategoryId.get(category.id) || [];
-                  if (items.length === 0) return null;
-
-                  return (
-                    <div
-                      key={category.id}
-                      id={`cat-${category.id}`}
-                      className={selectedCategoryId === category.id ? 'scroll-mt-28' : 'scroll-mt-28'}
-                    >
-                      <div className="flex items-end justify-between gap-4 mb-4">
-                        <div>
-                          <h3 className="text-lg font-bold text-gray-900 dark:text-white">{category.name}</h3>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            {items.length} item{items.length === 1 ? '' : 's'}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => handleSelectCategory(category.id)}
-                          className="text-sm font-semibold text-blue-600 hover:text-blue-700"
-                        >
-                          Jump
-                        </button>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                        {items.map(product => (
-                          <ProductCard key={product.id} product={product} />
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              {searchResults.length === 0 ? (
+                <div className="text-center py-12">
+                  <Icon icon={FaUtensils} className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+                  <p className="text-gray-500 dark:text-gray-400">No items found</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {searchResults.map(product => (
+                    <ProductCard key={product.id} product={product} />
+                  ))}
+                </div>
+              )}
             </section>
-          </>
-        )}
-      </div>
-      {/* Category Modal (Mobile) */}
-      {showCategoryModal && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-          onClick={() => setShowCategoryModal(false)}
-        >
+          ) : (
+            <>
+              {/* Featured section */}
+              {featuredProducts.length > 0 && (
+                <section>
+                  <div className="flex items-end justify-between gap-4 mb-4">
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                        <Icon icon={FaStar} className="text-yellow-500" />
+                        Featured picks
+                      </h2>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Customer favorites and seasonal highlights.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {featuredProducts.slice(0, 12).map(product => (
+                      <ProductCard key={product.id} product={product} />
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* Top sellers section */}
+              {topSellers.length > 0 && (
+                <section>
+                  <div className="flex items-end justify-between gap-4 mb-4">
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                        <Icon icon={FaFire} className="text-orange-500" />
+                        Popular right now
+                      </h2>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        The most ordered items recently.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {topSellers.slice(0, 12).map(product => (
+                      <ProductCard key={product.id} product={product} />
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* Category browse */}
+              <section>
+                <div className="flex items-end justify-between gap-4 mb-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">Browse by category</h2>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Pick a category above, or scroll to explore everything.
+                    </p>
+                  </div>
+                  {selectedCategoryId !== null && (
+                    <button
+                      onClick={() => handleSelectCategory(null)}
+                      className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+                    >
+                      Back to top
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-10">
+                  {categoryHierarchy.map(category => {
+                    const items = productsByMainCategoryId.get(category.id) || [];
+                    if (items.length === 0) return null;
+
+                    return (
+                      <div
+                        key={category.id}
+                        id={`cat-${category.id}`}
+                        className={selectedCategoryId === category.id ? 'scroll-mt-28' : 'scroll-mt-28'}
+                      >
+                        <div className="flex items-end justify-between gap-4 mb-4">
+                          <div>
+                            <h3 className="text-lg font-bold text-gray-900 dark:text-white">{category.name}</h3>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                              {items.length} item{items.length === 1 ? '' : 's'}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => handleSelectCategory(category.id)}
+                            className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+                          >
+                            Jump
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                          {items.map(product => (
+                            <ProductCard key={product.id} product={product} />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            </>
+          )}
+        </div>
+        {/* Category Modal (Mobile) */}
+        {showCategoryModal && (
           <div
-            className="bg-white dark:bg-neutral-900 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+            onClick={() => setShowCategoryModal(false)}
           >
-            <div className="px-6 py-4 border-b border-gray-100 dark:border-neutral-800 flex items-center justify-between bg-white dark:bg-neutral-900 sticky top-0 z-10">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <Icon icon={FaThLarge} className="text-blue-600" />
-                Categories
-              </h2>
-              <button
-                onClick={() => setShowCategoryModal(false)}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded-full transition-colors"
-                aria-label="Close modal"
-              >
-                <Icon icon={FaTimes} className="text-gray-500" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-6">
-              <div className="grid grid-cols-2 gap-4">
+            <div
+              className="bg-white dark:bg-neutral-900 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-6 py-4 border-b border-gray-100 dark:border-neutral-800 flex items-center justify-between bg-white dark:bg-neutral-900 sticky top-0 z-10">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Icon icon={FaThLarge} className="text-blue-600" />
+                  Categories
+                </h2>
                 <button
-                  onClick={() => {
-                    handleSelectCategory(null);
-                    setShowCategoryModal(false);
-                  }}
-                  className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${selectedCategoryId === null
-                      ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
-                      : 'border-transparent bg-gray-50 dark:bg-neutral-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-700'
-                    }`}
+                  onClick={() => setShowCategoryModal(false)}
+                  className="p-2 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded-full transition-colors"
+                  aria-label="Close modal"
                 >
-                  <span className="font-bold text-sm uppercase tracking-wider">All Items</span>
+                  <Icon icon={FaTimes} className="text-gray-500" />
                 </button>
+              </div>
 
-                {categoryHierarchy.map(category => (
+              <div className="flex-1 overflow-y-auto p-6">
+                <div className="grid grid-cols-2 gap-4">
                   <button
-                    key={category.id}
                     onClick={() => {
-                      handleSelectCategory(category.id);
+                      handleSelectCategory(null);
                       setShowCategoryModal(false);
                     }}
-                    className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all text-center ${selectedCategoryId === category.id
-                        ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
-                        : 'border-transparent bg-gray-50 dark:bg-neutral-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-700'
+                    className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${selectedCategoryId === null
+                      ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
+                      : 'border-transparent bg-gray-50 dark:bg-neutral-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-700'
                       }`}
                   >
-                    <span className="font-bold text-sm leading-tight">{category.name}</span>
-                    <span className="text-[10px] opacity-60 mt-1 uppercase tracking-tighter">
-                      {productsByMainCategoryId.get(category.id)?.length || 0} items
-                    </span>
+                    <span className="font-bold text-sm uppercase tracking-wider">All Items</span>
                   </button>
-                ))}
+
+                  {categoryHierarchy.map(category => (
+                    <button
+                      key={category.id}
+                      onClick={() => {
+                        handleSelectCategory(category.id);
+                        setShowCategoryModal(false);
+                      }}
+                      className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all text-center ${selectedCategoryId === category.id
+                        ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
+                        : 'border-transparent bg-gray-50 dark:bg-neutral-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-700'
+                        }`}
+                    >
+                      <span className="font-bold text-sm leading-tight">{category.name}</span>
+                      <span className="text-[10px] opacity-60 mt-1 uppercase tracking-tighter">
+                        {productsByMainCategoryId.get(category.id)?.length || 0} items
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-4 bg-gray-50 dark:bg-neutral-800/50 border-t border-gray-100 dark:border-neutral-800">
+                <button
+                  onClick={() => setShowCategoryModal(false)}
+                  className="w-full py-3 bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-bold rounded-xl hover:opacity-90 transition-opacity"
+                >
+                  Close
+                </button>
               </div>
             </div>
-
-            <div className="p-4 bg-gray-50 dark:bg-neutral-800/50 border-t border-gray-100 dark:border-neutral-800">
-              <button
-                onClick={() => setShowCategoryModal(false)}
-                className="w-full py-3 bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-bold rounded-xl hover:opacity-90 transition-opacity"
-              >
-                Close
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Item Customization Modal */}
-      {customizingProduct && (
-        <ItemCustomizationModal
-          isOpen={!!customizingProduct}
-          onClose={() => setCustomizingProduct(null)}
-          product={customizingProduct}
-          onAddToCart={handleAddToCart}
-        />
-      )}
+        {/* Item Customization Modal */}
+        {customizingProduct && (
+          <ItemCustomizationModal
+            isOpen={!!customizingProduct}
+            onClose={() => setCustomizingProduct(null)}
+            product={customizingProduct}
+            onAddToCart={handleAddToCart}
+          />
+        )}
 
-      {/* Cart Sidebar */}
-      <CartSidebar hideFloatBubble={!!customizingProduct} />
-      <LiveOrderTracker userId={userId} hideFloatBubble={!!customizingProduct} />
-    </div>
+        {/* Cart Sidebar */}
+        <CartSidebar hideFloatBubble={!!customizingProduct} />
+        <LiveOrderTracker userId={userId} hideFloatBubble={!!customizingProduct} />
+      </div>
+    </Suspense>
+  );
+}
+
+export default function OrderPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">Loading…</div>
+      </div>
+    }>
+      <OrderPageContent />
+    </Suspense>
   );
 }

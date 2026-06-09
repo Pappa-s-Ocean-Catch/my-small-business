@@ -454,3 +454,68 @@ export async function analyzeAndEnhanceImage(imageBase64: string, prompt: string
     };
   }
 }
+
+// Generate Marketing Email
+export async function generateMarketingEmail({
+  discountPercentage,
+  storeName,
+}: {
+  discountPercentage: number;
+  storeName: string;
+}): Promise<{ subject: string; htmlBody: string; error?: string }> {
+  try {
+    const genAI = getGoogleGenAI();
+    const modelsToTry = ['gemini-2.5-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'];
+    let parsedResult: { subject: string; htmlBody: string } | null = null;
+    let lastError: any = null;
+    const prompt = `You are a professional marketing copywriter for a restaurant/shop named "${storeName}".
+      Write a short, engaging marketing email template to send to customers.
+      Offer them a special ${discountPercentage}% off discount as a token of appreciation.
+      The coupon is valid for 1 week and can only be used once.
+      Include a clear call to action to visit our online store and use the code.
+      
+      CRITICAL INSTRUCTIONS:
+      Use exact placeholders where dynamic customer data will be inserted:
+      - For the customer's name, use exactly: {{CUSTOMER_NAME}}
+      - For the discount code, use exactly: {{COUPON_CODE}}
+      
+      Format the response strictly as a JSON object with two fields:
+      - "subject": A catchy email subject line.
+      - "htmlBody": The HTML content of the email (do not include <html>, <head>, or <body> tags, just the inner content with basic styling like <strong>, <p>, <br/>, <a>, and <div>). 
+        - You must include a placeholder {{STORE_LINK}} in the <a> tag href which will be replaced later.
+        - You MUST include a small, discreet unsubscribe link at the very bottom of the email. The href for the unsubscribe link must be exactly {{UNSUBSCRIBE_LINK}}.
+      
+      Return only the valid JSON, no markdown formatting blocks.`;
+    for (const modelName of modelsToTry) {
+      try {
+        const model = genAI.getGenerativeModel({ model: modelName });
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+        const jsonString = text.replace(/^```(json)?/i, '').replace(/```$/i, '').trim();
+        const parsed = JSON.parse(jsonString) as { subject: string; htmlBody: string };
+        if (parsed && parsed.subject && parsed.htmlBody) {
+          parsedResult = parsed;
+          break;
+        } else {
+          throw new Error('Invalid AI response format');
+        }
+      } catch (err) {
+        lastError = err;
+        continue; // try next model
+      }
+    }
+    if (!parsedResult) {
+      throw lastError || new Error('All models failed to generate email');
+    }
+    return parsedResult;
+  } catch (error) {
+    console.error('Error generating marketing email:', error);
+    return {
+      subject: '',
+      htmlBody: '',
+      error: error instanceof Error ? error.message : 'Failed to generate email',
+    };
+  }
+}
+

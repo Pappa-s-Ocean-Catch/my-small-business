@@ -67,68 +67,97 @@ class ShipdayClient {
   async requestQuote(pickup: DeliveryAddress, dropoff: DeliveryAddress): Promise<DeliveryQuote> {
     let distanceKm = 5; // Default fallback
     let durationMinutes = 25; // Default fallback
-    const googleApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
-    console.log('[Shipday] Requesting quote:', { 
-      pickup: { lat: pickup.latitude, lng: pickup.longitude }, 
-      dropoff: { lat: dropoff.latitude, lng: dropoff.longitude } 
-    });
+    const pickupStr = [pickup.address_line1, pickup.city, pickup.state, pickup.postcode].filter(Boolean).join(', ');
+    const dropoffStr = [dropoff.address_line1, dropoff.city, dropoff.state, dropoff.postcode].filter(Boolean).join(', ');
 
-    if (pickup.latitude && pickup.longitude && dropoff.latitude && dropoff.longitude) {
-      if (googleApiKey) {
-        try {
-          const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${pickup.latitude},${pickup.longitude}&destinations=${dropoff.latitude},${dropoff.longitude}&key=${googleApiKey}`;
-          const res = await fetch(url);
-          const data = await res.json();
+    console.log('[Shipday] Requesting availability quote:', { pickupStr, dropoffStr });
 
-          if (data.status === 'OK' && data.rows[0]?.elements[0]?.status === 'OK') {
-            const element = data.rows[0].elements[0];
-            distanceKm = element.distance.value / 1000;
-            durationMinutes = Math.ceil(element.duration.value / 60) + 10; // +10 mins for prep
-            console.log(`[Shipday] Google Distance: ${distanceKm}km, Duration: ${durationMinutes}min`);
-          } else {
-            // Fallback to straight line if Google fails
-            console.warn('[Shipday] Google Matrix API returned non-OK status:', data.status);
-            distanceKm = this.calculateDistance(pickup.latitude, pickup.longitude, dropoff.latitude, dropoff.longitude);
-            durationMinutes = 10 + Math.ceil(distanceKm * 3);
-            console.log(`[Shipday] Fallback Haversine Distance: ${distanceKm}km`);
+    let fee = 7.50; // default fee
+    let currency = 'AUD';
+
+    try {
+      const deliveryTime = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+      console.log(JSON.stringify({
+        pickupAddress: pickupStr,
+        deliveryAddress: dropoffStr,
+        deliveryTime: deliveryTime
+      }))
+      const response = await fetch('https://api.shipday.com/on-demand/availability', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${this.apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          pickupAddress: pickupStr,
+          deliveryAddress: dropoffStr,
+          deliveryTime: deliveryTime
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Shipday API error ${response.status}: ${await response.text()}`);
+      }
+
+      const responseData = await response.json();
+      console.log('[Shipday API] checkAvailability response:', JSON.stringify(responseData, null, 2));
+
+      const options = Array.isArray(responseData) ? responseData : responseData.options;
+
+      if (Array.isArray(options) && options.length > 0) {
+        // Find the best price among Uber, DoorDash, etc.
+        let bestOption = options[0];
+        for (const option of options) {
+          if (option.deliveryFee < bestOption.deliveryFee) {
+            bestOption = option;
           }
-        } catch (err) {
-          console.error('[Shipday] Google Distance Matrix error:', err);
-          distanceKm = this.calculateDistance(pickup.latitude, pickup.longitude, dropoff.latitude, dropoff.longitude);
-          durationMinutes = 10 + Math.ceil(distanceKm * 3);
+        }
+        fee = bestOption.deliveryFee;
+        if (bestOption.currency) currency = bestOption.currency;
+        if (bestOption.estimatedDistance) distanceKm = bestOption.estimatedDistance;
+
+        if (bestOption.estimatedDeliveryTime && bestOption.estimatedPickupTime) {
+          const start = new Date(bestOption.estimatedPickupTime).getTime();
+          const end = new Date(bestOption.estimatedDeliveryTime).getTime();
+          if (!isNaN(start) && !isNaN(end)) {
+            durationMinutes = Math.ceil((end - start) / 60000);
+          }
         }
       } else {
-        console.warn('[Shipday] Google API Key missing, using Haversine fallback');
-        distanceKm = this.calculateDistance(pickup.latitude, pickup.longitude, dropoff.latitude, dropoff.longitude);
+        console.warn('[Shipday SDK] No availability options returned, falling back to calculation');
+        if (pickup.latitude && pickup.longitude && dropoff.latitude && dropoff.longitude) {
+          distanceKm = this.calculateDistance(pickup.latitude, pickup.longitude, dropoff.latitude, dropoff.longitude);
+        }
         durationMinutes = 10 + Math.ceil(distanceKm * 3);
+        const baseFee = 7.50;
+        const freeDistance = 2.0;
+        const ratePerKm = 2.0;
+        fee = distanceKm <= freeDistance ? baseFee : baseFee + (distanceKm - freeDistance) * ratePerKm;
       }
-    } else {
-      console.warn('[Shipday] Missing coordinates for quote, using default distance');
+    } catch (error) {
+      console.error('[Shipday SDK] Error getting availability:', error);
+      if (pickup.latitude && pickup.longitude && dropoff.latitude && dropoff.longitude) {
+        distanceKm = this.calculateDistance(pickup.latitude, pickup.longitude, dropoff.latitude, dropoff.longitude);
+      }
+      durationMinutes = 10 + Math.ceil(distanceKm * 3);
+      const baseFee = 7.50;
+      const freeDistance = 2.0;
+      const ratePerKm = 2.0;
+      fee = distanceKm <= freeDistance ? baseFee : baseFee + (distanceKm - freeDistance) * ratePerKm;
     }
 
-    // Custom fee logic (Updated to be more realistic for Shipday Drive)
-    // $7.50 base + $2.0 per km after 2km
-    const baseFee = 7.50;
-    const freeDistance = 2.0;
-    const ratePerKm = 2.0;
-    
-    const fee = distanceKm <= freeDistance 
-      ? baseFee 
-      : baseFee + (distanceKm - freeDistance) * ratePerKm;
-
-    console.log(`[Shipday] Final Quote: Distance=${distanceKm}km, Fee=$${fee}, Currency=AUD`);
+    console.log(`[Shipday] Final Quote: Fee=${fee}, Currency=${currency}`);
 
     return {
       quote_id: `sd_quote_${Date.now()}`,
       fee: Math.round(fee * 100) / 100,
-      currency: 'AUD',
+      currency: currency,
       distance_km: Math.round(distanceKm * 10) / 10,
       estimated_duration_minutes: durationMinutes,
       estimated_duration_seconds: durationMinutes * 60,
       expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
     };
-
   }
 
 
@@ -180,7 +209,7 @@ class ShipdayClient {
       const shipdayRequest = {
         getRequestBody: () => payload
       };
-      
+
       const response = await this.sdk.orderService.insertOrder(shipdayRequest);
       console.log('[Shipday SDK] Response received:', JSON.stringify(response, null, 2));
       return {

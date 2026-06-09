@@ -237,6 +237,8 @@ export default function OrderHistoryPage() {
           </div>
           <div class="total">
             <p>Subtotal: $${order.subtotal.toFixed(2)}</p>
+            ${(order.promotion_discount ?? 0) > 0 ? `<p style="color: #16a34a;">Promotion Discount: -$${Number(order.promotion_discount).toFixed(2)}</p>` : ''}
+            ${(order.coupon_discount ?? 0) > 0 ? `<p style="color: #16a34a;">Coupon (${order.coupon_code}): -$${Number(order.coupon_discount).toFixed(2)}</p>` : ''}
             ${order.tax > 0 ? `<p>Tax: $${order.tax.toFixed(2)}</p>` : ''}
             ${order.delivery_fee > 0 ? `<p>Delivery Fee: $${order.delivery_fee.toFixed(2)}</p>` : ''}
             ${order.service_fee > 0 ? `<p>Service Fee: $${order.service_fee.toFixed(2)}</p>` : ''}

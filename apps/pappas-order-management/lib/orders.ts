@@ -22,8 +22,16 @@ function mapEmbeddedOrder(row: OrderWithEmbeddedItemsRow): Order {
   // Strip embedded fields from base row
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { order_items, ...rest } = row as unknown as { order_items?: unknown } & OrderRow;
+  const mappedOrder = rest as unknown as Order;
   return {
-    ...(rest as unknown as Order),
+    ...mappedOrder,
+    subtotal: Number(mappedOrder.subtotal ?? 0),
+    tax: Number(mappedOrder.tax ?? 0),
+    delivery_fee: Number(mappedOrder.delivery_fee ?? 0),
+    service_fee: Number(mappedOrder.service_fee ?? 0),
+    promotion_discount: Number(mappedOrder.promotion_discount ?? 0),
+    coupon_discount: Number(mappedOrder.coupon_discount ?? 0),
+    total: Number(mappedOrder.total ?? 0),
     items,
   };
 }

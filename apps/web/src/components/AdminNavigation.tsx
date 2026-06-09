@@ -286,6 +286,7 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                   <Link className={getLinkClasses("/admin/announcements")} href="/admin/announcements" aria-label="Announcements">Announcements</Link>
                   <Link className={getLinkClasses("/shop/menu")} href="/shop/menu" aria-label="Menu">Menu</Link>
                   <Link className={getLinkClasses("/shop/promotions")} href="/shop/promotions" aria-label="Promotions">Promotions</Link>
+                  <Link className={getLinkClasses("/admin/marketing")} href="/admin/marketing" aria-label="Auto Marketing">Auto Marketing</Link>
                   <Link className={getLinkClasses("/shop/coupons")} href="/shop/coupons" aria-label="Coupons">Coupons</Link>
                   <Link className={getLinkClasses("/shop/addons")} href="/shop/addons" aria-label="Add-ons">Add-ons</Link>
                   <Link className={getLinkClasses("/shop/combo")} href="/shop/combo" aria-label="Combo">Combo</Link>
@@ -437,6 +438,17 @@ export function AdminNavigation({ orientation = 'horizontal' }: { orientation?: 
                             <div>
                               <div className="font-medium text-gray-900 dark:text-white">Promotions</div>
                               <div className="text-xs text-gray-600 dark:text-gray-400">Manage discounts and promo schedules</div>
+                            </div>
+                          </div>
+                        </Link>
+                        <Link href="/admin/marketing" className="group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                          <div className="flex items-start gap-3">
+                            <div className="mt-0.5 text-pink-600 dark:text-pink-400">
+                              <Icon icon={FaBullhorn} className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="font-medium text-gray-900 dark:text-white">Auto Marketing</div>
+                              <div className="text-xs text-gray-600 dark:text-gray-400">AI-generated marketing emails</div>
                             </div>
                           </div>
                         </Link>
