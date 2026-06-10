@@ -1,12 +1,13 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Appbar, Button, Dialog, Divider, IconButton, Portal, TextInput } from 'react-native-paper';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import type { OrderItem, OrderItemAddon, PaymentStatus } from '@my-small-business/types';
 import { savePosOrder, updatePosOrder } from '../lib/orders';
 import { createCustomerIfNotExists, findCustomerByPhone } from '../lib/customers';
+import { DEFAULT_POS_BUTTON_COLOR, fetchPreferredPosLayout, PosLayoutData } from '../lib/pos-layouts';
 
 type SaleCategory = {
   id: string;
@@ -63,6 +64,13 @@ type PosCartItem = OrderItem & {
 };
 
 type PosPaymentChoice = 'card' | 'cash' | 'no_pay';
+
+type LayoutCategoryButton = {
+  id: string;
+  name: string;
+  color: string;
+  showProductsOnTopLevel: boolean;
+};
 
 const newLocalId = () => `pos-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
@@ -126,6 +134,7 @@ export default function PosScreen() {
   const [categories, setCategories] = useState<SaleCategory[]>([]);
   const [selectedCatId, setSelectedCatId] = useState<string | null>(null);
   const [products, setProducts] = useState<SaleProduct[]>([]);
+  const [topLevelGroupProducts, setTopLevelGroupProducts] = useState<Record<string, SaleProduct[]>>({});
   const [topSellers, setTopSellers] = useState<TopSellerProduct[]>([]);
   const [cartItems, setCartItems] = useState<PosCartItem[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
@@ -156,9 +165,14 @@ export default function PosScreen() {
   const [showPickupPicker, setShowPickupPicker] = useState(false);
   const [pickupPickerMode, setPickupPickerMode] = useState<'date' | 'time'>('date');
   const [paymentChoice, setPaymentChoice] = useState<PosPaymentChoice>('no_pay');
+  const [posLayout, setPosLayout] = useState<PosLayoutData | null>(null);
 
   const goHome = () => {
     router.replace('/(drawer)/(tabs)/live-orders');
+  };
+
+  const openLayoutSettings = () => {
+    router.push('/pos-layout-settings');
   };
 
   const handleCancel = () => {
@@ -203,9 +217,101 @@ export default function PosScreen() {
     void fetchCategories();
   }, []);
 
+  const loadPreferredLayout = useCallback(async () => {
+    const { data, error } = await fetchPreferredPosLayout();
+    if (error) {
+      console.warn('POS layout load failed', error);
+      return;
+    }
+
+    setPosLayout(data?.layout ?? null);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadPreferredLayout();
+    }, [loadPreferredLayout])
+  );
+
   const topLevelCategories = useMemo(
     () => categories.filter((category) => !category.parent_category_id),
     [categories]
+  );
+
+  const categoryIdsForLayoutGroup = useCallback((
+    layoutCategory: PosLayoutData['categories'][number] | null | undefined,
+    fallbackCategoryId: string
+  ) => {
+    const sourceCategoryIds = layoutCategory?.sourceCategoryIds?.length
+      ? layoutCategory.sourceCategoryIds
+      : [fallbackCategoryId];
+    const childCategoryIds = categories
+      .filter((category) => sourceCategoryIds.includes(category.parent_category_id || ''))
+      .map((category) => category.id);
+
+    return Array.from(new Set([...sourceCategoryIds, ...childCategoryIds]));
+  }, [categories]);
+
+  const activeLayoutCategory = useMemo(
+    () => posLayout?.categories.find((category) => category.categoryId === selectedCatId) ?? null,
+    [posLayout, selectedCatId]
+  );
+
+  const layoutTopLevelCategories = useMemo<LayoutCategoryButton[]>(() => {
+    const categoriesById = new Map(topLevelCategories.map((category) => [category.id, category]));
+    const usedIds = new Set<string>();
+    const ordered = (posLayout?.categories || [])
+      .map((layoutCategory) => {
+        const sourceCategoryIds = layoutCategory.sourceCategoryIds?.length
+          ? layoutCategory.sourceCategoryIds
+          : [layoutCategory.categoryId];
+        const hasExistingSource = sourceCategoryIds.some((categoryId) => categoriesById.has(categoryId));
+        if (!hasExistingSource) return null;
+        sourceCategoryIds.forEach((categoryId) => usedIds.add(categoryId));
+        return {
+          id: layoutCategory.categoryId,
+          name: layoutCategory.title || categoriesById.get(sourceCategoryIds[0])?.name || 'Group',
+          color: layoutCategory.color || DEFAULT_POS_BUTTON_COLOR,
+          showProductsOnTopLevel: Boolean(layoutCategory.showProductsOnTopLevel),
+        };
+      })
+      .filter((category): category is LayoutCategoryButton => Boolean(category));
+
+    return [
+      ...ordered,
+      ...topLevelCategories
+        .filter((category) => !usedIds.has(category.id))
+        .map((category) => ({
+          id: category.id,
+          name: category.name,
+          color: DEFAULT_POS_BUTTON_COLOR,
+          showProductsOnTopLevel: false,
+        })),
+    ];
+  }, [posLayout, topLevelCategories]);
+
+  const layoutProducts = useMemo(() => {
+    if (!activeLayoutCategory) return products;
+
+    const productsById = new Map(products.map((product) => [product.id, product]));
+    const usedIds = new Set<string>();
+    const ordered = activeLayoutCategory.products
+      .map((layoutProduct) => {
+        const product = productsById.get(layoutProduct.productId);
+        if (!product) return null;
+        usedIds.add(product.id);
+        return product;
+      })
+      .filter((product): product is SaleProduct => Boolean(product));
+
+    return [
+      ...ordered,
+      ...products.filter((product) => !usedIds.has(product.id)),
+    ];
+  }, [activeLayoutCategory, products]);
+
+  const productButtonColor = (productId: string) => (
+    activeLayoutCategory?.products.find((product) => product.productId === productId)?.color
   );
 
   const invalidateTopSellers = () => {
@@ -357,14 +463,63 @@ export default function PosScreen() {
   }, [searchProducts, searchQuery]);
 
   useEffect(() => {
+    if (menuLevel !== 'groups') return;
+
+    const directGroups = (posLayout?.categories || []).filter((category) => category.showProductsOnTopLevel);
+    if (directGroups.length === 0) {
+      setTopLevelGroupProducts({});
+      return;
+    }
+
+    let cancelled = false;
+    const fetchDirectGroupProducts = async () => {
+      const entries = await Promise.all(directGroups.map(async (layoutCategory) => {
+        const categoryIds = categoryIdsForLayoutGroup(layoutCategory, layoutCategory.categoryId);
+        if (categoryIds.length === 0) return [layoutCategory.categoryId, []] as const;
+        const cacheKey = categoryIds.sort().join(',');
+        const cachedProducts = catalogCache.productsByCategory.get(cacheKey);
+
+        if (isCacheFresh(cachedProducts)) {
+          return [layoutCategory.categoryId, cachedProducts.data] as const;
+        }
+
+        const { data, error } = await supabase
+          .from('sale_products')
+          .select('id, name, description, search_term, sale_price, image_url, sale_category_id, sub_category_id, sort_order, is_active')
+          .eq('is_active', true)
+          .or(`sale_category_id.in.(${categoryIds.join(',')}),sub_category_id.in.(${categoryIds.join(',')})`)
+          .order('sort_order', { ascending: true });
+
+        if (error) return [layoutCategory.categoryId, []] as const;
+
+        const nextProducts = (data || []) as SaleProduct[];
+        catalogCache.productsByCategory.set(cacheKey, cacheEntry(nextProducts));
+        void loadCustomizationAvailability(nextProducts.map((product) => product.id));
+        return [layoutCategory.categoryId, nextProducts] as const;
+      }));
+
+      if (cancelled) return;
+      setTopLevelGroupProducts(Object.fromEntries(entries));
+    };
+
+    void fetchDirectGroupProducts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [categoryIdsForLayoutGroup, menuLevel, posLayout]);
+
+  useEffect(() => {
     if (!selectedCatId || menuLevel !== 'items') return;
 
     const fetchProducts = async () => {
-      const childCategoryIds = categories
-        .filter((category) => category.parent_category_id === selectedCatId)
-        .map((category) => category.id);
-      const categoryIds = [selectedCatId, ...childCategoryIds];
-      const cachedProducts = catalogCache.productsByCategory.get(selectedCatId);
+      const categoryIds = categoryIdsForLayoutGroup(activeLayoutCategory, selectedCatId);
+      if (categoryIds.length === 0) {
+        setProducts([]);
+        return;
+      }
+      const cacheKey = categoryIds.sort().join(',');
+      const cachedProducts = catalogCache.productsByCategory.get(cacheKey);
 
       if (isCacheFresh(cachedProducts)) {
         setProducts(cachedProducts.data);
@@ -386,13 +541,13 @@ export default function PosScreen() {
         return;
       }
       const nextProducts = (data || []) as SaleProduct[];
-      catalogCache.productsByCategory.set(selectedCatId, cacheEntry(nextProducts));
+      catalogCache.productsByCategory.set(cacheKey, cacheEntry(nextProducts));
       setProducts(nextProducts);
       void loadCustomizationAvailability(nextProducts.map((product) => product.id));
     };
 
     void fetchProducts();
-  }, [categories, menuLevel, selectedCatId]);
+  }, [activeLayoutCategory, categoryIdsForLayoutGroup, menuLevel, selectedCatId]);
 
   useEffect(() => {
     const loadOrder = async () => {
@@ -853,6 +1008,7 @@ export default function PosScreen() {
   };
 
   const removeCartItem = (id: string) => {
+    if (menuLevel === 'addons') backToItems();
     setCartItems((prev) => prev.filter((item) => item.id !== id));
   };
 
@@ -908,6 +1064,11 @@ export default function PosScreen() {
   };
 
   const updateQuantity = (id: string, delta: number) => {
+    const currentItem = cartItems.find((item) => item.id === id);
+    if (menuLevel === 'addons' && currentItem && currentItem.quantity + delta <= 0) {
+      backToItems();
+    }
+
     setCartItems((prev) => prev
       .map((item) => {
         if (item.id !== id) return item;
@@ -1042,7 +1203,9 @@ export default function PosScreen() {
     router.back();
   };
 
-  const activeCategoryName = categories.find((category) => category.id === selectedCatId)?.name ?? 'Menu';
+  const activeCategoryName = activeLayoutCategory?.title
+    || categories.find((category) => category.id === selectedCatId)?.name
+    || 'Menu';
   const quickQuantityForProduct = (productId: string) => (
     cartItems.find((item) => (
       item.product_id === productId
@@ -1057,6 +1220,7 @@ export default function PosScreen() {
       <Appbar.Header style={styles.header}>
         <Appbar.Action icon="close" onPress={handleCancel} iconColor="#fff" accessibilityLabel="Cancel" />
         <Appbar.Content title={orderId ? 'Edit Order' : 'Take Order'} titleStyle={styles.headerTitle} />
+        <Appbar.Action icon="view-grid-plus-outline" onPress={openLayoutSettings} iconColor="#fff" accessibilityLabel="POS layout settings" />
         <Appbar.Action icon="home" onPress={goHome} iconColor="#fff" accessibilityLabel="Back home" />
       </Appbar.Header>
 
@@ -1071,16 +1235,50 @@ export default function PosScreen() {
                   </Button>
                 </View>
                 <FlatList
-                  data={topLevelCategories}
+                  data={layoutTopLevelCategories}
                   keyExtractor={(item) => item.id}
                   numColumns={3}
                   key="groups-3"
                   contentContainerStyle={styles.tileGrid}
-                  renderItem={({ item }) => (
-                    <TouchableOpacity style={styles.groupCard} onPress={() => openCategory(item.id)}>
-                      <Text style={styles.groupCardText} numberOfLines={3}>{item.name}</Text>
-                    </TouchableOpacity>
-                  )}
+                  renderItem={({ item }) => {
+                    const directProducts = item.showProductsOnTopLevel ? (topLevelGroupProducts[item.id] || []) : [];
+                    if (item.showProductsOnTopLevel) {
+                      return (
+                        <View style={styles.directGroupBlock}>
+                          <Text style={styles.directGroupTitle} numberOfLines={1}>{item.name}</Text>
+                          <View style={styles.directGroupProducts}>
+                            {directProducts.map((product) => {
+                              const quickQuantity = quickQuantityForProduct(product.id);
+                              return (
+                                <TouchableOpacity
+                                  key={product.id}
+                                  style={[styles.directProductCard, { borderColor: item.color }]}
+                                  onPress={() => void quickAddProduct(product)}
+                                >
+                                  {quickQuantity > 0 && (
+                                    <View style={styles.productQuantityBadge}>
+                                      <Text style={styles.productQuantityText}>{quickQuantity}</Text>
+                                    </View>
+                                  )}
+                                  <Text style={styles.directProductName} numberOfLines={2}>{product.name}</Text>
+                                  <Text style={styles.directProductPrice}>${product.sale_price.toFixed(2)}</Text>
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </View>
+                        </View>
+                      );
+                    }
+
+                    return (
+                      <TouchableOpacity
+                        style={[styles.groupCard, { backgroundColor: item.color }]}
+                        onPress={() => openCategory(item.id)}
+                      >
+                        <Text style={styles.groupCardText} numberOfLines={3}>{item.name}</Text>
+                      </TouchableOpacity>
+                    );
+                  }}
                 />
                 <View style={styles.topSellersSection}>
                   <View style={styles.topSellersHeader}>
@@ -1180,11 +1378,11 @@ export default function PosScreen() {
                 </Button>
                 <View style={styles.menuHeaderText}>
                   <Text style={styles.menuTitle}>{activeCategoryName}</Text>
-                  <Text style={styles.menuSubtitle}>{products.length} items</Text>
+                  <Text style={styles.menuSubtitle}>{layoutProducts.length} items</Text>
                 </View>
               </View>
               <FlatList
-                data={products}
+                data={layoutProducts}
                 keyExtractor={(item) => item.id}
                 numColumns={3}
                 key="products-3"
@@ -1197,14 +1395,17 @@ export default function PosScreen() {
                 renderItem={({ item }) => {
                   const quickQuantity = quickQuantityForProduct(item.id);
                   return (
-                    <TouchableOpacity style={styles.productCard} onPress={() => void quickAddProduct(item)}>
+                    <TouchableOpacity
+                      style={[styles.productCard, productButtonColor(item.id) ? styles.productCardCustomColor : null, productButtonColor(item.id) ? { backgroundColor: productButtonColor(item.id), borderColor: productButtonColor(item.id) } : null]}
+                      onPress={() => void quickAddProduct(item)}
+                    >
                       {quickQuantity > 0 && (
                         <View style={styles.productQuantityBadge}>
                           <Text style={styles.productQuantityText}>{quickQuantity}</Text>
                         </View>
                       )}
-                      <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
-                      <Text style={styles.productPrice}>${item.sale_price.toFixed(2)}</Text>
+                      <Text style={[styles.productName, productButtonColor(item.id) ? styles.productCardCustomText : null]} numberOfLines={2}>{item.name}</Text>
+                      <Text style={[styles.productPrice, productButtonColor(item.id) ? styles.productCardCustomText : null]}>${item.sale_price.toFixed(2)}</Text>
                     </TouchableOpacity>
                   );
                 }}
@@ -1575,7 +1776,7 @@ const styles = StyleSheet.create({
   menuSubtitle: { color: '#6b7280', marginTop: 2 },
   backButton: { borderRadius: 8 },
   groupScreen: { flex: 1 },
-  groupActionBar: { padding: 10, paddingBottom: 0, alignItems: 'stretch' },
+  groupActionBar: { padding: 10, paddingBottom: 0, alignItems: 'stretch', gap: 8 },
   searchEntryButton: { borderRadius: 8 },
   tileGrid: { padding: 10, paddingBottom: 24 },
   searchBody: { flex: 1 },
@@ -1594,6 +1795,29 @@ const styles = StyleSheet.create({
     borderColor: '#243244',
   },
   groupCardText: { color: '#fff', fontSize: 22, fontWeight: '900', textAlign: 'center' },
+  directGroupBlock: {
+    flex: 1,
+    minHeight: 132,
+    margin: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#fff',
+    padding: 8,
+  },
+  directGroupTitle: { color: '#111827', fontSize: 13, fontWeight: '900', marginBottom: 6 },
+  directGroupProducts: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  directProductCard: {
+    width: '48%',
+    minHeight: 74,
+    borderRadius: 8,
+    borderWidth: 2,
+    backgroundColor: '#f9fafb',
+    padding: 8,
+    justifyContent: 'space-between',
+  },
+  directProductName: { color: '#111827', fontSize: 12, fontWeight: '900', paddingRight: 22 },
+  directProductPrice: { color: '#dc2626', fontSize: 14, fontWeight: '900' },
   topSellersSection: {
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
@@ -1657,6 +1881,8 @@ const styles = StyleSheet.create({
   productQuantityText: { color: '#fff', fontSize: 14, fontWeight: '900' },
   productName: { color: '#111827', fontSize: 16, fontWeight: '800' },
   productPrice: { color: '#dc2626', fontSize: 20, fontWeight: '900' },
+  productCardCustomColor: { borderWidth: 1 },
+  productCardCustomText: { color: '#fff' },
   emptyState: { padding: 30, alignItems: 'center' },
   emptyTitle: { color: '#6b7280', fontSize: 16, fontWeight: '700' },
   editorBody: { flex: 1, padding: 12 },

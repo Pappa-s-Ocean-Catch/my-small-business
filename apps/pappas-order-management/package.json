@@ -5,11 +5,16 @@
   "scripts": {
     "prestart": "node scripts/generate-sound-assets.js",
     "preandroid": "node scripts/generate-sound-assets.js",
+    "preandroid:direct": "node scripts/generate-sound-assets.js",
     "preios": "node scripts/generate-sound-assets.js",
     "preweb": "node scripts/generate-sound-assets.js",
     "start": "expo start",
     "android": "expo start --android --device",
+    "android:direct": "ANDROID_SERIAL=emulator-5554 expo run:android",
+    "android:start:direct": "ANDROID_SERIAL=emulator-5554 expo start --dev-client --android",
     "ios": "expo run:ios",
+    "ios:ipad": "expo run:ios --device \"iPad Pro 13-inch (M5)\"",
+    "ios:start:ipad": "expo start --dev-client --ios",
     "web": "expo start --web",
     "generate-assets": "node scripts/generate-assets.js",
     "ios:tablet": "expo start --ios --device",
@@ -47,7 +52,8 @@
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
     "react-native-vector-icons": "^10.3.0",
-    "react-native-view-shot": "^4.0.3"
+    "react-native-view-shot": "^4.0.3",
+    "reanimated-color-picker": "^5.1.1"
   },
   "devDependencies": {
     "@babel/core": "^7.25.0",
