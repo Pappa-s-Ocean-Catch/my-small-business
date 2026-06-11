@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import type { Order } from '@my-small-business/types';
-import { groupAddons } from '../utils/orderUtils';
+import { getOrderChannelReceiptLabel, groupAddons } from '../utils/orderUtils';
 
 interface ReceiptTemplateProps {
   order: Order;
@@ -38,7 +38,7 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ order, width =
 
       <Text style={styles.headerText}>{createdDate}</Text>
       <Text style={styles.headerText}>
-        {order.order_type?.toUpperCase()} • {order.payment_method?.toUpperCase()}
+        {getOrderChannelReceiptLabel(order)} • {order.payment_method?.toUpperCase()}
       </Text>
 
       <View style={styles.divider} />

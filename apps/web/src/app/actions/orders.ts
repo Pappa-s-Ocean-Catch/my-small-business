@@ -8,6 +8,7 @@ import type {
   Order,
   OrderItem,
   OrderItemAddon,
+  OrderChannel,
   DeliveryAddressInput,
   OrderStatus,
   PaymentStatus,
@@ -20,6 +21,7 @@ export interface OrderInput {
   customer_phone: string;
   customer_name?: string;
   payment_method: 'online' | 'store';
+  order_channel?: OrderChannel;
   order_type: 'pickup' | 'delivery';
   user_id?: string;
   special_instructions?: string;
@@ -168,6 +170,7 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
       customer_phone: input.customer_phone,
       customer_name: input.customer_name || null,
       payment_method: input.payment_method,
+      order_channel: input.order_channel ?? 'online',
       order_type: input.order_type,
       payment_status: input.payment_method === 'online' ? 'pending' : 'pending', // Will be updated when payment is processed
       order_status: input.payment_method === 'online' ? 'pending_online_payment' : 'pending',

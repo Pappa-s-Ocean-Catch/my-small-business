@@ -1444,6 +1444,7 @@ export default function CheckoutPage() {
         customer_phone: customerPhone,
         customer_name: customerName.trim(),
         payment_method: paymentMethod,
+        order_channel: "online",
         order_type: orderType || "pickup",
         user_id: currentUser?.id,
         special_instructions: specialInstructions || undefined,

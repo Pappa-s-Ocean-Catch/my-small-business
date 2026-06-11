@@ -52,6 +52,7 @@ Ensure your Supabase project has:
    - `customer_phone` (TEXT)
    - `customer_name` (TEXT, nullable)
    - `order_type` (TEXT: 'pickup' | 'delivery')
+   - `order_channel` (TEXT: 'online' | 'phone_pickup' | 'instore')
    - `total` (NUMERIC)
    - `created_at` (TIMESTAMPTZ)
    - And other order fields

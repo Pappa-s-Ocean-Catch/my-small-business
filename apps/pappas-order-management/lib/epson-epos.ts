@@ -1,4 +1,5 @@
 import type { Order, OrderItem, OrderItemAddon } from '@my-small-business/types';
+import { getOrderChannelReceiptLabel } from '../utils/orderUtils';
 // this file is no longer use
 const FONT_SIZE = {
   large: { width: 2, height: 2 },
@@ -80,7 +81,7 @@ function formatOrderHeaderLines(order: Order): ReceiptLine[] {
   }
 
   lines.push(created.toLocaleString());
-  lines.push(`${order.order_type === 'delivery' ? 'DELIVERY' : 'PICKUP'}  •  ${order.payment_method.toUpperCase()}`);
+  lines.push(`${getOrderChannelReceiptLabel(order)}  •  ${order.payment_method.toUpperCase()}`);
   lines.push('');
 
   const customer = order.customer_name || order.customer_email;

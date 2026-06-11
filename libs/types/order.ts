@@ -10,6 +10,8 @@ export interface DeliveryAddressInput {
   delivery_instructions?: string;
 }
 
+export type OrderChannel = 'online' | 'phone_pickup' | 'instore';
+
 // Note: items type is flexible to allow different implementations
 // In web app, it's CartItemData[], in mobile it might be different
 export interface OrderInput {
@@ -17,6 +19,7 @@ export interface OrderInput {
   customer_phone: string;
   customer_name?: string;
   payment_method: 'online' | 'store';
+  order_channel?: OrderChannel;
   order_type: 'pickup' | 'delivery';
   user_id?: string;
   special_instructions?: string;
@@ -94,6 +97,7 @@ export interface Order {
   customer_phone: string;
   customer_name: string | null;
   payment_method: 'online' | 'store';
+  order_channel: OrderChannel;
   /** Optional tender detail for in-store payments (e.g. 'cash', 'card', 'eftpos'). */
   payment_method_detail: string | null;
   order_type: 'pickup' | 'delivery';

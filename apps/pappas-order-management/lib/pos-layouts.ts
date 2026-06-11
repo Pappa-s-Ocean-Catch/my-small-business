@@ -17,8 +17,18 @@ export type PosLayoutCategory = {
 
 export type PosLayoutData = {
   version: 1;
+  quickOrderNotes?: string[];
   categories: PosLayoutCategory[];
 };
+
+export const DEFAULT_POS_QUICK_ORDER_NOTES = [
+  'Chicken salt',
+  'Salt',
+  'Both Salt',
+  'No salt at all',
+  'Extra Salt',
+  'Extra chicken salt',
+];
 
 export type PosLayoutRecord = {
   id: string;
@@ -36,6 +46,11 @@ export const normalizePosLayout = (layout: unknown): PosLayoutData => {
   const candidate = layout as Partial<PosLayoutData> | null | undefined;
   return {
     version: 1,
+    quickOrderNotes: Array.isArray(candidate?.quickOrderNotes)
+      ? candidate.quickOrderNotes
+        .filter((note): note is string => typeof note === 'string' && note.trim().length > 0)
+        .map((note) => note.trim())
+      : DEFAULT_POS_QUICK_ORDER_NOTES,
     categories: Array.isArray(candidate?.categories)
       ? candidate.categories
         .filter((category): category is PosLayoutCategory => Boolean(category?.categoryId))

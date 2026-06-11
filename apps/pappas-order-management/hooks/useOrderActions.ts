@@ -47,16 +47,16 @@ export const useOrderActions = (
       if (newStatus === 'completed' && order.payment_status === 'pending') {
         Alert.alert('Complete Order', 'Select payment method', [
           {
-            text: 'Cash',
+            text: 'Card',
             onPress: async () => {
-              const result = await updateOrderStatus(order.id, 'completed', 'paid', 'Cash');
+              const result = await updateOrderStatus(order.id, 'completed', 'paid', 'Card');
               processUpdateResult(result);
             },
           },
           {
-            text: 'Card',
+            text: 'Cash',
             onPress: async () => {
-              const result = await updateOrderStatus(order.id, 'completed', 'paid', 'Card');
+              const result = await updateOrderStatus(order.id, 'completed', 'paid', 'Cash');
               processUpdateResult(result);
             },
           },

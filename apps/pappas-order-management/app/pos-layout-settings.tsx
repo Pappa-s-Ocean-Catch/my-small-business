@@ -6,6 +6,7 @@ import ColorPicker, { BrightnessSlider, HueSlider, Panel1, Preview } from 'reani
 import { supabase } from '@/lib/supabase';
 import {
   DEFAULT_POS_BUTTON_COLOR,
+  DEFAULT_POS_QUICK_ORDER_NOTES,
   fetchPosLayouts,
   PosLayoutCategory,
   PosLayoutData,
@@ -79,7 +80,11 @@ export default function PosLayoutSettingsScreen() {
   const [layoutId, setLayoutId] = useState<string | null>(null);
   const [layoutName, setLayoutName] = useState('Default POS Layout');
   const [isDefault, setIsDefault] = useState(true);
-  const [layout, setLayout] = useState<PosLayoutData>({ version: 1, categories: [] });
+  const [layout, setLayout] = useState<PosLayoutData>({
+    version: 1,
+    quickOrderNotes: DEFAULT_POS_QUICK_ORDER_NOTES,
+    categories: [],
+  });
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -122,6 +127,7 @@ export default function PosLayoutSettingsScreen() {
 
   const selectedLayoutCategory = layoutGroupViews.find((category) => category.categoryId === selectedCategoryId) ?? null;
   const selectedCategoryName = selectedLayoutCategory?.displayName ?? 'Items';
+  const quickOrderNotesText = (layout.quickOrderNotes?.length ? layout.quickOrderNotes : DEFAULT_POS_QUICK_ORDER_NOTES).join('\n');
 
   const categoryProducts = useMemo(() => {
     if (!selectedLayoutCategory) return [];
@@ -153,6 +159,7 @@ export default function PosLayoutSettingsScreen() {
     const topCategories = nextCategories.filter((category) => !category.parent_category_id);
     return {
       version: 1,
+      quickOrderNotes: DEFAULT_POS_QUICK_ORDER_NOTES,
       categories: topCategories.map((category) => {
         const childCategoryIds = nextCategories
           .filter((child) => child.parent_category_id === category.id)
@@ -236,6 +243,9 @@ export default function PosLayoutSettingsScreen() {
 
     return {
       version: 1,
+      quickOrderNotes: sourceLayout.quickOrderNotes?.length
+        ? sourceLayout.quickOrderNotes
+        : DEFAULT_POS_QUICK_ORDER_NOTES,
       categories: [...syncedDefaults, ...virtualCategories],
     };
   };
@@ -313,6 +323,17 @@ export default function PosLayoutSettingsScreen() {
     updateCategory(categoryId, (category) => ({
       ...category,
       showProductsOnTopLevel: !category.showProductsOnTopLevel,
+    }));
+  };
+
+  const updateQuickOrderNotes = (text: string) => {
+    const notes = text
+      .split(/\r?\n/)
+      .map((note) => note.trim())
+      .filter(Boolean);
+    setLayout((current) => ({
+      ...current,
+      quickOrderNotes: notes,
     }));
   };
 
@@ -563,6 +584,16 @@ export default function PosLayoutSettingsScreen() {
               <Checkbox status={isDefault ? 'checked' : 'unchecked'} />
               <Text style={styles.defaultText}>Load as default layout</Text>
             </TouchableOpacity>
+            <TextInput
+              label="Quick order notes"
+              mode="outlined"
+              value={quickOrderNotesText}
+              onChangeText={updateQuickOrderNotes}
+              multiline
+              numberOfLines={6}
+              style={[styles.input, styles.multilineInput]}
+            />
+            <Text style={styles.helperText}>One option per line. These appear in POS and print as order notes.</Text>
             <View style={styles.actionRow}>
               <Button mode="contained" icon="content-save" onPress={handleSave} loading={saving} disabled={saving} style={styles.actionButton}>
                 Save
@@ -797,6 +828,8 @@ const styles = StyleSheet.create({
   emptyText: { color: '#6b7280', fontSize: 16, fontWeight: '700', padding: 24, textAlign: 'center' },
   menuBox: { zIndex: 10 },
   input: { backgroundColor: '#fff' },
+  multilineInput: { minHeight: 118 },
+  helperText: { color: '#6b7280', fontSize: 12, fontWeight: '700' },
   inlineInput: { backgroundColor: '#fff' },
   fullButton: { borderRadius: 8 },
   defaultRow: { flexDirection: 'row', alignItems: 'center' },

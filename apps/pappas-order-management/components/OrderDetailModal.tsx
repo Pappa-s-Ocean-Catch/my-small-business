@@ -311,14 +311,14 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 style={styles.secondaryButton} 
               />
             )}
-            {order.order_status !== 'completed' && order.order_status !== 'cancelled' && (
+            {order.payment_status !== 'paid' && order.order_status !== 'completed' && order.order_status !== 'cancelled' && (
               <IconButton 
                 icon="pencil" 
                 mode="outlined" 
                 iconColor="#2563eb" 
                 onPress={() => {
                   onClose();
-                  router.push(`/pos?orderId=${order.id}`);
+                  router.push({ pathname: '/pos', params: { orderId: order.id } });
                 }} 
                 style={styles.secondaryButton} 
               />

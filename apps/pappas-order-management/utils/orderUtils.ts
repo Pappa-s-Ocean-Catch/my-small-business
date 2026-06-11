@@ -1,4 +1,4 @@
-import type { Order, OrderStatus, OrderItemAddon } from '@my-small-business/types';
+import type { Order, OrderStatus, OrderItemAddon, OrderChannel } from '@my-small-business/types';
 import { getFriendlyOrderNumber } from './orderNumber';
 import { STATUS_LABELS, PAYMENT_STATUS_LABELS } from './constants';
 
@@ -97,8 +97,35 @@ export const formatElapsed = (
   return { text: `${mm}:${ss}`, minutes, isCountdown: false, overdue: false };
 };
 
+export const getOrderChannel = (order: Pick<Order, 'order_channel' | 'payment_method' | 'customer_name'>): OrderChannel => {
+  if (order.order_channel === 'online' || order.order_channel === 'phone_pickup' || order.order_channel === 'instore') {
+    return order.order_channel;
+  }
+
+  if (order.payment_method === 'online') return 'online';
+  if (order.customer_name?.trim().toUpperCase() === 'INSTORE') return 'instore';
+  return 'phone_pickup';
+};
+
+export const shouldPlayOrderSound = (
+  order: Pick<Order, 'order_channel' | 'payment_method' | 'customer_name' | 'scheduled_pickup_at'>
+) => getOrderChannel(order) === 'online' || Boolean(order.scheduled_pickup_at);
+
+export const getOrderChannelLabel = (order: Order): string => {
+  if (order.order_type === 'delivery') return 'Delivery';
+
+  const channel = getOrderChannel(order);
+  if (channel === 'instore') {
+    return 'Instore';
+  }
+
+  return channel === 'online' ? 'Online Pickup' : 'Phone Pickup';
+};
+
+export const getOrderChannelReceiptLabel = (order: Order): string => getOrderChannelLabel(order).toUpperCase();
+
 export const paymentSummary = (order: Order): string => {
-  const type = order.order_type === 'delivery' ? 'Delivery' : 'Pickup';
+  const type = getOrderChannelLabel(order);
   const payment =
     order.payment_method === 'store'
       ? 'Pay at Counter'
@@ -194,7 +221,7 @@ export const generatePrintHTML = (order: Order): string => {
         <div class="info">
           <p><strong>Customer:</strong> ${order.customer_name || order.customer_email}</p>
           <p><strong>Phone:</strong> ${order.customer_phone}</p>
-          <p><strong>Type:</strong> ${order.order_type === 'delivery' ? 'Delivery' : 'Pickup'}</p>
+          <p><strong>Type:</strong> ${getOrderChannelLabel(order)}</p>
           <p><strong>Order status:</strong> ${STATUS_LABELS[order.order_status]}</p>
           <p><strong>Payment status:</strong> ${paymentStatusText}</p>
           <p><strong>Time placed:</strong> ${new Date(order.created_at).toLocaleString()}</p>

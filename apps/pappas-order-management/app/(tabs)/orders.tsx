@@ -35,6 +35,7 @@ import { escposPrintKitchenReceipt, formatPrinterError } from '../../lib/escpos-
 import { KitchenAlertOverlay } from '../../lib/KitchenAlertOverlay';
 import { getFriendlyOrderNumber } from '../../utils/orderNumber';
 import { CustomerModal } from '../../components/CustomerModal';
+import { getOrderChannelLabel, shouldPlayOrderSound } from '../../utils/orderUtils';
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
   pending: '#f59e0b',
@@ -93,7 +94,7 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [showStatusDialog, setShowStatusDialog] = useState(false);
-  const [statusToUpdate, setStatusToUpdate] = useState<{ orderId: string; status: OrderStatus } | null>(null);
+  const [statusToUpdate, setStatusToUpdate] = useState<{ order: Order; status: OrderStatus } | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -242,7 +243,7 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
             if (lastOrderIdRef.current !== currentLastOrderId) {
               const twoMinutesAgo = Date.now() - (2 * 60 * 1000);
               const s = appSettingsRef.current;
-              if (currentLastOrderTime > twoMinutesAgo && s.soundEnabled) {
+              if (currentLastOrderTime > twoMinutesAgo && s.soundEnabled && shouldPlayOrderSound(mostRecentOrder)) {
                 playNewOrderSound({ soundId: s.soundId, repeatCount: s.soundRepeatCount, delayMs: 2000 });
               }
             }
@@ -284,9 +285,9 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
         },
         (payload) => {
           if (payload.eventType === 'INSERT') {
-            const newOrder = payload.new as { id: string; created_at: string };
+            const newOrder = payload.new as Pick<Order, 'id' | 'created_at' | 'order_channel' | 'payment_method' | 'customer_name' | 'scheduled_pickup_at'>;
             const s = appSettingsRef.current;
-            if (s.soundEnabled && lastOrderIdRef.current !== newOrder.id) {
+            if (s.soundEnabled && shouldPlayOrderSound(newOrder) && lastOrderIdRef.current !== newOrder.id) {
               playNewOrderSound({ soundId: s.soundId, repeatCount: s.soundRepeatCount, delayMs: 2000 });
               lastOrderIdRef.current = newOrder.id;
             }
@@ -418,7 +419,7 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
 
   const paymentSummary = useMemo(() => {
     return (order: Order): string => {
-      const type = order.order_type === 'delivery' ? 'Delivery' : 'Pickup';
+      const type = getOrderChannelLabel(order);
       const payment =
         order.payment_method === 'store'
           ? 'Pay at Counter'
@@ -458,8 +459,55 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
     }
   };
 
-  const handleStatusUpdate = (orderId: string, newStatus: OrderStatus) => {
-    setStatusToUpdate({ orderId, status: newStatus });
+  const applyStatusUpdateResult = async (
+    orderId: string,
+    newStatus: OrderStatus,
+    result: { data: Order | null; error: string | null }
+  ) => {
+    if (result.error) {
+      Alert.alert('Error', result.error);
+      return;
+    }
+
+    await loadOrders();
+    if (selectedOrder && selectedOrder.id === orderId) {
+      setSelectedOrder(result.data);
+    }
+    if (newStatus === 'ready' || newStatus === 'completed') {
+      void triggerOrderStatusEmail(orderId, newStatus);
+    }
+  };
+
+  const completeOrderWithPaymentChoice = (order: Order) => {
+    setUpdatingStatus(order.id);
+    Alert.alert('Complete Order', 'Select payment method', [
+      {
+        text: 'Card',
+        onPress: async () => {
+          const result = await updateOrderStatus(order.id, 'completed', 'paid', 'Card');
+          await applyStatusUpdateResult(order.id, 'completed', result);
+          setUpdatingStatus(null);
+        },
+      },
+      {
+        text: 'Cash',
+        onPress: async () => {
+          const result = await updateOrderStatus(order.id, 'completed', 'paid', 'Cash');
+          await applyStatusUpdateResult(order.id, 'completed', result);
+          setUpdatingStatus(null);
+        },
+      },
+      { text: 'Cancel', style: 'cancel', onPress: () => setUpdatingStatus(null) },
+    ]);
+  };
+
+  const handleStatusUpdate = (order: Order, newStatus: OrderStatus) => {
+    if (newStatus === 'completed' && order.payment_status === 'pending') {
+      completeOrderWithPaymentChoice(order);
+      return;
+    }
+
+    setStatusToUpdate({ order, status: newStatus });
     setShowStatusDialog(true);
   };
 
@@ -467,16 +515,9 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
     if (!statusToUpdate) return;
 
     try {
-      setUpdatingStatus(statusToUpdate.orderId);
-      const result = await updateOrderStatus(statusToUpdate.orderId, statusToUpdate.status);
-      if (result.error) {
-        Alert.alert('Error', result.error);
-      } else {
-        await loadOrders();
-        if (selectedOrder && selectedOrder.id === statusToUpdate.orderId) {
-          setSelectedOrder(result.data);
-        }
-      }
+      setUpdatingStatus(statusToUpdate.order.id);
+      const result = await updateOrderStatus(statusToUpdate.order.id, statusToUpdate.status);
+      await applyStatusUpdateResult(statusToUpdate.order.id, statusToUpdate.status, result);
     } catch (error) {
       Alert.alert('Error', 'Failed to update status');
       console.error('Error updating status:', error);
@@ -507,7 +548,7 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
     }
   };
 
-  const handleQuickAction = async (orderId: string, action: 'accept' | 'prepare' | 'ready' | 'completed') => {
+  const handleQuickAction = async (order: Order, action: 'accept' | 'prepare' | 'ready' | 'completed') => {
     const statusMap: Record<string, OrderStatus> = {
       accept: 'confirmed',
       prepare: 'preparing',
@@ -518,20 +559,15 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
     const newStatus = statusMap[action];
     if (!newStatus) return;
 
+    if (newStatus === 'completed' && order.payment_status === 'pending') {
+      completeOrderWithPaymentChoice(order);
+      return;
+    }
+
     try {
-      setUpdatingStatus(orderId);
-      const result = await updateOrderStatus(orderId, newStatus);
-      if (result.error) {
-        Alert.alert('Error', result.error);
-      } else {
-        await loadOrders();
-        if (selectedOrder && selectedOrder.id === orderId) {
-          setSelectedOrder(result.data);
-        }
-        if (newStatus === 'ready' || newStatus === 'completed') {
-          void triggerOrderStatusEmail(orderId, newStatus);
-        }
-      }
+      setUpdatingStatus(order.id);
+      const result = await updateOrderStatus(order.id, newStatus);
+      await applyStatusUpdateResult(order.id, newStatus, result);
     } catch (error) {
       Alert.alert('Error', 'Failed to update status');
       console.error('Error updating status:', error);
@@ -688,7 +724,7 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
           <div class="info">
             <p><strong>Customer:</strong> ${order.customer_name || order.customer_email}</p>
             <p><strong>Phone:</strong> ${order.customer_phone}</p>
-            <p><strong>Type:</strong> ${order.order_type === 'delivery' ? 'Delivery' : 'Pickup'}</p>
+            <p><strong>Type:</strong> ${getOrderChannelLabel(order)}</p>
             <p><strong>Order status:</strong> ${STATUS_LABELS[order.order_status]}</p>
             <p><strong>Payment status:</strong> ${paymentStatusText}</p>
             <p><strong>Time placed:</strong> ${new Date(order.created_at).toLocaleString()}</p>
@@ -806,7 +842,7 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
                 mode="contained"
                 onPress={(e) => {
                   e.stopPropagation();
-                  handleQuickAction(order.id, quickAction.action as 'accept' | 'prepare' | 'ready' | 'completed');
+                  handleQuickAction(order, quickAction.action as 'accept' | 'prepare' | 'ready' | 'completed');
                 }}
                 disabled={updatingStatus === order.id}
                 style={styles.bodyQuickButton}
@@ -832,7 +868,7 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
                       [
                         ...Object.entries(STATUS_LABELS).map(([status, label]) => ({
                           text: label,
-                          onPress: () => handleStatusUpdate(order.id, status as OrderStatus),
+                          onPress: () => handleStatusUpdate(order, status as OrderStatus),
                         })),
                         { text: 'Cancel', style: 'cancel' },
                       ]
@@ -1333,7 +1369,7 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
           confirmText="Update"
           cancelText="Cancel"
           variant="warning"
-          isLoading={updatingStatus === statusToUpdate?.orderId}
+          isLoading={updatingStatus === statusToUpdate?.order.id}
         />
       )}
 

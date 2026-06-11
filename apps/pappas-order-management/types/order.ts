@@ -5,6 +5,7 @@ export type {
   OrderItem,
   OrderItemAddon,
   Order,
+  OrderChannel,
   OrderStatus,
   PaymentStatus,
 } from '@my-small-business/types';

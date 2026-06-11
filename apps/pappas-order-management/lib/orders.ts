@@ -198,10 +198,12 @@ export async function savePosOrder(
   items: Array<Omit<OrderItem, 'id' | 'order_id' | 'created_at' | 'addons'> & { addons?: Omit<OrderItemAddon, 'id' | 'order_item_id' | 'created_at'>[] }>
 ): Promise<{ data: Order | null; error: string | null }> {
   try {
+    const finalOrderStatus = orderPayload.order_status;
     const { data: orderData, error: orderError } = await supabase
       .from('orders')
       .insert({
         ...orderPayload,
+        order_status: 'pending_online_payment',
       })
       .select()
       .single();
@@ -210,7 +212,7 @@ export async function savePosOrder(
     const orderId = orderData.id;
 
     for (const item of items) {
-      const { addons, id, order_id, created_at, ...itemData } = item as any;
+      const { addons, order_item_addons, id, order_id, created_at, ...itemData } = item as any;
       const { data: insertedItem, error: itemError } = await supabase
         .from('order_items')
         .insert({
@@ -241,6 +243,16 @@ export async function savePosOrder(
       }
     }
 
+    const { error: finalStatusError } = await supabase
+      .from('orders')
+      .update({
+        order_status: finalOrderStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', orderId);
+
+    if (finalStatusError) throw new Error(finalStatusError.message);
+
     return getOrder(orderId);
   } catch (error) {
     console.error('Error saving POS order:', error);
@@ -252,7 +264,17 @@ export async function updatePosOrder(
   orderId: string,
   updatedItems: Array<Omit<OrderItem, 'id' | 'order_id' | 'created_at' | 'addons'> & { addons?: Omit<OrderItemAddon, 'id' | 'order_item_id' | 'created_at'>[] }>,
   orderTotalsUpdate: { subtotal: number; tax: number; total: number },
-  orderUpdate: Partial<Pick<Order, 'payment_status' | 'payment_method_detail'>> = {}
+  orderUpdate: Partial<Pick<Order,
+    'user_id'
+    | 'customer_phone'
+    | 'customer_name'
+    | 'payment_method'
+    | 'order_channel'
+    | 'payment_status'
+    | 'payment_method_detail'
+    | 'special_instructions'
+    | 'scheduled_pickup_at'
+  >> = {}
 ): Promise<{ data: Order | null; error: string | null }> {
   try {
     // Update order totals first
@@ -288,7 +310,7 @@ export async function updatePosOrder(
 
     // Insert updated items
     for (const item of updatedItems) {
-      const { addons, id, order_id, created_at, ...itemData } = item as any;
+      const { addons, order_item_addons, id, order_id, created_at, ...itemData } = item as any;
       const { data: insertedItem, error: itemError } = await supabase
         .from('order_items')
         .insert({

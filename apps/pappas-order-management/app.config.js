@@ -42,6 +42,7 @@ module.exports = {
         },
       ],
       './plugins/withEscPosPrinterPermissions',
+      './plugins/withAndroidFullscreen',
     ],
     scheme: 'pappas-order',
   },

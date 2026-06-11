@@ -13,6 +13,7 @@ import type { Order, OrderStatus } from '@my-small-business/types';
 import * as Print from 'expo-print';
 import { loadAppSettings } from '../lib/settings';
 import { epsonPrintKitchenReceipt } from '../lib/epson-epos';
+import { getOrderChannelLabel } from '../utils/orderUtils';
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
   pending: '#f59e0b',
@@ -74,19 +75,44 @@ export default function OrderDetailScreen() {
 
     setUpdating(true);
     try {
-      const result = await updateOrderStatus(order.id, newStatus);
-      if (result.error) {
-        Alert.alert('Error', result.error);
-      } else {
-        setOrder(result.data);
-        Alert.alert('Success', 'Order status updated');
+      if (newStatus === 'completed' && order.payment_status === 'pending') {
+        Alert.alert('Complete Order', 'Select payment method', [
+          {
+            text: 'Card',
+            onPress: async () => {
+              const result = await updateOrderStatus(order.id, 'completed', 'paid', 'Card');
+              handleStatusResult(result);
+            },
+          },
+          {
+            text: 'Cash',
+            onPress: async () => {
+              const result = await updateOrderStatus(order.id, 'completed', 'paid', 'Cash');
+              handleStatusResult(result);
+            },
+          },
+          { text: 'Cancel', style: 'cancel', onPress: () => setUpdating(false) },
+        ]);
+        return;
       }
+
+      const result = await updateOrderStatus(order.id, newStatus);
+      handleStatusResult(result);
     } catch (error) {
       Alert.alert('Error', 'Failed to update order status');
       console.error('Error updating status:', error);
-    } finally {
       setUpdating(false);
     }
+  };
+
+  const handleStatusResult = (result: { data: Order | null; error: string | null }) => {
+    if (result.error) {
+      Alert.alert('Error', result.error);
+    } else {
+      setOrder(result.data);
+      Alert.alert('Success', 'Order status updated');
+    }
+    setUpdating(false);
   };
 
   const handlePrint = async () => {
@@ -171,7 +197,7 @@ export default function OrderDetailScreen() {
           <div class="info">
             <p><strong>Customer:</strong> ${order.customer_name || order.customer_email}</p>
             <p><strong>Phone:</strong> ${order.customer_phone}</p>
-            <p><strong>Type:</strong> ${order.order_type === 'delivery' ? 'Delivery' : 'Pickup'}</p>
+            <p><strong>Type:</strong> ${getOrderChannelLabel(order)}</p>
             <p><strong>Status:</strong> ${STATUS_LABELS[order.order_status]}</p>
             <p><strong>Time:</strong> ${new Date(order.created_at).toLocaleString()}</p>
             ${order.order_type === 'delivery' && order.delivery_address_line1 ? `
@@ -251,11 +277,11 @@ export default function OrderDetailScreen() {
             <Text style={styles.statusText}>{statusLabel}</Text>
           </View>
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            {order.order_status !== 'completed' && order.order_status !== 'cancelled' && (
+            {order.payment_status !== 'paid' && order.order_status !== 'completed' && order.order_status !== 'cancelled' && (
               <Button 
                 mode="contained" 
                 icon="pencil" 
-                onPress={() => router.push(`/pos?orderId=${order.id}`)}
+                onPress={() => router.push({ pathname: '/pos', params: { orderId: order.id } })}
                 style={styles.headerEditButton}
                 buttonColor="#2563eb"
               >
@@ -280,7 +306,7 @@ export default function OrderDetailScreen() {
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Type:</Text>
             <Text style={styles.infoValue}>
-              {order.order_type === 'delivery' ? '🚚 Delivery' : '🏪 Pickup'}
+              {order.order_type === 'delivery' ? '🚚' : '🏪'} {getOrderChannelLabel(order)}
             </Text>
           </View>
           <View style={styles.infoRow}>

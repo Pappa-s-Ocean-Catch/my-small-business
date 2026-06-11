@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { canAccessOrderManagement } from '@/lib/auth';
 import { OfflineAttentionOverlay } from '@/lib/KitchenAlertOverlay';
 import { useKeepAwake } from 'expo-keep-awake';
+import { StatusBar } from 'expo-status-bar';
 
 export default function RootLayout() {
   const router = useRouter();
@@ -87,6 +88,7 @@ export default function RootLayout() {
           <Stack.Screen name="order-detail" />
           <Stack.Screen name="pos-layout-settings" />
         </Stack>
+        <StatusBar hidden />
         <OfflineAttentionOverlay appName="Pappas Order" />
       </PaperProvider>
     </GestureHandlerRootView>

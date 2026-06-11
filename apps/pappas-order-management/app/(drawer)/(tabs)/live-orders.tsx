@@ -31,6 +31,9 @@ import { useOrderActions } from '@/hooks/useOrderActions';
 import { escposPrintKitchenReceipt, escposPrintOrderImage } from '@/lib/escpos-printer';
 import { captureRef } from 'react-native-view-shot';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
+import { shouldPlayOrderSound } from '@/utils/orderUtils';
+
+type TimeoutHandle = ReturnType<typeof setTimeout>;
 
 export default function LiveOrdersScreen() {
   const router = useRouter();
@@ -54,11 +57,13 @@ export default function LiveOrdersScreen() {
 
   const lastOrderIdRef = useRef<string | null>(null);
   const processedOrderIdsRef = useRef<Set<string>>(new Set());
+  const pendingAnnouncementTimersRef = useRef<Map<string, TimeoutHandle>>(new Map());
+  const announcingOrderIdsRef = useRef<Set<string>>(new Set());
   const lastPrinterAlertAtRef = useRef<number>(0);
   const lastAutoStatusAlertAtRef = useRef<number>(0);
   const subscriptionRef = useRef<any>(null);
-  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const preOrderNoticeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownIntervalRef = useRef<TimeoutHandle | null>(null);
+  const preOrderNoticeTimeoutRef = useRef<TimeoutHandle | null>(null);
   const appSettingsRef = useRef<AppSettings>(DEFAULT_APP_SETTINGS);
 
   const fetchPreOrderCount = async () => {
@@ -123,18 +128,14 @@ export default function LiveOrdersScreen() {
           return timeA - timeB;
         });
 
-        // 3. Process Automatic Actions (Sound + Print) for any order entering live range
-        const s = appSettingsRef.current;
+        // 3. Process automatic actions for any order entering live range.
+        // Sound is gated later by order channel; print/status automation still applies.
         for (const order of newOrders) {
           const isPendingOrConfirmed =
             order.order_status === 'pending' || order.order_status === 'confirmed';
 
           if (isPendingOrConfirmed && !processedOrderIdsRef.current.has(order.id)) {
-            // Ensure order has items before announcing/printing to avoid race condition
-            // (Supabase might emit 'orders' insert before 'order_items' are fully ready)
-            if (order.items && order.items.length > 0) {
-              announceAndPrintOrder(order);
-            }
+            scheduleOrderAnnouncement(order);
           }
         }
 
@@ -171,13 +172,68 @@ export default function LiveOrdersScreen() {
     if (selectedOrder?.id === updated.id) setSelectedOrder(updated);
   });
 
+  const getPrintDelayMs = () => Math.max(2000, (appSettingsRef.current.printerDelayPrintSec || 3) * 1000);
+
+  const scheduleOrderAnnouncement = (order: Pick<Order, 'id' | 'created_at'>) => {
+    if (processedOrderIdsRef.current.has(order.id)) return;
+    if (pendingAnnouncementTimersRef.current.has(order.id)) return;
+    if (announcingOrderIdsRef.current.has(order.id)) return;
+
+    const delayMs = getPrintDelayMs();
+    const createdAtMs = new Date(order.created_at).getTime();
+    const dueInMs = Number.isFinite(createdAtMs)
+      ? Math.max(0, createdAtMs + delayMs - Date.now())
+      : delayMs;
+
+    const timer = setTimeout(() => {
+      pendingAnnouncementTimersRef.current.delete(order.id);
+      fetchAndAnnounceOrder(order.id);
+    }, dueInMs);
+    pendingAnnouncementTimersRef.current.set(order.id, timer);
+  };
+
+  const fetchAndAnnounceOrder = async (orderId: string, attempt = 0) => {
+    if (processedOrderIdsRef.current.has(orderId)) return;
+    if (announcingOrderIdsRef.current.has(orderId)) return;
+
+    announcingOrderIdsRef.current.add(orderId);
+    try {
+      const result = await getOrder(orderId);
+      const order = result.data;
+      const isPrintableStatus =
+        order?.order_status === 'pending' || order?.order_status === 'confirmed';
+
+      if (!order || !isPrintableStatus || order.payment_status === 'refunded') {
+        processedOrderIdsRef.current.add(orderId);
+        return;
+      }
+
+      // POS creates the parent order first, then inserts items/add-ons. Fetch after the
+      // print delay and retry briefly so the receipt image is based on the complete order.
+      if (!order.items || order.items.length === 0) {
+        if (attempt < 3) {
+          const retryTimer = setTimeout(() => {
+            pendingAnnouncementTimersRef.current.delete(orderId);
+            fetchAndAnnounceOrder(orderId, attempt + 1);
+          }, 1000);
+          pendingAnnouncementTimersRef.current.set(orderId, retryTimer);
+        }
+        return;
+      }
+
+      await announceAndPrintOrder(order);
+    } finally {
+      announcingOrderIdsRef.current.delete(orderId);
+    }
+  };
+
   const announceAndPrintOrder = async (order: Order) => {
     const s = appSettingsRef.current;
     if (processedOrderIdsRef.current.has(order.id)) return;
     processedOrderIdsRef.current.add(order.id);
 
-    // 1. Play sound
-    if (s.soundEnabled) {
+    // 1. Play sound for online orders, plus any pre-order when it enters the live queue.
+    if (s.soundEnabled && shouldPlayOrderSound(order)) {
       playNewOrderSound({
         soundId: s.soundId,
         repeatCount: s.soundRepeatCount,
@@ -328,14 +384,13 @@ export default function LiveOrdersScreen() {
           loadOrders();
           fetchPreOrderCount();
 
-          // If it's a new order that needs printing/announcing, schedule a second refresh
-          // to ensure line items are ready (respecting printerDelayPrintSec setting)
-          if (isSignificantInsert || isSignificantUpdate) {
-            const delayMs = Math.max(2000, (appSettingsRef.current.printerDelayPrintSec || 3) * 1000);
-            setTimeout(() => {
-              loadOrders();
-              fetchPreOrderCount();
-            }, delayMs);
+          // If it's a new order that needs printing/announcing, schedule the actual
+          // print from a fresh order fetch after the configured delay.
+          if ((isSignificantInsert || isSignificantUpdate) && !isPreOrderFarAway) {
+            scheduleOrderAnnouncement({
+              id: orderId,
+              created_at: (payload.new as any)?.created_at || new Date().toISOString(),
+            });
           }
         }
       )
@@ -343,6 +398,8 @@ export default function LiveOrdersScreen() {
 
     return () => {
       if (subscriptionRef.current) supabase.removeChannel(subscriptionRef.current);
+      pendingAnnouncementTimersRef.current.forEach((timer) => clearTimeout(timer));
+      pendingAnnouncementTimersRef.current.clear();
     };
   }, []);
 
