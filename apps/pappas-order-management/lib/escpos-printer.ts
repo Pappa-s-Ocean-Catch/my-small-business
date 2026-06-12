@@ -11,6 +11,17 @@ export type SavedPrinter = {
   deviceType?: string;
 };
 
+let printerQueue: Promise<void> = Promise.resolve();
+
+function enqueuePrinterJob<T>(job: () => Promise<T>): Promise<T> {
+  const queued = printerQueue.then(job, job);
+  printerQueue = queued.then(
+    () => undefined,
+    () => undefined
+  );
+  return queued;
+}
+
 function normalizeCopies(copies: number): number {
   const n = Number.isFinite(copies) ? Math.trunc(copies) : 1;
   return Math.min(10, Math.max(1, n));
@@ -57,40 +68,49 @@ export async function escposTestPrint(printer: SavedPrinter, copies: number): Pr
   assertPrinter(printer);
   const repeat = normalizeCopies(copies);
 
-  for (let i = 0; i < repeat; i++) {
-    await withConnectedPrinter(
-      printer,
-      async (p) => {
-        await p.addText(`TEST PRINT\n${new Date().toLocaleString()}\n\nOK\n\n`);
-        await p.addCut();
-        await p.sendData();
-      },
-      { timeoutMs: 10000 }
-    );
-  }
+  return enqueuePrinterJob(async () => {
+    for (let i = 0; i < repeat; i++) {
+      await withConnectedPrinter(
+        printer,
+        async (p) => {
+          await p.addText(`TEST PRINT\n${new Date().toLocaleString()}\n\nOK\n\n`);
+          await p.addCut();
+          await p.sendData();
+        },
+        { timeoutMs: 10000 }
+      );
+    }
+  });
 }
 
-export async function escposPrintKitchenReceipt(order: Order, printer: SavedPrinter, copies: number): Promise<void> {
+export async function escposPrintKitchenReceipt(
+  order: Order,
+  printer: SavedPrinter,
+  copies: number,
+  printSource?: string
+): Promise<void> {
   assertPrinter(printer);
   const repeat = normalizeCopies(copies);
-  const lines = buildKitchenReceiptLines(order);
+  const lines = buildKitchenReceiptLines(order, printSource);
 
-  for (let i = 0; i < repeat; i++) {
-    await withConnectedPrinter(
-      printer,
-      async (p) => {
-        // Set default text size to 1x1 at start
-        await p.addTextSize({ width: 1, height: 1 });
-        
-        for (const line of lines) {
-          await printReceiptLine(p, line);
-        }
-        await p.addCut();
-        await p.sendData();
-      },
-      { timeoutMs: 15000 }
-    );
-  }
+  return enqueuePrinterJob(async () => {
+    for (let i = 0; i < repeat; i++) {
+      await withConnectedPrinter(
+        printer,
+        async (p) => {
+          // Set default text size to 1x1 at start
+          await p.addTextSize({ width: 1, height: 1 });
+          
+          for (const line of lines) {
+            await printReceiptLine(p, line);
+          }
+          await p.addCut();
+          await p.sendData();
+        },
+        { timeoutMs: 15000 }
+      );
+    }
+  });
 }
 
 export async function escposPrintOrderImage(
@@ -102,21 +122,23 @@ export async function escposPrintOrderImage(
   assertPrinter(printer);
   const repeat = normalizeCopies(copies);
 
-  for (let i = 0; i < repeat; i++) {
-    await withConnectedPrinter(
-      printer,
-      async (p) => {
-        // Use the specified target width (e.g. 576 for 80mm, 384 for 58mm)
-        await p.addImage({
-          source: { uri: imageUri },
-          width: width,
-        });
-        await p.addCut();
-        await p.sendData();
-      },
-      { timeoutMs: 30000 } // Image printing can be slower
-    );
-  }
+  return enqueuePrinterJob(async () => {
+    for (let i = 0; i < repeat; i++) {
+      await withConnectedPrinter(
+        printer,
+        async (p) => {
+          // Use the specified target width (e.g. 576 for 80mm, 384 for 58mm)
+          await p.addImage({
+            source: { uri: imageUri },
+            width: width,
+          });
+          await p.addCut();
+          await p.sendData();
+        },
+        { timeoutMs: 30000 } // Image printing can be slower
+      );
+    }
+  });
 }
 
 const ESC_M_FONT_A = new Uint8Array([0x1b, 0x4d, 0]);

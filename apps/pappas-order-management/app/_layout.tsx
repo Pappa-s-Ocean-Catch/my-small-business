@@ -87,6 +87,7 @@ export default function RootLayout() {
           <Stack.Screen name="(drawer)" />
           <Stack.Screen name="order-detail" />
           <Stack.Screen name="pos-layout-settings" />
+          <Stack.Screen name="POS-intergation" />
         </Stack>
         <StatusBar hidden />
         <OfflineAttentionOverlay appName="Pappas Order" />

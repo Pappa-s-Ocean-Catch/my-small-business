@@ -151,9 +151,6 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
   }, [mode]);
 
   const lastOrderIdRef = useRef<string | null>(null);
-  const autoPrintedOrderIdsRef = useRef<Set<string>>(new Set());
-  const lastPrinterAlertAtRef = useRef<number>(0);
-  const lastAutoStatusAlertAtRef = useRef<number>(0);
   const subscriptionRef = useRef<any>(null);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const appSettingsRef = useRef<AppSettings>(DEFAULT_APP_SETTINGS);
@@ -285,80 +282,16 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
         },
         (payload) => {
           if (payload.eventType === 'INSERT') {
-            const newOrder = payload.new as Pick<Order, 'id' | 'created_at' | 'order_channel' | 'payment_method' | 'customer_name' | 'scheduled_pickup_at'>;
+            const newOrder = payload.new as Pick<Order, 'id' | 'created_at' | 'order_channel' | 'payment_method' | 'customer_name' | 'scheduled_pickup_at' | 'order_status'>;
             const s = appSettingsRef.current;
             if (s.soundEnabled && shouldPlayOrderSound(newOrder) && lastOrderIdRef.current !== newOrder.id) {
               playNewOrderSound({ soundId: s.soundId, repeatCount: s.soundRepeatCount, delayMs: 2000 });
               lastOrderIdRef.current = newOrder.id;
             }
 
-            if (
-              s.printerEnabled &&
-              s.printerAutoPrint &&
-              !!s.printerSelectedTarget &&
-              !autoPrintedOrderIdsRef.current.has(newOrder.id)
-            ) {
-              autoPrintedOrderIdsRef.current.add(newOrder.id);
-              setPrintingOrderId(newOrder.id);
-              const delaySec = typeof s.printerDelayPrintSec === 'number' ? s.printerDelayPrintSec : 3;
-              // setTimeout(() => {
-              getOrder(newOrder.id)
-                .then(async (result) => {
-                  if (result.error || !result.data) {
-                    throw new Error(result.error || 'Failed to load order for printing');
-                  }
-
-                  const selected = s.printerSaved.find((p) => p.target === s.printerSelectedTarget) || null;
-                  if (!selected) {
-                    throw new Error('Printer not selected');
-                  }
-
-                  await escposPrintKitchenReceipt(result.data, selected, s.printerCopies);
-
-                  // After a successful print, auto-transition the order to "preparing"
-                  // (kitchen has received the ticket). This should not require any user action.
-                  if (result.data.order_status === 'pending' || result.data.order_status === 'confirmed') {
-                    const statusResult = await updateOrderStatus(result.data.id, 'preparing');
-                    if (statusResult.error) {
-                      console.error('[LiveOrders] Auto status update error:', statusResult.error);
-                      const now = Date.now();
-                      if (now - lastAutoStatusAlertAtRef.current > 30000) {
-                        lastAutoStatusAlertAtRef.current = now;
-                        Alert.alert('Status update error', statusResult.error);
-                      }
-                    }
-                  }
-                })
-                .catch((err) => {
-                  autoPrintedOrderIdsRef.current.delete(newOrder.id);
-                  console.error('Auto print error:', err);
-                  if (err && typeof (err as Error).stack === 'string') {
-                    console.error('Auto print stack:', (err as Error).stack);
-                  }
-
-                  const now = Date.now();
-                  if (now - lastPrinterAlertAtRef.current > 30000) {
-                    lastPrinterAlertAtRef.current = now;
-
-                    const errorMessage = err instanceof Error ? err.message : String(err);
-                    const errorStack = err instanceof Error ? err.stack : undefined;
-                    const details =
-                      errorStack && errorStack.length > 0 ? `${errorMessage}\n\n${errorStack}` : errorMessage;
-
-                    // Play a distinct warning sound so staff notice immediately.
-                    if (s.soundEnabled) {
-                      const warningRepeatCount = Math.min(5, Math.max(1, Math.trunc(s.soundRepeatCount)));
-                      void playNewOrderSound({ soundId: 'vopvoopvooop', repeatCount: warningRepeatCount, delayMs: 0 });
-                    }
-
-                    Alert.alert('EPOS Print Failed', details);
-                  }
-                })
-                .finally(() => {
-                  setPrintingOrderId((oid) => (oid === newOrder.id ? null : oid));
-                });
-              // }, delaySec * 1000);
-            }
+            // Auto-print is owned by app/(drawer)/(tabs)/live-orders.tsx.
+            // Keep this legacy screen read-only for realtime refresh/sound to avoid
+            // duplicate kitchen tickets when both live-order surfaces are mounted.
           }
           loadOrders();
         }
@@ -621,7 +554,7 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
       const selected = s.printerSaved.find((p) => p.target === s.printerSelectedTarget) || null;
       if (s.printerEnabled && selected) {
         try {
-          await escposPrintKitchenReceipt(order, selected, s.printerCopies);
+          await escposPrintKitchenReceipt(order, selected, s.printerCopies, 'legacy-orders:manual-line-print');
           return;
         } catch (printerError) {
           console.error('Print error:', printerError);

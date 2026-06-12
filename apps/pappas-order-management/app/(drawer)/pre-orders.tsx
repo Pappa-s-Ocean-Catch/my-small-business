@@ -43,6 +43,7 @@ export default function PreOrdersScreen() {
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [customerInfo, setCustomerInfo] = useState<{ email?: string; phone?: string }>({});
   const [tempPrintingOrder, setTempPrintingOrder] = useState<Order | null>(null);
+  const [tempPrintSource, setTempPrintSource] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const globalReceiptRef = useRef(null);
   const appSettingsRef = useRef<AppSettings>(DEFAULT_APP_SETTINGS);
@@ -108,6 +109,7 @@ export default function PreOrdersScreen() {
       
       // Update the hidden template with this order
       setTempPrintingOrder(order);
+      setTempPrintSource('pre-orders:manual-list-print');
       
       // Wait for re-render
       await new Promise(resolve => setTimeout(resolve, 300));
@@ -292,6 +294,7 @@ export default function PreOrdersScreen() {
               <ReceiptTemplate 
                 order={tempPrintingOrder} 
                 width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
+                printSource={tempPrintSource || undefined}
               />
            </View>
          )}

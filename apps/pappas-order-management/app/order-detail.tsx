@@ -6,14 +6,15 @@ import {
   Alert,
   useWindowDimensions,
 } from 'react-native';
-import { ActivityIndicator, Button, Card, Text, Snackbar } from 'react-native-paper';
+import { ActivityIndicator, Button, Card, Dialog, Portal, Text, Snackbar } from 'react-native-paper';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { getOrder, updateOrderStatus } from '../lib/orders';
+import { getOrder, updateOrderStatus, updatePaymentStatus } from '../lib/orders';
 import type { Order, OrderStatus } from '@my-small-business/types';
 import * as Print from 'expo-print';
 import { loadAppSettings } from '../lib/settings';
 import { epsonPrintKitchenReceipt } from '../lib/epson-epos';
 import { getOrderChannelLabel, getOrderLineItemCount, getOrderNotes, getOrderOptions } from '../utils/orderUtils';
+import { formatSmartpayError, isSmartpayPaired, processSmartpayCardPayment } from '../lib/smartpay';
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
   pending: '#f59e0b',
@@ -40,6 +41,8 @@ export default function OrderDetailScreen() {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [smartpayProcessing, setSmartpayProcessing] = useState(false);
+  const [smartpayPaired, setSmartpayPaired] = useState(false);
   const router = useRouter();
   const { width, height } = useWindowDimensions();
   const isPortrait = height >= width;
@@ -48,6 +51,7 @@ export default function OrderDetailScreen() {
 
   useEffect(() => {
     loadOrder();
+    isSmartpayPaired().then(setSmartpayPaired).catch(() => setSmartpayPaired(false));
   }, [orderId]);
 
   const loadOrder = async () => {
@@ -115,6 +119,44 @@ export default function OrderDetailScreen() {
     setUpdating(false);
   };
 
+  const handleSmartpayPayment = async () => {
+    if (!order || order.payment_status === 'paid') return;
+    if (!smartpayPaired) {
+      Alert.alert('SmartPay not paired', 'Pair this POS register with Smartpay before taking SmartPay payments.');
+      return;
+    }
+
+    try {
+      setSmartpayProcessing(true);
+      await processSmartpayCardPayment(order.total);
+      const result = await updatePaymentStatus(order.id, 'paid', 'SmartPay');
+      if (result.error) {
+        Alert.alert('Payment update failed', result.error);
+        return;
+      }
+      setOrder(result.data);
+      Alert.alert('Payment complete', 'SmartPay payment accepted.');
+    } catch (error) {
+      console.error('SmartPay order detail payment failed', error);
+      Alert.alert('SmartPay payment failed', formatSmartpayError(error));
+    } finally {
+      setSmartpayProcessing(false);
+    }
+  };
+
+  const confirmDismissSmartpayLock = () => {
+    if (!smartpayProcessing) return;
+
+    Alert.alert(
+      'Hide SmartPay screen?',
+      'The payment may still be running on the terminal. Hide this screen only if you need to return to the order.',
+      [
+        { text: 'Keep waiting', style: 'cancel' },
+        { text: 'Hide', style: 'destructive', onPress: () => setSmartpayProcessing(false) },
+      ]
+    );
+  };
+
   const handlePrint = async () => {
     if (!order) return;
 
@@ -127,7 +169,7 @@ export default function OrderDetailScreen() {
             printerCopies: s.printerCopies,
             printerDeviceId: s.printerDeviceId,
             printerTimeoutMs: s.printerTimeoutMs,
-          });
+          }, 'order-detail-screen:manual-epson-print');
           setToastVisible(true);
           return;
         } catch (epsonError) {
@@ -485,6 +527,19 @@ export default function OrderDetailScreen() {
             Complete Order
           </Button>
         )}
+        {order.payment_status !== 'paid' && order.order_status !== 'cancelled' && (
+          <Button
+            mode="contained"
+            icon="credit-card-wireless-outline"
+            buttonColor="#2563eb"
+            onPress={() => void handleSmartpayPayment()}
+            disabled={!smartpayPaired || updating || smartpayProcessing}
+            loading={smartpayProcessing}
+            style={styles.paperButton}
+          >
+            SmartPay
+          </Button>
+        )}
         {order.order_status !== 'cancelled' && order.order_status !== 'completed' && (
           <Button
             mode="contained"
@@ -503,6 +558,26 @@ export default function OrderDetailScreen() {
           </Button>
         )}
       </View>
+
+      <Portal>
+        <Dialog
+          visible={smartpayProcessing}
+          dismissable
+          onDismiss={confirmDismissSmartpayLock}
+          style={styles.smartpayDialog}
+        >
+          <Dialog.Title>SmartPay payment</Dialog.Title>
+          <Dialog.Content>
+            <Text style={styles.smartpayDialogText}>
+              Follow the prompts on the terminal. This order will be marked paid after Smartpay accepts the payment.
+            </Text>
+            <Text style={styles.smartpayAmount}>${order.total.toFixed(2)}</Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={confirmDismissSmartpayLock}>Hide</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
 
       <Snackbar
         visible={toastVisible}
@@ -737,6 +812,22 @@ const styles = StyleSheet.create({
   },
   headerEditButton: {
     borderRadius: 8,
+  },
+  smartpayDialog: {
+    borderRadius: 8,
+    backgroundColor: '#fff',
+  },
+  smartpayDialogText: {
+    color: '#374151',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  smartpayAmount: {
+    marginTop: 12,
+    color: '#111827',
+    fontSize: 28,
+    fontWeight: '900',
+    textAlign: 'center',
   },
   snackbar: {
     marginBottom: 20,

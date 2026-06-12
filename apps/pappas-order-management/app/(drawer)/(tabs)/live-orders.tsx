@@ -28,7 +28,7 @@ import { LiveOrderListItem } from '@/components/LiveOrderListItem';
 import { OrderDetailModal } from '@/components/OrderDetailModal';
 import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
 import { useOrderActions } from '@/hooks/useOrderActions';
-import { escposPrintKitchenReceipt, escposPrintOrderImage } from '@/lib/escpos-printer';
+import { escposPrintOrderImage } from '@/lib/escpos-printer';
 import { captureRef } from 'react-native-view-shot';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
 import { shouldPlayOrderSound } from '@/utils/orderUtils';
@@ -52,6 +52,7 @@ export default function LiveOrdersScreen() {
   const [preOrderSkipNotice, setPreOrderSkipNotice] = useState<string | null>(null);
   const [preOrderCount, setPreOrderCount] = useState<number>(0);
   const [tempPrintingOrder, setTempPrintingOrder] = useState<Order | null>(null);
+  const [tempPrintSource, setTempPrintSource] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const globalReceiptRef = useRef(null);
 
@@ -59,6 +60,8 @@ export default function LiveOrdersScreen() {
   const processedOrderIdsRef = useRef<Set<string>>(new Set());
   const pendingAnnouncementTimersRef = useRef<Map<string, TimeoutHandle>>(new Map());
   const announcingOrderIdsRef = useRef<Set<string>>(new Set());
+  const autoPrintingOrderIdsRef = useRef<Set<string>>(new Set());
+  const autoPrintedOrderIdsRef = useRef<Set<string>>(new Set());
   const lastPrinterAlertAtRef = useRef<number>(0);
   const lastAutoStatusAlertAtRef = useRef<number>(0);
   const subscriptionRef = useRef<any>(null);
@@ -245,7 +248,7 @@ export default function LiveOrdersScreen() {
     if ((s.printerEnabled || s.printerSimulator) && s.printerAutoPrint) {
        try {
          // quickPrintOrder handles both simulator and real printing with image capture
-         await quickPrintOrder(order);
+         await quickPrintOrder(order, { auto: true });
        } catch (err) {
          console.error('Auto print error:', err);
        }
@@ -261,14 +264,35 @@ export default function LiveOrdersScreen() {
     }
   };
 
-  const quickPrintOrder = async (order: Order) => {
+  const quickPrintOrder = async (order: Order, options: { auto?: boolean } = {}) => {
     try {
+      const isAutoPrint = Boolean(options.auto);
+
+      if (isAutoPrint) {
+        if (autoPrintedOrderIdsRef.current.has(order.id) || autoPrintingOrderIdsRef.current.has(order.id)) {
+          return;
+        }
+        autoPrintingOrderIdsRef.current.add(order.id);
+
+        // Re-read settings at print time so a delayed auto-print respects changes
+        // made after the timer was scheduled.
+        const latestSettings = await loadAppSettings();
+        setAppSettings(latestSettings);
+        appSettingsRef.current = latestSettings;
+
+        if (!latestSettings.printerAutoPrint || (!latestSettings.printerEnabled && !latestSettings.printerSimulator)) {
+          return;
+        }
+      }
+
       const s = appSettingsRef.current;
       setIsCapturing(true);
       setPrintingOrderId(order.id);
       
       // Update the hidden template with this order
+      const printSource = isAutoPrint ? 'live-orders:auto-print' : 'live-orders:manual-list-print';
       setTempPrintingOrder(order);
+      setTempPrintSource(printSource);
       
       // Wait for re-render
       await new Promise(resolve => setTimeout(resolve, 300));
@@ -291,6 +315,9 @@ export default function LiveOrdersScreen() {
         setSimulatorOrder(order);
         setPrintImageUri(uri);
         setShowSimulator(true);
+        if (isAutoPrint) {
+          autoPrintedOrderIdsRef.current.add(order.id);
+        }
         return;
       }
 
@@ -301,10 +328,14 @@ export default function LiveOrdersScreen() {
       }
 
       await escposPrintOrderImage(uri, selected, s.printerCopies);
+      if (isAutoPrint) {
+        autoPrintedOrderIdsRef.current.add(order.id);
+      }
     } catch (error) {
       console.error('Quick print failed:', error);
       Alert.alert('Print error', 'Failed to capture receipt template image for printing.');
     } finally {
+      autoPrintingOrderIdsRef.current.delete(order.id);
       setIsCapturing(false);
       setPrintingOrderId(null);
       // We don't clear tempPrintingOrder immediately to avoid flicker if nested
@@ -587,6 +618,7 @@ export default function LiveOrdersScreen() {
               <ReceiptTemplate 
                 order={tempPrintingOrder} 
                 width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
+                printSource={tempPrintSource || undefined}
               />
            </View>
          )}

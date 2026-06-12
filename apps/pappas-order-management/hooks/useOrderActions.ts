@@ -139,7 +139,7 @@ export const useOrderActions = (
       const selected = appSettings.printerSaved.find((p) => p.target === appSettings.printerSelectedTarget) || null;
       if (appSettings.printerEnabled && selected) {
         try {
-          await escposPrintKitchenReceipt(order, selected, appSettings.printerCopies);
+          await escposPrintKitchenReceipt(order, selected, appSettings.printerCopies, 'order-actions:manual-line-print');
           return true;
         } catch (printerError) {
           console.error('Print error:', printerError);

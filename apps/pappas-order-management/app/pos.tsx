@@ -14,6 +14,7 @@ import {
   PosLayoutData,
 } from '../lib/pos-layouts';
 import { getOrderNotes, getOrderOptions } from '../utils/orderUtils';
+import { formatSmartpayError, isSmartpayPaired, processSmartpayCardPayment } from '../lib/smartpay';
 
 type SaleCategory = {
   id: string;
@@ -71,6 +72,7 @@ type PosCartItem = OrderItem & {
 
 type PosPaymentChoice = 'card' | 'cash' | 'no_pay';
 type PosInstorePaymentChoice = 'card' | 'cash' | 'unpaid';
+type PosCheckoutPaymentOverride = PosPaymentChoice | 'smartpay';
 
 type LayoutCategoryButton = {
   id: string;
@@ -194,6 +196,8 @@ export default function PosScreen() {
   const [customerLookupStatus, setCustomerLookupStatus] = useState<'idle' | 'loading' | 'found' | 'new' | 'error'>('idle');
   const [customerLookupError, setCustomerLookupError] = useState<string | null>(null);
   const [creatingOrder, setCreatingOrder] = useState(false);
+  const [smartpayProcessing, setSmartpayProcessing] = useState(false);
+  const [smartpayPaired, setSmartpayPaired] = useState(false);
   const [isPreOrder, setIsPreOrder] = useState(false);
   const [scheduledPickupAt, setScheduledPickupAt] = useState<Date>(defaultPickupTime);
   const [showPickupPicker, setShowPickupPicker] = useState(false);
@@ -268,6 +272,7 @@ export default function PosScreen() {
   useFocusEffect(
     useCallback(() => {
       void loadPreferredLayout();
+      isSmartpayPaired().then(setSmartpayPaired).catch(() => setSmartpayPaired(false));
     }, [loadPreferredLayout])
   );
 
@@ -1176,7 +1181,7 @@ export default function PosScreen() {
     });
   };
 
-  const handleCheckout = async () => {
+  const handleCheckout = async (paymentOverride?: PosCheckoutPaymentOverride) => {
     const phone = customerPhone.trim();
     const name = customerName.trim();
     const isEditingExistingOrder = Boolean(orderId);
@@ -1184,6 +1189,23 @@ export default function PosScreen() {
     if (!isEditingExistingOrder && !phone) {
       Alert.alert('Checkout', 'Please enter a customer phone number.');
       return;
+    }
+
+    if (paymentOverride === 'smartpay') {
+      if (!smartpayPaired) {
+        Alert.alert('SmartPay not paired', 'Pair this POS register with Smartpay before taking SmartPay payments.');
+        return;
+      }
+
+      try {
+        setSmartpayProcessing(true);
+        await processSmartpayCardPayment(totals.total);
+      } catch (error) {
+        console.error('SmartPay checkout payment failed', error);
+        Alert.alert('SmartPay payment failed', formatSmartpayError(error));
+        setSmartpayProcessing(false);
+        return;
+      }
     }
 
     setCreatingOrder(true);
@@ -1195,16 +1217,19 @@ export default function PosScreen() {
       const { data: customer, error: customerError } = await createCustomerIfNotExists(phone, name);
       if (customerError) {
         setCreatingOrder(false);
+        setSmartpayProcessing(false);
         Alert.alert('Customer', customerError);
         return;
       }
       customerId = customer?.id ?? null;
     }
 
-    const paymentStatus: PaymentStatus = paymentChoice === 'no_pay' ? 'pending' : 'paid';
+    const finalPaymentChoice = paymentOverride ?? paymentChoice;
+    const paymentStatus: PaymentStatus = finalPaymentChoice === 'no_pay' ? 'pending' : 'paid';
     const paymentMethodDetail =
-      paymentChoice === 'card' ? 'Card' :
-        paymentChoice === 'cash' ? 'Cash' :
+      finalPaymentChoice === 'smartpay' ? 'SmartPay' :
+        finalPaymentChoice === 'card' ? 'Card' :
+        finalPaymentChoice === 'cash' ? 'Cash' :
           null;
 
     const orderPayload = {
@@ -1260,7 +1285,7 @@ export default function PosScreen() {
         user_id: customerId,
         customer_phone: phone || editingOrder?.customer_phone || '',
         customer_name: name || editingOrder?.customer_name || null,
-        payment_method: paymentChoice === 'no_pay' ? (editingOrder?.payment_method ?? 'store') : 'store',
+        payment_method: finalPaymentChoice === 'no_pay' ? (editingOrder?.payment_method ?? 'store') : 'store',
         order_channel: editingOrder?.order_channel ?? 'phone_pickup',
         payment_status: paymentStatus,
         payment_method_detail: paymentMethodDetail,
@@ -1271,12 +1296,110 @@ export default function PosScreen() {
       : await savePosOrder(orderPayload, cartItems);
 
     setCreatingOrder(false);
+    setSmartpayProcessing(false);
     if (result.error) {
+      setSmartpayProcessing(false);
       Alert.alert('Checkout', result.error);
       return;
     }
     invalidateTopSellers();
     router.back();
+  };
+
+  const handleSmartpayInstoreCheckout = async () => {
+    if (orderId) {
+      Alert.alert('Edit Order', 'Use Update Order when editing an existing order.');
+      return;
+    }
+
+    if (cartItems.length === 0 || creatingOrder || smartpayProcessing) return;
+    if (!smartpayPaired) {
+      Alert.alert('SmartPay not paired', 'Pair this POS register with Smartpay before taking SmartPay payments.');
+      return;
+    }
+
+    try {
+      setSmartpayProcessing(true);
+      await processSmartpayCardPayment(totals.total);
+      setCreatingOrder(true);
+
+      const orderPayload = {
+        user_id: null,
+        customer_email: '',
+        customer_phone: '',
+        customer_name: 'INSTORE',
+        payment_method: 'store',
+        order_channel: 'instore',
+        payment_method_detail: 'SmartPay',
+        order_type: 'pickup',
+        payment_status: 'paid',
+        order_status: 'confirmed',
+        subtotal: totals.subtotal,
+        tax: totals.tax,
+        delivery_fee: 0,
+        service_fee: 0,
+        promotion_discount: 0,
+        promotions_applied: [],
+        coupon_code: null,
+        coupon_discount: 0,
+        total: totals.total,
+        reward_points_used: null,
+        reward_points_value: null,
+        order_options: orderOptions,
+        special_instructions: orderSpecialInstructions,
+        delivery_address_id: null,
+        delivery_address_line1: null,
+        delivery_address_line2: null,
+        delivery_city: null,
+        delivery_state: null,
+        delivery_postcode: null,
+        delivery_country: null,
+        delivery_latitude: null,
+        delivery_longitude: null,
+        delivery_quote_id: null,
+        delivery_quote_amount: null,
+        delivery_quote_currency: null,
+        delivery_quote_expires_at: null,
+        delivery_eta_minutes: null,
+        uber_delivery_id: null,
+        delivery_status: null,
+        delivery_tracking_url: null,
+        delivery_driver_name: null,
+        delivery_driver_phone: null,
+        delivery_vehicle_info: null,
+        delivery_instructions: null,
+        scheduled_pickup_at: null,
+      } as any;
+
+      const result = await savePosOrder(orderPayload, cartItems);
+      setCreatingOrder(false);
+
+      if (result.error) {
+        Alert.alert('Instore Order', result.error);
+        return;
+      }
+      invalidateTopSellers();
+      router.back();
+    } catch (error) {
+      console.error('SmartPay instore payment failed', error);
+      Alert.alert('SmartPay payment failed', formatSmartpayError(error));
+    } finally {
+      setCreatingOrder(false);
+      setSmartpayProcessing(false);
+    }
+  };
+
+  const confirmDismissSmartpayLock = () => {
+    if (!smartpayProcessing) return;
+
+    Alert.alert(
+      'Hide SmartPay screen?',
+      'The payment may still be running on the terminal. Hide this screen only if you need to return to the POS.',
+      [
+        { text: 'Keep waiting', style: 'cancel' },
+        { text: 'Hide', style: 'destructive', onPress: () => setSmartpayProcessing(false) },
+      ]
+    );
   };
 
   const handleInstoreCheckout = async (payment: PosInstorePaymentChoice) => {
@@ -1799,12 +1922,22 @@ export default function PosScreen() {
                     mode="contained"
                     icon="check"
                     loading={creatingOrder}
-                    disabled={creatingOrder || cartItems.length === 0 || (!orderId && !customerPhone.trim())}
+                    disabled={creatingOrder || smartpayProcessing || cartItems.length === 0 || (!orderId && !customerPhone.trim())}
                     onPress={() => void handleCheckout()}
                     style={styles.placeOrderButton}
                     buttonColor="#16a34a"
                   >
                     {orderId ? 'Update Order' : 'Create Pickup Order'}
+                  </Button>
+                  <Button
+                    mode="contained-tonal"
+                    icon="credit-card-wireless-outline"
+                    loading={smartpayProcessing}
+                    disabled={!smartpayPaired || creatingOrder || smartpayProcessing || cartItems.length === 0 || (!orderId && !customerPhone.trim())}
+                    onPress={() => void handleCheckout('smartpay')}
+                    style={styles.placeOrderButton}
+                  >
+                    SmartPay
                   </Button>
                   {!orderId && (
                     <Button
@@ -1942,7 +2075,7 @@ export default function PosScreen() {
           <Button
             mode="contained"
             icon={orderId ? 'content-save' : 'cash-register'}
-            disabled={cartItems.length === 0}
+            disabled={cartItems.length === 0 || creatingOrder || smartpayProcessing}
             onPress={orderId ? () => void handleCheckout() : openCheckout}
             style={styles.checkoutButton}
             buttonColor="#16a34a"
@@ -1950,23 +2083,54 @@ export default function PosScreen() {
             {orderId ? 'Update Order' : 'Checkout'}
           </Button>
           {!orderId && (
-            <Button
-              mode="contained-tonal"
-              icon="check-circle-outline"
-              loading={creatingOrder}
-              disabled={creatingOrder || cartItems.length === 0}
-              onPress={openInstorePaymentPrompt}
-              style={[styles.checkoutButton, styles.completeButton]}
-              buttonColor="#dc2626"
-              textColor="#fff"
-            >
-              Complete
-            </Button>
+            <View style={styles.quickPaymentRow}>
+              <Button
+                mode="contained-tonal"
+                icon="check-circle-outline"
+                loading={creatingOrder}
+                disabled={creatingOrder || smartpayProcessing || cartItems.length === 0}
+                onPress={openInstorePaymentPrompt}
+                style={[styles.checkoutButton, styles.quickPaymentButton, styles.completeButton]}
+                buttonColor="#dc2626"
+                textColor="#fff"
+              >
+                Complete
+              </Button>
+              <Button
+                mode="contained"
+                icon="credit-card-wireless-outline"
+                loading={smartpayProcessing}
+                disabled={!smartpayPaired || creatingOrder || smartpayProcessing || cartItems.length === 0}
+                onPress={() => void handleSmartpayInstoreCheckout()}
+                style={[styles.checkoutButton, styles.quickPaymentButton]}
+                buttonColor="#2563eb"
+              >
+                SmartPay
+              </Button>
+            </View>
           )}
         </View>
       </View>
 
       <Portal>
+        <Dialog
+          visible={smartpayProcessing}
+          dismissable
+          onDismiss={confirmDismissSmartpayLock}
+          style={styles.smartpayDialog}
+        >
+          <Dialog.Title>SmartPay payment</Dialog.Title>
+          <Dialog.Content>
+            <Text style={styles.smartpayDialogText}>
+              Follow the prompts on the terminal. This screen will unlock when Smartpay returns the result.
+            </Text>
+            <Text style={styles.smartpayAmount}>${totals.total.toFixed(2)}</Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={confirmDismissSmartpayLock}>Hide</Button>
+          </Dialog.Actions>
+        </Dialog>
+
         <Dialog
           visible={saltOptionDialogVisible}
           onDismiss={() => setSaltOptionDialogVisible(false)}
@@ -2368,7 +2532,12 @@ const styles = StyleSheet.create({
   },
   quickOrderNoteChipTextSelected: { color: '#fff' },
   checkoutButton: { borderRadius: 8, marginTop: 10 },
+  quickPaymentRow: { flexDirection: 'row', gap: 8 },
+  quickPaymentButton: { flex: 1 },
   completeButton: { marginTop: 12 },
+  smartpayDialog: { borderRadius: 8, backgroundColor: '#fff' },
+  smartpayDialogText: { color: '#374151', fontSize: 14, lineHeight: 20 },
+  smartpayAmount: { marginTop: 12, color: '#111827', fontSize: 28, fontWeight: '900', textAlign: 'center' },
   noteDialog: { backgroundColor: '#fff' },
   noteInput: { backgroundColor: '#fff', minHeight: 90 },
 });

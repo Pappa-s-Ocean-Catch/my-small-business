@@ -63,9 +63,17 @@ export default function DrawerLayout() {
           ),
         }}
       />
+      <Drawer.Screen
+        name="report"
+        options={{
+          drawerLabel: 'Report',
+          drawerIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="chart-line" color={color} size={size} />
+          ),
+        }}
+      />
     </Drawer>
   );
 }
 
 const styles = StyleSheet.create({});
-

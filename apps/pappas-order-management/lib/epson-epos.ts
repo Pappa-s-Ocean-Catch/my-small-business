@@ -16,6 +16,17 @@ export type EpsonPrinterConfig = {
   printerCopies: number;
 };
 
+let epsonPrinterQueue: Promise<void> = Promise.resolve();
+
+function enqueueEpsonPrinterJob<T>(job: () => Promise<T>): Promise<T> {
+  const queued = epsonPrinterQueue.then(job, job);
+  epsonPrinterQueue = queued.then(
+    () => undefined,
+    () => undefined
+  );
+  return queued;
+}
+
 function escapeXml(value: string): string {
   return value
     .replaceAll('&', '&amp;')
@@ -160,7 +171,7 @@ function formatItemLines(item: OrderItem): ReceiptLine[] {
   return lines;
 }
 
-export function buildKitchenReceiptLines(order: Order): ReceiptLine[] {
+export function buildKitchenReceiptLines(order: Order, printSource?: string): ReceiptLine[] {
   const lines: ReceiptLine[] = [];
   lines.push(...formatOrderHeaderLines(order));
 
@@ -218,6 +229,11 @@ export function buildKitchenReceiptLines(order: Order): ReceiptLine[] {
     center: true,
   });
 
+  if (printSource) {
+    lines.push('');
+    lines.push({ text: `Print source: ${printSource}`, center: true });
+  }
+
   return lines;
 }
 
@@ -257,40 +273,10 @@ function parseEposResponseIsSuccess(bodyText: string): boolean {
 export async function epsonTestPrint(config: EpsonPrinterConfig): Promise<void> {
   assertPrinterConfigured(config);
 
-  const url = getEpsonServiceUrl(config);
-  const xml = buildEposPrintXmlFromLines(['TEST PRINT', new Date().toLocaleString(), '', 'OK', '', '']);
+  return enqueueEpsonPrinterJob(async () => {
+    const url = getEpsonServiceUrl(config);
+    const xml = buildEposPrintXmlFromLines(['TEST PRINT', new Date().toLocaleString(), '', 'OK', '', '']);
 
-  const response = await fetchWithTimeout(
-    url,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'text/xml; charset=utf-8',
-      },
-      body: xml,
-    },
-    Math.max(1000, config.printerTimeoutMs || 60000)
-  );
-
-  const text = await response.text();
-  if (!response.ok) {
-    throw new Error(`Printer request failed (${response.status})`);
-  }
-  if (!parseEposResponseIsSuccess(text)) {
-    throw new Error('Printer did not acknowledge success');
-  }
-}
-
-export async function epsonPrintKitchenReceipt(order: Order, config: EpsonPrinterConfig): Promise<void> {
-  assertPrinterConfigured(config);
-
-  const url = getEpsonServiceUrl(config);
-  const lines = buildKitchenReceiptLines(order);
-  const xml = buildEposPrintXmlFromLines(lines);
-
-  const copies = Number.isFinite(config.printerCopies) ? Math.max(1, Math.trunc(config.printerCopies)) : 1;
-
-  for (let i = 0; i < copies; i++) {
     const response = await fetchWithTimeout(
       url,
       {
@@ -310,10 +296,48 @@ export async function epsonPrintKitchenReceipt(order: Order, config: EpsonPrinte
     if (!parseEposResponseIsSuccess(text)) {
       throw new Error('Printer did not acknowledge success');
     }
+  });
+}
 
-    // Small spacing to avoid overwhelming the printer/network.
-    if (i < copies - 1) {
-      await new Promise((r) => setTimeout(r, 250));
+export async function epsonPrintKitchenReceipt(
+  order: Order,
+  config: EpsonPrinterConfig,
+  printSource?: string
+): Promise<void> {
+  assertPrinterConfigured(config);
+
+  return enqueueEpsonPrinterJob(async () => {
+    const url = getEpsonServiceUrl(config);
+    const lines = buildKitchenReceiptLines(order, printSource);
+    const xml = buildEposPrintXmlFromLines(lines);
+
+    const copies = Number.isFinite(config.printerCopies) ? Math.max(1, Math.trunc(config.printerCopies)) : 1;
+
+    for (let i = 0; i < copies; i++) {
+      const response = await fetchWithTimeout(
+        url,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'text/xml; charset=utf-8',
+          },
+          body: xml,
+        },
+        Math.max(1000, config.printerTimeoutMs || 60000)
+      );
+
+      const text = await response.text();
+      if (!response.ok) {
+        throw new Error(`Printer request failed (${response.status})`);
+      }
+      if (!parseEposResponseIsSuccess(text)) {
+        throw new Error('Printer did not acknowledge success');
+      }
+
+      // Small spacing to avoid overwhelming the printer/network.
+      if (i < copies - 1) {
+        await new Promise((r) => setTimeout(r, 250));
+      }
     }
-  }
+  });
 }

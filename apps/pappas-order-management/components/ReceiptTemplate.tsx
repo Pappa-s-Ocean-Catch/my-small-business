@@ -6,9 +6,10 @@ import { getOrderChannelReceiptLabel, getOrderLineItemCount, getOrderNotes, getO
 interface ReceiptTemplateProps {
   order: Order;
   width?: number;
+  printSource?: string;
 }
 
-export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ order, width = 576 }) => {
+export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ order, width = 576, printSource }) => {
   const formatMoney = (amount: number) => {
     return (amount || 0).toFixed(2);
   };
@@ -169,6 +170,9 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ order, width =
       </View>
       <View style={styles.footerContainer}>
         <Text style={styles.footerText}>Thanks for your order!</Text>
+        {!!printSource && (
+          <Text style={styles.printSourceText}>Print source: {printSource}</Text>
+        )}
       </View>
     </View>
   );
@@ -335,5 +339,10 @@ const styles = StyleSheet.create({
     fontSize: 30,
     color: '#000',
     fontStyle: 'italic',
+  },
+  printSourceText: {
+    marginTop: 4,
+    fontSize: 14,
+    color: '#444',
   },
 });

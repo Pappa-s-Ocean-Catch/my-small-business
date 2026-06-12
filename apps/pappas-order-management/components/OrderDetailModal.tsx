@@ -393,6 +393,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               <ReceiptTemplate 
                 order={order} 
                 width={appSettings.printerPaperWidth === '58mm' ? 384 : 576} 
+                printSource="order-detail-modal:capture"
               />
            </View>
         </View>

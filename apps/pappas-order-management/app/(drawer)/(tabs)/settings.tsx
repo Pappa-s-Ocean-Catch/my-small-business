@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, Switch, Text, TextInput } from 'react-native-paper';
+import { useRouter } from 'expo-router';
 import { DEFAULT_APP_SETTINGS, loadAppSettings, saveAppSettings } from '@/lib/settings';
 import { playNewOrderSound, SOUND_OPTIONS, type SoundId } from '@/lib/sounds';
 import { usePrintersDiscovery } from 'react-native-esc-pos-printer';
@@ -8,6 +9,7 @@ import type { DeviceInfo } from 'react-native-esc-pos-printer';
 import { escposTestPrint, type SavedPrinter } from '@/lib/escpos-printer';
 
 export default function SettingsScreen() {
+    const router = useRouter();
     const [refreshIntervalSecText, setRefreshIntervalSecText] = useState(String(DEFAULT_APP_SETTINGS.refreshIntervalSec));
     const [soundEnabled, setSoundEnabled] = useState<boolean>(DEFAULT_APP_SETTINGS.soundEnabled);
     const [soundId, setSoundId] = useState<SoundId>(DEFAULT_APP_SETTINGS.soundId);
@@ -195,6 +197,21 @@ export default function SettingsScreen() {
     return (
         <ScrollView contentContainerStyle={styles.container}>
             <Text style={styles.title}>Settings</Text>
+
+            <Card style={styles.card}>
+                <Card.Content>
+                    <Text style={styles.sectionTitle}>Integrations</Text>
+                    <Text style={styles.helper}>Connect this POS register to payment terminals and external services.</Text>
+                    <Button
+                        mode="contained"
+                        icon="credit-card-outline"
+                        onPress={() => router.push('/POS-intergation')}
+                        style={styles.selectButton}
+                    >
+                        Smartpay POS Pairing
+                    </Button>
+                </Card.Content>
+            </Card>
 
             <Card style={styles.card}>
                 <Card.Content>
