@@ -89,10 +89,14 @@ export const useOrderActions = (
     setUpdatingStatus(null);
   };
 
-  const handlePaymentStatusUpdate = async (orderId: string, newStatus: PaymentStatus) => {
+  const handlePaymentStatusUpdate = async (
+    orderId: string,
+    newStatus: PaymentStatus,
+    paymentMethodDetail?: string | null
+  ) => {
     try {
       setUpdatingStatus(orderId);
-      const result = await updatePaymentStatus(orderId, newStatus);
+      const result = await updatePaymentStatus(orderId, newStatus, paymentMethodDetail);
       if (result.error) {
         Alert.alert('Error', result.error);
       } else {

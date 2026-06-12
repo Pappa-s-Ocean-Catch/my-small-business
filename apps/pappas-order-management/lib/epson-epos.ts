@@ -1,5 +1,5 @@
 import type { Order, OrderItem, OrderItemAddon } from '@my-small-business/types';
-import { getOrderChannelReceiptLabel } from '../utils/orderUtils';
+import { getOrderChannelReceiptLabel, getOrderLineItemCount, getOrderNotes, getOrderOptions } from '../utils/orderUtils';
 // this file is no longer use
 const FONT_SIZE = {
   large: { width: 2, height: 2 },
@@ -97,13 +97,21 @@ function formatOrderHeaderLines(order: Order): ReceiptLine[] {
     if (cityLine) lines.push(cityLine);
   }
 
-  if (order.special_instructions?.trim()) {
+  const orderNotes = getOrderNotes(order);
+  if (orderNotes) {
     lines.push('');
-    lines.push({ text: `NOTES: ${order.special_instructions}`, bold: true });
+    lines.push({ text: `NOTES: ${orderNotes}`, bold: true });
   }
 
   lines.push('');
   lines.push('------------------------------');
+  const orderOptions = getOrderOptions(order);
+  if (orderOptions.length > 0) {
+    orderOptions.forEach((option) => {
+      lines.push({ text: `* ${option}`, bold: true, large: true });
+    });
+    lines.push('------------------------------');
+  }
   return lines;
 }
 
@@ -167,6 +175,7 @@ export function buildKitchenReceiptLines(order: Order): ReceiptLine[] {
   }
 
   lines.push('------------------------------');
+  lines.push(`Items:    ${getOrderLineItemCount(order)}`);
   lines.push(`Subtotal: $${formatMoney(order.subtotal)}`);
   if (order.tax > 0) lines.push(`Tax:      $${formatMoney(order.tax)}`);
   if (order.delivery_fee > 0) lines.push(`Delivery: $${formatMoney(order.delivery_fee)}`);

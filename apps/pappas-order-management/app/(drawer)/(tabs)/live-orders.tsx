@@ -545,8 +545,8 @@ export default function LiveOrdersScreen() {
             }}
             onPaymentStatusUpdate={(id) => {
               Alert.alert('Mark as paid', 'Select payment method', [
-                { text: 'Card', onPress: () => handlePaymentStatusUpdate(id, 'paid') },
-                { text: 'Cash', onPress: () => handlePaymentStatusUpdate(id, 'paid') },
+                { text: 'Card', onPress: () => handlePaymentStatusUpdate(id, 'paid', 'Card') },
+                { text: 'Cash', onPress: () => handlePaymentStatusUpdate(id, 'paid', 'Cash') },
                 { text: 'Cancel', style: 'cancel' },
               ]);
             }}

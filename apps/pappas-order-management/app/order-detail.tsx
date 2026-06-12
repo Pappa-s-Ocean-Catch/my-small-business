@@ -13,7 +13,7 @@ import type { Order, OrderStatus } from '@my-small-business/types';
 import * as Print from 'expo-print';
 import { loadAppSettings } from '../lib/settings';
 import { epsonPrintKitchenReceipt } from '../lib/epson-epos';
-import { getOrderChannelLabel } from '../utils/orderUtils';
+import { getOrderChannelLabel, getOrderLineItemCount, getOrderNotes, getOrderOptions } from '../utils/orderUtils';
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
   pending: '#f59e0b',
@@ -161,6 +161,11 @@ export default function OrderDetailScreen() {
   const generatePrintHTML = (order: Order): string => {
     const rewardPointsUsed = order.reward_points_used ?? 0;
     const rewardPointsValue = order.reward_points_value ?? 0;
+    const lineItemCount = getOrderLineItemCount(order);
+    const orderNotes = getOrderNotes(order);
+    const orderOptionsHTML = getOrderOptions(order)
+      .map((option) => `<tr class="order-option-row"><td colspan="2"><strong>ORDER OPTION:</strong> ${option}</td></tr>`)
+      .join('');
     const itemsHTML = order.items?.map(item => {
       const addonsHTML = item.addons?.map(addon =>
         `<li>+ ${addon.addon_item_name} (${addon.addon_group_name}) - $${addon.addon_item_price.toFixed(2)}</li>`
@@ -189,6 +194,7 @@ export default function OrderDetailScreen() {
             table { width: 100%; border-collapse: collapse; margin: 20px 0; }
             th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
             th { background-color: #f2f2f2; }
+            .order-option-row td { font-size: 20px; font-weight: 900; }
             .total { font-size: 18px; font-weight: bold; margin-top: 20px; }
           </style>
         </head>
@@ -207,7 +213,7 @@ export default function OrderDetailScreen() {
               ${order.delivery_city}, ${order.delivery_state} ${order.delivery_postcode}
               </p>
             ` : ''}
-            ${order.special_instructions ? `<p><strong>Special Instructions:</strong> ${order.special_instructions}</p>` : ''}
+            ${orderNotes ? `<p><strong>Special Instructions:</strong> ${orderNotes}</p>` : ''}
           </div>
           <table>
             <thead>
@@ -217,10 +223,12 @@ export default function OrderDetailScreen() {
               </tr>
             </thead>
             <tbody>
+              ${orderOptionsHTML}
               ${itemsHTML}
             </tbody>
           </table>
           <div class="total">
+            <p>Total items: ${lineItemCount}</p>
             <p>Subtotal: $${order.subtotal.toFixed(2)}</p>
             ${order.tax > 0 ? `<p>Tax: $${order.tax.toFixed(2)}</p>` : ''}
             ${order.delivery_fee > 0 ? `<p>Delivery Fee: $${order.delivery_fee.toFixed(2)}</p>` : ''}
@@ -259,6 +267,7 @@ export default function OrderDetailScreen() {
   const statusLabel = STATUS_LABELS[order.order_status];
   const rewardPointsUsed = order.reward_points_used ?? 0;
   const rewardPointsValue = order.reward_points_value ?? 0;
+  const lineItemCount = getOrderLineItemCount(order);
 
   return (
     <ScrollView style={styles.container}>
@@ -331,10 +340,10 @@ export default function OrderDetailScreen() {
               </Text>
             </View>
           )}
-          {order.special_instructions && (
+          {getOrderNotes(order) && (
             <View style={styles.specialInstructions}>
               <Text style={styles.infoLabel}>Special Instructions:</Text>
-              <Text style={styles.infoValue}>{order.special_instructions}</Text>
+              <Text style={styles.infoValue}>{getOrderNotes(order)}</Text>
             </View>
           )}
         </Card.Content>
@@ -343,6 +352,11 @@ export default function OrderDetailScreen() {
       <Card style={styles.sectionCard}>
         <Card.Content>
           <Text style={styles.sectionTitle}>Items</Text>
+          {getOrderOptions(order).map((option, index) => (
+            <View key={`option-${index}`} style={styles.orderOptionRow}>
+              <Text style={styles.orderOptionText}>* {option}</Text>
+            </View>
+          ))}
           {order.items?.map((item) => (
             <View key={item.id} style={styles.itemCard}>
               <View style={styles.itemHeader}>
@@ -371,6 +385,10 @@ export default function OrderDetailScreen() {
       <Card style={styles.sectionCard}>
         <Card.Content>
           <Text style={styles.sectionTitle}>Total</Text>
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Total items:</Text>
+            <Text style={styles.totalValue}>{lineItemCount}</Text>
+          </View>
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Subtotal:</Text>
             <Text style={styles.totalValue}>${order.subtotal.toFixed(2)}</Text>
@@ -623,6 +641,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9fafb',
     borderRadius: 8,
     marginBottom: 12,
+  },
+  orderOptionRow: {
+    padding: 16,
+    backgroundColor: '#eff6ff',
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  orderOptionText: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#111827',
   },
   itemHeader: {
     flexDirection: 'row',

@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import type { Order } from '@my-small-business/types';
-import { getOrderChannelReceiptLabel, groupAddons } from '../utils/orderUtils';
+import { getOrderChannelReceiptLabel, getOrderLineItemCount, getOrderNotes, getOrderOptions, groupAddons } from '../utils/orderUtils';
 
 interface ReceiptTemplateProps {
   order: Order;
@@ -25,6 +25,9 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ order, width =
       minute: '2-digit',
     })
     : null;
+  const orderOptions = getOrderOptions(order);
+  const orderNotes = getOrderNotes(order);
+  const lineItemCount = getOrderLineItemCount(order);
 
   return (
     <View style={[styles.container, { width }]}>
@@ -59,16 +62,21 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ order, width =
         )}
       </View>
 
-      {order.special_instructions?.trim() && (
+      {orderNotes && (
         <View style={styles.noteSection}>
           <Text style={styles.noteTitle}>ORDER NOTES:</Text>
-          <Text style={styles.noteText}>{order.special_instructions}</Text>
+          <Text style={styles.noteText}>{orderNotes}</Text>
         </View>
       )}
 
       <View style={styles.divider} />
 
       {/* Items */}
+      {orderOptions.map((option, idx) => (
+        <View key={`option-${idx}`} style={styles.optionContainer}>
+          <Text style={styles.optionText}>* {option}</Text>
+        </View>
+      ))}
       {order.items?.map((item, idx) => (
         <View key={idx} style={styles.itemContainer}>
           <View style={styles.itemLineRow}>
@@ -99,6 +107,10 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ order, width =
 
       {/* Totals */}
       <View style={styles.totalsContainer}>
+        <View style={styles.totalRow}>
+          <Text style={styles.normalText}>Total items:</Text>
+          <Text style={styles.normalText}>{lineItemCount}</Text>
+        </View>
         <View style={styles.totalRow}>
           <Text style={styles.normalText}>Subtotal:</Text>
           <Text style={styles.normalText}>${formatMoney(order.subtotal)}</Text>
@@ -215,6 +227,15 @@ const styles = StyleSheet.create({
   },
   itemContainer: {
     marginBottom: 12,
+  },
+  optionContainer: {
+    marginBottom: 10,
+  },
+  optionText: {
+    fontSize: 40,
+    fontWeight: '900',
+    color: '#111827',
+    lineHeight: 44,
   },
   itemLineRow: {
     flexDirection: 'row',

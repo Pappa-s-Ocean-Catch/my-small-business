@@ -22,6 +22,7 @@ export interface OrderInput {
   order_channel?: OrderChannel;
   order_type: 'pickup' | 'delivery';
   user_id?: string;
+  order_options?: string | null;
   special_instructions?: string;
   items: any[]; // Flexible type - can be CartItemData[] or other formats
   subtotal: number;
@@ -114,6 +115,7 @@ export interface Order {
   total: number;
   reward_points_used: number | null;
   reward_points_value: number | null;
+  order_options: string | null;
   special_instructions: string | null;
   delivery_address_id: string | null;
   delivery_address_line1: string | null;

@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import type { Order, OrderItem, OrderItemAddon, OrderStatus, PaymentStatus } from '@my-small-business/types';
+import { getOrderNotes, getOrderOptions } from '../utils/orderUtils';
 
 type OrderRow = Omit<Order, 'items'> & {
   items?: never;
@@ -35,6 +36,32 @@ function mapEmbeddedOrder(row: OrderWithEmbeddedItemsRow): Order {
     reward_points_value: mappedOrder.reward_points_value == null ? null : Number(mappedOrder.reward_points_value),
     total: Number(mappedOrder.total ?? 0),
     items,
+  };
+}
+
+function normalizeOrderOptions<T extends { order_options?: string | null; special_instructions?: string | null }>(
+  payload: T
+): T {
+  const hasOrderOptions = Object.prototype.hasOwnProperty.call(payload, 'order_options');
+  const hasSpecialInstructions = Object.prototype.hasOwnProperty.call(payload, 'special_instructions');
+
+  if (!hasOrderOptions && !hasSpecialInstructions) {
+    return payload;
+  }
+
+  const orderOptions = getOrderOptions({
+    order_options: payload.order_options ?? null,
+    special_instructions: payload.special_instructions ?? null,
+  });
+
+  return {
+    ...payload,
+    ...(hasOrderOptions || orderOptions.length > 0
+      ? { order_options: orderOptions.length > 0 ? orderOptions.join(',') : null }
+      : {}),
+    ...(hasSpecialInstructions
+      ? { special_instructions: getOrderNotes({ special_instructions: payload.special_instructions ?? null }) }
+      : {}),
   };
 }
 
@@ -198,11 +225,12 @@ export async function savePosOrder(
   items: Array<Omit<OrderItem, 'id' | 'order_id' | 'created_at' | 'addons'> & { addons?: Omit<OrderItemAddon, 'id' | 'order_item_id' | 'created_at'>[] }>
 ): Promise<{ data: Order | null; error: string | null }> {
   try {
-    const finalOrderStatus = orderPayload.order_status;
+    const normalizedOrderPayload = normalizeOrderOptions(orderPayload);
+    const finalOrderStatus = normalizedOrderPayload.order_status;
     const { data: orderData, error: orderError } = await supabase
       .from('orders')
       .insert({
-        ...orderPayload,
+        ...normalizedOrderPayload,
         order_status: 'pending_online_payment',
       })
       .select()
@@ -272,11 +300,14 @@ export async function updatePosOrder(
     | 'order_channel'
     | 'payment_status'
     | 'payment_method_detail'
+    | 'order_options'
     | 'special_instructions'
     | 'scheduled_pickup_at'
   >> = {}
 ): Promise<{ data: Order | null; error: string | null }> {
   try {
+    const normalizedOrderUpdate = normalizeOrderOptions(orderUpdate);
+
     // Update order totals first
     const { error: orderError } = await supabase
       .from('orders')
@@ -284,7 +315,7 @@ export async function updatePosOrder(
         subtotal: orderTotalsUpdate.subtotal,
         tax: orderTotalsUpdate.tax,
         total: orderTotalsUpdate.total,
-        ...orderUpdate,
+        ...normalizedOrderUpdate,
         updated_at: new Date().toISOString(),
       })
       .eq('id', orderId);

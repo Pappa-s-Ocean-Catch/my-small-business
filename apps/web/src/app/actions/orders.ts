@@ -24,6 +24,7 @@ export interface OrderInput {
   order_channel?: OrderChannel;
   order_type: 'pickup' | 'delivery';
   user_id?: string;
+  order_options?: string | null;
   special_instructions?: string;
   items: CartItemData[];
   subtotal: number;
@@ -185,6 +186,7 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
       total: input.total,
       reward_points_used: input.reward_points_used ?? null,
       reward_points_value: input.reward_points_value ?? null,
+      order_options: input.order_options ?? null,
       special_instructions: input.special_instructions || null,
       delivery_instructions: input.delivery_instructions || null,
       scheduled_pickup_at: input.scheduled_pickup_at ?? null,

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { Appbar, Button, Dialog, Divider, IconButton, Menu, Portal, TextInput } from 'react-native-paper';
+import { Appbar, Button, Dialog, Divider, IconButton, Portal, TextInput } from 'react-native-paper';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import type { Order, OrderItem, OrderItemAddon, PaymentStatus } from '@my-small-business/types';
@@ -13,6 +13,7 @@ import {
   fetchPreferredPosLayout,
   PosLayoutData,
 } from '../lib/pos-layouts';
+import { getOrderNotes, getOrderOptions } from '../utils/orderUtils';
 
 type SaleCategory = {
   id: string;
@@ -90,6 +91,22 @@ const addonTotal = (addons: OrderItemAddon[]) => (
 
 const CATALOG_CACHE_TTL_MS = 60 * 60 * 1000;
 const TOP_SELLERS_CACHE_TTL_MS = 5 * 60 * 1000;
+const PRODUCT_TILE_PALETTE = [
+  { backgroundColor: '#fff7ed', borderColor: '#fed7aa', priceColor: '#c2410c' },
+  { backgroundColor: '#ecfdf5', borderColor: '#bbf7d0', priceColor: '#047857' },
+  { backgroundColor: '#eff6ff', borderColor: '#bfdbfe', priceColor: '#1d4ed8' },
+  { backgroundColor: '#fdf2f8', borderColor: '#fbcfe8', priceColor: '#be185d' },
+  { backgroundColor: '#f0fdfa', borderColor: '#99f6e4', priceColor: '#0f766e' },
+  { backgroundColor: '#fefce8', borderColor: '#fde68a', priceColor: '#a16207' },
+];
+const ADDON_GROUP_PALETTE = [
+  { backgroundColor: '#eff6ff', borderColor: '#93c5fd', labelColor: '#1d4ed8' },
+  { backgroundColor: '#ecfdf5', borderColor: '#86efac', labelColor: '#047857' },
+  { backgroundColor: '#fff7ed', borderColor: '#fdba74', labelColor: '#c2410c' },
+  { backgroundColor: '#fdf2f8', borderColor: '#f9a8d4', labelColor: '#be185d' },
+  { backgroundColor: '#f0fdfa', borderColor: '#5eead4', labelColor: '#0f766e' },
+  { backgroundColor: '#fefce8', borderColor: '#fde047', labelColor: '#a16207' },
+];
 
 type CacheEntry<T> = {
   expiresAt: number;
@@ -124,6 +141,16 @@ const defaultPickupTime = () => {
   next.setMinutes(next.getMinutes() + 30);
   next.setSeconds(0, 0);
   return next;
+};
+
+const productTilePalette = (productId: string) => {
+  const hash = productId.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return PRODUCT_TILE_PALETTE[hash % PRODUCT_TILE_PALETTE.length];
+};
+
+const addonGroupPalette = (groupId: string) => {
+  const hash = groupId.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return ADDON_GROUP_PALETTE[hash % ADDON_GROUP_PALETTE.length];
 };
 
 const formatPickupTime = (date: Date) => date.toLocaleString([], {
@@ -175,7 +202,7 @@ export default function PosScreen() {
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [posLayout, setPosLayout] = useState<PosLayoutData | null>(null);
   const [quickOrderNote, setQuickOrderNote] = useState<string | null>(null);
-  const [quickOrderNoteMenuVisible, setQuickOrderNoteMenuVisible] = useState(false);
+  const [saltOptionDialogVisible, setSaltOptionDialogVisible] = useState(false);
   const [orderNoteText, setOrderNoteText] = useState('');
 
   const goHome = () => {
@@ -326,9 +353,15 @@ export default function PosScreen() {
     return layoutNotes && layoutNotes.length > 0 ? layoutNotes : DEFAULT_POS_QUICK_ORDER_NOTES;
   }, [posLayout]);
 
-  const orderSpecialInstructions = useMemo(() => (
-    [quickOrderNote, orderNoteText.trim()].filter(Boolean).join('\n') || null
+  const orderOptions = useMemo(() => (
+    getOrderOptions({
+      order_options: quickOrderNote,
+      special_instructions: orderNoteText,
+    }).join(',') || null
   ), [orderNoteText, quickOrderNote]);
+  const orderSpecialInstructions = useMemo(() => (
+    getOrderNotes({ special_instructions: orderNoteText })
+  ), [orderNoteText]);
 
   const productButtonColor = (productId: string) => (
     activeLayoutCategory?.products.find((product) => product.productId === productId)?.color
@@ -556,8 +589,8 @@ export default function PosScreen() {
       setCartItems(items);
       setCustomerPhone(order.customer_phone || '');
       setCustomerName(order.customer_name || '');
-      setQuickOrderNote(null);
-      setOrderNoteText(order.special_instructions || '');
+      setQuickOrderNote(getOrderOptions(order)[0] || null);
+      setOrderNoteText(getOrderNotes(order) || '');
       setPaymentChoice(
         order.payment_status !== 'paid'
           ? 'no_pay'
@@ -1196,6 +1229,7 @@ export default function PosScreen() {
       total: totals.total,
       reward_points_used: null,
       reward_points_value: null,
+      order_options: orderOptions,
       special_instructions: orderSpecialInstructions,
       delivery_address_id: null,
       delivery_address_line1: null,
@@ -1230,6 +1264,7 @@ export default function PosScreen() {
         order_channel: editingOrder?.order_channel ?? 'phone_pickup',
         payment_status: paymentStatus,
         payment_method_detail: paymentMethodDetail,
+        order_options: orderOptions,
         special_instructions: orderSpecialInstructions,
         scheduled_pickup_at: pickupAt ? pickupAt.toISOString() : null,
       })
@@ -1281,6 +1316,7 @@ export default function PosScreen() {
       total: totals.total,
       reward_points_used: null,
       reward_points_value: null,
+      order_options: orderOptions,
       special_instructions: orderSpecialInstructions,
       delivery_address_id: null,
       delivery_address_line1: null,
@@ -1350,6 +1386,7 @@ export default function PosScreen() {
       <Appbar.Header style={styles.header}>
         <Appbar.Action icon="close" onPress={handleCancel} iconColor="#fff" accessibilityLabel="Cancel" />
         <Appbar.Content title={orderId ? 'Edit Order' : 'Take Order'} titleStyle={styles.headerTitle} />
+        <Appbar.Action icon="magnify" onPress={openSearch} iconColor="#fff" accessibilityLabel="Search items" />
         <Appbar.Action icon="view-grid-plus-outline" onPress={openLayoutSettings} iconColor="#fff" accessibilityLabel="POS layout settings" />
         <Appbar.Action icon="home" onPress={goHome} iconColor="#fff" accessibilityLabel="Back home" />
       </Appbar.Header>
@@ -1359,11 +1396,6 @@ export default function PosScreen() {
           {menuLevel === 'groups' && (
             <>
               <View style={styles.groupScreen}>
-                <View style={styles.groupActionBar}>
-                  <Button mode="contained" icon="magnify" onPress={openSearch} style={styles.searchEntryButton}>
-                    Search items
-                  </Button>
-                </View>
                 <FlatList
                   data={layoutTopLevelCategories}
                   keyExtractor={(item) => item.id}
@@ -1442,8 +1474,8 @@ export default function PosScreen() {
                 <FlatList
                   data={searchResults}
                   keyExtractor={(item) => item.id}
-                  numColumns={3}
-                  key="search-products-3"
+                  numColumns={4}
+                  key="search-products-4"
                   contentContainerStyle={styles.searchGrid}
                   ListEmptyComponent={(
                     <View style={styles.emptyState}>
@@ -1454,15 +1486,23 @@ export default function PosScreen() {
                   )}
                   renderItem={({ item }) => {
                     const quickQuantity = quickQuantityForProduct(item.id);
+                    const tilePalette = productTilePalette(item.id);
                     return (
-                      <TouchableOpacity style={styles.productCard} onPress={() => void quickAddProduct(item)}>
+                      <TouchableOpacity
+                        style={[styles.productCard, { backgroundColor: tilePalette.backgroundColor, borderColor: tilePalette.borderColor }]}
+                        onPress={() => void quickAddProduct(item)}
+                      >
                         {quickQuantity > 0 && (
                           <View style={styles.productQuantityBadge}>
                             <Text style={styles.productQuantityText}>{quickQuantity}</Text>
                           </View>
                         )}
-                        <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
-                        <Text style={styles.productPrice}>${item.sale_price.toFixed(2)}</Text>
+                        <View style={styles.productNameArea}>
+                          <Text style={styles.productName} numberOfLines={3}>{item.name}</Text>
+                        </View>
+                        <View style={[styles.productPricePill, { backgroundColor: tilePalette.priceColor }]}>
+                          <Text style={styles.productPrice}>${item.sale_price.toFixed(2)}</Text>
+                        </View>
                       </TouchableOpacity>
                     );
                   }}
@@ -1485,8 +1525,8 @@ export default function PosScreen() {
               <FlatList
                 data={layoutProducts}
                 keyExtractor={(item) => item.id}
-                numColumns={3}
-                key="products-3"
+                numColumns={4}
+                key="products-4"
                 contentContainerStyle={styles.tileGrid}
                 ListEmptyComponent={(
                   <View style={styles.emptyState}>
@@ -1496,9 +1536,16 @@ export default function PosScreen() {
                 renderItem={({ item }) => {
                   const quickQuantity = quickQuantityForProduct(item.id);
                   const skipCustomization = Boolean(activeLayoutCategory?.showProductsOnTopLevel);
+                  const customColor = productButtonColor(item.id);
+                  const tilePalette = productTilePalette(item.id);
                   return (
                     <TouchableOpacity
-                      style={[styles.productCard, productButtonColor(item.id) ? styles.productCardCustomColor : null, productButtonColor(item.id) ? { backgroundColor: productButtonColor(item.id), borderColor: productButtonColor(item.id) } : null]}
+                      style={[
+                        styles.productCard,
+                        { backgroundColor: tilePalette.backgroundColor, borderColor: tilePalette.borderColor },
+                        customColor ? styles.productCardCustomColor : null,
+                        customColor ? { backgroundColor: customColor, borderColor: customColor } : null,
+                      ]}
                       onPress={() => void quickAddProduct(item, { skipCustomization })}
                     >
                       {quickQuantity > 0 && (
@@ -1506,8 +1553,15 @@ export default function PosScreen() {
                           <Text style={styles.productQuantityText}>{quickQuantity}</Text>
                         </View>
                       )}
-                      <Text style={[styles.productName, productButtonColor(item.id) ? styles.productCardCustomText : null]} numberOfLines={2}>{item.name}</Text>
-                      <Text style={[styles.productPrice, productButtonColor(item.id) ? styles.productCardCustomText : null]}>${item.sale_price.toFixed(2)}</Text>
+                      <View style={styles.productNameArea}>
+                        <Text style={[styles.productName, customColor ? styles.productCardCustomText : null]} numberOfLines={3}>{item.name}</Text>
+                      </View>
+                      <View style={[
+                        styles.productPricePill,
+                        customColor ? styles.productPricePillCustom : { backgroundColor: tilePalette.priceColor },
+                      ]}>
+                        <Text style={[styles.productPrice, customColor ? styles.productCardCustomText : null]}>${item.sale_price.toFixed(2)}</Text>
+                      </View>
                     </TouchableOpacity>
                   );
                 }}
@@ -1530,7 +1584,9 @@ export default function PosScreen() {
               <View style={styles.editorBody}>
                 {editorRemovableIngredients.length > 0 && (
                   <View style={styles.removableBlock}>
-                    <Text style={styles.addonGroupTitle}>Remove Ingredients</Text>
+                    <View style={[styles.addonGroupLabel, styles.removeGroupLabel]}>
+                      <Text style={[styles.addonGroupTitle, styles.removeGroupTitle]}>Remove Ingredients</Text>
+                    </View>
                     <View style={styles.optionGrid}>
                       {editorRemovableIngredients.map((ingredient) => {
                         const selected = Boolean(editorRemovedIngredientIds[ingredient.id]);
@@ -1559,34 +1615,44 @@ export default function PosScreen() {
                       {loadingAddons ? 'Loading add-ons...' : 'No add-ons for this item'}
                     </Text>
                   )}
-                  renderItem={({ item: group }) => (
-                    <View style={styles.addonGroup}>
-                      <Text style={styles.addonGroupTitle}>
-                        {group.name}{group.is_required ? ' *' : ''}
-                      </Text>
-                      <View style={styles.optionGrid}>
-                        {group.items.map((item) => {
-                          const selected = Boolean(editorSelectedIds[item.id]);
-                          return (
-                            <TouchableOpacity
-                              key={item.id}
-                              style={[styles.optionButton, selected && styles.optionButtonSelected]}
-                              onPress={() => toggleAddon(group, item)}
-                            >
-                              <Text style={[styles.optionText, selected && styles.optionTextSelected]} numberOfLines={2}>
-                                {item.name}
-                              </Text>
-                              {item.extra_price > 0 && (
-                                <Text style={[styles.optionPrice, selected && styles.optionTextSelected]}>
-                                  +${item.extra_price.toFixed(2)}
+                  renderItem={({ item: group }) => {
+                    const groupPalette = addonGroupPalette(group.id);
+                    return (
+                      <View
+                        style={[
+                          styles.addonGroup,
+                          { backgroundColor: groupPalette.backgroundColor, borderColor: groupPalette.borderColor },
+                        ]}
+                      >
+                        <View style={[styles.addonGroupLabel, { backgroundColor: groupPalette.labelColor }]}>
+                          <Text style={styles.addonGroupTitle}>
+                            {group.name}{group.is_required ? ' *' : ''}
+                          </Text>
+                        </View>
+                        <View style={styles.optionGrid}>
+                          {group.items.map((item) => {
+                            const selected = Boolean(editorSelectedIds[item.id]);
+                            return (
+                              <TouchableOpacity
+                                key={item.id}
+                                style={[styles.optionButton, selected && styles.optionButtonSelected]}
+                                onPress={() => toggleAddon(group, item)}
+                              >
+                                <Text style={[styles.optionText, selected && styles.optionTextSelected]} numberOfLines={2}>
+                                  {item.name}
                                 </Text>
-                              )}
-                            </TouchableOpacity>
-                          );
-                        })}
+                                {item.extra_price > 0 && (
+                                  <Text style={[styles.optionPrice, selected && styles.optionTextSelected]}>
+                                    +${item.extra_price.toFixed(2)}
+                                  </Text>
+                                )}
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
                       </View>
-                    </View>
-                  )}
+                    );
+                  }}
                 />
 
                 <View style={styles.editorActions}>
@@ -1773,40 +1839,22 @@ export default function PosScreen() {
               Clear
             </Button>
           </View>
-          <Menu
-            visible={quickOrderNoteMenuVisible}
-            onDismiss={() => setQuickOrderNoteMenuVisible(false)}
-            anchor={(
-              <Button
-                mode={quickOrderNote ? 'contained-tonal' : 'outlined'}
-                icon="note-text-outline"
-                onPress={() => setQuickOrderNoteMenuVisible(true)}
-                style={styles.quickOrderNoteButton}
-              >
-                {quickOrderNote || 'Salt option'}
-              </Button>
-            )}
+          <TouchableOpacity
+            style={[styles.quickOrderNoteButton, quickOrderNote && styles.quickOrderNoteButtonSelected]}
+            onPress={() => setSaltOptionDialogVisible(true)}
           >
-            {quickOrderNote && (
-              <Menu.Item
-                onPress={() => {
-                  setQuickOrderNote(null);
-                  setQuickOrderNoteMenuVisible(false);
-                }}
-                title="Clear salt option"
-              />
-            )}
-            {quickOrderNotes.map((note) => (
-              <Menu.Item
-                key={note}
-                onPress={() => {
-                  setQuickOrderNote(note);
-                  setQuickOrderNoteMenuVisible(false);
-                }}
-                title={note}
-              />
-            ))}
-          </Menu>
+            <View style={styles.quickOrderNoteButtonText}>
+              <Text style={[styles.quickOrderNoteTitle, quickOrderNote && styles.quickOrderNoteTitleSelected]}>
+                Salt option
+              </Text>
+              <Text style={[styles.quickOrderNoteValue, quickOrderNote && styles.quickOrderNoteValueSelected]} numberOfLines={1}>
+                {quickOrderNote || 'Not selected'}
+              </Text>
+            </View>
+            <Text style={[styles.quickOrderNoteEdit, quickOrderNote && styles.quickOrderNoteEditSelected]}>
+              Change
+            </Text>
+          </TouchableOpacity>
           <FlatList
             data={cartItems}
             keyExtractor={(item) => item.id}
@@ -1816,48 +1864,61 @@ export default function PosScreen() {
               <View style={styles.cartRow}>
                 <View style={styles.cartItemHeader}>
                   <View style={styles.cartItemText}>
-                    <Text style={styles.cartItemName} numberOfLines={2}>{item.quantity} x {item.product_name}</Text>
-                    <Text style={styles.cartItemPrice}>${item.subtotal.toFixed(2)}</Text>
-                    {item.addons?.map((addon) => (
-                      <Text
-                        key={`${item.id}-addon-${addon.addon_item_id}`}
-                        style={styles.cartItemMeta}
-                        numberOfLines={1}
-                      >
-                        + {addon.addon_item_name}
-                        {addon.addon_item_price > 0 ? ` $${addon.addon_item_price.toFixed(2)}` : ''}
-                      </Text>
-                    ))}
-                    {item.removed_ingredients?.map((ingredient) => (
-                      <Text
-                        key={`${item.id}-removed-${ingredient}`}
-                        style={styles.cartItemRemoved}
-                        numberOfLines={1}
-                      >
-                        No {ingredient}
-                      </Text>
-                    ))}
-                    {item.comment && <Text style={styles.cartItemNote} numberOfLines={2}>{item.comment}</Text>}
+                    <View style={styles.cartItemTopLine}>
+                      <Text style={styles.cartItemName} numberOfLines={2}>{item.product_name}</Text>
+                      <View style={styles.qtyStepper}>
+                        <IconButton icon="minus" size={16} onPress={() => updateQuantity(item.id, -1)} style={styles.stepperButton} />
+                        <Text style={styles.cartQuantity}>{item.quantity}</Text>
+                        <IconButton icon="plus" size={16} onPress={() => updateQuantity(item.id, 1)} style={styles.stepperButton} />
+                      </View>
+                      <Text style={styles.cartItemPrice}>${item.subtotal.toFixed(2)}</Text>
+                    </View>
+                    <View style={styles.cartItemDetails}>
+                      {item.addons?.map((addon) => (
+                        <Text
+                          key={`${item.id}-addon-${addon.addon_item_id}`}
+                          style={styles.cartItemMeta}
+                          numberOfLines={1}
+                        >
+                          + {addon.addon_item_name}
+                          {addon.addon_item_price > 0 ? ` $${addon.addon_item_price.toFixed(2)}` : ''}
+                        </Text>
+                      ))}
+                      {item.removed_ingredients?.map((ingredient) => (
+                        <Text
+                          key={`${item.id}-removed-${ingredient}`}
+                          style={styles.cartItemRemoved}
+                          numberOfLines={1}
+                        >
+                          No {ingredient}
+                        </Text>
+                      ))}
+                      {item.comment && <Text style={styles.cartItemNote} numberOfLines={2}>{item.comment}</Text>}
+                    </View>
                   </View>
                 </View>
                 <View style={styles.cartControls}>
-                  <View style={styles.qtyStepper}>
-                    <IconButton icon="minus" size={18} onPress={() => updateQuantity(item.id, -1)} style={styles.stepperButton} />
-                    <Text style={styles.cartQuantity}>{item.quantity}</Text>
-                    <IconButton icon="plus" size={18} onPress={() => updateQuantity(item.id, 1)} style={styles.stepperButton} />
-                  </View>
-                  <Button mode="outlined" icon="pencil" compact onPress={() => openCartItemEditor(item)} style={styles.modifyButton}>
-                    Modify
-                  </Button>
-                  <Button mode="text" compact onPress={() => openNoteEditor(item)} style={styles.noteLink}>
-                    {item.comment ? 'Edit note' : 'Note'}
-                  </Button>
+                  <IconButton
+                    icon="pencil"
+                    onPress={() => openCartItemEditor(item)}
+                    size={18}
+                    style={styles.cartActionIconButton}
+                    accessibilityLabel="Modify item"
+                  />
+                  <IconButton
+                    icon={item.comment ? 'note-edit-outline' : 'note-plus-outline'}
+                    onPress={() => openNoteEditor(item)}
+                    size={18}
+                    style={styles.cartActionIconButton}
+                    accessibilityLabel={item.comment ? 'Edit item note' : 'Add item note'}
+                  />
                   <IconButton
                     icon="trash-can-outline"
                     iconColor="#dc2626"
-                    size={20}
+                    size={18}
                     onPress={() => removeCartItem(item.id)}
-                    style={styles.deleteLineButton}
+                    style={styles.cartActionIconButton}
+                    accessibilityLabel="Remove item"
                   />
                 </View>
               </View>
@@ -1865,6 +1926,10 @@ export default function PosScreen() {
           />
           <Divider />
           <View style={styles.totals}>
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Total items</Text>
+              <Text style={styles.totalValue}>{cartItems.length}</Text>
+            </View>
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Subtotal</Text>
               <Text style={styles.totalValue}>${totals.subtotal.toFixed(2)}</Text>
@@ -1902,6 +1967,45 @@ export default function PosScreen() {
       </View>
 
       <Portal>
+        <Dialog
+          visible={saltOptionDialogVisible}
+          onDismiss={() => setSaltOptionDialogVisible(false)}
+          style={styles.noteDialog}
+        >
+          <Dialog.Title>Salt option</Dialog.Title>
+          <Dialog.Content>
+            <View style={styles.quickOrderNoteGrid}>
+              {quickOrderNotes.map((note) => {
+                const selected = quickOrderNote === note;
+                return (
+                  <TouchableOpacity
+                    key={note}
+                    style={[styles.quickOrderNoteChip, selected && styles.quickOrderNoteChipSelected]}
+                    onPress={() => {
+                      setQuickOrderNote(selected ? null : note);
+                      setSaltOptionDialogVisible(false);
+                    }}
+                  >
+                    <Text style={[styles.quickOrderNoteChipText, selected && styles.quickOrderNoteChipTextSelected]} numberOfLines={2}>
+                      {note}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </Dialog.Content>
+          <Dialog.Actions>
+            {quickOrderNote && (
+              <Button onPress={() => {
+                setQuickOrderNote(null);
+                setSaltOptionDialogVisible(false);
+              }}>
+                Clear
+              </Button>
+            )}
+            <Button onPress={() => setSaltOptionDialogVisible(false)}>Close</Button>
+          </Dialog.Actions>
+        </Dialog>
         <Dialog visible={Boolean(noteItemId)} onDismiss={closeNoteEditor} style={styles.noteDialog}>
           <Dialog.Title>Item note</Dialog.Title>
           <Dialog.Content>
@@ -1932,26 +2036,24 @@ const styles = StyleSheet.create({
   body: { flex: 1, flexDirection: 'row', gap: 12, padding: 12 },
   menuPane: { flex: 1, backgroundColor: '#fff', borderRadius: 8, overflow: 'hidden' },
   menuHeader: {
-    minHeight: 82,
+    minHeight: 68,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
   menuHeaderText: { flex: 1 },
-  menuTitle: { color: '#111827', fontSize: 24, fontWeight: '800' },
+  menuTitle: { color: '#111827', fontSize: 22, fontWeight: '800' },
   menuSubtitle: { color: '#6b7280', marginTop: 2 },
   backButton: { borderRadius: 8 },
   groupScreen: { flex: 1 },
-  groupActionBar: { padding: 10, paddingBottom: 0, alignItems: 'stretch', gap: 8 },
-  searchEntryButton: { borderRadius: 8 },
-  tileGrid: { padding: 10, paddingBottom: 24 },
+  tileGrid: { padding: 8, paddingBottom: 18 },
   searchBody: { flex: 1 },
   searchInput: { margin: 10, marginBottom: 0, backgroundColor: '#fff' },
-  searchGrid: { padding: 10, paddingBottom: 24 },
+  searchGrid: { padding: 8, paddingBottom: 18 },
   groupCard: {
     flex: 1,
     minHeight: 132,
@@ -2004,19 +2106,20 @@ const styles = StyleSheet.create({
   topSellersEmpty: { color: '#6b7280', fontSize: 13, fontWeight: '700', paddingVertical: 8 },
   productCard: {
     flex: 1,
-    minHeight: 132,
-    margin: 5,
+    minHeight: 112,
+    margin: 4,
     borderRadius: 8,
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#fff7ed',
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    padding: 12,
+    borderColor: '#fed7aa',
+    padding: 8,
     justifyContent: 'space-between',
   },
   productQuantityBadge: {
     position: 'absolute',
-    top: 8,
-    right: 8,
+    top: 6,
+    right: 6,
+    zIndex: 2,
     minWidth: 28,
     height: 28,
     borderRadius: 14,
@@ -2025,36 +2128,103 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 8,
   },
-  productQuantityText: { color: '#fff', fontSize: 14, fontWeight: '900' },
-  productName: { color: '#111827', fontSize: 16, fontWeight: '800' },
-  productPrice: { color: '#dc2626', fontSize: 20, fontWeight: '900' },
+  productQuantityText: { color: '#fff', fontSize: 13, fontWeight: '900' },
+  productNameArea: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    paddingTop: 8,
+    paddingBottom: 6,
+  },
+  productName: {
+    color: '#111827',
+    fontSize: 15,
+    lineHeight: 18,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  productPricePill: {
+    alignSelf: 'center',
+    minWidth: 70,
+    borderRadius: 8,
+    backgroundColor: '#dc2626',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  productPricePillCustom: {
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.38)',
+  },
+  productPrice: {
+    color: '#fff',
+    fontSize: 17,
+    lineHeight: 21,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
   productCardCustomColor: { borderWidth: 1 },
   productCardCustomText: { color: '#fff' },
   emptyState: { padding: 30, alignItems: 'center' },
   emptyTitle: { color: '#6b7280', fontSize: 16, fontWeight: '700' },
-  editorBody: { flex: 1, padding: 12 },
-  removableBlock: { marginBottom: 12 },
-  addonList: { flex: 1, marginTop: 12 },
+  editorBody: { flex: 1, padding: 10 },
+  removableBlock: {
+    marginTop: 8,
+    marginBottom: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    backgroundColor: '#fff1f2',
+    paddingHorizontal: 10,
+    paddingTop: 18,
+    paddingBottom: 10,
+  },
+  addonList: { flex: 1, marginTop: 8 },
   emptyAddonText: { color: '#6b7280', textAlign: 'center', paddingVertical: 24 },
-  addonGroup: { marginBottom: 16 },
-  addonGroupTitle: { color: '#111827', fontSize: 16, fontWeight: '900', marginBottom: 8 },
-  optionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  addonGroup: {
+    marginTop: 8,
+    marginBottom: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    backgroundColor: '#eff6ff',
+    paddingHorizontal: 10,
+    paddingTop: 18,
+    paddingBottom: 10,
+  },
+  addonGroupLabel: {
+    position: 'absolute',
+    top: -9,
+    left: 10,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    backgroundColor: '#1d4ed8',
+  },
+  removeGroupLabel: {
+    backgroundColor: '#dc2626',
+  },
+  addonGroupTitle: { color: '#fff', fontSize: 13, lineHeight: 16, fontWeight: '900' },
+  removeGroupTitle: { color: '#fff' },
+  optionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   optionButton: {
-    width: '31.8%',
-    minHeight: 58,
+    width: '23%',
+    minHeight: 52,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#d1d5db',
-    backgroundColor: '#f9fafb',
-    padding: 10,
+    backgroundColor: '#fff',
+    paddingHorizontal: 8,
+    paddingVertical: 7,
     justifyContent: 'center',
   },
   optionButtonSelected: { backgroundColor: '#2563eb', borderColor: '#1d4ed8' },
   removeButtonSelected: { backgroundColor: '#dc2626', borderColor: '#b91c1c' },
-  optionText: { color: '#111827', fontWeight: '800' },
+  optionText: { color: '#111827', fontSize: 13, lineHeight: 16, fontWeight: '900', textAlign: 'center' },
   optionTextSelected: { color: '#fff' },
-  optionPrice: { color: '#6b7280', fontSize: 12, marginTop: 2, fontWeight: '700' },
-  editorActions: { flexDirection: 'row', gap: 10, paddingTop: 10 },
+  optionPrice: { color: '#6b7280', fontSize: 12, marginTop: 2, fontWeight: '800', textAlign: 'center' },
+  editorActions: { flexDirection: 'row', gap: 10, paddingTop: 8 },
   editorActionButton: { flex: 1, borderRadius: 8 },
   checkoutBody: { flex: 1 },
   checkoutContent: { flexGrow: 1, padding: 16, paddingBottom: 28 },
@@ -2123,12 +2293,14 @@ const styles = StyleSheet.create({
   cartRow: { borderBottomWidth: 1, borderBottomColor: '#f3f4f6', paddingVertical: 8 },
   cartItemHeader: { flexDirection: 'row', alignItems: 'flex-start' },
   cartItemText: { flex: 1 },
-  cartItemName: { color: '#111827', fontWeight: '800' },
-  cartItemPrice: { color: '#111827', marginTop: 2, fontWeight: '700' },
-  cartItemMeta: { color: '#2563eb', fontSize: 11, marginTop: 2, fontWeight: '700' },
-  cartItemRemoved: { color: '#dc2626', fontSize: 11, marginTop: 2, fontWeight: '800' },
-  cartItemNote: { color: '#6b7280', fontSize: 12, marginTop: 3 },
-  cartControls: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+  cartItemTopLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  cartItemName: { flex: 1, color: '#111827', fontSize: 15, lineHeight: 18, fontWeight: '900' },
+  cartItemPrice: { minWidth: 62, color: '#111827', fontSize: 15, fontWeight: '900', textAlign: 'right' },
+  cartItemDetails: { marginTop: 4 },
+  cartItemMeta: { color: '#2563eb', fontSize: 13, marginTop: 2, fontWeight: '700' },
+  cartItemRemoved: { color: '#dc2626', fontSize: 13, marginTop: 2, fontWeight: '800' },
+  cartItemNote: { color: '#6b7280', fontSize: 14, marginTop: 3 },
+  cartControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 2, marginTop: 5 },
   qtyStepper: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2137,18 +2309,64 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: '#f9fafb',
   },
-  stepperButton: { margin: 0 },
-  cartQuantity: { minWidth: 30, textAlign: 'center', fontSize: 16, fontWeight: '900' },
-  modifyButton: { flex: 1, borderRadius: 8, marginLeft: 4 },
-  noteLink: { borderRadius: 8 },
-  deleteLineButton: { margin: 0 },
+  stepperButton: { margin: -4 },
+  cartQuantity: { minWidth: 24, textAlign: 'center', fontSize: 16, fontWeight: '900' },
+  cartActionIconButton: { margin: -4 },
   totals: { paddingVertical: 12, gap: 8 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between' },
   totalLabel: { color: '#6b7280', fontSize: 15 },
   totalValue: { color: '#111827', fontSize: 15, fontWeight: '700' },
   grandTotalLabel: { color: '#111827', fontSize: 20, fontWeight: '900' },
   grandTotalValue: { color: '#111827', fontSize: 22, fontWeight: '900' },
-  quickOrderNoteButton: { borderRadius: 8, marginBottom: 8 },
+  quickOrderNoteButton: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    backgroundColor: '#f9fafb',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  quickOrderNoteButtonSelected: {
+    borderColor: '#047857',
+    backgroundColor: '#ecfdf5',
+  },
+  quickOrderNoteButtonText: { flex: 1 },
+  quickOrderNoteTitle: { color: '#6b7280', fontSize: 11, lineHeight: 13, fontWeight: '900' },
+  quickOrderNoteTitleSelected: { color: '#047857' },
+  quickOrderNoteValue: { color: '#111827', fontSize: 14, lineHeight: 17, fontWeight: '900', marginTop: 1 },
+  quickOrderNoteValueSelected: { color: '#064e3b' },
+  quickOrderNoteEdit: { color: '#2563eb', fontSize: 12, fontWeight: '900' },
+  quickOrderNoteEditSelected: { color: '#047857' },
+  quickOrderNoteGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  quickOrderNoteChip: {
+    width: '48%',
+    minHeight: 52,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#fff',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  quickOrderNoteChipSelected: {
+    borderColor: '#047857',
+    backgroundColor: '#047857',
+  },
+  quickOrderNoteChipText: {
+    color: '#111827',
+    fontSize: 16,
+    lineHeight: 19,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  quickOrderNoteChipTextSelected: { color: '#fff' },
   checkoutButton: { borderRadius: 8, marginTop: 10 },
   completeButton: { marginTop: 12 },
   noteDialog: { backgroundColor: '#fff' },

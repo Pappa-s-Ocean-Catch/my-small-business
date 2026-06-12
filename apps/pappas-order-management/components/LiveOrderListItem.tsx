@@ -15,7 +15,7 @@ interface LiveOrderListItemProps {
   onPrintPress: (order: Order) => void;
   onQuickAction: (order: Order, action: string) => void;
   onStatusUpdate: (order: Order, status: OrderStatus) => void;
-  onPaymentStatusUpdate: (orderId: string, status: PaymentStatus) => void;
+  onPaymentStatusUpdate: (orderId: string, status: PaymentStatus, paymentMethodDetail?: string | null) => void;
 }
 
 export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({

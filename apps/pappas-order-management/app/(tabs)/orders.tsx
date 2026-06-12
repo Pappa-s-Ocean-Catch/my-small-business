@@ -35,7 +35,7 @@ import { escposPrintKitchenReceipt, formatPrinterError } from '../../lib/escpos-
 import { KitchenAlertOverlay } from '../../lib/KitchenAlertOverlay';
 import { getFriendlyOrderNumber } from '../../utils/orderNumber';
 import { CustomerModal } from '../../components/CustomerModal';
-import { getOrderChannelLabel, shouldPlayOrderSound } from '../../utils/orderUtils';
+import { getOrderChannelLabel, getOrderLineItemCount, getOrderNotes, getOrderOptions, shouldPlayOrderSound } from '../../utils/orderUtils';
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
   pending: '#f59e0b',
@@ -528,10 +528,14 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
     }
   };
 
-  const handlePaymentStatusUpdate = async (orderId: string, newStatus: PaymentStatus) => {
+  const handlePaymentStatusUpdate = async (
+    orderId: string,
+    newStatus: PaymentStatus,
+    paymentMethodDetail?: string | null
+  ) => {
     try {
       setUpdatingStatus(orderId);
-      const result = await updatePaymentStatus(orderId, newStatus);
+      const result = await updatePaymentStatus(orderId, newStatus, paymentMethodDetail);
       if (result.error) {
         Alert.alert('Error', result.error);
       } else {
@@ -696,6 +700,11 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
         : '';
 
     const paymentStatusText = PAYMENT_STATUS_LABELS[order.payment_status];
+    const orderNotes = getOrderNotes(order);
+    const lineItemCount = getOrderLineItemCount(order);
+    const orderOptionsHTML = getOrderOptions(order)
+      .map((option) => `<tr class="order-option-row"><td colspan="2"><strong>ORDER OPTION:</strong> ${option}</td></tr>`)
+      .join('');
 
     return `
       <!DOCTYPE html>
@@ -713,6 +722,7 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
             table { width: 100%; border-collapse: collapse; margin: 20px 0; }
             th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
             th { background-color: #f2f2f2; }
+            .order-option-row td { font-size: 22px; font-weight: 900; }
             .total { font-size: 24px; font-weight: bold; margin-top: 20px; }
             .order-number-bottom { margin-top: 24px; font-size: 32px; font-weight: bold; text-align: center; }
           </style>
@@ -736,7 +746,7 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
               ${order.delivery_city}, ${order.delivery_state} ${order.delivery_postcode}
               </p>
             ` : ''}
-            ${order.special_instructions ? `<p><strong>Special Instructions:</strong> ${order.special_instructions}</p>` : ''}
+            ${orderNotes ? `<p><strong>Special Instructions:</strong> ${orderNotes}</p>` : ''}
           </div>
           <table>
             <thead>
@@ -746,10 +756,12 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
               </tr>
             </thead>
             <tbody>
+              ${orderOptionsHTML}
               ${itemsHTML}
             </tbody>
           </table>
           <div class="total">
+            <p>Total items: ${lineItemCount}</p>
             <p>Subtotal: $${order.subtotal.toFixed(2)}</p>
             ${order.tax > 0 ? `<p>Tax: $${order.tax.toFixed(2)}</p>` : ''}
             ${order.delivery_fee > 0 ? `<p>Delivery Fee: $${order.delivery_fee.toFixed(2)}</p>` : ''}
@@ -894,11 +906,11 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
                       [
                         {
                           text: 'Card',
-                          onPress: () => handlePaymentStatusUpdate(order.id, 'paid'),
+                          onPress: () => handlePaymentStatusUpdate(order.id, 'paid', 'Card'),
                         },
                         {
                           text: 'Cash',
-                          onPress: () => handlePaymentStatusUpdate(order.id, 'paid'),
+                          onPress: () => handlePaymentStatusUpdate(order.id, 'paid', 'Cash'),
                         },
                         { text: 'Cancel', style: 'cancel' },
                       ]
@@ -1259,17 +1271,22 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
                   </Text>
                 </View>
 
-                {selectedOrder.special_instructions && (
+                {getOrderNotes(selectedOrder) && (
                   <View style={styles.modalSection}>
                     <Text style={styles.modalSectionTitle}>Special Instructions</Text>
-                    <Text style={styles.modalText}>{selectedOrder.special_instructions}</Text>
+                    <Text style={styles.modalText}>{getOrderNotes(selectedOrder)}</Text>
                   </View>
                 )}
 
-                {selectedOrder.items && selectedOrder.items.length > 0 && (
+                {(getOrderOptions(selectedOrder).length > 0 || (selectedOrder.items && selectedOrder.items.length > 0)) && (
                   <View style={styles.modalSection}>
                     <Text style={styles.modalSectionTitle}>Order Items</Text>
-                    {selectedOrder.items.map((item, index) => (
+                    {getOrderOptions(selectedOrder).map((option, index) => (
+                      <View key={`option-${index}`} style={styles.modalItemCard}>
+                        <Text style={styles.modalItemName}>* {option}</Text>
+                      </View>
+                    ))}
+                    {selectedOrder.items?.map((item, index) => (
                       <View key={index} style={styles.modalItemCard}>
                         <Text style={styles.modalItemName}>
                           {item.quantity}x {item.product_name}
@@ -1322,6 +1339,10 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
 
                 <View style={styles.modalSection}>
                   <Text style={styles.modalSectionTitle}>Total</Text>
+                  <View style={styles.modalTotalRow}>
+                    <Text style={styles.modalTotalLabel}>Total items:</Text>
+                    <Text style={styles.modalTotalValue}>{getOrderLineItemCount(selectedOrder)}</Text>
+                  </View>
                   <View style={styles.modalTotalRow}>
                     <Text style={styles.modalTotalLabel}>Subtotal:</Text>
                     <Text style={styles.modalTotalValue}>${selectedOrder.subtotal.toFixed(2)}</Text>

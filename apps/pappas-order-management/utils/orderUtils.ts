@@ -124,6 +124,45 @@ export const getOrderChannelLabel = (order: Order): string => {
 
 export const getOrderChannelReceiptLabel = (order: Order): string => getOrderChannelLabel(order).toUpperCase();
 
+const KNOWN_ORDER_OPTIONS = new Set([
+  'Chicken salt',
+  'Salt',
+  'Both Salt',
+  'No salt at all',
+  'Extra Salt',
+  'Extra chicken salt',
+]);
+
+const splitOrderOptions = (value?: string | null): string[] => (
+  (value || '')
+    .split(',')
+    .map((option) => option.trim())
+    .filter(Boolean)
+);
+
+export const getOrderOptions = (order: Pick<Order, 'order_options' | 'special_instructions'>): string[] => {
+  const explicitOptions = splitOrderOptions(order.order_options);
+  const legacyOptions = (order.special_instructions || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => KNOWN_ORDER_OPTIONS.has(line));
+
+  return Array.from(new Set([...explicitOptions, ...legacyOptions]));
+};
+
+export const getOrderNotes = (order: Pick<Order, 'special_instructions'>): string | null => {
+  const notes = (order.special_instructions || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line && !KNOWN_ORDER_OPTIONS.has(line))
+    .join('\n')
+    .trim();
+
+  return notes || null;
+};
+
+export const getOrderLineItemCount = (order: Pick<Order, 'items'>): number => order.items?.length || 0;
+
 export const paymentSummary = (order: Order): string => {
   const type = getOrderChannelLabel(order);
   const payment =
@@ -193,6 +232,11 @@ export const generatePrintHTML = (order: Order): string => {
       : '';
 
   const paymentStatusText = PAYMENT_STATUS_LABELS[order.payment_status];
+  const orderNotes = getOrderNotes(order);
+  const lineItemCount = getOrderLineItemCount(order);
+  const orderOptionsHTML = getOrderOptions(order)
+    .map((option) => `<tr class="order-option-row"><td colspan="2"><strong>ORDER OPTION:</strong> ${option}</td></tr>`)
+    .join('');
 
   return `
     <!DOCTYPE html>
@@ -210,6 +254,7 @@ export const generatePrintHTML = (order: Order): string => {
           table { width: 100%; border-collapse: collapse; margin: 20px 0; }
           th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
           th { background-color: #f2f2f2; }
+          .order-option-row td { font-size: 22px; font-weight: 900; }
           .total { font-size: 24px; font-weight: bold; margin-top: 20px; }
           .order-number-bottom { margin-top: 24px; font-size: 32px; font-weight: bold; text-align: center; }
         </style>
@@ -233,10 +278,10 @@ export const generatePrintHTML = (order: Order): string => {
             ${order.delivery_city}, ${order.delivery_state} ${order.delivery_postcode}
             </p>
           ` : ''}
-          ${order.special_instructions?.trim() ? `
+          ${orderNotes ? `
           <div style="margin: 15px 0; padding: 10px; background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 4px;">
             <strong>SPECIAL INSTRUCTIONS:</strong><br/>
-            ${order.special_instructions}
+            ${orderNotes}
           </div>` : ''}
         </div>
         <table>
@@ -247,10 +292,12 @@ export const generatePrintHTML = (order: Order): string => {
             </tr>
           </thead>
           <tbody>
+            ${orderOptionsHTML}
             ${itemsHTML}
           </tbody>
         </table>
         <div class="total">
+          <p>Total items: ${lineItemCount}</p>
           <p>Subtotal: $${order.subtotal.toFixed(2)}</p>
           ${order.tax > 0 ? `<p>Tax: $${order.tax.toFixed(2)}</p>` : ''}
           ${order.delivery_fee > 0 ? `<p>Delivery Fee: $${order.delivery_fee.toFixed(2)}</p>` : ''}
