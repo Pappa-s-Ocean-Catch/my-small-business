@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, FlatList, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Appbar, Button, Dialog, Divider, IconButton, Portal, TextInput } from 'react-native-paper';
@@ -15,6 +15,7 @@ import {
 } from '../lib/pos-layouts';
 import { getOrderNotes, getOrderOptions } from '../utils/orderUtils';
 import { formatSmartpayError, isSmartpayPaired, processSmartpayCardPayment } from '../lib/smartpay';
+import { CashTenderModal } from '../components/CashTenderModal';
 
 type SaleCategory = {
   id: string;
@@ -73,6 +74,7 @@ type PosCartItem = OrderItem & {
 type PosPaymentChoice = 'card' | 'cash' | 'no_pay';
 type PosInstorePaymentChoice = 'card' | 'cash' | 'unpaid';
 type PosCheckoutPaymentOverride = PosPaymentChoice | 'smartpay';
+type CashTenderMode = 'pickup' | 'instore';
 
 type LayoutCategoryButton = {
   id: string;
@@ -89,6 +91,12 @@ const addonSelectionKey = (addons: OrderItemAddon[]) => (
 
 const addonTotal = (addons: OrderItemAddon[]) => (
   addons.reduce((sum, addon) => sum + (addon.addon_item_price || 0), 0)
+);
+
+const cartItemHasCustomizations = (item: Pick<OrderItem, 'addons' | 'removed_ingredients' | 'comment'>) => (
+  (item.addons || []).length > 0
+  || (item.removed_ingredients || []).length > 0
+  || Boolean(item.comment)
 );
 
 const CATALOG_CACHE_TTL_MS = 60 * 60 * 1000;
@@ -198,6 +206,8 @@ export default function PosScreen() {
   const [creatingOrder, setCreatingOrder] = useState(false);
   const [smartpayProcessing, setSmartpayProcessing] = useState(false);
   const [smartpayPaired, setSmartpayPaired] = useState(false);
+  const [cashTenderMode, setCashTenderMode] = useState<CashTenderMode | null>(null);
+  const cashTenderConfirmedRef = useRef(false);
   const [isPreOrder, setIsPreOrder] = useState(false);
   const [scheduledPickupAt, setScheduledPickupAt] = useState<Date>(defaultPickupTime);
   const [showPickupPicker, setShowPickupPicker] = useState(false);
@@ -217,21 +227,7 @@ export default function PosScreen() {
     router.push('/pos-layout-settings');
   };
 
-  const handleCancel = () => {
-    if (cartItems.length === 0) {
-      goHome();
-      return;
-    }
 
-    Alert.alert(
-      'Leave POS?',
-      'Discard the current order and return to live orders?',
-      [
-        { text: 'Stay', style: 'cancel' },
-        { text: 'Leave', style: 'destructive', onPress: goHome },
-      ]
-    );
-  };
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -601,7 +597,8 @@ export default function PosScreen() {
           ? 'no_pay'
           : order.payment_method_detail?.toLowerCase() === 'cash'
             ? 'cash'
-            : order.payment_method_detail?.toLowerCase() === 'card'
+            : order.payment_method_detail?.toLowerCase() === 'card' ||
+              order.payment_method_detail?.toLowerCase() === 'smartpay'
               ? 'card'
               : 'no_pay'
       );
@@ -969,14 +966,15 @@ export default function PosScreen() {
     product: SaleProduct,
     options: { skipCustomization?: boolean } = {}
   ) => {
+    const hasCustomizedCopy = cartItems.some((item) => (
+      item.product_id === product.id && cartItemHasCustomizations(item)
+    ));
     const existingPlainItem = cartItems.find((item) => (
       item.product_id === product.id
-      && (item.addons || []).length === 0
-      && (item.removed_ingredients || []).length === 0
-      && !item.comment
+      && !cartItemHasCustomizations(item)
     ));
 
-    if (existingPlainItem) {
+    if (existingPlainItem && !hasCustomizedCopy) {
       updateQuantity(existingPlainItem.id, 1);
       return;
     }
@@ -985,9 +983,9 @@ export default function PosScreen() {
     setCartItems((prev) => [...prev, newItem]);
 
     if (
-      !options.skipCustomization
+      (!options.skipCustomization || hasCustomizedCopy)
       && (customizableProductIds.has(product.id)
-      || await productHasCustomization(product.id)
+        || await productHasCustomization(product.id)
       )
     ) {
       setSelectedProduct(product);
@@ -1185,9 +1183,15 @@ export default function PosScreen() {
     const phone = customerPhone.trim();
     const name = customerName.trim();
     const isEditingExistingOrder = Boolean(orderId);
+    const finalPaymentChoice = paymentOverride ?? paymentChoice;
 
     if (!isEditingExistingOrder && !phone) {
       Alert.alert('Checkout', 'Please enter a customer phone number.');
+      return;
+    }
+
+    if (finalPaymentChoice === 'cash' && !cashTenderConfirmedRef.current) {
+      setCashTenderMode('pickup');
       return;
     }
 
@@ -1218,19 +1222,25 @@ export default function PosScreen() {
       if (customerError) {
         setCreatingOrder(false);
         setSmartpayProcessing(false);
+        cashTenderConfirmedRef.current = false;
         Alert.alert('Customer', customerError);
         return;
       }
       customerId = customer?.id ?? null;
     }
 
-    const finalPaymentChoice = paymentOverride ?? paymentChoice;
     const paymentStatus: PaymentStatus = finalPaymentChoice === 'no_pay' ? 'pending' : 'paid';
+    const existingPaymentDetail = editingOrder?.payment_method_detail ?? null;
+    const shouldKeepExistingSmartpay =
+      isEditingExistingOrder &&
+      finalPaymentChoice === 'card' &&
+      existingPaymentDetail?.toLowerCase() === 'smartpay';
     const paymentMethodDetail =
       finalPaymentChoice === 'smartpay' ? 'SmartPay' :
-        finalPaymentChoice === 'card' ? 'Card' :
-        finalPaymentChoice === 'cash' ? 'Cash' :
-          null;
+        shouldKeepExistingSmartpay ? existingPaymentDetail :
+          finalPaymentChoice === 'card' ? 'Card' :
+            finalPaymentChoice === 'cash' ? 'Cash' :
+              null;
 
     const orderPayload = {
       user_id: customerId,
@@ -1296,6 +1306,7 @@ export default function PosScreen() {
       : await savePosOrder(orderPayload, cartItems);
 
     setCreatingOrder(false);
+    cashTenderConfirmedRef.current = false;
     setSmartpayProcessing(false);
     if (result.error) {
       setSmartpayProcessing(false);
@@ -1410,6 +1421,11 @@ export default function PosScreen() {
 
     if (cartItems.length === 0) return;
 
+    if (payment === 'cash' && !cashTenderConfirmedRef.current) {
+      setCashTenderMode('instore');
+      return;
+    }
+
     setCreatingOrder(true);
     const paymentStatus: PaymentStatus = payment === 'unpaid' ? 'pending' : 'paid';
     const paymentMethodDetail =
@@ -1468,6 +1484,7 @@ export default function PosScreen() {
     const result = await savePosOrder(orderPayload, cartItems);
 
     setCreatingOrder(false);
+    cashTenderConfirmedRef.current = false;
     if (result.error) {
       Alert.alert('Instore Order', result.error);
       return;
@@ -1485,11 +1502,26 @@ export default function PosScreen() {
     if (cartItems.length === 0 || creatingOrder) return;
 
     Alert.alert('Complete Order', 'Select payment status', [
-      { text: 'CASH', onPress: () => void handleInstoreCheckout('cash') },
+      { text: 'CASH', onPress: () => setCashTenderMode('instore') },
       { text: 'Card', onPress: () => void handleInstoreCheckout('card') },
       { text: 'Unpaid', onPress: () => void handleInstoreCheckout('unpaid') },
       { text: 'Cancel', style: 'cancel' },
     ]);
+  };
+
+  const handleCashTenderConfirm = () => {
+    const mode = cashTenderMode;
+    if (!mode) return;
+
+    setCashTenderMode(null);
+    cashTenderConfirmedRef.current = true;
+
+    if (mode === 'pickup') {
+      void handleCheckout('cash');
+      return;
+    }
+
+    void handleInstoreCheckout('cash');
   };
 
   const activeCategoryName = activeLayoutCategory?.title
@@ -1498,16 +1530,13 @@ export default function PosScreen() {
   const quickQuantityForProduct = (productId: string) => (
     cartItems.find((item) => (
       item.product_id === productId
-      && (item.addons || []).length === 0
-      && (item.removed_ingredients || []).length === 0
-      && !item.comment
+      && !cartItemHasCustomizations(item)
     ))?.quantity ?? 0
   );
 
   return (
     <View style={styles.container}>
       <Appbar.Header style={styles.header}>
-        <Appbar.Action icon="close" onPress={handleCancel} iconColor="#fff" accessibilityLabel="Cancel" />
         <Appbar.Content title={orderId ? 'Edit Order' : 'Take Order'} titleStyle={styles.headerTitle} />
         <Appbar.Action icon="magnify" onPress={openSearch} iconColor="#fff" accessibilityLabel="Search items" />
         <Appbar.Action icon="view-grid-plus-outline" onPress={openLayoutSettings} iconColor="#fff" accessibilityLabel="POS layout settings" />
@@ -2111,6 +2140,16 @@ export default function PosScreen() {
           )}
         </View>
       </View>
+
+      <CashTenderModal
+        visible={cashTenderMode !== null}
+        total={totals.total}
+        onCancel={() => {
+          cashTenderConfirmedRef.current = false;
+          setCashTenderMode(null);
+        }}
+        onConfirm={handleCashTenderConfirm}
+      />
 
       <Portal>
         <Dialog

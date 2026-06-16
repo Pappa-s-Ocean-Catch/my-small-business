@@ -35,7 +35,7 @@ import { escposPrintKitchenReceipt, formatPrinterError } from '../../lib/escpos-
 import { KitchenAlertOverlay } from '../../lib/KitchenAlertOverlay';
 import { getFriendlyOrderNumber } from '../../utils/orderNumber';
 import { CustomerModal } from '../../components/CustomerModal';
-import { getOrderChannelLabel, getOrderLineItemCount, getOrderNotes, getOrderOptions, shouldPlayOrderSound } from '../../utils/orderUtils';
+import { getOrderChannelLabel, getOrderLineItemCount, getOrderNotes, getOrderOptions, getPaymentMethodType, shouldPlayOrderSound } from '../../utils/orderUtils';
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
   pending: '#f59e0b',
@@ -122,12 +122,10 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
         totalOrders++;
         totalSales += order.total;
         if (order.payment_method === 'store') {
-          if (order.payment_method_detail && order.payment_method_detail.toLowerCase().includes('card')) {
+          const methodType = getPaymentMethodType(order);
+          if (methodType === 'card') {
             totalCard += order.total;
-          } else if (order.payment_method_detail && order.payment_method_detail.toLowerCase().includes('cash')) {
-            totalCash += order.total;
           } else {
-            // If no detail, treat as cash (fallback)
             totalCash += order.total;
           }
         } else if (order.payment_method === 'online') {

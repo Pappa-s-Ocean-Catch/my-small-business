@@ -14,6 +14,9 @@ interface LiveOrderListItemProps {
   onCustomerPress: (order: Order) => void;
   onPrintPress: (order: Order) => void;
   onQuickAction: (order: Order, action: string) => void;
+  onSmartpayPayment?: (order: Order) => void;
+  smartpayPaired?: boolean;
+  smartpayProcessing?: boolean;
   onStatusUpdate: (order: Order, status: OrderStatus) => void;
   onPaymentStatusUpdate: (orderId: string, status: PaymentStatus, paymentMethodDetail?: string | null) => void;
 }
@@ -26,6 +29,9 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
   onCustomerPress,
   onPrintPress,
   onQuickAction,
+  onSmartpayPayment,
+  smartpayPaired = false,
+  smartpayProcessing = false,
   onStatusUpdate,
   onPaymentStatusUpdate,
 }) => {
@@ -33,7 +39,7 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
   const statusLabel = STATUS_LABELS[order.order_status];
   const paymentColor = PAYMENT_STATUS_COLORS[order.payment_status];
   const paymentLabel = PAYMENT_STATUS_LABELS[order.payment_status];
-  const quickAction = getNextQuickAction(order.order_status);
+  const quickAction = getNextQuickAction(order);
   const elapsed = formatElapsed(order.created_at, nowMs, order.scheduled_pickup_at);
   const elapsedColor = elapsed.isCountdown
     ? !elapsed.overdue && elapsed.minutes > 15
@@ -47,6 +53,17 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
     ? '#ca8a04'
     : '#dc2626';
   const isPaid = order.payment_status === 'paid';
+  const canSmartpay =
+    smartpayPaired &&
+    !!onSmartpayPayment &&
+    order.payment_status !== 'paid' &&
+    order.order_status !== 'completed' &&
+    order.order_status !== 'cancelled';
+  const canUpdatePayment =
+    updatingStatus !== order.id &&
+    order.payment_status !== 'paid' &&
+    order.order_status !== 'completed' &&
+    order.order_status !== 'cancelled';
 
   return (
     <Card style={styles.orderCard} onPress={() => onOrderPress(order)}>
@@ -101,17 +118,32 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
             </Text>
             <Text style={styles.orderTotal}>${order.total.toFixed(2)}</Text>
           </View>
-          {quickAction && (
-            <PaperButton
-              mode="contained"
-              onPress={() => onQuickAction(order, quickAction.action)}
-              disabled={updatingStatus === order.id}
-              style={styles.bodyQuickButton}
-              contentStyle={styles.bodyQuickButtonContent}
-            >
-              {quickAction.label}
-            </PaperButton>
-          )}
+          <View style={styles.bodyActions}>
+            {canSmartpay && (
+              <PaperButton
+                mode="outlined"
+                icon="credit-card-wireless-outline"
+                onPress={() => onSmartpayPayment(order)}
+                loading={smartpayProcessing}
+                disabled={smartpayProcessing || updatingStatus === order.id}
+                style={styles.bodySmartpayButton}
+                contentStyle={styles.bodyQuickButtonContent}
+              >
+                SmartPay
+              </PaperButton>
+            )}
+            {quickAction && (
+              <PaperButton
+                mode="contained"
+                onPress={() => onQuickAction(order, quickAction.action)}
+                disabled={updatingStatus === order.id || smartpayProcessing}
+                style={styles.bodyQuickButton}
+                contentStyle={styles.bodyQuickButtonContent}
+              >
+                {quickAction.label}
+              </PaperButton>
+            )}
+          </View>
         </View>
 
         <View style={styles.statusControls}>
@@ -133,7 +165,7 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
               <TouchableOpacity
                 style={[styles.statusSelect, { backgroundColor: paymentColor }]}
                 onPress={() => onPaymentStatusUpdate(order.id, order.payment_status)}
-                disabled={updatingStatus === order.id || order.payment_status === 'paid'}
+                disabled={!canUpdatePayment}
               >
                 <Text style={styles.statusSelectText}>{paymentLabel}</Text>
               </TouchableOpacity>
@@ -267,8 +299,19 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     backgroundColor: '#2563eb',
   },
+  bodySmartpayButton: {
+    borderRadius: 6,
+    borderColor: '#2563eb',
+  },
   bodyQuickButtonContent: {
     paddingHorizontal: 8,
+  },
+  bodyActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 8,
+    flexShrink: 1,
   },
   statusControls: {
     flexDirection: 'row',

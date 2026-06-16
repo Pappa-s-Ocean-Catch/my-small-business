@@ -189,6 +189,34 @@ export async function updateOrderStatus(
   }
 }
 
+export async function claimOrderForAutoPrint(orderId: string): Promise<{ claimed: boolean; error: string | null }> {
+  try {
+    const { data, error } = await supabase
+      .from('orders')
+      .update({
+        order_status: 'preparing',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', orderId)
+      .in('order_status', ['pending', 'confirmed'])
+      .neq('payment_status', 'refunded')
+      .select('id')
+      .maybeSingle();
+
+    if (error) {
+      return { claimed: false, error: error.message };
+    }
+
+    return { claimed: Boolean(data), error: null };
+  } catch (error) {
+    console.error('Error claiming order for auto print:', error);
+    return {
+      claimed: false,
+      error: error instanceof Error ? error.message : 'Failed to claim order for auto print',
+    };
+  }
+}
+
 export async function updatePaymentStatus(
   orderId: string,
   paymentStatus: PaymentStatus,

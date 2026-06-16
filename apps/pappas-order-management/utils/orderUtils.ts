@@ -174,13 +174,21 @@ export const paymentSummary = (order: Order): string => {
   return `${type} • ${payment}`;
 };
 
-export const getNextQuickAction = (currentStatus: OrderStatus): { action: string; label: string } | null => {
+export const getNextQuickAction = (
+  orderOrStatus: Order | OrderStatus
+): { action: string; label: string } | null => {
+  const currentStatus = typeof orderOrStatus === 'string' ? orderOrStatus : orderOrStatus.order_status;
+  const isInstore = typeof orderOrStatus !== 'string' && getOrderChannel(orderOrStatus) === 'instore';
+
   switch (currentStatus) {
     case 'pending':
       return { action: 'accept', label: 'Accept' };
     case 'confirmed':
       return { action: 'prepare', label: 'Start Preparing' };
     case 'preparing':
+      if (isInstore) {
+        return { action: 'completed', label: 'Complete' };
+      }
       return { action: 'ready', label: 'Mark Ready' };
     case 'ready':
       return { action: 'completed', label: 'Complete' };
@@ -314,13 +322,23 @@ export const generatePrintHTML = (order: Order): string => {
 };
 
 export const getPaymentMethodType = (order: Order): 'card' | 'cash' => {
-  if (order.payment_method === 'online') return 'card';
-  if (order.payment_method === 'store') {
-    const detail = (order.payment_method_detail || '').toLowerCase();
-    // Common card-related terms for in-store payments
-    if (detail.includes('card') || detail.includes('eftpos') || detail.includes('visa') || detail.includes('mastercard')) {
-      return 'card';
-    }
+  const method = (order.payment_method || '').toLowerCase();
+  const detail = (order.payment_method_detail || '').toLowerCase();
+  const paymentText = `${method} ${detail}`;
+
+  if (method === 'online') return 'card';
+
+  // SmartPay and other terminal/card labels may be stored in either
+  // payment_method_detail or older rows' payment_method field.
+  if (
+    paymentText.includes('card') ||
+    paymentText.includes('eftpos') ||
+    paymentText.includes('smartpay') ||
+    paymentText.includes('visa') ||
+    paymentText.includes('mastercard')
+  ) {
+    return 'card';
   }
+
   return 'cash';
 };

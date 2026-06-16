@@ -18,8 +18,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Audio } from 'expo-av';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
-import { getAllOrders, updateOrderStatus, getOrder } from '@/lib/orders';
-import type { Order, OrderStatus } from '@my-small-business/types';
+import { claimOrderForAutoPrint, getAllOrders, updateOrderStatus, getOrder } from '@/lib/orders';
+import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { playNewOrderSound } from '@/lib/sounds';
 import { DEFAULT_APP_SETTINGS, loadAppSettings, subscribeAppSettings, type AppSettings } from '@/lib/settings';
 import { KitchenAlertOverlay } from '@/lib/KitchenAlertOverlay';
@@ -27,6 +27,7 @@ import { CustomerModal } from '@/components/CustomerModal';
 import { LiveOrderListItem } from '@/components/LiveOrderListItem';
 import { OrderDetailModal } from '@/components/OrderDetailModal';
 import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
+import { CashTenderModal } from '@/components/CashTenderModal';
 import { useOrderActions } from '@/hooks/useOrderActions';
 import { escposPrintOrderImage } from '@/lib/escpos-printer';
 import { captureRef } from 'react-native-view-shot';
@@ -53,10 +54,12 @@ export default function LiveOrdersScreen() {
   const [preOrderCount, setPreOrderCount] = useState<number>(0);
   const [tempPrintingOrder, setTempPrintingOrder] = useState<Order | null>(null);
   const [tempPrintSource, setTempPrintSource] = useState<string | null>(null);
+  const [cashTenderOrder, setCashTenderOrder] = useState<Order | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const globalReceiptRef = useRef(null);
 
   const lastOrderIdRef = useRef<string | null>(null);
+  const soundedOrderIdsRef = useRef<Set<string>>(new Set());
   const processedOrderIdsRef = useRef<Set<string>>(new Set());
   const pendingAnnouncementTimersRef = useRef<Map<string, TimeoutHandle>>(new Map());
   const announcingOrderIdsRef = useRef<Set<string>>(new Set());
@@ -68,6 +71,7 @@ export default function LiveOrdersScreen() {
   const countdownIntervalRef = useRef<TimeoutHandle | null>(null);
   const preOrderNoticeTimeoutRef = useRef<TimeoutHandle | null>(null);
   const appSettingsRef = useRef<AppSettings>(DEFAULT_APP_SETTINGS);
+  const printQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   const fetchPreOrderCount = async () => {
     try {
@@ -138,6 +142,7 @@ export default function LiveOrdersScreen() {
             order.order_status === 'pending' || order.order_status === 'confirmed';
 
           if (isPendingOrConfirmed && !processedOrderIdsRef.current.has(order.id)) {
+            playAttentionSoundForOrder(order);
             scheduleOrderAnnouncement(order);
           }
         }
@@ -166,14 +171,31 @@ export default function LiveOrdersScreen() {
     setShowSimulator,
     printImageUri,
     setPrintImageUri,
+    smartpayPaired,
+    smartpayProcessingOrderId,
     handleStatusUpdate,
     handlePaymentStatusUpdate,
+    handleSmartpayPayment,
     handleQuickAction,
     handlePrint,
     handlePrintImage,
   } = useOrderActions(appSettings, loadOrders, (updated) => {
     if (selectedOrder?.id === updated.id) setSelectedOrder(updated);
   });
+
+  const playAttentionSoundForOrder = (order: Pick<Order, 'id' | 'order_channel' | 'payment_method' | 'customer_name' | 'scheduled_pickup_at'>) => {
+    const s = appSettingsRef.current;
+    if (!s.soundEnabled) return;
+    if (soundedOrderIdsRef.current.has(order.id)) return;
+    if (!shouldPlayOrderSound(order)) return;
+
+    soundedOrderIdsRef.current.add(order.id);
+    playNewOrderSound({
+      soundId: s.soundId,
+      repeatCount: s.soundRepeatCount,
+      delayMs: 1000,
+    });
+  };
 
   const getPrintDelayMs = () => Math.max(2000, (appSettingsRef.current.printerDelayPrintSec || 3) * 1000);
 
@@ -231,30 +253,26 @@ export default function LiveOrdersScreen() {
   };
 
   const announceAndPrintOrder = async (order: Order) => {
-    const s = appSettingsRef.current;
     if (processedOrderIdsRef.current.has(order.id)) return;
     processedOrderIdsRef.current.add(order.id);
 
-    // 1. Play sound for online orders, plus any pre-order when it enters the live queue.
-    if (s.soundEnabled && shouldPlayOrderSound(order)) {
-      playNewOrderSound({
-        soundId: s.soundId,
-        repeatCount: s.soundRepeatCount,
-        delayMs: 1000
-      });
-    }
+    const latestSettings = await loadAppSettings();
+    setAppSettings(latestSettings);
+    appSettingsRef.current = latestSettings;
 
-    // 2. Auto-print if enabled
-    if ((s.printerEnabled || s.printerSimulator) && s.printerAutoPrint) {
+    // 1. Auto-print if enabled
+    if ((latestSettings.printerEnabled || latestSettings.printerSimulator) && latestSettings.printerAutoPrint) {
        try {
          // quickPrintOrder handles both simulator and real printing with image capture
          await quickPrintOrder(order, { auto: true });
        } catch (err) {
          console.error('Auto print error:', err);
+         processedOrderIdsRef.current.delete(order.id);
        }
+       return;
     }
 
-    // 3. Update status to 'preparing' automatically
+    // 2. Update status to 'preparing' automatically when auto-print is disabled
     if (order.order_status === 'pending' || order.order_status === 'confirmed') {
       try {
         await updateOrderStatus(order.id, 'preparing');
@@ -265,6 +283,8 @@ export default function LiveOrdersScreen() {
   };
 
   const quickPrintOrder = async (order: Order, options: { auto?: boolean } = {}) => {
+    let releasePrintQueue = () => {};
+
     try {
       const isAutoPrint = Boolean(options.auto);
 
@@ -283,11 +303,31 @@ export default function LiveOrdersScreen() {
         if (!latestSettings.printerAutoPrint || (!latestSettings.printerEnabled && !latestSettings.printerSimulator)) {
           return;
         }
+
+        if (!latestSettings.printerSimulator) {
+          const claim = await claimOrderForAutoPrint(order.id);
+          if (!claim.claimed) {
+            if (claim.error) {
+              // Keep auto-print working even if the server-side claim is blocked by
+              // permissions or a transient Supabase error. The local in-flight sets
+              // still prevent duplicate prints from this mounted screen.
+              console.error('Auto print claim failed; printing with local guard only:', claim.error);
+            } else {
+              return;
+            }
+          }
+        }
       }
 
       const s = appSettingsRef.current;
       setIsCapturing(true);
       setPrintingOrderId(order.id);
+
+      const previousPrint = printQueueRef.current;
+      printQueueRef.current = new Promise<void>((resolve) => {
+        releasePrintQueue = resolve;
+      });
+      await previousPrint.catch(() => undefined);
       
       // Update the hidden template with this order
       const printSource = isAutoPrint ? 'live-orders:auto-print' : 'live-orders:manual-list-print';
@@ -335,6 +375,7 @@ export default function LiveOrdersScreen() {
       console.error('Quick print failed:', error);
       Alert.alert('Print error', 'Failed to capture receipt template image for printing.');
     } finally {
+      releasePrintQueue();
       autoPrintingOrderIdsRef.current.delete(order.id);
       setIsCapturing(false);
       setPrintingOrderId(null);
@@ -378,19 +419,36 @@ export default function LiveOrdersScreen() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders' },
         async (payload) => {
-          const s = appSettingsRef.current;
           let orderId = (payload.new as any).id;
           const scheduledPickupAt = (payload.new as any)?.scheduled_pickup_at as string | null | undefined;
           const scheduledPickupAtMs = scheduledPickupAt ? new Date(scheduledPickupAt).getTime() : NaN;
           const isPreOrderFarAway = Number.isFinite(scheduledPickupAtMs) && (scheduledPickupAtMs - Date.now()) > (30 * 60 * 1000);
 
-          let isSignificantInsert = payload.eventType === 'INSERT' && payload.new.order_status === 'pending';
+          let isSignificantInsert =
+            payload.eventType === 'INSERT' &&
+            (payload.new.order_status === 'pending' || payload.new.order_status === 'confirmed');
           let isSignificantUpdate =
             payload.eventType === 'UPDATE' &&
-            payload.old.order_status === 'pending_online_payment' &&
-            (payload.new.order_status === 'confirmed' || payload.new.order_status === 'accepted');
+            (
+              (
+                payload.old.order_status === 'pending_online_payment' &&
+                (payload.new.order_status === 'confirmed' || payload.new.order_status === 'accepted')
+              ) ||
+              (
+                payload.old.order_status !== payload.new.order_status &&
+                payload.new.order_status === 'confirmed'
+              )
+            );
 
           if (isSignificantInsert || isSignificantUpdate) {
+            playAttentionSoundForOrder({
+              id: orderId,
+              order_channel: (payload.new as any)?.order_channel,
+              payment_method: (payload.new as any)?.payment_method,
+              customer_name: (payload.new as any)?.customer_name,
+              scheduled_pickup_at: scheduledPickupAt ?? null,
+            });
+
             if (isPreOrderFarAway) {
               // PRE-ORDER: Set to confirmed and skip printing for now
               const orderNumber = (payload.new as any)?.order_number || orderId;
@@ -402,10 +460,6 @@ export default function LiveOrdersScreen() {
 
               if ((payload.new as { order_status?: string })?.order_status === 'pending') {
                 await updateOrderStatus(orderId, 'confirmed');
-              }
-              // Still trigger a sound for awareness? User might want it.
-              if (s.soundEnabled) {
-                playNewOrderSound({ soundId: s.soundId, repeatCount: 1, delayMs: 1000 });
               }
             } else {
               // ASAP or NEARBY pre-order: loadOrders() loop will pick it up and announceAndPrint
@@ -464,6 +518,9 @@ export default function LiveOrdersScreen() {
 
   const staleThresholdSec = Math.max(60, Math.round((appSettings.refreshIntervalSec || 30) * 2.5));
   const isStale = !!lastUpdated && (Date.now() - lastUpdated.getTime()) / 1000 > staleThresholdSec;
+  const smartpayProcessingOrder = smartpayProcessingOrderId
+    ? orders.find((order) => order.id === smartpayProcessingOrderId) || selectedOrder
+    : null;
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -478,6 +535,23 @@ export default function LiveOrdersScreen() {
   const handleCustomerPress = (order: Order) => {
     setCustomerInfo({ email: order.customer_email, phone: order.customer_phone });
     setShowCustomerModal(true);
+  };
+
+  const handlePaymentStatusUpdateWithTender = (
+    orderId: string,
+    status: PaymentStatus,
+    paymentMethodDetail?: string | null
+  ) => {
+    if (status === 'paid' && paymentMethodDetail?.toLowerCase() === 'cash') {
+      const order = orders.find((item) => item.id === orderId)
+        || (selectedOrder?.id === orderId ? selectedOrder : null);
+      if (order) {
+        setCashTenderOrder(order);
+        return;
+      }
+    }
+
+    void handlePaymentStatusUpdate(orderId, status, paymentMethodDetail);
   };
 
   const handleOpenOrderFromCustomerModal = async (orderId: string) => {
@@ -500,6 +574,17 @@ export default function LiveOrdersScreen() {
         <View style={styles.printingOverlay} pointerEvents="none">
           <View style={styles.printingChip}>
             <Text style={styles.printingText}>Printing...</Text>
+          </View>
+        </View>
+      )}
+
+      {smartpayProcessingOrder && (
+        <View style={styles.smartpayOverlay} pointerEvents="auto">
+          <View style={styles.smartpayPanel}>
+            <ActivityIndicator size="large" color="#2563eb" />
+            <Text style={styles.smartpayTitle}>SmartPay payment</Text>
+            <Text style={styles.smartpayText}>Waiting for terminal transaction to finish.</Text>
+            <Text style={styles.smartpayAmount}>${smartpayProcessingOrder.total.toFixed(2)}</Text>
           </View>
         </View>
       )}
@@ -564,6 +649,9 @@ export default function LiveOrdersScreen() {
             onCustomerPress={handleCustomerPress}
             onPrintPress={quickPrintOrder}
             onQuickAction={handleQuickAction}
+            onSmartpayPayment={handleSmartpayPayment}
+            smartpayPaired={smartpayPaired}
+            smartpayProcessing={smartpayProcessingOrderId === item.id}
             onStatusUpdate={(order, status) => {
               Alert.alert('Update Status', 'Select new status', [
                 { text: 'Confirmed', onPress: () => handleStatusUpdate(order, 'confirmed') },
@@ -575,11 +663,13 @@ export default function LiveOrdersScreen() {
               ]);
             }}
             onPaymentStatusUpdate={(id) => {
-              Alert.alert('Mark as paid', 'Select payment method', [
+              const paymentOptions: Parameters<typeof Alert.alert>[2] = [
                 { text: 'Card', onPress: () => handlePaymentStatusUpdate(id, 'paid', 'Card') },
-                { text: 'Cash', onPress: () => handlePaymentStatusUpdate(id, 'paid', 'Cash') },
-                { text: 'Cancel', style: 'cancel' },
-              ]);
+                { text: 'Cash', onPress: () => setCashTenderOrder(item) },
+                ...(smartpayPaired ? [{ text: 'SmartPay', onPress: () => handleSmartpayPayment(item) }] : []),
+                { text: 'Cancel', style: 'cancel' as const },
+              ];
+              Alert.alert('Mark as paid', 'Select payment method', paymentOptions);
             }}
           />
         )}
@@ -601,9 +691,12 @@ export default function LiveOrdersScreen() {
         onPrintImage={handlePrintImage}
         onCustomerPress={handleCustomerPress}
         onStatusUpdate={handleStatusUpdate}
-        onPaymentStatusUpdate={handlePaymentStatusUpdate}
+        onPaymentStatusUpdate={handlePaymentStatusUpdateWithTender}
+        onSmartpayPayment={handleSmartpayPayment}
         onQuickAction={handleQuickAction}
         updatingStatus={updatingStatus}
+        smartpayPaired={smartpayPaired}
+        smartpayProcessing={!!selectedOrder && smartpayProcessingOrderId === selectedOrder.id}
         showSimulator={showSimulator}
         setShowSimulator={setShowSimulator}
         simulatorOrder={simulatorOrder}
@@ -629,6 +722,18 @@ export default function LiveOrdersScreen() {
         order={simulatorOrder}
         imageUri={printImageUri}
         onClose={() => setShowSimulator(false)}
+      />
+
+      <CashTenderModal
+        visible={cashTenderOrder !== null}
+        total={cashTenderOrder?.total || 0}
+        onCancel={() => setCashTenderOrder(null)}
+        onConfirm={() => {
+          if (!cashTenderOrder) return;
+          const orderId = cashTenderOrder.id;
+          setCashTenderOrder(null);
+          void handlePaymentStatusUpdate(orderId, 'paid', 'Cash');
+        }}
       />
       
       <CustomerModal
@@ -680,4 +785,25 @@ const styles = StyleSheet.create({
     left: -9999,
     opacity: 0,
   },
+  smartpayOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(17, 24, 39, 0.62)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    zIndex: 250,
+  },
+  smartpayPanel: {
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  smartpayTitle: { marginTop: 16, fontSize: 18, fontWeight: '800', color: '#111827' },
+  smartpayText: { marginTop: 8, fontSize: 14, color: '#4b5563', textAlign: 'center' },
+  smartpayAmount: { marginTop: 12, fontSize: 28, fontWeight: '900', color: '#111827' },
 });

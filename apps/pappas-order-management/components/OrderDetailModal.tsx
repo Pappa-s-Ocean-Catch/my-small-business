@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity, useWindowDimensions, Alert } from 'react-native';
+import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity, useWindowDimensions, Alert, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button as PaperButton, IconButton, Surface, Card, Divider, Snackbar } from 'react-native-paper';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -23,8 +23,11 @@ interface OrderDetailModalProps {
   onCustomerPress: (order: Order) => void;
   onStatusUpdate?: (order: Order, status: OrderStatus) => void;
   onPaymentStatusUpdate?: (id: string, status: PaymentStatus, paymentMethodDetail?: string | null) => void;
+  onSmartpayPayment?: (order: Order) => void;
   onQuickAction?: (order: Order, action: string) => void;
   updatingStatus?: string | null;
+  smartpayPaired?: boolean;
+  smartpayProcessing?: boolean;
   // Simulator props to ensure it can be rendered on top of this modal
   showSimulator?: boolean;
   setShowSimulator?: (visible: boolean) => void;
@@ -42,8 +45,11 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   onCustomerPress,
   onStatusUpdate,
   onPaymentStatusUpdate,
+  onSmartpayPayment,
   onQuickAction,
   updatingStatus,
+  smartpayPaired = false,
+  smartpayProcessing = false,
   showSimulator,
   setShowSimulator,
   simulatorOrder,
@@ -64,13 +70,19 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const statusLabel = STATUS_LABELS[order.order_status];
   const paymentColor = PAYMENT_STATUS_COLORS[order.payment_status];
   const paymentLabel = PAYMENT_STATUS_LABELS[order.payment_status];
-  const quickAction = getNextQuickAction(order.order_status);
+  const quickAction = getNextQuickAction(order);
   const isUpdating = updatingStatus === order.id;
   const rewardPointsUsed = order.reward_points_used ?? 0;
   const rewardPointsValue = order.reward_points_value ?? 0;
   const lineItemCount = getOrderLineItemCount(order);
   const orderOptions = getOrderOptions(order);
   const orderNotes = getOrderNotes(order);
+  const canSmartpay =
+    smartpayPaired &&
+    !!onSmartpayPayment &&
+    order.payment_status !== 'paid' &&
+    order.order_status !== 'completed' &&
+    order.order_status !== 'cancelled';
 
   const handleInternalPrint = async () => {
     let success = false;
@@ -370,6 +382,19 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 Card
               </PaperButton>
             )}
+            {canSmartpay && (
+              <PaperButton
+                mode="outlined"
+                icon="credit-card-wireless-outline"
+                onPress={() => onSmartpayPayment(order)}
+                loading={smartpayProcessing}
+                disabled={smartpayProcessing || isUpdating}
+                style={styles.actionButton}
+                compact={!isWide}
+              >
+                SmartPay
+              </PaperButton>
+            )}
           </View>
           {renderActionButton()}
         </Surface>
@@ -405,6 +430,16 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
           imageUri={printImageUri || null}
           onClose={() => setShowSimulator?.(false)}
         />
+        {smartpayProcessing && (
+          <View style={styles.smartpayOverlay} pointerEvents="auto">
+            <View style={styles.smartpayPanel}>
+              <ActivityIndicator size="large" color="#2563eb" />
+              <Text style={styles.smartpayTitle}>SmartPay payment</Text>
+              <Text style={styles.smartpayText}>Waiting for terminal transaction to finish.</Text>
+              <Text style={styles.smartpayAmount}>${order.total.toFixed(2)}</Text>
+            </View>
+          </View>
+        )}
         </View>
       </View>
     </Modal>
@@ -504,5 +539,41 @@ const styles = StyleSheet.create({
     top: -9999,
     left: -9999,
     opacity: 0,
+  },
+  smartpayOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(17, 24, 39, 0.62)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    zIndex: 200,
+  },
+  smartpayPanel: {
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  smartpayTitle: {
+    marginTop: 16,
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  smartpayText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#4b5563',
+    textAlign: 'center',
+  },
+  smartpayAmount: {
+    marginTop: 12,
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#111827',
   },
 });

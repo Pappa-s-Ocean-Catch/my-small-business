@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert } from 'react-native';
 import * as Print from 'expo-print';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
@@ -6,6 +6,7 @@ import { updateOrderStatus, updatePaymentStatus, getOrder } from '@/lib/orders';
 import { escposPrintKitchenReceipt, escposPrintOrderImage, formatPrinterError } from '@/lib/escpos-printer';
 import { generatePrintHTML } from '@/utils/orderUtils';
 import type { AppSettings } from '@/lib/settings';
+import { formatSmartpayError, isSmartpayPaired, processSmartpayCardPayment } from '@/lib/smartpay';
 
 const webBaseUrl = process.env.EXPO_PUBLIC_SITE_URL;
 
@@ -19,6 +20,29 @@ export const useOrderActions = (
   const [simulatorOrder, setSimulatorOrder] = useState<Order | null>(null);
   const [showSimulator, setShowSimulator] = useState(false);
   const [printImageUri, setPrintImageUri] = useState<string | null>(null);
+  const [smartpayPaired, setSmartpayPaired] = useState(false);
+  const [smartpayProcessingOrderId, setSmartpayProcessingOrderId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    const refreshSmartpayPaired = () => {
+      isSmartpayPaired()
+        .then((paired) => {
+          if (mounted) setSmartpayPaired(paired);
+        })
+        .catch(() => {
+          if (mounted) setSmartpayPaired(false);
+        });
+    };
+
+    refreshSmartpayPaired();
+    const id = setInterval(refreshSmartpayPaired, 10000);
+
+    return () => {
+      mounted = false;
+      clearInterval(id);
+    };
+  }, []);
 
   const triggerOrderStatusEmail = async (orderId: string, status: string) => {
     if (!webBaseUrl) {
@@ -44,19 +68,32 @@ export const useOrderActions = (
     try {
       setUpdatingStatus(order.id);
 
-      if (newStatus === 'completed' && order.payment_status === 'pending') {
+      let latestOrder = order;
+      if (newStatus === 'completed') {
+        const latestResult = await getOrder(order.id);
+        if (latestResult.data) {
+          latestOrder = latestResult.data;
+          if (onOrderUpdated) {
+            onOrderUpdated(latestResult.data);
+          }
+        } else if (latestResult.error) {
+          console.warn('[OrderActions] Failed to refresh order before completion:', latestResult.error);
+        }
+      }
+
+      if (newStatus === 'completed' && latestOrder.payment_status === 'pending') {
         Alert.alert('Complete Order', 'Select payment method', [
           {
             text: 'Card',
             onPress: async () => {
-              const result = await updateOrderStatus(order.id, 'completed', 'paid', 'Card');
+              const result = await updateOrderStatus(latestOrder.id, 'completed', 'paid', 'Card');
               processUpdateResult(result);
             },
           },
           {
             text: 'Cash',
             onPress: async () => {
-              const result = await updateOrderStatus(order.id, 'completed', 'paid', 'Cash');
+              const result = await updateOrderStatus(latestOrder.id, 'completed', 'paid', 'Cash');
               processUpdateResult(result);
             },
           },
@@ -65,7 +102,7 @@ export const useOrderActions = (
         return;
       }
 
-      const result = await updateOrderStatus(order.id, newStatus);
+      const result = await updateOrderStatus(latestOrder.id, newStatus);
       processUpdateResult(result);
     } catch (error) {
       Alert.alert('Error', 'Failed to update status');
@@ -109,6 +146,40 @@ export const useOrderActions = (
       Alert.alert('Error', 'Failed to update payment status');
       console.error('Error updating payment status:', error);
     } finally {
+      setUpdatingStatus(null);
+    }
+  };
+
+  const handleSmartpayPayment = async (order: Order) => {
+    if (order.payment_status === 'paid' || order.order_status === 'completed' || order.order_status === 'cancelled') {
+      return;
+    }
+
+    const paired = await isSmartpayPaired().catch(() => false);
+    setSmartpayPaired(paired);
+    if (!paired) {
+      Alert.alert('SmartPay not paired', 'Pair this POS register with Smartpay before taking SmartPay payments.');
+      return;
+    }
+
+    try {
+      setUpdatingStatus(order.id);
+      setSmartpayProcessingOrderId(order.id);
+      await processSmartpayCardPayment(order.total);
+      const result = await updatePaymentStatus(order.id, 'paid', 'SmartPay');
+      if (result.error) {
+        Alert.alert('Payment update failed', result.error);
+        return;
+      }
+      await loadOrders();
+      if (onOrderUpdated && result.data) {
+        onOrderUpdated(result.data);
+      }
+    } catch (error) {
+      console.error('SmartPay live order payment failed', error);
+      Alert.alert('SmartPay payment failed', formatSmartpayError(error));
+    } finally {
+      setSmartpayProcessingOrderId(null);
       setUpdatingStatus(null);
     }
   };
@@ -200,8 +271,11 @@ export const useOrderActions = (
     setShowSimulator,
     printImageUri,
     setPrintImageUri,
+    smartpayPaired,
+    smartpayProcessingOrderId,
     handleStatusUpdate,
     handlePaymentStatusUpdate,
+    handleSmartpayPayment,
     handleQuickAction,
     handlePrint,
     handlePrintImage,
