@@ -115,6 +115,7 @@ export default function AddonsPage() {
   const [itemForm, setItemForm] = useState({
     name: '',
     extra_price: 0,
+    section: '',
     sort_order: 0,
     is_active: true
   });
@@ -269,6 +270,7 @@ export default function AddonsPage() {
       setItemForm({
         name: item.name,
         extra_price: item.extra_price,
+        section: item.section || '',
         sort_order: item.sort_order,
         is_active: item.is_active
       });
@@ -280,6 +282,7 @@ export default function AddonsPage() {
       setItemForm({
         name: '',
         extra_price: 0,
+        section: '',
         sort_order: maxOrder + 1,
         is_active: true
       });
@@ -326,6 +329,7 @@ export default function AddonsPage() {
         const result = await updateAddonItem(editingItem.item.id, {
           name: itemForm.name,
           extra_price: itemForm.extra_price,
+          section: itemForm.section,
           sort_order: itemForm.sort_order,
           is_active: itemForm.is_active
         });
@@ -581,6 +585,11 @@ export default function AddonsPage() {
                                                     {item.name}
                                                   </span>
                                                   <span className="text-xs text-gray-500 dark:text-gray-400">#{item.sort_order}</span>
+                                                  {item.section && (
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                                                      {item.section}
+                                                    </span>
+                                                  )}
                                                   {!item.is_active && (
                                                     <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-200">
                                                       Inactive
@@ -802,6 +811,22 @@ export default function AddonsPage() {
                   placeholder="0.00"
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Kitchen Section
+              </label>
+              <input
+                type="text"
+                value={itemForm.section}
+                onChange={(e) => setItemForm({ ...itemForm, section: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
+                placeholder="e.g., Grill, Fried. Leave blank for default fry ticket"
+              />
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Free text section label used by kitchen printing. Selecting multiple section add-ons duplicates the ticket.
+              </p>
             </div>
 
             <div className="flex items-center gap-4">

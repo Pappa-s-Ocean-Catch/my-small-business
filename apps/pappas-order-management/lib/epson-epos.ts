@@ -1,5 +1,5 @@
 import type { Order, OrderItem, OrderItemAddon } from '@my-small-business/types';
-import { getOrderChannelReceiptLabel, getOrderLineItemCount, getOrderNotes, getOrderOptions } from '../utils/orderUtils';
+import { getOrderChannelReceiptLabel, getOrderLineItemCount, getOrderNotes, getOrderOptions, parseKitchenSections } from '../utils/orderUtils';
 // this file is no longer use
 const FONT_SIZE = {
   large: { width: 2, height: 2 },
@@ -171,19 +171,59 @@ function formatItemLines(item: OrderItem): ReceiptLine[] {
   return lines;
 }
 
+function getOrderSectionTickets(order: Order): Array<{ sectionName: string | null; items: OrderItem[] }> {
+  const map = new Map<string, OrderItem[]>();
+
+  for (const item of order.items || []) {
+    const sections = parseKitchenSections(item.section);
+    if (sections.length === 0) {
+      const fallback = map.get('') || [];
+      fallback.push(item);
+      map.set('', fallback);
+      continue;
+    }
+
+    for (const section of sections) {
+      const existing = map.get(section) || [];
+      existing.push(item);
+      map.set(section, existing);
+    }
+  }
+
+  if (map.size === 0) return [{ sectionName: null, items: order.items || [] }];
+  return Array.from(map.entries()).map(([sectionName, items]) => ({
+    sectionName: sectionName || null,
+    items,
+  }));
+}
+
 export function buildKitchenReceiptLines(order: Order, printSource?: string): ReceiptLine[] {
   const lines: ReceiptLine[] = [];
-  lines.push(...formatOrderHeaderLines(order));
 
-  if (order.items?.length) {
-    for (const item of order.items) {
-      lines.push(...formatItemLines(item));
+  const tickets = getOrderSectionTickets(order);
+  tickets.forEach((ticket, ticketIndex) => {
+    if (ticketIndex > 0) {
+      lines.push('');
+      lines.push('================================');
       lines.push('');
     }
-  } else {
-    lines.push('(No items)');
-    lines.push('');
-  }
+
+    lines.push(...formatOrderHeaderLines(order));
+    if (ticket.sectionName) {
+      lines.push({ text: ticket.sectionName.toUpperCase(), bold: true, large: true, center: true });
+      lines.push('------------------------------');
+    }
+
+    if (ticket.items.length) {
+      for (const item of ticket.items) {
+        lines.push(...formatItemLines(item));
+        lines.push('');
+      }
+    } else {
+      lines.push('(No items)');
+      lines.push('');
+    }
+  });
 
   lines.push('------------------------------');
   lines.push(`Items:    ${getOrderLineItemCount(order)}`);

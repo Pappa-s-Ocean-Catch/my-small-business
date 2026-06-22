@@ -143,6 +143,7 @@ export default function MenuPage() {
   const [productForm, setProductForm] = useState({
     name: '',
     description: '',
+    section: '',
     search_term: '',
     slug: '',
     seo_title: '',
@@ -458,6 +459,7 @@ export default function MenuPage() {
       setProductForm({
         name: product.name,
         description: product.description || '',
+        section: product.section || '',
         search_term: (product as unknown as { search_term?: string | null }).search_term ?? '',
         slug: (product as unknown as { slug?: string | null }).slug ?? '',
         seo_title: (product as unknown as { seo_title?: string | null }).seo_title ?? '',
@@ -503,6 +505,7 @@ export default function MenuPage() {
       setProductForm({
         name: '',
         description: '',
+        section: '',
         search_term: '',
         slug: '',
         seo_title: '',
@@ -764,6 +767,11 @@ export default function MenuPage() {
               </Link>
             </h3>
             <div className="text-xs text-gray-500 dark:text-gray-400">#{Number((product as unknown as { sort_order?: number }).sort_order ?? 0)}</div>
+            {product.section && (
+              <div className="mt-1 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                {product.section}
+              </div>
+            )}
           </div>
           <div className="flex gap-1">
             {dragHandle}
@@ -1321,6 +1329,17 @@ export default function MenuPage() {
                     rows={3}
                     className="min-h-20 rounded-xl border px-3 py-2 bg-white/80 dark:bg-neutral-900 resize-y"
                     placeholder="Enter product description"
+                  />
+                </label>
+
+                <label className="grid gap-2">
+                  <span className="text-sm text-gray-700 dark:text-gray-300">Kitchen Section</span>
+                  <input
+                    type="text"
+                    value={productForm.section}
+                    onChange={(e) => setProductForm({ ...productForm, section: e.target.value })}
+                    className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
+                    placeholder="e.g. Grill, Fried. Leave blank for default fry ticket"
                   />
                 </label>
 

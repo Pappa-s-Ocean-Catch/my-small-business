@@ -61,6 +61,7 @@ export interface OrderItem {
   base_price: number;
   quantity: number;
   subtotal: number;
+  section?: string | null;
   removed_ingredients: string[];
   comment: string | null;
   created_at: string;
@@ -75,6 +76,7 @@ export interface OrderItemAddon {
   addon_item_id: string;
   addon_item_name: string;
   addon_item_price: number;
+  section?: string | null;
   created_at: string;
   /**
    * Controls display ordering in receipts / confirmation screens.

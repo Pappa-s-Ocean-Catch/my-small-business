@@ -28,6 +28,7 @@ export interface AddonItem {
   addon_group_id: string;
   name: string;
   extra_price: number;
+  section: string | null;
   sort_order: number;
   is_active: boolean;
   created_at: string;
@@ -249,6 +250,7 @@ export async function createAddonItem(formData: {
   addon_group_id: string;
   name: string;
   extra_price: number;
+  section?: string;
   sort_order?: number;
   is_active?: boolean;
 }): Promise<{ data: AddonItem | null; error: string | null }> {
@@ -261,6 +263,7 @@ export async function createAddonItem(formData: {
         addon_group_id: formData.addon_group_id,
         name: formData.name,
         extra_price: formData.extra_price,
+        section: formData.section?.trim() || null,
         sort_order: formData.sort_order || 0,
         is_active: formData.is_active !== undefined ? formData.is_active : true
       }])
@@ -284,6 +287,7 @@ export async function updateAddonItem(
   formData: {
     name: string;
     extra_price: number;
+    section?: string;
     sort_order?: number;
     is_active?: boolean;
   }
@@ -296,6 +300,7 @@ export async function updateAddonItem(
       .update({
         name: formData.name,
         extra_price: formData.extra_price,
+        section: formData.section?.trim() || null,
         sort_order: formData.sort_order || 0,
         is_active: formData.is_active !== undefined ? formData.is_active : true
       })

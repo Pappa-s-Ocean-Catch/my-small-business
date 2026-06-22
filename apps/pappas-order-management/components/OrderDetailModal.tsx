@@ -419,6 +419,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 order={order} 
                 width={appSettings.printerPaperWidth === '58mm' ? 384 : 576} 
                 printSource="order-detail-modal:capture"
+                showTicketCounter={appSettings.printerSimulator}
               />
            </View>
         </View>

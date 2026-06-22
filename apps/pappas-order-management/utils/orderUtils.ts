@@ -15,7 +15,7 @@ export const groupAddons = (addons: OrderItemAddon[]) => {
   addons.forEach(addon => {
     // Group by name + price + group name to be safe
     // We avoid using addon_item_id because it might be unique per order entry in some DB schemas
-    const key = `${addon.addon_item_name}-${addon.addon_group_name}-${addon.addon_item_price}`;
+    const key = `${addon.addon_item_name}-${addon.addon_group_name}-${addon.addon_item_price}-${addon.section || ''}`;
     if (grouped[key]) {
       grouped[key].quantity += 1;
     } else {
@@ -162,6 +162,50 @@ export const getOrderNotes = (order: Pick<Order, 'special_instructions'>): strin
 };
 
 export const getOrderLineItemCount = (order: Pick<Order, 'items'>): number => order.items?.length || 0;
+
+export const DEFAULT_KITCHEN_SECTION = 'Fried';
+
+export const normalizeKitchenSection = (value?: string | null): string | null => {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
+};
+
+export const parseKitchenSections = (value?: string | null): string[] => {
+  const normalized = normalizeKitchenSection(value);
+  if (!normalized) return [];
+
+  return Array.from(
+    new Set(
+      normalized
+        .split(',')
+        .map((section) => section.trim())
+        .filter(Boolean)
+    )
+  );
+};
+
+export const resolveKitchenSections = (
+  baseSection?: string | null,
+  addons?: OrderItemAddon[]
+): string[] => {
+  const addonSections = Array.from(
+    new Set(
+      (addons || [])
+        .map((addon) => normalizeKitchenSection(addon.section))
+        .filter((section): section is string => Boolean(section))
+    )
+  );
+
+  if (addonSections.length > 0) return addonSections;
+
+  const normalizedBase = normalizeKitchenSection(baseSection);
+  return [normalizedBase || DEFAULT_KITCHEN_SECTION];
+};
+
+export const formatKitchenSectionValue = (
+  baseSection?: string | null,
+  addons?: OrderItemAddon[]
+): string => resolveKitchenSections(baseSection, addons).join(', ');
 
 export const paymentSummary = (order: Order): string => {
   const type = getOrderChannelLabel(order);

@@ -289,6 +289,7 @@ export async function savePosOrder(
           addon_item_id: addon.addon_item_id,
           addon_item_name: addon.addon_item_name,
           addon_item_price: addon.addon_item_price,
+          section: addon.section ?? null,
         }));
         
         const { error: addonError } = await supabase
@@ -390,6 +391,7 @@ export async function updatePosOrder(
           addon_item_id: addon.addon_item_id,
           addon_item_name: addon.addon_item_name,
           addon_item_price: addon.addon_item_price,
+          section: addon.section ?? null,
         }));
         const { error: addonError } = await supabase
           .from('order_item_addons')

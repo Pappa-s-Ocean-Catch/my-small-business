@@ -1,15 +1,23 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import type { Order } from '@my-small-business/types';
-import { getOrderChannelReceiptLabel, getOrderLineItemCount, getOrderNotes, getOrderOptions, groupAddons } from '../utils/orderUtils';
+import {
+  getOrderChannelReceiptLabel,
+  getOrderLineItemCount,
+  getOrderNotes,
+  getOrderOptions,
+  groupAddons,
+  parseKitchenSections,
+} from '../utils/orderUtils';
 
 interface ReceiptTemplateProps {
   order: Order;
   width?: number;
   printSource?: string;
+  showTicketCounter?: boolean;
 }
 
-export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ order, width = 576, printSource }) => {
+export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ order, width = 576, printSource, showTicketCounter = false }) => {
   const formatMoney = (amount: number) => {
     return (amount || 0).toFixed(2);
   };
@@ -29,151 +37,182 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ order, width =
   const orderOptions = getOrderOptions(order);
   const orderNotes = getOrderNotes(order);
   const lineItemCount = getOrderLineItemCount(order);
+  const sectionEntries = (() => {
+    const map = new Map<string, NonNullable<Order['items']>>();
+    for (const item of order.items || []) {
+      const itemSections = parseKitchenSections(item.section);
+      for (const section of itemSections) {
+        const existing = map.get(section) || [];
+        existing.push(item);
+        map.set(section, existing);
+      }
+    }
+    return Array.from(map.entries());
+  })();
+
+  const tickets = sectionEntries.length > 0
+    ? sectionEntries.map(([sectionName, items]) => ({ sectionName, items }))
+    : [{ sectionName: null, items: order.items || [] }];
 
   return (
-    <View style={[styles.container, { width }]}>
-      {/* Header */}
-      {pickupDisplay && (
-        <View style={styles.preOrderContainer}>
-          <Text style={styles.preOrderLabel}>*** PRE-ORDER ***</Text>
-          <Text style={styles.preOrderTime}>PICKUP: {pickupDisplay}</Text>
-        </View>
-      )}
-
-      <Text style={styles.headerText}>{createdDate}</Text>
-      <Text style={styles.headerText}>
-        {getOrderChannelReceiptLabel(order)} • {order.payment_method?.toUpperCase()}
-      </Text>
-
-      <View style={styles.divider} />
-
-      {/* Customer Info */}
-      <View style={styles.section}>
-        <Text style={styles.largeBoldText}>{order.customer_name || order.customer_email}</Text>
-        {order.customer_phone && <Text style={styles.largeBoldText}>{order.customer_phone}</Text>}
-        {order.order_type === 'delivery' && order.delivery_address_line1 && (
-          <View style={styles.deliveryContainer}>
-            <Text style={styles.normalText}>Delivery Address:</Text>
-            <Text style={styles.boldText}>{order.delivery_address_line1}</Text>
-            {order.delivery_address_line2 && <Text style={styles.boldText}>{order.delivery_address_line2}</Text>}
-            <Text style={styles.boldText}>
-              {[order.delivery_city, order.delivery_state, order.delivery_postcode].filter(Boolean).join(' ')}
-            </Text>
-          </View>
-        )}
-      </View>
-
-      {orderNotes && (
-        <View style={styles.noteSection}>
-          <Text style={styles.noteTitle}>ORDER NOTES:</Text>
-          <Text style={styles.noteText}>{orderNotes}</Text>
-        </View>
-      )}
-
-      <View style={styles.divider} />
-
-      {/* Items */}
-      {orderOptions.map((option, idx) => (
-        <View key={`option-${idx}`} style={styles.optionContainer}>
-          <Text style={styles.optionText}>* {option}</Text>
-        </View>
-      ))}
-      {order.items?.map((item, idx) => (
-        <View key={idx} style={styles.itemContainer}>
-          <View style={styles.itemLineRow}>
-            <Text style={styles.itemNameLine} numberOfLines={3}>
-              {item.quantity}x {item.product_name}
-            </Text>
-            <Text style={styles.itemLinePrice}>${formatMoney(item.subtotal)}</Text>
-          </View>
-          {item.removed_ingredients?.map((ing, rIdx) => (
-            <Text key={`rm-${rIdx}`} style={styles.removedText}>
-              No {ing}
-            </Text>
-          ))}
-          {groupAddons(item.addons || []).map((addon, aIdx) => (
-            <Text key={`ad-${aIdx}`} style={styles.addonText}>
-              {addon.quantity > 1 ? `${addon.quantity}x ` : '+ '}{addon.name} {addon.price ? `($${formatMoney(addon.price)})` : ''}
-            </Text>
-          ))}
-          {item.comment?.trim() && (
-            <Text style={styles.itemNote}>
-              Notes: {item.comment}
-            </Text>
+    <View>
+      {tickets.map((ticket, ticketIdx) => (
+        <View
+          key={`${ticket.sectionName || 'default'}-${ticketIdx}`}
+          style={[styles.container, { width }, ticketIdx > 0 ? styles.ticketSpacing : null]}
+        >
+          {showTicketCounter && tickets.length > 1 && (
+            <View style={styles.ticketCounterRow}>
+              <Text style={styles.ticketCounterText}>{ticketIdx + 1}/{tickets.length}</Text>
+            </View>
           )}
-        </View>
-      ))}
 
-      <View style={styles.divider} />
+          {ticket.sectionName && (
+            <View style={styles.sectionBanner}>
+              <Text style={styles.sectionBannerText}>{ticket.sectionName.toUpperCase()}</Text>
+            </View>
+          )}
 
-      {/* Totals */}
-      <View style={styles.totalsContainer}>
-        <View style={styles.totalRow}>
-          <Text style={styles.normalText}>Total items:</Text>
-          <Text style={styles.normalText}>{lineItemCount}</Text>
-        </View>
-        <View style={styles.totalRow}>
-          <Text style={styles.normalText}>Subtotal:</Text>
-          <Text style={styles.normalText}>${formatMoney(order.subtotal)}</Text>
-        </View>
-        {order.tax > 0 && (
-          <View style={styles.totalRow}>
-            <Text style={styles.normalText}>Tax:</Text>
-            <Text style={styles.normalText}>${formatMoney(order.tax)}</Text>
+          {pickupDisplay && (
+            <View style={styles.preOrderContainer}>
+              <Text style={styles.preOrderLabel}>*** PRE-ORDER ***</Text>
+              <Text style={styles.preOrderTime}>PICKUP: {pickupDisplay}</Text>
+            </View>
+          )}
+
+          <Text style={styles.headerText}>{createdDate}</Text>
+          <Text style={styles.headerText}>
+            {getOrderChannelReceiptLabel(order)} • {order.payment_method?.toUpperCase()}
+          </Text>
+
+          <View style={styles.divider} />
+
+          <View style={styles.section}>
+            <Text style={styles.largeBoldText}>{order.customer_name || order.customer_email}</Text>
+            {order.customer_phone && <Text style={styles.largeBoldText}>{order.customer_phone}</Text>}
+            {order.order_type === 'delivery' && order.delivery_address_line1 && (
+              <View style={styles.deliveryContainer}>
+                <Text style={styles.normalText}>Delivery Address:</Text>
+                <Text style={styles.boldText}>{order.delivery_address_line1}</Text>
+                {order.delivery_address_line2 && <Text style={styles.boldText}>{order.delivery_address_line2}</Text>}
+                <Text style={styles.boldText}>
+                  {[order.delivery_city, order.delivery_state, order.delivery_postcode].filter(Boolean).join(' ')}
+                </Text>
+              </View>
+            )}
           </View>
-        )}
-        {order.delivery_fee > 0 && (
-          <View style={styles.totalRow}>
-            <Text style={styles.normalText}>Delivery Fee:</Text>
-            <Text style={styles.normalText}>${formatMoney(order.delivery_fee)}</Text>
+
+          {orderNotes && (
+            <View style={styles.noteSection}>
+              <Text style={styles.noteTitle}>ORDER NOTES:</Text>
+              <Text style={styles.noteText}>{orderNotes}</Text>
+            </View>
+          )}
+
+          <View style={styles.divider} />
+
+          {orderOptions.map((option, idx) => (
+            <View key={`option-${ticketIdx}-${idx}`} style={styles.optionContainer}>
+              <Text style={styles.optionText}>* {option}</Text>
+            </View>
+          ))}
+          {ticket.items?.map((item, idx) => (
+            <View key={`${ticketIdx}-${idx}`} style={styles.itemContainer}>
+              <View style={styles.itemLineRow}>
+                <Text style={styles.itemNameLine} numberOfLines={3}>
+                  {item.quantity}x {item.product_name}
+                </Text>
+                <Text style={styles.itemLinePrice}>${formatMoney(item.subtotal)}</Text>
+              </View>
+              {item.removed_ingredients?.map((ing, rIdx) => (
+                <Text key={`rm-${ticketIdx}-${rIdx}`} style={styles.removedText}>
+                  No {ing}
+                </Text>
+              ))}
+              {groupAddons(item.addons || []).map((addon, aIdx) => (
+                <Text key={`ad-${ticketIdx}-${aIdx}`} style={styles.addonText}>
+                  {addon.quantity > 1 ? `${addon.quantity}x ` : '+ '}{addon.name} {addon.price ? `($${formatMoney(addon.price)})` : ''}
+                </Text>
+              ))}
+              {item.comment?.trim() && (
+                <Text style={styles.itemNote}>
+                  Notes: {item.comment}
+                </Text>
+              )}
+            </View>
+          ))}
+
+          <View style={styles.divider} />
+
+          <View style={styles.totalsContainer}>
+            <View style={styles.totalRow}>
+              <Text style={styles.normalText}>Total items:</Text>
+              <Text style={styles.normalText}>{lineItemCount}</Text>
+            </View>
+            <View style={styles.totalRow}>
+              <Text style={styles.normalText}>Subtotal:</Text>
+              <Text style={styles.normalText}>${formatMoney(order.subtotal)}</Text>
+            </View>
+            {order.tax > 0 && (
+              <View style={styles.totalRow}>
+                <Text style={styles.normalText}>Tax:</Text>
+                <Text style={styles.normalText}>${formatMoney(order.tax)}</Text>
+              </View>
+            )}
+            {order.delivery_fee > 0 && (
+              <View style={styles.totalRow}>
+                <Text style={styles.normalText}>Delivery Fee:</Text>
+                <Text style={styles.normalText}>${formatMoney(order.delivery_fee)}</Text>
+              </View>
+            )}
+            {order.promotion_discount > 0 && (
+              <View style={styles.totalRow}>
+                <Text style={styles.normalText}>Promotions:</Text>
+                <Text style={styles.normalText}>-${formatMoney(order.promotion_discount)}</Text>
+              </View>
+            )}
+            {order.coupon_discount > 0 && (
+              <View style={styles.totalRow}>
+                <Text style={styles.normalText}>Coupon ({order.coupon_code}):</Text>
+                <Text style={styles.normalText}>-${formatMoney(order.coupon_discount)}</Text>
+              </View>
+            )}
+            {rewardPointsUsed > 0 && rewardPointsValue > 0 && (
+              <View style={styles.totalRow}>
+                <Text style={styles.normalText}>Points ({rewardPointsUsed.toLocaleString()}):</Text>
+                <Text style={styles.normalText}>-${formatMoney(rewardPointsValue)}</Text>
+              </View>
+            )}
+            {order.service_fee > 0 && (
+              <View style={styles.totalRow}>
+                <Text style={styles.normalText}>Service Fee:</Text>
+                <Text style={styles.normalText}>${formatMoney(order.service_fee)}</Text>
+              </View>
+            )}
+            <View style={[styles.totalRow, { marginTop: 8 }]}>
+              <Text style={styles.largeTotalText}>TOTAL:</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={styles.largeTotalText}>${formatMoney(order.total)}</Text>
+                <Text style={styles.statusBadge}>
+                  {order.payment_status?.toUpperCase() === 'PAID' ? 'PAID' : 'UNPAID'}
+                </Text>
+              </View>
+            </View>
           </View>
-        )}
-        {order.promotion_discount > 0 && (
-          <View style={styles.totalRow}>
-            <Text style={styles.normalText}>Promotions:</Text>
-            <Text style={styles.normalText}>-${formatMoney(order.promotion_discount)}</Text>
-          </View>
-        )}
-        {order.coupon_discount > 0 && (
-          <View style={styles.totalRow}>
-            <Text style={styles.normalText}>Coupon ({order.coupon_code}):</Text>
-            <Text style={styles.normalText}>-${formatMoney(order.coupon_discount)}</Text>
-          </View>
-        )}
-        {rewardPointsUsed > 0 && rewardPointsValue > 0 && (
-          <View style={styles.totalRow}>
-            <Text style={styles.normalText}>Points ({rewardPointsUsed.toLocaleString()}):</Text>
-            <Text style={styles.normalText}>-${formatMoney(rewardPointsValue)}</Text>
-          </View>
-        )}
-        {order.service_fee > 0 && (
-          <View style={styles.totalRow}>
-            <Text style={styles.normalText}>Service Fee:</Text>
-            <Text style={styles.normalText}>${formatMoney(order.service_fee)}</Text>
-          </View>
-        )}
-        <View style={[styles.totalRow, { marginTop: 8 }]}>
-          <Text style={styles.largeTotalText}>TOTAL:</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Text style={styles.largeTotalText}>${formatMoney(order.total)}</Text>
-            <Text style={styles.statusBadge}>
-              {order.payment_status?.toUpperCase() === 'PAID' ? 'PAID' : 'UNPAID'}
+
+          <View style={styles.orderNumberContainer}>
+            <Text style={styles.orderNumberText}>
+              P{order.order_number?.split('-').pop()?.replace(/\D+/g, '')}
             </Text>
           </View>
+          <View style={styles.footerContainer}>
+            <Text style={styles.footerText}>Thanks for your order!</Text>
+            {!!printSource && (
+              <Text style={styles.printSourceText}>Print source: {printSource}</Text>
+            )}
+          </View>
         </View>
-      </View>
-
-      <View style={styles.orderNumberContainer}>
-        <Text style={styles.orderNumberText}>
-          P{order.order_number?.split('-').pop()?.replace(/\D+/g, '')}
-        </Text>
-      </View>
-      <View style={styles.footerContainer}>
-        <Text style={styles.footerText}>Thanks for your order!</Text>
-        {!!printSource && (
-          <Text style={styles.printSourceText}>Print source: {printSource}</Text>
-        )}
-      </View>
+      ))}
     </View>
   );
 };
@@ -183,6 +222,30 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     paddingHorizontal: 10,
     paddingVertical: 8,
+  },
+  ticketSpacing: {
+    marginTop: 32,
+  },
+  ticketCounterRow: {
+    alignItems: 'flex-end',
+    marginBottom: 4,
+  },
+  ticketCounterText: {
+    fontSize: 18,
+    color: '#475569',
+    fontWeight: '600',
+  },
+  sectionBanner: {
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingVertical: 8,
+    borderWidth: 2,
+    borderColor: '#000',
+  },
+  sectionBannerText: {
+    fontSize: 40,
+    fontWeight: '900',
+    color: '#000',
   },
   preOrderContainer: {
     alignItems: 'center',

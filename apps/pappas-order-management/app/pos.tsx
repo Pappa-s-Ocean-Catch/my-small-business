@@ -13,7 +13,7 @@ import {
   fetchPreferredPosLayout,
   PosLayoutData,
 } from '../lib/pos-layouts';
-import { getOrderNotes, getOrderOptions } from '../utils/orderUtils';
+import { formatKitchenSectionValue, getOrderNotes, getOrderOptions } from '../utils/orderUtils';
 import { formatSmartpayError, isSmartpayPaired, processSmartpayCardPayment } from '../lib/smartpay';
 import { CashTenderModal } from '../components/CashTenderModal';
 
@@ -29,6 +29,7 @@ type SaleProduct = {
   id: string;
   name: string;
   description: string | null;
+  section?: string | null;
   search_term: string | null;
   sale_price: number;
   image_url: string | null;
@@ -48,6 +49,7 @@ type AddonItem = {
   addon_group_id: string;
   name: string;
   extra_price: number;
+  section?: string | null;
   sort_order: number | null;
   is_active: boolean | null;
 };
@@ -101,6 +103,7 @@ const cartItemHasCustomizations = (item: Pick<OrderItem, 'addons' | 'removed_ing
 
 const CATALOG_CACHE_TTL_MS = 60 * 60 * 1000;
 const TOP_SELLERS_CACHE_TTL_MS = 5 * 60 * 1000;
+const POS_CACHE_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
 const PRODUCT_TILE_PALETTE = [
   { backgroundColor: '#fff7ed', borderColor: '#fed7aa', priceColor: '#c2410c' },
   { backgroundColor: '#ecfdf5', borderColor: '#bbf7d0', priceColor: '#047857' },
@@ -141,10 +144,35 @@ const isCacheFresh = <T,>(entry: CacheEntry<T> | null | undefined): entry is Cac
   Boolean(entry && entry.expiresAt > Date.now())
 );
 
-const cacheEntry = <T,>(data: T): CacheEntry<T> => ({
+const cacheEntry = <T,>(data: T, ttlMs = CATALOG_CACHE_TTL_MS): CacheEntry<T> => ({
   data,
-  expiresAt: Date.now() + CATALOG_CACHE_TTL_MS,
+  expiresAt: Date.now() + ttlMs,
 });
+
+const getFreshCacheEntry = <K, T>(cache: Map<K, CacheEntry<T>>, key: K) => {
+  const entry = cache.get(key);
+  if (isCacheFresh(entry)) return entry;
+  if (entry) cache.delete(key);
+  return null;
+};
+
+const pruneExpiredCacheEntries = <K, T>(cache: Map<K, CacheEntry<T>>, now = Date.now()) => {
+  for (const [key, entry] of cache.entries()) {
+    if (entry.expiresAt <= now) cache.delete(key);
+  }
+};
+
+const pruneCatalogCache = () => {
+  const now = Date.now();
+  if (catalogCache.categories && catalogCache.categories.expiresAt <= now) catalogCache.categories = null;
+  if (catalogCache.allProducts && catalogCache.allProducts.expiresAt <= now) catalogCache.allProducts = null;
+  if (catalogCache.topSellersToday && catalogCache.topSellersToday.expiresAt <= now) {
+    catalogCache.topSellersToday = null;
+  }
+  pruneExpiredCacheEntries(catalogCache.productsByCategory, now);
+  pruneExpiredCacheEntries(catalogCache.hasCustomizationByProduct, now);
+  pruneExpiredCacheEntries(catalogCache.customizationByProduct, now);
+};
 
 const defaultPickupTime = () => {
   const next = new Date();
@@ -230,7 +258,14 @@ export default function PosScreen() {
 
 
   useEffect(() => {
+    pruneCatalogCache();
+    const sweepTimer = setInterval(pruneCatalogCache, POS_CACHE_SWEEP_INTERVAL_MS);
+    return () => clearInterval(sweepTimer);
+  }, []);
+
+  useEffect(() => {
     const fetchCategories = async () => {
+      pruneCatalogCache();
       if (isCacheFresh(catalogCache.categories)) {
         setCategories(catalogCache.categories.data);
         return;
@@ -386,6 +421,7 @@ export default function PosScreen() {
   }, []);
 
   const loadTopSellersToday = async () => {
+    pruneCatalogCache();
     if (isCacheFresh(catalogCache.topSellersToday)) {
       setTopSellers(catalogCache.topSellersToday.data);
       return;
@@ -426,7 +462,7 @@ export default function PosScreen() {
       .map(([productId]) => productId);
 
     if (rankedProductIds.length === 0) {
-      catalogCache.topSellersToday = cacheEntry([]);
+      catalogCache.topSellersToday = cacheEntry([], TOP_SELLERS_CACHE_TTL_MS);
       setTopSellers([]);
       setLoadingTopSellers(false);
       return;
@@ -434,7 +470,7 @@ export default function PosScreen() {
 
     const { data: productsData, error: productsError } = await supabase
       .from('sale_products')
-      .select('id, name, description, search_term, sale_price, image_url, sale_category_id, sub_category_id, sort_order, is_active')
+      .select('id, name, description, section, search_term, sale_price, image_url, sale_category_id, sub_category_id, sort_order, is_active')
       .in('id', rankedProductIds)
       .eq('is_active', true);
 
@@ -457,10 +493,7 @@ export default function PosScreen() {
       })
       .filter((product): product is TopSellerProduct => Boolean(product));
 
-    catalogCache.topSellersToday = {
-      data: nextTopSellers,
-      expiresAt: Date.now() + TOP_SELLERS_CACHE_TTL_MS,
-    };
+    catalogCache.topSellersToday = cacheEntry(nextTopSellers, TOP_SELLERS_CACHE_TTL_MS);
     setTopSellers(nextTopSellers);
     setLoadingTopSellers(false);
     void loadCustomizationAvailability(nextTopSellers.map((product) => product.id));
@@ -473,6 +506,7 @@ export default function PosScreen() {
   }, [menuLevel, topSellerRefreshKey]);
 
   const loadSearchProducts = async () => {
+    pruneCatalogCache();
     if (isCacheFresh(catalogCache.allProducts)) {
       setSearchProducts(catalogCache.allProducts.data);
       void loadCustomizationAvailability(catalogCache.allProducts.data.map((product) => product.id));
@@ -482,7 +516,7 @@ export default function PosScreen() {
     setLoadingSearchProducts(true);
     const { data, error } = await supabase
       .from('sale_products')
-      .select('id, name, description, search_term, sale_price, image_url, sale_category_id, sub_category_id, sort_order, is_active')
+      .select('id, name, description, section, search_term, sale_price, image_url, sale_category_id, sub_category_id, sort_order, is_active')
       .eq('is_active', true)
       .order('name', { ascending: true });
 
@@ -526,9 +560,10 @@ export default function PosScreen() {
         return;
       }
       const cacheKey = categoryIds.sort().join(',');
-      const cachedProducts = catalogCache.productsByCategory.get(cacheKey);
+      pruneCatalogCache();
+      const cachedProducts = getFreshCacheEntry(catalogCache.productsByCategory, cacheKey);
 
-      if (isCacheFresh(cachedProducts)) {
+      if (cachedProducts) {
         setProducts(cachedProducts.data);
         void loadCustomizationAvailability(cachedProducts.data.map((product) => product.id));
         return;
@@ -537,7 +572,7 @@ export default function PosScreen() {
       setLoadingProducts(true);
       const { data, error } = await supabase
         .from('sale_products')
-        .select('id, name, description, search_term, sale_price, image_url, sale_category_id, sub_category_id, sort_order, is_active')
+        .select('id, name, description, section, search_term, sale_price, image_url, sale_category_id, sub_category_id, sort_order, is_active')
         .eq('is_active', true)
         .or(`sale_category_id.in.(${categoryIds.join(',')}),sub_category_id.in.(${categoryIds.join(',')})`)
         .order('sort_order', { ascending: true });
@@ -674,6 +709,7 @@ export default function PosScreen() {
           addon_item_id: item.id,
           addon_item_name: item.name,
           addon_item_price: item.extra_price,
+          section: item.section ?? null,
           created_at: new Date().toISOString(),
           is_required: group.is_required,
           display_order: item.sort_order ?? undefined,
@@ -719,20 +755,20 @@ export default function PosScreen() {
 
     const uniqueProductIds = Array.from(new Set(productIds));
     const missingProductIds = uniqueProductIds.filter((productId) => {
-      const fullCustomization = catalogCache.customizationByProduct.get(productId);
-      if (isCacheFresh(fullCustomization)) {
+      const fullCustomization = getFreshCacheEntry(catalogCache.customizationByProduct, productId);
+      if (fullCustomization) {
         catalogCache.hasCustomizationByProduct.set(
           productId,
           cacheEntry(fullCustomization.data.groups.length > 0 || fullCustomization.data.removableIngredients.length > 0)
         );
         return false;
       }
-      return !isCacheFresh(catalogCache.hasCustomizationByProduct.get(productId));
+      return !getFreshCacheEntry(catalogCache.hasCustomizationByProduct, productId);
     });
 
     if (missingProductIds.length === 0) {
       setCustomizableProductIds(new Set(uniqueProductIds.filter((productId) => (
-        catalogCache.hasCustomizationByProduct.get(productId)?.data
+        getFreshCacheEntry(catalogCache.hasCustomizationByProduct, productId)?.data
       ))));
       return;
     }
@@ -751,7 +787,7 @@ export default function PosScreen() {
 
     if (addonResult.error || ingredientResult.error) {
       setCustomizableProductIds(new Set(uniqueProductIds.filter((productId) => (
-        catalogCache.hasCustomizationByProduct.get(productId)?.data
+        getFreshCacheEntry(catalogCache.hasCustomizationByProduct, productId)?.data
       ))));
       return;
     }
@@ -766,23 +802,23 @@ export default function PosScreen() {
     });
 
     setCustomizableProductIds(new Set(uniqueProductIds.filter((productId) => (
-      catalogCache.hasCustomizationByProduct.get(productId)?.data
+      getFreshCacheEntry(catalogCache.hasCustomizationByProduct, productId)?.data
     ))));
   };
 
   const productHasCustomization = async (productId: string) => {
-    const fullCustomization = catalogCache.customizationByProduct.get(productId);
-    if (isCacheFresh(fullCustomization)) {
+    const fullCustomization = getFreshCacheEntry(catalogCache.customizationByProduct, productId);
+    if (fullCustomization) {
       return fullCustomization.data.groups.length > 0 || fullCustomization.data.removableIngredients.length > 0;
     }
 
-    const cachedAvailability = catalogCache.hasCustomizationByProduct.get(productId);
-    if (isCacheFresh(cachedAvailability)) {
+    const cachedAvailability = getFreshCacheEntry(catalogCache.hasCustomizationByProduct, productId);
+    if (cachedAvailability) {
       return cachedAvailability.data;
     }
 
     await loadCustomizationAvailability([productId]);
-    return catalogCache.hasCustomizationByProduct.get(productId)?.data ?? false;
+    return getFreshCacheEntry(catalogCache.hasCustomizationByProduct, productId)?.data ?? false;
   };
 
   const loadCustomizations = async (
@@ -810,8 +846,8 @@ export default function PosScreen() {
       }, {})
     );
 
-    const cachedCustomizations = catalogCache.customizationByProduct.get(productId);
-    if (isCacheFresh(cachedCustomizations)) {
+    const cachedCustomizations = getFreshCacheEntry(catalogCache.customizationByProduct, productId);
+    if (cachedCustomizations) {
       setLoadingAddons(false);
       applyCustomizationData(cachedCustomizations.data);
       return cachedCustomizations.data;
@@ -834,6 +870,7 @@ export default function PosScreen() {
             addon_group_id,
             name,
             extra_price,
+            section,
             sort_order,
             is_active
           )
@@ -956,6 +993,7 @@ export default function PosScreen() {
     base_price: product.sale_price,
     quantity,
     subtotal: (product.sale_price + addonTotal(addons)) * quantity,
+    section: formatKitchenSectionValue(product.section, addons),
     removed_ingredients: removedIngredients,
     comment: comment.trim() || null,
     created_at: new Date().toISOString(),
@@ -1003,6 +1041,7 @@ export default function PosScreen() {
       id: item.product_id,
       name: item.product_name,
       description: item.product_description,
+      section: item.section,
       search_term: null,
       sale_price: item.base_price,
       image_url: item.product_image_url,
@@ -1061,6 +1100,7 @@ export default function PosScreen() {
       return {
         ...item,
         addons,
+        section: formatKitchenSectionValue(selectedProduct.section, addons),
         removed_ingredients: removedIngredients,
         subtotal: (selectedProduct.sale_price + addonTotal(addons)) * item.quantity,
       };

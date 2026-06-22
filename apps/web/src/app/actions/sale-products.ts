@@ -129,6 +129,7 @@ export interface SaleProduct {
   slug: string | null;
   name: string;
   description: string | null;
+  section: string | null;
   search_term: string | null;
   seo_title: string | null;
   seo_description: string | null;
@@ -624,6 +625,7 @@ export async function getSaleProduct(id: string): Promise<{ data: SaleProductWit
 export async function createSaleProduct(formData: {
   name: string;
   description?: string;
+  section?: string;
   search_term?: string;
   slug?: string;
   seo_title?: string;
@@ -661,6 +663,7 @@ export async function createSaleProduct(formData: {
       .insert([{
         name: formData.name,
         description: formData.description || null,
+        section: formData.section?.trim() || null,
         search_term: formData.search_term && formData.search_term.trim() ? formData.search_term.trim() : null,
         slug: formData.slug && formData.slug.trim() ? formData.slug.trim() : null,
         seo_title: formData.seo_title && formData.seo_title.trim() ? formData.seo_title.trim() : null,
@@ -793,6 +796,7 @@ export async function updateSaleProduct(
   formData: {
     name: string;
     description?: string;
+    section?: string;
     search_term?: string;
     slug?: string;
     seo_title?: string;
@@ -832,6 +836,7 @@ export async function updateSaleProduct(
       .update({
         name: formData.name,
         description: formData.description || null,
+        section: formData.section?.trim() || null,
         search_term: formData.search_term && formData.search_term.trim() ? formData.search_term.trim() : null,
         slug: formData.slug && formData.slug.trim() ? formData.slug.trim() : null,
         seo_title: formData.seo_title && formData.seo_title.trim() ? formData.seo_title.trim() : null,

@@ -295,6 +295,7 @@ export default function PreOrdersScreen() {
                 order={tempPrintingOrder} 
                 width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
                 printSource={tempPrintSource || undefined}
+                showTicketCounter={appSettings.printerSimulator}
               />
            </View>
          )}
