@@ -200,6 +200,31 @@ export default function SettingsScreen() {
 
             <Card style={styles.card}>
                 <Card.Content>
+                    <Text style={styles.sectionTitle}>Catalog</Text>
+                    <Text style={styles.helper}>Manage sales categories, products, and add-ons directly on the POS tablet.</Text>
+                    <View style={styles.buttonGroupColumn}>
+                        <Button
+                            mode="contained"
+                            icon="silverware-fork-knife"
+                            onPress={() => router.push('/menu-management')}
+                            style={styles.selectButton}
+                        >
+                            Menu Management
+                        </Button>
+                        <Button
+                            mode="outlined"
+                            icon="shape-outline"
+                            onPress={() => router.push('/addons-management')}
+                            style={styles.selectButton}
+                        >
+                            Add-ons Management
+                        </Button>
+                    </View>
+                </Card.Content>
+            </Card>
+
+            <Card style={styles.card}>
+                <Card.Content>
                     <Text style={styles.sectionTitle}>Integrations</Text>
                     <Text style={styles.helper}>Connect this POS register to payment terminals and external services.</Text>
                     <Button
@@ -497,5 +522,9 @@ const styles = StyleSheet.create({
     },
     flexButton: {
         flex: 1,
+    },
+    buttonGroupColumn: {
+        gap: 10,
+        marginTop: 8,
     },
 });

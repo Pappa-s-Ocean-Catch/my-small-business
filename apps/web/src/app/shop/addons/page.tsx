@@ -37,6 +37,21 @@ import {
   type AddonItem
 } from '@/app/actions/addons';
 
+const KITCHEN_SECTION_OPTIONS = ['Fried', 'Grilled', 'Till'] as const;
+
+const parseSectionList = (value?: string | null) =>
+  Array.from(
+    new Set(
+      (value || '')
+        .split(',')
+        .map((item) => item.trim())
+        .filter((item): item is string => KITCHEN_SECTION_OPTIONS.includes(item as (typeof KITCHEN_SECTION_OPTIONS)[number]))
+    )
+  );
+
+const formatSectionList = (value?: string | null) => parseSectionList(value).join(',');
+const formatSectionLabel = (value?: string | null) => parseSectionList(value).join(' & ');
+
 function SortHandle(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
@@ -270,7 +285,7 @@ export default function AddonsPage() {
       setItemForm({
         name: item.name,
         extra_price: item.extra_price,
-        section: item.section || '',
+        section: formatSectionList(item.section),
         sort_order: item.sort_order,
         is_active: item.is_active
       });
@@ -329,7 +344,7 @@ export default function AddonsPage() {
         const result = await updateAddonItem(editingItem.item.id, {
           name: itemForm.name,
           extra_price: itemForm.extra_price,
-          section: itemForm.section,
+          section: formatSectionList(itemForm.section),
           sort_order: itemForm.sort_order,
           is_active: itemForm.is_active
         });
@@ -347,7 +362,8 @@ export default function AddonsPage() {
         }
         const result = await createAddonItem({
           addon_group_id: groupId,
-          ...itemForm
+          ...itemForm,
+          section: formatSectionList(itemForm.section),
         });
         if (result.error) {
           toast.error(result.error);
@@ -587,7 +603,7 @@ export default function AddonsPage() {
                                                   <span className="text-xs text-gray-500 dark:text-gray-400">#{item.sort_order}</span>
                                                   {item.section && (
                                                     <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
-                                                      {item.section}
+                                                      {formatSectionLabel(item.section)}
                                                     </span>
                                                   )}
                                                   {!item.is_active && (
@@ -815,17 +831,35 @@ export default function AddonsPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Kitchen Section
+                Kitchen Sections
               </label>
-              <input
-                type="text"
-                value={itemForm.section}
-                onChange={(e) => setItemForm({ ...itemForm, section: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
-                placeholder="e.g., Grill, Fried. Leave blank for default fry ticket"
-              />
+              <div className="grid gap-2 sm:grid-cols-3">
+                {KITCHEN_SECTION_OPTIONS.map((option) => {
+                  const selectedSections = parseSectionList(itemForm.section);
+                  const checked = selectedSections.includes(option);
+                  return (
+                    <label
+                      key={option}
+                      className="flex items-center gap-2 rounded-lg border border-gray-300 dark:border-neutral-600 px-3 py-2 bg-white dark:bg-neutral-800"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          const next = checked
+                            ? selectedSections.filter((item) => item !== option)
+                            : [...selectedSections, option];
+                          setItemForm({ ...itemForm, section: formatSectionList(next.join(',')) });
+                        }}
+                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700 dark:text-gray-300">{option}</span>
+                    </label>
+                  );
+                })}
+              </div>
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Free text section label used by kitchen printing. Selecting multiple section add-ons duplicates the ticket.
+                Select one or more sections. Leave all unchecked to keep the default fried behavior.
               </p>
             </div>
 

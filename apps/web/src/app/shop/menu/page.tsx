@@ -52,6 +52,21 @@ import {
 } from '@/app/actions/sale-products';
 import { getAddonGroups, getSaleProductAddonGroups, type AddonGroupWithItems } from '@/app/actions/addons';
 
+const KITCHEN_SECTION_OPTIONS = ['Fried', 'Grilled', 'Till'] as const;
+
+const parseSectionList = (value?: string | null) =>
+  Array.from(
+    new Set(
+      (value || '')
+        .split(',')
+        .map((item) => item.trim())
+        .filter((item): item is string => KITCHEN_SECTION_OPTIONS.includes(item as (typeof KITCHEN_SECTION_OPTIONS)[number]))
+    )
+  );
+
+const formatSectionList = (value?: string | null) => parseSectionList(value).join(',');
+const formatSectionLabel = (value?: string | null) => parseSectionList(value).join(' & ');
+
 function SortHandle(props: ButtonHTMLAttributes<HTMLButtonElement> & { disabled?: boolean }) {
   return (
     <button
@@ -180,6 +195,7 @@ export default function MenuPage() {
   const [categoryForm, setCategoryForm] = useState({
     name: '',
     description: '',
+    section: '',
     sort_order: 0,
     parent_category_id: '',
     is_active: true
@@ -459,7 +475,7 @@ export default function MenuPage() {
       setProductForm({
         name: product.name,
         description: product.description || '',
-        section: product.section || '',
+        section: formatSectionList(product.section),
         search_term: (product as unknown as { search_term?: string | null }).search_term ?? '',
         slug: (product as unknown as { slug?: string | null }).slug ?? '',
         seo_title: (product as unknown as { seo_title?: string | null }).seo_title ?? '',
@@ -536,6 +552,7 @@ export default function MenuPage() {
       setCategoryForm({
         name: category.name,
         description: category.description || '',
+        section: formatSectionList(category.section),
         sort_order: category.sort_order,
         parent_category_id: category.parent_category_id || '',
         is_active: category.is_active
@@ -550,6 +567,7 @@ export default function MenuPage() {
       setCategoryForm({
         name: '',
         description: '',
+        section: '',
         sort_order: maxSiblingOrder + 1,
         parent_category_id: defaultParentCategoryId,
         is_active: true
@@ -569,10 +587,11 @@ export default function MenuPage() {
     try {
       if (editingProduct) {
         const result = await updateSaleProduct(editingProduct.id, {
-          ...productForm,
-          warning_threshold_units: productForm.warning_threshold_units === '' ? null : Number(productForm.warning_threshold_units),
-          alert_threshold_units: productForm.alert_threshold_units === '' ? null : Number(productForm.alert_threshold_units),
-          addon_group_ids: productForm.addon_group_ids,
+        ...productForm,
+        section: formatSectionList(productForm.section),
+        warning_threshold_units: productForm.warning_threshold_units === '' ? null : Number(productForm.warning_threshold_units),
+        alert_threshold_units: productForm.alert_threshold_units === '' ? null : Number(productForm.alert_threshold_units),
+        addon_group_ids: productForm.addon_group_ids,
           included_products: productForm.included_products,
         });
         if (result.error) {
@@ -583,6 +602,7 @@ export default function MenuPage() {
       } else {
         const result = await createSaleProduct({
           ...productForm,
+          section: formatSectionList(productForm.section),
           warning_threshold_units: productForm.warning_threshold_units === '' ? null : Number(productForm.warning_threshold_units),
           alert_threshold_units: productForm.alert_threshold_units === '' ? null : Number(productForm.alert_threshold_units),
           addon_group_ids: productForm.addon_group_ids,
@@ -605,15 +625,19 @@ export default function MenuPage() {
   const handleCategorySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const payload = {
+        ...categoryForm,
+        section: formatSectionList(categoryForm.section),
+      };
       if (editingCategory) {
-        const result = await updateSaleCategory(editingCategory.id, categoryForm);
+        const result = await updateSaleCategory(editingCategory.id, payload);
         if (result.error) {
           toast.error(result.error);
           return;
         }
         toast.success('Category updated successfully');
       } else {
-        const result = await createSaleCategory(categoryForm);
+        const result = await createSaleCategory(payload);
         if (result.error) {
           toast.error(result.error);
           return;
@@ -769,7 +793,7 @@ export default function MenuPage() {
             <div className="text-xs text-gray-500 dark:text-gray-400">#{Number((product as unknown as { sort_order?: number }).sort_order ?? 0)}</div>
             {product.section && (
               <div className="mt-1 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
-                {product.section}
+                {formatSectionLabel(product.section)}
               </div>
             )}
           </div>
@@ -950,7 +974,7 @@ export default function MenuPage() {
                                     }`}
                                 >
                                   <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2 flex-wrap">
                                       {category.sub_categories.length > 0 && (
                                         expandedCategories.has(category.id) ? (
                                           <Icon icon={FaChevronDown} className="h-3 w-3" />
@@ -960,6 +984,11 @@ export default function MenuPage() {
                                       )}
                                       <span className="font-medium">{category.name}</span>
                                       <span className="text-xs text-gray-500 dark:text-gray-400">#{category.sort_order}</span>
+                                      {category.section && (
+                                        <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                                          {formatSectionLabel(category.section)}
+                                        </span>
+                                      )}
                                     </div>
                                     <span className="text-sm text-gray-500 dark:text-gray-400">
                                       {saleProducts.filter(p => p.sale_category_id === category.id).length}
@@ -1333,14 +1362,35 @@ export default function MenuPage() {
                 </label>
 
                 <label className="grid gap-2">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">Kitchen Section</span>
-                  <input
-                    type="text"
-                    value={productForm.section}
-                    onChange={(e) => setProductForm({ ...productForm, section: e.target.value })}
-                    className="h-10 rounded-xl border px-3 bg-white/80 dark:bg-neutral-900"
-                    placeholder="e.g. Grill, Fried. Leave blank for default fry ticket"
-                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">Kitchen Sections</span>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {KITCHEN_SECTION_OPTIONS.map((option) => {
+                      const selectedSections = parseSectionList(productForm.section);
+                      const checked = selectedSections.includes(option);
+                      return (
+                        <label
+                          key={option}
+                          className="flex items-center gap-2 rounded-xl border px-3 py-2 bg-white/80 dark:bg-neutral-900"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => {
+                              const next = checked
+                                ? selectedSections.filter((item) => item !== option)
+                                : [...selectedSections, option];
+                              setProductForm({ ...productForm, section: formatSectionList(next.join(',')) });
+                            }}
+                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-700 dark:text-gray-300">{option}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    Select one or more sections. Leave all unchecked to keep the default fried behavior.
+                  </span>
                 </label>
 
                 <label className="grid gap-2">
@@ -2154,6 +2204,38 @@ export default function MenuPage() {
                 placeholder="Enter category description"
               />
             </label>
+
+            <div className="grid gap-2">
+              <span className="text-sm text-gray-700 dark:text-gray-300">Kitchen Sections</span>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {KITCHEN_SECTION_OPTIONS.map((option) => {
+                  const selectedSections = parseSectionList(categoryForm.section);
+                  const checked = selectedSections.includes(option);
+                  return (
+                    <label
+                      key={`category-${option}`}
+                      className="flex items-center gap-2 rounded-xl border px-3 py-2 bg-white/80 dark:bg-neutral-900"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          const next = checked
+                            ? selectedSections.filter((item) => item !== option)
+                            : [...selectedSections, option];
+                          setCategoryForm({ ...categoryForm, section: formatSectionList(next.join(',')) });
+                        }}
+                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700 dark:text-gray-300">{option}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                Group fallback section used when add-ons and products do not define one.
+              </span>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <label className="grid gap-2">

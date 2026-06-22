@@ -162,10 +162,14 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 20,
+    flexGrow: 1,
+    justifyContent: 'center',
     alignItems: 'center',
   },
   imagePreviewContainer: {
     width: '100%',
+    maxWidth: 420,
+    alignSelf: 'center',
     backgroundColor: '#fff',
     borderRadius: 12,
     shadowColor: '#000',
@@ -214,4 +218,3 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
 });
-

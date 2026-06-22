@@ -20,6 +20,7 @@ import { CashTenderModal } from '../components/CashTenderModal';
 type SaleCategory = {
   id: string;
   name: string;
+  section?: string | null;
   sort_order: number | null;
   is_active: boolean | null;
   parent_category_id: string | null;
@@ -273,7 +274,7 @@ export default function PosScreen() {
 
       const { data, error } = await supabase
         .from('sale_categories')
-        .select('id, name, sort_order, is_active, parent_category_id')
+        .select('id, name, section, sort_order, is_active, parent_category_id')
         .eq('is_active', true)
         .order('sort_order', { ascending: true });
 
@@ -402,6 +403,12 @@ export default function PosScreen() {
   const productButtonColor = (productId: string) => (
     activeLayoutCategory?.products.find((product) => product.productId === productId)?.color
   );
+
+  const getProductGroupSection = useCallback((product: Pick<SaleProduct, 'sale_category_id' | 'sub_category_id'>) => {
+    const subCategorySection = categories.find((category) => category.id === product.sub_category_id)?.section;
+    if (subCategorySection) return subCategorySection;
+    return categories.find((category) => category.id === product.sale_category_id)?.section || null;
+  }, [categories]);
 
   const invalidateTopSellers = () => {
     catalogCache.topSellersToday = null;
@@ -993,7 +1000,7 @@ export default function PosScreen() {
     base_price: product.sale_price,
     quantity,
     subtotal: (product.sale_price + addonTotal(addons)) * quantity,
-    section: formatKitchenSectionValue(product.section, addons),
+    section: formatKitchenSectionValue(product.section, addons, getProductGroupSection(product)),
     removed_ingredients: removedIngredients,
     comment: comment.trim() || null,
     created_at: new Date().toISOString(),
@@ -1037,16 +1044,17 @@ export default function PosScreen() {
   };
 
   const openCartItemEditor = (item: PosCartItem) => {
+    const catalogProduct = [...products, ...searchProducts, ...topSellers].find((product) => product.id === item.product_id);
     const product: SaleProduct = {
       id: item.product_id,
       name: item.product_name,
       description: item.product_description,
-      section: item.section,
+      section: catalogProduct?.section ?? item.section,
       search_term: null,
       sale_price: item.base_price,
       image_url: item.product_image_url,
-      sale_category_id: null,
-      sub_category_id: null,
+      sale_category_id: catalogProduct?.sale_category_id ?? null,
+      sub_category_id: catalogProduct?.sub_category_id ?? null,
       sort_order: null,
       is_active: true,
     };
@@ -1100,7 +1108,7 @@ export default function PosScreen() {
       return {
         ...item,
         addons,
-        section: formatKitchenSectionValue(selectedProduct.section, addons),
+        section: formatKitchenSectionValue(selectedProduct.section, addons, getProductGroupSection(selectedProduct)),
         removed_ingredients: removedIngredients,
         subtotal: (selectedProduct.sale_price + addonTotal(addons)) * item.quantity,
       };

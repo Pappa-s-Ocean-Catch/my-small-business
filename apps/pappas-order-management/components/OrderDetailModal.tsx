@@ -13,6 +13,7 @@ import { paymentSummary, getNextQuickAction, groupAddons, getOrderLineItemCount,
 import type { AppSettings } from '../lib/settings';
 import { DEFAULT_APP_SETTINGS } from '../lib/settings';
 import { useRouter } from 'expo-router';
+import { getOrder } from '../lib/orders';
 
 interface OrderDetailModalProps {
   visible: boolean;
@@ -62,7 +63,12 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const isWide = width >= 820;
   const [toastVisible, setToastVisible] = React.useState(false);
   const [isCapturing, setIsCapturing] = React.useState(false);
+  const [printPreviewOrder, setPrintPreviewOrder] = React.useState<Order | null>(null);
   const receiptRef = React.useRef(null);
+
+  React.useEffect(() => {
+    setPrintPreviewOrder(order);
+  }, [order]);
 
   if (!order) return null;
 
@@ -86,6 +92,15 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
 
   const handleInternalPrint = async () => {
     let success = false;
+    let printOrder = order;
+
+    const latestOrderResult = await getOrder(order.id);
+    if (latestOrderResult.data) {
+      printOrder = latestOrderResult.data;
+      setPrintPreviewOrder(latestOrderResult.data);
+    } else if (latestOrderResult.error) {
+      console.warn('[OrderDetailModal] Failed to refresh order before printing:', latestOrderResult.error);
+    }
     
     // If onPrintImage is provided, capture the template first
     if (onPrintImage && receiptRef.current) {
@@ -104,16 +119,16 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
           width: targetDots * scale,
         });
         
-        success = await onPrintImage(order, uri);
+        success = await onPrintImage(printOrder, uri);
       } catch (error) {
         console.error('Failed to capture receipt:', error);
         // Fallback to standard print if capture fails
-        success = await onPrint(order);
+        success = await onPrint(printOrder);
       } finally {
         setIsCapturing(false);
       }
     } else {
-      success = await onPrint(order);
+      success = await onPrint(printOrder);
     }
 
     // Only show "Printing successful" toast if we are NOT in simulator mode
@@ -416,7 +431,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
         <View style={styles.hiddenReceiptContainer} pointerEvents="none">
            <View ref={receiptRef} collapsable={false}>
               <ReceiptTemplate 
-                order={order} 
+                order={printPreviewOrder || order} 
                 width={appSettings.printerPaperWidth === '58mm' ? 384 : 576} 
                 printSource="order-detail-modal:capture"
                 showTicketCounter={appSettings.printerSimulator}

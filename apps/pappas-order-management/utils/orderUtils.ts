@@ -184,28 +184,51 @@ export const parseKitchenSections = (value?: string | null): string[] => {
   );
 };
 
+export const getKitchenSectionKey = (value?: string | null): string =>
+  parseKitchenSections(value).join(',');
+
+export const getKitchenSectionDisplay = (value?: string | null): string =>
+  parseKitchenSections(value)
+    .map((section) => section.toUpperCase())
+    .join(' & ');
+
 export const resolveKitchenSections = (
   baseSection?: string | null,
-  addons?: OrderItemAddon[]
+  addons?: OrderItemAddon[],
+  fallbackSection?: string | null
 ): string[] => {
   const addonSections = Array.from(
     new Set(
-      (addons || [])
-        .map((addon) => normalizeKitchenSection(addon.section))
-        .filter((section): section is string => Boolean(section))
+      (addons || []).flatMap((addon) => parseKitchenSections(addon.section))
     )
   );
 
   if (addonSections.length > 0) return addonSections;
 
   const normalizedBase = normalizeKitchenSection(baseSection);
-  return [normalizedBase || DEFAULT_KITCHEN_SECTION];
+  const normalizedFallback = normalizeKitchenSection(fallbackSection);
+  return [normalizedBase || normalizedFallback || DEFAULT_KITCHEN_SECTION];
 };
 
 export const formatKitchenSectionValue = (
   baseSection?: string | null,
-  addons?: OrderItemAddon[]
-): string => resolveKitchenSections(baseSection, addons).join(', ');
+  addons?: OrderItemAddon[],
+  fallbackSection?: string | null
+): string => resolveKitchenSections(baseSection, addons, fallbackSection).join(', ');
+
+export const getResolvedKitchenSectionKey = (
+  baseSection?: string | null,
+  addons?: OrderItemAddon[],
+  fallbackSection?: string | null
+): string => resolveKitchenSections(baseSection, addons, fallbackSection).join(',');
+
+export const getResolvedKitchenSectionDisplay = (
+  baseSection?: string | null,
+  addons?: OrderItemAddon[],
+  fallbackSection?: string | null
+): string => resolveKitchenSections(baseSection, addons, fallbackSection)
+  .map((section) => section.toUpperCase())
+  .join(' & ');
 
 export const paymentSummary = (order: Order): string => {
   const type = getOrderChannelLabel(order);

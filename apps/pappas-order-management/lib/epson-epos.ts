@@ -1,5 +1,13 @@
 import type { Order, OrderItem, OrderItemAddon } from '@my-small-business/types';
-import { getOrderChannelReceiptLabel, getOrderLineItemCount, getOrderNotes, getOrderOptions, parseKitchenSections } from '../utils/orderUtils';
+import {
+  DEFAULT_KITCHEN_SECTION,
+  getResolvedKitchenSectionDisplay,
+  getResolvedKitchenSectionKey,
+  getOrderChannelReceiptLabel,
+  getOrderLineItemCount,
+  getOrderNotes,
+  getOrderOptions,
+} from '../utils/orderUtils';
 // this file is no longer use
 const FONT_SIZE = {
   large: { width: 2, height: 2 },
@@ -172,35 +180,30 @@ function formatItemLines(item: OrderItem): ReceiptLine[] {
 }
 
 function getOrderSectionTickets(order: Order): Array<{ sectionName: string | null; items: OrderItem[] }> {
-  const map = new Map<string, OrderItem[]>();
+  const map = new Map<string, { sectionName: string | null; items: OrderItem[] }>();
 
   for (const item of order.items || []) {
-    const sections = parseKitchenSections(item.section);
-    if (sections.length === 0) {
-      const fallback = map.get('') || [];
-      fallback.push(item);
-      map.set('', fallback);
-      continue;
-    }
-
-    for (const section of sections) {
-      const existing = map.get(section) || [];
-      existing.push(item);
-      map.set(section, existing);
-    }
+    const sectionKey = getResolvedKitchenSectionKey(item.section, item.addons) || DEFAULT_KITCHEN_SECTION;
+    const sectionName = getResolvedKitchenSectionDisplay(item.section, item.addons) || DEFAULT_KITCHEN_SECTION.toUpperCase();
+    const existing = map.get(sectionKey) || { sectionName, items: [] };
+    existing.items.push(item);
+    map.set(sectionKey, existing);
   }
 
   if (map.size === 0) return [{ sectionName: null, items: order.items || [] }];
-  return Array.from(map.entries()).map(([sectionName, items]) => ({
-    sectionName: sectionName || null,
-    items,
-  }));
+  return Array.from(map.values());
 }
 
 export function buildKitchenReceiptLines(order: Order, printSource?: string): ReceiptLine[] {
   const lines: ReceiptLine[] = [];
 
-  const tickets = getOrderSectionTickets(order);
+  const sections = getOrderSectionTickets(order);
+  const copyCount = Math.max(sections.length, 1);
+  const tickets = Array.from({ length: copyCount }, (_, index) => ({
+    copyNumber: index + 1,
+    totalCopies: copyCount,
+    sections,
+  }));
   tickets.forEach((ticket, ticketIndex) => {
     if (ticketIndex > 0) {
       lines.push('');
@@ -209,70 +212,77 @@ export function buildKitchenReceiptLines(order: Order, printSource?: string): Re
     }
 
     lines.push(...formatOrderHeaderLines(order));
-    if (ticket.sectionName) {
-      lines.push({ text: ticket.sectionName.toUpperCase(), bold: true, large: true, center: true });
-      lines.push('------------------------------');
+    if (copyCount > 1) {
+      lines.push({ text: `${ticket.copyNumber}/${ticket.totalCopies}`, bold: true, center: true });
+      lines.push('');
     }
 
-    if (ticket.items.length) {
-      for (const item of ticket.items) {
+    if (ticket.sections.length) {
+      for (const section of ticket.sections) {
+        if (section.sectionName) {
+          lines.push('================================');
+          lines.push({ text: section.sectionName, bold: true, large: true, center: true });
+          lines.push('================================');
+        }
+        for (const item of section.items) {
+          lines.push(...formatItemLines(item));
+          lines.push('');
+        }
+      }
+    } else {
+      for (const item of order.items || []) {
         lines.push(...formatItemLines(item));
         lines.push('');
       }
-    } else {
+    }
+
+    if ((order.items || []).length === 0) {
       lines.push('(No items)');
       lines.push('');
     }
-  });
+    lines.push('------------------------------');
+    lines.push(`Items:    ${getOrderLineItemCount(order)}`);
+    lines.push(`Subtotal: $${formatMoney(order.subtotal)}`);
+    if (order.tax > 0) lines.push(`Tax:      $${formatMoney(order.tax)}`);
+    if (order.delivery_fee > 0) lines.push(`Delivery: $${formatMoney(order.delivery_fee)}`);
+    if (order.promotion_discount > 0) lines.push(`Promo:   -$${formatMoney(order.promotion_discount)}`);
+    if (order.coupon_discount > 0) lines.push(`Coupon:  -$${formatMoney(order.coupon_discount)}`);
+    if ((order.reward_points_used ?? 0) > 0 && (order.reward_points_value ?? 0) > 0) {
+      lines.push(`Points:  -$${formatMoney(order.reward_points_value ?? 0)} (${(order.reward_points_used ?? 0).toLocaleString()} pts)`);
+    }
+    if (order.service_fee > 0) lines.push(`Service:  $${formatMoney(order.service_fee)}`);
 
-  lines.push('------------------------------');
-  lines.push(`Items:    ${getOrderLineItemCount(order)}`);
-  lines.push(`Subtotal: $${formatMoney(order.subtotal)}`);
-  if (order.tax > 0) lines.push(`Tax:      $${formatMoney(order.tax)}`);
-  if (order.delivery_fee > 0) lines.push(`Delivery: $${formatMoney(order.delivery_fee)}`);
-  if (order.promotion_discount > 0) lines.push(`Promo:   -$${formatMoney(order.promotion_discount)}`);
-  if (order.coupon_discount > 0) lines.push(`Coupon:  -$${formatMoney(order.coupon_discount)}`);
-  if ((order.reward_points_used ?? 0) > 0 && (order.reward_points_value ?? 0) > 0) {
-    lines.push(`Points:  -$${formatMoney(order.reward_points_value ?? 0)} (${(order.reward_points_used ?? 0).toLocaleString()} pts)`);
-  }
-  if (order.service_fee > 0) lines.push(`Service:  $${formatMoney(order.service_fee)}`);
+    let paymentStatus = 'UNPAID';
+    if (order.payment_status && typeof order.payment_status === 'string') {
+      paymentStatus = order.payment_status.toUpperCase() === 'PAID' ? 'PAID' : 'UNPAID';
+    }
+    const totalLine = `TOTAL:    $${formatMoney(order.total)}`;
+    const padLen = Math.max(0, 32 - (totalLine.length + paymentStatus.length + 2));
+    const pad = ' '.repeat(padLen);
+    lines.push({
+      text: `${totalLine}${pad}  ${paymentStatus}`,
+      bold: true,
+    });
 
-  // Payment status to the right of TOTAL line
-  let paymentStatus = 'UNPAID';
-  if (order.payment_status && typeof order.payment_status === 'string') {
-    paymentStatus = order.payment_status.toUpperCase() === 'PAID' ? 'PAID' : 'UNPAID';
-  }
-  // Add TOTAL line with payment status right-aligned
-  const totalLine = `TOTAL:    $${formatMoney(order.total)}`;
-  // Pad spaces to align payment status to the right (approximate for 32-char width)
-  const padLen = Math.max(0, 32 - (totalLine.length + paymentStatus.length + 2));
-  const pad = ' '.repeat(padLen);
-  lines.push({
-    text: `${totalLine}${pad}  ${paymentStatus}`,
-    bold: true,
-  });
-
-  lines.push('');
-  lines.push('');
-
-  // Add vertical space before order number in the middle
-  lines.push('');
-  lines.push('');
-  // Print only the last segment of the order number as P###, bold and big, centered (middle of receipt)
-  let orderNum = order.order_number || '';
-  let lastSegment = orderNum.split('-').pop() || orderNum;
-  lastSegment = lastSegment.replace(/\D+/g, '');
-  lines.push({
-    text: `P${lastSegment}`,
-    bold: true,
-    large: true,
-    center: true,
-  });
-
-  if (printSource) {
     lines.push('');
-    lines.push({ text: `Print source: ${printSource}`, center: true });
-  }
+    lines.push('');
+    lines.push('');
+    lines.push('');
+    let orderNum = order.order_number || '';
+    let lastSegment = orderNum.split('-').pop() || orderNum;
+    lastSegment = lastSegment.replace(/\D+/g, '');
+    lines.push({
+      text: `P${lastSegment}`,
+      bold: true,
+      large: true,
+      center: true,
+    });
+
+    if (printSource) {
+      lines.push('');
+      lines.push({ text: `Print source: ${printSource}`, center: true });
+    }
+  });
 
   return lines;
 }

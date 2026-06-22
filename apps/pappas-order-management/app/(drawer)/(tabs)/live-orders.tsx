@@ -287,6 +287,7 @@ export default function LiveOrdersScreen() {
 
     try {
       const isAutoPrint = Boolean(options.auto);
+      let freshOrder = order;
 
       if (isAutoPrint) {
         if (autoPrintedOrderIdsRef.current.has(order.id) || autoPrintingOrderIdsRef.current.has(order.id)) {
@@ -319,6 +320,17 @@ export default function LiveOrdersScreen() {
         }
       }
 
+      const latestOrderResult = await getOrder(order.id);
+      if (latestOrderResult.data) {
+        freshOrder = latestOrderResult.data;
+        setOrders((prev) => prev.map((item) => (item.id === freshOrder.id ? freshOrder : item)));
+        if (selectedOrder?.id === freshOrder.id) {
+          setSelectedOrder(freshOrder);
+        }
+      } else if (latestOrderResult.error) {
+        console.warn('[LiveOrders] Failed to refresh order before printing:', latestOrderResult.error);
+      }
+
       const s = appSettingsRef.current;
       setIsCapturing(true);
       setPrintingOrderId(order.id);
@@ -331,7 +343,7 @@ export default function LiveOrdersScreen() {
       
       // Update the hidden template with this order
       const printSource = isAutoPrint ? 'live-orders:auto-print' : 'live-orders:manual-list-print';
-      setTempPrintingOrder(order);
+      setTempPrintingOrder(freshOrder);
       setTempPrintSource(printSource);
       
       // Wait for re-render
@@ -352,7 +364,7 @@ export default function LiveOrdersScreen() {
       });
 
       if (s.printerSimulator) {
-        setSimulatorOrder(order);
+        setSimulatorOrder(freshOrder);
         setPrintImageUri(uri);
         setShowSimulator(true);
         if (isAutoPrint) {
@@ -404,6 +416,7 @@ export default function LiveOrdersScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      void loadOrders();
       loadAppSettings().then((s) => {
         setAppSettings(s);
         appSettingsRef.current = s;

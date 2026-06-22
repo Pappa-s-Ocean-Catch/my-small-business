@@ -103,12 +103,24 @@ export default function PreOrdersScreen() {
 
   const quickPrintOrder = async (order: Order) => {
     try {
+      let freshOrder = order;
+      const latestOrderResult = await getOrder(order.id);
+      if (latestOrderResult.data) {
+        freshOrder = latestOrderResult.data;
+        setOrders((prev) => prev.map((item) => (item.id === freshOrder.id ? freshOrder : item)));
+        if (selectedOrder?.id === freshOrder.id) {
+          setSelectedOrder(freshOrder);
+        }
+      } else if (latestOrderResult.error) {
+        console.warn('[PreOrders] Failed to refresh order before printing:', latestOrderResult.error);
+      }
+
       const s = appSettingsRef.current;
       setIsCapturing(true);
       setPrintingOrderId(order.id);
       
       // Update the hidden template with this order
-      setTempPrintingOrder(order);
+      setTempPrintingOrder(freshOrder);
       setTempPrintSource('pre-orders:manual-list-print');
       
       // Wait for re-render
@@ -129,7 +141,7 @@ export default function PreOrdersScreen() {
       });
 
       if (s.printerSimulator) {
-        setSimulatorOrder(order);
+        setSimulatorOrder(freshOrder);
         setPrintImageUri(uri);
         setShowSimulator(true);
         return;
@@ -175,7 +187,7 @@ export default function PreOrdersScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadOrders();
+      void loadOrders();
     }, [])
   );
 

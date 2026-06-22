@@ -2,12 +2,14 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import type { Order } from '@my-small-business/types';
 import {
+  DEFAULT_KITCHEN_SECTION,
   getOrderChannelReceiptLabel,
+  getResolvedKitchenSectionDisplay,
+  getResolvedKitchenSectionKey,
   getOrderLineItemCount,
   getOrderNotes,
   getOrderOptions,
   groupAddons,
-  parseKitchenSections,
 } from '../utils/orderUtils';
 
 interface ReceiptTemplateProps {
@@ -38,38 +40,41 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ order, width =
   const orderNotes = getOrderNotes(order);
   const lineItemCount = getOrderLineItemCount(order);
   const sectionEntries = (() => {
-    const map = new Map<string, NonNullable<Order['items']>>();
+    const map = new Map<string, { sectionName: string | null; items: NonNullable<Order['items']> }>();
     for (const item of order.items || []) {
-      const itemSections = parseKitchenSections(item.section);
-      for (const section of itemSections) {
-        const existing = map.get(section) || [];
-        existing.push(item);
-        map.set(section, existing);
-      }
+      const sectionKey = getResolvedKitchenSectionKey(item.section, item.addons) || DEFAULT_KITCHEN_SECTION;
+      const sectionName = getResolvedKitchenSectionDisplay(item.section, item.addons) || DEFAULT_KITCHEN_SECTION.toUpperCase();
+      const existing = map.get(sectionKey) || { sectionName, items: [] };
+      existing.items.push(item);
+      map.set(sectionKey, existing);
     }
-    return Array.from(map.entries());
+    return Array.from(map.values());
   })();
 
   const tickets = sectionEntries.length > 0
-    ? sectionEntries.map(([sectionName, items]) => ({ sectionName, items }))
-    : [{ sectionName: null, items: order.items || [] }];
+    ? Array.from({ length: sectionEntries.length }, (_, index) => ({
+      key: `copy-${index + 1}`,
+      copyNumber: index + 1,
+      totalCopies: sectionEntries.length,
+      sections: sectionEntries,
+    }))
+    : [{
+      key: 'copy-1',
+      copyNumber: 1,
+      totalCopies: 1,
+      sections: [{ sectionName: null, items: order.items || [] }],
+    }];
 
   return (
     <View>
       {tickets.map((ticket, ticketIdx) => (
         <View
-          key={`${ticket.sectionName || 'default'}-${ticketIdx}`}
+          key={ticket.key}
           style={[styles.container, { width }, ticketIdx > 0 ? styles.ticketSpacing : null]}
         >
           {showTicketCounter && tickets.length > 1 && (
             <View style={styles.ticketCounterRow}>
-              <Text style={styles.ticketCounterText}>{ticketIdx + 1}/{tickets.length}</Text>
-            </View>
-          )}
-
-          {ticket.sectionName && (
-            <View style={styles.sectionBanner}>
-              <Text style={styles.sectionBannerText}>{ticket.sectionName.toUpperCase()}</Text>
+              <Text style={styles.ticketCounterText}>{ticket.copyNumber}/{ticket.totalCopies}</Text>
             </View>
           )}
 
@@ -116,29 +121,41 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ order, width =
               <Text style={styles.optionText}>* {option}</Text>
             </View>
           ))}
-          {ticket.items?.map((item, idx) => (
-            <View key={`${ticketIdx}-${idx}`} style={styles.itemContainer}>
-              <View style={styles.itemLineRow}>
-                <Text style={styles.itemNameLine} numberOfLines={3}>
-                  {item.quantity}x {item.product_name}
-                </Text>
-                <Text style={styles.itemLinePrice}>${formatMoney(item.subtotal)}</Text>
-              </View>
-              {item.removed_ingredients?.map((ing, rIdx) => (
-                <Text key={`rm-${ticketIdx}-${rIdx}`} style={styles.removedText}>
-                  No {ing}
-                </Text>
-              ))}
-              {groupAddons(item.addons || []).map((addon, aIdx) => (
-                <Text key={`ad-${ticketIdx}-${aIdx}`} style={styles.addonText}>
-                  {addon.quantity > 1 ? `${addon.quantity}x ` : '+ '}{addon.name} {addon.price ? `($${formatMoney(addon.price)})` : ''}
-                </Text>
-              ))}
-              {item.comment?.trim() && (
-                <Text style={styles.itemNote}>
-                  Notes: {item.comment}
-                </Text>
+          {ticket.sections.map((section, sectionIdx) => (
+            <View key={`${ticket.key}-section-${sectionIdx}`}>
+              {section.sectionName && (
+                <View style={styles.itemSectionHeader}>
+                  <View style={styles.itemSectionLine} />
+                  <Text style={styles.itemSectionHeaderText}>{section.sectionName}</Text>
+                  <View style={styles.itemSectionLine} />
+                </View>
               )}
+              {section.items.map((item, idx) => (
+                <View key={`${ticketIdx}-${sectionIdx}-${idx}`} style={styles.itemContainer}>
+                  <View style={styles.itemLineRow}>
+                    <Text style={styles.itemNameLine} numberOfLines={3}>
+                      {item.quantity}x {item.product_name}
+                    </Text>
+                    <Text style={styles.itemLinePrice}>${formatMoney(item.subtotal)}</Text>
+                  </View>
+                  {item.removed_ingredients?.map((ing, rIdx) => (
+                    <Text key={`rm-${ticketIdx}-${sectionIdx}-${rIdx}`} style={styles.removedText}>
+                      No {ing}
+                    </Text>
+                  ))}
+                  {groupAddons(item.addons || []).map((addon, aIdx) => (
+                    <Text key={`ad-${ticketIdx}-${sectionIdx}-${aIdx}`} style={styles.addonText}>
+                      {addon.quantity > 1 ? `${addon.quantity}x ` : '+ '}{addon.name} {addon.price ? `($${formatMoney(addon.price)})` : ''}
+                    </Text>
+                  ))}
+                  {item.comment?.trim() && (
+                    <Text style={styles.itemNote}>
+                      Notes: {item.comment}
+                    </Text>
+                  )}
+                  {idx < section.items.length - 1 && <View style={styles.itemDivider} />}
+                </View>
+              ))}
             </View>
           ))}
 
@@ -235,18 +252,6 @@ const styles = StyleSheet.create({
     color: '#475569',
     fontWeight: '600',
   },
-  sectionBanner: {
-    alignItems: 'center',
-    marginBottom: 12,
-    paddingVertical: 8,
-    borderWidth: 2,
-    borderColor: '#000',
-  },
-  sectionBannerText: {
-    fontSize: 40,
-    fontWeight: '900',
-    color: '#000',
-  },
   preOrderContainer: {
     alignItems: 'center',
     marginBottom: 16,
@@ -295,6 +300,12 @@ const styles = StyleSheet.create({
   itemContainer: {
     marginBottom: 12,
   },
+  itemDivider: {
+    marginTop: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#9ca3af',
+    borderStyle: 'dotted',
+  },
   optionContainer: {
     marginBottom: 10,
   },
@@ -303,6 +314,25 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#111827',
     lineHeight: 44,
+  },
+  itemSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    width: '100%',
+    marginTop: 16,
+    marginBottom: 16,
+  },
+  itemSectionLine: {
+    flex: 1,
+    height: 2,
+    backgroundColor: '#000',
+  },
+  itemSectionHeaderText: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#000',
+    textAlign: 'center',
   },
   itemLineRow: {
     flexDirection: 'row',

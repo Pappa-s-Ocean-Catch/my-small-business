@@ -114,6 +114,7 @@ export interface SaleCategory {
   id: string;
   name: string;
   description: string | null;
+  section: string | null;
   sort_order: number;
   is_active: boolean;
   parent_category_id: string | null;
@@ -221,6 +222,7 @@ export async function getSaleCategories(): Promise<{ data: SaleCategory[] | null
 export async function createSaleCategory(formData: {
   name: string;
   description?: string;
+  section?: string;
   sort_order?: number;
   parent_category_id?: string;
   is_active?: boolean;
@@ -233,6 +235,7 @@ export async function createSaleCategory(formData: {
       .insert([{
         name: formData.name,
         description: formData.description || null,
+        section: formData.section?.trim() || null,
         sort_order: formData.sort_order || 0,
         parent_category_id: formData.parent_category_id || null,
         is_active: formData.is_active !== undefined ? formData.is_active : true
@@ -257,6 +260,7 @@ export async function updateSaleCategory(
   formData: {
     name: string;
     description?: string;
+    section?: string;
     sort_order?: number;
     is_active?: boolean;
     parent_category_id?: string;
@@ -270,6 +274,7 @@ export async function updateSaleCategory(
       .update({
         name: formData.name,
         description: formData.description || null,
+        section: formData.section?.trim() || null,
         sort_order: formData.sort_order || 0,
         is_active: formData.is_active !== undefined ? formData.is_active : true,
         parent_category_id: formData.parent_category_id || null
