@@ -4,6 +4,7 @@ import { supabase } from './supabase';
 export type PosLayoutProduct = {
   productId: string;
   color?: string;
+  showOnQuickList?: boolean;
 };
 
 export type PosLayoutCategory = {
@@ -70,6 +71,7 @@ export const normalizePosLayout = (layout: unknown): PosLayoutData => {
               .map((product) => ({
                 productId: product.productId,
                 color: product.color,
+                showOnQuickList: Boolean(product.showOnQuickList),
               }))
             : [],
         }))

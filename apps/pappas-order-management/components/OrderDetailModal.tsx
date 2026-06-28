@@ -19,6 +19,7 @@ interface OrderDetailModalProps {
   visible: boolean;
   order: Order | null;
   onClose: () => void;
+  onOrderRefresh?: (order: Order) => void;
   onPrint: (order: Order) => Promise<boolean>;
   onPrintImage?: (order: Order, imageUri: string) => Promise<boolean>;
   onCustomerPress: (order: Order) => void;
@@ -41,6 +42,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   visible,
   order,
   onClose,
+  onOrderRefresh,
   onPrint,
   onPrintImage,
   onCustomerPress,
@@ -69,6 +71,27 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   React.useEffect(() => {
     setPrintPreviewOrder(order);
   }, [order]);
+
+  React.useEffect(() => {
+    if (!visible || !order) return;
+
+    let mounted = true;
+    const refreshOrder = async () => {
+      const latestOrderResult = await getOrder(order.id);
+      if (!mounted || !latestOrderResult.data) return;
+      onOrderRefresh?.(latestOrderResult.data);
+    };
+
+    void refreshOrder();
+    const intervalId = setInterval(() => {
+      void refreshOrder();
+    }, 5000);
+
+    return () => {
+      mounted = false;
+      clearInterval(intervalId);
+    };
+  }, [visible, order?.id, onOrderRefresh]);
 
   if (!order) return null;
 

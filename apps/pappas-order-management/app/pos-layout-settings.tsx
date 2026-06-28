@@ -370,6 +370,18 @@ export default function PosLayoutSettingsScreen() {
     }));
   };
 
+  const toggleProductQuickList = (productId: string) => {
+    if (!selectedCategoryId) return;
+    updateCategory(selectedCategoryId, (category) => ({
+      ...category,
+      products: category.products.map((product) => (
+        product.productId === productId
+          ? { ...product, showOnQuickList: !product.showOnQuickList }
+          : product
+      )),
+    }));
+  };
+
   const moveCategory = (index: number, direction: -1 | 1) => {
     setLayout((prev) => ({ ...prev, categories: moveItem(prev.categories, index, direction) }));
   };
@@ -759,6 +771,19 @@ export default function PosLayoutSettingsScreen() {
                       <View style={[styles.editorColorDot, { backgroundColor: productColor(product.id) || '#f9fafb' }]} />
                       <Text style={styles.editorTitle}>{product.name}</Text>
                     </View>
+                    <TouchableOpacity
+                      style={styles.inlineToggleRow}
+                      onPress={() => toggleProductQuickList(product.id)}
+                    >
+                      <Checkbox
+                        status={
+                          selectedLayoutCategory?.products.find((layoutProduct) => layoutProduct.productId === product.id)?.showOnQuickList
+                            ? 'checked'
+                            : 'unchecked'
+                        }
+                      />
+                      <Text style={styles.inlineToggleText}>Show on quick list</Text>
+                    </TouchableOpacity>
                     {renderColorSwatches(productColor(product.id), (color) => updateProductColor(product.id, color))}
                   </View>
                   <View style={styles.orderControls}>

@@ -16,6 +16,8 @@ import { epsonPrintKitchenReceipt } from '../lib/epson-epos';
 import { getOrderChannelLabel, getOrderLineItemCount, getOrderNotes, getOrderOptions } from '../utils/orderUtils';
 import { formatSmartpayError, isSmartpayPaired, processSmartpayCardPayment } from '../lib/smartpay';
 
+const CLOSED_ORDER_STATUSES: OrderStatus[] = ['completed', 'cancelled'];
+
 const STATUS_COLORS: Record<OrderStatus, string> = {
   pending: '#f59e0b',
   confirmed: '#3b82f6',
@@ -54,23 +56,43 @@ export default function OrderDetailScreen() {
     isSmartpayPaired().then(setSmartpayPaired).catch(() => setSmartpayPaired(false));
   }, [orderId]);
 
-  const loadOrder = async () => {
+  useEffect(() => {
+    if (!orderId) return;
+
+    const intervalId = setInterval(() => {
+      void loadOrder({ silent: true });
+    }, 5000);
+
+    return () => clearInterval(intervalId);
+  }, [orderId]);
+
+  const loadOrder = async (options?: { silent?: boolean }) => {
     if (!orderId) return;
 
     try {
-      setLoading(true);
+      if (!options?.silent) {
+        setLoading(true);
+      }
       const result = await getOrder(orderId);
       if (result.error) {
-        Alert.alert('Error', result.error);
-        router.back();
+        if (!options?.silent) {
+          Alert.alert('Error', result.error);
+          router.back();
+        } else {
+          console.warn('Silent order refresh failed:', result.error);
+        }
       } else {
         setOrder(result.data);
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to load order');
+      if (!options?.silent) {
+        Alert.alert('Error', 'Failed to load order');
+      }
       console.error('Error loading order:', error);
     } finally {
-      setLoading(false);
+      if (!options?.silent) {
+        setLoading(false);
+      }
     }
   };
 
@@ -120,16 +142,40 @@ export default function OrderDetailScreen() {
   };
 
   const handleSmartpayPayment = async () => {
-    if (!order || order.payment_status === 'paid') return;
+    if (!order || order.payment_status === 'paid' || CLOSED_ORDER_STATUSES.includes(order.order_status)) return;
     if (!smartpayPaired) {
       Alert.alert('SmartPay not paired', 'Pair this POS register with Smartpay before taking SmartPay payments.');
       return;
     }
 
     try {
+      const latestResult = await getOrder(order.id);
+      if (latestResult.error) {
+        Alert.alert('Order refresh failed', latestResult.error);
+        return;
+      }
+
+      const latestOrder = latestResult.data;
+      if (!latestOrder) {
+        Alert.alert('Order refresh failed', 'Order not found.');
+        return;
+      }
+
+      setOrder(latestOrder);
+
+      if (latestOrder.payment_status === 'paid') {
+        Alert.alert('Already paid', 'This order was already paid on another POS.');
+        return;
+      }
+
+      if (CLOSED_ORDER_STATUSES.includes(latestOrder.order_status)) {
+        Alert.alert('Order already closed', `This order is already ${latestOrder.order_status}.`);
+        return;
+      }
+
       setSmartpayProcessing(true);
-      await processSmartpayCardPayment(order.total);
-      const result = await updatePaymentStatus(order.id, 'paid', 'SmartPay');
+      await processSmartpayCardPayment(latestOrder.total);
+      const result = await updatePaymentStatus(latestOrder.id, 'paid', 'SmartPay');
       if (result.error) {
         Alert.alert('Payment update failed', result.error);
         return;

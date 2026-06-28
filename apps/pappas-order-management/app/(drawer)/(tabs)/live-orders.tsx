@@ -774,6 +774,10 @@ export default function LiveOrdersScreen() {
         visible={showOrderModal}
         order={selectedOrder}
         onClose={() => setShowOrderModal(false)}
+        onOrderRefresh={(updatedOrder) => {
+          setSelectedOrder(updatedOrder);
+          setOrders((prev) => prev.map((item) => (item.id === updatedOrder.id ? updatedOrder : item)));
+        }}
         onPrint={handlePrint}
         onPrintImage={handlePrintImage}
         onCustomerPress={handleCustomerPress}

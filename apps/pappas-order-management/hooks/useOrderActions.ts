@@ -9,6 +9,7 @@ import type { AppSettings } from '@/lib/settings';
 import { formatSmartpayError, isSmartpayPaired, processSmartpayCardPayment } from '@/lib/smartpay';
 
 const webBaseUrl = process.env.EXPO_PUBLIC_SITE_URL;
+const CLOSED_ORDER_STATUSES: OrderStatus[] = ['completed', 'cancelled'];
 
 export const useOrderActions = (
   appSettings: AppSettings,
@@ -44,6 +45,22 @@ export const useOrderActions = (
       clearInterval(id);
     };
   }, []);
+
+  const refreshLatestOrder = async (order: Order): Promise<Order | null> => {
+    const latestResult = await getOrder(order.id);
+    if (latestResult.data) {
+      if (onOrderUpdated) {
+        onOrderUpdated(latestResult.data);
+      }
+      return latestResult.data;
+    }
+
+    if (latestResult.error) {
+      Alert.alert('Order refresh failed', latestResult.error);
+    }
+
+    return null;
+  };
 
   const triggerOrderStatusEmail = async (orderId: string, status: string) => {
     if (!webBaseUrl) {
@@ -152,7 +169,7 @@ export const useOrderActions = (
   };
 
   const handleSmartpayPayment = async (order: Order) => {
-    if (order.payment_status === 'paid' || order.order_status === 'completed' || order.order_status === 'cancelled') {
+    if (order.payment_status === 'paid' || CLOSED_ORDER_STATUSES.includes(order.order_status)) {
       return;
     }
 
@@ -165,9 +182,25 @@ export const useOrderActions = (
 
     try {
       setUpdatingStatus(order.id);
+      const latestOrder = await refreshLatestOrder(order);
+      if (!latestOrder) {
+        return;
+      }
+
+      if (latestOrder.payment_status === 'paid') {
+        Alert.alert('Already paid', 'This order was already paid on another POS.');
+        return;
+      }
+
+      if (CLOSED_ORDER_STATUSES.includes(latestOrder.order_status)) {
+        Alert.alert('Order already closed', `This order is already ${latestOrder.order_status}. Refreshing the screen now.`);
+        await loadOrders();
+        return;
+      }
+
       setSmartpayProcessingOrderId(order.id);
-      await processSmartpayCardPayment(order.total);
-      const result = await updatePaymentStatus(order.id, 'paid', 'SmartPay');
+      await processSmartpayCardPayment(latestOrder.total);
+      const result = await updatePaymentStatus(latestOrder.id, 'paid', 'SmartPay');
       if (result.error) {
         Alert.alert('Payment update failed', result.error);
         return;

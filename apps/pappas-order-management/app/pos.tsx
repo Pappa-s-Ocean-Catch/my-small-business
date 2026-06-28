@@ -248,6 +248,7 @@ export default function PosScreen() {
   const [quickOrderNote, setQuickOrderNote] = useState<string | null>(null);
   const [saltOptionDialogVisible, setSaltOptionDialogVisible] = useState(false);
   const [orderNoteText, setOrderNoteText] = useState('');
+  const [quickListVisible, setQuickListVisible] = useState(false);
 
   const goHome = () => {
     router.replace('/(drawer)/(tabs)/live-orders');
@@ -568,6 +569,11 @@ export default function PosScreen() {
     }
   }, [menuLevel]);
 
+  useEffect(() => {
+    if (!posLayout) return;
+    void loadSearchProducts();
+  }, [posLayout]);
+
   const searchResults = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return searchProducts.slice(0, 24);
@@ -579,6 +585,28 @@ export default function PosScreen() {
       ))
       .slice(0, 24);
   }, [searchProducts, searchQuery]);
+
+  const quickAccessProducts = useMemo(() => {
+    if (!posLayout) return [];
+
+    const catalogProducts = searchProducts.length > 0
+      ? searchProducts
+      : catalogCache.allProducts?.data ?? [];
+    if (catalogProducts.length === 0) return [];
+
+    const productsById = new Map(catalogProducts.map((product) => [product.id, product]));
+    const seenProductIds = new Set<string>();
+
+    return posLayout.categories
+      .flatMap((category) => category.products)
+      .map((layoutProduct) => {
+        if (!layoutProduct.showOnQuickList) return null;
+        if (seenProductIds.has(layoutProduct.productId)) return null;
+        seenProductIds.add(layoutProduct.productId);
+        return productsById.get(layoutProduct.productId) ?? null;
+      })
+      .filter((product): product is SaleProduct => Boolean(product));
+  }, [posLayout, searchProducts]);
 
   useEffect(() => {
     if (!selectedCatId || menuLevel !== 'items') return;
@@ -1071,7 +1099,7 @@ export default function PosScreen() {
 
   const quickAddProduct = async (
     product: SaleProduct,
-    options: { skipCustomization?: boolean } = {}
+    options: { skipCustomization?: boolean; forcePlainAdd?: boolean } = {}
   ) => {
     const hasCustomizedCopy = cartItems.some((item) => (
       item.product_id === product.id && cartItemHasCustomizations(item)
@@ -1089,12 +1117,17 @@ export default function PosScreen() {
     const newItem = buildCartItem(product, 1, [], '', []);
     setCartItems((prev) => [...prev, newItem]);
 
+    if (options.forcePlainAdd) {
+      return;
+    }
+
     if (
       (!options.skipCustomization || hasCustomizedCopy)
       && (customizableProductIds.has(product.id)
         || await productHasCustomization(product.id)
       )
     ) {
+      setQuickListVisible(false);
       setSelectedProduct(product);
       setEditingItemId(newItem.id);
       setEditorAddonGroups([]);
@@ -1106,6 +1139,8 @@ export default function PosScreen() {
   };
 
   const openCartItemEditor = (item: PosCartItem) => {
+    setQuickListVisible(false);
+
     const catalogProduct = [...products, ...searchProducts, ...topSellers].find((product) => product.id === item.product_id);
     const product: SaleProduct = {
       id: item.product_id,
@@ -1682,8 +1717,10 @@ export default function PosScreen() {
                 />
                 <View style={styles.topSellersSection}>
                   <View style={styles.topSellersHeader}>
-                    <Text style={styles.topSellersTitle}>Top sellers today</Text>
-                    {loadingTopSellers && <Text style={styles.topSellersLoading}>Refreshing...</Text>}
+                    <View style={styles.topSellersHeaderText}>
+                      <Text style={styles.topSellersTitle}>Top sellers today</Text>
+                      {loadingTopSellers && <Text style={styles.topSellersLoading}>Refreshing...</Text>}
+                    </View>
                   </View>
                   {topSellers.length > 0 ? (
                     <FlatList
@@ -1879,6 +1916,17 @@ export default function PosScreen() {
                   >
                     {selectedParentCatId ? `Back to ${activeParentCategoryName}` : 'Back to Groups'}
                   </Button>
+                  <Button
+                    mode="contained"
+                    icon="lightning-bolt"
+                    onPress={() => setQuickListVisible(true)}
+                    style={styles.levelFooterQuickListButton}
+                    contentStyle={styles.quickListButtonContent}
+                    buttonColor="#0f766e"
+                    disabled={quickAccessProducts.length === 0}
+                  >
+                    Quick List
+                  </Button>
                 </View>
               </View>
             </>
@@ -1981,6 +2029,17 @@ export default function PosScreen() {
                       labelStyle={styles.levelFooterButtonLabel}
                     >
                       Back to Groups
+                    </Button>
+                    <Button
+                      mode="contained"
+                      icon="lightning-bolt"
+                      onPress={() => setQuickListVisible(true)}
+                      style={styles.levelFooterQuickListButton}
+                      contentStyle={styles.quickListButtonContent}
+                      buttonColor="#0f766e"
+                      disabled={quickAccessProducts.length === 0}
+                    >
+                      Quick List
                     </Button>
                     <Button
                       mode="contained"
@@ -2165,6 +2224,80 @@ export default function PosScreen() {
                 </View>
               </ScrollView>
             </>
+          )}
+
+          {menuLevel !== 'items' && menuLevel !== 'addons' && (
+            <View
+              pointerEvents="box-none"
+              style={[
+                styles.quickListButtonWrap,
+                menuLevel === 'groups' ? styles.quickListButtonWrapGroups : null,
+              ]}
+            >
+              <Button
+                mode="contained"
+                icon="lightning-bolt"
+                onPress={() => setQuickListVisible(true)}
+                style={styles.quickListButton}
+                contentStyle={styles.quickListButtonContent}
+                buttonColor="#0f766e"
+                disabled={quickAccessProducts.length === 0}
+              >
+                Quick List
+              </Button>
+            </View>
+          )}
+
+          {quickListVisible && (
+            <View style={styles.quickListOverlay}>
+              <View style={styles.quickListPanel}>
+                <View style={styles.quickListHeader}>
+                  <View>
+                    <Text style={styles.quickListTitle}>Quick list</Text>
+                    <Text style={styles.quickListSubtitle}>Tap items to add without leaving the cart</Text>
+                  </View>
+                  <IconButton icon="close" size={20} onPress={() => setQuickListVisible(false)} />
+                </View>
+                {quickAccessProducts.length > 0 ? (
+                  <FlatList
+                    data={quickAccessProducts}
+                    keyExtractor={(item) => item.id}
+                    numColumns={3}
+                    key="quick-list-3"
+                    contentContainerStyle={styles.quickListGrid}
+                    renderItem={({ item }) => {
+                      const quickQuantity = quickQuantityForProduct(item.id);
+                      const tilePalette = productTilePalette(item.id);
+                      return (
+                        <TouchableOpacity
+                          style={[
+                            styles.quickListCard,
+                            { backgroundColor: tilePalette.backgroundColor, borderColor: tilePalette.borderColor },
+                          ]}
+                          onPress={() => void quickAddProduct(item, { forcePlainAdd: true, skipCustomization: true })}
+                        >
+                          {quickQuantity > 0 && (
+                            <View style={styles.productQuantityBadge}>
+                              <Text style={styles.productQuantityText}>{quickQuantity}</Text>
+                            </View>
+                          )}
+                          <View style={styles.productNameArea}>
+                            <Text style={styles.productName} numberOfLines={3}>{item.name}</Text>
+                          </View>
+                          <View style={[styles.productPricePill, { backgroundColor: tilePalette.priceColor }]}>
+                            <Text style={styles.productPrice}>${item.sale_price.toFixed(2)}</Text>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    }}
+                  />
+                ) : (
+                  <Text style={styles.quickListEmpty}>
+                    Select products in POS Layout and check `Show on quick list` to display them here.
+                  </Text>
+                )}
+              </View>
+            </View>
           )}
         </View>
 
@@ -2427,6 +2560,55 @@ const styles = StyleSheet.create({
   headerTitle: { color: '#fff', fontWeight: '700' },
   body: { flex: 1, flexDirection: 'row', gap: 12, padding: 12 },
   menuPane: { flex: 1, backgroundColor: '#fff', borderRadius: 8, overflow: 'hidden' },
+  quickListButtonWrap: {
+    position: 'absolute',
+    left: 12,
+    bottom: 12,
+  },
+  quickListButtonWrapGroups: {
+    bottom: 140,
+  },
+  quickListButton: {
+    borderRadius: 999,
+    elevation: 3,
+  },
+  quickListButtonContent: {
+    minHeight: 48,
+    paddingHorizontal: 8,
+  },
+  quickListOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255,255,255,0.72)',
+    padding: 12,
+    paddingBottom: 72,
+  },
+  quickListPanel: {
+    flex: 1,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#fff',
+    paddingTop: 8,
+    paddingHorizontal: 8,
+    paddingBottom: 8,
+    shadowColor: '#111827',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  quickListHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingLeft: 8,
+    paddingRight: 2,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  quickListTitle: { color: '#111827', fontSize: 18, fontWeight: '900' },
+  quickListSubtitle: { color: '#6b7280', fontSize: 12, fontWeight: '700', marginTop: 2 },
   menuHeader: {
     minHeight: 52,
     borderBottomWidth: 1,
@@ -2458,6 +2640,11 @@ const styles = StyleSheet.create({
   levelFooterButton: {
     borderRadius: 10,
     minWidth: 220,
+    alignSelf: 'center',
+  },
+  levelFooterQuickListButton: {
+    borderRadius: 10,
+    minWidth: 180,
     alignSelf: 'center',
   },
   levelFooterButtonContent: {
@@ -2494,7 +2681,8 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     backgroundColor: '#fff',
   },
-  topSellersHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  topSellersHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 },
+  topSellersHeaderText: { flex: 1 },
   topSellersTitle: { color: '#111827', fontSize: 15, fontWeight: '900' },
   topSellersLoading: { color: '#6b7280', fontSize: 12, fontWeight: '700' },
   topSellersList: { gap: 8, paddingRight: 8 },
@@ -2796,4 +2984,15 @@ const styles = StyleSheet.create({
   smartpayAmount: { marginTop: 12, color: '#111827', fontSize: 28, fontWeight: '900', textAlign: 'center' },
   noteDialog: { backgroundColor: '#fff' },
   noteInput: { backgroundColor: '#fff', minHeight: 90 },
+  quickListGrid: { paddingTop: 8, paddingBottom: 8 },
+  quickListCard: {
+    flex: 1,
+    minHeight: 112,
+    margin: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    padding: 8,
+    justifyContent: 'space-between',
+  },
+  quickListEmpty: { color: '#6b7280', fontSize: 15, lineHeight: 22 },
 });
