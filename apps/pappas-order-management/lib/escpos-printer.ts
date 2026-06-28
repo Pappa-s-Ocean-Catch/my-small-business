@@ -132,8 +132,12 @@ export async function escposPrintOrderImage(
             source: { uri: imageUri },
             width: width,
           });
+          // Some printers need a little feed after large images before the cut
+          // command is honored reliably.
+          await p.addText('\n\n\n');
           await p.addCut();
           await p.sendData();
+          await new Promise((resolve) => setTimeout(resolve, 250));
         },
         { timeoutMs: 30000 } // Image printing can be slower
       );

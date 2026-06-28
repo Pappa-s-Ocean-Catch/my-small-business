@@ -189,19 +189,17 @@ export async function updateOrderStatus(
   }
 }
 
-export async function claimOrderForAutoPrint(orderId: string): Promise<{ claimed: boolean; error: string | null }> {
+export async function claimOrderForAutoPrint(
+  orderId: string,
+  deviceId: string,
+  staleAfterSeconds = 15
+): Promise<{ claimed: boolean; error: string | null }> {
   try {
-    const { data, error } = await supabase
-      .from('orders')
-      .update({
-        order_status: 'preparing',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', orderId)
-      .in('order_status', ['pending', 'confirmed'])
-      .neq('payment_status', 'refunded')
-      .select('id')
-      .maybeSingle();
+    const { data, error } = await supabase.rpc('claim_kitchen_print', {
+      p_order_id: orderId,
+      p_device_id: deviceId,
+      p_stale_after_seconds: staleAfterSeconds,
+    });
 
     if (error) {
       return { claimed: false, error: error.message };
@@ -209,10 +207,58 @@ export async function claimOrderForAutoPrint(orderId: string): Promise<{ claimed
 
     return { claimed: Boolean(data), error: null };
   } catch (error) {
-    console.error('Error claiming order for auto print:', error);
+    console.error('Error claiming order for kitchen print:', error);
     return {
       claimed: false,
-      error: error instanceof Error ? error.message : 'Failed to claim order for auto print',
+      error: error instanceof Error ? error.message : 'Failed to claim order for kitchen print',
+    };
+  }
+}
+
+export async function completeKitchenPrintClaim(
+  orderId: string,
+  deviceId: string
+): Promise<{ completed: boolean; error: string | null }> {
+  try {
+    const { data, error } = await supabase.rpc('complete_kitchen_print', {
+      p_order_id: orderId,
+      p_device_id: deviceId,
+    });
+
+    if (error) {
+      return { completed: false, error: error.message };
+    }
+
+    return { completed: Boolean(data), error: null };
+  } catch (error) {
+    console.error('Error completing kitchen print claim:', error);
+    return {
+      completed: false,
+      error: error instanceof Error ? error.message : 'Failed to complete kitchen print claim',
+    };
+  }
+}
+
+export async function releaseKitchenPrintClaim(
+  orderId: string,
+  deviceId: string
+): Promise<{ released: boolean; error: string | null }> {
+  try {
+    const { data, error } = await supabase.rpc('release_kitchen_print_claim', {
+      p_order_id: orderId,
+      p_device_id: deviceId,
+    });
+
+    if (error) {
+      return { released: false, error: error.message };
+    }
+
+    return { released: Boolean(data), error: null };
+  } catch (error) {
+    console.error('Error releasing kitchen print claim:', error);
+    return {
+      released: false,
+      error: error instanceof Error ? error.message : 'Failed to release kitchen print claim',
     };
   }
 }

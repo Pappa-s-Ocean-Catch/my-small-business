@@ -18,7 +18,14 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Audio } from 'expo-av';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
-import { claimOrderForAutoPrint, getAllOrders, updateOrderStatus, getOrder } from '@/lib/orders';
+import {
+  claimOrderForAutoPrint,
+  completeKitchenPrintClaim,
+  getAllOrders,
+  releaseKitchenPrintClaim,
+  updateOrderStatus,
+  getOrder,
+} from '@/lib/orders';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { playNewOrderSound } from '@/lib/sounds';
 import { DEFAULT_APP_SETTINGS, loadAppSettings, subscribeAppSettings, type AppSettings } from '@/lib/settings';
@@ -32,9 +39,12 @@ import { useOrderActions } from '@/hooks/useOrderActions';
 import { escposPrintOrderImage } from '@/lib/escpos-printer';
 import { captureRef } from 'react-native-view-shot';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
-import { shouldPlayOrderSound } from '@/utils/orderUtils';
+import { buildKitchenReceiptCopies, shouldPlayOrderSound } from '@/utils/orderUtils';
+import { getPrintDeviceId } from '@/lib/print-device';
 
 type TimeoutHandle = ReturnType<typeof setTimeout>;
+const SECTION_PRINT_DELAY_MS = 1500;
+const PRINT_CLAIM_STALE_AFTER_SECONDS = 15;
 
 export default function LiveOrdersScreen() {
   const router = useRouter();
@@ -54,6 +64,7 @@ export default function LiveOrdersScreen() {
   const [preOrderCount, setPreOrderCount] = useState<number>(0);
   const [tempPrintingOrder, setTempPrintingOrder] = useState<Order | null>(null);
   const [tempPrintSource, setTempPrintSource] = useState<string | null>(null);
+  const [tempPrintTicketIndex, setTempPrintTicketIndex] = useState(0);
   const [cashTenderOrder, setCashTenderOrder] = useState<Order | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const globalReceiptRef = useRef(null);
@@ -72,6 +83,7 @@ export default function LiveOrdersScreen() {
   const preOrderNoticeTimeoutRef = useRef<TimeoutHandle | null>(null);
   const appSettingsRef = useRef<AppSettings>(DEFAULT_APP_SETTINGS);
   const printQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const printDeviceIdRef = useRef<string | null>(null);
 
   const fetchPreOrderCount = async () => {
     try {
@@ -171,6 +183,8 @@ export default function LiveOrdersScreen() {
     setShowSimulator,
     printImageUri,
     setPrintImageUri,
+    printImageUris,
+    setPrintImageUris,
     smartpayPaired,
     smartpayProcessingOrderId,
     handleStatusUpdate,
@@ -254,7 +268,6 @@ export default function LiveOrdersScreen() {
 
   const announceAndPrintOrder = async (order: Order) => {
     if (processedOrderIdsRef.current.has(order.id)) return;
-    processedOrderIdsRef.current.add(order.id);
 
     const latestSettings = await loadAppSettings();
     setAppSettings(latestSettings);
@@ -262,6 +275,7 @@ export default function LiveOrdersScreen() {
 
     // 1. Auto-print if enabled
     if ((latestSettings.printerEnabled || latestSettings.printerSimulator) && latestSettings.printerAutoPrint) {
+       processedOrderIdsRef.current.add(order.id);
        try {
          // quickPrintOrder handles both simulator and real printing with image capture
          await quickPrintOrder(order, { auto: true });
@@ -274,16 +288,20 @@ export default function LiveOrdersScreen() {
 
     // 2. Update status to 'preparing' automatically when auto-print is disabled
     if (order.order_status === 'pending' || order.order_status === 'confirmed') {
+      processedOrderIdsRef.current.add(order.id);
       try {
         await updateOrderStatus(order.id, 'preparing');
       } catch (err) {
         console.error('Failed to update status to preparing:', err);
+        processedOrderIdsRef.current.delete(order.id);
       }
     }
   };
 
   const quickPrintOrder = async (order: Order, options: { auto?: boolean } = {}) => {
     let releasePrintQueue = () => {};
+    let claimedDeviceId: string | null = null;
+    let shouldReleaseClaim = false;
 
     try {
       const isAutoPrint = Boolean(options.auto);
@@ -302,22 +320,31 @@ export default function LiveOrdersScreen() {
         appSettingsRef.current = latestSettings;
 
         if (!latestSettings.printerAutoPrint || (!latestSettings.printerEnabled && !latestSettings.printerSimulator)) {
+          processedOrderIdsRef.current.delete(order.id);
           return;
         }
 
-        if (!latestSettings.printerSimulator) {
-          const claim = await claimOrderForAutoPrint(order.id);
-          if (!claim.claimed) {
-            if (claim.error) {
-              // Keep auto-print working even if the server-side claim is blocked by
-              // permissions or a transient Supabase error. The local in-flight sets
-              // still prevent duplicate prints from this mounted screen.
-              console.error('Auto print claim failed; printing with local guard only:', claim.error);
-            } else {
-              return;
-            }
-          }
+        if (!printDeviceIdRef.current) {
+          printDeviceIdRef.current = await getPrintDeviceId();
         }
+        claimedDeviceId = printDeviceIdRef.current;
+
+        const claim = await claimOrderForAutoPrint(order.id, claimedDeviceId, PRINT_CLAIM_STALE_AFTER_SECONDS);
+        if (!claim.claimed) {
+          if (claim.error) {
+            console.error('Auto print claim failed:', claim.error);
+            processedOrderIdsRef.current.delete(order.id);
+          } else {
+            const retryTimer = setTimeout(() => {
+              pendingAnnouncementTimersRef.current.delete(order.id);
+              processedOrderIdsRef.current.delete(order.id);
+              fetchAndAnnounceOrder(order.id);
+            }, (PRINT_CLAIM_STALE_AFTER_SECONDS + 5) * 1000);
+            pendingAnnouncementTimersRef.current.set(order.id, retryTimer);
+          }
+          return;
+        }
+        shouldReleaseClaim = true;
       }
 
       const latestOrderResult = await getOrder(order.id);
@@ -345,29 +372,43 @@ export default function LiveOrdersScreen() {
       const printSource = isAutoPrint ? 'live-orders:auto-print' : 'live-orders:manual-list-print';
       setTempPrintingOrder(freshOrder);
       setTempPrintSource(printSource);
-      
-      // Wait for re-render
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      if (!globalReceiptRef.current) {
-        throw new Error('Receipt template ref not found');
-      }
-
       const targetDots = s.printerPaperWidth === '58mm' ? 384 : 576;
       const scale = s.printerHighQuality ? 2 : 1;
+      const ticketCopies = isAutoPrint
+        ? buildKitchenReceiptCopies(freshOrder.items || [])
+        : [{ key: 'combined' }];
+      const imageUris: string[] = [];
 
-      const uri = await captureRef(globalReceiptRef.current, {
-        format: 'png',
-        quality: 1,
-        result: 'tmpfile',
-        width: targetDots * scale,
-      });
+      for (let ticketIndex = 0; ticketIndex < ticketCopies.length; ticketIndex++) {
+        setTempPrintTicketIndex(ticketIndex);
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        if (!globalReceiptRef.current) {
+          throw new Error('Receipt template ref not found');
+        }
+
+        const uri = await captureRef(globalReceiptRef.current, {
+          format: 'png',
+          quality: 1,
+          result: 'tmpfile',
+          width: targetDots * scale,
+        });
+        imageUris.push(uri);
+      }
 
       if (s.printerSimulator) {
         setSimulatorOrder(freshOrder);
-        setPrintImageUri(uri);
+        setPrintImageUri(imageUris[0] || null);
+        setPrintImageUris(imageUris);
         setShowSimulator(true);
         if (isAutoPrint) {
+          if (claimedDeviceId) {
+            const completion = await completeKitchenPrintClaim(order.id, claimedDeviceId);
+            if (!completion.completed) {
+              throw new Error(completion.error || 'Failed to complete kitchen print claim');
+            }
+            shouldReleaseClaim = false;
+          }
           autoPrintedOrderIdsRef.current.add(order.id);
         }
         return;
@@ -375,18 +416,51 @@ export default function LiveOrdersScreen() {
 
       const selected = s.printerSaved.find((p) => p.target === s.printerSelectedTarget) || null;
       if (!s.printerEnabled || !selected) {
+        if (isAutoPrint) {
+          processedOrderIdsRef.current.delete(order.id);
+        }
         Alert.alert('Printer error', 'Auto-print is enabled, but no printer is selected.');
         return;
       }
 
-      await escposPrintOrderImage(uri, selected, s.printerCopies);
+      for (let index = 0; index < imageUris.length; index++) {
+        await escposPrintOrderImage(
+          imageUris[index],
+          selected,
+          isAutoPrint ? 1 : s.printerCopies,
+          targetDots
+        );
+        if (index < imageUris.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, SECTION_PRINT_DELAY_MS));
+        }
+      }
       if (isAutoPrint) {
+        if (claimedDeviceId) {
+          const completion = await completeKitchenPrintClaim(order.id, claimedDeviceId);
+          if (!completion.completed) {
+            throw new Error(completion.error || 'Failed to complete kitchen print claim');
+          }
+          shouldReleaseClaim = false;
+        }
+        if (freshOrder.order_status === 'pending' || freshOrder.order_status === 'confirmed') {
+          const statusResult = await updateOrderStatus(order.id, 'preparing');
+          if (statusResult.error) {
+            console.warn('[LiveOrders] Failed to move order to preparing after print:', statusResult.error);
+          }
+        }
         autoPrintedOrderIdsRef.current.add(order.id);
       }
     } catch (error) {
       console.error('Quick print failed:', error);
+      processedOrderIdsRef.current.delete(order.id);
       Alert.alert('Print error', 'Failed to capture receipt template image for printing.');
     } finally {
+      if (claimedDeviceId && shouldReleaseClaim) {
+        const released = await releaseKitchenPrintClaim(order.id, claimedDeviceId);
+        if (released.error) {
+          console.error('Failed to release kitchen print claim:', released.error);
+        }
+      }
       releasePrintQueue();
       autoPrintingOrderIdsRef.current.delete(order.id);
       setIsCapturing(false);
@@ -721,11 +795,13 @@ export default function LiveOrdersScreen() {
       <View style={styles.hiddenReceiptContainer} pointerEvents="none">
          {tempPrintingOrder && (
            <View ref={globalReceiptRef} collapsable={false}>
-              <ReceiptTemplate 
-                order={tempPrintingOrder} 
+              <ReceiptTemplate
+                order={tempPrintingOrder}
                 width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
                 printSource={tempPrintSource || undefined}
                 showTicketCounter={appSettings.printerSimulator}
+                onlyTicketIndex={tempPrintTicketIndex}
+                duplicateBySections={tempPrintSource === 'live-orders:auto-print'}
               />
            </View>
          )}
@@ -735,6 +811,7 @@ export default function LiveOrdersScreen() {
         visible={showSimulator}
         order={simulatorOrder}
         imageUri={printImageUri}
+        imageUris={printImageUris}
         onClose={() => setShowSimulator(false)}
       />
 

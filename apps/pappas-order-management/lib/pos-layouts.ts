@@ -10,6 +10,7 @@ export type PosLayoutCategory = {
   categoryId: string;
   title?: string;
   sourceCategoryIds?: string[];
+  hideSourceCategories?: boolean;
   showProductsOnTopLevel?: boolean;
   color?: string;
   products: PosLayoutProduct[];
@@ -60,6 +61,7 @@ export const normalizePosLayout = (layout: unknown): PosLayoutData => {
           sourceCategoryIds: Array.isArray(category.sourceCategoryIds) && category.sourceCategoryIds.length > 0
             ? category.sourceCategoryIds
             : [category.categoryId],
+          hideSourceCategories: Boolean(category.hideSourceCategories),
           showProductsOnTopLevel: Boolean(category.showProductsOnTopLevel),
           color: category.color,
           products: Array.isArray(category.products)

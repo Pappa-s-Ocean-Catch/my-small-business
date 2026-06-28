@@ -277,11 +277,9 @@ export default function AddonsManagementScreen() {
         <SegmentedButtons
           value="addons"
           onValueChange={(value) => {
-            if (value === 'settings') router.push('/(drawer)/(tabs)/settings');
             if (value === 'menu') router.push('/menu-management');
           }}
           buttons={[
-            { value: 'settings', label: 'Settings' },
             { value: 'menu', label: 'Menu' },
             { value: 'addons', label: 'Add-ons' },
           ]}

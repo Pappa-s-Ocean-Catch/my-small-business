@@ -35,6 +35,7 @@ type LayoutGroupView = Omit<PosLayoutCategory, 'sourceCategoryIds'> & {
   sourceCategoryIds: string[];
   displayName: string;
   sourceNames: string[];
+  isVirtual: boolean;
 };
 
 const COLOR_OPTIONS = [
@@ -72,6 +73,16 @@ const moveItem = <T,>(items: T[], index: number, direction: -1 | 1) => {
   return next;
 };
 
+const moveItemToIndex = <T,>(items: T[], index: number, targetIndex: number) => {
+  if (index < 0 || index >= items.length) return items;
+  if (targetIndex < 0 || targetIndex >= items.length || targetIndex === index) return items;
+
+  const next = [...items];
+  const [item] = next.splice(index, 1);
+  next.splice(targetIndex, 0, item);
+  return next;
+};
+
 export default function PosLayoutSettingsScreen() {
   const router = useRouter();
   const [categories, setCategories] = useState<SaleCategory[]>([]);
@@ -90,8 +101,10 @@ export default function PosLayoutSettingsScreen() {
   const [saving, setSaving] = useState(false);
   const [layoutMenuVisible, setLayoutMenuVisible] = useState(false);
   const [virtualDialogVisible, setVirtualDialogVisible] = useState(false);
+  const [editingVirtualCategoryId, setEditingVirtualCategoryId] = useState<string | null>(null);
   const [virtualName, setVirtualName] = useState('');
   const [virtualSourceIds, setVirtualSourceIds] = useState<Record<string, boolean>>({});
+  const [virtualHideSourceCategories, setVirtualHideSourceCategories] = useState(false);
   const [customColorPicker, setCustomColorPicker] = useState<{
     color: string;
     apply: (color: string) => void;
@@ -105,6 +118,7 @@ export default function PosLayoutSettingsScreen() {
 
   const layoutGroupViews = useMemo<LayoutGroupView[]>(() => {
     const categoryById = new Map(topLevelCategories.map((category) => [category.id, category]));
+    const topLevelCategoryIds = new Set(topLevelCategories.map((category) => category.id));
     return layout.categories
       .map((layoutCategory) => {
         const sourceCategoryIds = layoutCategory.sourceCategoryIds?.length
@@ -120,6 +134,7 @@ export default function PosLayoutSettingsScreen() {
           sourceCategoryIds,
           displayName: layoutCategory.title || sourceNames[0],
           sourceNames,
+          isVirtual: !topLevelCategoryIds.has(layoutCategory.categoryId),
         };
       })
       .filter((category): category is LayoutGroupView => Boolean(category));
@@ -188,29 +203,30 @@ export default function PosLayoutSettingsScreen() {
     nextProducts: SaleProduct[]
   ): PosLayoutData => {
     const defaultLayout = buildDefaultLayout(nextCategories, nextProducts);
+    const defaultByCategoryId = new Map(defaultLayout.categories.map((category) => [category.categoryId, category]));
     const sourceByCategoryId = new Map(sourceLayout.categories.map((category) => [category.categoryId, category]));
+    const sourceCategoryIds = new Set(sourceLayout.categories.map((category) => category.categoryId));
 
-    const defaultCategoryIds = new Set(defaultLayout.categories.map((category) => category.categoryId));
-    const syncedDefaults = defaultLayout.categories.map((defaultCategory) => {
-        const sourceCategory = sourceByCategoryId.get(defaultCategory.categoryId);
-        const sourceProductIds = new Set(sourceCategory?.products.map((product) => product.productId) || []);
+    const syncCategory = (sourceCategory: PosLayoutCategory) => {
+      const defaultCategory = defaultByCategoryId.get(sourceCategory.categoryId);
+      if (defaultCategory) {
+        const sourceProductIds = new Set(sourceCategory.products.map((product) => product.productId));
         const defaultProductIds = new Set(defaultCategory.products.map((product) => product.productId));
-        const sourceProducts = (sourceCategory?.products || []).filter((product) => defaultProductIds.has(product.productId));
+        const sourceProducts = sourceCategory.products.filter((product) => defaultProductIds.has(product.productId));
         const missingProducts = defaultCategory.products.filter((product) => !sourceProductIds.has(product.productId));
 
         return {
           categoryId: defaultCategory.categoryId,
-          title: sourceCategory?.title || defaultCategory.title,
-          sourceCategoryIds: sourceCategory?.sourceCategoryIds || defaultCategory.sourceCategoryIds,
-          showProductsOnTopLevel: Boolean(sourceCategory?.showProductsOnTopLevel),
-          color: sourceCategory?.color || defaultCategory.color,
+          title: sourceCategory.title || defaultCategory.title,
+          sourceCategoryIds: sourceCategory.sourceCategoryIds || defaultCategory.sourceCategoryIds,
+          hideSourceCategories: Boolean(sourceCategory.hideSourceCategories),
+          showProductsOnTopLevel: Boolean(sourceCategory.showProductsOnTopLevel),
+          color: sourceCategory.color || defaultCategory.color,
           products: [...sourceProducts, ...missingProducts],
         };
-      });
+      }
 
-    const virtualCategories = sourceLayout.categories
-      .filter((category) => !defaultCategoryIds.has(category.categoryId))
-      .map((category) => {
+      const category = sourceCategory;
         const sourceCategoryIds = category.sourceCategoryIds?.length ? category.sourceCategoryIds : [category.categoryId];
         const sourceCategorySet = new Set(sourceCategoryIds);
         const childCategoryIds = nextCategories
@@ -229,6 +245,7 @@ export default function PosLayoutSettingsScreen() {
         return {
           ...category,
           sourceCategoryIds,
+          hideSourceCategories: Boolean(category.hideSourceCategories),
           products: [
             ...category.products.filter((product) => validProductSet.has(product.productId)),
             ...validProducts
@@ -236,17 +253,23 @@ export default function PosLayoutSettingsScreen() {
               .map((productId) => ({ productId })),
           ],
         };
-      })
+    };
+
+    const syncedExistingCategories = sourceLayout.categories
+      .map(syncCategory)
       .filter((category) => category.sourceCategoryIds.some((categoryId) => (
         nextCategories.some((sourceCategory) => sourceCategory.id === categoryId)
       )));
+
+    const missingDefaultCategories = defaultLayout.categories
+      .filter((category) => !sourceCategoryIds.has(category.categoryId));
 
     return {
       version: 1,
       quickOrderNotes: sourceLayout.quickOrderNotes?.length
         ? sourceLayout.quickOrderNotes
         : DEFAULT_POS_QUICK_ORDER_NOTES,
-      categories: [...syncedDefaults, ...virtualCategories],
+      categories: [...syncedExistingCategories, ...missingDefaultCategories],
     };
   };
 
@@ -351,11 +374,26 @@ export default function PosLayoutSettingsScreen() {
     setLayout((prev) => ({ ...prev, categories: moveItem(prev.categories, index, direction) }));
   };
 
+  const moveCategoryToEdge = (index: number, edge: 'top' | 'bottom') => {
+    setLayout((prev) => ({
+      ...prev,
+      categories: moveItemToIndex(prev.categories, index, edge === 'top' ? 0 : prev.categories.length - 1),
+    }));
+  };
+
   const moveProduct = (index: number, direction: -1 | 1) => {
     if (!selectedCategoryId) return;
     updateCategory(selectedCategoryId, (category) => ({
       ...category,
       products: moveItem(category.products, index, direction),
+    }));
+  };
+
+  const moveProductToEdge = (index: number, edge: 'top' | 'bottom') => {
+    if (!selectedCategoryId) return;
+    updateCategory(selectedCategoryId, (category) => ({
+      ...category,
+      products: moveItemToIndex(category.products, index, edge === 'top' ? 0 : category.products.length - 1),
     }));
   };
 
@@ -370,8 +408,23 @@ export default function PosLayoutSettingsScreen() {
   };
 
   const openVirtualGroupDialog = () => {
+    setEditingVirtualCategoryId(null);
     setVirtualName('');
     setVirtualSourceIds({});
+    setVirtualHideSourceCategories(false);
+    setVirtualDialogVisible(true);
+  };
+
+  const openEditVirtualGroupDialog = (category: LayoutGroupView) => {
+    setEditingVirtualCategoryId(category.categoryId);
+    setVirtualName(category.title || category.displayName);
+    setVirtualSourceIds(
+      category.sourceCategoryIds.reduce<Record<string, boolean>>((acc, categoryId) => {
+        acc[categoryId] = true;
+        return acc;
+      }, {})
+    );
+    setVirtualHideSourceCategories(Boolean(category.hideSourceCategories));
     setVirtualDialogVisible(true);
   };
 
@@ -379,7 +432,7 @@ export default function PosLayoutSettingsScreen() {
     setVirtualSourceIds((prev) => ({ ...prev, [categoryId]: !prev[categoryId] }));
   };
 
-  const createVirtualGroup = () => {
+  const saveVirtualGroup = () => {
     const sourceCategoryIds = topLevelCategories
       .filter((category) => virtualSourceIds[category.id])
       .map((category) => category.id);
@@ -393,13 +446,14 @@ export default function PosLayoutSettingsScreen() {
       .map((categoryId) => topLevelCategories.find((category) => category.id === categoryId)?.name)
       .filter((name): name is string => Boolean(name));
     const title = virtualName.trim() || sourceNames.join(' + ');
-    const virtualCategoryId = `virtual-${Date.now()}`;
+    const virtualCategoryId = editingVirtualCategoryId || `virtual-${Date.now()}`;
     const syncedVirtualLayout = syncLayoutWithCatalog({
       version: 1,
       categories: [{
         categoryId: virtualCategoryId,
         title,
         sourceCategoryIds,
+        hideSourceCategories: virtualHideSourceCategories,
         showProductsOnTopLevel: false,
         color: DEFAULT_POS_BUTTON_COLOR,
         products: [],
@@ -410,10 +464,26 @@ export default function PosLayoutSettingsScreen() {
 
     setLayout((prev) => ({
       ...prev,
-      categories: [...prev.categories, virtualGroup],
+      categories: editingVirtualCategoryId
+        ? prev.categories.map((category) => (
+          category.categoryId === editingVirtualCategoryId ? virtualGroup : category
+        ))
+        : [...prev.categories, virtualGroup],
     }));
     setSelectedCategoryId(virtualGroup.categoryId);
     setVirtualDialogVisible(false);
+  };
+
+  const deleteVirtualGroup = (categoryId: string) => {
+    setLayout((prev) => ({
+      ...prev,
+      categories: prev.categories.filter((category) => category.categoryId !== categoryId),
+    }));
+    if (selectedCategoryId === categoryId) {
+      setSelectedCategoryId(null);
+    }
+    setVirtualDialogVisible(false);
+    setEditingVirtualCategoryId(null);
   };
 
   const handleSave = async () => {
@@ -648,11 +718,27 @@ export default function PosLayoutSettingsScreen() {
                   <Checkbox status={category.showProductsOnTopLevel ? 'checked' : 'unchecked'} />
                   <Text style={styles.inlineToggleText}>Skip next level and show items here</Text>
                 </TouchableOpacity>
+                {category.isVirtual && (
+                  <TouchableOpacity
+                    style={styles.inlineToggleRow}
+                    onPress={() => openEditVirtualGroupDialog(category)}
+                  >
+                    <IconButton icon="pencil" size={18} />
+                    <Text style={styles.inlineToggleText}>
+                      {category.hideSourceCategories ? 'Edit virtual group and hidden source groups' : 'Edit virtual group'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
                 {renderColorSwatches(categoryColor(category.categoryId), (color) => updateCategoryColor(category.categoryId, color))}
               </View>
               <View style={styles.orderControls}>
+                <IconButton icon="arrow-collapse-up" size={18} onPress={() => moveCategoryToEdge(index, 'top')} disabled={index === 0} />
                 <IconButton icon="arrow-up" size={18} onPress={() => moveCategory(index, -1)} disabled={index === 0} />
                 <IconButton icon="arrow-down" size={18} onPress={() => moveCategory(index, 1)} disabled={index === orderedCategories.length - 1} />
+                <IconButton icon="arrow-collapse-down" size={18} onPress={() => moveCategoryToEdge(index, 'bottom')} disabled={index === orderedCategories.length - 1} />
+                {category.isVirtual && (
+                  <IconButton icon="trash-can-outline" size={18} onPress={() => deleteVirtualGroup(category.categoryId)} />
+                )}
                 <IconButton icon="chevron-right" size={18} onPress={() => setSelectedCategoryId(category.categoryId)} />
               </View>
             </View>
@@ -676,8 +762,10 @@ export default function PosLayoutSettingsScreen() {
                     {renderColorSwatches(productColor(product.id), (color) => updateProductColor(product.id, color))}
                   </View>
                   <View style={styles.orderControls}>
+                    <IconButton icon="arrow-collapse-up" size={18} onPress={() => moveProductToEdge(index, 'top')} disabled={index === 0} />
                     <IconButton icon="arrow-up" size={18} onPress={() => moveProduct(index, -1)} disabled={index === 0} />
                     <IconButton icon="arrow-down" size={18} onPress={() => moveProduct(index, 1)} disabled={index === orderedProducts.length - 1} />
+                    <IconButton icon="arrow-collapse-down" size={18} onPress={() => moveProductToEdge(index, 'bottom')} disabled={index === orderedProducts.length - 1} />
                   </View>
                 </View>
               ))}
@@ -688,7 +776,7 @@ export default function PosLayoutSettingsScreen() {
 
       <Portal>
         <Dialog visible={virtualDialogVisible} onDismiss={() => setVirtualDialogVisible(false)} style={styles.dialog}>
-          <Dialog.Title>Create virtual group</Dialog.Title>
+          <Dialog.Title>{editingVirtualCategoryId ? 'Edit virtual group' : 'Create virtual group'}</Dialog.Title>
           <Dialog.Content>
             <TextInput
               label="POS group name"
@@ -709,10 +797,20 @@ export default function PosLayoutSettingsScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+            <TouchableOpacity
+              style={styles.inlineToggleRow}
+              onPress={() => setVirtualHideSourceCategories((value) => !value)}
+            >
+              <Checkbox status={virtualHideSourceCategories ? 'checked' : 'unchecked'} />
+              <Text style={styles.inlineToggleText}>Hide source groups on POS</Text>
+            </TouchableOpacity>
           </Dialog.Content>
           <Dialog.Actions>
             <Button onPress={() => setVirtualDialogVisible(false)}>Cancel</Button>
-            <Button onPress={createVirtualGroup}>Create</Button>
+            {editingVirtualCategoryId && (
+              <Button textColor="#dc2626" onPress={() => deleteVirtualGroup(editingVirtualCategoryId)}>Delete</Button>
+            )}
+            <Button onPress={saveVirtualGroup}>{editingVirtualCategoryId ? 'Save' : 'Create'}</Button>
           </Dialog.Actions>
         </Dialog>
 

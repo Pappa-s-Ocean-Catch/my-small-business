@@ -207,6 +207,7 @@ export default function PosScreen() {
   const orderId = Array.isArray(rawOrderId) ? rawOrderId[0] : rawOrderId;
   const [categories, setCategories] = useState<SaleCategory[]>([]);
   const [selectedCatId, setSelectedCatId] = useState<string | null>(null);
+  const [selectedParentCatId, setSelectedParentCatId] = useState<string | null>(null);
   const [products, setProducts] = useState<SaleProduct[]>([]);
   const [topSellers, setTopSellers] = useState<TopSellerProduct[]>([]);
   const [cartItems, setCartItems] = useState<PosCartItem[]>([]);
@@ -215,7 +216,7 @@ export default function PosScreen() {
   const [loadingTopSellers, setLoadingTopSellers] = useState(false);
   const [topSellerRefreshKey, setTopSellerRefreshKey] = useState(0);
   const [customizableProductIds, setCustomizableProductIds] = useState<Set<string>>(new Set());
-  const [menuLevel, setMenuLevel] = useState<'groups' | 'items' | 'addons' | 'checkout' | 'search'>('groups');
+  const [menuLevel, setMenuLevel] = useState<'groups' | 'subgroups' | 'items' | 'addons' | 'checkout' | 'search'>('groups');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchProducts, setSearchProducts] = useState<SaleProduct[]>([]);
 
@@ -328,15 +329,37 @@ export default function PosScreen() {
   }, [categories]);
 
   const activeLayoutCategory = useMemo(
-    () => posLayout?.categories.find((category) => category.categoryId === selectedCatId) ?? null,
-    [posLayout, selectedCatId]
+    () => posLayout?.categories.find((category) => category.categoryId === (selectedParentCatId || selectedCatId)) ?? null,
+    [posLayout, selectedCatId, selectedParentCatId]
   );
+
+  const childCategoriesForSelectedGroup = useMemo(() => {
+    const parentId = selectedParentCatId || selectedCatId;
+    if (!parentId) return [];
+
+    const sourceCategoryIds = activeLayoutCategory?.sourceCategoryIds?.length
+      ? activeLayoutCategory.sourceCategoryIds
+      : [parentId];
+
+    return categories
+      .filter((category) => sourceCategoryIds.includes(category.parent_category_id || ''))
+      .sort((a, b) => (
+        (a.sort_order ?? 0) - (b.sort_order ?? 0)
+        || a.name.localeCompare(b.name)
+      ));
+  }, [activeLayoutCategory, categories, selectedCatId, selectedParentCatId]);
 
   const layoutTopLevelCategories = useMemo<LayoutCategoryButton[]>(() => {
     const categoriesById = new Map(topLevelCategories.map((category) => [category.id, category]));
     const usedIds = new Set<string>();
+    const hiddenSourceIds = new Set(
+      (posLayout?.categories || [])
+        .filter((category) => category.hideSourceCategories)
+        .flatMap((category) => category.sourceCategoryIds?.length ? category.sourceCategoryIds : [category.categoryId])
+    );
     const ordered = (posLayout?.categories || [])
       .map((layoutCategory) => {
+        if (hiddenSourceIds.has(layoutCategory.categoryId)) return null;
         const sourceCategoryIds = layoutCategory.sourceCategoryIds?.length
           ? layoutCategory.sourceCategoryIds
           : [layoutCategory.categoryId];
@@ -355,7 +378,7 @@ export default function PosScreen() {
     return [
       ...ordered,
       ...topLevelCategories
-        .filter((category) => !usedIds.has(category.id))
+        .filter((category) => !usedIds.has(category.id) && !hiddenSourceIds.has(category.id))
         .map((category) => ({
           id: category.id,
           name: category.name,
@@ -561,7 +584,9 @@ export default function PosScreen() {
     if (!selectedCatId || menuLevel !== 'items') return;
 
     const fetchProducts = async () => {
-      const categoryIds = categoryIdsForLayoutGroup(activeLayoutCategory, selectedCatId);
+      const categoryIds = selectedParentCatId
+        ? [selectedCatId]
+        : categoryIdsForLayoutGroup(activeLayoutCategory, selectedCatId);
       if (categoryIds.length === 0) {
         setProducts([]);
         return;
@@ -596,7 +621,7 @@ export default function PosScreen() {
     };
 
     void fetchProducts();
-  }, [activeLayoutCategory, categoryIdsForLayoutGroup, menuLevel, selectedCatId]);
+  }, [activeLayoutCategory, categoryIdsForLayoutGroup, menuLevel, selectedCatId, selectedParentCatId]);
 
   useEffect(() => {
     const loadOrder = async () => {
@@ -944,6 +969,31 @@ export default function PosScreen() {
   };
 
   const openCategory = (categoryId: string) => {
+    const layoutCategory = posLayout?.categories.find((category) => category.categoryId === categoryId) ?? null;
+    const sourceCategoryIds = layoutCategory?.sourceCategoryIds?.length
+      ? layoutCategory.sourceCategoryIds
+      : [categoryId];
+    const hasChildCategories = categories.some((category) => (
+      sourceCategoryIds.includes(category.parent_category_id || '')
+    ));
+
+    if (hasChildCategories && !layoutCategory?.showProductsOnTopLevel) {
+      setSelectedParentCatId(categoryId);
+      setSelectedCatId(null);
+      setProducts([]);
+      setCustomizableProductIds(new Set());
+      setMenuLevel('subgroups');
+      return;
+    }
+
+    setSelectedParentCatId(null);
+    setSelectedCatId(categoryId);
+    setProducts([]);
+    setCustomizableProductIds(new Set());
+    setMenuLevel('items');
+  };
+
+  const openSubcategory = (categoryId: string) => {
     setSelectedCatId(categoryId);
     setProducts([]);
     setCustomizableProductIds(new Set());
@@ -959,13 +1009,25 @@ export default function PosScreen() {
 
   const backToGroups = () => {
     setMenuLevel('groups');
+    setSelectedParentCatId(null);
+    setSelectedCatId(null);
+    setProducts([]);
+    setCustomizableProductIds(new Set());
+  };
+
+  const backToSubgroups = () => {
+    if (!selectedParentCatId) {
+      backToGroups();
+      return;
+    }
+    setMenuLevel('subgroups');
     setSelectedCatId(null);
     setProducts([]);
     setCustomizableProductIds(new Set());
   };
 
   const backToItems = () => {
-    setMenuLevel(selectedCatId ? 'items' : 'groups');
+    setMenuLevel(selectedCatId ? 'items' : selectedParentCatId ? 'subgroups' : 'groups');
     setSelectedProduct(null);
     setEditingItemId(null);
     setEditorAddonGroups([]);
@@ -1572,9 +1634,14 @@ export default function PosScreen() {
     void handleInstoreCheckout('cash');
   };
 
-  const activeCategoryName = activeLayoutCategory?.title
-    || categories.find((category) => category.id === selectedCatId)?.name
+  const activeCategoryName = categories.find((category) => category.id === selectedCatId)?.name
+    || activeLayoutCategory?.title
     || 'Menu';
+  const activeParentCategoryName = activeLayoutCategory?.title
+    || categories.find((category) => category.id === selectedParentCatId)?.name
+    || 'Menu';
+  const itemsBackAction = selectedParentCatId ? backToSubgroups : backToGroups;
+  const itemsBackLabel = selectedParentCatId ? activeParentCategoryName : 'Groups';
   const quickQuantityForProduct = (productId: string) => (
     cartItems.find((item) => (
       item.product_id === productId
@@ -1599,8 +1666,8 @@ export default function PosScreen() {
                 <FlatList
                   data={layoutTopLevelCategories}
                   keyExtractor={(item) => item.id}
-                  numColumns={3}
-                  key="groups-3"
+                  numColumns={4}
+                  key="groups-4"
                   contentContainerStyle={styles.tileGrid}
                   renderItem={({ item }) => {
                     return (
@@ -1711,11 +1778,45 @@ export default function PosScreen() {
             </>
           )}
 
-          {menuLevel === 'items' && (
+          {menuLevel === 'subgroups' && (
             <>
               <View style={styles.menuHeader}>
                 <Button mode="outlined" icon="arrow-left" onPress={backToGroups} style={styles.backButton}>
                   Groups
+                </Button>
+                <View style={styles.menuHeaderText}>
+                  <Text style={styles.menuTitle}>{activeParentCategoryName}</Text>
+                  <Text style={styles.menuSubtitle}>{childCategoriesForSelectedGroup.length} sub-categories</Text>
+                </View>
+              </View>
+              <FlatList
+                data={childCategoriesForSelectedGroup}
+                keyExtractor={(item) => item.id}
+                numColumns={4}
+                key="subgroups-4"
+                contentContainerStyle={styles.tileGrid}
+                ListEmptyComponent={(
+                  <View style={styles.emptyState}>
+                    <Text style={styles.emptyTitle}>No sub-categories in this group</Text>
+                  </View>
+                )}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={[styles.groupCard, activeLayoutCategory?.color ? { backgroundColor: activeLayoutCategory.color } : null]}
+                    onPress={() => openSubcategory(item.id)}
+                  >
+                    <Text style={styles.groupCardText} numberOfLines={3}>{item.name}</Text>
+                  </TouchableOpacity>
+                )}
+              />
+            </>
+          )}
+
+          {menuLevel === 'items' && (
+            <>
+              <View style={styles.menuHeader}>
+                <Button mode="outlined" icon="arrow-left" onPress={itemsBackAction} style={styles.backButton}>
+                  {itemsBackLabel}
                 </Button>
                 <View style={styles.menuHeaderText}>
                   <Text style={styles.menuTitle}>{activeCategoryName}</Text>
@@ -1763,9 +1864,23 @@ export default function PosScreen() {
                         <Text style={[styles.productPrice, customColor ? styles.productCardCustomText : null]}>${item.sale_price.toFixed(2)}</Text>
                       </View>
                     </TouchableOpacity>
-                  );
-                }}
+                    );
+                  }}
               />
+              <View style={styles.levelFooter}>
+                <View style={styles.levelFooterActions}>
+                  <Button
+                    mode="outlined"
+                    icon="arrow-left"
+                    onPress={itemsBackAction}
+                    style={styles.levelFooterButton}
+                    contentStyle={styles.levelFooterButtonContent}
+                    labelStyle={styles.levelFooterButtonLabel}
+                  >
+                    {selectedParentCatId ? `Back to ${activeParentCategoryName}` : 'Back to Groups'}
+                  </Button>
+                </View>
+              </View>
             </>
           )}
 
@@ -1856,9 +1971,28 @@ export default function PosScreen() {
                 />
 
                 <View style={styles.editorActions}>
-                  <Button mode="contained" icon="arrow-right" onPress={backToItems} style={styles.editorActionButton}>
-                    Continue
-                  </Button>
+                  <View style={styles.levelFooterActions}>
+                    <Button
+                      mode="outlined"
+                      icon="arrow-left"
+                      onPress={backToGroups}
+                      style={styles.levelFooterButton}
+                      contentStyle={styles.levelFooterButtonContent}
+                      labelStyle={styles.levelFooterButtonLabel}
+                    >
+                      Back to Groups
+                    </Button>
+                    <Button
+                      mode="contained"
+                      icon="arrow-right"
+                      onPress={backToItems}
+                      style={styles.levelFooterButton}
+                      contentStyle={styles.levelFooterButtonContent}
+                      labelStyle={styles.levelFooterButtonLabel}
+                    >
+                      Continue
+                    </Button>
+                  </View>
                 </View>
               </View>
             </>
@@ -2075,7 +2209,14 @@ export default function PosScreen() {
                 <View style={styles.cartItemHeader}>
                   <View style={styles.cartItemText}>
                     <View style={styles.cartItemTopLine}>
-                      <Text style={styles.cartItemName} numberOfLines={2}>{item.product_name}</Text>
+                      <TouchableOpacity
+                        style={styles.cartItemNameButton}
+                        onPress={() => openCartItemEditor(item)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Edit ${item.product_name}`}
+                      >
+                        <Text style={styles.cartItemName} numberOfLines={2}>{item.product_name}</Text>
+                      </TouchableOpacity>
                       <View style={styles.qtyStepper}>
                         <IconButton icon="minus" size={16} onPress={() => updateQuantity(item.id, -1)} style={styles.stepperButton} />
                         <Text style={styles.cartQuantity}>{item.quantity}</Text>
@@ -2287,37 +2428,64 @@ const styles = StyleSheet.create({
   body: { flex: 1, flexDirection: 'row', gap: 12, padding: 12 },
   menuPane: { flex: 1, backgroundColor: '#fff', borderRadius: 8, overflow: 'hidden' },
   menuHeader: {
-    minHeight: 68,
+    minHeight: 52,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 4,
     flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  menuHeaderText: { flex: 1 },
+  menuTitle: { color: '#111827', fontSize: 19, fontWeight: '800' },
+  menuSubtitle: { color: '#6b7280', marginTop: 1 },
+  backButton: { borderRadius: 8 },
+  levelFooter: {
+    paddingHorizontal: 12,
+    paddingTop: 4,
+    paddingBottom: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    backgroundColor: '#fff',
+  },
+  levelFooterActions: {
+    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
     gap: 12,
   },
-  menuHeaderText: { flex: 1 },
-  menuTitle: { color: '#111827', fontSize: 22, fontWeight: '800' },
-  menuSubtitle: { color: '#6b7280', marginTop: 2 },
-  backButton: { borderRadius: 8 },
+  levelFooterButton: {
+    borderRadius: 10,
+    minWidth: 220,
+    alignSelf: 'center',
+  },
+  levelFooterButtonContent: {
+    minHeight: 52,
+    paddingHorizontal: 16,
+  },
+  levelFooterButtonLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
   groupScreen: { flex: 1 },
-  tileGrid: { padding: 8, paddingBottom: 18 },
+  tileGrid: { padding: 4, paddingBottom: 10 },
   searchBody: { flex: 1 },
   searchInput: { margin: 10, marginBottom: 0, backgroundColor: '#fff' },
-  searchGrid: { padding: 8, paddingBottom: 18 },
+  searchGrid: { padding: 4, paddingBottom: 10 },
   groupCard: {
     flex: 1,
-    minHeight: 132,
+    minHeight: 108,
     margin: 5,
     borderRadius: 8,
     backgroundColor: '#111827',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 14,
+    padding: 10,
     borderWidth: 1,
     borderColor: '#243244',
   },
-  groupCardText: { color: '#fff', fontSize: 22, fontWeight: '900', textAlign: 'center' },
+  groupCardText: { color: '#fff', fontSize: 18, fontWeight: '900', textAlign: 'center' },
   topSellersSection: {
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
@@ -2545,6 +2713,7 @@ const styles = StyleSheet.create({
   cartItemHeader: { flexDirection: 'row', alignItems: 'flex-start' },
   cartItemText: { flex: 1 },
   cartItemTopLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  cartItemNameButton: { flex: 1 },
   cartItemName: { flex: 1, color: '#111827', fontSize: 15, lineHeight: 18, fontWeight: '900' },
   cartItemPrice: { minWidth: 62, color: '#111827', fontSize: 15, fontWeight: '900', textAlign: 'right' },
   cartItemDetails: { marginTop: 4 },

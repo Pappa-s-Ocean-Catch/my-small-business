@@ -1,9 +1,7 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { supabase } from '@/lib/supabase';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Alert } from 'react-native';
 import { Appbar } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
@@ -39,10 +37,12 @@ export default function TabsLayout() {
           let iconName: string;
           if (route.name === 'live-orders') {
             iconName = focused ? 'speedometer' : 'speedometer-outline';
-          } else if (route.name === 'orders') {
+          } else if (route.name === 'on-the-way') {
+            iconName = focused ? 'car-sport' : 'car-sport-outline';
+          } else if (route.name === 'completed') {
             iconName = focused ? 'receipt' : 'receipt-outline';
           } else {
-            iconName = focused ? 'settings' : 'settings-outline';
+            iconName = focused ? 'restaurant' : 'restaurant-outline';
           }
           return <Ionicons name={iconName as any} size={size} color={color} />;
         },
@@ -63,17 +63,42 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="on-the-way"
+        options={{
+          title: 'On the way',
+          tabBarLabel: 'On the way',
+        }}
+      />
+      <Tabs.Screen
+        name="completed"
+        options={{
+          title: 'Completed',
+          tabBarLabel: 'Completed',
+        }}
+      />
+      <Tabs.Screen
         name="orders"
         options={{
-          title: 'Order History',
-          tabBarLabel: 'History',
+          href: null,
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
-          title: 'Settings',
-          tabBarLabel: 'Settings',
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="menu"
+        options={{
+          title: 'Menu',
+          tabBarLabel: 'Menu',
+        }}
+        listeners={{
+          tabPress: (event) => {
+            event.preventDefault();
+            router.push('/pos');
+          },
         }}
       />
     </Tabs>

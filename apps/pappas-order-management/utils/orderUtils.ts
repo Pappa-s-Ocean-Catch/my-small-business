@@ -230,6 +230,52 @@ export const getResolvedKitchenSectionDisplay = (
   .map((section) => section.toUpperCase())
   .join(' & ');
 
+export type KitchenSectionGroup<TItem> = {
+  sectionName: string | null;
+  items: TItem[];
+};
+
+export type KitchenReceiptCopy<TItem> = {
+  key: string;
+  copyNumber: number;
+  totalCopies: number;
+  sections: KitchenSectionGroup<TItem>[];
+};
+
+export const buildKitchenReceiptCopies = <TItem extends { section?: string | null; addons?: OrderItemAddon[] }>(
+  items: TItem[] | null | undefined,
+  getFallbackSection?: (item: TItem) => string | null | undefined
+): KitchenReceiptCopy<TItem>[] => {
+  const sourceItems = items || [];
+  const groups = (() => {
+    const map = new Map<string, KitchenSectionGroup<TItem>>();
+    for (const item of sourceItems) {
+      const sectionKey = getResolvedKitchenSectionKey(item.section, item.addons, getFallbackSection?.(item)) || DEFAULT_KITCHEN_SECTION;
+      const sectionName = getResolvedKitchenSectionDisplay(item.section, item.addons, getFallbackSection?.(item)) || DEFAULT_KITCHEN_SECTION.toUpperCase();
+      const existing = map.get(sectionKey) || { sectionName, items: [] };
+      existing.items.push(item);
+      map.set(sectionKey, existing);
+    }
+    return Array.from(map.values());
+  })();
+
+  if (groups.length === 0) {
+    return [{
+      key: 'copy-1',
+      copyNumber: 1,
+      totalCopies: 1,
+      sections: [{ sectionName: null, items: sourceItems }],
+    }];
+  }
+
+  return Array.from({ length: groups.length }, (_, index) => ({
+    key: `copy-${index + 1}`,
+    copyNumber: index + 1,
+    totalCopies: groups.length,
+    sections: groups,
+  }));
+};
+
 export const paymentSummary = (order: Order): string => {
   const type = getOrderChannelLabel(order);
   const payment =

@@ -143,6 +143,10 @@ export interface Order {
   created_at: string;
   updated_at: string;
   scheduled_pickup_at: string | null;
+  kitchen_print_claimed_at: string | null;
+  kitchen_print_claimed_by: string | null;
+  kitchen_print_completed_at: string | null;
+  kitchen_print_completed_by: string | null;
   items?: OrderItem[];
 }
 

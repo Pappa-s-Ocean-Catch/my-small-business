@@ -2,10 +2,8 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import type { Order } from '@my-small-business/types';
 import {
-  DEFAULT_KITCHEN_SECTION,
+  buildKitchenReceiptCopies,
   getOrderChannelReceiptLabel,
-  getResolvedKitchenSectionDisplay,
-  getResolvedKitchenSectionKey,
   getOrderLineItemCount,
   getOrderNotes,
   getOrderOptions,
@@ -17,9 +15,18 @@ interface ReceiptTemplateProps {
   width?: number;
   printSource?: string;
   showTicketCounter?: boolean;
+  onlyTicketIndex?: number;
+  duplicateBySections?: boolean;
 }
 
-export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ order, width = 576, printSource, showTicketCounter = false }) => {
+export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
+  order,
+  width = 576,
+  printSource,
+  showTicketCounter = false,
+  onlyTicketIndex,
+  duplicateBySections = false,
+}) => {
   const formatMoney = (amount: number) => {
     return (amount || 0).toFixed(2);
   };
@@ -39,31 +46,32 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({ order, width =
   const orderOptions = getOrderOptions(order);
   const orderNotes = getOrderNotes(order);
   const lineItemCount = getOrderLineItemCount(order);
-  const sectionEntries = (() => {
-    const map = new Map<string, { sectionName: string | null; items: NonNullable<Order['items']> }>();
-    for (const item of order.items || []) {
-      const sectionKey = getResolvedKitchenSectionKey(item.section, item.addons) || DEFAULT_KITCHEN_SECTION;
-      const sectionName = getResolvedKitchenSectionDisplay(item.section, item.addons) || DEFAULT_KITCHEN_SECTION.toUpperCase();
-      const existing = map.get(sectionKey) || { sectionName, items: [] };
-      existing.items.push(item);
-      map.set(sectionKey, existing);
-    }
-    return Array.from(map.values());
-  })();
-
-  const tickets = sectionEntries.length > 0
-    ? Array.from({ length: sectionEntries.length }, (_, index) => ({
+  const allTickets = buildKitchenReceiptCopies(order.items || []);
+  const combinedSections = allTickets[0]?.sections || [{ sectionName: null, items: order.items || [] }];
+  const combinedTicket = {
+    key: 'combined',
+    copyNumber: 1,
+    totalCopies: 1,
+    sections: combinedSections,
+  };
+  const duplicatedTickets = Array.from(
+    { length: Math.max(allTickets.length, 1) },
+    (_, index) => ({
+      ...combinedTicket,
       key: `copy-${index + 1}`,
       copyNumber: index + 1,
-      totalCopies: sectionEntries.length,
-      sections: sectionEntries,
-    }))
-    : [{
-      key: 'copy-1',
-      copyNumber: 1,
-      totalCopies: 1,
-      sections: [{ sectionName: null, items: order.items || [] }],
-    }];
+      totalCopies: Math.max(allTickets.length, 1),
+    })
+  );
+  const tickets = duplicateBySections
+    ? (
+      onlyTicketIndex == null
+        ? duplicatedTickets
+        : duplicatedTickets[onlyTicketIndex]
+          ? [duplicatedTickets[onlyTicketIndex]]
+          : duplicatedTickets
+    )
+    : [combinedTicket];
 
   return (
     <View>

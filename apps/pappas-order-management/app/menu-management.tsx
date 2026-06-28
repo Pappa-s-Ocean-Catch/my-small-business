@@ -713,11 +713,9 @@ export default function MenuManagementScreen() {
         <SegmentedButtons
           value="menu"
           onValueChange={(value) => {
-            if (value === 'settings') router.push('/(drawer)/(tabs)/settings');
             if (value === 'addons') router.push('/addons-management');
           }}
           buttons={[
-            { value: 'settings', label: 'Settings' },
             { value: 'menu', label: 'Menu' },
             { value: 'addons', label: 'Add-ons' },
           ]}

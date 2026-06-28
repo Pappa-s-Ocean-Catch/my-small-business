@@ -194,11 +194,11 @@ function getOrderSectionTickets(order: Order): Array<{ sectionName: string | nul
   return Array.from(map.values());
 }
 
-export function buildKitchenReceiptLines(order: Order, printSource?: string): ReceiptLine[] {
+export function buildKitchenReceiptLines(order: Order, printSource?: string, duplicateBySections = false): ReceiptLine[] {
   const lines: ReceiptLine[] = [];
 
   const sections = getOrderSectionTickets(order);
-  const copyCount = Math.max(sections.length, 1);
+  const copyCount = duplicateBySections ? Math.max(sections.length, 1) : 1;
   const tickets = Array.from({ length: copyCount }, (_, index) => ({
     copyNumber: index + 1,
     totalCopies: copyCount,

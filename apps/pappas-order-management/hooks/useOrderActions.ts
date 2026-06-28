@@ -20,6 +20,7 @@ export const useOrderActions = (
   const [simulatorOrder, setSimulatorOrder] = useState<Order | null>(null);
   const [showSimulator, setShowSimulator] = useState(false);
   const [printImageUri, setPrintImageUri] = useState<string | null>(null);
+  const [printImageUris, setPrintImageUris] = useState<string[]>([]);
   const [smartpayPaired, setSmartpayPaired] = useState(false);
   const [smartpayProcessingOrderId, setSmartpayProcessingOrderId] = useState<string | null>(null);
 
@@ -203,6 +204,7 @@ export const useOrderActions = (
       if (appSettings.printerSimulator) {
         setSimulatorOrder(order);
         setPrintImageUri(null); // No image URI for standard fallback print usually
+        setPrintImageUris([]);
         setShowSimulator(true);
         return true;
       }
@@ -233,6 +235,7 @@ export const useOrderActions = (
       if (appSettings.printerSimulator) {
         setSimulatorOrder(order);
         setPrintImageUri(imageUri);
+        setPrintImageUris([imageUri]);
         setShowSimulator(true);
         return true;
       }
@@ -271,6 +274,8 @@ export const useOrderActions = (
     setShowSimulator,
     printImageUri,
     setPrintImageUri,
+    printImageUris,
+    setPrintImageUris,
     smartpayPaired,
     smartpayProcessingOrderId,
     handleStatusUpdate,

@@ -9,6 +9,7 @@ interface PrintSimulatorModalProps {
   visible: boolean;
   order: Order | null;
   imageUri: string | null;
+  imageUris?: string[] | null;
   onClose: () => void;
 }
 
@@ -16,10 +17,17 @@ export const PrintSimulatorModal: React.FC<PrintSimulatorModalProps> = ({
   visible,
   order,
   imageUri,
+  imageUris,
   onClose,
 }) => {
+  const images = imageUris && imageUris.length > 0
+    ? imageUris
+    : imageUri
+      ? [imageUri]
+      : [];
+
   const handleShare = async () => {
-    if (!imageUri) return;
+    if (!images[0]) return;
     
     try {
       const isAvailable = await Sharing.isAvailableAsync();
@@ -28,7 +36,7 @@ export const PrintSimulatorModal: React.FC<PrintSimulatorModalProps> = ({
         return;
       }
       
-      await Sharing.shareAsync(imageUri, {
+      await Sharing.shareAsync(images[0], {
         mimeType: 'image/png',
         dialogTitle: `Receipt for Order #${order ? getFriendlyOrderNumber(order.order_number) : ''}`,
         UTI: 'public.png',
@@ -66,13 +74,22 @@ export const PrintSimulatorModal: React.FC<PrintSimulatorModalProps> = ({
             contentContainerStyle={styles.contentContainer}
             showsVerticalScrollIndicator={true}
           >
-            {imageUri ? (
-              <View style={styles.imagePreviewContainer}>
-                <Image 
-                  source={{ uri: imageUri }} 
-                  style={styles.receiptImage} 
-                  resizeMode="contain"
-                />
+            {images.length > 0 ? (
+              <View style={styles.imagePreviewList}>
+                {images.map((uri, index) => (
+                  <View key={`${uri}-${index}`} style={styles.imagePreviewBlock}>
+                    {images.length > 1 && (
+                      <Text style={styles.copyLabel}>Receipt {index + 1}/{images.length}</Text>
+                    )}
+                    <View style={styles.imagePreviewContainer}>
+                      <Image 
+                        source={{ uri }} 
+                        style={styles.receiptImage} 
+                        resizeMode="contain"
+                      />
+                    </View>
+                  </View>
+                ))}
               </View>
             ) : (
               <View style={styles.noImageContainer}>
@@ -83,7 +100,7 @@ export const PrintSimulatorModal: React.FC<PrintSimulatorModalProps> = ({
           </ScrollView>
 
           <View style={styles.footer}>
-            {imageUri && (
+            {images.length > 0 && (
               <PaperButton
                 mode="outlined"
                 icon="download"
@@ -181,6 +198,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#cbd5e1',
     borderStyle: 'dashed',
+  },
+  imagePreviewList: {
+    width: '100%',
+    alignItems: 'center',
+    gap: 18,
+  },
+  imagePreviewBlock: {
+    width: '100%',
+    alignItems: 'center',
+    gap: 8,
+  },
+  copyLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#475569',
   },
   receiptImage: {
     width: '100%',

@@ -18,7 +18,13 @@ import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '@/lib/supabase';
-import { getAllOrders, getOrder } from '@/lib/orders';
+import {
+  claimOrderForAutoPrint,
+  completeKitchenPrintClaim,
+  getAllOrders,
+  getOrder,
+  releaseKitchenPrintClaim,
+} from '@/lib/orders';
 import type { Order } from '@my-small-business/types';
 import { CustomerModal } from '@/components/CustomerModal';
 import { LiveOrderListItem } from '@/components/LiveOrderListItem';
@@ -29,6 +35,7 @@ import { loadAppSettings, DEFAULT_APP_SETTINGS, type AppSettings } from '@/lib/s
 import { captureRef } from 'react-native-view-shot';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
 import { escposPrintOrderImage } from '@/lib/escpos-printer';
+import { getPrintDeviceId } from '@/lib/print-device';
 
 export default function PreOrdersScreen() {
   const router = useRouter();
@@ -44,9 +51,11 @@ export default function PreOrdersScreen() {
   const [customerInfo, setCustomerInfo] = useState<{ email?: string; phone?: string }>({});
   const [tempPrintingOrder, setTempPrintingOrder] = useState<Order | null>(null);
   const [tempPrintSource, setTempPrintSource] = useState<string | null>(null);
+  const [tempPrintTicketIndex, setTempPrintTicketIndex] = useState(0);
   const [isCapturing, setIsCapturing] = useState(false);
   const globalReceiptRef = useRef(null);
   const appSettingsRef = useRef<AppSettings>(DEFAULT_APP_SETTINGS);
+  const printDeviceIdRef = useRef<string | null>(null);
 
   const loadOrders = async () => {
     try {
@@ -97,12 +106,34 @@ export default function PreOrdersScreen() {
     setSimulatorOrder,
     printImageUri,
     setPrintImageUri,
+    printImageUris,
+    setPrintImageUris,
   } = useOrderActions(appSettings, loadOrders, (updated) => {
     if (selectedOrder?.id === updated.id) setSelectedOrder(updated);
   });
 
   const quickPrintOrder = async (order: Order) => {
+    let claimedDeviceId: string | null = null;
+    let shouldReleaseClaim = false;
+
     try {
+      if (!printDeviceIdRef.current) {
+        printDeviceIdRef.current = await getPrintDeviceId();
+      }
+      claimedDeviceId = printDeviceIdRef.current;
+
+      const claim = await claimOrderForAutoPrint(order.id, claimedDeviceId);
+      if (!claim.claimed) {
+        if (claim.error) {
+          console.error('Pre-order print claim failed:', claim.error);
+          Alert.alert('Print error', 'Could not secure this order for printing. Please try again.');
+        } else {
+          Alert.alert('Already printing', 'Another POS has already claimed or finished this order print.');
+        }
+        return;
+      }
+      shouldReleaseClaim = true;
+
       let freshOrder = order;
       const latestOrderResult = await getOrder(order.id);
       if (latestOrderResult.data) {
@@ -122,28 +153,38 @@ export default function PreOrdersScreen() {
       // Update the hidden template with this order
       setTempPrintingOrder(freshOrder);
       setTempPrintSource('pre-orders:manual-list-print');
-      
-      // Wait for re-render
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      if (!globalReceiptRef.current) {
-        throw new Error('Receipt template ref not found');
-      }
-
       const targetDots = s.printerPaperWidth === '58mm' ? 384 : 576;
       const scale = s.printerHighQuality ? 2 : 1;
+      const ticketCopies = [{ key: 'combined' }];
+      const imageUris: string[] = [];
 
-      const uri = await captureRef(globalReceiptRef.current, {
-        format: 'png',
-        quality: 1,
-        result: 'tmpfile',
-        width: targetDots * scale,
-      });
+      for (let ticketIndex = 0; ticketIndex < ticketCopies.length; ticketIndex++) {
+        setTempPrintTicketIndex(ticketIndex);
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        if (!globalReceiptRef.current) {
+          throw new Error('Receipt template ref not found');
+        }
+
+        const uri = await captureRef(globalReceiptRef.current, {
+          format: 'png',
+          quality: 1,
+          result: 'tmpfile',
+          width: targetDots * scale,
+        });
+        imageUris.push(uri);
+      }
 
       if (s.printerSimulator) {
         setSimulatorOrder(freshOrder);
-        setPrintImageUri(uri);
+        setPrintImageUri(imageUris[0] || null);
+        setPrintImageUris(imageUris);
         setShowSimulator(true);
+        const completion = await completeKitchenPrintClaim(order.id, claimedDeviceId);
+        if (!completion.completed) {
+          throw new Error(completion.error || 'Failed to complete kitchen print claim');
+        }
+        shouldReleaseClaim = false;
         return;
       }
 
@@ -153,11 +194,24 @@ export default function PreOrdersScreen() {
         return;
       }
 
-      await escposPrintOrderImage(uri, selected, s.printerCopies);
+      for (const uri of imageUris) {
+        await escposPrintOrderImage(uri, selected, s.printerCopies, targetDots);
+      }
+      const completion = await completeKitchenPrintClaim(order.id, claimedDeviceId);
+      if (!completion.completed) {
+        throw new Error(completion.error || 'Failed to complete kitchen print claim');
+      }
+      shouldReleaseClaim = false;
     } catch (error) {
       console.error('Quick print failed:', error);
       Alert.alert('Print error', 'Failed to capture receipt template image for printing.');
     } finally {
+      if (claimedDeviceId && shouldReleaseClaim) {
+        const released = await releaseKitchenPrintClaim(order.id, claimedDeviceId);
+        if (released.error) {
+          console.error('Failed to release kitchen print claim:', released.error);
+        }
+      }
       setIsCapturing(false);
       setPrintingOrderId(null);
     }
@@ -296,6 +350,7 @@ export default function PreOrdersScreen() {
         visible={showSimulator}
         order={simulatorOrder}
         imageUri={printImageUri}
+        imageUris={printImageUris}
         onClose={() => setShowSimulator(false)}
       />
 
@@ -303,11 +358,13 @@ export default function PreOrdersScreen() {
       <View style={styles.hiddenReceiptContainer} pointerEvents="none">
          {tempPrintingOrder && (
            <View ref={globalReceiptRef} collapsable={false}>
-              <ReceiptTemplate 
-                order={tempPrintingOrder} 
+              <ReceiptTemplate
+                order={tempPrintingOrder}
                 width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
                 printSource={tempPrintSource || undefined}
                 showTicketCounter={appSettings.printerSimulator}
+                onlyTicketIndex={tempPrintTicketIndex}
+                duplicateBySections={false}
               />
            </View>
          )}
