@@ -6,6 +6,8 @@ import { getFriendlyOrderNumber } from '../utils/orderNumber';
 import { STATUS_COLORS, STATUS_LABELS, PAYMENT_STATUS_COLORS, PAYMENT_STATUS_LABELS } from '../utils/constants';
 import { paymentSummary, getNextQuickAction, formatElapsed } from '../utils/orderUtils';
 
+type LiveOrderCardLayout = 'horizontal' | 'vertical';
+
 interface LiveOrderListItemProps {
   order: Order;
   nowMs: number;
@@ -19,6 +21,7 @@ interface LiveOrderListItemProps {
   smartpayProcessing?: boolean;
   onStatusUpdate: (order: Order, status: OrderStatus) => void;
   onPaymentStatusUpdate: (orderId: string, status: PaymentStatus, paymentMethodDetail?: string | null) => void;
+  layout?: LiveOrderCardLayout;
 }
 
 export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
@@ -34,6 +37,7 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
   smartpayProcessing = false,
   onStatusUpdate,
   onPaymentStatusUpdate,
+  layout = 'horizontal',
 }) => {
   const statusColor = STATUS_COLORS[order.order_status];
   const statusLabel = STATUS_LABELS[order.order_status];
@@ -45,13 +49,13 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
     ? !elapsed.overdue && elapsed.minutes > 15
       ? '#16a34a'
       : !elapsed.overdue
-      ? '#ca8a04'
-      : '#dc2626'
+        ? '#ca8a04'
+        : '#dc2626'
     : elapsed.minutes < 10
-    ? '#16a34a'
-    : elapsed.minutes < 20
-    ? '#ca8a04'
-    : '#dc2626';
+      ? '#16a34a'
+      : elapsed.minutes < 20
+        ? '#ca8a04'
+        : '#dc2626';
   const isPaid = order.payment_status === 'paid';
   const canSmartpay =
     smartpayPaired &&
@@ -64,6 +68,148 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
     order.payment_status !== 'paid' &&
     order.order_status !== 'completed' &&
     order.order_status !== 'cancelled';
+
+  const previewItems = (order.items || []).slice(0, 3);
+  const extraItemCount = Math.max(0, (order.items?.length || 0) - previewItems.length);
+  const pickupLabel = order.scheduled_pickup_at
+    ? `PICKUP ${new Date(order.scheduled_pickup_at).toLocaleString([], {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })}`
+    : 'ASAP';
+
+  const statusControls = (
+    <View style={layout === 'vertical' ? styles.verticalStatusControls : styles.statusControls}>
+      <View style={styles.statusControl}>
+        <Text style={styles.statusControlLabel}>Status</Text>
+        <View style={styles.statusSelectContainer}>
+          <TouchableOpacity
+            style={[styles.statusSelect, { backgroundColor: statusColor }]}
+            onPress={() => onStatusUpdate(order, order.order_status)}
+            disabled={updatingStatus === order.id}
+          >
+            <Text style={styles.statusSelectText}>{statusLabel}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+      <View style={styles.statusControl}>
+        <Text style={styles.statusControlLabel}>Payment</Text>
+        <View style={styles.statusSelectContainer}>
+          <TouchableOpacity
+            style={[styles.statusSelect, { backgroundColor: paymentColor }]}
+            onPress={() => onPaymentStatusUpdate(order.id, order.payment_status)}
+            disabled={!canUpdatePayment}
+          >
+            <Text style={styles.statusSelectText}>{paymentLabel}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+
+  const actionButtons = (
+    <View style={layout === 'vertical' ? styles.verticalActionsCluster : styles.actionsCluster}>
+      <IconButton
+        icon="printer"
+        size={18}
+        onPress={() => onPrintPress(order)}
+        accessibilityLabel="Print order"
+        style={styles.printButton}
+      />
+      {canSmartpay && (
+        <PaperButton
+          mode="outlined"
+          icon="credit-card-wireless-outline"
+          onPress={() => onSmartpayPayment(order)}
+          loading={smartpayProcessing}
+          disabled={smartpayProcessing || updatingStatus === order.id}
+          style={styles.bodySmartpayButton}
+          contentStyle={styles.bodySmartpayButtonContent}
+          labelStyle={styles.secondaryActionLabel}
+          compact
+        >
+          SmartPay
+        </PaperButton>
+      )}
+      {quickAction && (
+        <PaperButton
+          mode="contained"
+          onPress={() => onQuickAction(order, quickAction.action)}
+          disabled={updatingStatus === order.id || smartpayProcessing}
+          style={styles.bodyQuickButton}
+          contentStyle={styles.bodyQuickButtonContent}
+          labelStyle={styles.primaryActionLabel}
+          compact
+        >
+          {quickAction.label}
+        </PaperButton>
+      )}
+    </View>
+  );
+
+  if (layout === 'vertical') {
+    return (
+      <Card style={styles.verticalOrderCard} onPress={() => onOrderPress(order)}>
+        <Card.Content style={styles.verticalCardContent}>
+          <View style={styles.verticalHeader}>
+            <View style={styles.verticalIdentity}>
+              <Text style={styles.orderNumber}>{getFriendlyOrderNumber(order.order_number)}</Text>
+              <TouchableOpacity onPress={() => onCustomerPress(order)}>
+                <Text style={styles.verticalCustomerName} numberOfLines={1}>
+                  {order.customer_name || order.customer_email}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <View style={[styles.elapsedPill, styles.verticalElapsedPill, { backgroundColor: elapsedColor }]}>
+              <Text style={styles.elapsedText}>{elapsed.text}</Text>
+            </View>
+          </View>
+
+          <View style={styles.verticalChipRow}>
+            <View style={[styles.pickupBadge, order.scheduled_pickup_at ? styles.pickupScheduled : styles.pickupAsap]}>
+              <Text style={styles.pickupText} numberOfLines={1}>{pickupLabel}</Text>
+            </View>
+            <View style={[styles.compactChip, { backgroundColor: statusColor }]}>
+              <Text style={styles.compactChipText}>{statusLabel}</Text>
+            </View>
+          </View>
+
+          <View style={styles.verticalMetaGrid}>
+            <View>
+              <Text style={styles.verticalMetaLabel}>Summary</Text>
+              <Text style={styles.verticalMetaValue} numberOfLines={2}>{paymentSummary(order)}</Text>
+            </View>
+            <View style={styles.verticalMetaRight}>
+              <Text style={[styles.paymentAttention, isPaid ? styles.paymentAttentionPaid : styles.paymentAttentionUnpaid]}>
+                {isPaid ? 'PAID' : 'UNPAID'}
+              </Text>
+              <Text style={styles.verticalTotal}>${order.total.toFixed(2)}</Text>
+            </View>
+          </View>
+
+          <View style={styles.itemsPreviewBlock}>
+            <Text style={styles.verticalMetaLabel}>Items</Text>
+            {previewItems.map((item) => (
+              <Text key={item.id} style={styles.itemPreviewText} numberOfLines={1}>
+                {item.quantity}x {item.product_name}
+              </Text>
+            ))}
+            {extraItemCount > 0 ? (
+              <Text style={styles.itemPreviewMore}>+{extraItemCount} more</Text>
+            ) : null}
+          </View>
+
+          <View style={styles.verticalFooter}>
+            {statusControls}
+            {actionButtons}
+          </View>
+        </Card.Content>
+      </Card>
+    );
+  }
 
   return (
     <Card style={styles.orderCard} onPress={() => onOrderPress(order)}>
@@ -79,15 +225,7 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
                 ]}
               >
                 <Text style={styles.pickupText}>
-                  {order.scheduled_pickup_at
-                    ? `PICKUP ${new Date(order.scheduled_pickup_at).toLocaleString([], {
-                        weekday: 'short',
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}`
-                    : 'ASAP'}
+                  {pickupLabel}
                 </Text>
               </View>
             </View>
@@ -125,70 +263,8 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
           </View>
 
           <View style={styles.controlsRow}>
-            <View style={styles.statusControls}>
-              <View style={styles.statusControl}>
-                <Text style={styles.statusControlLabel}>Status</Text>
-                <View style={styles.statusSelectContainer}>
-                  <TouchableOpacity
-                    style={[styles.statusSelect, { backgroundColor: statusColor }]}
-                    onPress={() => onStatusUpdate(order, order.order_status)}
-                    disabled={updatingStatus === order.id}
-                  >
-                    <Text style={styles.statusSelectText}>{statusLabel}</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-              <View style={styles.statusControl}>
-                <Text style={styles.statusControlLabel}>Payment</Text>
-                <View style={styles.statusSelectContainer}>
-                  <TouchableOpacity
-                    style={[styles.statusSelect, { backgroundColor: paymentColor }]}
-                    onPress={() => onPaymentStatusUpdate(order.id, order.payment_status)}
-                    disabled={!canUpdatePayment}
-                  >
-                    <Text style={styles.statusSelectText}>{paymentLabel}</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.actionsCluster}>
-              <IconButton
-                icon="printer"
-                size={18}
-                onPress={() => onPrintPress(order)}
-                accessibilityLabel="Print order"
-                style={styles.printButton}
-              />
-              {canSmartpay && (
-                <PaperButton
-                  mode="outlined"
-                  icon="credit-card-wireless-outline"
-                  onPress={() => onSmartpayPayment(order)}
-                  loading={smartpayProcessing}
-                  disabled={smartpayProcessing || updatingStatus === order.id}
-                  style={styles.bodySmartpayButton}
-                  contentStyle={styles.bodySmartpayButtonContent}
-                  labelStyle={styles.secondaryActionLabel}
-                  compact
-                >
-                  SmartPay
-                </PaperButton>
-              )}
-              {quickAction && (
-                <PaperButton
-                  mode="contained"
-                  onPress={() => onQuickAction(order, quickAction.action)}
-                  disabled={updatingStatus === order.id || smartpayProcessing}
-                  style={styles.bodyQuickButton}
-                  contentStyle={styles.bodyQuickButtonContent}
-                  labelStyle={styles.primaryActionLabel}
-                  compact
-                >
-                  {quickAction.label}
-                </PaperButton>
-              )}
-            </View>
+            {statusControls}
+            {actionButtons}
           </View>
         </View>
       </Card.Content>
@@ -207,9 +283,24 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e5e7eb',
   },
+  verticalOrderCard: {
+    width: 336,
+    marginRight: 16,
+    backgroundColor: '#fff',
+    elevation: 0,
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#dbe5f0',
+  },
   cardContent: {
     paddingVertical: 10,
     paddingHorizontal: 12,
+  },
+  verticalCardContent: {
+    paddingVertical: 18,
+    paddingHorizontal: 18,
   },
   topRow: {
     flexDirection: 'row',
@@ -218,8 +309,18 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 10,
   },
+  verticalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
   identityBlock: {
     flex: 1,
+  },
+  verticalIdentity: {
+    flex: 1,
+    gap: 6,
   },
   titleRow: {
     flexDirection: 'row',
@@ -244,6 +345,11 @@ const styles = StyleSheet.create({
     color: '#10b981',
     fontWeight: '600',
   },
+  verticalCustomerName: {
+    fontSize: 17,
+    color: '#0f766e',
+    fontWeight: '700',
+  },
   metaDot: {
     color: '#9ca3af',
     fontSize: 12,
@@ -254,9 +360,9 @@ const styles = StyleSheet.create({
     color: '#6b7280',
   },
   pickupBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
   pickupScheduled: {
     backgroundColor: '#fff7ed',
@@ -273,22 +379,89 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#374151',
   },
+  verticalChipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 14,
+  },
+  compactChip: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  compactChipText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '800',
+  },
   urgencyBlock: {
     alignItems: 'flex-end',
   },
   elapsedPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 8,
     minWidth: 88,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  verticalElapsedPill: {
+    minWidth: 106,
+  },
   elapsedText: {
     color: '#fff',
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '900',
     fontFamily: 'Courier',
+  },
+  verticalMetaGrid: {
+    marginTop: 18,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  verticalMetaLabel: {
+    fontSize: 10,
+    color: '#64748b',
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  verticalMetaValue: {
+    marginTop: 6,
+    color: '#334155',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  verticalMetaRight: {
+    alignItems: 'flex-end',
+    gap: 8,
+  },
+  verticalTotal: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#111827',
+  },
+  itemsPreviewBlock: {
+    marginTop: 18,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderColor: '#eef2f7',
+    gap: 6,
+  },
+  itemPreviewText: {
+    color: '#111827',
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 20,
+  },
+  itemPreviewMore: {
+    color: '#2563eb',
+    fontSize: 13,
+    fontWeight: '800',
+    marginTop: 4,
   },
   bottomRow: {
     flexDirection: 'row',
@@ -298,6 +471,13 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderColor: '#f3f4f6',
     gap: 10,
+  },
+  verticalFooter: {
+    marginTop: 18,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderColor: '#eef2f7',
+    gap: 12,
   },
   moneyBlock: {
     flexDirection: 'row',
@@ -339,30 +519,35 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 8,
   },
+  verticalStatusControls: {
+    flexDirection: 'row',
+    gap: 10,
+  },
   statusControl: {
-    minWidth: 88,
+    minWidth: 96,
+    flex: 1,
   },
   statusControlLabel: {
     fontSize: 10,
     color: '#6b7280',
-    marginBottom: 3,
+    marginBottom: 5,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
   statusSelectContainer: {
-    borderRadius: 6,
+    borderRadius: 8,
     overflow: 'hidden',
   },
   statusSelect: {
-    paddingVertical: 7,
-    paddingHorizontal: 9,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   statusSelectText: {
     color: '#fff',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
   },
   actionsCluster: {
@@ -372,30 +557,36 @@ const styles = StyleSheet.create({
     gap: 6,
     flexShrink: 1,
   },
+  verticalActionsCluster: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    justifyContent: 'space-between',
+  },
   printButton: {
     margin: 0,
-    width: 34,
-    height: 34,
-    borderRadius: 6,
+    width: 40,
+    height: 40,
+    borderRadius: 8,
     backgroundColor: '#f3f4f6',
   },
   bodySmartpayButton: {
-    borderRadius: 6,
+    borderRadius: 8,
     borderColor: '#2563eb',
-    minHeight: 34,
+    minHeight: 40,
   },
   bodySmartpayButtonContent: {
-    height: 34,
-    paddingHorizontal: 8,
+    height: 40,
+    paddingHorizontal: 10,
   },
   bodyQuickButton: {
-    borderRadius: 6,
+    borderRadius: 8,
     backgroundColor: '#1d4ed8',
-    minHeight: 36,
+    minHeight: 42,
   },
   bodyQuickButtonContent: {
-    height: 36,
-    paddingHorizontal: 10,
+    height: 42,
+    paddingHorizontal: 12,
   },
   secondaryActionLabel: {
     fontSize: 12,

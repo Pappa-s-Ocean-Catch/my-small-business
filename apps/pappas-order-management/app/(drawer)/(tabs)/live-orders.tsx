@@ -9,11 +9,13 @@ import {
   Alert,
   TouchableOpacity,
   ScrollView,
+  Modal,
 } from 'react-native';
 import {
   Button as PaperButton,
   Surface,
   Badge,
+  Snackbar,
 } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import { Audio } from 'expo-av';
@@ -37,11 +39,12 @@ import { OrderDetailModal } from '@/components/OrderDetailModal';
 import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
 import { CashTenderModal } from '@/components/CashTenderModal';
 import { useOrderActions } from '@/hooks/useOrderActions';
-import { escposPrintOrderImage } from '@/lib/escpos-printer';
+import { escposPrintOrderImage, formatPrinterError } from '@/lib/escpos-printer';
 import { captureRef } from 'react-native-view-shot';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
 import { buildKitchenReceiptCopies, shouldPlayOrderSound } from '@/utils/orderUtils';
 import { getPrintDeviceId } from '@/lib/print-device';
+import { getFriendlyOrderNumber } from '@/utils/orderNumber';
 
 type TimeoutHandle = ReturnType<typeof setTimeout>;
 const SECTION_PRINT_DELAY_MS = 1500;
@@ -52,6 +55,22 @@ type GroupKey = 'overdue' | 'due-soon' | 'ready' | 'attention' | 'other';
 type ListRow =
   | { type: 'section'; key: string; title: string; count: number }
   | { type: 'order'; key: string; order: Order };
+
+type JournalLevel = 'info' | 'decision' | 'success' | 'error';
+type JournalEntry = {
+  id: string;
+  timestamp: number;
+  level: JournalLevel;
+  scope: string;
+  message: string;
+  orderId?: string | null;
+  orderNumber?: string | null;
+  details?: string | null;
+};
+
+const JOURNAL_LIMIT = 300;
+const RECEIPT_REF_WAIT_MS = 120;
+const RECEIPT_REF_MAX_ATTEMPTS = 8;
 
 export default function LiveOrdersScreen() {
   const router = useRouter();
@@ -76,6 +95,13 @@ export default function LiveOrdersScreen() {
   const [isCapturing, setIsCapturing] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
   const [headerExpanded, setHeaderExpanded] = useState(false);
+  const [autoPrintToast, setAutoPrintToast] = useState<{ visible: boolean; message: string }>({
+    visible: false,
+    message: '',
+  });
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
+  const [showJournalModal, setShowJournalModal] = useState(false);
+  const [journalOrderFilter, setJournalOrderFilter] = useState<string>('');
   const globalReceiptRef = useRef(null);
 
   const lastOrderIdRef = useRef<string | null>(null);
@@ -109,6 +135,44 @@ export default function LiveOrdersScreen() {
       console.error('Failed to fetch pre-order count:', err);
     }
   };
+
+  const showAutoPrintToast = useCallback((message: string) => {
+    setAutoPrintToast({ visible: true, message });
+  }, []);
+
+  const appendJournal = useCallback((entry: Omit<JournalEntry, 'id' | 'timestamp'>) => {
+    const nextEntry: JournalEntry = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      timestamp: Date.now(),
+      ...entry,
+    };
+    setJournalEntries((current) => [nextEntry, ...current].slice(0, JOURNAL_LIMIT));
+  }, []);
+
+  const logOrderEvent = useCallback((
+    level: JournalLevel,
+    scope: string,
+    message: string,
+    options?: { order?: Pick<Order, 'id' | 'order_number'> | null; details?: string | null }
+  ) => {
+    appendJournal({
+      level,
+      scope,
+      message,
+      orderId: options?.order?.id ?? null,
+      orderNumber: options?.order?.order_number ?? null,
+      details: options?.details ?? null,
+    });
+  }, [appendJournal]);
+
+  const notifyAutoPrintError = useCallback((order: Pick<Order, 'id' | 'order_number'>, reason: string) => {
+    const orderLabel = getFriendlyOrderNumber(order.order_number, order.id);
+    showAutoPrintToast(`Auto print failed for ${orderLabel}: ${reason}`);
+    logOrderEvent('error', 'auto-print', 'Auto print failed', {
+      order,
+      details: reason,
+    });
+  }, [logOrderEvent, showAutoPrintToast]);
 
   const loadOrders = async () => {
     try {
@@ -222,6 +286,16 @@ export default function LiveOrdersScreen() {
 
   const getPrintDelayMs = () => Math.max(2000, (appSettingsRef.current.printerDelayPrintSec || 3) * 1000);
 
+  const waitForReceiptTemplateRef = useCallback(async () => {
+    for (let attempt = 0; attempt < RECEIPT_REF_MAX_ATTEMPTS; attempt++) {
+      if (globalReceiptRef.current) {
+        return globalReceiptRef.current;
+      }
+      await new Promise((resolve) => setTimeout(resolve, RECEIPT_REF_WAIT_MS));
+    }
+    return null;
+  }, []);
+
   const scheduleOrderAnnouncement = (order: Pick<Order, 'id' | 'created_at'>) => {
     if (processedOrderIdsRef.current.has(order.id)) return;
     if (pendingAnnouncementTimersRef.current.has(order.id)) return;
@@ -238,6 +312,10 @@ export default function LiveOrdersScreen() {
       fetchAndAnnounceOrder(order.id);
     }, dueInMs);
     pendingAnnouncementTimersRef.current.set(order.id, timer);
+    logOrderEvent('decision', 'scheduler', 'Scheduled order announcement', {
+      order,
+      details: `Due in ${dueInMs}ms`,
+    });
   };
 
   const fetchAndAnnounceOrder = async (orderId: string, attempt = 0) => {
@@ -245,6 +323,10 @@ export default function LiveOrdersScreen() {
     if (announcingOrderIdsRef.current.has(orderId)) return;
 
     announcingOrderIdsRef.current.add(orderId);
+    logOrderEvent('info', 'scheduler', 'Fetching order for auto workflow', {
+      order: { id: orderId, order_number: null },
+      details: `Attempt ${attempt + 1}`,
+    });
     try {
       const result = await getOrder(orderId);
       const order = result.data;
@@ -253,6 +335,12 @@ export default function LiveOrdersScreen() {
 
       if (!order || !isPrintableStatus || order.payment_status === 'refunded') {
         processedOrderIdsRef.current.add(orderId);
+        logOrderEvent('decision', 'scheduler', 'Skipped auto workflow', {
+          order: order ? { id: order.id, order_number: order.order_number } : { id: orderId, order_number: null },
+          details: !order
+            ? result.error || 'Order not found'
+            : `Status=${order.order_status}, payment=${order.payment_status}`,
+        });
         return;
       }
 
@@ -260,11 +348,20 @@ export default function LiveOrdersScreen() {
       // print delay and retry briefly so the receipt image is based on the complete order.
       if (!order.items || order.items.length === 0) {
         if (attempt < 3) {
+          logOrderEvent('decision', 'scheduler', 'Retrying because order items are not ready yet', {
+            order,
+            details: `Retry ${attempt + 2} scheduled in 1000ms`,
+          });
           const retryTimer = setTimeout(() => {
             pendingAnnouncementTimersRef.current.delete(orderId);
             fetchAndAnnounceOrder(orderId, attempt + 1);
           }, 1000);
           pendingAnnouncementTimersRef.current.set(orderId, retryTimer);
+        } else {
+          logOrderEvent('error', 'scheduler', 'Order items still missing after retries', {
+            order,
+            details: 'Auto workflow stopped before printing',
+          });
         }
         return;
       }
@@ -285,26 +382,24 @@ export default function LiveOrdersScreen() {
     // 1. Auto-print if enabled
     if ((latestSettings.printerEnabled || latestSettings.printerSimulator) && latestSettings.printerAutoPrint) {
        processedOrderIdsRef.current.add(order.id);
+       logOrderEvent('decision', 'auto-print', 'Starting auto-print workflow', {
+         order,
+         details: latestSettings.printerSimulator ? 'Simulator mode enabled' : 'Printer mode enabled',
+       });
        try {
          // quickPrintOrder handles both simulator and real printing with image capture
          await quickPrintOrder(order, { auto: true });
        } catch (err) {
          console.error('Auto print error:', err);
          processedOrderIdsRef.current.delete(order.id);
+         notifyAutoPrintError(order, formatPrinterError(err));
        }
        return;
     }
-
-    // 2. Update status to 'preparing' automatically when auto-print is disabled
-    if (order.order_status === 'pending' || order.order_status === 'confirmed') {
-      processedOrderIdsRef.current.add(order.id);
-      try {
-        await updateOrderStatus(order.id, 'preparing');
-      } catch (err) {
-        console.error('Failed to update status to preparing:', err);
-        processedOrderIdsRef.current.delete(order.id);
-      }
-    }
+    logOrderEvent('decision', 'auto-print', 'Skipped auto-print workflow on this POS', {
+      order,
+      details: 'Auto-print is disabled or no printer capability is enabled on this device',
+    });
   };
 
   const quickPrintOrder = async (order: Order, options: { auto?: boolean } = {}) => {
@@ -318,6 +413,9 @@ export default function LiveOrdersScreen() {
 
       if (isAutoPrint) {
         if (autoPrintedOrderIdsRef.current.has(order.id) || autoPrintingOrderIdsRef.current.has(order.id)) {
+          logOrderEvent('decision', 'auto-print', 'Skipped because this POS already handled the order', {
+            order,
+          });
           return;
         }
         autoPrintingOrderIdsRef.current.add(order.id);
@@ -330,6 +428,9 @@ export default function LiveOrdersScreen() {
 
         if (!latestSettings.printerAutoPrint || (!latestSettings.printerEnabled && !latestSettings.printerSimulator)) {
           processedOrderIdsRef.current.delete(order.id);
+          logOrderEvent('decision', 'auto-print', 'Cancelled auto-print because settings changed', {
+            order,
+          });
           return;
         }
 
@@ -343,7 +444,12 @@ export default function LiveOrdersScreen() {
           if (claim.error) {
             console.error('Auto print claim failed:', claim.error);
             processedOrderIdsRef.current.delete(order.id);
+            notifyAutoPrintError(order, claim.error);
           } else {
+            logOrderEvent('decision', 'claim', 'Another POS currently owns the print claim', {
+              order,
+              details: `Retrying in ${(PRINT_CLAIM_STALE_AFTER_SECONDS + 5) * 1000}ms`,
+            });
             const retryTimer = setTimeout(() => {
               pendingAnnouncementTimersRef.current.delete(order.id);
               processedOrderIdsRef.current.delete(order.id);
@@ -354,6 +460,10 @@ export default function LiveOrdersScreen() {
           return;
         }
         shouldReleaseClaim = true;
+        logOrderEvent('success', 'claim', 'Claimed order for auto-print', {
+          order,
+          details: `Device ${claimedDeviceId}`,
+        });
       }
 
       const latestOrderResult = await getOrder(order.id);
@@ -365,6 +475,10 @@ export default function LiveOrdersScreen() {
         }
       } else if (latestOrderResult.error) {
         console.warn('[LiveOrders] Failed to refresh order before printing:', latestOrderResult.error);
+        logOrderEvent('error', 'auto-print', 'Failed to refresh latest order before printing', {
+          order,
+          details: latestOrderResult.error,
+        });
       }
 
       const s = appSettingsRef.current;
@@ -392,11 +506,16 @@ export default function LiveOrdersScreen() {
         setTempPrintTicketIndex(ticketIndex);
         await new Promise(resolve => setTimeout(resolve, 300));
 
-        if (!globalReceiptRef.current) {
-          throw new Error('Receipt template ref not found');
+        const receiptRef = await waitForReceiptTemplateRef();
+        if (!receiptRef) {
+          logOrderEvent('error', 'print', 'Receipt template ref was not ready for capture', {
+            order: freshOrder,
+            details: `Waited ${RECEIPT_REF_WAIT_MS * RECEIPT_REF_MAX_ATTEMPTS}ms before capture`,
+          });
+          throw new Error('Receipt template is still loading. Please try again.');
         }
 
-        const uri = await captureRef(globalReceiptRef.current, {
+        const uri = await captureRef(receiptRef, {
           format: 'png',
           quality: 1,
           result: 'tmpfile',
@@ -406,63 +525,89 @@ export default function LiveOrdersScreen() {
       }
 
       if (s.printerSimulator) {
+        logOrderEvent('decision', 'print', 'Using print simulator', {
+          order: freshOrder,
+          details: `${imageUris.length} receipt image(s) prepared`,
+        });
         setSimulatorOrder(freshOrder);
         setPrintImageUri(imageUris[0] || null);
         setPrintImageUris(imageUris);
         setShowSimulator(true);
-        if (isAutoPrint) {
-          if (claimedDeviceId) {
-            const completion = await completeKitchenPrintClaim(order.id, claimedDeviceId);
-            if (!completion.completed) {
-              throw new Error(completion.error || 'Failed to complete kitchen print claim');
-            }
-            shouldReleaseClaim = false;
+      } else {
+        const selected = s.printerSaved.find((p) => p.target === s.printerSelectedTarget) || null;
+        if (!s.printerEnabled || !selected) {
+          if (isAutoPrint) {
+            processedOrderIdsRef.current.delete(order.id);
           }
-          autoPrintedOrderIdsRef.current.add(order.id);
+          const message = 'Auto-print is enabled, but no printer is selected.';
+          if (isAutoPrint) {
+            notifyAutoPrintError(order, message);
+          } else {
+            Alert.alert('Printer error', message);
+          }
+          return;
         }
-        return;
+
+        logOrderEvent('info', 'print', 'Sending receipt image(s) to printer', {
+          order: freshOrder,
+          details: `${imageUris.length} image(s) to ${selected.deviceName} (${selected.ipAddress || selected.target})`,
+        });
+
+        for (let index = 0; index < imageUris.length; index++) {
+          await escposPrintOrderImage(
+            imageUris[index],
+            selected,
+            isAutoPrint ? 1 : s.printerCopies,
+            targetDots
+          );
+          if (index < imageUris.length - 1) {
+            await new Promise((resolve) => setTimeout(resolve, SECTION_PRINT_DELAY_MS));
+          }
+        }
       }
 
-      const selected = s.printerSaved.find((p) => p.target === s.printerSelectedTarget) || null;
-      if (!s.printerEnabled || !selected) {
-        if (isAutoPrint) {
-          processedOrderIdsRef.current.delete(order.id);
-        }
-        Alert.alert('Printer error', 'Auto-print is enabled, but no printer is selected.');
-        return;
-      }
-
-      for (let index = 0; index < imageUris.length; index++) {
-        await escposPrintOrderImage(
-          imageUris[index],
-          selected,
-          isAutoPrint ? 1 : s.printerCopies,
-          targetDots
-        );
-        if (index < imageUris.length - 1) {
-          await new Promise((resolve) => setTimeout(resolve, SECTION_PRINT_DELAY_MS));
-        }
-      }
       if (isAutoPrint) {
+        if (freshOrder.order_status === 'pending' || freshOrder.order_status === 'confirmed') {
+          const statusResult = await updateOrderStatus(order.id, 'preparing');
+          if (statusResult.error) {
+            console.warn('[LiveOrders] Failed to move order to preparing after print:', statusResult.error);
+            const now = Date.now();
+            if (now - lastAutoStatusAlertAtRef.current > 4000) {
+              lastAutoStatusAlertAtRef.current = now;
+              showAutoPrintToast(`Printed order, but auto status update failed: ${statusResult.error}`);
+            }
+          } else {
+            logOrderEvent('success', 'status', 'Moved order to preparing after auto-print', {
+              order: freshOrder,
+            });
+          }
+        }
         if (claimedDeviceId) {
           const completion = await completeKitchenPrintClaim(order.id, claimedDeviceId);
           if (!completion.completed) {
             throw new Error(completion.error || 'Failed to complete kitchen print claim');
           }
           shouldReleaseClaim = false;
-        }
-        if (freshOrder.order_status === 'pending' || freshOrder.order_status === 'confirmed') {
-          const statusResult = await updateOrderStatus(order.id, 'preparing');
-          if (statusResult.error) {
-            console.warn('[LiveOrders] Failed to move order to preparing after print:', statusResult.error);
-          }
+          logOrderEvent('success', 'claim', 'Completed print claim', {
+            order: freshOrder,
+            details: `Device ${claimedDeviceId}`,
+          });
         }
         autoPrintedOrderIdsRef.current.add(order.id);
+        logOrderEvent('success', 'print', 'Auto-print workflow completed', {
+          order: freshOrder,
+          details: `${imageUris.length} receipt image(s) processed`,
+        });
       }
     } catch (error) {
       console.error('Quick print failed:', error);
       processedOrderIdsRef.current.delete(order.id);
-      Alert.alert('Print error', 'Failed to capture receipt template image for printing.');
+      const message = formatPrinterError(error) || 'Failed to print order.';
+      if (options.auto) {
+        notifyAutoPrintError(order, message);
+      } else {
+        Alert.alert('Print error', message);
+      }
     } finally {
       if (claimedDeviceId && shouldReleaseClaim) {
         const released = await releaseKitchenPrintClaim(order.id, claimedDeviceId);
@@ -536,6 +681,11 @@ export default function LiveOrdersScreen() {
               )
             );
 
+          logOrderEvent('info', 'realtime', `Received ${payload.eventType.toLowerCase()} event`, {
+            order: { id: orderId, order_number: (payload.new as any)?.order_number ?? null },
+            details: `status ${(payload.old as any)?.order_status ?? '-'} -> ${(payload.new as any)?.order_status ?? '-'}, payment ${(payload.new as any)?.payment_status ?? '-'}`,
+          });
+
           if (isSignificantInsert || isSignificantUpdate) {
             playAttentionSoundForOrder({
               id: orderId,
@@ -546,6 +696,10 @@ export default function LiveOrdersScreen() {
             });
 
             if (isPreOrderFarAway) {
+              logOrderEvent('decision', 'realtime', 'Pre-order outside live window, skipping print for now', {
+                order: { id: orderId, order_number: (payload.new as any)?.order_number ?? null },
+                details: scheduledPickupAt ?? 'No scheduled pickup time',
+              });
               // PRE-ORDER: Set to confirmed and skip printing for now
               const orderNumber = (payload.new as any)?.order_number || orderId;
               setPreOrderSkipNotice(`Pre-order ${orderNumber} received - print skipped`);
@@ -716,6 +870,22 @@ export default function LiveOrdersScreen() {
     return rows;
   }, [filteredOrders, nowMs]);
 
+  const groupedSections = useMemo(() => {
+    const sections: Array<{ key: string; title: string; count: number; orders: Order[] }> = [];
+    let currentSection: { key: string; title: string; count: number; orders: Order[] } | null = null;
+
+    for (const row of groupedRows) {
+      if (row.type === 'section') {
+        currentSection = { key: row.key, title: row.title, count: row.count, orders: [] };
+        sections.push(currentSection);
+      } else if (currentSection) {
+        currentSection.orders.push(row.order);
+      }
+    }
+
+    return sections;
+  }, [groupedRows]);
+
   const filterOptions: Array<{ key: FilterKey; label: string; count: number }> = [
     { key: 'all', label: 'All', count: summaryCounts.all },
     { key: 'needs-action', label: 'Needs Action', count: summaryCounts['needs-action'] },
@@ -732,6 +902,10 @@ export default function LiveOrdersScreen() {
 
   const handleOrderPress = (order: Order) => {
     setSelectedOrder(order);
+    setJournalOrderFilter(order.id);
+    logOrderEvent('info', 'ui', 'Opened order detail from live list', {
+      order,
+    });
     setShowOrderModal(true);
   };
 
@@ -767,6 +941,38 @@ export default function LiveOrdersScreen() {
     if (result.data) {
       setSelectedOrder(result.data);
       setShowOrderModal(true);
+    }
+  };
+
+  const selectedJournalOrderId = selectedOrder?.id ?? '';
+  const effectiveJournalFilter = journalOrderFilter.trim() || selectedJournalOrderId;
+  const isVerticalCardLayout = appSettings.liveOrderCardLayout === 'vertical';
+  const filteredJournalEntries = useMemo(() => {
+    if (!effectiveJournalFilter) return journalEntries;
+    return journalEntries.filter((entry) => (
+      entry.orderId?.toLowerCase().includes(effectiveJournalFilter.toLowerCase())
+      || getFriendlyOrderNumber(entry.orderNumber, entry.orderId || '').toLowerCase().includes(effectiveJournalFilter.toLowerCase())
+    ));
+  }, [effectiveJournalFilter, journalEntries]);
+
+  const formatJournalTime = (timestamp: number) => (
+    new Date(timestamp).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+  );
+
+  const getJournalLevelStyle = (level: JournalLevel) => {
+    switch (level) {
+      case 'success':
+        return styles.journalLevel_success;
+      case 'error':
+        return styles.journalLevel_error;
+      case 'decision':
+        return styles.journalLevel_decision;
+      default:
+        return styles.journalLevel_info;
     }
   };
 
@@ -836,6 +1042,15 @@ export default function LiveOrdersScreen() {
               )}
             </View>
             <PaperButton
+              mode={headerExpanded ? 'contained-tonal' : 'outlined'}
+              onPress={() => setHeaderExpanded((current) => !current)}
+              style={styles.filterToggleButton}
+              compact
+              icon="filter-variant"
+            >
+              {activeFilterOption.label}
+            </PaperButton>
+            <PaperButton
               mode="contained"
               onPress={loadOrders}
               loading={loading}
@@ -846,44 +1061,9 @@ export default function LiveOrdersScreen() {
             </PaperButton>
           </View>
         </View>
-        <TouchableOpacity
-          style={[styles.headerSummaryBar, headerExpanded ? styles.headerSummaryBarExpanded : null]}
-          onPress={() => setHeaderExpanded((current) => !current)}
-          activeOpacity={0.8}
-        >
-          <View style={styles.headerSummaryLeft}>
-            <View style={styles.headerSummaryPrimary}>
-              <Text style={styles.headerSummaryLabel}>Filter</Text>
-              <View style={styles.headerSummaryFilterPill}>
-                <Text style={styles.headerSummaryFilterText}>{activeFilterOption.label}</Text>
-                <Text style={styles.headerSummaryFilterCount}>{activeFilterOption.count}</Text>
-              </View>
-            </View>
-            <View style={styles.headerSummaryMetrics}>
-              <Text style={styles.headerSummaryMetric}>Action {summaryCounts['needs-action']}</Text>
-              <Text style={styles.headerSummaryMetric}>Unpaid {summaryCounts.unpaid}</Text>
-              <Text style={styles.headerSummaryMetric}>Ready {summaryCounts.ready}</Text>
-            </View>
-          </View>
-          <Text style={styles.headerSummaryToggle}>{headerExpanded ? 'Hide' : 'Show'}</Text>
-        </TouchableOpacity>
 
         {headerExpanded && (
           <>
-            <View style={styles.headerStatsRow}>
-              <View style={styles.headerStatCard}>
-                <Text style={styles.headerStatValue}>{summaryCounts['needs-action']}</Text>
-                <Text style={styles.headerStatLabel}>Needs action</Text>
-              </View>
-              <View style={styles.headerStatCard}>
-                <Text style={styles.headerStatValue}>{summaryCounts.unpaid}</Text>
-                <Text style={styles.headerStatLabel}>Unpaid</Text>
-              </View>
-              <View style={styles.headerStatCard}>
-                <Text style={styles.headerStatValue}>{summaryCounts.ready}</Text>
-                <Text style={styles.headerStatLabel}>Ready</Text>
-              </View>
-            </View>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -913,64 +1093,143 @@ export default function LiveOrdersScreen() {
         )}
       </Surface>
 
-      <FlatList
-        data={groupedRows}
-        renderItem={({ item }) => {
-          if (item.type === 'section') {
-            return (
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionHeaderTitle}>{item.title}</Text>
-                <Text style={styles.sectionHeaderCount}>{item.count}</Text>
+      {isVerticalCardLayout ? (
+        <ScrollView
+          contentContainerStyle={styles.verticalListContent}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+        >
+          {groupedSections.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>
+                {activeFilter === 'all' ? 'No live orders' : 'No orders match this filter'}
+              </Text>
+            </View>
+          ) : (
+            groupedSections.map((section) => (
+              <View key={section.key} style={styles.verticalSection}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionHeaderTitle}>{section.title}</Text>
+                  <Text style={styles.sectionHeaderCount}>{section.count}</Text>
+                </View>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.verticalSectionRail}
+                >
+                  {section.orders.map((order) => (
+                    <LiveOrderListItem
+                      key={order.id}
+                      order={order}
+                      nowMs={nowMs}
+                      updatingStatus={updatingStatus}
+                      layout="vertical"
+                      onOrderPress={handleOrderPress}
+                      onCustomerPress={handleCustomerPress}
+                      onPrintPress={quickPrintOrder}
+                      onQuickAction={handleQuickAction}
+                      onSmartpayPayment={handleSmartpayPayment}
+                      smartpayPaired={smartpayPaired}
+                      smartpayProcessing={smartpayProcessingOrderId === order.id}
+                      onStatusUpdate={(selectedOrder, status) => {
+                        Alert.alert('Update Status', 'Select new status', [
+                          { text: 'Confirmed', onPress: () => handleStatusUpdate(selectedOrder, 'confirmed') },
+                          { text: 'Preparing', onPress: () => handleStatusUpdate(selectedOrder, 'preparing') },
+                          { text: 'Ready', onPress: () => handleStatusUpdate(selectedOrder, 'ready') },
+                          { text: 'Completed', onPress: () => handleStatusUpdate(selectedOrder, 'completed') },
+                          { text: 'Cancelled', onPress: () => handleStatusUpdate(selectedOrder, 'cancelled') },
+                          { text: 'Cancel', style: 'cancel' },
+                        ]);
+                      }}
+                      onPaymentStatusUpdate={(id) => {
+                        const paymentOptions: Parameters<typeof Alert.alert>[2] = [
+                          { text: 'Card', onPress: () => handlePaymentStatusUpdate(id, 'paid', 'Card') },
+                          { text: 'Cash', onPress: () => setCashTenderOrder(order) },
+                          ...(smartpayPaired ? [{ text: 'SmartPay', onPress: () => handleSmartpayPayment(order) }] : []),
+                          { text: 'Cancel', style: 'cancel' as const },
+                        ];
+                        Alert.alert('Mark as paid', 'Select payment method', paymentOptions);
+                      }}
+                    />
+                  ))}
+                </ScrollView>
               </View>
-            );
-          }
+            ))
+          )}
+        </ScrollView>
+      ) : (
+        <FlatList
+          data={groupedRows}
+          renderItem={({ item }) => {
+            if (item.type === 'section') {
+              return (
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionHeaderTitle}>{item.title}</Text>
+                  <Text style={styles.sectionHeaderCount}>{item.count}</Text>
+                </View>
+              );
+            }
 
-          const order = item.order;
-          return (
-            <LiveOrderListItem
-              order={order}
-              nowMs={nowMs}
-              updatingStatus={updatingStatus}
-              onOrderPress={handleOrderPress}
-              onCustomerPress={handleCustomerPress}
-              onPrintPress={quickPrintOrder}
-              onQuickAction={handleQuickAction}
-              onSmartpayPayment={handleSmartpayPayment}
-              smartpayPaired={smartpayPaired}
-              smartpayProcessing={smartpayProcessingOrderId === order.id}
-              onStatusUpdate={(selectedOrder, status) => {
-                Alert.alert('Update Status', 'Select new status', [
-                  { text: 'Confirmed', onPress: () => handleStatusUpdate(selectedOrder, 'confirmed') },
-                  { text: 'Preparing', onPress: () => handleStatusUpdate(selectedOrder, 'preparing') },
-                  { text: 'Ready', onPress: () => handleStatusUpdate(selectedOrder, 'ready') },
-                  { text: 'Completed', onPress: () => handleStatusUpdate(selectedOrder, 'completed') },
-                  { text: 'Cancelled', onPress: () => handleStatusUpdate(selectedOrder, 'cancelled') },
-                  { text: 'Cancel', style: 'cancel' },
-                ]);
-              }}
-              onPaymentStatusUpdate={(id) => {
-                const paymentOptions: Parameters<typeof Alert.alert>[2] = [
-                  { text: 'Card', onPress: () => handlePaymentStatusUpdate(id, 'paid', 'Card') },
-                  { text: 'Cash', onPress: () => setCashTenderOrder(order) },
-                  ...(smartpayPaired ? [{ text: 'SmartPay', onPress: () => handleSmartpayPayment(order) }] : []),
-                  { text: 'Cancel', style: 'cancel' as const },
-                ];
-                Alert.alert('Mark as paid', 'Select payment method', paymentOptions);
-              }}
-            />
-          );
+            const order = item.order;
+            return (
+              <LiveOrderListItem
+                order={order}
+                nowMs={nowMs}
+                updatingStatus={updatingStatus}
+                layout="horizontal"
+                onOrderPress={handleOrderPress}
+                onCustomerPress={handleCustomerPress}
+                onPrintPress={quickPrintOrder}
+                onQuickAction={handleQuickAction}
+                onSmartpayPayment={handleSmartpayPayment}
+                smartpayPaired={smartpayPaired}
+                smartpayProcessing={smartpayProcessingOrderId === order.id}
+                onStatusUpdate={(selectedOrder, status) => {
+                  Alert.alert('Update Status', 'Select new status', [
+                    { text: 'Confirmed', onPress: () => handleStatusUpdate(selectedOrder, 'confirmed') },
+                    { text: 'Preparing', onPress: () => handleStatusUpdate(selectedOrder, 'preparing') },
+                    { text: 'Ready', onPress: () => handleStatusUpdate(selectedOrder, 'ready') },
+                    { text: 'Completed', onPress: () => handleStatusUpdate(selectedOrder, 'completed') },
+                    { text: 'Cancelled', onPress: () => handleStatusUpdate(selectedOrder, 'cancelled') },
+                    { text: 'Cancel', style: 'cancel' },
+                  ]);
+                }}
+                onPaymentStatusUpdate={(id) => {
+                  const paymentOptions: Parameters<typeof Alert.alert>[2] = [
+                    { text: 'Card', onPress: () => handlePaymentStatusUpdate(id, 'paid', 'Card') },
+                    { text: 'Cash', onPress: () => setCashTenderOrder(order) },
+                    ...(smartpayPaired ? [{ text: 'SmartPay', onPress: () => handleSmartpayPayment(order) }] : []),
+                    { text: 'Cancel', style: 'cancel' as const },
+                  ];
+                  Alert.alert('Mark as paid', 'Select payment method', paymentOptions);
+                }}
+              />
+            );
+          }}
+          keyExtractor={(item) => item.key}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+          contentContainerStyle={styles.listContent}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>
+                {activeFilter === 'all' ? 'No live orders' : 'No orders match this filter'}
+              </Text>
+            </View>
+          }
+        />
+      )}
+
+      <TouchableOpacity
+        style={styles.debugFab}
+        onPress={() => {
+          if (selectedOrder?.id) {
+            setJournalOrderFilter(selectedOrder.id);
+          }
+          setShowJournalModal(true);
         }}
-        keyExtractor={(item) => item.key}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
-              {activeFilter === 'all' ? 'No live orders' : 'No orders match this filter'}
-            </Text>
-          </View>
-        }
-      />
+      >
+        <Text style={styles.debugFabLabel}>Debug</Text>
+        <Text style={styles.debugFabCount}>{journalEntries.length}</Text>
+      </TouchableOpacity>
 
       <OrderDetailModal
         visible={showOrderModal}
@@ -1041,6 +1300,117 @@ export default function LiveOrdersScreen() {
         onClose={() => setShowCustomerModal(false)}
         onOrderPress={handleOpenOrderFromCustomerModal}
       />
+
+      <Modal
+        visible={showJournalModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowJournalModal(false)}
+      >
+        <View style={styles.journalBackdrop}>
+          <View style={styles.journalModal}>
+            <View style={styles.journalHeader}>
+              <View style={styles.journalHeaderText}>
+                <Text style={styles.journalTitle}>Live Screen Debug Journal</Text>
+                <Text style={styles.journalSubtitle}>
+                  {filteredJournalEntries.length} entries
+                  {effectiveJournalFilter ? ` for ${effectiveJournalFilter}` : ' across all orders'}
+                </Text>
+              </View>
+              <PaperButton mode="text" onPress={() => setShowJournalModal(false)}>
+                Close
+              </PaperButton>
+            </View>
+
+            <View style={styles.journalActions}>
+              <TouchableOpacity
+                style={[styles.journalChip, !journalOrderFilter && !selectedJournalOrderId ? styles.journalChipActive : null]}
+                onPress={() => setJournalOrderFilter('')}
+              >
+                <Text style={[styles.journalChipText, !journalOrderFilter && !selectedJournalOrderId ? styles.journalChipTextActive : null]}>
+                  All orders
+                </Text>
+              </TouchableOpacity>
+              {selectedJournalOrderId ? (
+                <TouchableOpacity
+                  style={[styles.journalChip, effectiveJournalFilter === selectedJournalOrderId ? styles.journalChipActive : null]}
+                  onPress={() => setJournalOrderFilter(selectedJournalOrderId)}
+                >
+                  <Text style={[styles.journalChipText, effectiveJournalFilter === selectedJournalOrderId ? styles.journalChipTextActive : null]}>
+                    Selected order
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity
+                style={styles.journalChip}
+                onPress={() => setJournalEntries([])}
+              >
+                <Text style={styles.journalChipText}>Clear</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.journalFilterRow}>
+              <TouchableOpacity
+                style={styles.journalFilterPill}
+                onPress={() => setJournalOrderFilter(selectedJournalOrderId || '')}
+              >
+                <Text style={styles.journalFilterPillText}>
+                  Filter: {effectiveJournalFilter || 'All'}
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
+
+            <ScrollView style={styles.journalScroll} contentContainerStyle={styles.journalScrollContent}>
+              {filteredJournalEntries.length === 0 ? (
+                <Text style={styles.journalEmpty}>No journal entries yet for this filter.</Text>
+              ) : (
+                filteredJournalEntries.map((entry) => {
+                  const orderLabel = entry.orderId
+                    ? getFriendlyOrderNumber(entry.orderNumber, entry.orderId)
+                    : null;
+                  return (
+                    <TouchableOpacity
+                      key={entry.id}
+                      style={styles.journalEntry}
+                      onPress={() => {
+                        if (entry.orderId) setJournalOrderFilter(entry.orderId);
+                      }}
+                    >
+                      <View style={styles.journalEntryTop}>
+                        <Text style={[styles.journalLevel, getJournalLevelStyle(entry.level)]}>
+                          {entry.level.toUpperCase()}
+                        </Text>
+                        <Text style={styles.journalTime}>{formatJournalTime(entry.timestamp)}</Text>
+                      </View>
+                      <Text style={styles.journalScope}>{entry.scope}</Text>
+                      <Text style={styles.journalMessage}>{entry.message}</Text>
+                      {orderLabel ? (
+                        <Text style={styles.journalOrder}>Order: {orderLabel}</Text>
+                      ) : null}
+                      {entry.details ? (
+                        <Text style={styles.journalDetails}>{entry.details}</Text>
+                      ) : null}
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <Snackbar
+        visible={autoPrintToast.visible}
+        onDismiss={() => setAutoPrintToast((current) => ({ ...current, visible: false }))}
+        duration={5000}
+        action={{
+          label: 'Dismiss',
+          onPress: () => setAutoPrintToast((current) => ({ ...current, visible: false })),
+        }}
+        style={styles.snackbar}
+      >
+        {autoPrintToast.message}
+      </Snackbar>
     </View>
   );
 }
@@ -1052,9 +1422,10 @@ const styles = StyleSheet.create({
   headerTitleWrap: { flex: 1, gap: 2 },
   headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827', flexShrink: 1 },
   headerSubtitle: { fontSize: 12, color: '#6b7280', fontWeight: '700' },
-  headerActions: { flexDirection: 'row', gap: 8, flexShrink: 0 },
+  headerActions: { flexDirection: 'row', gap: 8, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' },
   preOrderBadgeContainer: { position: 'relative' },
   preOrderButton: { borderRadius: 8, borderColor: '#2563eb' },
+  filterToggleButton: { borderRadius: 8 },
   preOrderBadge: {
     position: 'absolute',
     top: -8,
@@ -1063,86 +1434,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   refreshButton: { borderRadius: 8, minWidth: 88 },
-  headerSummaryBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#f8fafc',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  headerSummaryBarExpanded: {
-    backgroundColor: '#f3f4f6',
-  },
-  headerSummaryLeft: {
-    flex: 1,
-    gap: 6,
-  },
-  headerSummaryPrimary: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  headerSummaryLabel: {
-    fontSize: 10,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    color: '#6b7280',
-  },
-  headerSummaryFilterPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingLeft: 10,
-    paddingRight: 8,
-    paddingVertical: 5,
-    borderRadius: 999,
-    backgroundColor: '#111827',
-  },
-  headerSummaryFilterText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  headerSummaryFilterCount: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: '900',
-  },
-  headerSummaryMetrics: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  headerSummaryMetric: {
-    color: '#4b5563',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  headerSummaryToggle: {
-    color: '#2563eb',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  headerStatsRow: { flexDirection: 'row', gap: 8 },
-  headerStatCard: {
-    flex: 1,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    backgroundColor: '#f8fafc',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  headerStatValue: { color: '#111827', fontSize: 16, fontWeight: '900' },
-  headerStatLabel: { color: '#6b7280', fontSize: 11, fontWeight: '700', marginTop: 2 },
   filterRow: { gap: 8, paddingRight: 12 },
   filterChip: {
     flexDirection: 'row',
@@ -1175,6 +1466,9 @@ const styles = StyleSheet.create({
   filterCountText: { color: '#374151', fontSize: 11, fontWeight: '900' },
   filterCountTextSelected: { color: '#fff' },
   listContent: { padding: 12, paddingBottom: 20 },
+  verticalListContent: { padding: 12, paddingBottom: 20, gap: 12 },
+  verticalSection: { gap: 8 },
+  verticalSectionRail: { paddingRight: 12 },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1186,6 +1480,175 @@ const styles = StyleSheet.create({
   sectionHeaderCount: { color: '#6b7280', fontSize: 12, fontWeight: '800' },
   emptyContainer: { flex: 1, alignItems: 'center', marginTop: 100 },
   emptyText: { fontSize: 16, color: '#6b7280' },
+  debugFab: {
+    position: 'absolute',
+    right: 16,
+    bottom: 88,
+    backgroundColor: '#111827',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    alignItems: 'center',
+    zIndex: 180,
+    shadowColor: '#111827',
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  debugFabLabel: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  debugFabCount: {
+    color: '#93c5fd',
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  journalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  journalModal: {
+    maxHeight: '85%',
+    backgroundColor: '#f8fafc',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 24,
+  },
+  journalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  journalHeaderText: {
+    flex: 1,
+  },
+  journalTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#111827',
+  },
+  journalSubtitle: {
+    marginTop: 4,
+    color: '#64748b',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  journalActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  journalChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    backgroundColor: '#fff',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  journalChipActive: {
+    backgroundColor: '#111827',
+    borderColor: '#111827',
+  },
+  journalChipText: {
+    color: '#334155',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  journalChipTextActive: {
+    color: '#fff',
+  },
+  journalFilterRow: {
+    paddingVertical: 10,
+  },
+  journalFilterPill: {
+    borderRadius: 999,
+    backgroundColor: '#dbeafe',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  journalFilterPillText: {
+    color: '#1d4ed8',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  journalScroll: {
+    marginTop: 4,
+  },
+  journalScrollContent: {
+    gap: 10,
+    paddingBottom: 12,
+  },
+  journalEmpty: {
+    color: '#64748b',
+    fontSize: 14,
+    textAlign: 'center',
+    paddingVertical: 24,
+  },
+  journalEntry: {
+    borderRadius: 14,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    padding: 12,
+    gap: 5,
+  },
+  journalEntryTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  journalLevel: {
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  journalLevel_info: {
+    color: '#2563eb',
+  },
+  journalLevel_decision: {
+    color: '#7c3aed',
+  },
+  journalLevel_success: {
+    color: '#059669',
+  },
+  journalLevel_error: {
+    color: '#dc2626',
+  },
+  journalTime: {
+    color: '#64748b',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  journalScope: {
+    color: '#475569',
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  journalMessage: {
+    color: '#111827',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  journalOrder: {
+    color: '#0f172a',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  journalDetails: {
+    color: '#475569',
+    fontSize: 12,
+    lineHeight: 18,
+  },
   printingOverlay: { position: 'absolute', top: 24, left: 0, right: 0, alignItems: 'center', zIndex: 100 },
   printingChip: { backgroundColor: '#2563eb', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8 },
   printingText: { color: '#fff', fontWeight: 'bold' },
@@ -1225,4 +1688,7 @@ const styles = StyleSheet.create({
   smartpayTitle: { marginTop: 16, fontSize: 18, fontWeight: '800', color: '#111827' },
   smartpayText: { marginTop: 8, fontSize: 14, color: '#4b5563', textAlign: 'center' },
   smartpayAmount: { marginTop: 12, fontSize: 28, fontWeight: '900', color: '#111827' },
+  snackbar: {
+    backgroundColor: '#111827',
+  },
 });

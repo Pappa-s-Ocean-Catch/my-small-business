@@ -12,6 +12,7 @@ export type AppSettings = {
     soundEnabled: boolean;
     soundId: SoundId;
     soundRepeatCount: number;
+    liveOrderCardLayout: 'horizontal' | 'vertical';
 
     // Kitchen printer (ESC/POS)
     printerEnabled: boolean;
@@ -68,6 +69,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     soundEnabled: true,
     soundId: 'so-proud-notification',
     soundRepeatCount: 3,
+    liveOrderCardLayout: 'vertical',
 
     printerEnabled: false,
     printerAutoPrint: true,
@@ -113,6 +115,9 @@ export async function loadAppSettings(): Promise<AppSettings> {
         const soundEnabled = typeof (parsed as any)?.soundEnabled === 'boolean'
             ? (parsed as any).soundEnabled
             : DEFAULT_APP_SETTINGS.soundEnabled;
+        const liveOrderCardLayout = (parsed as any)?.liveOrderCardLayout === 'horizontal'
+            ? 'horizontal'
+            : 'vertical';
 
         const printerEnabled = typeof (parsed as any)?.printerEnabled === 'boolean'
             ? (parsed as any).printerEnabled
@@ -149,6 +154,7 @@ export async function loadAppSettings(): Promise<AppSettings> {
             soundEnabled,
             soundId,
             soundRepeatCount,
+            liveOrderCardLayout,
 
             printerEnabled,
             printerAutoPrint,
@@ -180,6 +186,7 @@ export async function saveAppSettings(settings: AppSettings): Promise<void> {
         soundEnabled: !!settings.soundEnabled,
         soundId: settings.soundId,
         soundRepeatCount: clampInt(settings.soundRepeatCount, 1, 10),
+        liveOrderCardLayout: settings.liveOrderCardLayout === 'horizontal' ? 'horizontal' : 'vertical',
 
         printerEnabled: !!settings.printerEnabled,
         printerAutoPrint: !!settings.printerAutoPrint,

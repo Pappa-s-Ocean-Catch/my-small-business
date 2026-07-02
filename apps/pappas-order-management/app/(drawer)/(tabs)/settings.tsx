@@ -15,7 +15,7 @@ import {
 import { SettingsActionTile } from '@/components/settings/SettingsActionTile';
 import { SettingsSectionCard } from '@/components/settings/SettingsSectionCard';
 
-type SettingsDialogKey = 'refresh' | 'sound' | 'printer' | null;
+type SettingsDialogKey = 'refresh' | 'sound' | 'printer' | 'liveOrders' | null;
 
 export default function SettingsScreen() {
     const router = useRouter();
@@ -24,6 +24,7 @@ export default function SettingsScreen() {
     const [soundEnabled, setSoundEnabled] = useState<boolean>(DEFAULT_APP_SETTINGS.soundEnabled);
     const [soundId, setSoundId] = useState<SoundId>(DEFAULT_APP_SETTINGS.soundId);
     const [repeatCountText, setRepeatCountText] = useState(String(DEFAULT_APP_SETTINGS.soundRepeatCount));
+    const [liveOrderCardLayout, setLiveOrderCardLayout] = useState<'horizontal' | 'vertical'>(DEFAULT_APP_SETTINGS.liveOrderCardLayout);
 
     const [printerEnabled, setPrinterEnabled] = useState<boolean>(DEFAULT_APP_SETTINGS.printerEnabled);
     const [printerAutoPrint, setPrinterAutoPrint] = useState<boolean>(DEFAULT_APP_SETTINGS.printerAutoPrint);
@@ -48,6 +49,7 @@ export default function SettingsScreen() {
             setSoundEnabled(s.soundEnabled);
             setSoundId(s.soundId);
             setRepeatCountText(String(s.soundRepeatCount));
+            setLiveOrderCardLayout(s.liveOrderCardLayout);
 
             setPrinterEnabled(s.printerEnabled);
             setPrinterAutoPrint(s.printerAutoPrint);
@@ -90,6 +92,9 @@ export default function SettingsScreen() {
 
     const refreshSummary = `Every ${refreshIntervalSecText} seconds`;
     const soundSummary = soundEnabled ? `${selectedSoundLabel} • ${repeatCountText} plays` : 'Disabled';
+    const liveOrdersSummary = liveOrderCardLayout === 'vertical'
+        ? 'Vertical cards with horizontal scrolling'
+        : 'Full-width horizontal rows';
     const printerSummary = !printerEnabled
         ? 'Disabled'
         : `${selectedPrinter?.deviceName ?? 'No printer selected'} • ${printerCopiesText} cop${printerCopiesText === '1' ? 'y' : 'ies'}`;
@@ -254,6 +259,7 @@ export default function SettingsScreen() {
                 soundEnabled,
                 soundId,
                 soundRepeatCount,
+                liveOrderCardLayout,
                 printerEnabled,
                 printerAutoPrint,
                 printerCopies,
@@ -324,6 +330,12 @@ export default function SettingsScreen() {
                     description={soundSummary}
                     icon="volume-high"
                     onPress={() => setActiveDialog('sound')}
+                />
+                <SettingsActionTile
+                    title="Live order cards"
+                    description={liveOrdersSummary}
+                    icon="view-carousel-outline"
+                    onPress={() => setActiveDialog('liveOrders')}
                 />
                 <SettingsActionTile
                     title="Kitchen printer"
@@ -403,6 +415,33 @@ export default function SettingsScreen() {
                         <Button mode="contained-tonal" onPress={handlePreview} style={styles.previewButton}>
                             Preview sound
                         </Button>
+                    </Dialog.Content>
+                    <Dialog.Actions>
+                        <Button onPress={() => setActiveDialog(null)}>Done</Button>
+                    </Dialog.Actions>
+                </Dialog>
+
+                <Dialog visible={activeDialog === 'liveOrders'} onDismiss={() => setActiveDialog(null)} style={styles.dialog}>
+                    <Dialog.Title>Live order cards</Dialog.Title>
+                    <Dialog.Content style={styles.dialogContent}>
+                        <Text style={styles.label}>Display mode</Text>
+                        <View style={styles.buttonGroup}>
+                            <Button
+                                mode={liveOrderCardLayout === 'vertical' ? 'contained' : 'outlined'}
+                                onPress={() => setLiveOrderCardLayout('vertical')}
+                                style={styles.flexButton}
+                            >
+                                Vertical
+                            </Button>
+                            <Button
+                                mode={liveOrderCardLayout === 'horizontal' ? 'contained' : 'outlined'}
+                                onPress={() => setLiveOrderCardLayout('horizontal')}
+                                style={styles.flexButton}
+                            >
+                                Horizontal
+                            </Button>
+                        </View>
+                        <Text style={styles.helper}>Vertical uses compact queue cards with horizontal scrolling. Horizontal keeps the full-width row list.</Text>
                     </Dialog.Content>
                     <Dialog.Actions>
                         <Button onPress={() => setActiveDialog(null)}>Done</Button>

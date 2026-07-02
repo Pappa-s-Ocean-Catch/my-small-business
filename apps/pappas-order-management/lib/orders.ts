@@ -70,6 +70,7 @@ export async function getAllOrders(filters?: {
   payment_status?: string;
   date?: string;
   since?: string;
+  until?: string;
 }): Promise<{ data: Order[] | null; error: string | null }> {
   try {
     let query = supabase
@@ -89,8 +90,14 @@ export async function getAllOrders(filters?: {
       query = query.eq('payment_status', filters.payment_status);
     }
 
-    if (filters?.since) {
+    if (filters?.since && filters?.until) {
+      query = query
+        .gte('created_at', filters.since)
+        .lte('created_at', filters.until);
+    } else if (filters?.since) {
       query = query.gte('created_at', filters.since);
+    } else if (filters?.until) {
+      query = query.lte('created_at', filters.until);
     } else if (filters?.date) {
       const startDate = new Date(filters.date);
       startDate.setHours(0, 0, 0, 0);

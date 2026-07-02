@@ -37,6 +37,9 @@ import { ReceiptTemplate } from '@/components/ReceiptTemplate';
 import { escposPrintOrderImage } from '@/lib/escpos-printer';
 import { getPrintDeviceId } from '@/lib/print-device';
 
+const RECEIPT_REF_WAIT_MS = 120;
+const RECEIPT_REF_MAX_ATTEMPTS = 8;
+
 export default function PreOrdersScreen() {
   const router = useRouter();
   const navigation = useNavigation<DrawerNavigationProp<any>>();
@@ -56,6 +59,16 @@ export default function PreOrdersScreen() {
   const globalReceiptRef = useRef(null);
   const appSettingsRef = useRef<AppSettings>(DEFAULT_APP_SETTINGS);
   const printDeviceIdRef = useRef<string | null>(null);
+
+  const waitForReceiptTemplateRef = useCallback(async () => {
+    for (let attempt = 0; attempt < RECEIPT_REF_MAX_ATTEMPTS; attempt++) {
+      if (globalReceiptRef.current) {
+        return globalReceiptRef.current;
+      }
+      await new Promise((resolve) => setTimeout(resolve, RECEIPT_REF_WAIT_MS));
+    }
+    return null;
+  }, []);
 
   const loadOrders = async () => {
     try {
@@ -162,11 +175,12 @@ export default function PreOrdersScreen() {
         setTempPrintTicketIndex(ticketIndex);
         await new Promise(resolve => setTimeout(resolve, 300));
 
-        if (!globalReceiptRef.current) {
-          throw new Error('Receipt template ref not found');
+        const receiptRef = await waitForReceiptTemplateRef();
+        if (!receiptRef) {
+          throw new Error('Receipt template is still loading. Please try again.');
         }
 
-        const uri = await captureRef(globalReceiptRef.current, {
+        const uri = await captureRef(receiptRef, {
           format: 'png',
           quality: 1,
           result: 'tmpfile',
