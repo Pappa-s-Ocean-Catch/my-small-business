@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, FlatList, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Appbar, Button, Dialog, Divider, IconButton, Portal, TextInput } from 'react-native-paper';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -202,6 +202,7 @@ const formatPickupTime = (date: Date) => date.toLocaleString([], {
 
 export default function PosScreen() {
   const router = useRouter();
+  const { width, height } = useWindowDimensions();
   const params = useLocalSearchParams<{ orderId?: string | string[] }>();
   const rawOrderId = params.orderId;
   const orderId = Array.isArray(rawOrderId) ? rawOrderId[0] : rawOrderId;
@@ -218,6 +219,7 @@ export default function PosScreen() {
   const [customizableProductIds, setCustomizableProductIds] = useState<Set<string>>(new Set());
   const [menuLevel, setMenuLevel] = useState<'groups' | 'subgroups' | 'items' | 'addons' | 'checkout' | 'search'>('groups');
   const [searchQuery, setSearchQuery] = useState('');
+  const [instorePaymentDialogVisible, setInstorePaymentDialogVisible] = useState(false);
   const [searchProducts, setSearchProducts] = useState<SaleProduct[]>([]);
 
   const [selectedProduct, setSelectedProduct] = useState<SaleProduct | null>(null);
@@ -1646,12 +1648,7 @@ export default function PosScreen() {
 
     if (cartItems.length === 0 || creatingOrder) return;
 
-    Alert.alert('Complete Order', 'Select payment status', [
-      { text: 'CASH', onPress: () => setCashTenderMode('instore') },
-      { text: 'Card', onPress: () => void handleInstoreCheckout('card') },
-      { text: 'Unpaid', onPress: () => void handleInstoreCheckout('unpaid') },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+    setInstorePaymentDialogVisible(true);
   };
 
   const handleCashTenderConfirm = () => {
@@ -1683,6 +1680,21 @@ export default function PosScreen() {
       && !cartItemHasCustomizations(item)
     ))?.quantity ?? 0
   );
+  const isCompactLayout = width < 1000;
+  const isNarrowLayout = width < 760;
+  const gridColumns = isNarrowLayout ? 2 : isCompactLayout ? 3 : 4;
+  const quickListColumns = isNarrowLayout ? 2 : 3;
+  const addonOptionWidth = isNarrowLayout ? '48%' : isCompactLayout ? '31%' : '23%';
+  const activeCartItemId = noteItemId ?? editingItemId ?? cartItems[cartItems.length - 1]?.id ?? null;
+  const checkoutPrimaryLabel = orderId
+    ? 'Update Order'
+    : paymentChoice === 'card'
+      ? 'Create Pickup Order • Card'
+      : paymentChoice === 'cash'
+        ? 'Create Pickup Order • Cash'
+        : 'Create Pickup Order • No Pay';
+  const addonSelectionCount = selectedEditorAddons.length + selectedRemovedIngredients.length;
+  const addonSelectionTotal = addonTotal(selectedEditorAddons);
 
   return (
     <View style={styles.container}>
@@ -1693,16 +1705,16 @@ export default function PosScreen() {
         <Appbar.Action icon="home" onPress={goHome} iconColor="#fff" accessibilityLabel="Back home" />
       </Appbar.Header>
 
-      <View style={styles.body}>
-        <View style={styles.menuPane}>
+      <View style={[styles.body, isCompactLayout ? styles.bodyCompact : null]}>
+        <View style={[styles.menuPane, isCompactLayout ? styles.menuPaneCompact : null]}>
           {menuLevel === 'groups' && (
             <>
               <View style={styles.groupScreen}>
                 <FlatList
                   data={layoutTopLevelCategories}
                   keyExtractor={(item) => item.id}
-                  numColumns={4}
-                  key="groups-4"
+                  numColumns={gridColumns}
+                  key={`groups-${gridColumns}`}
                   contentContainerStyle={styles.tileGrid}
                   renderItem={({ item }) => {
                     return (
@@ -1778,8 +1790,8 @@ export default function PosScreen() {
                 <FlatList
                   data={searchResults}
                   keyExtractor={(item) => item.id}
-                  numColumns={4}
-                  key="search-products-4"
+                  numColumns={gridColumns}
+                  key={`search-products-${gridColumns}`}
                   contentContainerStyle={styles.searchGrid}
                   ListEmptyComponent={(
                     <View style={styles.emptyState}>
@@ -1829,8 +1841,8 @@ export default function PosScreen() {
               <FlatList
                 data={childCategoriesForSelectedGroup}
                 keyExtractor={(item) => item.id}
-                numColumns={4}
-                key="subgroups-4"
+                numColumns={gridColumns}
+                key={`subgroups-${gridColumns}`}
                 contentContainerStyle={styles.tileGrid}
                 ListEmptyComponent={(
                   <View style={styles.emptyState}>
@@ -1863,8 +1875,8 @@ export default function PosScreen() {
               <FlatList
                 data={layoutProducts}
                 keyExtractor={(item) => item.id}
-                numColumns={4}
-                key="products-4"
+                numColumns={gridColumns}
+                key={`products-${gridColumns}`}
                 contentContainerStyle={styles.tileGrid}
                 ListEmptyComponent={(
                   <View style={styles.emptyState}>
@@ -1901,8 +1913,8 @@ export default function PosScreen() {
                         <Text style={[styles.productPrice, customColor ? styles.productCardCustomText : null]}>${item.sale_price.toFixed(2)}</Text>
                       </View>
                     </TouchableOpacity>
-                    );
-                  }}
+                  );
+                }}
               />
               <View style={styles.levelFooter}>
                 <View style={styles.levelFooterActions}>
@@ -1950,13 +1962,14 @@ export default function PosScreen() {
                     <View style={[styles.addonGroupLabel, styles.removeGroupLabel]}>
                       <Text style={[styles.addonGroupTitle, styles.removeGroupTitle]}>Remove Ingredients</Text>
                     </View>
+                    <Text style={styles.groupRequirementText}>Optional removals</Text>
                     <View style={styles.optionGrid}>
                       {editorRemovableIngredients.map((ingredient) => {
                         const selected = Boolean(editorRemovedIngredientIds[ingredient.id]);
                         return (
                           <TouchableOpacity
                             key={ingredient.id}
-                            style={[styles.optionButton, selected && styles.removeButtonSelected]}
+                            style={[styles.optionButton, { width: addonOptionWidth }, selected && styles.removeButtonSelected]}
                             onPress={() => toggleRemovedIngredient(ingredient.id)}
                           >
                             <Text style={[styles.optionText, selected && styles.optionTextSelected]} numberOfLines={2}>
@@ -1989,16 +2002,19 @@ export default function PosScreen() {
                       >
                         <View style={[styles.addonGroupLabel, { backgroundColor: groupPalette.labelColor }]}>
                           <Text style={styles.addonGroupTitle}>
-                            {group.name}{group.is_required ? ' *' : ''}
+                            {group.name}
                           </Text>
                         </View>
+                        <Text style={styles.groupRequirementText}>
+                          {group.is_required ? 'Required selection' : group.multiple_choice ? 'Optional, choose multiple' : 'Optional, choose one'}
+                        </Text>
                         <View style={styles.optionGrid}>
                           {group.items.map((item) => {
                             const selected = Boolean(editorSelectedIds[item.id]);
                             return (
                               <TouchableOpacity
                                 key={item.id}
-                                style={[styles.optionButton, selected && styles.optionButtonSelected]}
+                                style={[styles.optionButton, { width: addonOptionWidth }, selected && styles.optionButtonSelected]}
                                 onPress={() => toggleAddon(group, item)}
                               >
                                 <Text style={[styles.optionText, selected && styles.optionTextSelected]} numberOfLines={2}>
@@ -2017,6 +2033,26 @@ export default function PosScreen() {
                     );
                   }}
                 />
+
+                <View style={styles.addonSummaryBar}>
+                  <View style={styles.addonSummaryText}>
+                    <Text style={styles.addonSummaryTitle}>
+                      {addonSelectionCount > 0 ? `${addonSelectionCount} selections` : 'No selections yet'}
+                    </Text>
+                    <Text style={styles.addonSummaryMeta}>
+                      {addonSelectionTotal > 0 ? `Add-ons +$${addonSelectionTotal.toFixed(2)}` : 'Continue when the item looks right'}
+                    </Text>
+                  </View>
+                  <Button
+                    mode="contained"
+                    icon="arrow-right"
+                    onPress={backToItems}
+                    style={styles.addonSummaryButton}
+                    contentStyle={styles.levelFooterButtonContent}
+                  >
+                    Continue
+                  </Button>
+                </View>
 
                 <View style={styles.editorActions}>
                   <View style={styles.levelFooterActions}>
@@ -2040,16 +2076,6 @@ export default function PosScreen() {
                       disabled={quickAccessProducts.length === 0}
                     >
                       Quick List
-                    </Button>
-                    <Button
-                      mode="contained"
-                      icon="arrow-right"
-                      onPress={backToItems}
-                      style={styles.levelFooterButton}
-                      contentStyle={styles.levelFooterButtonContent}
-                      labelStyle={styles.levelFooterButtonLabel}
-                    >
-                      Continue
                     </Button>
                   </View>
                 </View>
@@ -2104,6 +2130,16 @@ export default function PosScreen() {
                     onChangeText={setCustomerName}
                     style={styles.checkoutInput}
                   />
+                  <View style={styles.checkoutSummaryCard}>
+                    <Text style={styles.checkoutSummaryEyebrow}>Checkout summary</Text>
+                    <Text style={styles.checkoutSummaryTotal}>${totals.total.toFixed(2)}</Text>
+                    <Text style={styles.checkoutSummaryMeta}>
+                      {cartItems.length} items • {isPreOrder ? 'Pre-order pickup' : 'ASAP pickup'}
+                    </Text>
+                    <Text style={styles.checkoutSummaryMeta}>
+                      Payment: {paymentChoice === 'no_pay' ? 'No Pay' : paymentChoice.toUpperCase()}
+                    </Text>
+                  </View>
                   <View style={styles.pickupPanel}>
                     <Text style={styles.checkoutSectionTitle}>POS Pickup</Text>
                     <View style={styles.pickupModeRow}>
@@ -2197,42 +2233,44 @@ export default function PosScreen() {
                     style={styles.placeOrderButton}
                     buttonColor="#16a34a"
                   >
-                    {orderId ? 'Update Order' : 'Create Pickup Order'}
+                    {checkoutPrimaryLabel}
                   </Button>
-                  <Button
-                    mode="contained-tonal"
-                    icon="credit-card-wireless-outline"
-                    loading={smartpayProcessing}
-                    disabled={!smartpayPaired || creatingOrder || smartpayProcessing || cartItems.length === 0 || (!orderId && !customerPhone.trim())}
-                    onPress={() => void handleCheckout('smartpay')}
-                    style={styles.placeOrderButton}
-                  >
-                    SmartPay
-                  </Button>
-                  {!orderId && (
-                    <Button
-                      mode="contained-tonal"
-                      icon="cash-register"
-                      loading={creatingOrder}
-                      disabled={creatingOrder || cartItems.length === 0}
-                      onPress={openInstorePaymentPrompt}
-                      style={styles.placeOrderButton}
-                    >
-                      Create INSTORE Order
-                    </Button>
-                  )}
+                  <View style={styles.secondaryActionsPanel}>
+                    <Text style={styles.secondaryActionsTitle}>Quick actions</Text>
+                    <View style={styles.secondaryActionsRow}>
+                      <Button
+                        mode="contained-tonal"
+                        icon="credit-card-wireless-outline"
+                        loading={smartpayProcessing}
+                        disabled={!smartpayPaired || creatingOrder || smartpayProcessing || cartItems.length === 0 || (!orderId && !customerPhone.trim())}
+                        onPress={() => void handleCheckout('smartpay')}
+                        style={styles.secondaryActionButton}
+                      >
+                        SmartPay
+                      </Button>
+                      {!orderId && (
+                        <Button
+                          mode="contained-tonal"
+                          icon="cash-register"
+                          loading={creatingOrder}
+                          disabled={creatingOrder || cartItems.length === 0}
+                          onPress={openInstorePaymentPrompt}
+                          style={styles.secondaryActionButton}
+                        >
+                          In-store
+                        </Button>
+                      )}
+                    </View>
+                  </View>
                 </View>
               </ScrollView>
             </>
           )}
 
-          {menuLevel !== 'items' && menuLevel !== 'addons' && (
+          {menuLevel !== 'groups' && menuLevel !== 'items' && menuLevel !== 'addons' && (
             <View
               pointerEvents="box-none"
-              style={[
-                styles.quickListButtonWrap,
-                menuLevel === 'groups' ? styles.quickListButtonWrapGroups : null,
-              ]}
+              style={styles.quickListButtonWrap}
             >
               <Button
                 mode="contained"
@@ -2262,8 +2300,8 @@ export default function PosScreen() {
                   <FlatList
                     data={quickAccessProducts}
                     keyExtractor={(item) => item.id}
-                    numColumns={3}
-                    key="quick-list-3"
+                    numColumns={quickListColumns}
+                    key={`quick-list-${quickListColumns}`}
                     contentContainerStyle={styles.quickListGrid}
                     renderItem={({ item }) => {
                       const quickQuantity = quickQuantityForProduct(item.id);
@@ -2301,7 +2339,7 @@ export default function PosScreen() {
           )}
         </View>
 
-        <View style={styles.cartPane}>
+        <View style={[styles.cartPane, isCompactLayout ? styles.cartPaneCompact : null]}>
           <View style={styles.cartHeader}>
             <Text style={styles.cartTitle}>Current Order</Text>
             <Button
@@ -2337,76 +2375,87 @@ export default function PosScreen() {
             keyExtractor={(item) => item.id}
             style={styles.cartList}
             ListEmptyComponent={<Text style={styles.emptyCart}>No items yet</Text>}
-            renderItem={({ item }) => (
-              <View style={styles.cartRow}>
-                <View style={styles.cartItemHeader}>
-                  <View style={styles.cartItemText}>
-                    <View style={styles.cartItemTopLine}>
-                      <TouchableOpacity
-                        style={styles.cartItemNameButton}
-                        onPress={() => openCartItemEditor(item)}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Edit ${item.product_name}`}
-                      >
-                        <Text style={styles.cartItemName} numberOfLines={2}>{item.product_name}</Text>
-                      </TouchableOpacity>
-                      <View style={styles.qtyStepper}>
-                        <IconButton icon="minus" size={16} onPress={() => updateQuantity(item.id, -1)} style={styles.stepperButton} />
-                        <Text style={styles.cartQuantity}>{item.quantity}</Text>
-                        <IconButton icon="plus" size={16} onPress={() => updateQuantity(item.id, 1)} style={styles.stepperButton} />
+            renderItem={({ item }) => {
+              const showCartActions = item.id === activeCartItemId;
+              return (
+                <View style={styles.cartRow}>
+                  <View style={styles.cartItemHeader}>
+                    <View style={styles.cartItemText}>
+                      <View style={styles.cartItemTopLine}>
+                        <TouchableOpacity
+                          style={styles.cartItemNameButton}
+                          onPress={() => openCartItemEditor(item)}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Edit ${item.product_name}`}
+                        >
+                          <Text style={styles.cartItemName} numberOfLines={2}>{item.product_name}</Text>
+                        </TouchableOpacity>
+                        <View style={styles.qtyStepper}>
+                          <IconButton icon="minus" size={16} onPress={() => updateQuantity(item.id, -1)} style={styles.stepperButton} />
+                          <Text style={styles.cartQuantity}>{item.quantity}</Text>
+                          <IconButton icon="plus" size={16} onPress={() => updateQuantity(item.id, 1)} style={styles.stepperButton} />
+                        </View>
+                        <Text style={styles.cartItemPrice}>${item.subtotal.toFixed(2)}</Text>
                       </View>
-                      <Text style={styles.cartItemPrice}>${item.subtotal.toFixed(2)}</Text>
-                    </View>
-                    <View style={styles.cartItemDetails}>
-                      {item.addons?.map((addon) => (
-                        <Text
-                          key={`${item.id}-addon-${addon.addon_item_id}`}
-                          style={styles.cartItemMeta}
-                          numberOfLines={1}
-                        >
-                          + {addon.addon_item_name}
-                          {addon.addon_item_price > 0 ? ` $${addon.addon_item_price.toFixed(2)}` : ''}
-                        </Text>
-                      ))}
-                      {item.removed_ingredients?.map((ingredient) => (
-                        <Text
-                          key={`${item.id}-removed-${ingredient}`}
-                          style={styles.cartItemRemoved}
-                          numberOfLines={1}
-                        >
-                          No {ingredient}
-                        </Text>
-                      ))}
-                      {item.comment && <Text style={styles.cartItemNote} numberOfLines={2}>{item.comment}</Text>}
+                      <View style={styles.cartItemDetails}>
+                        {item.addons?.map((addon) => (
+                          <Text
+                            key={`${item.id}-addon-${addon.addon_item_id}`}
+                            style={styles.cartItemMeta}
+                            numberOfLines={1}
+                          >
+                            + {addon.addon_item_name}
+                            {addon.addon_item_price > 0 ? ` $${addon.addon_item_price.toFixed(2)}` : ''}
+                          </Text>
+                        ))}
+                        {item.removed_ingredients?.map((ingredient) => (
+                          <Text
+                            key={`${item.id}-removed-${ingredient}`}
+                            style={styles.cartItemRemoved}
+                            numberOfLines={1}
+                          >
+                            No {ingredient}
+                          </Text>
+                        ))}
+                        {item.comment && <Text style={styles.cartItemNote} numberOfLines={2}>{item.comment}</Text>}
+                      </View>
                     </View>
                   </View>
+                  {showCartActions && (
+                    <View style={styles.cartControls}>
+                      <Button
+                        mode="outlined"
+                        compact
+                        icon="pencil"
+                        onPress={() => openCartItemEditor(item)}
+                        style={styles.cartActionButton}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        mode="outlined"
+                        compact
+                        icon={item.comment ? 'note-edit-outline' : 'note-plus-outline'}
+                        onPress={() => openNoteEditor(item)}
+                        style={styles.cartActionButton}
+                      >
+                        Note
+                      </Button>
+                      <Button
+                        mode="outlined"
+                        compact
+                        icon="trash-can-outline"
+                        textColor="#dc2626"
+                        onPress={() => removeCartItem(item.id)}
+                        style={styles.cartActionButton}
+                      >
+                        Remove
+                      </Button>
+                    </View>
+                  )}
                 </View>
-                <View style={styles.cartControls}>
-                  <IconButton
-                    icon="pencil"
-                    onPress={() => openCartItemEditor(item)}
-                    size={18}
-                    style={styles.cartActionIconButton}
-                    accessibilityLabel="Modify item"
-                  />
-                  <IconButton
-                    icon={item.comment ? 'note-edit-outline' : 'note-plus-outline'}
-                    onPress={() => openNoteEditor(item)}
-                    size={18}
-                    style={styles.cartActionIconButton}
-                    accessibilityLabel={item.comment ? 'Edit item note' : 'Add item note'}
-                  />
-                  <IconButton
-                    icon="trash-can-outline"
-                    iconColor="#dc2626"
-                    size={18}
-                    onPress={() => removeCartItem(item.id)}
-                    style={styles.cartActionIconButton}
-                    accessibilityLabel="Remove item"
-                  />
-                </View>
-              </View>
-            )}
+              );
+            }}
           />
           <Divider />
           <View style={styles.totals}>
@@ -2434,30 +2483,33 @@ export default function PosScreen() {
             {orderId ? 'Update Order' : 'Checkout'}
           </Button>
           {!orderId && (
-            <View style={styles.quickPaymentRow}>
-              <Button
-                mode="contained-tonal"
-                icon="check-circle-outline"
-                loading={creatingOrder}
-                disabled={creatingOrder || smartpayProcessing || cartItems.length === 0}
-                onPress={openInstorePaymentPrompt}
-                style={[styles.checkoutButton, styles.quickPaymentButton, styles.completeButton]}
-                buttonColor="#dc2626"
-                textColor="#fff"
-              >
-                Complete
-              </Button>
-              <Button
-                mode="contained"
-                icon="credit-card-wireless-outline"
-                loading={smartpayProcessing}
-                disabled={!smartpayPaired || creatingOrder || smartpayProcessing || cartItems.length === 0}
-                onPress={() => void handleSmartpayInstoreCheckout()}
-                style={[styles.checkoutButton, styles.quickPaymentButton]}
-                buttonColor="#2563eb"
-              >
-                SmartPay
-              </Button>
+            <View style={styles.quickActionsPanel}>
+              <Text style={styles.quickActionsTitle}>Quick actions</Text>
+              <View style={styles.quickPaymentRow}>
+                <Button
+                  mode="contained-tonal"
+                  icon="check-circle-outline"
+                  loading={creatingOrder}
+                  disabled={creatingOrder || smartpayProcessing || cartItems.length === 0}
+                  onPress={openInstorePaymentPrompt}
+                  style={[styles.checkoutButton, styles.quickPaymentButton, styles.completeButton]}
+                  buttonColor="#dc2626"
+                  textColor="#fff"
+                >
+                  Complete
+                </Button>
+                <Button
+                  mode="contained"
+                  icon="credit-card-wireless-outline"
+                  loading={smartpayProcessing}
+                  disabled={!smartpayPaired || creatingOrder || smartpayProcessing || cartItems.length === 0}
+                  onPress={() => void handleSmartpayInstoreCheckout()}
+                  style={[styles.checkoutButton, styles.quickPaymentButton]}
+                  buttonColor="#2563eb"
+                >
+                  SmartPay
+                </Button>
+              </View>
             </View>
           )}
         </View>
@@ -2548,6 +2600,41 @@ export default function PosScreen() {
             <Button onPress={saveNote}>Save</Button>
           </Dialog.Actions>
         </Dialog>
+        <Dialog
+          visible={instorePaymentDialogVisible}
+          onDismiss={() => setInstorePaymentDialogVisible(false)}
+          style={styles.noteDialog}
+        >
+          <Dialog.Title>Complete In-store Order</Dialog.Title>
+          <Dialog.Content>
+            <Text style={styles.smartpayDialogText}>
+              Choose how this order should be recorded before it is created.
+            </Text>
+            <View style={styles.dialogActionStack}>
+              <Button mode="contained" icon="cash" onPress={() => {
+                setInstorePaymentDialogVisible(false);
+                setCashTenderMode('instore');
+              }}>
+                Cash
+              </Button>
+              <Button mode="contained-tonal" icon="credit-card-outline" onPress={() => {
+                setInstorePaymentDialogVisible(false);
+                void handleInstoreCheckout('card');
+              }}>
+                Card
+              </Button>
+              <Button mode="outlined" icon="clock-outline" onPress={() => {
+                setInstorePaymentDialogVisible(false);
+                void handleInstoreCheckout('unpaid');
+              }}>
+                Unpaid
+              </Button>
+            </View>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setInstorePaymentDialogVisible(false)}>Cancel</Button>
+          </Dialog.Actions>
+        </Dialog>
       </Portal>
 
     </View>
@@ -2559,14 +2646,13 @@ const styles = StyleSheet.create({
   header: { backgroundColor: '#1f2937' },
   headerTitle: { color: '#fff', fontWeight: '700' },
   body: { flex: 1, flexDirection: 'row', gap: 12, padding: 12 },
+  bodyCompact: { flexDirection: 'column' },
   menuPane: { flex: 1, backgroundColor: '#fff', borderRadius: 8, overflow: 'hidden' },
+  menuPaneCompact: { minHeight: 520 },
   quickListButtonWrap: {
     position: 'absolute',
     left: 12,
     bottom: 12,
-  },
-  quickListButtonWrapGroups: {
-    bottom: 140,
   },
   quickListButton: {
     borderRadius: 999,
@@ -2816,7 +2902,6 @@ const styles = StyleSheet.create({
   removeGroupTitle: { color: '#fff' },
   optionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   optionButton: {
-    width: '23%',
     minHeight: 52,
     borderRadius: 8,
     borderWidth: 1,
@@ -2831,6 +2916,7 @@ const styles = StyleSheet.create({
   optionText: { color: '#111827', fontSize: 13, lineHeight: 16, fontWeight: '900', textAlign: 'center' },
   optionTextSelected: { color: '#fff' },
   optionPrice: { color: '#6b7280', fontSize: 12, marginTop: 2, fontWeight: '800', textAlign: 'center' },
+  groupRequirementText: { color: '#374151', fontSize: 12, fontWeight: '800', marginBottom: 8, marginTop: 2 },
   editorActions: { flexDirection: 'row', gap: 10, paddingTop: 8 },
   editorActionButton: { flex: 1, borderRadius: 8 },
   checkoutBody: { flex: 1 },
@@ -2838,6 +2924,17 @@ const styles = StyleSheet.create({
   checkoutForm: { maxWidth: 520, width: '100%', gap: 10 },
   checkoutInput: { backgroundColor: '#fff' },
   checkoutNoteInput: { minHeight: 84 },
+  checkoutSummaryCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+    backgroundColor: '#f0fdf4',
+    padding: 14,
+    gap: 4,
+  },
+  checkoutSummaryEyebrow: { color: '#166534', fontSize: 12, fontWeight: '900', textTransform: 'uppercase' },
+  checkoutSummaryTotal: { color: '#14532d', fontSize: 28, fontWeight: '900' },
+  checkoutSummaryMeta: { color: '#166534', fontSize: 13, fontWeight: '700' },
   checkoutSectionTitle: { color: '#111827', fontSize: 15, fontWeight: '900' },
   lookupRow: { minHeight: 22, justifyContent: 'center' },
   lookupText: { color: '#6b7280', fontSize: 13, fontWeight: '700' },
@@ -2891,7 +2988,19 @@ const styles = StyleSheet.create({
   pickupPickerButtons: { flexDirection: 'row', gap: 8 },
   pickupPickerButton: { flex: 1, borderRadius: 8 },
   placeOrderButton: { borderRadius: 8, marginTop: 8 },
+  secondaryActionsPanel: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    padding: 12,
+    gap: 10,
+    backgroundColor: '#fff',
+  },
+  secondaryActionsTitle: { color: '#111827', fontSize: 13, fontWeight: '900' },
+  secondaryActionsRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  secondaryActionButton: { flexGrow: 1, borderRadius: 8 },
   cartPane: { width: 350, backgroundColor: '#fff', borderRadius: 8, padding: 12 },
+  cartPaneCompact: { width: '100%', minHeight: 320 },
   cartHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 },
   cartTitle: { color: '#111827', fontSize: 20, fontWeight: '800', flex: 1 },
   clearCartButton: { borderRadius: 8 },
@@ -2908,7 +3017,7 @@ const styles = StyleSheet.create({
   cartItemMeta: { color: '#2563eb', fontSize: 13, marginTop: 2, fontWeight: '700' },
   cartItemRemoved: { color: '#dc2626', fontSize: 13, marginTop: 2, fontWeight: '800' },
   cartItemNote: { color: '#6b7280', fontSize: 14, marginTop: 3 },
-  cartControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 2, marginTop: 5 },
+  cartControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6, marginTop: 8, flexWrap: 'wrap' },
   qtyStepper: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2919,7 +3028,7 @@ const styles = StyleSheet.create({
   },
   stepperButton: { margin: -4 },
   cartQuantity: { minWidth: 24, textAlign: 'center', fontSize: 16, fontWeight: '900' },
-  cartActionIconButton: { margin: -4 },
+  cartActionButton: { borderRadius: 999 },
   totals: { paddingVertical: 12, gap: 8 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between' },
   totalLabel: { color: '#6b7280', fontSize: 15 },
@@ -2976,6 +3085,13 @@ const styles = StyleSheet.create({
   },
   quickOrderNoteChipTextSelected: { color: '#fff' },
   checkoutButton: { borderRadius: 8, marginTop: 10 },
+  quickActionsPanel: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  quickActionsTitle: { color: '#111827', fontSize: 13, fontWeight: '900', marginBottom: 6 },
   quickPaymentRow: { flexDirection: 'row', gap: 8 },
   quickPaymentButton: { flex: 1 },
   completeButton: { marginTop: 12 },
@@ -2984,6 +3100,22 @@ const styles = StyleSheet.create({
   smartpayAmount: { marginTop: 12, color: '#111827', fontSize: 28, fontWeight: '900', textAlign: 'center' },
   noteDialog: { backgroundColor: '#fff' },
   noteInput: { backgroundColor: '#fff', minHeight: 90 },
+  dialogActionStack: { marginTop: 16, gap: 10 },
+  addonSummaryBar: {
+    marginTop: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#fff',
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  addonSummaryText: { flex: 1, gap: 2 },
+  addonSummaryTitle: { color: '#111827', fontSize: 14, fontWeight: '900' },
+  addonSummaryMeta: { color: '#6b7280', fontSize: 12, fontWeight: '700' },
+  addonSummaryButton: { borderRadius: 8 },
   quickListGrid: { paddingTop: 8, paddingBottom: 8 },
   quickListCard: {
     flex: 1,

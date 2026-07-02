@@ -300,6 +300,7 @@ export default function HistoryScreen() {
         onClose={() => setShowOrderModal(false)}
         onPrint={handlePrint}
         onPrintImage={handlePrintImage}
+        onPrintCustomerCopyImage={handlePrintImage}
         onCustomerPress={handleCustomerPress}
         onStatusUpdate={handleStatusUpdate}
         onPaymentStatusUpdate={handlePaymentStatusUpdate}
@@ -326,7 +327,7 @@ export default function HistoryScreen() {
       />
 
       <PrintSimulatorModal
-        visible={showSimulator}
+        visible={showSimulator && !showOrderModal}
         order={simulatorOrder}
         imageUri={printImageUri}
         onClose={() => setShowSimulator(false)}

@@ -85,7 +85,13 @@ export default function RootLayout() {
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="login" />
           <Stack.Screen name="(drawer)" />
-          <Stack.Screen name="order-detail" />
+          <Stack.Screen
+            name="order-detail"
+            options={{
+              presentation: 'fullScreenModal',
+              animation: 'slide_from_bottom',
+            }}
+          />
           <Stack.Screen name="pos-layout-settings" />
           <Stack.Screen name="POS-intergation" />
         </Stack>

@@ -269,6 +269,7 @@ export default function CustomersScreen() {
         onClose={() => setShowOrderModal(false)}
         onPrint={handlePrint}
         onPrintImage={handlePrintImage}
+        onPrintCustomerCopyImage={handlePrintImage}
         onCustomerPress={handleCustomerPressFromOrder}
         onStatusUpdate={handleStatusUpdate}
         onPaymentStatusUpdate={handlePaymentStatusUpdate}
@@ -281,7 +282,7 @@ export default function CustomersScreen() {
       />
 
       <PrintSimulatorModal
-        visible={showSimulator}
+        visible={showSimulator && !showOrderModal}
         order={simulatorOrder}
         imageUri={printImageUri}
         onClose={() => setShowSimulator(false)}

@@ -6,7 +6,12 @@ import { DEFAULT_APP_SETTINGS, loadAppSettings, saveAppSettings } from '@/lib/se
 import { playNewOrderSound, SOUND_OPTIONS, type SoundId } from '@/lib/sounds';
 import { usePrintersDiscovery } from 'react-native-esc-pos-printer';
 import type { DeviceInfo } from 'react-native-esc-pos-printer';
-import { escposTestPrint, type SavedPrinter } from '@/lib/escpos-printer';
+import {
+    escposTestPrint,
+    isSamePhysicalPrinter,
+    mergeSavedPrinter,
+    type SavedPrinter,
+} from '@/lib/escpos-printer';
 import { SettingsActionTile } from '@/components/settings/SettingsActionTile';
 import { SettingsSectionCard } from '@/components/settings/SettingsSectionCard';
 
@@ -64,6 +69,23 @@ export default function SettingsScreen() {
     const selectedPrinter = useMemo(
         () => printerSaved.find((printer) => printer.target === printerSelectedTarget) || null,
         [printerSaved, printerSelectedTarget]
+    );
+
+    const discoveredPrinterMatches = useMemo(
+        () =>
+            printers.map((printer) => {
+                const exactSaved = printerSaved.find((saved) => saved.target === printer.target) || null;
+                const matchedSaved =
+                    exactSaved || printerSaved.find((saved) => isSamePhysicalPrinter(saved, printer)) || null;
+                return {
+                    printer,
+                    exactSaved,
+                    matchedSaved,
+                    isSelected: printer.target === printerSelectedTarget || matchedSaved?.target === printerSelectedTarget,
+                    needsReplacement: !!matchedSaved && matchedSaved.target !== printer.target,
+                };
+            }),
+        [printerSaved, printerSelectedTarget, printers]
     );
 
     const refreshSummary = `Every ${refreshIntervalSecText} seconds`;
@@ -125,7 +147,16 @@ export default function SettingsScreen() {
         }
     }, [printerError]);
 
-    const addOrSelectPrinter = async (p: DeviceInfo) => {
+    const toSavedPrinter = (p: DeviceInfo): SavedPrinter => ({
+        target: p.target,
+        deviceName: p.deviceName,
+        ipAddress: p.ipAddress,
+        macAddress: p.macAddress,
+        bdAddress: p.bdAddress,
+        deviceType: p.deviceType,
+    });
+
+    const syncPrinterSelection = async (p: DeviceInfo, options?: { replaceExisting?: boolean }) => {
         if (p.macAddress) {
             try {
                 await pairBluetoothDevice(p.macAddress);
@@ -134,23 +165,64 @@ export default function SettingsScreen() {
             }
         }
 
-        const saved: SavedPrinter = {
-            target: p.target,
-            deviceName: p.deviceName,
-            ipAddress: p.ipAddress,
-            macAddress: p.macAddress,
-            bdAddress: p.bdAddress,
-            deviceType: p.deviceType,
-        };
+        const saved = toSavedPrinter(p);
 
         setPrinterSaved((prev) => {
-            const exists = prev.some((x) => x.target === saved.target);
-            return exists ? prev : [saved, ...prev];
+            const exactIndex = prev.findIndex((existing) => existing.target === saved.target);
+            if (exactIndex >= 0) {
+                const next = [...prev];
+                next[exactIndex] = mergeSavedPrinter(next[exactIndex], saved);
+                return next;
+            }
+
+            const matchedIndex = prev.findIndex((existing) => isSamePhysicalPrinter(existing, saved));
+            if (matchedIndex >= 0 && options?.replaceExisting !== false) {
+                const next = [...prev];
+                next[matchedIndex] = mergeSavedPrinter(prev[matchedIndex], saved);
+                return next;
+            }
+
+            return [saved, ...prev];
         });
 
         setPrinterSelectedTarget(saved.target);
         setPrinterEnabled(true);
     };
+
+    const removeSavedPrinter = (target: string) => {
+        setPrinterSaved((prev) => prev.filter((printer) => printer.target !== target));
+        setPrinterSelectedTarget((current) => (current === target ? null : current));
+    };
+
+    useEffect(() => {
+        if (printers.length === 0) return;
+
+        setPrinterSaved((prev) => {
+            let changed = false;
+            const next = [...prev];
+
+            for (const discovered of printers) {
+                const savedPrinter = toSavedPrinter(discovered);
+                const matchedIndex = next.findIndex((existing) => isSamePhysicalPrinter(existing, savedPrinter));
+                if (matchedIndex >= 0 && next[matchedIndex].target !== savedPrinter.target) {
+                    next[matchedIndex] = mergeSavedPrinter(next[matchedIndex], savedPrinter);
+                    changed = true;
+                }
+            }
+
+            return changed ? next : prev;
+        });
+
+        setPrinterSelectedTarget((current) => {
+            if (!current) return current;
+            const currentSaved = printerSaved.find((printer) => printer.target === current) || null;
+            if (!currentSaved) return current;
+
+            const matched = printers.find((printer) => isSamePhysicalPrinter(currentSaved, printer));
+            if (!matched || matched.target === current) return current;
+            return matched.target;
+        });
+    }, [printerSaved, printers]);
 
     const handleSave = async () => {
         const refreshIntervalSec = parseIntOr(refreshIntervalSecText, DEFAULT_APP_SETTINGS.refreshIntervalSec);
@@ -364,17 +436,31 @@ export default function SettingsScreen() {
                             {printers.length > 0 && (
                                 <View style={styles.group}>
                                     <Text style={styles.label}>Discovered printers</Text>
-                                    {printers.map((p) => (
-                                        <View key={p.target} style={styles.printerRow}>
+                                    {discoveredPrinterMatches.map(({ printer: p, matchedSaved, isSelected, needsReplacement }) => (
+                                        <View key={p.target} style={styles.printerCard}>
                                             <View style={styles.printerDetails}>
                                                 <Text style={styles.printerName}>{p.deviceName}</Text>
                                                 <Text style={styles.printerMeta}>
                                                     {p.ipAddress || p.macAddress || p.bdAddress || p.target}
                                                 </Text>
+                                                {matchedSaved ? (
+                                                    <Text style={styles.helper}>
+                                                        {needsReplacement
+                                                            ? `Matches saved printer. Old address: ${matchedSaved.ipAddress || matchedSaved.target}`
+                                                            : 'Already saved'}
+                                                    </Text>
+                                                ) : (
+                                                    <Text style={styles.helper}>New printer</Text>
+                                                )}
                                             </View>
-                                            <Button mode="contained" onPress={() => addOrSelectPrinter(p)}>
-                                                Enable
-                                            </Button>
+                                            <View style={styles.printerActions}>
+                                                <Button
+                                                    mode={isSelected ? 'contained' : 'outlined'}
+                                                    onPress={() => syncPrinterSelection(p)}
+                                                >
+                                                    {needsReplacement ? 'Replace' : isSelected ? 'Selected' : 'Use'}
+                                                </Button>
+                                            </View>
                                         </View>
                                     ))}
                                 </View>
@@ -395,12 +481,17 @@ export default function SettingsScreen() {
                                                         {p.ipAddress || p.macAddress || p.bdAddress || p.target}
                                                     </Text>
                                                 </View>
-                                                <Button
-                                                    mode={isSelected ? 'contained' : 'outlined'}
-                                                    onPress={() => setPrinterSelectedTarget(p.target)}
-                                                >
-                                                    {isSelected ? 'Selected' : 'Select'}
-                                                </Button>
+                                                <View style={styles.printerActions}>
+                                                    <Button
+                                                        mode={isSelected ? 'contained' : 'outlined'}
+                                                        onPress={() => setPrinterSelectedTarget(p.target)}
+                                                    >
+                                                        {isSelected ? 'Selected' : 'Select'}
+                                                    </Button>
+                                                    <Button mode="text" onPress={() => removeSavedPrinter(p.target)}>
+                                                        Remove
+                                                    </Button>
+                                                </View>
                                             </View>
                                         );
                                     })
@@ -531,8 +622,24 @@ const styles = StyleSheet.create({
         gap: 10,
         paddingVertical: 6,
     },
+    printerCard: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: 10,
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        borderRadius: 12,
+        backgroundColor: '#fff',
+        borderWidth: 1,
+        borderColor: '#ececec',
+        marginTop: 8,
+    },
     printerDetails: {
         flex: 1,
+    },
+    printerActions: {
+        alignItems: 'flex-end',
+        gap: 6,
     },
     printerName: {
         fontSize: 14,

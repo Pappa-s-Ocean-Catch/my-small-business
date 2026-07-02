@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   TouchableOpacity,
+  ScrollView,
 } from 'react-native';
 import {
   Button as PaperButton,
@@ -46,6 +47,12 @@ type TimeoutHandle = ReturnType<typeof setTimeout>;
 const SECTION_PRINT_DELAY_MS = 1500;
 const PRINT_CLAIM_STALE_AFTER_SECONDS = 15;
 
+type FilterKey = 'all' | 'needs-action' | 'unpaid' | 'ready' | 'scheduled';
+type GroupKey = 'overdue' | 'due-soon' | 'ready' | 'attention' | 'other';
+type ListRow =
+  | { type: 'section'; key: string; title: string; count: number }
+  | { type: 'order'; key: string; order: Order };
+
 export default function LiveOrdersScreen() {
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -67,6 +74,8 @@ export default function LiveOrdersScreen() {
   const [tempPrintTicketIndex, setTempPrintTicketIndex] = useState(0);
   const [cashTenderOrder, setCashTenderOrder] = useState<Order | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
+  const [headerExpanded, setHeaderExpanded] = useState(false);
   const globalReceiptRef = useRef(null);
 
   const lastOrderIdRef = useRef<string | null>(null);
@@ -608,6 +617,113 @@ export default function LiveOrdersScreen() {
   const smartpayProcessingOrder = smartpayProcessingOrderId
     ? orders.find((order) => order.id === smartpayProcessingOrderId) || selectedOrder
     : null;
+  const summaryCounts = useMemo(() => {
+    let needsAction = 0;
+    let unpaid = 0;
+    let ready = 0;
+    let scheduled = 0;
+
+    for (const order of orders) {
+      if (order.payment_status !== 'paid') unpaid += 1;
+      if (order.order_status === 'ready') ready += 1;
+      if (order.scheduled_pickup_at) scheduled += 1;
+      if (
+        order.order_status === 'pending'
+        || order.order_status === 'confirmed'
+        || order.order_status === 'ready'
+        || order.payment_status !== 'paid'
+      ) {
+        needsAction += 1;
+      }
+    }
+
+    return {
+      all: orders.length,
+      'needs-action': needsAction,
+      unpaid,
+      ready,
+      scheduled,
+    };
+  }, [orders]);
+
+  const filteredOrders = useMemo(() => {
+    switch (activeFilter) {
+      case 'needs-action':
+        return orders.filter((order) => (
+          order.order_status === 'pending'
+          || order.order_status === 'confirmed'
+          || order.order_status === 'ready'
+          || order.payment_status !== 'paid'
+        ));
+      case 'unpaid':
+        return orders.filter((order) => order.payment_status !== 'paid');
+      case 'ready':
+        return orders.filter((order) => order.order_status === 'ready');
+      case 'scheduled':
+        return orders.filter((order) => Boolean(order.scheduled_pickup_at));
+      default:
+        return orders;
+    }
+  }, [activeFilter, orders]);
+
+  const groupedRows = useMemo<ListRow[]>(() => {
+    const groups: Record<GroupKey, Order[]> = {
+      overdue: [],
+      'due-soon': [],
+      ready: [],
+      attention: [],
+      other: [],
+    };
+
+    for (const order of filteredOrders) {
+      const targetTimeMs = new Date(order.scheduled_pickup_at || order.created_at).getTime();
+      const diffMinutes = (targetTimeMs - nowMs) / (1000 * 60);
+
+      if (order.order_status === 'ready') {
+        groups.ready.push(order);
+      } else if (Number.isFinite(diffMinutes) && diffMinutes < 0) {
+        groups.overdue.push(order);
+      } else if (Number.isFinite(diffMinutes) && diffMinutes <= 10) {
+        groups['due-soon'].push(order);
+      } else if (
+        order.order_status === 'pending'
+        || order.order_status === 'confirmed'
+        || order.payment_status !== 'paid'
+      ) {
+        groups.attention.push(order);
+      } else {
+        groups.other.push(order);
+      }
+    }
+
+    const defs: Array<{ key: GroupKey; title: string }> = [
+      { key: 'overdue', title: 'Overdue' },
+      { key: 'due-soon', title: 'Due Soon' },
+      { key: 'ready', title: 'Ready' },
+      { key: 'attention', title: 'Needs Action' },
+      { key: 'other', title: 'Other Live Orders' },
+    ];
+
+    const rows: ListRow[] = [];
+    for (const def of defs) {
+      const items = groups[def.key];
+      if (items.length === 0) continue;
+      rows.push({ type: 'section', key: `section-${def.key}`, title: def.title, count: items.length });
+      items.forEach((order) => {
+        rows.push({ type: 'order', key: order.id, order });
+      });
+    }
+    return rows;
+  }, [filteredOrders, nowMs]);
+
+  const filterOptions: Array<{ key: FilterKey; label: string; count: number }> = [
+    { key: 'all', label: 'All', count: summaryCounts.all },
+    { key: 'needs-action', label: 'Needs Action', count: summaryCounts['needs-action'] },
+    { key: 'unpaid', label: 'Unpaid', count: summaryCounts.unpaid },
+    { key: 'ready', label: 'Ready', count: summaryCounts.ready },
+    { key: 'scheduled', label: 'Scheduled', count: summaryCounts.scheduled },
+  ];
+  const activeFilterOption = filterOptions.find((filter) => filter.key === activeFilter) ?? filterOptions[0];
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -696,13 +812,19 @@ export default function LiveOrdersScreen() {
 
       <Surface style={styles.header} elevation={1}>
         <View style={styles.headerRow}>
-          <Text style={styles.headerTitle}>Orders</Text>
+          <View style={styles.headerTitleWrap}>
+            <Text style={styles.headerTitle}>Live Orders</Text>
+            <Text style={styles.headerSubtitle}>
+              {summaryCounts.all} active • {isStale ? 'Sync delayed' : refreshCountdown > 0 ? `Refresh in ${refreshCountdown}s` : 'Up to date'}
+            </Text>
+          </View>
           <View style={styles.headerActions}>
             <View style={styles.preOrderBadgeContainer}>
               <PaperButton
                 mode="outlined"
                 onPress={() => router.push('/pre-orders')}
                 style={styles.preOrderButton}
+                compact
                 icon="calendar-clock"
               >
                 Pre-orders
@@ -718,54 +840,134 @@ export default function LiveOrdersScreen() {
               onPress={loadOrders}
               loading={loading}
               style={styles.refreshButton}
+              compact
             >
-              {refreshCountdown > 0 ? `(${refreshCountdown}s)` : 'Refresh'}
+              Refresh
             </PaperButton>
           </View>
         </View>
+        <TouchableOpacity
+          style={[styles.headerSummaryBar, headerExpanded ? styles.headerSummaryBarExpanded : null]}
+          onPress={() => setHeaderExpanded((current) => !current)}
+          activeOpacity={0.8}
+        >
+          <View style={styles.headerSummaryLeft}>
+            <View style={styles.headerSummaryPrimary}>
+              <Text style={styles.headerSummaryLabel}>Filter</Text>
+              <View style={styles.headerSummaryFilterPill}>
+                <Text style={styles.headerSummaryFilterText}>{activeFilterOption.label}</Text>
+                <Text style={styles.headerSummaryFilterCount}>{activeFilterOption.count}</Text>
+              </View>
+            </View>
+            <View style={styles.headerSummaryMetrics}>
+              <Text style={styles.headerSummaryMetric}>Action {summaryCounts['needs-action']}</Text>
+              <Text style={styles.headerSummaryMetric}>Unpaid {summaryCounts.unpaid}</Text>
+              <Text style={styles.headerSummaryMetric}>Ready {summaryCounts.ready}</Text>
+            </View>
+          </View>
+          <Text style={styles.headerSummaryToggle}>{headerExpanded ? 'Hide' : 'Show'}</Text>
+        </TouchableOpacity>
+
+        {headerExpanded && (
+          <>
+            <View style={styles.headerStatsRow}>
+              <View style={styles.headerStatCard}>
+                <Text style={styles.headerStatValue}>{summaryCounts['needs-action']}</Text>
+                <Text style={styles.headerStatLabel}>Needs action</Text>
+              </View>
+              <View style={styles.headerStatCard}>
+                <Text style={styles.headerStatValue}>{summaryCounts.unpaid}</Text>
+                <Text style={styles.headerStatLabel}>Unpaid</Text>
+              </View>
+              <View style={styles.headerStatCard}>
+                <Text style={styles.headerStatValue}>{summaryCounts.ready}</Text>
+                <Text style={styles.headerStatLabel}>Ready</Text>
+              </View>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filterRow}
+            >
+              {filterOptions.map((filter) => {
+                const selected = filter.key === activeFilter;
+                return (
+                  <TouchableOpacity
+                    key={filter.key}
+                    style={[styles.filterChip, selected ? styles.filterChipSelected : null]}
+                    onPress={() => setActiveFilter(filter.key)}
+                  >
+                    <Text style={[styles.filterChipText, selected ? styles.filterChipTextSelected : null]}>
+                      {filter.label}
+                    </Text>
+                    <View style={[styles.filterCount, selected ? styles.filterCountSelected : null]}>
+                      <Text style={[styles.filterCountText, selected ? styles.filterCountTextSelected : null]}>
+                        {filter.count}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </>
+        )}
       </Surface>
 
       <FlatList
-        data={orders}
-        renderItem={({ item }) => (
-          <LiveOrderListItem
-            order={item}
-            nowMs={nowMs}
-            updatingStatus={updatingStatus}
-            onOrderPress={handleOrderPress}
-            onCustomerPress={handleCustomerPress}
-            onPrintPress={quickPrintOrder}
-            onQuickAction={handleQuickAction}
-            onSmartpayPayment={handleSmartpayPayment}
-            smartpayPaired={smartpayPaired}
-            smartpayProcessing={smartpayProcessingOrderId === item.id}
-            onStatusUpdate={(order, status) => {
-              Alert.alert('Update Status', 'Select new status', [
-                { text: 'Confirmed', onPress: () => handleStatusUpdate(order, 'confirmed') },
-                { text: 'Preparing', onPress: () => handleStatusUpdate(order, 'preparing') },
-                { text: 'Ready', onPress: () => handleStatusUpdate(order, 'ready') },
-                { text: 'Completed', onPress: () => handleStatusUpdate(order, 'completed') },
-                { text: 'Cancelled', onPress: () => handleStatusUpdate(order, 'cancelled') },
-                { text: 'Cancel', style: 'cancel' },
-              ]);
-            }}
-            onPaymentStatusUpdate={(id) => {
-              const paymentOptions: Parameters<typeof Alert.alert>[2] = [
-                { text: 'Card', onPress: () => handlePaymentStatusUpdate(id, 'paid', 'Card') },
-                { text: 'Cash', onPress: () => setCashTenderOrder(item) },
-                ...(smartpayPaired ? [{ text: 'SmartPay', onPress: () => handleSmartpayPayment(item) }] : []),
-                { text: 'Cancel', style: 'cancel' as const },
-              ];
-              Alert.alert('Mark as paid', 'Select payment method', paymentOptions);
-            }}
-          />
-        )}
-        keyExtractor={(item) => item.id}
+        data={groupedRows}
+        renderItem={({ item }) => {
+          if (item.type === 'section') {
+            return (
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionHeaderTitle}>{item.title}</Text>
+                <Text style={styles.sectionHeaderCount}>{item.count}</Text>
+              </View>
+            );
+          }
+
+          const order = item.order;
+          return (
+            <LiveOrderListItem
+              order={order}
+              nowMs={nowMs}
+              updatingStatus={updatingStatus}
+              onOrderPress={handleOrderPress}
+              onCustomerPress={handleCustomerPress}
+              onPrintPress={quickPrintOrder}
+              onQuickAction={handleQuickAction}
+              onSmartpayPayment={handleSmartpayPayment}
+              smartpayPaired={smartpayPaired}
+              smartpayProcessing={smartpayProcessingOrderId === order.id}
+              onStatusUpdate={(selectedOrder, status) => {
+                Alert.alert('Update Status', 'Select new status', [
+                  { text: 'Confirmed', onPress: () => handleStatusUpdate(selectedOrder, 'confirmed') },
+                  { text: 'Preparing', onPress: () => handleStatusUpdate(selectedOrder, 'preparing') },
+                  { text: 'Ready', onPress: () => handleStatusUpdate(selectedOrder, 'ready') },
+                  { text: 'Completed', onPress: () => handleStatusUpdate(selectedOrder, 'completed') },
+                  { text: 'Cancelled', onPress: () => handleStatusUpdate(selectedOrder, 'cancelled') },
+                  { text: 'Cancel', style: 'cancel' },
+                ]);
+              }}
+              onPaymentStatusUpdate={(id) => {
+                const paymentOptions: Parameters<typeof Alert.alert>[2] = [
+                  { text: 'Card', onPress: () => handlePaymentStatusUpdate(id, 'paid', 'Card') },
+                  { text: 'Cash', onPress: () => setCashTenderOrder(order) },
+                  ...(smartpayPaired ? [{ text: 'SmartPay', onPress: () => handleSmartpayPayment(order) }] : []),
+                  { text: 'Cancel', style: 'cancel' as const },
+                ];
+                Alert.alert('Mark as paid', 'Select payment method', paymentOptions);
+              }}
+            />
+          );
+        }}
+        keyExtractor={(item) => item.key}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No live orders</Text>
+            <Text style={styles.emptyText}>
+              {activeFilter === 'all' ? 'No live orders' : 'No orders match this filter'}
+            </Text>
           </View>
         }
       />
@@ -780,6 +982,7 @@ export default function LiveOrdersScreen() {
         }}
         onPrint={handlePrint}
         onPrintImage={handlePrintImage}
+        onPrintCustomerCopyImage={handlePrintImage}
         onCustomerPress={handleCustomerPress}
         onStatusUpdate={handleStatusUpdate}
         onPaymentStatusUpdate={handlePaymentStatusUpdateWithTender}
@@ -812,7 +1015,7 @@ export default function LiveOrdersScreen() {
       </View>
 
       <PrintSimulatorModal
-        visible={showSimulator}
+        visible={showSimulator && !showOrderModal}
         order={simulatorOrder}
         imageUri={printImageUri}
         imageUris={printImageUris}
@@ -844,11 +1047,12 @@ export default function LiveOrdersScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
-  header: { padding: 16, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e5e5e5' },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-  headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#111827', flexShrink: 1 },
+  header: { padding: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e5e5e5', gap: 10 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 },
+  headerTitleWrap: { flex: 1, gap: 2 },
+  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827', flexShrink: 1 },
+  headerSubtitle: { fontSize: 12, color: '#6b7280', fontWeight: '700' },
   headerActions: { flexDirection: 'row', gap: 8, flexShrink: 0 },
-  filterButton: { borderRadius: 8 },
   preOrderBadgeContainer: { position: 'relative' },
   preOrderButton: { borderRadius: 8, borderColor: '#2563eb' },
   preOrderBadge: {
@@ -858,8 +1062,128 @@ const styles = StyleSheet.create({
     backgroundColor: '#ef4444',
     fontWeight: 'bold',
   },
-  refreshButton: { borderRadius: 8, minWidth: 100 },
-  listContent: { padding: 16 },
+  refreshButton: { borderRadius: 8, minWidth: 88 },
+  headerSummaryBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  headerSummaryBarExpanded: {
+    backgroundColor: '#f3f4f6',
+  },
+  headerSummaryLeft: {
+    flex: 1,
+    gap: 6,
+  },
+  headerSummaryPrimary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  headerSummaryLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    color: '#6b7280',
+  },
+  headerSummaryFilterPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingLeft: 10,
+    paddingRight: 8,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: '#111827',
+  },
+  headerSummaryFilterText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  headerSummaryFilterCount: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  headerSummaryMetrics: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  headerSummaryMetric: {
+    color: '#4b5563',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  headerSummaryToggle: {
+    color: '#2563eb',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  headerStatsRow: { flexDirection: 'row', gap: 8 },
+  headerStatCard: {
+    flex: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  headerStatValue: { color: '#111827', fontSize: 16, fontWeight: '900' },
+  headerStatLabel: { color: '#6b7280', fontSize: 11, fontWeight: '700', marginTop: 2 },
+  filterRow: { gap: 8, paddingRight: 12 },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#fff',
+    paddingLeft: 12,
+    paddingRight: 8,
+    paddingVertical: 8,
+  },
+  filterChipSelected: {
+    backgroundColor: '#111827',
+    borderColor: '#111827',
+  },
+  filterChipText: { color: '#111827', fontSize: 12, fontWeight: '800' },
+  filterChipTextSelected: { color: '#fff' },
+  filterCount: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  filterCountSelected: { backgroundColor: 'rgba(255,255,255,0.18)' },
+  filterCountText: { color: '#374151', fontSize: 11, fontWeight: '900' },
+  filterCountTextSelected: { color: '#fff' },
+  listContent: { padding: 12, paddingBottom: 20 },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 6,
+    paddingBottom: 6,
+  },
+  sectionHeaderTitle: { color: '#111827', fontSize: 13, fontWeight: '900', textTransform: 'uppercase' },
+  sectionHeaderCount: { color: '#6b7280', fontSize: 12, fontWeight: '800' },
   emptyContainer: { flex: 1, alignItems: 'center', marginTop: 100 },
   emptyText: { fontSize: 16, color: '#6b7280' },
   printingOverlay: { position: 'absolute', top: 24, left: 0, right: 0, alignItems: 'center', zIndex: 100 },

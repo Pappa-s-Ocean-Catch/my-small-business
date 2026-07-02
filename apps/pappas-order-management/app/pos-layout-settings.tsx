@@ -581,7 +581,10 @@ export default function PosLayoutSettingsScreen() {
       <View style={styles.body}>
         <View style={styles.previewPane}>
           <View style={styles.previewToolbar}>
-            <Button mode="contained" icon="magnify" style={styles.searchButton}>Search items</Button>
+            <Button mode="contained-tonal" icon="magnify" style={styles.searchButton} disabled>
+              Search preview
+            </Button>
+            <Text style={styles.previewHint}>Preview only. Search stays interactive on the live POS screen.</Text>
           </View>
 
           {!selectedCategoryId ? (
@@ -707,41 +710,61 @@ export default function PosLayoutSettingsScreen() {
           {!selectedCategoryId && orderedCategories.map((category, index) => (
             <View key={category.categoryId} style={styles.editorRow}>
               <View style={styles.editorRowMain}>
-                <View style={styles.editorTitleRow}>
-                  <View style={[styles.editorColorDot, { backgroundColor: categoryColor(category.categoryId) }]} />
-                  <Text style={styles.editorTitle}>{category.displayName}</Text>
+                <View style={styles.editorSection}>
+                  <Text style={styles.editorSectionLabel}>Identity</Text>
+                  <View style={styles.editorTitleRow}>
+                    <View style={[styles.editorColorDot, { backgroundColor: categoryColor(category.categoryId) }]} />
+                    <Text style={styles.editorTitle}>{category.displayName}</Text>
+                  </View>
+                  <Text style={styles.editorSummaryText}>
+                    {category.isVirtual
+                      ? `Merged from ${category.sourceNames.join(' + ')}`
+                      : `Source group: ${category.sourceNames.join(', ')}`}
+                  </Text>
                 </View>
-                <TextInput
-                  label="POS group name"
-                  mode="outlined"
-                  value={category.title || category.displayName}
-                  onChangeText={(text) => updateCategoryTitle(category.categoryId, text)}
-                  style={styles.inlineInput}
-                />
-                <View style={styles.sourceBadgeRow}>
-                  {category.sourceNames.map((name) => (
-                    <Text key={name} style={styles.sourceBadge}>{name}</Text>
-                  ))}
+                <View style={styles.editorSection}>
+                  <Text style={styles.editorSectionLabel}>Label</Text>
+                  <TextInput
+                    label="POS group name"
+                    mode="outlined"
+                    value={category.title || category.displayName}
+                    onChangeText={(text) => updateCategoryTitle(category.categoryId, text)}
+                    style={styles.inlineInput}
+                  />
                 </View>
-                <TouchableOpacity
-                  style={styles.inlineToggleRow}
-                  onPress={() => toggleCategoryTopLevelProducts(category.categoryId)}
-                >
-                  <Checkbox status={category.showProductsOnTopLevel ? 'checked' : 'unchecked'} />
-                  <Text style={styles.inlineToggleText}>Skip next level and show items here</Text>
-                </TouchableOpacity>
-                {category.isVirtual && (
+                <View style={styles.editorSection}>
+                  <Text style={styles.editorSectionLabel}>Behavior</Text>
+                  <View style={styles.sourceBadgeRow}>
+                    {category.sourceNames.map((name) => (
+                      <Text key={name} style={styles.sourceBadge}>{name}</Text>
+                    ))}
+                  </View>
                   <TouchableOpacity
                     style={styles.inlineToggleRow}
-                    onPress={() => openEditVirtualGroupDialog(category)}
+                    onPress={() => toggleCategoryTopLevelProducts(category.categoryId)}
                   >
-                    <IconButton icon="pencil" size={18} />
-                    <Text style={styles.inlineToggleText}>
-                      {category.hideSourceCategories ? 'Edit virtual group and hidden source groups' : 'Edit virtual group'}
-                    </Text>
+                    <Checkbox status={category.showProductsOnTopLevel ? 'checked' : 'unchecked'} />
+                    <Text style={styles.inlineToggleText}>Skip next level and show items here</Text>
                   </TouchableOpacity>
-                )}
-                {renderColorSwatches(categoryColor(category.categoryId), (color) => updateCategoryColor(category.categoryId, color))}
+                  <Text style={styles.editorSummaryText}>
+                    {category.showProductsOnTopLevel ? 'Shows items immediately on POS' : 'Keeps the next category level on POS'}
+                  </Text>
+                  {category.isVirtual && (
+                    <TouchableOpacity
+                      style={styles.inlineToggleRow}
+                      onPress={() => openEditVirtualGroupDialog(category)}
+                    >
+                      <IconButton icon="pencil" size={18} />
+                      <Text style={styles.inlineToggleText}>
+                        {category.hideSourceCategories ? 'Edit virtual group and hidden source groups' : 'Edit virtual group'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <View style={styles.editorSection}>
+                  <Text style={styles.editorSectionLabel}>Appearance</Text>
+                  {renderColorSwatches(categoryColor(category.categoryId), (color) => updateCategoryColor(category.categoryId, color))}
+                </View>
               </View>
               <View style={styles.orderControls}>
                 <IconButton icon="arrow-collapse-up" size={18} onPress={() => moveCategoryToEdge(index, 'top')} disabled={index === 0} />
@@ -767,24 +790,38 @@ export default function PosLayoutSettingsScreen() {
               {orderedProducts.map((product, index) => (
                 <View key={product.id} style={styles.editorRow}>
                   <View style={styles.editorRowMain}>
-                    <View style={styles.editorTitleRow}>
-                      <View style={[styles.editorColorDot, { backgroundColor: productColor(product.id) || '#f9fafb' }]} />
-                      <Text style={styles.editorTitle}>{product.name}</Text>
+                    <View style={styles.editorSection}>
+                      <Text style={styles.editorSectionLabel}>Identity</Text>
+                      <View style={styles.editorTitleRow}>
+                        <View style={[styles.editorColorDot, { backgroundColor: productColor(product.id) || '#f9fafb' }]} />
+                        <Text style={styles.editorTitle}>{product.name}</Text>
+                      </View>
                     </View>
-                    <TouchableOpacity
-                      style={styles.inlineToggleRow}
-                      onPress={() => toggleProductQuickList(product.id)}
-                    >
-                      <Checkbox
-                        status={
-                          selectedLayoutCategory?.products.find((layoutProduct) => layoutProduct.productId === product.id)?.showOnQuickList
-                            ? 'checked'
-                            : 'unchecked'
-                        }
-                      />
-                      <Text style={styles.inlineToggleText}>Show on quick list</Text>
-                    </TouchableOpacity>
-                    {renderColorSwatches(productColor(product.id), (color) => updateProductColor(product.id, color))}
+                    <View style={styles.editorSection}>
+                      <Text style={styles.editorSectionLabel}>Behavior</Text>
+                      <TouchableOpacity
+                        style={styles.inlineToggleRow}
+                        onPress={() => toggleProductQuickList(product.id)}
+                      >
+                        <Checkbox
+                          status={
+                            selectedLayoutCategory?.products.find((layoutProduct) => layoutProduct.productId === product.id)?.showOnQuickList
+                              ? 'checked'
+                              : 'unchecked'
+                          }
+                        />
+                        <Text style={styles.inlineToggleText}>Show on quick list</Text>
+                      </TouchableOpacity>
+                      <Text style={styles.editorSummaryText}>
+                        {selectedLayoutCategory?.products.find((layoutProduct) => layoutProduct.productId === product.id)?.showOnQuickList
+                          ? 'Appears in the POS quick list overlay'
+                          : 'Only appears in its category flow'}
+                      </Text>
+                    </View>
+                    <View style={styles.editorSection}>
+                      <Text style={styles.editorSectionLabel}>Appearance</Text>
+                      {renderColorSwatches(productColor(product.id), (color) => updateProductColor(product.id, color))}
+                    </View>
                   </View>
                   <View style={styles.orderControls}>
                     <IconButton icon="arrow-collapse-up" size={18} onPress={() => moveProductToEdge(index, 'top')} disabled={index === 0} />
@@ -905,8 +942,9 @@ const styles = StyleSheet.create({
   actionRow: { flexDirection: 'row', gap: 8 },
   actionButton: { flex: 1, borderRadius: 8 },
   editorHintRow: { flexDirection: 'row', gap: 8, marginBottom: 2 },
-  previewToolbar: { padding: 10, paddingBottom: 0 },
+  previewToolbar: { padding: 10, paddingBottom: 0, gap: 8 },
   searchButton: { borderRadius: 8 },
+  previewHint: { color: '#6b7280', fontSize: 12, fontWeight: '700' },
   tileGrid: { padding: 10, paddingBottom: 24 },
   groupCard: {
     flex: 1,
@@ -969,6 +1007,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9fafb',
   },
   editorRowMain: { flex: 1, gap: 6 },
+  editorSection: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    padding: 8,
+    gap: 6,
+    backgroundColor: '#fff',
+  },
+  editorSectionLabel: { color: '#6b7280', fontSize: 11, fontWeight: '900', textTransform: 'uppercase' },
+  editorSummaryText: { color: '#374151', fontSize: 12, fontWeight: '700' },
   editorTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   editorColorDot: {
     width: 16,

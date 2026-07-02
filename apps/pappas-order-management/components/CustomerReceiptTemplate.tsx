@@ -1,0 +1,285 @@
+import React from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import type { Order } from '@my-small-business/types';
+import { ReceiptQrCode } from './ReceiptQrCode';
+import { getReceiptStoreAddressLines, getReceiptStoreName, getReceiptWebsiteUrl } from '../lib/receipt-config';
+import { getOrderChannelReceiptLabel, getOrderLineItemCount, getOrderNotes, groupAddons } from '../utils/orderUtils';
+
+type Props = {
+  order: Order;
+  width?: number;
+};
+
+function formatMoney(amount: number) {
+  return (amount || 0).toFixed(2);
+}
+
+export function CustomerReceiptTemplate({ order, width = 576 }: Props) {
+  const siteUrl = getReceiptWebsiteUrl();
+  const storeName = getReceiptStoreName();
+  const addressLines = getReceiptStoreAddressLines();
+  const orderNotes = getOrderNotes(order);
+  const rewardPointsUsed = order.reward_points_used ?? 0;
+  const rewardPointsValue = order.reward_points_value ?? 0;
+  const isNarrow = width <= 384;
+  const qrSize = isNarrow ? 128 : 144;
+
+  return (
+    <View style={[styles.container, { width }]}>
+      <View style={styles.header}>
+        <Text style={styles.dateText}>{new Date(order.created_at).toLocaleString()}</Text>
+        <Text style={styles.storeName}>{storeName}</Text>
+        {addressLines.map((line) => (
+          <Text key={line} style={styles.addressText}>{line}</Text>
+        ))}
+        <Text style={styles.orderNumberText}>
+          P{order.order_number?.split('-').pop()?.replace(/\D+/g, '')}
+        </Text>
+        <Text style={styles.metaText}>
+          {getOrderChannelReceiptLabel(order)}
+        </Text>
+      </View>
+
+      <View style={styles.divider} />
+
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Items</Text>
+        <Text style={styles.sectionTitle}>{getOrderLineItemCount(order)}</Text>
+      </View>
+
+      {(order.items || []).map((item, index) => (
+        <View key={`${item.product_id || item.product_name}-${index}`} style={styles.itemBlock}>
+          <View style={styles.itemRow}>
+            <Text style={styles.itemName}>
+              {item.quantity}x {item.product_name}
+            </Text>
+            <Text style={styles.itemPrice}>${formatMoney(item.subtotal)}</Text>
+          </View>
+          {groupAddons(item.addons || []).map((addon, addonIndex) => (
+            <Text key={`${item.product_name}-addon-${addonIndex}`} style={styles.modifierText}>
+              {addon.quantity > 1 ? `${addon.quantity}x ` : '+ '}
+              {addon.name}
+              {addon.price > 0 ? ` ($${formatMoney(addon.price)})` : ''}
+            </Text>
+          ))}
+          {item.removed_ingredients?.map((ingredient, removedIndex) => (
+            <Text key={`${item.product_name}-removed-${removedIndex}`} style={styles.modifierText}>
+              No {ingredient}
+            </Text>
+          ))}
+          {item.comment?.trim() ? (
+            <Text style={styles.modifierText}>Note: {item.comment.trim()}</Text>
+          ) : null}
+        </View>
+      ))}
+
+      {orderNotes ? (
+        <>
+          <View style={styles.divider} />
+          <Text style={styles.notesTitle}>Notes</Text>
+          <Text style={styles.notesText}>{orderNotes}</Text>
+        </>
+      ) : null}
+
+      <View style={styles.divider} />
+
+      <View style={styles.totalRow}>
+        <Text style={styles.totalLabel}>Subtotal</Text>
+        <Text style={styles.totalValue}>${formatMoney(order.subtotal)}</Text>
+      </View>
+      {order.tax > 0 ? (
+        <View style={styles.totalRow}>
+          <Text style={styles.totalLabel}>Tax</Text>
+          <Text style={styles.totalValue}>${formatMoney(order.tax)}</Text>
+        </View>
+      ) : null}
+      {order.delivery_fee > 0 ? (
+        <View style={styles.totalRow}>
+          <Text style={styles.totalLabel}>Delivery</Text>
+          <Text style={styles.totalValue}>${formatMoney(order.delivery_fee)}</Text>
+        </View>
+      ) : null}
+      {order.service_fee > 0 ? (
+        <View style={styles.totalRow}>
+          <Text style={styles.totalLabel}>Service Fee</Text>
+          <Text style={styles.totalValue}>${formatMoney(order.service_fee)}</Text>
+        </View>
+      ) : null}
+      {order.promotion_discount > 0 ? (
+        <View style={styles.totalRow}>
+          <Text style={styles.totalLabel}>Promo</Text>
+          <Text style={styles.totalValue}>-${formatMoney(order.promotion_discount)}</Text>
+        </View>
+      ) : null}
+      {order.coupon_discount > 0 ? (
+        <View style={styles.totalRow}>
+          <Text style={styles.totalLabel}>Coupon</Text>
+          <Text style={styles.totalValue}>-${formatMoney(order.coupon_discount)}</Text>
+        </View>
+      ) : null}
+      {rewardPointsUsed > 0 && rewardPointsValue > 0 ? (
+        <View style={styles.totalRow}>
+          <Text style={styles.totalLabel}>Points ({rewardPointsUsed.toLocaleString()})</Text>
+          <Text style={styles.totalValue}>-${formatMoney(rewardPointsValue)}</Text>
+        </View>
+      ) : null}
+
+      <View style={[styles.totalRow, styles.totalRowFinal]}>
+        <Text style={styles.grandTotalLabel}>TOTAL</Text>
+        <Text style={styles.grandTotalValue}>${formatMoney(order.total)}</Text>
+      </View>
+      <Text style={styles.paymentStatus}>
+        {order.payment_status?.toUpperCase() === 'PAID' ? 'PAID' : 'UNPAID'}
+      </Text>
+
+      <View style={styles.qrSection}>
+        <Text style={styles.qrIntro}>Order online:</Text>
+        <ReceiptQrCode value={siteUrl} size={qrSize} />
+        <Text style={styles.websiteText}>{siteUrl}</Text>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  header: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  dateText: {
+    fontSize: 22,
+    color: '#000',
+    textAlign: 'center',
+  },
+  storeName: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#000',
+    textAlign: 'center',
+  },
+  addressText: {
+    fontSize: 18,
+    color: '#000',
+    textAlign: 'center',
+  },
+  metaText: {
+    fontSize: 18,
+    color: '#000',
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  orderNumberText: {
+    fontSize: 42,
+    fontWeight: '900',
+    color: '#000',
+    textAlign: 'center',
+    marginTop: 6,
+  },
+  divider: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#000',
+    borderStyle: 'dashed',
+    marginVertical: 10,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#000',
+  },
+  itemBlock: {
+    marginBottom: 8,
+  },
+  itemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  itemName: {
+    flex: 1,
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#000',
+  },
+  itemPrice: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#000',
+  },
+  modifierText: {
+    fontSize: 18,
+    color: '#000',
+    paddingLeft: 12,
+    marginTop: 2,
+  },
+  notesTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#000',
+    marginBottom: 4,
+  },
+  notesText: {
+    fontSize: 18,
+    color: '#000',
+  },
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  totalLabel: {
+    fontSize: 20,
+    color: '#000',
+  },
+  totalValue: {
+    fontSize: 20,
+    color: '#000',
+  },
+  totalRowFinal: {
+    marginTop: 6,
+  },
+  grandTotalLabel: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#000',
+  },
+  grandTotalValue: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#000',
+  },
+  paymentStatus: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#000',
+    textAlign: 'right',
+    marginTop: 2,
+  },
+  qrSection: {
+    alignItems: 'center',
+    marginTop: 16,
+    gap: 8,
+  },
+  qrIntro: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#000',
+  },
+  websiteText: {
+    fontSize: 16,
+    color: '#000',
+    textAlign: 'center',
+  },
+});

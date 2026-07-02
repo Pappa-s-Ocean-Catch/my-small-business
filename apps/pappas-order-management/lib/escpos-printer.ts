@@ -11,6 +11,41 @@ export type SavedPrinter = {
   deviceType?: string;
 };
 
+function normalizePrinterField(value: string | undefined): string {
+  return value?.trim().toLowerCase() ?? '';
+}
+
+export function isSamePhysicalPrinter(
+  left: Pick<SavedPrinter, 'deviceName' | 'macAddress' | 'bdAddress'> | null | undefined,
+  right: Pick<SavedPrinter, 'deviceName' | 'macAddress' | 'bdAddress'> | null | undefined
+): boolean {
+  if (!left || !right) return false;
+
+  const leftMac = normalizePrinterField(left.macAddress);
+  const rightMac = normalizePrinterField(right.macAddress);
+  if (leftMac && rightMac) return leftMac === rightMac;
+
+  const leftBd = normalizePrinterField(left.bdAddress);
+  const rightBd = normalizePrinterField(right.bdAddress);
+  if (leftBd && rightBd) return leftBd === rightBd;
+
+  const leftName = normalizePrinterField(left.deviceName);
+  const rightName = normalizePrinterField(right.deviceName);
+  return !!leftName && leftName === rightName;
+}
+
+export function mergeSavedPrinter(
+  existing: SavedPrinter | null | undefined,
+  next: SavedPrinter
+): SavedPrinter {
+  return {
+    ...(existing ?? {}),
+    ...next,
+    deviceName: next.deviceName || existing?.deviceName || '',
+    target: next.target || existing?.target || '',
+  };
+}
+
 let printerQueue: Promise<void> = Promise.resolve();
 
 function enqueuePrinterJob<T>(job: () => Promise<T>): Promise<T> {

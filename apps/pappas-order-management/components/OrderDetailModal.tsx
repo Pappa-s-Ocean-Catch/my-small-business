@@ -6,6 +6,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { captureRef } from 'react-native-view-shot';
 import { ReceiptTemplate } from './ReceiptTemplate';
 import { PrintSimulatorModal } from './PrintSimulatorModal';
+import { CustomerReceiptTemplate } from './CustomerReceiptTemplate';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { getFriendlyOrderNumber } from '../utils/orderNumber';
 import { STATUS_COLORS, STATUS_LABELS, PAYMENT_STATUS_COLORS, PAYMENT_STATUS_LABELS } from '../utils/constants';
@@ -22,6 +23,7 @@ interface OrderDetailModalProps {
   onOrderRefresh?: (order: Order) => void;
   onPrint: (order: Order) => Promise<boolean>;
   onPrintImage?: (order: Order, imageUri: string) => Promise<boolean>;
+  onPrintCustomerCopyImage?: (order: Order, imageUri: string) => Promise<boolean>;
   onCustomerPress: (order: Order) => void;
   onStatusUpdate?: (order: Order, status: OrderStatus) => void;
   onPaymentStatusUpdate?: (id: string, status: PaymentStatus, paymentMethodDetail?: string | null) => void;
@@ -35,7 +37,10 @@ interface OrderDetailModalProps {
   setShowSimulator?: (visible: boolean) => void;
   simulatorOrder?: Order | null;
   printImageUri?: string | null;
+  simulatorImageLabels?: string[] | null;
   appSettings?: AppSettings;
+  renderInModal?: boolean;
+  forceFullScreen?: boolean;
 }
 
 export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
@@ -45,6 +50,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   onOrderRefresh,
   onPrint,
   onPrintImage,
+  onPrintCustomerCopyImage,
   onCustomerPress,
   onStatusUpdate,
   onPaymentStatusUpdate,
@@ -57,16 +63,20 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   setShowSimulator,
   simulatorOrder,
   printImageUri,
+  simulatorImageLabels,
   appSettings = DEFAULT_APP_SETTINGS,
+  renderInModal = true,
+  forceFullScreen = false,
 }) => {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const isWide = width >= 820;
+  const isWide = width >= 920;
   const [toastVisible, setToastVisible] = React.useState(false);
   const [isCapturing, setIsCapturing] = React.useState(false);
   const [printPreviewOrder, setPrintPreviewOrder] = React.useState<Order | null>(null);
   const receiptRef = React.useRef(null);
+  const customerReceiptRef = React.useRef(null);
 
   React.useEffect(() => {
     setPrintPreviewOrder(order);
@@ -161,6 +171,45 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     }
   };
 
+  const handleCustomerCopyPrint = async () => {
+    if (!onPrintCustomerCopyImage || !customerReceiptRef.current) {
+      Alert.alert('Customer copy unavailable', 'This screen is not ready to print the customer receipt yet.');
+      return;
+    }
+
+    let printOrder = order;
+
+    const latestOrderResult = await getOrder(order.id);
+    if (latestOrderResult.data) {
+      printOrder = latestOrderResult.data;
+      setPrintPreviewOrder(latestOrderResult.data);
+    } else if (latestOrderResult.error) {
+      console.warn('[OrderDetailModal] Failed to refresh order before customer copy print:', latestOrderResult.error);
+    }
+
+    try {
+      setIsCapturing(true);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      const targetDots = appSettings.printerPaperWidth === '58mm' ? 384 : 576;
+      const scale = appSettings.printerHighQuality ? 2 : 1;
+
+      const uri = await captureRef(customerReceiptRef.current, {
+        format: 'png',
+        quality: 1,
+        result: 'tmpfile',
+        width: targetDots * scale,
+      });
+
+      await onPrintCustomerCopyImage(printOrder, uri);
+    } catch (error) {
+      console.error('Failed to capture customer receipt:', error);
+      Alert.alert('Print error', 'Failed to prepare the customer receipt.');
+    } finally {
+      setIsCapturing(false);
+    }
+  };
+
 
   const renderActionButton = () => {
     if (!onQuickAction || !quickAction) return null;
@@ -181,10 +230,9 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const showPaymentAction = onPaymentStatusUpdate && order.payment_status === 'pending';
   const showCancelAction = onStatusUpdate && order.order_status !== 'completed' && order.order_status !== 'cancelled';
 
-  return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <View style={[styles.container, isWide && styles.containerWide]}>
-        <View style={[styles.modalShell, isWide && styles.modalShellWide]}>
+  const content = (
+      <View style={styles.container}>
+        <View style={[styles.modalShell, forceFullScreen && styles.modalShellFullScreen]}>
         {/* Header */}
         <Surface 
           style={[
@@ -367,6 +415,17 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
             >
               Print
             </PaperButton>
+            <PaperButton
+              mode="outlined"
+              icon="receipt-text-outline"
+              onPress={handleCustomerCopyPrint}
+              loading={isCapturing}
+              disabled={isCapturing || !onPrintCustomerCopyImage}
+              style={styles.actionButton}
+              compact={!isWide}
+            >
+              Print Customer Copy
+            </PaperButton>
             {showCancelAction && (
               <PaperButton
                 mode="outlined" 
@@ -460,13 +519,20 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 showTicketCounter={appSettings.printerSimulator}
               />
            </View>
+           <View ref={customerReceiptRef} collapsable={false}>
+              <CustomerReceiptTemplate
+                order={printPreviewOrder || order}
+                width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
+              />
+           </View>
         </View>
 
-        {/* Simulator Modal - rendered inside to appear on top on iOS */}
         <PrintSimulatorModal
           visible={!!showSimulator}
           order={simulatorOrder || null}
           imageUri={printImageUri || null}
+          imageLabels={simulatorImageLabels || undefined}
+          useModal={false}
           onClose={() => setShowSimulator?.(false)}
         />
         {smartpayProcessing && (
@@ -481,74 +547,95 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
         )}
         </View>
       </View>
+  );
+
+  if (!renderInModal) {
+    return content;
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
+      {content}
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f3f4f6' },
-  containerWide: { alignItems: 'center', justifyContent: 'center', padding: 18 },
-  modalShell: { flex: 1, backgroundColor: '#f3f4f6' },
-  modalShellWide: {
-    width: '96%',
-    maxWidth: 1180,
-    maxHeight: '96%',
-    borderRadius: 8,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#d1d5db',
+  container: { flex: 1, backgroundColor: '#eef2f6' },
+  modalShell: { flex: 1, backgroundColor: '#eef2f6' },
+  modalShellFullScreen: {
+    width: '100%',
+    maxWidth: '100%',
+    maxHeight: '100%',
+    borderRadius: 0,
+    borderWidth: 0,
   },
-  header: { paddingBottom: 14, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingLeft: 20, paddingRight: 8 },
+  header: {
+    paddingBottom: 18,
+    backgroundColor: '#10243f',
+    borderBottomWidth: 1,
+    borderBottomColor: '#183457',
+  },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingLeft: 20, paddingRight: 8 },
   headerTitleBlock: { flex: 1, paddingRight: 12 },
-  headerTitle: { fontSize: 24, fontWeight: '900', color: '#111827' },
-  headerMeta: { fontSize: 14, color: '#4b5563', fontWeight: '600', marginTop: 2 },
-  headerSub: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', paddingHorizontal: 20, marginTop: 8, gap: 8 },
-  statusBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6 },
+  headerTitle: { fontSize: 28, fontWeight: '900', color: '#f8fafc' },
+  headerMeta: { fontSize: 14, color: '#b9c8dd', fontWeight: '600', marginTop: 4 },
+  headerSub: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', paddingHorizontal: 20, marginTop: 14, gap: 8 },
+  statusBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
   statusBadgeText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
-  timeText: { fontSize: 12, color: '#6b7280', marginLeft: 'auto', fontWeight: '600' },
+  timeText: { fontSize: 12, color: '#c8d5e6', marginLeft: 'auto', fontWeight: '700' },
   scheduledInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 8,
+    paddingTop: 12,
     gap: 6,
   },
   scheduledText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#f97316',
+    color: '#ffd089',
   },
   scrollContent: { flex: 1 },
-  scrollContainer: { padding: 14, paddingBottom: 112 },
+  scrollContainer: { padding: 16, paddingBottom: 132 },
   scrollContainerWide: { padding: 18, paddingBottom: 96 },
   contentStack: { gap: 14 },
   summaryGrid: { gap: 14 },
   summaryGridWide: { flexDirection: 'row', alignItems: 'stretch', gap: 14 },
   summaryCard: { flex: 1, alignSelf: 'stretch' },
-  infoCard: { backgroundColor: '#fff', borderRadius: 8 },
-  cardTitle: { fontSize: 16, fontWeight: 'bold', color: '#374151' },
+  infoCard: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#dde4ee',
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 1,
+  },
+  cardTitle: { fontSize: 16, fontWeight: '800', color: '#24364d' },
   customerName: { fontSize: 18, fontWeight: 'bold', color: '#111827', marginBottom: 4 },
   contactText: { fontSize: 14, color: '#4b5563', marginBottom: 2 },
   itemRow: { paddingVertical: 10 },
   optionRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10 },
-  optionText: { fontSize: 16, fontWeight: '900', color: '#111827' },
+  optionText: { fontSize: 16, fontWeight: '900', color: '#10243f' },
   itemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
   itemName: { fontSize: 16, fontWeight: '600', color: '#111827', flex: 1 },
   itemPrice: { fontSize: 16, fontWeight: 'bold', color: '#111827' },
-  itemComment: { fontSize: 14, color: '#d97706', fontStyle: 'italic', marginTop: 4 },
+  itemComment: { fontSize: 14, color: '#b45309', fontStyle: 'italic', marginTop: 4 },
   addonsList: { marginTop: 4, paddingLeft: 12 },
   addonText: { fontSize: 13, color: '#6b7280' },
   removedText: { fontSize: 13, color: '#111827', fontWeight: 'bold' },
   divider: { marginTop: 12 },
-  instructionsCard: { borderLeftWidth: 4, borderLeftColor: '#f59e0b' },
+  instructionsCard: { borderLeftWidth: 5, borderLeftColor: '#f59e0b' },
   instructionsText: { fontSize: 15, color: '#4b5563', lineHeight: 22 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
   totalLabel: { fontSize: 14, color: '#6b7280' },
   totalValue: { fontSize: 14, color: '#111827', fontWeight: '500' },
   totalDivider: { marginVertical: 12 },
   finalTotalLabel: { fontSize: 18, fontWeight: 'bold', color: '#111827' },
-  finalTotalValue: { fontSize: 22, fontWeight: 'bold', color: '#2563eb' },
+  finalTotalValue: { fontSize: 24, fontWeight: '900', color: '#0f766e' },
   actionBar: { 
     position: 'absolute', 
     bottom: 0, 
@@ -556,9 +643,9 @@ const styles = StyleSheet.create({
     right: 0, 
     paddingHorizontal: 18, 
     paddingTop: 14,
-    backgroundColor: '#fff', 
+    backgroundColor: '#fbfdff', 
     borderTopWidth: 1, 
-    borderTopColor: '#e5e7eb', 
+    borderTopColor: '#d7dee7', 
     flexDirection: 'row', 
     alignItems: 'center', 
     justifyContent: 'space-between',
@@ -566,10 +653,10 @@ const styles = StyleSheet.create({
     gap: 12 
   },
   secondaryActions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, flex: 1 },
-  actionButton: { borderRadius: 8, borderColor: '#d1d5db' },
-  primaryActionButton: { minWidth: 180, borderRadius: 8 },
+  actionButton: { borderRadius: 12, borderColor: '#cbd5e1', backgroundColor: '#fff' },
+  primaryActionButton: { minWidth: 220, borderRadius: 14, backgroundColor: '#10243f' },
   primaryActionButtonCompact: { flexGrow: 1 },
-  primaryActionButtonContent: { height: 48 },
+  primaryActionButtonContent: { height: 52 },
   snackbar: {
     marginBottom: 80, // Position above the action bar
   },

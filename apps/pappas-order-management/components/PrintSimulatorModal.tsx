@@ -10,6 +10,8 @@ interface PrintSimulatorModalProps {
   order: Order | null;
   imageUri: string | null;
   imageUris?: string[] | null;
+  imageLabels?: string[] | null;
+  useModal?: boolean;
   onClose: () => void;
 }
 
@@ -18,6 +20,8 @@ export const PrintSimulatorModal: React.FC<PrintSimulatorModalProps> = ({
   order,
   imageUri,
   imageUris,
+  imageLabels,
+  useModal = true,
   onClose,
 }) => {
   const images = imageUris && imageUris.length > 0
@@ -47,13 +51,10 @@ export const PrintSimulatorModal: React.FC<PrintSimulatorModalProps> = ({
     }
   };
 
-  return (
-    <Modal
-      visible={visible}
-      transparent={true}
-      animationType="slide"
-      onRequestClose={onClose}
-    >
+  if (!visible) return null;
+
+  const content = (
+    <>
       <View style={styles.simulatorOverlay}>
         <Surface style={styles.simulatorCard} elevation={5}>
           <View style={styles.header}>
@@ -79,8 +80,13 @@ export const PrintSimulatorModal: React.FC<PrintSimulatorModalProps> = ({
                 {images.map((uri, index) => (
                   <View key={`${uri}-${index}`} style={styles.imagePreviewBlock}>
                     {images.length > 1 && (
-                      <Text style={styles.copyLabel}>Receipt {index + 1}/{images.length}</Text>
+                      <Text style={styles.copyLabel}>
+                        {imageLabels?.[index] || `Receipt ${index + 1}/${images.length}`}
+                      </Text>
                     )}
+                    {images.length === 1 && imageLabels?.[0] ? (
+                      <Text style={styles.copyLabel}>{imageLabels[0]}</Text>
+                    ) : null}
                     <View style={styles.imagePreviewContainer}>
                       <Image 
                         source={{ uri }} 
@@ -122,24 +128,42 @@ export const PrintSimulatorModal: React.FC<PrintSimulatorModalProps> = ({
           </View>
         </Surface>
       </View>
+    </>
+  );
+
+  if (!useModal) {
+    return content;
+  }
+
+  return (
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      {content}
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
   simulatorOverlay: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+    zIndex: 1000,
+    elevation: 1000,
   },
   simulatorCard: {
     backgroundColor: '#fff',
-    borderRadius: 24,
+    borderRadius: 20,
     width: '100%',
-    maxWidth: 500,
-    maxHeight: '85%',
+    maxWidth: '100%',
+    height: '100%',
+    maxHeight: '100%',
     overflow: 'hidden',
   },
   header: {

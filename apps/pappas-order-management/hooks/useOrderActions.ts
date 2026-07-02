@@ -103,17 +103,11 @@ export const useOrderActions = (
         Alert.alert('Complete Order', 'Select payment method', [
           {
             text: 'Card',
-            onPress: async () => {
-              const result = await updateOrderStatus(latestOrder.id, 'completed', 'paid', 'Card');
-              processUpdateResult(result);
-            },
+            onPress: async () => completeOrderWithPayment(latestOrder, 'Card'),
           },
           {
             text: 'Cash',
-            onPress: async () => {
-              const result = await updateOrderStatus(latestOrder.id, 'completed', 'paid', 'Cash');
-              processUpdateResult(result);
-            },
+            onPress: async () => completeOrderWithPayment(latestOrder, 'Cash'),
           },
           { text: 'Cancel', style: 'cancel', onPress: () => setUpdatingStatus(null) },
         ]);
@@ -127,6 +121,11 @@ export const useOrderActions = (
       console.error('Error updating status:', error);
       setUpdatingStatus(null);
     }
+  };
+
+  const completeOrderWithPayment = async (order: Order, paymentMethodDetail: 'Card' | 'Cash') => {
+    const result = await updateOrderStatus(order.id, 'completed', 'paid', paymentMethodDetail);
+    await processUpdateResult(result);
   };
 
   const processUpdateResult = async (result: { data: Order | null; error: string | null }) => {

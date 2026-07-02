@@ -334,6 +334,7 @@ export default function PreOrdersScreen() {
         onClose={() => setShowOrderModal(false)}
         onPrint={handlePrint}
         onPrintImage={handlePrintImage}
+        onPrintCustomerCopyImage={handlePrintImage}
         onCustomerPress={handleCustomerPress}
         onStatusUpdate={handleStatusUpdate}
         onPaymentStatusUpdate={handlePaymentStatusUpdate}
@@ -347,7 +348,7 @@ export default function PreOrdersScreen() {
       />
 
       <PrintSimulatorModal
-        visible={showSimulator}
+        visible={showSimulator && !showOrderModal}
         order={simulatorOrder}
         imageUri={printImageUri}
         imageUris={printImageUris}
