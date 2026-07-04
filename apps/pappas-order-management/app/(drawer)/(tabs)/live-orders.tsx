@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,23 +15,15 @@ import {
   Button as PaperButton,
   Surface,
   Badge,
-  Snackbar,
 } from 'react-native-paper';
-import { useFocusEffect } from '@react-navigation/native';
-import { Audio } from 'expo-av';
 import { useRouter } from 'expo-router';
-import { supabase } from '@/lib/supabase';
+import { useQueryClient } from '@tanstack/react-query';
 import {
-  claimOrderForAutoPrint,
-  completeKitchenPrintClaim,
-  getAllOrders,
-  releaseKitchenPrintClaim,
-  updateOrderStatus,
   getOrder,
 } from '@/lib/orders';
-import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
-import { playNewOrderSound } from '@/lib/sounds';
-import { DEFAULT_APP_SETTINGS, loadAppSettings, subscribeAppSettings, type AppSettings } from '@/lib/settings';
+import type { Order, PaymentStatus } from '@my-small-business/types';
+import { DEFAULT_APP_SETTINGS, loadAppSettings } from '@/lib/settings';
+import { useAppSettingsQuery } from '@/hooks/useAppSettingsQuery';
 import { KitchenAlertOverlay } from '@/lib/KitchenAlertOverlay';
 import { CustomerModal } from '@/components/CustomerModal';
 import { LiveOrderListItem } from '@/components/LiveOrderListItem';
@@ -42,13 +34,18 @@ import { useOrderActions } from '@/hooks/useOrderActions';
 import { escposPrintOrderImage, formatPrinterError } from '@/lib/escpos-printer';
 import { captureRef } from 'react-native-view-shot';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
-import { buildKitchenReceiptCopies, shouldPlayOrderSound } from '@/utils/orderUtils';
-import { getPrintDeviceId } from '@/lib/print-device';
 import { getFriendlyOrderNumber } from '@/utils/orderNumber';
+import { usePrinterAutomationStore, type JournalLevel } from '@/stores/printerAutomationStore';
+import {
+  LIVE_ORDERS_QUERY_KEY,
+  useLiveOrdersQuery,
+  usePreOrderCountQuery,
+} from '@/hooks/useLiveOrdersQuery';
 
 type TimeoutHandle = ReturnType<typeof setTimeout>;
+type JournalOrderRef = { id: string; order_number?: string | null };
+type JournalViewMode = 'all' | 'selected';
 const SECTION_PRINT_DELAY_MS = 1500;
-const PRINT_CLAIM_STALE_AFTER_SECONDS = 15;
 
 type FilterKey = 'all' | 'needs-action' | 'unpaid' | 'ready' | 'scheduled';
 type GroupKey = 'overdue' | 'due-soon' | 'ready' | 'attention' | 'other';
@@ -56,106 +53,57 @@ type ListRow =
   | { type: 'section'; key: string; title: string; count: number }
   | { type: 'order'; key: string; order: Order };
 
-type JournalLevel = 'info' | 'decision' | 'success' | 'error';
-type JournalEntry = {
-  id: string;
-  timestamp: number;
-  level: JournalLevel;
-  scope: string;
-  message: string;
-  orderId?: string | null;
-  orderNumber?: string | null;
-  details?: string | null;
-};
-
-const JOURNAL_LIMIT = 300;
 const RECEIPT_REF_WAIT_MS = 120;
 const RECEIPT_REF_MAX_ATTEMPTS = 8;
 
 export default function LiveOrdersScreen() {
   const router = useRouter();
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshCountdown, setRefreshCountdown] = useState<number>(0);
-  const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [customerInfo, setCustomerInfo] = useState<{ email?: string; phone?: string }>({});
-  const [preOrderSkipNotice, setPreOrderSkipNotice] = useState<string | null>(null);
-  const [preOrderCount, setPreOrderCount] = useState<number>(0);
   const [tempPrintingOrder, setTempPrintingOrder] = useState<Order | null>(null);
   const [tempPrintSource, setTempPrintSource] = useState<string | null>(null);
   const [tempPrintTicketIndex, setTempPrintTicketIndex] = useState(0);
   const [cashTenderOrder, setCashTenderOrder] = useState<Order | null>(null);
-  const [isCapturing, setIsCapturing] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
   const [headerExpanded, setHeaderExpanded] = useState(false);
-  const [autoPrintToast, setAutoPrintToast] = useState<{ visible: boolean; message: string }>({
-    visible: false,
-    message: '',
-  });
-  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [showJournalModal, setShowJournalModal] = useState(false);
   const [journalOrderFilter, setJournalOrderFilter] = useState<string>('');
+  const [journalViewMode, setJournalViewMode] = useState<JournalViewMode>('all');
   const globalReceiptRef = useRef(null);
 
-  const lastOrderIdRef = useRef<string | null>(null);
-  const soundedOrderIdsRef = useRef<Set<string>>(new Set());
-  const processedOrderIdsRef = useRef<Set<string>>(new Set());
-  const pendingAnnouncementTimersRef = useRef<Map<string, TimeoutHandle>>(new Map());
-  const announcingOrderIdsRef = useRef<Set<string>>(new Set());
-  const autoPrintingOrderIdsRef = useRef<Set<string>>(new Set());
-  const autoPrintedOrderIdsRef = useRef<Set<string>>(new Set());
-  const lastPrinterAlertAtRef = useRef<number>(0);
-  const lastAutoStatusAlertAtRef = useRef<number>(0);
-  const subscriptionRef = useRef<any>(null);
+  const queryClient = useQueryClient();
   const countdownIntervalRef = useRef<TimeoutHandle | null>(null);
-  const preOrderNoticeTimeoutRef = useRef<TimeoutHandle | null>(null);
-  const appSettingsRef = useRef<AppSettings>(DEFAULT_APP_SETTINGS);
   const printQueueRef = useRef<Promise<void>>(Promise.resolve());
-  const printDeviceIdRef = useRef<string | null>(null);
+  const journalEntries = usePrinterAutomationStore((state) => state.journalEntries);
+  const clearJournal = usePrinterAutomationStore((state) => state.clearJournal);
+  const preOrderSkipNotice = usePrinterAutomationStore((state) => state.preOrderSkipNotice);
+  const addJournalEntry = usePrinterAutomationStore((state) => state.addJournalEntry);
+  const {
+    data: orders = [],
+    isLoading: loading,
+    error: liveOrdersError,
+    refetch: refetchOrders,
+    isFetching: isFetchingOrders,
+    dataUpdatedAt,
+  } = useLiveOrdersQuery();
+  const { data: preOrderCount = 0 } = usePreOrderCountQuery();
+  const { data: appSettings = DEFAULT_APP_SETTINGS } = useAppSettingsQuery();
+  const loadError = liveOrdersError instanceof Error ? liveOrdersError.message : null;
+  const appSettingsRef = useRef(appSettings);
 
-  const fetchPreOrderCount = async () => {
-    try {
-      const { count, error } = await supabase
-        .from('orders')
-        .select('id', { count: 'exact', head: true })
-        .not('scheduled_pickup_at', 'is', null)
-        .in('order_status', ['pending', 'confirmed', 'preparing', 'ready'])
-        .neq('payment_status', 'refunded');
-
-      if (error) throw error;
-      setPreOrderCount(count || 0);
-    } catch (err) {
-      console.error('Failed to fetch pre-order count:', err);
-    }
-  };
-
-  const showAutoPrintToast = useCallback((message: string) => {
-    setAutoPrintToast({ visible: true, message });
-  }, []);
-
-  const appendJournal = useCallback((entry: Omit<JournalEntry, 'id' | 'timestamp'>) => {
-    const nextEntry: JournalEntry = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      timestamp: Date.now(),
-      ...entry,
-    };
-    setJournalEntries((current) => [nextEntry, ...current].slice(0, JOURNAL_LIMIT));
-  }, []);
-
-  const logOrderEvent = useCallback((
+  const logOrderEvent = (
     level: JournalLevel,
     scope: string,
     message: string,
-    options?: { order?: Pick<Order, 'id' | 'order_number'> | null; details?: string | null }
+    options?: { order?: JournalOrderRef | null; details?: string | null }
   ) => {
-    appendJournal({
+    addJournalEntry({
       level,
       scope,
       message,
@@ -163,86 +111,16 @@ export default function LiveOrdersScreen() {
       orderNumber: options?.order?.order_number ?? null,
       details: options?.details ?? null,
     });
-  }, [appendJournal]);
-
-  const notifyAutoPrintError = useCallback((order: Pick<Order, 'id' | 'order_number'>, reason: string) => {
-    const orderLabel = getFriendlyOrderNumber(order.order_number, order.id);
-    showAutoPrintToast(`Auto print failed for ${orderLabel}: ${reason}`);
-    logOrderEvent('error', 'auto-print', 'Auto print failed', {
-      order,
-      details: reason,
-    });
-  }, [logOrderEvent, showAutoPrintToast]);
+  };
 
   const loadOrders = async () => {
     try {
-      setLoading(true);
-      setLoadError(null);
-      const since = new Date();
-      since.setHours(since.getHours() - 24);
-
-      const filters: { since: string } = {
-        since: since.toISOString()
-      };
-
-      const result = await getAllOrders(filters);
+      const result = await refetchOrders();
       if (result.error) {
-        setLoadError(result.error);
-        Alert.alert('Error', result.error);
-      } else {
-        let newOrders = result.data || [];
-        // Live Order Filter Logic:
-        // 1. Exclude completed/cancelled/refunded.
-        // 2. Either scheduled_pickup_at is null (ASAP)
-        // 3. Or scheduled_pickup_at is within the next 30 minutes (or was in the past).
-        newOrders = newOrders.filter((order) => {
-          const isNotFinished =
-            order.order_status !== 'completed' &&
-            order.order_status !== 'cancelled' &&
-            order.payment_status !== 'refunded';
-
-          if (!isNotFinished) return false;
-
-          if (!order.scheduled_pickup_at) return true; // ASAP
-
-          const pickupDate = new Date(order.scheduled_pickup_at);
-          const now = new Date();
-          const diffMinutes = (pickupDate.getTime() - now.getTime()) / (1000 * 60);
-
-          // Show if pickup is within 30 minutes (even if it was in the past, e.g. late pickup)
-          return diffMinutes <= 30;
-        });
-
-        // Sort by pickup date/time (or created_at for ASAP)
-        newOrders.sort((a, b) => {
-          const timeA = new Date(a.scheduled_pickup_at || a.created_at).getTime();
-          const timeB = new Date(b.scheduled_pickup_at || b.created_at).getTime();
-          return timeA - timeB;
-        });
-
-        // 3. Process automatic actions for any order entering live range.
-        // Sound is gated later by order channel; print/status automation still applies.
-        for (const order of newOrders) {
-          const isPendingOrConfirmed =
-            order.order_status === 'pending' || order.order_status === 'confirmed';
-
-          if (isPendingOrConfirmed && !processedOrderIdsRef.current.has(order.id)) {
-            playAttentionSoundForOrder(order);
-            scheduleOrderAnnouncement(order);
-          }
-        }
-
-        setOrders(newOrders);
-        setLastUpdated(new Date());
-        setRefreshCountdown(appSettingsRef.current.refreshIntervalSec);
+        Alert.alert('Error', result.error.message);
       }
-    } catch (error) {
-      setLoadError(error instanceof Error ? error.message : 'Failed to load orders');
-      Alert.alert('Error', 'Failed to load orders');
     } finally {
-      setLoading(false);
       setRefreshing(false);
-      fetchPreOrderCount();
     }
   };
 
@@ -270,23 +148,7 @@ export default function LiveOrdersScreen() {
     if (selectedOrder?.id === updated.id) setSelectedOrder(updated);
   });
 
-  const playAttentionSoundForOrder = (order: Pick<Order, 'id' | 'order_channel' | 'payment_method' | 'customer_name' | 'scheduled_pickup_at'>) => {
-    const s = appSettingsRef.current;
-    if (!s.soundEnabled) return;
-    if (soundedOrderIdsRef.current.has(order.id)) return;
-    if (!shouldPlayOrderSound(order)) return;
-
-    soundedOrderIdsRef.current.add(order.id);
-    playNewOrderSound({
-      soundId: s.soundId,
-      repeatCount: s.soundRepeatCount,
-      delayMs: 1000,
-    });
-  };
-
-  const getPrintDelayMs = () => Math.max(2000, (appSettingsRef.current.printerDelayPrintSec || 3) * 1000);
-
-  const waitForReceiptTemplateRef = useCallback(async () => {
+  const waitForReceiptTemplateRef = useRef(async () => {
     for (let attempt = 0; attempt < RECEIPT_REF_MAX_ATTEMPTS; attempt++) {
       if (globalReceiptRef.current) {
         return globalReceiptRef.current;
@@ -294,182 +156,20 @@ export default function LiveOrdersScreen() {
       await new Promise((resolve) => setTimeout(resolve, RECEIPT_REF_WAIT_MS));
     }
     return null;
-  }, []);
+  });
 
-  const scheduleOrderAnnouncement = (order: Pick<Order, 'id' | 'created_at'>) => {
-    if (processedOrderIdsRef.current.has(order.id)) return;
-    if (pendingAnnouncementTimersRef.current.has(order.id)) return;
-    if (announcingOrderIdsRef.current.has(order.id)) return;
-
-    const delayMs = getPrintDelayMs();
-    const createdAtMs = new Date(order.created_at).getTime();
-    const dueInMs = Number.isFinite(createdAtMs)
-      ? Math.max(0, createdAtMs + delayMs - Date.now())
-      : delayMs;
-
-    const timer = setTimeout(() => {
-      pendingAnnouncementTimersRef.current.delete(order.id);
-      fetchAndAnnounceOrder(order.id);
-    }, dueInMs);
-    pendingAnnouncementTimersRef.current.set(order.id, timer);
-    logOrderEvent('decision', 'scheduler', 'Scheduled order announcement', {
-      order,
-      details: `Due in ${dueInMs}ms`,
-    });
-  };
-
-  const fetchAndAnnounceOrder = async (orderId: string, attempt = 0) => {
-    if (processedOrderIdsRef.current.has(orderId)) return;
-    if (announcingOrderIdsRef.current.has(orderId)) return;
-
-    announcingOrderIdsRef.current.add(orderId);
-    logOrderEvent('info', 'scheduler', 'Fetching order for auto workflow', {
-      order: { id: orderId, order_number: null },
-      details: `Attempt ${attempt + 1}`,
-    });
-    try {
-      const result = await getOrder(orderId);
-      const order = result.data;
-      const isPrintableStatus =
-        order?.order_status === 'pending' || order?.order_status === 'confirmed';
-
-      if (!order || !isPrintableStatus || order.payment_status === 'refunded') {
-        processedOrderIdsRef.current.add(orderId);
-        logOrderEvent('decision', 'scheduler', 'Skipped auto workflow', {
-          order: order ? { id: order.id, order_number: order.order_number } : { id: orderId, order_number: null },
-          details: !order
-            ? result.error || 'Order not found'
-            : `Status=${order.order_status}, payment=${order.payment_status}`,
-        });
-        return;
-      }
-
-      // POS creates the parent order first, then inserts items/add-ons. Fetch after the
-      // print delay and retry briefly so the receipt image is based on the complete order.
-      if (!order.items || order.items.length === 0) {
-        if (attempt < 3) {
-          logOrderEvent('decision', 'scheduler', 'Retrying because order items are not ready yet', {
-            order,
-            details: `Retry ${attempt + 2} scheduled in 1000ms`,
-          });
-          const retryTimer = setTimeout(() => {
-            pendingAnnouncementTimersRef.current.delete(orderId);
-            fetchAndAnnounceOrder(orderId, attempt + 1);
-          }, 1000);
-          pendingAnnouncementTimersRef.current.set(orderId, retryTimer);
-        } else {
-          logOrderEvent('error', 'scheduler', 'Order items still missing after retries', {
-            order,
-            details: 'Auto workflow stopped before printing',
-          });
-        }
-        return;
-      }
-
-      await announceAndPrintOrder(order);
-    } finally {
-      announcingOrderIdsRef.current.delete(orderId);
-    }
-  };
-
-  const announceAndPrintOrder = async (order: Order) => {
-    if (processedOrderIdsRef.current.has(order.id)) return;
-
-    const latestSettings = await loadAppSettings();
-    setAppSettings(latestSettings);
-    appSettingsRef.current = latestSettings;
-
-    // 1. Auto-print if enabled
-    if ((latestSettings.printerEnabled || latestSettings.printerSimulator) && latestSettings.printerAutoPrint) {
-       processedOrderIdsRef.current.add(order.id);
-       logOrderEvent('decision', 'auto-print', 'Starting auto-print workflow', {
-         order,
-         details: latestSettings.printerSimulator ? 'Simulator mode enabled' : 'Printer mode enabled',
-       });
-       try {
-         // quickPrintOrder handles both simulator and real printing with image capture
-         await quickPrintOrder(order, { auto: true });
-       } catch (err) {
-         console.error('Auto print error:', err);
-         processedOrderIdsRef.current.delete(order.id);
-         notifyAutoPrintError(order, formatPrinterError(err));
-       }
-       return;
-    }
-    logOrderEvent('decision', 'auto-print', 'Skipped auto-print workflow on this POS', {
-      order,
-      details: 'Auto-print is disabled or no printer capability is enabled on this device',
-    });
-  };
-
-  const quickPrintOrder = async (order: Order, options: { auto?: boolean } = {}) => {
+  const quickPrintOrder = async (order: Order) => {
     let releasePrintQueue = () => {};
-    let claimedDeviceId: string | null = null;
-    let shouldReleaseClaim = false;
 
     try {
-      const isAutoPrint = Boolean(options.auto);
       let freshOrder = order;
-
-      if (isAutoPrint) {
-        if (autoPrintedOrderIdsRef.current.has(order.id) || autoPrintingOrderIdsRef.current.has(order.id)) {
-          logOrderEvent('decision', 'auto-print', 'Skipped because this POS already handled the order', {
-            order,
-          });
-          return;
-        }
-        autoPrintingOrderIdsRef.current.add(order.id);
-
-        // Re-read settings at print time so a delayed auto-print respects changes
-        // made after the timer was scheduled.
-        const latestSettings = await loadAppSettings();
-        setAppSettings(latestSettings);
-        appSettingsRef.current = latestSettings;
-
-        if (!latestSettings.printerAutoPrint || (!latestSettings.printerEnabled && !latestSettings.printerSimulator)) {
-          processedOrderIdsRef.current.delete(order.id);
-          logOrderEvent('decision', 'auto-print', 'Cancelled auto-print because settings changed', {
-            order,
-          });
-          return;
-        }
-
-        if (!printDeviceIdRef.current) {
-          printDeviceIdRef.current = await getPrintDeviceId();
-        }
-        claimedDeviceId = printDeviceIdRef.current;
-
-        const claim = await claimOrderForAutoPrint(order.id, claimedDeviceId, PRINT_CLAIM_STALE_AFTER_SECONDS);
-        if (!claim.claimed) {
-          if (claim.error) {
-            console.error('Auto print claim failed:', claim.error);
-            processedOrderIdsRef.current.delete(order.id);
-            notifyAutoPrintError(order, claim.error);
-          } else {
-            logOrderEvent('decision', 'claim', 'Another POS currently owns the print claim', {
-              order,
-              details: `Retrying in ${(PRINT_CLAIM_STALE_AFTER_SECONDS + 5) * 1000}ms`,
-            });
-            const retryTimer = setTimeout(() => {
-              pendingAnnouncementTimersRef.current.delete(order.id);
-              processedOrderIdsRef.current.delete(order.id);
-              fetchAndAnnounceOrder(order.id);
-            }, (PRINT_CLAIM_STALE_AFTER_SECONDS + 5) * 1000);
-            pendingAnnouncementTimersRef.current.set(order.id, retryTimer);
-          }
-          return;
-        }
-        shouldReleaseClaim = true;
-        logOrderEvent('success', 'claim', 'Claimed order for auto-print', {
-          order,
-          details: `Device ${claimedDeviceId}`,
-        });
-      }
 
       const latestOrderResult = await getOrder(order.id);
       if (latestOrderResult.data) {
         freshOrder = latestOrderResult.data;
-        setOrders((prev) => prev.map((item) => (item.id === freshOrder.id ? freshOrder : item)));
+        queryClient.setQueryData<Order[]>(LIVE_ORDERS_QUERY_KEY, (prev = []) => (
+          prev.map((item) => (item.id === freshOrder.id ? freshOrder : item))
+        ));
         if (selectedOrder?.id === freshOrder.id) {
           setSelectedOrder(freshOrder);
         }
@@ -481,8 +181,19 @@ export default function LiveOrdersScreen() {
         });
       }
 
-      const s = appSettingsRef.current;
-      setIsCapturing(true);
+      const s = await loadAppSettings().catch(() => appSettingsRef.current);
+      appSettingsRef.current = s;
+      const printSettingsDetails = [
+        `simulator=${String(s.printerSimulator)}`,
+        `printerEnabled=${String(s.printerEnabled)}`,
+        `selectedTarget=${s.printerSelectedTarget ?? 'none'}`,
+        `savedPrinters=${s.printerSaved.length}`,
+        `copies=${s.printerCopies}`,
+      ].join(', ');
+      logOrderEvent('info', 'print', 'Resolved manual print settings', {
+        order: freshOrder,
+        details: printSettingsDetails,
+      });
       setPrintingOrderId(order.id);
 
       const previousPrint = printQueueRef.current;
@@ -492,42 +203,33 @@ export default function LiveOrdersScreen() {
       await previousPrint.catch(() => undefined);
       
       // Update the hidden template with this order
-      const printSource = isAutoPrint ? 'live-orders:auto-print' : 'live-orders:manual-list-print';
       setTempPrintingOrder(freshOrder);
-      setTempPrintSource(printSource);
+      setTempPrintSource('live-orders:manual-list-print');
       const targetDots = s.printerPaperWidth === '58mm' ? 384 : 576;
       const scale = s.printerHighQuality ? 2 : 1;
-      const ticketCopies = isAutoPrint
-        ? buildKitchenReceiptCopies(freshOrder.items || [])
-        : [{ key: 'combined' }];
-      const imageUris: string[] = [];
+      setTempPrintTicketIndex(0);
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
-      for (let ticketIndex = 0; ticketIndex < ticketCopies.length; ticketIndex++) {
-        setTempPrintTicketIndex(ticketIndex);
-        await new Promise(resolve => setTimeout(resolve, 300));
-
-        const receiptRef = await waitForReceiptTemplateRef();
-        if (!receiptRef) {
-          logOrderEvent('error', 'print', 'Receipt template ref was not ready for capture', {
-            order: freshOrder,
-            details: `Waited ${RECEIPT_REF_WAIT_MS * RECEIPT_REF_MAX_ATTEMPTS}ms before capture`,
-          });
-          throw new Error('Receipt template is still loading. Please try again.');
-        }
-
-        const uri = await captureRef(receiptRef, {
-          format: 'png',
-          quality: 1,
-          result: 'tmpfile',
-          width: targetDots * scale,
+      const receiptRef = await waitForReceiptTemplateRef.current();
+      if (!receiptRef) {
+        logOrderEvent('error', 'print', 'Receipt template ref was not ready for capture', {
+          order: freshOrder,
+          details: `Waited ${RECEIPT_REF_WAIT_MS * RECEIPT_REF_MAX_ATTEMPTS}ms before capture`,
         });
-        imageUris.push(uri);
+        throw new Error('Receipt template is still loading. Please try again.');
       }
+
+      const imageUris = [await captureRef(receiptRef, {
+        format: 'png',
+        quality: 1,
+        result: 'tmpfile',
+        width: targetDots * scale,
+      })];
 
       if (s.printerSimulator) {
         logOrderEvent('decision', 'print', 'Using print simulator', {
           order: freshOrder,
-          details: `${imageUris.length} receipt image(s) prepared`,
+          details: `${imageUris.length} receipt image(s) prepared • ${printSettingsDetails}`,
         });
         setSimulatorOrder(freshOrder);
         setPrintImageUri(imageUris[0] || null);
@@ -536,15 +238,12 @@ export default function LiveOrdersScreen() {
       } else {
         const selected = s.printerSaved.find((p) => p.target === s.printerSelectedTarget) || null;
         if (!s.printerEnabled || !selected) {
-          if (isAutoPrint) {
-            processedOrderIdsRef.current.delete(order.id);
-          }
-          const message = 'Auto-print is enabled, but no printer is selected.';
-          if (isAutoPrint) {
-            notifyAutoPrintError(order, message);
-          } else {
-            Alert.alert('Printer error', message);
-          }
+          const message = `No printer is selected. ${printSettingsDetails}`;
+          logOrderEvent('error', 'print', 'Manual print blocked because no printer was resolved', {
+            order: freshOrder,
+            details: printSettingsDetails,
+          });
+          Alert.alert('Printer error', message);
           return;
         }
 
@@ -557,7 +256,7 @@ export default function LiveOrdersScreen() {
           await escposPrintOrderImage(
             imageUris[index],
             selected,
-            isAutoPrint ? 1 : s.printerCopies,
+            s.printerCopies,
             targetDots
           );
           if (index < imageUris.length - 1) {
@@ -565,59 +264,12 @@ export default function LiveOrdersScreen() {
           }
         }
       }
-
-      if (isAutoPrint) {
-        if (freshOrder.order_status === 'pending' || freshOrder.order_status === 'confirmed') {
-          const statusResult = await updateOrderStatus(order.id, 'preparing');
-          if (statusResult.error) {
-            console.warn('[LiveOrders] Failed to move order to preparing after print:', statusResult.error);
-            const now = Date.now();
-            if (now - lastAutoStatusAlertAtRef.current > 4000) {
-              lastAutoStatusAlertAtRef.current = now;
-              showAutoPrintToast(`Printed order, but auto status update failed: ${statusResult.error}`);
-            }
-          } else {
-            logOrderEvent('success', 'status', 'Moved order to preparing after auto-print', {
-              order: freshOrder,
-            });
-          }
-        }
-        if (claimedDeviceId) {
-          const completion = await completeKitchenPrintClaim(order.id, claimedDeviceId);
-          if (!completion.completed) {
-            throw new Error(completion.error || 'Failed to complete kitchen print claim');
-          }
-          shouldReleaseClaim = false;
-          logOrderEvent('success', 'claim', 'Completed print claim', {
-            order: freshOrder,
-            details: `Device ${claimedDeviceId}`,
-          });
-        }
-        autoPrintedOrderIdsRef.current.add(order.id);
-        logOrderEvent('success', 'print', 'Auto-print workflow completed', {
-          order: freshOrder,
-          details: `${imageUris.length} receipt image(s) processed`,
-        });
-      }
     } catch (error) {
       console.error('Quick print failed:', error);
-      processedOrderIdsRef.current.delete(order.id);
       const message = formatPrinterError(error) || 'Failed to print order.';
-      if (options.auto) {
-        notifyAutoPrintError(order, message);
-      } else {
-        Alert.alert('Print error', message);
-      }
+      Alert.alert('Print error', message);
     } finally {
-      if (claimedDeviceId && shouldReleaseClaim) {
-        const released = await releaseKitchenPrintClaim(order.id, claimedDeviceId);
-        if (released.error) {
-          console.error('Failed to release kitchen print claim:', released.error);
-        }
-      }
       releasePrintQueue();
-      autoPrintingOrderIdsRef.current.delete(order.id);
-      setIsCapturing(false);
       setPrintingOrderId(null);
       // We don't clear tempPrintingOrder immediately to avoid flicker if nested
     }
@@ -628,128 +280,18 @@ export default function LiveOrdersScreen() {
   }, [appSettings]);
 
   useEffect(() => {
-    const unsubscribe = subscribeAppSettings((s) => {
-      setAppSettings(s);
-      appSettingsRef.current = s;
-    });
-    Audio.setAudioModeAsync({
-      allowsRecordingIOS: false,
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: false,
-      shouldDuckAndroid: true,
-      playThroughEarpieceAndroid: false,
-    });
-    return unsubscribe;
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      void loadOrders();
-      loadAppSettings().then((s) => {
-        setAppSettings(s);
-        appSettingsRef.current = s;
-      });
-    }, [])
-  );
-
-  useEffect(() => {
-    loadOrders();
-    subscriptionRef.current = supabase
-      .channel('live-orders-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders' },
-        async (payload) => {
-          let orderId = (payload.new as any).id;
-          const scheduledPickupAt = (payload.new as any)?.scheduled_pickup_at as string | null | undefined;
-          const scheduledPickupAtMs = scheduledPickupAt ? new Date(scheduledPickupAt).getTime() : NaN;
-          const isPreOrderFarAway = Number.isFinite(scheduledPickupAtMs) && (scheduledPickupAtMs - Date.now()) > (30 * 60 * 1000);
-
-          let isSignificantInsert =
-            payload.eventType === 'INSERT' &&
-            (payload.new.order_status === 'pending' || payload.new.order_status === 'confirmed');
-          let isSignificantUpdate =
-            payload.eventType === 'UPDATE' &&
-            (
-              (
-                payload.old.order_status === 'pending_online_payment' &&
-                (payload.new.order_status === 'confirmed' || payload.new.order_status === 'accepted')
-              ) ||
-              (
-                payload.old.order_status !== payload.new.order_status &&
-                payload.new.order_status === 'confirmed'
-              )
-            );
-
-          logOrderEvent('info', 'realtime', `Received ${payload.eventType.toLowerCase()} event`, {
-            order: { id: orderId, order_number: (payload.new as any)?.order_number ?? null },
-            details: `status ${(payload.old as any)?.order_status ?? '-'} -> ${(payload.new as any)?.order_status ?? '-'}, payment ${(payload.new as any)?.payment_status ?? '-'}`,
-          });
-
-          if (isSignificantInsert || isSignificantUpdate) {
-            playAttentionSoundForOrder({
-              id: orderId,
-              order_channel: (payload.new as any)?.order_channel,
-              payment_method: (payload.new as any)?.payment_method,
-              customer_name: (payload.new as any)?.customer_name,
-              scheduled_pickup_at: scheduledPickupAt ?? null,
-            });
-
-            if (isPreOrderFarAway) {
-              logOrderEvent('decision', 'realtime', 'Pre-order outside live window, skipping print for now', {
-                order: { id: orderId, order_number: (payload.new as any)?.order_number ?? null },
-                details: scheduledPickupAt ?? 'No scheduled pickup time',
-              });
-              // PRE-ORDER: Set to confirmed and skip printing for now
-              const orderNumber = (payload.new as any)?.order_number || orderId;
-              setPreOrderSkipNotice(`Pre-order ${orderNumber} received - print skipped`);
-              if (preOrderNoticeTimeoutRef.current) clearTimeout(preOrderNoticeTimeoutRef.current);
-              preOrderNoticeTimeoutRef.current = setTimeout(() => {
-                setPreOrderSkipNotice(null);
-              }, 4500);
-
-              if ((payload.new as { order_status?: string })?.order_status === 'pending') {
-                await updateOrderStatus(orderId, 'confirmed');
-              }
-            } else {
-              // ASAP or NEARBY pre-order: loadOrders() loop will pick it up and announceAndPrint
-              // but we call loadOrders() immediately for responsiveness
-            }
-          }
-          loadOrders();
-          fetchPreOrderCount();
-
-          // If it's a new order that needs printing/announcing, schedule the actual
-          // print from a fresh order fetch after the configured delay.
-          if ((isSignificantInsert || isSignificantUpdate) && !isPreOrderFarAway) {
-            scheduleOrderAnnouncement({
-              id: orderId,
-              created_at: (payload.new as any)?.created_at || new Date().toISOString(),
-            });
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      if (subscriptionRef.current) supabase.removeChannel(subscriptionRef.current);
-      pendingAnnouncementTimersRef.current.forEach((timer) => clearTimeout(timer));
-      pendingAnnouncementTimersRef.current.clear();
-    };
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (preOrderNoticeTimeoutRef.current) clearTimeout(preOrderNoticeTimeoutRef.current);
-    };
-  }, []);
+    setLastUpdated(dataUpdatedAt ? new Date(dataUpdatedAt) : null);
+    if (dataUpdatedAt) {
+      setRefreshCountdown(appSettingsRef.current.refreshIntervalSec);
+    }
+  }, [dataUpdatedAt]);
 
   useEffect(() => {
     if (refreshCountdown > 0) {
       countdownIntervalRef.current = setInterval(() => {
         setRefreshCountdown((prev) => {
           if (prev <= 1) {
-            loadOrders();
+            void loadOrders();
             return 0;
           }
           return prev - 1;
@@ -903,6 +445,7 @@ export default function LiveOrdersScreen() {
   const handleOrderPress = (order: Order) => {
     setSelectedOrder(order);
     setJournalOrderFilter(order.id);
+    setJournalViewMode('selected');
     logOrderEvent('info', 'ui', 'Opened order detail from live list', {
       order,
     });
@@ -945,7 +488,9 @@ export default function LiveOrdersScreen() {
   };
 
   const selectedJournalOrderId = selectedOrder?.id ?? '';
-  const effectiveJournalFilter = journalOrderFilter.trim() || selectedJournalOrderId;
+  const effectiveJournalFilter = journalViewMode === 'selected'
+    ? (journalOrderFilter.trim() || selectedJournalOrderId)
+    : journalOrderFilter.trim();
   const isVerticalCardLayout = appSettings.liveOrderCardLayout === 'vertical';
   const filteredJournalEntries = useMemo(() => {
     if (!effectiveJournalFilter) return journalEntries;
@@ -1012,7 +557,9 @@ export default function LiveOrdersScreen() {
           message={loadError ? 'Failed to refresh.' : 'Not synced recently.'}
           details={`Last sync: ${lastUpdated?.toLocaleString() || 'unknown'}`}
           primaryActionText="Retry"
-          onPrimaryAction={loadOrders}
+          onPrimaryAction={() => {
+            void loadOrders();
+          }}
         />
       )}
 
@@ -1052,8 +599,10 @@ export default function LiveOrdersScreen() {
             </PaperButton>
             <PaperButton
               mode="contained"
-              onPress={loadOrders}
-              loading={loading}
+              onPress={() => {
+                void loadOrders();
+              }}
+              loading={loading || isFetchingOrders}
               style={styles.refreshButton}
               compact
             >
@@ -1221,7 +770,7 @@ export default function LiveOrdersScreen() {
       <TouchableOpacity
         style={styles.debugFab}
         onPress={() => {
-          if (selectedOrder?.id) {
+          if (journalViewMode === 'selected' && selectedOrder?.id) {
             setJournalOrderFilter(selectedOrder.id);
           }
           setShowJournalModal(true);
@@ -1237,7 +786,9 @@ export default function LiveOrdersScreen() {
         onClose={() => setShowOrderModal(false)}
         onOrderRefresh={(updatedOrder) => {
           setSelectedOrder(updatedOrder);
-          setOrders((prev) => prev.map((item) => (item.id === updatedOrder.id ? updatedOrder : item)));
+          queryClient.setQueryData<Order[]>(LIVE_ORDERS_QUERY_KEY, (prev = []) => (
+            prev.map((item) => (item.id === updatedOrder.id ? updatedOrder : item))
+          ));
         }}
         onPrint={handlePrint}
         onPrintImage={handlePrintImage}
@@ -1324,26 +875,32 @@ export default function LiveOrdersScreen() {
 
             <View style={styles.journalActions}>
               <TouchableOpacity
-                style={[styles.journalChip, !journalOrderFilter && !selectedJournalOrderId ? styles.journalChipActive : null]}
-                onPress={() => setJournalOrderFilter('')}
+                style={[styles.journalChip, journalViewMode === 'all' ? styles.journalChipActive : null]}
+                onPress={() => {
+                  setJournalViewMode('all');
+                  setJournalOrderFilter('');
+                }}
               >
-                <Text style={[styles.journalChipText, !journalOrderFilter && !selectedJournalOrderId ? styles.journalChipTextActive : null]}>
+                <Text style={[styles.journalChipText, journalViewMode === 'all' ? styles.journalChipTextActive : null]}>
                   All orders
                 </Text>
               </TouchableOpacity>
               {selectedJournalOrderId ? (
                 <TouchableOpacity
-                  style={[styles.journalChip, effectiveJournalFilter === selectedJournalOrderId ? styles.journalChipActive : null]}
-                  onPress={() => setJournalOrderFilter(selectedJournalOrderId)}
+                  style={[styles.journalChip, journalViewMode === 'selected' && effectiveJournalFilter === selectedJournalOrderId ? styles.journalChipActive : null]}
+                  onPress={() => {
+                    setJournalViewMode('selected');
+                    setJournalOrderFilter(selectedJournalOrderId);
+                  }}
                 >
-                  <Text style={[styles.journalChipText, effectiveJournalFilter === selectedJournalOrderId ? styles.journalChipTextActive : null]}>
+                  <Text style={[styles.journalChipText, journalViewMode === 'selected' && effectiveJournalFilter === selectedJournalOrderId ? styles.journalChipTextActive : null]}>
                     Selected order
                   </Text>
                 </TouchableOpacity>
               ) : null}
               <TouchableOpacity
                 style={styles.journalChip}
-                onPress={() => setJournalEntries([])}
+                onPress={clearJournal}
               >
                 <Text style={styles.journalChipText}>Clear</Text>
               </TouchableOpacity>
@@ -1352,7 +909,15 @@ export default function LiveOrdersScreen() {
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.journalFilterRow}>
               <TouchableOpacity
                 style={styles.journalFilterPill}
-                onPress={() => setJournalOrderFilter(selectedJournalOrderId || '')}
+                onPress={() => {
+                  if (selectedJournalOrderId) {
+                    setJournalViewMode('selected');
+                    setJournalOrderFilter(selectedJournalOrderId);
+                  } else {
+                    setJournalViewMode('all');
+                    setJournalOrderFilter('');
+                  }
+                }}
               >
                 <Text style={styles.journalFilterPillText}>
                   Filter: {effectiveJournalFilter || 'All'}
@@ -1373,7 +938,10 @@ export default function LiveOrdersScreen() {
                       key={entry.id}
                       style={styles.journalEntry}
                       onPress={() => {
-                        if (entry.orderId) setJournalOrderFilter(entry.orderId);
+                        if (entry.orderId) {
+                          setJournalViewMode('selected');
+                          setJournalOrderFilter(entry.orderId);
+                        }
                       }}
                     >
                       <View style={styles.journalEntryTop}>
@@ -1399,18 +967,6 @@ export default function LiveOrdersScreen() {
         </View>
       </Modal>
 
-      <Snackbar
-        visible={autoPrintToast.visible}
-        onDismiss={() => setAutoPrintToast((current) => ({ ...current, visible: false }))}
-        duration={5000}
-        action={{
-          label: 'Dismiss',
-          onPress: () => setAutoPrintToast((current) => ({ ...current, visible: false })),
-        }}
-        style={styles.snackbar}
-      >
-        {autoPrintToast.message}
-      </Snackbar>
     </View>
   );
 }

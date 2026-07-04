@@ -24,6 +24,7 @@ export type PublicSaleProduct = {
   id: string;
   name: string;
   description?: string | null;
+  section?: string | null;
   sale_price: number;
   image_url?: string | null;
   sale_category_id?: string | null;
@@ -236,5 +237,4 @@ export function PublicMenuRenderer({
     </div>
   );
 }
-
 

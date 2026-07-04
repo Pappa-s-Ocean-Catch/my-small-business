@@ -5,7 +5,7 @@ import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types
 import { updateOrderStatus, updatePaymentStatus, getOrder } from '@/lib/orders';
 import { escposPrintKitchenReceipt, escposPrintOrderImage, formatPrinterError } from '@/lib/escpos-printer';
 import { generatePrintHTML } from '@/utils/orderUtils';
-import type { AppSettings } from '@/lib/settings';
+import { loadAppSettings, type AppSettings } from '@/lib/settings';
 import { formatSmartpayError, isSmartpayPaired, processSmartpayCardPayment } from '@/lib/smartpay';
 
 const webBaseUrl = process.env.EXPO_PUBLIC_SITE_URL;
@@ -24,6 +24,14 @@ export const useOrderActions = (
   const [printImageUris, setPrintImageUris] = useState<string[]>([]);
   const [smartpayPaired, setSmartpayPaired] = useState(false);
   const [smartpayProcessingOrderId, setSmartpayProcessingOrderId] = useState<string | null>(null);
+
+  const getEffectiveSettings = async (): Promise<AppSettings> => {
+    try {
+      return await loadAppSettings();
+    } catch {
+      return appSettings;
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -233,7 +241,9 @@ export const useOrderActions = (
 
   const handlePrint = async (order: Order): Promise<boolean> => {
     try {
-      if (appSettings.printerSimulator) {
+      const effectiveSettings = await getEffectiveSettings();
+
+      if (effectiveSettings.printerSimulator) {
         setSimulatorOrder(order);
         setPrintImageUri(null); // No image URI for standard fallback print usually
         setPrintImageUris([]);
@@ -241,10 +251,10 @@ export const useOrderActions = (
         return true;
       }
 
-      const selected = appSettings.printerSaved.find((p) => p.target === appSettings.printerSelectedTarget) || null;
-      if (appSettings.printerEnabled && selected) {
+      const selected = effectiveSettings.printerSaved.find((p) => p.target === effectiveSettings.printerSelectedTarget) || null;
+      if (effectiveSettings.printerEnabled && selected) {
         try {
-          await escposPrintKitchenReceipt(order, selected, appSettings.printerCopies, 'order-actions:manual-line-print');
+          await escposPrintKitchenReceipt(order, selected, effectiveSettings.printerCopies, 'order-actions:manual-line-print');
           return true;
         } catch (printerError) {
           console.error('Print error:', printerError);
@@ -264,7 +274,9 @@ export const useOrderActions = (
 
   const handlePrintImage = async (order: Order, imageUri: string): Promise<boolean> => {
     try {
-      if (appSettings.printerSimulator) {
+      const effectiveSettings = await getEffectiveSettings();
+
+      if (effectiveSettings.printerSimulator) {
         setSimulatorOrder(order);
         setPrintImageUri(imageUri);
         setPrintImageUris([imageUri]);
@@ -272,11 +284,11 @@ export const useOrderActions = (
         return true;
       }
 
-      const selected = appSettings.printerSaved.find((p) => p.target === appSettings.printerSelectedTarget) || null;
-      if (appSettings.printerEnabled && selected) {
+      const selected = effectiveSettings.printerSaved.find((p) => p.target === effectiveSettings.printerSelectedTarget) || null;
+      if (effectiveSettings.printerEnabled && selected) {
         try {
-          const targetDots = appSettings.printerPaperWidth === '58mm' ? 384 : 576;
-          await escposPrintOrderImage(imageUri, selected, appSettings.printerCopies, targetDots);
+          const targetDots = effectiveSettings.printerPaperWidth === '58mm' ? 384 : 576;
+          await escposPrintOrderImage(imageUri, selected, effectiveSettings.printerCopies, targetDots);
           return true;
         } catch (printerError) {
           console.error('Print image error:', printerError);

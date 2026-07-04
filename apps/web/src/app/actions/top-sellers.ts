@@ -7,6 +7,7 @@ export interface TopSellerProduct {
   slug: string | null;
   name: string;
   description: string | null;
+  section: string | null;
   sale_price: number;
   image_url: string | null;
   sale_category_id: string | null;
@@ -86,7 +87,7 @@ export async function getTopSellingProducts(limit: number = 20): Promise<{
     }
     const { data: products, error: productsError } = await supabase
       .from('sale_products')
-      .select('id, slug, name, description, sale_price, image_url, sale_category_id, sub_category_id')
+      .select('id, slug, name, description, section, sale_price, image_url, sale_category_id, sub_category_id')
       .in('id', productIds)
       .eq('is_active', true);
 
@@ -106,6 +107,7 @@ export async function getTopSellingProducts(limit: number = 20): Promise<{
           slug: product.slug ?? null,
           name: product.name,
           description: product.description,
+          section: product.section ?? null,
           sale_price: Number(product.sale_price),
           image_url: product.image_url,
           sale_category_id: product.sale_category_id,
@@ -137,7 +139,7 @@ export async function getFeaturedProducts(): Promise<{
 
     const { data: featuredProducts, error: featuredError } = await supabase
       .from('sale_products')
-      .select('id, slug, name, description, sale_price, image_url, sale_category_id, sub_category_id')
+      .select('id, slug, name, description, section, sale_price, image_url, sale_category_id, sub_category_id')
       .eq('is_active', true)
       .eq('is_featured', true)
       .order('name');
@@ -176,6 +178,7 @@ export async function getFeaturedProducts(): Promise<{
         slug: product.slug ?? null,
         name: product.name,
         description: product.description,
+        section: product.section ?? null,
         sale_price: Number(product.sale_price),
         image_url: product.image_url,
         sale_category_id: product.sale_category_id,

@@ -36,6 +36,7 @@ export default function UniversalMenuPage() {
       base_price: customizingProduct.sale_price,
       image_url: customizingProduct.image_url ?? null,
       quantity: qty,
+      section: customizingProduct.section ?? null,
       addon_groups: customizations,
       removed_ingredients: removedIngredients ?? [],
       comment: comment ?? null
@@ -56,7 +57,7 @@ export default function UniversalMenuPage() {
         const [{ data: screensData }, { data: catsData }, { data: prodsData }] = await Promise.all([
           supabase.from('menu_screens').select('id, name, subtitle, show_images, num_columns, is_published').order('sort_order'),
           supabase.from('sale_categories').select('id, name, parent_category_id').order('sort_order'),
-          supabase.from('sale_products').select('id, name, description, sale_price, image_url, sale_category_id, sub_category_id, sort_order').eq('is_active', true).order('sort_order')
+          supabase.from('sale_products').select('id, name, description, section, sale_price, image_url, sale_category_id, sub_category_id, sort_order').eq('is_active', true).order('sort_order')
         ]);
         setScreens((screensData ?? []) as unknown as PublicMenuScreenModel[]);
         setCategories((catsData ?? []) as unknown as PublicSaleCategory[]);
@@ -175,5 +176,4 @@ export default function UniversalMenuPage() {
     </div>
   );
 }
-
 

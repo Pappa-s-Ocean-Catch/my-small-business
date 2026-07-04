@@ -7,6 +7,7 @@ export interface CartAddonItem {
   id: string;
   name: string;
   extra_price: number;
+  section?: string | null;
 }
 
 export interface CartAddonGroup {
@@ -24,6 +25,7 @@ export interface CartItem {
   base_price: number;
   image_url: string | null;
   quantity: number;
+  section?: string | null;
   addon_groups: CartAddonGroup[];
   removed_ingredients: string[];
   subtotal: number; // base_price * quantity + addon prices
@@ -98,7 +100,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
               group.selected_items.push({
                 id: addon.addon_item_id,
                 name: addon.addon_item_name,
-                extra_price: addon.addon_item_price
+                extra_price: addon.addon_item_price,
+                section: addon.section ?? null,
               });
             });
             
@@ -110,6 +113,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
               base_price: item.base_price,
               image_url: item.product_image_url,
               quantity: item.quantity,
+              section: item.section ?? null,
               addon_groups: Array.from(addonGroupsMap.values()),
               removed_ingredients: item.removed_ingredients || [],
               subtotal: item.subtotal,
@@ -147,6 +151,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         base_price: item.base_price,
         quantity: item.quantity,
         subtotal: item.subtotal,
+        section: item.section ?? null,
         removed_ingredients: item.removed_ingredients || [],
         comment: item.comment || null,
         addons: item.addon_groups.flatMap(group =>
@@ -155,7 +160,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
             addon_group_name: group.name,
             addon_item_id: addonItem.id,
             addon_item_name: addonItem.name,
-            addon_item_price: addonItem.extra_price
+            addon_item_price: addonItem.extra_price,
+            section: addonItem.section ?? null,
           }))
         )
       }));
@@ -192,6 +198,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         base_price: item.base_price,
         quantity: item.quantity,
         subtotal: item.subtotal,
+        section: item.section ?? null,
         removed_ingredients: item.removed_ingredients || [],
         comment: item.comment || null,
         addons: item.addon_groups.flatMap(group =>
@@ -200,7 +207,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
             addon_group_name: group.name,
             addon_item_id: addonItem.id,
             addon_item_name: addonItem.name,
-            addon_item_price: addonItem.extra_price
+            addon_item_price: addonItem.extra_price,
+            section: addonItem.section ?? null,
           }))
         )
       }));

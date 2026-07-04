@@ -15,6 +15,134 @@ import type {
   StoreHours,
 } from '@my-small-business/types';
 
+type CreateOrderCartItem = CartItemData & {
+  section?: string | null;
+};
+
+type CreateOrderCartAddon = CartItemData['addons'][number] & {
+  section?: string | null;
+};
+
+const DEFAULT_KITCHEN_SECTION = 'Fried';
+
+function normalizeKitchenSection(value?: string | null): string | null {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
+}
+
+function parseKitchenSections(value?: string | null): string[] {
+  const normalized = normalizeKitchenSection(value);
+  if (!normalized) return [];
+
+  return Array.from(
+    new Set(
+      normalized
+        .split(',')
+        .map((section) => section.trim())
+        .filter(Boolean)
+    )
+  );
+}
+
+function resolveKitchenSections(
+  baseSection?: string | null,
+  addons?: Array<{ section?: string | null }>,
+  fallbackSection?: string | null
+): string[] {
+  const addonSections = Array.from(
+    new Set(
+      (addons || []).flatMap((addon) => parseKitchenSections(addon.section))
+    )
+  );
+
+  if (addonSections.length > 0) return addonSections;
+
+  const normalizedBase = normalizeKitchenSection(baseSection);
+  const normalizedFallback = normalizeKitchenSection(fallbackSection);
+  return [normalizedBase || normalizedFallback || DEFAULT_KITCHEN_SECTION];
+}
+
+function formatKitchenSectionValue(
+  baseSection?: string | null,
+  addons?: Array<{ section?: string | null }>,
+  fallbackSection?: string | null
+): string {
+  return resolveKitchenSections(baseSection, addons, fallbackSection).join(', ');
+}
+
+async function enrichOrderItemsWithKitchenSections(
+  supabase: Awaited<ReturnType<typeof createServiceRoleClient>>,
+  items: CreateOrderCartItem[]
+): Promise<Array<CreateOrderCartItem & { section: string; addons: CreateOrderCartAddon[] }>> {
+  const productIds = Array.from(new Set(items.map((item) => item.product_id).filter(Boolean)));
+  const addonItemIds = Array.from(
+    new Set(
+      items.flatMap((item) => (item.addons || []).map((addon) => addon.addon_item_id).filter(Boolean))
+    )
+  );
+
+  const { data: productRows, error: productError } = await supabase
+    .from('sale_products')
+    .select('id, section, sale_category_id, sub_category_id')
+    .in('id', productIds);
+
+  if (productError) {
+    throw new Error(`Failed to load product kitchen sections: ${productError.message}`);
+  }
+
+  const categoryIds = Array.from(
+    new Set(
+      (productRows || []).flatMap((product) => [product.sale_category_id, product.sub_category_id].filter(Boolean))
+    )
+  );
+
+  const [{ data: categoryRows, error: categoryError }, { data: addonRows, error: addonError }] = await Promise.all([
+    categoryIds.length > 0
+      ? supabase.from('sale_categories').select('id, section').in('id', categoryIds)
+      : Promise.resolve({ data: [], error: null }),
+    addonItemIds.length > 0
+      ? supabase.from('addon_items').select('id, section').in('id', addonItemIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  if (categoryError) {
+    throw new Error(`Failed to load category kitchen sections: ${categoryError.message}`);
+  }
+
+  if (addonError) {
+    throw new Error(`Failed to load add-on kitchen sections: ${addonError.message}`);
+  }
+
+  const productsById = new Map(
+    (productRows || []).map((product) => [product.id, product])
+  );
+  const categoriesById = new Map(
+    (categoryRows || []).map((category) => [category.id, category.section ?? null])
+  );
+  const addonSectionsById = new Map(
+    (addonRows || []).map((addon) => [addon.id, addon.section ?? null])
+  );
+
+  return items.map((item) => {
+    const product = productsById.get(item.product_id);
+    const fallbackSection = product?.sub_category_id
+      ? categoriesById.get(product.sub_category_id) ?? null
+      : null;
+    const groupSection = fallbackSection || (product?.sale_category_id ? categoriesById.get(product.sale_category_id) ?? null : null);
+
+    const addons = (item.addons || []).map((addon) => ({
+      ...addon,
+      section: addonSectionsById.get(addon.addon_item_id) ?? addon.section ?? null,
+    }));
+
+    return {
+      ...item,
+      addons,
+      section: formatKitchenSectionValue(product?.section ?? item.section ?? null, addons, groupSection),
+    };
+  });
+}
+
 // Extend OrderInput to include CartItemData for web app
 export interface OrderInput {
   customer_email: string;
@@ -61,6 +189,7 @@ export interface OrderInput {
 export async function createOrder(input: OrderInput): Promise<{ data: Order | null; error: string | null }> {
   try {
     const supabase = await createServiceRoleClient();
+    const inputItems = input.items as CreateOrderCartItem[];
 
     // Validate input
     if (!input.customer_email || !input.customer_phone) {
@@ -70,7 +199,7 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
       };
     }
 
-    if (!input.items || input.items.length === 0) {
+    if (!inputItems || inputItems.length === 0) {
       return { data: null, error: 'Order must contain at least one item' };
     }
 
@@ -237,7 +366,9 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
     }
 
     // Create order items
-    const orderItemsToInsert = input.items.map(item => ({
+    const itemsWithResolvedSections = await enrichOrderItemsWithKitchenSections(supabase, inputItems);
+
+    const orderItemsToInsert = itemsWithResolvedSections.map(item => ({
       order_id: order.id,
       product_id: item.product_id,
       product_name: item.product_name,
@@ -246,6 +377,7 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
       base_price: item.base_price,
       quantity: item.quantity,
       subtotal: item.subtotal,
+      section: item.section ?? null,
       removed_ingredients: item.removed_ingredients || [],
       comment: item.comment || null
     }));
@@ -271,9 +403,10 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
         addon_item_id: string;
         addon_item_name: string;
         addon_item_price: number;
+        section?: string | null;
       }> = [];
 
-      input.items.forEach((item, index) => {
+      itemsWithResolvedSections.forEach((item, index) => {
         const orderItemId = orderItems[index]?.id;
         if (orderItemId && item.addons) {
           item.addons.forEach(addon => {
@@ -283,7 +416,8 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
               addon_group_name: addon.addon_group_name,
               addon_item_id: addon.addon_item_id,
               addon_item_name: addon.addon_item_name,
-              addon_item_price: addon.addon_item_price
+              addon_item_price: addon.addon_item_price,
+              section: addon.section ?? null,
             });
           });
         }

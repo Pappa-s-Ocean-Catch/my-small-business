@@ -4,11 +4,15 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { StyleSheet } from 'react-native';
 import { MD3LightTheme, PaperProvider } from 'react-native-paper';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { canAccessOrderManagement } from '@/lib/auth';
 import { OfflineAttentionOverlay } from '@/lib/KitchenAlertOverlay';
 import { useKeepAwake } from 'expo-keep-awake';
 import { StatusBar } from 'expo-status-bar';
+import { appQueryClient } from '@/lib/query-client';
+import { PrinterAutomationProvider } from '@/providers/PrinterAutomationProvider';
+import { AppSettingsProvider } from '@/providers/AppSettingsProvider';
 
 export default function RootLayout() {
   const router = useRouter();
@@ -81,23 +85,29 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <PaperProvider theme={MD3LightTheme}>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="login" />
-          <Stack.Screen name="(drawer)" />
-          <Stack.Screen
-            name="order-detail"
-            options={{
-              presentation: 'fullScreenModal',
-              animation: 'slide_from_bottom',
-            }}
-          />
-          <Stack.Screen name="pos-layout-settings" />
-          <Stack.Screen name="POS-intergation" />
-        </Stack>
-        <StatusBar hidden />
-        <OfflineAttentionOverlay appName="Pappas Order" />
-      </PaperProvider>
+      <QueryClientProvider client={appQueryClient}>
+        <PaperProvider theme={MD3LightTheme}>
+          <AppSettingsProvider>
+            <PrinterAutomationProvider>
+              <Stack screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="login" />
+                <Stack.Screen name="(drawer)" />
+                <Stack.Screen
+                  name="order-detail"
+                  options={{
+                    presentation: 'fullScreenModal',
+                    animation: 'slide_from_bottom',
+                  }}
+                />
+                <Stack.Screen name="pos-layout-settings" />
+                <Stack.Screen name="POS-intergation" />
+              </Stack>
+              <StatusBar hidden />
+              <OfflineAttentionOverlay appName="Pappas Order" />
+            </PrinterAutomationProvider>
+          </AppSettingsProvider>
+        </PaperProvider>
+      </QueryClientProvider>
     </GestureHandlerRootView>
   );
 }

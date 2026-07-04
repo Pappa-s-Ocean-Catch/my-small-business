@@ -27,6 +27,7 @@ export type SaleProductForDetails = {
     slug: string | null;
     name: string;
     description: string | null;
+    section: string | null;
     seo_title: string | null;
     seo_description: string | null;
     seo_text: string | null;
@@ -50,6 +51,7 @@ export type HotSellerProduct = {
     slug: string | null;
     name: string;
     description: string | null;
+    section: string | null;
     sale_price: number;
     image_url: string | null;
 };
@@ -123,6 +125,7 @@ export default function ProductDetailsClient(props: {
             base_price: product.sale_price,
             image_url: product.image_url,
             quantity: qty,
+            section: product.section,
             addon_groups: customizations,
             removed_ingredients: removedIngredients || [],
             comment: comment || null,
@@ -150,6 +153,7 @@ export default function ProductDetailsClient(props: {
             base_price: customizingProduct.sale_price,
             image_url: customizingProduct.image_url,
             quantity: qty,
+            section: customizingProduct.section,
             addon_groups: customizations,
             removed_ingredients: removedIngredients || [],
             comment: comment || null,

@@ -25,17 +25,16 @@ import { supabase } from '../../lib/supabase';
 import { getAllOrders, updateOrderStatus, updatePaymentStatus, getOrder } from '../../lib/orders';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { playNewOrderSound } from '../../lib/sounds';
-import { DEFAULT_APP_SETTINGS, loadAppSettings, subscribeAppSettings, type AppSettings } from '../../lib/settings';
+import { DEFAULT_APP_SETTINGS, type AppSettings } from '../../lib/settings';
 import { Audio } from 'expo-av';
 import * as Print from 'expo-print';
 import { ConfirmationDialog } from '../../lib/ConfirmationDialog';
-import { useFocusEffect } from '@react-navigation/native';
-import { useCallback } from 'react';
 import { escposPrintKitchenReceipt, formatPrinterError } from '../../lib/escpos-printer';
 import { KitchenAlertOverlay } from '../../lib/KitchenAlertOverlay';
 import { getFriendlyOrderNumber } from '../../utils/orderNumber';
 import { CustomerModal } from '../../components/CustomerModal';
 import { getOrderChannelLabel, getOrderLineItemCount, getOrderNotes, getOrderOptions, getPaymentMethodType, shouldPlayOrderSound } from '../../utils/orderUtils';
+import { useAppSettingsQuery } from '@/hooks/useAppSettingsQuery';
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
   pending: '#f59e0b',
@@ -99,7 +98,7 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshCountdown, setRefreshCountdown] = useState<number>(0);
-  const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
+  const { data: appSettings = DEFAULT_APP_SETTINGS } = useAppSettingsQuery();
   const [isFiltersModalVisible, setIsFiltersModalVisible] = useState(false);
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
   const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
@@ -157,29 +156,6 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
   useEffect(() => {
     appSettingsRef.current = appSettings;
   }, [appSettings]);
-
-  useEffect(() => {
-    // Keep settings in sync even while this tab isn't focused (Tabs keep screens mounted).
-    const unsubscribe = subscribeAppSettings((s) => {
-      setAppSettings(s);
-      appSettingsRef.current = s;
-    });
-    return unsubscribe;
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      let cancelled = false;
-      loadAppSettings().then((s) => {
-        if (cancelled) return;
-        setAppSettings(s);
-        appSettingsRef.current = s;
-      });
-      return () => {
-        cancelled = true;
-      };
-    }, [])
-  );
 
   // Initialize audio
   useEffect(() => {

@@ -32,6 +32,7 @@ interface MenuProduct {
   slug: string | null;
   name: string;
   description: string | null;
+  section: string | null;
   sale_price: number;
   bundle_original_total?: number | null;
   image_url: string | null;
@@ -213,7 +214,7 @@ function OrderPageContent() {
         // 3. Lazy load all products (not featured)
         const productsResult = await supabase
           .from('sale_products')
-          .select('id, slug, name, description, sale_price, image_url, sale_category_id, sub_category_id')
+          .select('id, slug, name, description, section, sale_price, image_url, sale_category_id, sub_category_id')
           .eq('is_active', true)
           .order('name');
         if (productsResult.data) setProducts(productsResult.data);
@@ -235,7 +236,7 @@ function OrderPageContent() {
       const [productsResult, categoriesResult, topSellersResult, featuredResult] = await Promise.all([
         supabase
           .from('sale_products')
-          .select('id, slug, name, description, sale_price, image_url, sale_category_id, sub_category_id')
+          .select('id, slug, name, description, section, sale_price, image_url, sale_category_id, sub_category_id')
           .eq('is_active', true)
           .order('name'),
         supabase
@@ -296,6 +297,7 @@ function OrderPageContent() {
           slug: p.slug ?? null,
           name: p.name,
           description: p.description,
+          section: p.section ?? null,
           sale_price: p.sale_price,
           bundle_original_total: bundleOriginalTotals.get(p.id) ?? null,
           image_url: p.image_url,
@@ -311,6 +313,7 @@ function OrderPageContent() {
           slug: p.slug ?? null,
           name: p.name,
           description: p.description,
+          section: p.section ?? null,
           sale_price: p.sale_price,
           bundle_original_total: bundleOriginalTotals.get(p.id) ?? null,
           image_url: p.image_url,
@@ -403,6 +406,7 @@ function OrderPageContent() {
       base_price: customizingProduct.sale_price,
       image_url: customizingProduct.image_url,
       quantity: qty,
+      section: customizingProduct.section,
       addon_groups: customizations,
       removed_ingredients: removedIngredients || [],
       comment: comment || null

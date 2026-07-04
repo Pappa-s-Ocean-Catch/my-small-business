@@ -262,6 +262,7 @@ export function ItemCustomizationModal({ isOpen, onClose, product, onAddToCart, 
             id: item.id,
             name: item.name,
             extra_price: item.extra_price,
+            section: item.section ?? null,
           }));
 
         return {

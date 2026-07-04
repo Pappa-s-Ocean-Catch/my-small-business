@@ -8,6 +8,7 @@ export interface CartItemAddon {
   addon_item_id: string;
   addon_item_name: string;
   addon_item_price: number;
+  section?: string | null;
 }
 
 export interface CartItemData {
@@ -18,6 +19,7 @@ export interface CartItemData {
   base_price: number;
   quantity: number;
   subtotal: number;
+  section?: string | null;
   removed_ingredients: string[];
   addons: CartItemAddon[];
   comment: string | null;
@@ -97,6 +99,7 @@ export async function getOrCreateCart(sessionId: string): Promise<{ data: CartDa
           base_price: Number(item.base_price),
           quantity: item.quantity,
           subtotal: Number(item.subtotal),
+          section: item.section ?? null,
           removed_ingredients: (item.removed_ingredients as string[] | null) || [],
           comment: item.comment || null,
           addons: (addons || []).map(addon => ({
@@ -104,7 +107,8 @@ export async function getOrCreateCart(sessionId: string): Promise<{ data: CartDa
             addon_group_name: addon.addon_group_name,
             addon_item_id: addon.addon_item_id,
             addon_item_name: addon.addon_item_name,
-            addon_item_price: Number(addon.addon_item_price)
+            addon_item_price: Number(addon.addon_item_price),
+            section: addon.section ?? null,
           }))
         });
       }
@@ -168,6 +172,7 @@ export async function saveCart(
         base_price: item.base_price,
         quantity: item.quantity,
         subtotal: item.subtotal,
+        section: item.section ?? null,
         removed_ingredients: item.removed_ingredients || [],
         comment: item.comment || null
       }));
@@ -191,6 +196,7 @@ export async function saveCart(
           addon_item_id: string;
           addon_item_name: string;
           addon_item_price: number;
+          section?: string | null;
         }> = [];
 
         items.forEach((item, index) => {
@@ -203,7 +209,8 @@ export async function saveCart(
                 addon_group_name: addon.addon_group_name,
                 addon_item_id: addon.addon_item_id,
                 addon_item_name: addon.addon_item_name,
-                addon_item_price: addon.addon_item_price
+                addon_item_price: addon.addon_item_price,
+                section: addon.section ?? null,
               });
             });
           }

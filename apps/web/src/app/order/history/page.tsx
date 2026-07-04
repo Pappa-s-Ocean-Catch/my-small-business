@@ -158,6 +158,7 @@ export default function OrderHistoryPage() {
           base_price: orderItem.base_price,
           image_url: orderItem.product_image_url,
           quantity: orderItem.quantity,
+          section: orderItem.section ?? null,
           addon_groups: addonGroups,
           removed_ingredients: orderItem.removed_ingredients || [],
           comment: orderItem.comment

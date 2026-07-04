@@ -32,6 +32,7 @@
     "@react-navigation/drawer": "^7.9.8",
     "@react-navigation/native": "^7.1.8",
     "@supabase/supabase-js": "^2.57.4",
+    "@tanstack/react-query": "^5.101.2",
     "expo": "~54.0.0",
     "expo-av": "~16.0.8",
     "expo-constants": "~18.0.13",
@@ -56,7 +57,8 @@
     "react-native-svg": "15.12.1",
     "react-native-vector-icons": "^10.3.0",
     "react-native-view-shot": "^4.0.3",
-    "reanimated-color-picker": "^5.1.1"
+    "reanimated-color-picker": "^5.1.1",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@babel/core": "^7.25.0",

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -19,7 +19,6 @@ import {
   Surface,
 } from 'react-native-paper';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { useFocusEffect } from '@react-navigation/native';
 import { getRecentCustomers, searchCustomers, Customer } from '@/lib/customers';
 import { CustomerModal } from '@/components/CustomerModal';
 import { HistoryOrderListItem } from '@/components/HistoryOrderListItem';
@@ -28,7 +27,8 @@ import { OrderFiltersModal } from '@/components/OrderFiltersModal';
 import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
 import { getAllOrders, getOrder } from '@/lib/orders';
 import type { Order } from '@my-small-business/types';
-import { DEFAULT_APP_SETTINGS, loadAppSettings, subscribeAppSettings, type AppSettings } from '@/lib/settings';
+import { DEFAULT_APP_SETTINGS } from '@/lib/settings';
+import { useAppSettingsQuery } from '@/hooks/useAppSettingsQuery';
 import { useOrderActions } from '@/hooks/useOrderActions';
 import { getTodayDateString, formatDateToLocalISO, getPaymentMethodType } from '@/utils/orderUtils';
 
@@ -46,13 +46,13 @@ export default function HistoryScreen() {
   const [selectedDate, setSelectedDate] = useState<string>(getTodayDateString());
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showOrderModal, setShowOrderModal] = useState(false);
-  const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
   const [isFiltersModalVisible, setIsFiltersModalVisible] = useState(false);
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [customerInfo, setCustomerInfo] = useState<{ email?: string; phone?: string }>({});
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<'all' | 'card' | 'cash'>('all');
   const [orderMethodFilter, setOrderMethodFilter] = useState<string>('all');
+  const { data: appSettings = DEFAULT_APP_SETTINGS } = useAppSettingsQuery();
 
   const loadOrders = async () => {
     try {
@@ -91,17 +91,6 @@ export default function HistoryScreen() {
   } = useOrderActions(appSettings, loadOrders, (updated) => {
     if (selectedOrder?.id === updated.id) setSelectedOrder(updated);
   });
-
-  useEffect(() => {
-    const unsubscribe = subscribeAppSettings(setAppSettings);
-    return unsubscribe;
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadAppSettings().then(setAppSettings);
-    }, [])
-  );
 
   useEffect(() => {
     loadOrders();

@@ -216,6 +216,7 @@ export default function CheckoutPage() {
                 ...item,
                 base_price: Number(item.base_price),
                 subtotal: Number(item.subtotal),
+                section: item.section ?? null,
                 removed_ingredients: item.removed_ingredients || [],
                 addons: (item.order_item_addons || undefined) ?? undefined,
               }),
@@ -1456,6 +1457,7 @@ export default function CheckoutPage() {
           base_price: item.base_price,
           quantity: item.quantity,
           subtotal: item.subtotal,
+          section: item.section ?? null,
           removed_ingredients: item.removed_ingredients || [],
           comment: item.comment || null,
           addons: item.addon_groups.flatMap((group) =>
@@ -1465,6 +1467,7 @@ export default function CheckoutPage() {
               addon_item_id: addonItem.id,
               addon_item_name: addonItem.name,
               addon_item_price: addonItem.extra_price,
+              section: addonItem.section ?? null,
             })),
           ),
         })),

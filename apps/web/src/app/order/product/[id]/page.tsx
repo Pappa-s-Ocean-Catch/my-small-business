@@ -16,7 +16,7 @@ async function fetchSaleProductByIdOrSlug(idOrSlug: string): Promise<SaleProduct
 
   const { data, error } = await supabase
     .from('sale_products')
-    .select('id, slug, name, description, seo_title, seo_description, seo_text, sale_price, image_url, is_active')
+    .select('id, slug, name, description, section, seo_title, seo_description, seo_text, sale_price, image_url, is_active')
     .eq(isUuid ? 'id' : 'slug', idOrSlug)
     .maybeSingle();
 
@@ -102,6 +102,7 @@ export default async function OrderProductDetailsPage(
       slug: p.slug ?? null,
       name: p.name,
       description: p.description,
+      section: p.section ?? null,
       sale_price: p.sale_price,
       image_url: p.image_url,
     }));

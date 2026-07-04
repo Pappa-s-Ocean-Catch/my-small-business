@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -21,7 +21,6 @@ import { supabase } from '@/lib/supabase';
 import {
   claimOrderForAutoPrint,
   completeKitchenPrintClaim,
-  getAllOrders,
   getOrder,
   releaseKitchenPrintClaim,
 } from '@/lib/orders';
@@ -31,11 +30,14 @@ import { LiveOrderListItem } from '@/components/LiveOrderListItem';
 import { OrderDetailModal } from '@/components/OrderDetailModal';
 import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
 import { useOrderActions } from '@/hooks/useOrderActions';
-import { loadAppSettings, DEFAULT_APP_SETTINGS, type AppSettings } from '@/lib/settings';
+import { DEFAULT_APP_SETTINGS, loadAppSettings } from '@/lib/settings';
+import { useAppSettingsQuery } from '@/hooks/useAppSettingsQuery';
+import { PRE_ORDERS_QUERY_KEY, usePreOrdersQuery } from '@/hooks/useLiveOrdersQuery';
 import { captureRef } from 'react-native-view-shot';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
 import { escposPrintOrderImage } from '@/lib/escpos-printer';
 import { getPrintDeviceId } from '@/lib/print-device';
+import { useQueryClient } from '@tanstack/react-query';
 
 const RECEIPT_REF_WAIT_MS = 120;
 const RECEIPT_REF_MAX_ATTEMPTS = 8;
@@ -43,13 +45,10 @@ const RECEIPT_REF_MAX_ATTEMPTS = 8;
 export default function PreOrdersScreen() {
   const router = useRouter();
   const navigation = useNavigation<DrawerNavigationProp<any>>();
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
-  const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [customerInfo, setCustomerInfo] = useState<{ email?: string; phone?: string }>({});
   const [tempPrintingOrder, setTempPrintingOrder] = useState<Order | null>(null);
@@ -57,7 +56,14 @@ export default function PreOrdersScreen() {
   const [tempPrintTicketIndex, setTempPrintTicketIndex] = useState(0);
   const [isCapturing, setIsCapturing] = useState(false);
   const globalReceiptRef = useRef(null);
-  const appSettingsRef = useRef<AppSettings>(DEFAULT_APP_SETTINGS);
+  const queryClient = useQueryClient();
+  const { data: appSettings = DEFAULT_APP_SETTINGS } = useAppSettingsQuery();
+  const {
+    data: orders = [],
+    isLoading: loading,
+    refetch: refetchOrders,
+  } = usePreOrdersQuery();
+  const appSettingsRef = useRef(appSettings);
   const printDeviceIdRef = useRef<string | null>(null);
 
   const waitForReceiptTemplateRef = useCallback(async () => {
@@ -72,34 +78,11 @@ export default function PreOrdersScreen() {
 
   const loadOrders = async () => {
     try {
-      setLoading(true);
-      // Fetch all pre-orders for the next 7 days
-      const results = await getAllOrders();
-      if (results.error) {
-        Alert.alert('Error', results.error);
-        return;
+      const result = await refetchOrders();
+      if (result.error) {
+        Alert.alert('Error', result.error.message);
       }
-
-      let allOrders = results.data || [];
-      // Filter for pre-orders only (scheduled_pickup_at is set)
-      // and not completed/cancelled/refunded
-      const preOrders = allOrders.filter(
-        (o) => 
-          o.scheduled_pickup_at !== null &&
-          o.order_status !== 'completed' &&
-          o.order_status !== 'cancelled' &&
-          o.payment_status !== 'refunded'
-      ).sort((a, b) => {
-        const timeA = new Date(a.scheduled_pickup_at!).getTime();
-        const timeB = new Date(b.scheduled_pickup_at!).getTime();
-        return timeA - timeB;
-      });
-
-      setOrders(preOrders);
-    } catch (error) {
-      console.error('Failed to load pre-orders:', error);
     } finally {
-      setLoading(false);
       setRefreshing(false);
     }
   };
@@ -151,7 +134,9 @@ export default function PreOrdersScreen() {
       const latestOrderResult = await getOrder(order.id);
       if (latestOrderResult.data) {
         freshOrder = latestOrderResult.data;
-        setOrders((prev) => prev.map((item) => (item.id === freshOrder.id ? freshOrder : item)));
+        queryClient.setQueryData<Order[]>(PRE_ORDERS_QUERY_KEY, (prev = []) => (
+          prev.map((item) => (item.id === freshOrder.id ? freshOrder : item))
+        ));
         if (selectedOrder?.id === freshOrder.id) {
           setSelectedOrder(freshOrder);
         }
@@ -159,7 +144,16 @@ export default function PreOrdersScreen() {
         console.warn('[PreOrders] Failed to refresh order before printing:', latestOrderResult.error);
       }
 
-      const s = appSettingsRef.current;
+      const s = await loadAppSettings().catch(() => appSettingsRef.current);
+      appSettingsRef.current = s;
+      const printSettingsDetails = [
+        `simulator=${String(s.printerSimulator)}`,
+        `printerEnabled=${String(s.printerEnabled)}`,
+        `selectedTarget=${s.printerSelectedTarget ?? 'none'}`,
+        `savedPrinters=${s.printerSaved.length}`,
+        `copies=${s.printerCopies}`,
+      ].join(', ');
+      console.log('[PreOrders] Resolved manual print settings:', printSettingsDetails);
       setIsCapturing(true);
       setPrintingOrderId(order.id);
       
@@ -190,6 +184,7 @@ export default function PreOrdersScreen() {
       }
 
       if (s.printerSimulator) {
+        console.log('[PreOrders] Using simulator for manual print:', printSettingsDetails);
         setSimulatorOrder(freshOrder);
         setPrintImageUri(imageUris[0] || null);
         setPrintImageUris(imageUris);
@@ -204,7 +199,8 @@ export default function PreOrdersScreen() {
 
       const selected = s.printerSaved.find((p) => p.target === s.printerSelectedTarget) || null;
       if (!s.printerEnabled || !selected) {
-        Alert.alert('Printer error', 'Print is enabled, but no printer is selected.');
+        console.log('[PreOrders] Manual print blocked because no printer was resolved:', printSettingsDetails);
+        Alert.alert('Printer error', `No printer is selected. ${printSettingsDetails}`);
         return;
       }
 
@@ -236,22 +232,21 @@ export default function PreOrdersScreen() {
   }, [appSettings]);
 
   useEffect(() => {
-    loadAppSettings().then(setAppSettings);
-    loadOrders();
-
     const subscription = supabase
       .channel('pre-orders-changes')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders' },
-        () => loadOrders()
+        () => {
+          void queryClient.invalidateQueries({ queryKey: PRE_ORDERS_QUERY_KEY });
+        }
       )
       .subscribe();
 
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [queryClient]);
 
   useFocusEffect(
     useCallback(() => {
@@ -266,7 +261,7 @@ export default function PreOrdersScreen() {
 
   const handleRefresh = () => {
     setRefreshing(true);
-    loadOrders();
+    void loadOrders();
   };
 
   const handleOrderPress = (order: Order) => {
@@ -311,7 +306,7 @@ export default function PreOrdersScreen() {
       <Surface style={styles.subHeader} elevation={1}>
         <View style={styles.headerRow}>
           <Text style={styles.countText}>{orders.length} orders scheduled</Text>
-          <PaperButton mode="contained" onPress={loadOrders} loading={loading} style={styles.refreshButton}>
+          <PaperButton mode="contained" onPress={() => void loadOrders()} loading={loading} style={styles.refreshButton}>
             Refresh
           </PaperButton>
         </View>

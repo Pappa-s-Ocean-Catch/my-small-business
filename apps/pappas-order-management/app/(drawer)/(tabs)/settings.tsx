@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Dialog, Portal, Switch, Text, TextInput } from 'react-native-paper';
 import { useRouter } from 'expo-router';
-import { DEFAULT_APP_SETTINGS, loadAppSettings, saveAppSettings } from '@/lib/settings';
+import { DEFAULT_APP_SETTINGS } from '@/lib/settings';
 import { playNewOrderSound, SOUND_OPTIONS, type SoundId } from '@/lib/sounds';
 import { usePrintersDiscovery } from 'react-native-esc-pos-printer';
 import type { DeviceInfo } from 'react-native-esc-pos-printer';
@@ -14,11 +14,15 @@ import {
 } from '@/lib/escpos-printer';
 import { SettingsActionTile } from '@/components/settings/SettingsActionTile';
 import { SettingsSectionCard } from '@/components/settings/SettingsSectionCard';
+import { useAppSettingsQuery } from '@/hooks/useAppSettingsQuery';
+import { useAppSettingsStore } from '@/stores/appSettingsStore';
 
 type SettingsDialogKey = 'refresh' | 'sound' | 'printer' | 'liveOrders' | null;
 
 export default function SettingsScreen() {
     const router = useRouter();
+    const { data: currentSettings = DEFAULT_APP_SETTINGS } = useAppSettingsQuery();
+    const saveSettings = useAppSettingsStore((state) => state.saveSettings);
     const [activeDialog, setActiveDialog] = useState<SettingsDialogKey>(null);
     const [refreshIntervalSecText, setRefreshIntervalSecText] = useState(String(DEFAULT_APP_SETTINGS.refreshIntervalSec));
     const [soundEnabled, setSoundEnabled] = useState<boolean>(DEFAULT_APP_SETTINGS.soundEnabled);
@@ -44,24 +48,22 @@ export default function SettingsScreen() {
     const { printers, isDiscovering, printerError, start, stop, pairBluetoothDevice } = usePrintersDiscovery();
 
     useEffect(() => {
-        loadAppSettings().then((s) => {
-            setRefreshIntervalSecText(String(s.refreshIntervalSec));
-            setSoundEnabled(s.soundEnabled);
-            setSoundId(s.soundId);
-            setRepeatCountText(String(s.soundRepeatCount));
-            setLiveOrderCardLayout(s.liveOrderCardLayout);
+        setRefreshIntervalSecText(String(currentSettings.refreshIntervalSec));
+        setSoundEnabled(currentSettings.soundEnabled);
+        setSoundId(currentSettings.soundId);
+        setRepeatCountText(String(currentSettings.soundRepeatCount));
+        setLiveOrderCardLayout(currentSettings.liveOrderCardLayout);
 
-            setPrinterEnabled(s.printerEnabled);
-            setPrinterAutoPrint(s.printerAutoPrint);
-            setPrinterCopiesText(String(s.printerCopies));
-            setPrinterSaved(s.printerSaved);
-            setPrinterSelectedTarget(s.printerSelectedTarget);
-            setPrinterSimulator(s.printerSimulator);
-            setPrinterDelayPrintSecText(String(s.printerDelayPrintSec));
-            setPrinterPaperWidth(s.printerPaperWidth);
-            setPrinterHighQuality(s.printerHighQuality);
-        });
-    }, []);
+        setPrinterEnabled(currentSettings.printerEnabled);
+        setPrinterAutoPrint(currentSettings.printerAutoPrint);
+        setPrinterCopiesText(String(currentSettings.printerCopies));
+        setPrinterSaved(currentSettings.printerSaved);
+        setPrinterSelectedTarget(currentSettings.printerSelectedTarget);
+        setPrinterSimulator(currentSettings.printerSimulator);
+        setPrinterDelayPrintSecText(String(currentSettings.printerDelayPrintSec));
+        setPrinterPaperWidth(currentSettings.printerPaperWidth);
+        setPrinterHighQuality(currentSettings.printerHighQuality);
+    }, [currentSettings]);
 
     const selectedSoundLabel = useMemo(
         () => SOUND_OPTIONS.find((o) => o.id === soundId)?.label ?? soundId,
@@ -96,8 +98,10 @@ export default function SettingsScreen() {
         ? 'Vertical cards with horizontal scrolling'
         : 'Full-width horizontal rows';
     const printerSummary = !printerEnabled
-        ? 'Disabled'
-        : `${selectedPrinter?.deviceName ?? 'No printer selected'} • ${printerCopiesText} cop${printerCopiesText === '1' ? 'y' : 'ies'}`;
+        ? printerSimulator
+            ? `Simulator • ${printerCopiesText} cop${printerCopiesText === '1' ? 'y' : 'ies'}`
+            : 'Disabled'
+        : `${selectedPrinter?.deviceName ?? (printerSimulator ? 'Simulator' : 'No printer selected')} • ${printerCopiesText} cop${printerCopiesText === '1' ? 'y' : 'ies'}`;
 
     const openSoundPicker = () => {
         Alert.alert(
@@ -254,7 +258,7 @@ export default function SettingsScreen() {
 
         try {
             setSaving(true);
-            await saveAppSettings({
+            await saveSettings({
                 refreshIntervalSec,
                 soundEnabled,
                 soundId,
@@ -555,7 +559,7 @@ export default function SettingsScreen() {
 
                             <View style={styles.switchRow}>
                                 <Text style={styles.label}>Auto print new orders</Text>
-                                <Switch value={printerAutoPrint} onValueChange={setPrinterAutoPrint} disabled={!printerEnabled} />
+                                <Switch value={printerAutoPrint} onValueChange={setPrinterAutoPrint} disabled={!printerEnabled && !printerSimulator} />
                             </View>
 
                             <TextInput
@@ -565,7 +569,7 @@ export default function SettingsScreen() {
                                 onChangeText={setPrinterDelayPrintSecText}
                                 keyboardType="number-pad"
                                 style={styles.input}
-                                disabled={!printerEnabled || !printerAutoPrint}
+                                disabled={(!printerEnabled && !printerSimulator) || !printerAutoPrint}
                             />
                             <Text style={styles.helper}>Wait before printing a new order (0 to 120).</Text>
 
