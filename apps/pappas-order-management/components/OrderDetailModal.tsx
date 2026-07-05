@@ -6,6 +6,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { captureRef } from 'react-native-view-shot';
 import { ReceiptTemplate } from './ReceiptTemplate';
 import { PrintSimulatorModal } from './PrintSimulatorModal';
+import { hasAnySimulatorAssignment } from '@/lib/printer-routing';
 import { CustomerReceiptTemplate } from './CustomerReceiptTemplate';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { getFriendlyOrderNumber } from '../utils/orderNumber';
@@ -516,7 +517,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 order={printPreviewOrder || order} 
                 width={appSettings.printerPaperWidth === '58mm' ? 384 : 576} 
                 printSource="order-detail-modal:capture"
-                showTicketCounter={appSettings.printerSimulator}
+                showTicketCounter={hasAnySimulatorAssignment(appSettings)}
               />
            </View>
            <View ref={customerReceiptRef} collapsable={false}>

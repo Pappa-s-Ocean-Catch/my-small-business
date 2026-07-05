@@ -83,6 +83,7 @@ export default function HistoryScreen() {
     showSimulator,
     setShowSimulator,
     printImageUri,
+    printImageLabels,
     handleStatusUpdate,
     handlePaymentStatusUpdate,
     handleQuickAction,
@@ -319,6 +320,7 @@ export default function HistoryScreen() {
         visible={showSimulator && !showOrderModal}
         order={simulatorOrder}
         imageUri={printImageUri}
+        imageLabels={printImageLabels}
         onClose={() => setShowSimulator(false)}
       />
 

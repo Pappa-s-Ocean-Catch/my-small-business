@@ -2,6 +2,8 @@ import type { Order, OrderStatus, OrderItemAddon, OrderChannel } from '@my-small
 import { getFriendlyOrderNumber } from './orderNumber';
 import { STATUS_LABELS, PAYMENT_STATUS_LABELS } from './constants';
 
+export const KITCHEN_SECTION_OPTIONS = ['Fried', 'Grilled', 'Till'] as const;
+
 export const groupAddons = (addons: OrderItemAddon[]) => {
   if (!addons || addons.length === 0) return [];
   
@@ -268,11 +270,11 @@ export const buildKitchenReceiptCopies = <TItem extends { section?: string | nul
     }];
   }
 
-  return Array.from({ length: groups.length }, (_, index) => ({
+  return groups.map((group, index) => ({
     key: `copy-${index + 1}`,
     copyNumber: index + 1,
     totalCopies: groups.length,
-    sections: groups,
+    sections: [group],
   }));
 };
 

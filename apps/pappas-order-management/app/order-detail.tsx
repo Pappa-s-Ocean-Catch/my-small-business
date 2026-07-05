@@ -7,6 +7,7 @@ import { ActivityIndicator, Text } from 'react-native-paper';
 import { getOrder, updateOrderStatus, updatePaymentStatus } from '../lib/orders';
 import { loadAppSettings } from '../lib/settings';
 import { escposPrintKitchenReceipt, escposPrintOrderImage, formatPrinterError } from '../lib/escpos-printer';
+import { getSectionPrintTickets, hasAnySimulatorAssignment, resolvePrinterForSection, shouldUseSimulatorForSection } from '../lib/printer-routing';
 import { formatSmartpayError, isSmartpayPaired, processSmartpayCardPayment } from '../lib/smartpay';
 import { OrderDetailModal } from '../components/OrderDetailModal';
 import { generatePrintHTML, getNextQuickAction } from '../utils/orderUtils';
@@ -143,7 +144,8 @@ export default function OrderDetailScreen() {
   const handlePrint = async (selectedOrder: Order): Promise<boolean> => {
     try {
       const settings = await loadAppSettings();
-      if (settings.printerSimulator) {
+      const tickets = getSectionPrintTickets(selectedOrder);
+      if (settings.printerSimulator || tickets.some((ticket) => shouldUseSimulatorForSection(settings, ticket.sections[0]?.sectionName || null))) {
         setSimulatorOrder(selectedOrder);
         setPrintImageUri(null);
         setSimulatorImageLabels([]);
@@ -151,10 +153,23 @@ export default function OrderDetailScreen() {
         return true;
       }
 
-      const selected = settings.printerSaved.find((printer) => printer.target === settings.printerSelectedTarget) || null;
+      const selected = resolvePrinterForSection(settings, tickets[0]?.sections[0]?.sectionName || null);
       if (settings.printerEnabled && selected) {
         try {
-          await escposPrintKitchenReceipt(selectedOrder, selected, settings.printerCopies, 'order-detail-screen:manual-line-print');
+          if (tickets.length <= 1) {
+            await escposPrintKitchenReceipt(selectedOrder, selected, 1, 'order-detail-screen:manual-line-print');
+          } else {
+            for (let index = 0; index < tickets.length; index++) {
+              const printer = resolvePrinterForSection(settings, tickets[index]?.sections[0]?.sectionName || null);
+              if (!printer) {
+                throw new Error(`No printer configured for section ${tickets[index]?.sections[0]?.sectionName || 'Default'}.`);
+              }
+              await escposPrintKitchenReceipt(selectedOrder, printer, 1, 'order-detail-screen:manual-line-print', {
+                duplicateBySections: true,
+                onlyTicketIndex: index,
+              });
+            }
+          }
           return true;
         } catch (printerError) {
           Alert.alert(
@@ -184,7 +199,7 @@ export default function OrderDetailScreen() {
   const handlePrintImage = async (selectedOrder: Order, imageUri: string): Promise<boolean> => {
     try {
       const settings = await loadAppSettings();
-      if (settings.printerSimulator) {
+      if (settings.printerSimulator || hasAnySimulatorAssignment(settings)) {
         setSimulatorOrder(selectedOrder);
         setPrintImageUri(imageUri);
         setSimulatorImageLabels(['Customer Copy']);
@@ -192,10 +207,10 @@ export default function OrderDetailScreen() {
         return true;
       }
 
-      const selected = settings.printerSaved.find((printer) => printer.target === settings.printerSelectedTarget) || null;
+      const selected = resolvePrinterForSection(settings, getSectionPrintTickets(selectedOrder)[0]?.sections[0]?.sectionName || null);
       if (settings.printerEnabled && selected) {
         const targetDots = settings.printerPaperWidth === '58mm' ? 384 : 576;
-        await escposPrintOrderImage(imageUri, selected, settings.printerCopies, targetDots);
+        await escposPrintOrderImage(imageUri, selected, 1, targetDots);
         return true;
       }
 

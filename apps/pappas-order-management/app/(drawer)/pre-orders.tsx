@@ -36,6 +36,7 @@ import { PRE_ORDERS_QUERY_KEY, usePreOrdersQuery } from '@/hooks/useLiveOrdersQu
 import { captureRef } from 'react-native-view-shot';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
 import { escposPrintOrderImage } from '@/lib/escpos-printer';
+import { getSectionPrintTickets, getSectionRoutingDebugLabel, hasAnySimulatorAssignment, resolvePrinterForSection, shouldUseSimulatorForSection } from '@/lib/printer-routing';
 import { getPrintDeviceId } from '@/lib/print-device';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -104,6 +105,8 @@ export default function PreOrdersScreen() {
     setPrintImageUri,
     printImageUris,
     setPrintImageUris,
+    printImageLabels,
+    setPrintImageLabels,
   } = useOrderActions(appSettings, loadOrders, (updated) => {
     if (selectedOrder?.id === updated.id) setSelectedOrder(updated);
   });
@@ -147,11 +150,11 @@ export default function PreOrdersScreen() {
       const s = await loadAppSettings().catch(() => appSettingsRef.current);
       appSettingsRef.current = s;
       const printSettingsDetails = [
-        `simulator=${String(s.printerSimulator)}`,
+        `simulator=${String(hasAnySimulatorAssignment(s))}`,
         `printerEnabled=${String(s.printerEnabled)}`,
-        `selectedTarget=${s.printerSelectedTarget ?? 'none'}`,
+        `defaultTarget=${s.printerSelectedTarget ?? 'none'}`,
         `savedPrinters=${s.printerSaved.length}`,
-        `copies=${s.printerCopies}`,
+        `sectionRules=${s.printerSectionAssignments.length}`,
       ].join(', ');
       console.log('[PreOrders] Resolved manual print settings:', printSettingsDetails);
       setIsCapturing(true);
@@ -183,12 +186,30 @@ export default function PreOrdersScreen() {
         imageUris.push(uri);
       }
 
-      if (s.printerSimulator) {
+      const tickets = getSectionPrintTickets(freshOrder);
+      const simulatorImageUris: string[] = [];
+      const simulatorImageLabels: string[] = [];
+      const printerJobs: Array<{ uri: string; sectionName: string | null }> = [];
+      for (let index = 0; index < imageUris.length; index++) {
+        const sectionName = tickets[index]?.sections[0]?.sectionName || null;
+        if (s.printerSimulator || shouldUseSimulatorForSection(s, sectionName)) {
+          simulatorImageUris.push(imageUris[index]);
+          simulatorImageLabels.push(getSectionRoutingDebugLabel(s, sectionName));
+        } else {
+          printerJobs.push({ uri: imageUris[index], sectionName });
+        }
+      }
+
+      if (simulatorImageUris.length > 0) {
         console.log('[PreOrders] Using simulator for manual print:', printSettingsDetails);
         setSimulatorOrder(freshOrder);
-        setPrintImageUri(imageUris[0] || null);
-        setPrintImageUris(imageUris);
+        setPrintImageUri(simulatorImageUris[0] || null);
+        setPrintImageUris(simulatorImageUris);
+        setPrintImageLabels(simulatorImageLabels);
         setShowSimulator(true);
+      }
+
+      if (printerJobs.length === 0) {
         const completion = await completeKitchenPrintClaim(order.id, claimedDeviceId);
         if (!completion.completed) {
           throw new Error(completion.error || 'Failed to complete kitchen print claim');
@@ -197,15 +218,19 @@ export default function PreOrdersScreen() {
         return;
       }
 
-      const selected = s.printerSaved.find((p) => p.target === s.printerSelectedTarget) || null;
+      const selected = resolvePrinterForSection(s, tickets[0]?.sections[0]?.sectionName || null);
       if (!s.printerEnabled || !selected) {
         console.log('[PreOrders] Manual print blocked because no printer was resolved:', printSettingsDetails);
         Alert.alert('Printer error', `No printer is selected. ${printSettingsDetails}`);
         return;
       }
 
-      for (const uri of imageUris) {
-        await escposPrintOrderImage(uri, selected, s.printerCopies, targetDots);
+      for (let index = 0; index < printerJobs.length; index++) {
+        const printer = resolvePrinterForSection(s, printerJobs[index].sectionName);
+        if (!printer) {
+          throw new Error(`No printer configured for section ${printerJobs[index].sectionName || 'Default'}.`);
+        }
+        await escposPrintOrderImage(printerJobs[index].uri, printer, 1, targetDots);
       }
       const completion = await completeKitchenPrintClaim(order.id, claimedDeviceId);
       if (!completion.completed) {
@@ -361,6 +386,7 @@ export default function PreOrdersScreen() {
         order={simulatorOrder}
         imageUri={printImageUri}
         imageUris={printImageUris}
+        imageLabels={printImageLabels}
         onClose={() => setShowSimulator(false)}
       />
 
@@ -372,7 +398,7 @@ export default function PreOrdersScreen() {
                 order={tempPrintingOrder}
                 width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
                 printSource={tempPrintSource || undefined}
-                showTicketCounter={appSettings.printerSimulator}
+                showTicketCounter={hasAnySimulatorAssignment(appSettings)}
                 onlyTicketIndex={tempPrintTicketIndex}
                 duplicateBySections={false}
               />

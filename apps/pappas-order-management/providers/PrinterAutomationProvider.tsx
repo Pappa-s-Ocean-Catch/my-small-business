@@ -17,6 +17,7 @@ import {
   updateOrderStatus,
 } from '@/lib/orders';
 import { escposPrintOrderImage, formatPrinterError } from '@/lib/escpos-printer';
+import { getSectionPrintTickets, getSectionRoutingDebugLabel, hasAnySimulatorAssignment, resolvePrinterForSection, shouldUseSimulatorForSection } from '@/lib/printer-routing';
 import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
 import { buildKitchenReceiptCopies, shouldPlayOrderSound } from '@/utils/orderUtils';
@@ -126,7 +127,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
 
       const effectiveSettings = await loadAppSettings().catch(() => appSettings);
 
-      if (!effectiveSettings.printerAutoPrint || (!effectiveSettings.printerEnabled && !effectiveSettings.printerSimulator)) {
+      if (!effectiveSettings.printerAutoPrint || (!effectiveSettings.printerEnabled && !hasAnySimulatorAssignment(effectiveSettings))) {
         processedOrderIdsRef.current.delete(order.id);
         logOrderEvent('decision', 'auto-print', 'Cancelled auto-print because settings changed', {
           order,
@@ -211,18 +212,35 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
         imageUris.push(uri);
       }
 
-      if (effectiveSettings.printerSimulator) {
+      const simulatorImageUris: string[] = [];
+      const simulatorImageLabels: string[] = [];
+      const printerJobs: Array<{ uri: string; sectionName: string | null }> = [];
+      for (let index = 0; index < imageUris.length; index++) {
+        const sectionName = ticketCopies[index]?.sections[0]?.sectionName || null;
+        if (effectiveSettings.printerSimulator || shouldUseSimulatorForSection(effectiveSettings, sectionName)) {
+          simulatorImageUris.push(imageUris[index]);
+          simulatorImageLabels.push(getSectionRoutingDebugLabel(effectiveSettings, sectionName));
+        } else {
+          printerJobs.push({ uri: imageUris[index], sectionName });
+        }
+      }
+
+      if (simulatorImageUris.length > 0) {
         logOrderEvent('decision', 'print', 'Using print simulator', {
           order: freshOrder,
-          details: `${imageUris.length} receipt image(s) prepared`,
+          details: `${simulatorImageUris.length} receipt image(s) prepared for simulator`,
         });
         showAutoPrintSimulator({
           order: freshOrder,
-          imageUri: imageUris[0] || null,
-          imageUris,
+          imageUri: simulatorImageUris[0] || null,
+          imageUris: simulatorImageUris,
+          imageLabels: simulatorImageLabels,
         });
-      } else {
-        const selected = effectiveSettings.printerSaved.find((printer) => printer.target === effectiveSettings.printerSelectedTarget) || null;
+      }
+
+      if (printerJobs.length > 0) {
+        const tickets = getSectionPrintTickets(freshOrder);
+        const selected = resolvePrinterForSection(effectiveSettings, tickets[0]?.sections[0]?.sectionName || null);
         if (!effectiveSettings.printerEnabled || !selected) {
           processedOrderIdsRef.current.delete(order.id);
           notifyAutoPrintError(order, 'Auto-print is enabled, but no printer is selected.');
@@ -231,12 +249,16 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
 
         logOrderEvent('info', 'print', 'Sending receipt image(s) to printer', {
           order: freshOrder,
-          details: `${imageUris.length} image(s) to ${selected.deviceName} (${selected.ipAddress || selected.target})`,
+          details: `${printerJobs.length} image(s) using section printer routing`,
         });
 
-        for (let index = 0; index < imageUris.length; index++) {
-          await escposPrintOrderImage(imageUris[index], selected, 1, targetDots);
-          if (index < imageUris.length - 1) {
+        for (let index = 0; index < printerJobs.length; index++) {
+          const printer = resolvePrinterForSection(effectiveSettings, printerJobs[index].sectionName);
+          if (!printer) {
+            throw new Error(`No printer configured for section ${printerJobs[index].sectionName || 'Default'}.`);
+          }
+          await escposPrintOrderImage(printerJobs[index].uri, printer, 1, targetDots);
+          if (index < printerJobs.length - 1) {
             await new Promise((resolve) => setTimeout(resolve, SECTION_PRINT_DELAY_MS));
           }
         }
@@ -292,11 +314,11 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
   const announceAndPrintOrder = useCallback(async (order: Order) => {
     if (processedOrderIdsRef.current.has(order.id)) return;
 
-    if ((appSettings.printerEnabled || appSettings.printerSimulator) && appSettings.printerAutoPrint) {
+    if ((appSettings.printerEnabled || hasAnySimulatorAssignment(appSettings)) && appSettings.printerAutoPrint) {
       processedOrderIdsRef.current.add(order.id);
       logOrderEvent('decision', 'auto-print', 'Starting auto-print workflow', {
         order,
-        details: appSettings.printerSimulator ? 'Simulator mode enabled' : 'Printer mode enabled',
+        details: hasAnySimulatorAssignment(appSettings) ? 'Simulator routing enabled' : 'Printer mode enabled',
       });
       try {
         await quickPrintAutoOrder(order);
@@ -496,7 +518,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
               order={tempPrintingOrder}
               width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
               printSource={tempPrintSource || undefined}
-              showTicketCounter={appSettings.printerSimulator}
+              showTicketCounter={hasAnySimulatorAssignment(appSettings)}
               onlyTicketIndex={tempPrintTicketIndex}
               duplicateBySections
             />
@@ -519,6 +541,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
         order={autoPrintSimulator.order}
         imageUri={autoPrintSimulator.imageUri}
         imageUris={autoPrintSimulator.imageUris}
+        imageLabels={autoPrintSimulator.imageLabels}
         onClose={dismissAutoPrintSimulator}
       />
     </>

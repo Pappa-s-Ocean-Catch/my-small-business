@@ -110,6 +110,12 @@ export async function POST(request: NextRequest) {
           <br><br><small><a href="{{UNSUBSCRIBE_LINK}}">Unsubscribe from marketing emails</a></small>
         `;
 
+        finalSubject = finalSubject
+          .replace(/\{\{CUSTOMER_NAME\}\}/gi, customer.name || 'Valued Customer')
+          .replace(/\{\{COUPON_CODE\}\}/gi, couponCode)
+          .replace(/\{\{STORE_LINK\}\}/gi, storeLink)
+          .replace(/\{\{UNSUBSCRIBE_LINK\}\}/gi, unsubscribeLink);
+
         // Replace placeholders
         const finalHtmlBody = bodyTemplate
           .replace(/\{\{CUSTOMER_NAME\}\}/gi, customer.name || 'Valued Customer')

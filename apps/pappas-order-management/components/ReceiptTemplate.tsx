@@ -47,29 +47,22 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
   const orderNotes = getOrderNotes(order);
   const lineItemCount = getOrderLineItemCount(order);
   const allTickets = buildKitchenReceiptCopies(order.items || []);
-  const combinedSections = allTickets[0]?.sections || [{ sectionName: null, items: order.items || [] }];
+  const combinedSections = allTickets.length > 0
+    ? allTickets.flatMap((ticket) => ticket.sections)
+    : [{ sectionName: null, items: order.items || [] }];
   const combinedTicket = {
     key: 'combined',
     copyNumber: 1,
     totalCopies: 1,
     sections: combinedSections,
   };
-  const duplicatedTickets = Array.from(
-    { length: Math.max(allTickets.length, 1) },
-    (_, index) => ({
-      ...combinedTicket,
-      key: `copy-${index + 1}`,
-      copyNumber: index + 1,
-      totalCopies: Math.max(allTickets.length, 1),
-    })
-  );
   const tickets = duplicateBySections
     ? (
       onlyTicketIndex == null
-        ? duplicatedTickets
-        : duplicatedTickets[onlyTicketIndex]
-          ? [duplicatedTickets[onlyTicketIndex]]
-          : duplicatedTickets
+        ? allTickets
+        : allTickets[onlyTicketIndex]
+          ? [allTickets[onlyTicketIndex]]
+          : allTickets
     )
     : [combinedTicket];
 

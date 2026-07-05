@@ -122,11 +122,17 @@ export async function escposPrintKitchenReceipt(
   order: Order,
   printer: SavedPrinter,
   copies: number,
-  printSource?: string
+  printSource?: string,
+  options?: { duplicateBySections?: boolean; onlyTicketIndex?: number }
 ): Promise<void> {
   assertPrinter(printer);
   const repeat = normalizeCopies(copies);
-  const lines = buildKitchenReceiptLines(order, printSource);
+  const lines = buildKitchenReceiptLines(
+    order,
+    printSource,
+    options?.duplicateBySections,
+    options?.onlyTicketIndex
+  );
 
   return enqueuePrinterJob(async () => {
     for (let i = 0; i < repeat; i++) {

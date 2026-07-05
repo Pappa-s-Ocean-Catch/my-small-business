@@ -1,5 +1,6 @@
 import type { Order, OrderItem, OrderItemAddon } from '@my-small-business/types';
 import {
+  buildKitchenReceiptCopies,
   DEFAULT_KITCHEN_SECTION,
   getResolvedKitchenSectionDisplay,
   getResolvedKitchenSectionKey,
@@ -194,16 +195,31 @@ function getOrderSectionTickets(order: Order): Array<{ sectionName: string | nul
   return Array.from(map.values());
 }
 
-export function buildKitchenReceiptLines(order: Order, printSource?: string, duplicateBySections = false): ReceiptLine[] {
+export function buildKitchenReceiptLines(
+  order: Order,
+  printSource?: string,
+  duplicateBySections = false,
+  onlyTicketIndex?: number
+): ReceiptLine[] {
   const lines: ReceiptLine[] = [];
 
-  const sections = getOrderSectionTickets(order);
-  const copyCount = duplicateBySections ? Math.max(sections.length, 1) : 1;
-  const tickets = Array.from({ length: copyCount }, (_, index) => ({
-    copyNumber: index + 1,
-    totalCopies: copyCount,
-    sections,
-  }));
+  const groupedSections = getOrderSectionTickets(order);
+  const sectionTickets = buildKitchenReceiptCopies(order.items || []);
+  const tickets = duplicateBySections
+    ? (
+        onlyTicketIndex == null
+          ? sectionTickets
+          : sectionTickets[onlyTicketIndex]
+            ? [sectionTickets[onlyTicketIndex]]
+            : sectionTickets
+      )
+    : [{
+        key: 'combined',
+        copyNumber: 1,
+        totalCopies: 1,
+        sections: groupedSections,
+      }];
+
   tickets.forEach((ticket, ticketIndex) => {
     if (ticketIndex > 0) {
       lines.push('');
@@ -212,7 +228,7 @@ export function buildKitchenReceiptLines(order: Order, printSource?: string, dup
     }
 
     lines.push(...formatOrderHeaderLines(order));
-    if (copyCount > 1) {
+    if (duplicateBySections && tickets.length > 1) {
       lines.push({ text: `${ticket.copyNumber}/${ticket.totalCopies}`, bold: true, center: true });
       lines.push('');
     }

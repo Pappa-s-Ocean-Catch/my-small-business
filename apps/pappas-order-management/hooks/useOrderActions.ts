@@ -4,6 +4,7 @@ import * as Print from 'expo-print';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { updateOrderStatus, updatePaymentStatus, getOrder } from '@/lib/orders';
 import { escposPrintKitchenReceipt, escposPrintOrderImage, formatPrinterError } from '@/lib/escpos-printer';
+import { getSectionPrintTickets, getSectionRoutingDebugLabel, hasAnySimulatorAssignment, resolvePrinterForSection, shouldUseSimulatorForSection } from '@/lib/printer-routing';
 import { generatePrintHTML } from '@/utils/orderUtils';
 import { loadAppSettings, type AppSettings } from '@/lib/settings';
 import { formatSmartpayError, isSmartpayPaired, processSmartpayCardPayment } from '@/lib/smartpay';
@@ -22,6 +23,7 @@ export const useOrderActions = (
   const [showSimulator, setShowSimulator] = useState(false);
   const [printImageUri, setPrintImageUri] = useState<string | null>(null);
   const [printImageUris, setPrintImageUris] = useState<string[]>([]);
+  const [printImageLabels, setPrintImageLabels] = useState<string[]>([]);
   const [smartpayPaired, setSmartpayPaired] = useState(false);
   const [smartpayProcessingOrderId, setSmartpayProcessingOrderId] = useState<string | null>(null);
 
@@ -243,18 +245,34 @@ export const useOrderActions = (
     try {
       const effectiveSettings = await getEffectiveSettings();
 
-      if (effectiveSettings.printerSimulator) {
+      const tickets = getSectionPrintTickets(order);
+      if (effectiveSettings.printerSimulator || tickets.some((ticket) => shouldUseSimulatorForSection(effectiveSettings, ticket.sections[0]?.sectionName || null))) {
         setSimulatorOrder(order);
         setPrintImageUri(null); // No image URI for standard fallback print usually
         setPrintImageUris([]);
+        setPrintImageLabels(tickets.map((ticket) => getSectionRoutingDebugLabel(effectiveSettings, ticket.sections[0]?.sectionName || null)));
         setShowSimulator(true);
         return true;
       }
 
-      const selected = effectiveSettings.printerSaved.find((p) => p.target === effectiveSettings.printerSelectedTarget) || null;
+      const firstSectionName = tickets[0]?.sections[0]?.sectionName || null;
+      const selected = resolvePrinterForSection(effectiveSettings, firstSectionName);
       if (effectiveSettings.printerEnabled && selected) {
         try {
-          await escposPrintKitchenReceipt(order, selected, effectiveSettings.printerCopies, 'order-actions:manual-line-print');
+          if (tickets.length <= 1) {
+            await escposPrintKitchenReceipt(order, selected, 1, 'order-actions:manual-line-print');
+          } else {
+            for (let index = 0; index < tickets.length; index++) {
+              const printer = resolvePrinterForSection(effectiveSettings, tickets[index]?.sections[0]?.sectionName || null);
+              if (!printer) {
+                throw new Error(`No printer configured for section ${tickets[index]?.sections[0]?.sectionName || 'Default'}.`);
+              }
+              await escposPrintKitchenReceipt(order, printer, 1, 'order-actions:manual-line-print', {
+                duplicateBySections: true,
+                onlyTicketIndex: index,
+              });
+            }
+          }
           return true;
         } catch (printerError) {
           console.error('Print error:', printerError);
@@ -275,20 +293,22 @@ export const useOrderActions = (
   const handlePrintImage = async (order: Order, imageUri: string): Promise<boolean> => {
     try {
       const effectiveSettings = await getEffectiveSettings();
+      const tickets = getSectionPrintTickets(order);
 
-      if (effectiveSettings.printerSimulator) {
+      if (effectiveSettings.printerSimulator || hasAnySimulatorAssignment(effectiveSettings)) {
         setSimulatorOrder(order);
         setPrintImageUri(imageUri);
         setPrintImageUris([imageUri]);
+        setPrintImageLabels([getSectionRoutingDebugLabel(effectiveSettings, tickets[0]?.sections[0]?.sectionName || null)]);
         setShowSimulator(true);
         return true;
       }
 
-      const selected = effectiveSettings.printerSaved.find((p) => p.target === effectiveSettings.printerSelectedTarget) || null;
+      const selected = resolvePrinterForSection(effectiveSettings, tickets[0]?.sections[0]?.sectionName || null);
       if (effectiveSettings.printerEnabled && selected) {
         try {
           const targetDots = effectiveSettings.printerPaperWidth === '58mm' ? 384 : 576;
-          await escposPrintOrderImage(imageUri, selected, effectiveSettings.printerCopies, targetDots);
+          await escposPrintOrderImage(imageUri, selected, 1, targetDots);
           return true;
         } catch (printerError) {
           console.error('Print image error:', printerError);
@@ -320,6 +340,8 @@ export const useOrderActions = (
     setPrintImageUri,
     printImageUris,
     setPrintImageUris,
+    printImageLabels,
+    setPrintImageLabels,
     smartpayPaired,
     smartpayProcessingOrderId,
     handleStatusUpdate,

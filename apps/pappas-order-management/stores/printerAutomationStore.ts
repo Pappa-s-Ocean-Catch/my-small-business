@@ -28,6 +28,7 @@ type PrinterAutomationState = {
     order: Order | null;
     imageUri: string | null;
     imageUris: string[];
+    imageLabels: string[];
   };
   showToast: (message: string) => void;
   dismissToast: () => void;
@@ -38,6 +39,7 @@ type PrinterAutomationState = {
     order: Order;
     imageUri: string | null;
     imageUris?: string[] | null;
+    imageLabels?: string[] | null;
   }) => void;
   dismissAutoPrintSimulator: () => void;
 };
@@ -54,6 +56,7 @@ export const usePrinterAutomationStore = create<PrinterAutomationState>((set) =>
     order: null,
     imageUri: null,
     imageUris: [],
+    imageLabels: [],
   },
   showToast: (message) => set({
     autoPrintToast: {
@@ -79,12 +82,13 @@ export const usePrinterAutomationStore = create<PrinterAutomationState>((set) =>
   })),
   clearJournal: () => set({ journalEntries: [] }),
   setPreOrderSkipNotice: (message) => set({ preOrderSkipNotice: message }),
-  showAutoPrintSimulator: ({ order, imageUri, imageUris }) => set({
+  showAutoPrintSimulator: ({ order, imageUri, imageUris, imageLabels }) => set({
     autoPrintSimulator: {
       visible: true,
       order,
       imageUri,
       imageUris: imageUris || (imageUri ? [imageUri] : []),
+      imageLabels: imageLabels || [],
     },
   }),
   dismissAutoPrintSimulator: () => set({
@@ -93,6 +97,7 @@ export const usePrinterAutomationStore = create<PrinterAutomationState>((set) =>
       order: null,
       imageUri: null,
       imageUris: [],
+      imageLabels: [],
     },
   }),
 }));

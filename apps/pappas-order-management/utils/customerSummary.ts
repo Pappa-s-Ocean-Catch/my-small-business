@@ -85,3 +85,34 @@ export async function fetchCustomerSummary({ email, phone }: { email?: string; p
         orders: orderList,
     };
 }
+
+export async function updateCustomerNameByContact({
+    profileId,
+    name,
+}: {
+    profileId?: string;
+    name: string;
+}): Promise<{ updatedCount: number }> {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+        throw new Error('Customer name is required.');
+    }
+
+    if (!profileId) {
+        throw new Error('This customer does not have a saved profile to update.');
+    }
+
+    const { data, error } = await supabase
+        .from('profiles')
+        .update({
+            full_name: trimmedName,
+        })
+        .eq('id', profileId)
+        .select('id');
+
+    if (error) {
+        throw new Error(error.message);
+    }
+
+    return { updatedCount: data?.length ?? 0 };
+}

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Dialog, Portal, Switch, Text, TextInput } from 'react-native-paper';
+import { Alert, Modal, ScrollView, StyleSheet, View } from 'react-native';
+import { Appbar, Button, Switch, Text, TextInput } from 'react-native-paper';
 import { useRouter } from 'expo-router';
-import { DEFAULT_APP_SETTINGS } from '@/lib/settings';
+import { DEFAULT_APP_SETTINGS, type PrinterSectionAssignment } from '@/lib/settings';
 import { playNewOrderSound, SOUND_OPTIONS, type SoundId } from '@/lib/sounds';
+import { KITCHEN_SECTION_OPTIONS } from '@/utils/orderUtils';
 import { usePrintersDiscovery } from 'react-native-esc-pos-printer';
 import type { DeviceInfo } from 'react-native-esc-pos-printer';
 import {
@@ -12,12 +13,20 @@ import {
     mergeSavedPrinter,
     type SavedPrinter,
 } from '@/lib/escpos-printer';
+import { getDefaultPrinterAssignment, hasAnySimulatorAssignment, isDefaultPrinterAssignment } from '@/lib/printer-routing';
 import { SettingsActionTile } from '@/components/settings/SettingsActionTile';
 import { SettingsSectionCard } from '@/components/settings/SettingsSectionCard';
 import { useAppSettingsQuery } from '@/hooks/useAppSettingsQuery';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 
 type SettingsDialogKey = 'refresh' | 'sound' | 'printer' | 'liveOrders' | null;
+
+const SETTINGS_MODAL_TITLES: Record<Exclude<SettingsDialogKey, null>, string> = {
+    refresh: 'Refresh interval',
+    sound: 'Order sound',
+    printer: 'Kitchen printer',
+    liveOrders: 'Live order cards',
+};
 
 export default function SettingsScreen() {
     const router = useRouter();
@@ -32,9 +41,11 @@ export default function SettingsScreen() {
 
     const [printerEnabled, setPrinterEnabled] = useState<boolean>(DEFAULT_APP_SETTINGS.printerEnabled);
     const [printerAutoPrint, setPrinterAutoPrint] = useState<boolean>(DEFAULT_APP_SETTINGS.printerAutoPrint);
-    const [printerCopiesText, setPrinterCopiesText] = useState<string>(String(DEFAULT_APP_SETTINGS.printerCopies));
     const [printerSaved, setPrinterSaved] = useState<SavedPrinter[]>(DEFAULT_APP_SETTINGS.printerSaved);
     const [printerSelectedTarget, setPrinterSelectedTarget] = useState<string | null>(DEFAULT_APP_SETTINGS.printerSelectedTarget);
+    const [printerSectionAssignments, setPrinterSectionAssignments] = useState<PrinterSectionAssignment[]>(
+        DEFAULT_APP_SETTINGS.printerSectionAssignments
+    );
     const [printerSimulator, setPrinterSimulator] = useState<boolean>(DEFAULT_APP_SETTINGS.printerSimulator);
     const [printerDelayPrintSecText, setPrinterDelayPrintSecText] = useState(
         String(DEFAULT_APP_SETTINGS.printerDelayPrintSec)
@@ -56,9 +67,9 @@ export default function SettingsScreen() {
 
         setPrinterEnabled(currentSettings.printerEnabled);
         setPrinterAutoPrint(currentSettings.printerAutoPrint);
-        setPrinterCopiesText(String(currentSettings.printerCopies));
         setPrinterSaved(currentSettings.printerSaved);
         setPrinterSelectedTarget(currentSettings.printerSelectedTarget);
+        setPrinterSectionAssignments(currentSettings.printerSectionAssignments);
         setPrinterSimulator(currentSettings.printerSimulator);
         setPrinterDelayPrintSecText(String(currentSettings.printerDelayPrintSec));
         setPrinterPaperWidth(currentSettings.printerPaperWidth);
@@ -70,9 +81,15 @@ export default function SettingsScreen() {
         [soundId]
     );
 
+    const defaultPrinterAssignment = useMemo(
+        () => getDefaultPrinterAssignment({ printerSectionAssignments, printerSelectedTarget }),
+        [printerSectionAssignments, printerSelectedTarget]
+    );
+    const defaultPrinterAssignmentId = defaultPrinterAssignment?.id || 'default-printer';
+
     const selectedPrinter = useMemo(
-        () => printerSaved.find((printer) => printer.target === printerSelectedTarget) || null,
-        [printerSaved, printerSelectedTarget]
+        () => printerSaved.find((printer) => printer.target === (defaultPrinterAssignment?.printerTarget || printerSelectedTarget)) || null,
+        [defaultPrinterAssignment?.printerTarget, printerSaved, printerSelectedTarget]
     );
 
     const discoveredPrinterMatches = useMemo(
@@ -98,10 +115,12 @@ export default function SettingsScreen() {
         ? 'Vertical cards with horizontal scrolling'
         : 'Full-width horizontal rows';
     const printerSummary = !printerEnabled
-        ? printerSimulator
-            ? `Simulator • ${printerCopiesText} cop${printerCopiesText === '1' ? 'y' : 'ies'}`
+        ? printerSimulator || printerSectionAssignments.some((assignment) => assignment.useSimulator)
+            ? 'Simulator'
             : 'Disabled'
-        : `${selectedPrinter?.deviceName ?? (printerSimulator ? 'Simulator' : 'No printer selected')} • ${printerCopiesText} cop${printerCopiesText === '1' ? 'y' : 'ies'}`;
+        : `${selectedPrinter?.deviceName ?? (printerSimulator ? 'Simulator' : 'No default printer selected')} • ${Math.max(printerSectionAssignments.length - 1, 0)} section rule${printerSectionAssignments.length === 2 ? '' : 's'}`;
+    const hasSimulatorRouting = hasAnySimulatorAssignment({ printerSectionAssignments, printerSimulator });
+    const hasPrinterCapability = printerEnabled || hasSimulatorRouting;
 
     const openSoundPicker = () => {
         Alert.alert(
@@ -128,20 +147,16 @@ export default function SettingsScreen() {
     };
 
     const handleTestPrint = async () => {
-        const printerCopies = parseIntOr(printerCopiesText, DEFAULT_APP_SETTINGS.printerCopies);
-        const selected = printerSaved.find((p) => p.target === printerSelectedTarget) || null;
+        const defaultTarget = defaultPrinterAssignment?.printerTarget || printerSelectedTarget;
+        const selected = printerSaved.find((p) => p.target === defaultTarget) || null;
         if (!selected) {
-            Alert.alert('Printer not selected', 'Please select a printer from the saved list first.');
-            return;
-        }
-        if (printerCopies < 1 || printerCopies > 10) {
-            Alert.alert('Invalid copies', 'Please enter a value between 1 and 10.');
+            Alert.alert('Printer not selected', 'Please choose a default printer first.');
             return;
         }
 
         try {
             setTestingPrinter(true);
-            await escposTestPrint(selected, printerCopies);
+            await escposTestPrint(selected, 1);
             Alert.alert('Success', 'Test print sent.');
         } catch (e) {
             Alert.alert('Printer error', e instanceof Error ? e.message : 'Failed to test print');
@@ -195,12 +210,34 @@ export default function SettingsScreen() {
         });
 
         setPrinterSelectedTarget(saved.target);
+        setPrinterSectionAssignments((prev) => {
+            const hasDefault = prev.some((assignment) => isDefaultPrinterAssignment(assignment));
+            if (!hasDefault) {
+                return [{
+                    id: 'default-printer',
+                    sectionName: 'Default',
+                    printerTarget: saved.target,
+                    isDefault: true,
+                }, ...prev];
+            }
+
+            return prev.map((assignment) => (
+                isDefaultPrinterAssignment(assignment)
+                    ? { ...assignment, printerTarget: saved.target, isDefault: true, sectionName: 'Default' }
+                    : assignment
+            ));
+        });
         setPrinterEnabled(true);
     };
 
     const removeSavedPrinter = (target: string) => {
         setPrinterSaved((prev) => prev.filter((printer) => printer.target !== target));
         setPrinterSelectedTarget((current) => (current === target ? null : current));
+        setPrinterSectionAssignments((prev) => prev.map((assignment) => (
+            assignment.printerTarget === target
+                ? { ...assignment, printerTarget: null }
+                : assignment
+        )));
     };
 
     useEffect(() => {
@@ -222,6 +259,20 @@ export default function SettingsScreen() {
             return changed ? next : prev;
         });
 
+        setPrinterSectionAssignments((prev) => {
+            let changed = false;
+            const next = prev.map((assignment) => {
+                if (!assignment.printerTarget) return assignment;
+                const currentSaved = printerSaved.find((printer) => printer.target === assignment.printerTarget) || null;
+                if (!currentSaved) return assignment;
+                const matched = printers.find((printer) => isSamePhysicalPrinter(currentSaved, printer));
+                if (!matched || matched.target === assignment.printerTarget) return assignment;
+                changed = true;
+                return { ...assignment, printerTarget: matched.target };
+            });
+            return changed ? next : prev;
+        });
+
         setPrinterSelectedTarget((current) => {
             if (!current) return current;
             const currentSaved = printerSaved.find((printer) => printer.target === current) || null;
@@ -233,10 +284,48 @@ export default function SettingsScreen() {
         });
     }, [printerSaved, printers]);
 
+    const updatePrinterAssignmentTarget = (assignmentId: string, target: string | null) => {
+        setPrinterSectionAssignments((prev) => prev.map((assignment) => (
+            assignment.id === assignmentId ? { ...assignment, printerTarget: target } : assignment
+        )));
+    };
+
+    const updatePrinterAssignmentSimulator = (assignmentId: string, useSimulator: boolean) => {
+        setPrinterSectionAssignments((prev) => prev.map((assignment) => (
+            assignment.id === assignmentId ? { ...assignment, useSimulator } : assignment
+        )));
+    };
+
+    const updatePrinterAssignmentSection = (assignmentId: string, sectionName: string) => {
+        setPrinterSectionAssignments((prev) => prev.map((assignment) => (
+            assignment.id === assignmentId
+                ? {
+                    ...assignment,
+                    sectionName: assignment.isDefault ? 'Default' : sectionName,
+                }
+                : assignment
+        )));
+    };
+
+    const addPrinterSectionAssignment = () => {
+        setPrinterSectionAssignments((prev) => [
+            ...prev,
+            {
+                id: `assignment-${Date.now()}`,
+                sectionName: '',
+                printerTarget: null,
+                isDefault: false,
+            },
+        ]);
+    };
+
+    const removePrinterSectionAssignment = (assignmentId: string) => {
+        setPrinterSectionAssignments((prev) => prev.filter((assignment) => assignment.id !== assignmentId));
+    };
+
     const handleSave = async () => {
         const refreshIntervalSec = parseIntOr(refreshIntervalSecText, DEFAULT_APP_SETTINGS.refreshIntervalSec);
         const soundRepeatCount = parseIntOr(repeatCountText, DEFAULT_APP_SETTINGS.soundRepeatCount);
-        const printerCopies = parseIntOr(printerCopiesText, DEFAULT_APP_SETTINGS.printerCopies);
         const printerDelayPrintSec = parseIntOr(printerDelayPrintSecText, DEFAULT_APP_SETTINGS.printerDelayPrintSec);
 
         if (refreshIntervalSec < 5 || refreshIntervalSec > 600) {
@@ -247,12 +336,27 @@ export default function SettingsScreen() {
             Alert.alert('Invalid play count', 'Please enter a value between 1 and 10.');
             return;
         }
-        if (printerCopies < 1 || printerCopies > 10) {
-            Alert.alert('Invalid copies', 'Please enter a value between 1 and 10.');
-            return;
-        }
         if (printerDelayPrintSec < 0 || printerDelayPrintSec > 120) {
             Alert.alert('Invalid print delay', 'Please enter a value between 0 and 120 seconds.');
+            return;
+        }
+
+        const normalizedAssignments = printerSectionAssignments.map((assignment) => ({
+            ...assignment,
+            sectionName: assignment.isDefault ? 'Default' : assignment.sectionName.trim(),
+        }));
+        const nonDefaultAssignments = normalizedAssignments.filter((assignment) => !assignment.isDefault);
+        const missingSectionName = nonDefaultAssignments.find((assignment) => !assignment.sectionName);
+        if (missingSectionName) {
+            Alert.alert('Missing section name', 'Each section printer rule needs a section name.');
+            return;
+        }
+
+        const duplicateSection = nonDefaultAssignments.find((assignment, index) => (
+            nonDefaultAssignments.findIndex((candidate) => candidate.sectionName.trim().toLowerCase() === assignment.sectionName.trim().toLowerCase()) !== index
+        ));
+        if (duplicateSection) {
+            Alert.alert('Duplicate section', `Section "${duplicateSection.sectionName}" is listed more than once.`);
             return;
         }
 
@@ -266,9 +370,9 @@ export default function SettingsScreen() {
                 liveOrderCardLayout,
                 printerEnabled,
                 printerAutoPrint,
-                printerCopies,
                 printerSelectedTarget,
                 printerSaved,
+                printerSectionAssignments: normalizedAssignments,
                 printerSimulator,
                 printerDelayPrintSec,
                 printerPaperWidth,
@@ -374,10 +478,23 @@ export default function SettingsScreen() {
 
             <Text style={styles.footer}>More settings coming later.</Text>
 
-            <Portal>
-                <Dialog visible={activeDialog === 'refresh'} onDismiss={() => setActiveDialog(null)} style={styles.dialog}>
-                    <Dialog.Title>Refresh interval</Dialog.Title>
-                    <Dialog.Content style={styles.dialogContent}>
+            <Modal
+                visible={activeDialog !== null}
+                animationType="slide"
+                presentationStyle="fullScreen"
+                onRequestClose={() => setActiveDialog(null)}
+            >
+                <View style={styles.modalScreen}>
+                    <Appbar.Header style={styles.modalHeader}>
+                        <Appbar.BackAction onPress={() => setActiveDialog(null)} iconColor="#fff" />
+                        <Appbar.Content
+                            title={activeDialog ? SETTINGS_MODAL_TITLES[activeDialog] : 'Settings'}
+                            titleStyle={styles.modalHeaderTitle}
+                        />
+                    </Appbar.Header>
+                    <ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
+                        {activeDialog === 'refresh' && (
+                            <>
                         <TextInput
                             mode="outlined"
                             label="Refresh interval (seconds)"
@@ -387,15 +504,11 @@ export default function SettingsScreen() {
                             style={styles.input}
                         />
                         <Text style={styles.helper}>Min 5, max 600.</Text>
-                    </Dialog.Content>
-                    <Dialog.Actions>
-                        <Button onPress={() => setActiveDialog(null)}>Done</Button>
-                    </Dialog.Actions>
-                </Dialog>
+                            </>
+                        )}
 
-                <Dialog visible={activeDialog === 'sound'} onDismiss={() => setActiveDialog(null)} style={styles.dialog}>
-                    <Dialog.Title>Order sound</Dialog.Title>
-                    <Dialog.Content style={styles.dialogContent}>
+                        {activeDialog === 'sound' && (
+                            <>
                         <View style={styles.switchRow}>
                             <Text style={styles.label}>Sound notifications</Text>
                             <Switch value={soundEnabled} onValueChange={setSoundEnabled} />
@@ -419,15 +532,11 @@ export default function SettingsScreen() {
                         <Button mode="contained-tonal" onPress={handlePreview} style={styles.previewButton}>
                             Preview sound
                         </Button>
-                    </Dialog.Content>
-                    <Dialog.Actions>
-                        <Button onPress={() => setActiveDialog(null)}>Done</Button>
-                    </Dialog.Actions>
-                </Dialog>
+                            </>
+                        )}
 
-                <Dialog visible={activeDialog === 'liveOrders'} onDismiss={() => setActiveDialog(null)} style={styles.dialog}>
-                    <Dialog.Title>Live order cards</Dialog.Title>
-                    <Dialog.Content style={styles.dialogContent}>
+                        {activeDialog === 'liveOrders' && (
+                            <>
                         <Text style={styles.label}>Display mode</Text>
                         <View style={styles.buttonGroup}>
                             <Button
@@ -446,16 +555,11 @@ export default function SettingsScreen() {
                             </Button>
                         </View>
                         <Text style={styles.helper}>Vertical uses compact queue cards with horizontal scrolling. Horizontal keeps the full-width row list.</Text>
-                    </Dialog.Content>
-                    <Dialog.Actions>
-                        <Button onPress={() => setActiveDialog(null)}>Done</Button>
-                    </Dialog.Actions>
-                </Dialog>
+                            </>
+                        )}
 
-                <Dialog visible={activeDialog === 'printer'} onDismiss={() => setActiveDialog(null)} style={styles.dialog}>
-                    <Dialog.Title>Kitchen printer</Dialog.Title>
-                    <Dialog.ScrollArea style={styles.dialogScrollArea}>
-                        <ScrollView contentContainerStyle={styles.dialogContent}>
+                        {activeDialog === 'printer' && (
+                            <>
                             <View style={styles.switchRow}>
                                 <Text style={styles.label}>Enable Epson printer</Text>
                                 <Switch value={printerEnabled} onValueChange={setPrinterEnabled} />
@@ -527,9 +631,12 @@ export default function SettingsScreen() {
                                                 <View style={styles.printerActions}>
                                                     <Button
                                                         mode={isSelected ? 'contained' : 'outlined'}
-                                                        onPress={() => setPrinterSelectedTarget(p.target)}
+                                                        onPress={() => {
+                                                            setPrinterSelectedTarget(p.target);
+                                                            updatePrinterAssignmentTarget(defaultPrinterAssignmentId, p.target);
+                                                        }}
                                                     >
-                                                        {isSelected ? 'Selected' : 'Select'}
+                                                        {isSelected ? 'Default' : 'Set default'}
                                                     </Button>
                                                     <Button mode="text" onPress={() => removeSavedPrinter(p.target)}>
                                                         Remove
@@ -541,25 +648,87 @@ export default function SettingsScreen() {
                                 )}
                             </View>
 
-                            <TextInput
-                                mode="outlined"
-                                label="Copies"
-                                value={printerCopiesText}
-                                onChangeText={setPrinterCopiesText}
-                                keyboardType="number-pad"
-                                style={styles.input}
-                            />
-                            <Text style={styles.helper}>1 to 10 copies per print.</Text>
+                            <View style={styles.separator} />
+
+                            <Text style={styles.label}>Section printers</Text>
+                            <Text style={styles.helper}>Default printer is the fallback. Section rules must match the kitchen section values exactly.</Text>
+                            {printerSectionAssignments.map((assignment) => {
+                                const assignmentPrinter = printerSaved.find((printer) => printer.target === assignment.printerTarget) || null;
+                                return (
+                                    <View key={assignment.id} style={styles.assignmentCard}>
+                                        {assignment.isDefault ? (
+                                            <TextInput
+                                                mode="outlined"
+                                                label="Default section"
+                                                value="Default"
+                                                disabled
+                                                style={styles.input}
+                                            />
+                                        ) : (
+                                            <Button
+                                                mode="outlined"
+                                                style={styles.selectButton}
+                                                onPress={() => Alert.alert(
+                                                    'Select section',
+                                                    undefined,
+                                                    [
+                                                        ...KITCHEN_SECTION_OPTIONS.map((section) => ({
+                                                            text: section,
+                                                            onPress: () => updatePrinterAssignmentSection(assignment.id, section),
+                                                        })),
+                                                        { text: 'Cancel', style: 'cancel' as const },
+                                                    ]
+                                                )}
+                                            >
+                                                {assignment.sectionName || 'Select section'}
+                                            </Button>
+                                        )}
+                                        <Button
+                                            mode="outlined"
+                                            style={styles.selectButton}
+                                            onPress={() => Alert.alert(
+                                                assignment.isDefault ? 'Choose default printer' : `Choose printer for ${assignment.sectionName || 'this section'}`,
+                                                undefined,
+                                                [
+                                                    ...printerSaved.map((printer) => ({
+                                                        text: printer.deviceName,
+                                                        onPress: () => updatePrinterAssignmentTarget(assignment.id, printer.target),
+                                                    })),
+                                                    { text: 'Clear', onPress: () => updatePrinterAssignmentTarget(assignment.id, null) },
+                                                    { text: 'Cancel', style: 'cancel' as const },
+                                                ]
+                                            )}
+                                        >
+                                            {assignmentPrinter?.deviceName || 'Select printer'}
+                                        </Button>
+                                        <View style={[styles.switchRow, styles.assignmentSwitchRow]}>
+                                            <Text style={styles.label}>Use simulator for this section</Text>
+                                            <Switch
+                                                value={!!assignment.useSimulator}
+                                                onValueChange={(value) => updatePrinterAssignmentSimulator(assignment.id, value)}
+                                            />
+                                        </View>
+                                        {!assignment.isDefault && (
+                                            <Button mode="text" onPress={() => removePrinterSectionAssignment(assignment.id)}>
+                                                Remove section rule
+                                            </Button>
+                                        )}
+                                    </View>
+                                );
+                            })}
+                            <Button mode="contained-tonal" onPress={addPrinterSectionAssignment} style={styles.previewButton}>
+                                Add section printer
+                            </Button>
 
                             <View style={styles.switchRow}>
-                                <Text style={styles.label}>Print simulator</Text>
+                                <Text style={styles.label}>Legacy simulator fallback</Text>
                                 <Switch value={printerSimulator} onValueChange={setPrinterSimulator} />
                             </View>
-                            <Text style={styles.helper}>Simulate printing with a modal. Good for development.</Text>
+                            <Text style={styles.helper}>Keeps the old all-sections simulator behavior. Section simulator rules above are more flexible.</Text>
 
                             <View style={styles.switchRow}>
                                 <Text style={styles.label}>Auto print new orders</Text>
-                                <Switch value={printerAutoPrint} onValueChange={setPrinterAutoPrint} disabled={!printerEnabled && !printerSimulator} />
+                                <Switch value={printerAutoPrint} onValueChange={setPrinterAutoPrint} disabled={!hasPrinterCapability} />
                             </View>
 
                             <TextInput
@@ -569,7 +738,7 @@ export default function SettingsScreen() {
                                 onChangeText={setPrinterDelayPrintSecText}
                                 keyboardType="number-pad"
                                 style={styles.input}
-                                disabled={(!printerEnabled && !printerSimulator) || !printerAutoPrint}
+                                disabled={!hasPrinterCapability || !printerAutoPrint}
                             />
                             <Text style={styles.helper}>Wait before printing a new order (0 to 120).</Text>
 
@@ -611,13 +780,16 @@ export default function SettingsScreen() {
                             >
                                 Test print
                             </Button>
-                        </ScrollView>
-                    </Dialog.ScrollArea>
-                    <Dialog.Actions>
-                        <Button onPress={() => setActiveDialog(null)}>Done</Button>
-                    </Dialog.Actions>
-                </Dialog>
-            </Portal>
+                            </>
+                        )}
+                    </ScrollView>
+                    <View style={styles.modalFooter}>
+                        <Button mode="text" onPress={() => setActiveDialog(null)}>
+                            Done
+                        </Button>
+                    </View>
+                </View>
+            </Modal>
         </ScrollView>
     );
 }
@@ -632,6 +804,35 @@ const styles = StyleSheet.create({
         fontSize: 28,
         fontWeight: '700',
         marginBottom: 8,
+    },
+    modalScreen: {
+        flex: 1,
+        backgroundColor: '#f5f5f5',
+    },
+    modalHeader: {
+        backgroundColor: '#10243f',
+    },
+    modalHeaderTitle: {
+        color: '#fff',
+        fontSize: 20,
+        fontWeight: '700',
+    },
+    modalContent: {
+        paddingHorizontal: 20,
+        paddingTop: 20,
+        paddingBottom: 120,
+    },
+    modalFooter: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        paddingHorizontal: 20,
+        paddingVertical: 14,
+        borderTopWidth: 1,
+        borderTopColor: '#d7dee7',
+        backgroundColor: '#fbfdff',
+        alignItems: 'flex-end',
     },
     backButton: {
         alignSelf: 'flex-start',
@@ -684,6 +885,18 @@ const styles = StyleSheet.create({
         alignItems: 'flex-end',
         gap: 6,
     },
+    assignmentCard: {
+        marginTop: 10,
+        padding: 12,
+        borderRadius: 12,
+        backgroundColor: '#fff',
+        borderWidth: 1,
+        borderColor: '#ececec',
+    },
+    assignmentSwitchRow: {
+        marginTop: 12,
+        marginBottom: 0,
+    },
     printerName: {
         fontSize: 14,
         fontWeight: '700',
@@ -725,16 +938,5 @@ const styles = StyleSheet.create({
     },
     group: {
         marginTop: 12,
-    },
-    dialog: {
-        maxHeight: '88%',
-    },
-    dialogScrollArea: {
-        paddingHorizontal: 0,
-        maxHeight: 480,
-    },
-    dialogContent: {
-        paddingHorizontal: 24,
-        paddingBottom: 8,
     },
 });

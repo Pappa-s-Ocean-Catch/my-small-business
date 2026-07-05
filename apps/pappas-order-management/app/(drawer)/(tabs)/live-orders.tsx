@@ -32,6 +32,7 @@ import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
 import { CashTenderModal } from '@/components/CashTenderModal';
 import { useOrderActions } from '@/hooks/useOrderActions';
 import { escposPrintOrderImage, formatPrinterError } from '@/lib/escpos-printer';
+import { getSectionPrintTickets, getSectionRoutingDebugLabel, hasAnySimulatorAssignment, resolvePrinterForSection, shouldUseSimulatorForSection } from '@/lib/printer-routing';
 import { captureRef } from 'react-native-view-shot';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
 import { getFriendlyOrderNumber } from '@/utils/orderNumber';
@@ -136,6 +137,8 @@ export default function LiveOrdersScreen() {
     setPrintImageUri,
     printImageUris,
     setPrintImageUris,
+    printImageLabels,
+    setPrintImageLabels,
     smartpayPaired,
     smartpayProcessingOrderId,
     handleStatusUpdate,
@@ -184,11 +187,11 @@ export default function LiveOrdersScreen() {
       const s = await loadAppSettings().catch(() => appSettingsRef.current);
       appSettingsRef.current = s;
       const printSettingsDetails = [
-        `simulator=${String(s.printerSimulator)}`,
+        `simulator=${String(hasAnySimulatorAssignment(s))}`,
         `printerEnabled=${String(s.printerEnabled)}`,
-        `selectedTarget=${s.printerSelectedTarget ?? 'none'}`,
+        `defaultTarget=${s.printerSelectedTarget ?? 'none'}`,
         `savedPrinters=${s.printerSaved.length}`,
-        `copies=${s.printerCopies}`,
+        `sectionRules=${s.printerSectionAssignments.length}`,
       ].join(', ');
       logOrderEvent('info', 'print', 'Resolved manual print settings', {
         order: freshOrder,
@@ -226,17 +229,34 @@ export default function LiveOrdersScreen() {
         width: targetDots * scale,
       })];
 
-      if (s.printerSimulator) {
+      const tickets = getSectionPrintTickets(freshOrder);
+      const simulatorImageUris: string[] = [];
+      const simulatorImageLabels: string[] = [];
+      const printerJobs: Array<{ uri: string; sectionName: string | null }> = [];
+      for (let index = 0; index < imageUris.length; index++) {
+        const sectionName = tickets[index]?.sections[0]?.sectionName || null;
+        if (s.printerSimulator || shouldUseSimulatorForSection(s, sectionName)) {
+          simulatorImageUris.push(imageUris[index]);
+          simulatorImageLabels.push(getSectionRoutingDebugLabel(s, sectionName));
+        } else {
+          printerJobs.push({ uri: imageUris[index], sectionName });
+        }
+      }
+
+      if (simulatorImageUris.length > 0) {
         logOrderEvent('decision', 'print', 'Using print simulator', {
           order: freshOrder,
-          details: `${imageUris.length} receipt image(s) prepared • ${printSettingsDetails}`,
+          details: `${simulatorImageUris.length} receipt image(s) prepared • ${printSettingsDetails}`,
         });
         setSimulatorOrder(freshOrder);
-        setPrintImageUri(imageUris[0] || null);
-        setPrintImageUris(imageUris);
+        setPrintImageUri(simulatorImageUris[0] || null);
+        setPrintImageUris(simulatorImageUris);
+        setPrintImageLabels(simulatorImageLabels);
         setShowSimulator(true);
-      } else {
-        const selected = s.printerSaved.find((p) => p.target === s.printerSelectedTarget) || null;
+      }
+
+      if (printerJobs.length > 0) {
+        const selected = resolvePrinterForSection(s, tickets[0]?.sections[0]?.sectionName || null);
         if (!s.printerEnabled || !selected) {
           const message = `No printer is selected. ${printSettingsDetails}`;
           logOrderEvent('error', 'print', 'Manual print blocked because no printer was resolved', {
@@ -249,17 +269,21 @@ export default function LiveOrdersScreen() {
 
         logOrderEvent('info', 'print', 'Sending receipt image(s) to printer', {
           order: freshOrder,
-          details: `${imageUris.length} image(s) to ${selected.deviceName} (${selected.ipAddress || selected.target})`,
+          details: `${printerJobs.length} image(s) using section printer routing`,
         });
 
-        for (let index = 0; index < imageUris.length; index++) {
+        for (let index = 0; index < printerJobs.length; index++) {
+          const printer = resolvePrinterForSection(s, printerJobs[index].sectionName);
+          if (!printer) {
+            throw new Error(`No printer configured for section ${printerJobs[index].sectionName || 'Default'}.`);
+          }
           await escposPrintOrderImage(
-            imageUris[index],
-            selected,
-            s.printerCopies,
+            printerJobs[index].uri,
+            printer,
+            1,
             targetDots
           );
-          if (index < imageUris.length - 1) {
+          if (index < printerJobs.length - 1) {
             await new Promise((resolve) => setTimeout(resolve, SECTION_PRINT_DELAY_MS));
           }
         }
@@ -816,7 +840,7 @@ export default function LiveOrdersScreen() {
                 order={tempPrintingOrder}
                 width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
                 printSource={tempPrintSource || undefined}
-                showTicketCounter={appSettings.printerSimulator}
+                showTicketCounter={hasAnySimulatorAssignment(appSettings)}
                 onlyTicketIndex={tempPrintTicketIndex}
                 duplicateBySections={tempPrintSource === 'live-orders:auto-print'}
               />
@@ -829,6 +853,7 @@ export default function LiveOrdersScreen() {
         order={simulatorOrder}
         imageUri={printImageUri}
         imageUris={printImageUris}
+        imageLabels={printImageLabels}
         onClose={() => setShowSimulator(false)}
       />
 

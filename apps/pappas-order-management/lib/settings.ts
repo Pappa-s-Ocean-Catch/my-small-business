@@ -7,6 +7,76 @@ function isSavedPrinter(value: unknown): value is SavedPrinter {
     return !!v && typeof v === 'object' && typeof v.target === 'string' && typeof v.deviceName === 'string';
 }
 
+export type PrinterSectionAssignment = {
+    id: string;
+    sectionName: string;
+    printerTarget: string | null;
+    useSimulator?: boolean;
+    isDefault?: boolean;
+};
+
+function normalizePrinterSectionAssignment(value: unknown): PrinterSectionAssignment | null {
+    const v = value as Partial<PrinterSectionAssignment> | null;
+    if (!v || typeof v !== 'object') return null;
+
+    const id = typeof v.id === 'string' && v.id.trim()
+        ? v.id.trim()
+        : `assignment-${Math.random().toString(36).slice(2, 10)}`;
+    const sectionName = typeof v.sectionName === 'string' && v.sectionName.trim()
+        ? v.sectionName.trim()
+        : 'Default';
+    const printerTarget = typeof v.printerTarget === 'string' && v.printerTarget.trim()
+        ? v.printerTarget.trim()
+        : null;
+
+    return {
+        id,
+        sectionName,
+        printerTarget,
+        useSimulator: !!v.useSimulator,
+        isDefault: !!v.isDefault || sectionName.toLowerCase() === 'default',
+    };
+}
+
+function normalizePrinterSectionAssignments(
+    value: unknown,
+    legacySelectedTarget: string | null
+): PrinterSectionAssignment[] {
+    const rawAssignments = Array.isArray(value)
+        ? value.map(normalizePrinterSectionAssignment).filter((item): item is PrinterSectionAssignment => !!item)
+        : [];
+
+    const deduped: PrinterSectionAssignment[] = [];
+    const seen = new Set<string>();
+    let defaultAssigned = false;
+
+    for (const assignment of rawAssignments) {
+        const key = assignment.isDefault
+            ? '__default__'
+            : assignment.sectionName.trim().toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const nextAssignment = {
+            ...assignment,
+            isDefault: assignment.isDefault || assignment.sectionName.trim().toLowerCase() === 'default',
+        };
+        if (nextAssignment.isDefault) defaultAssigned = true;
+        deduped.push(nextAssignment);
+    }
+
+    if (!defaultAssigned) {
+        deduped.unshift({
+            id: 'default-printer',
+            sectionName: 'Default',
+            printerTarget: legacySelectedTarget,
+            useSimulator: false,
+            isDefault: true,
+        });
+    }
+
+    return deduped;
+}
+
 export type AppSettings = {
     refreshIntervalSec: number;
     soundEnabled: boolean;
@@ -17,10 +87,10 @@ export type AppSettings = {
     // Kitchen printer (ESC/POS)
     printerEnabled: boolean;
     printerAutoPrint: boolean;
-    printerCopies: number;
 
     printerSelectedTarget: string | null;
     printerSaved: SavedPrinter[];
+    printerSectionAssignments: PrinterSectionAssignment[];
     printerSimulator: boolean;
 
     /** Seconds to wait before auto-printing a new kitchen ticket. */
@@ -73,10 +143,16 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
 
     printerEnabled: false,
     printerAutoPrint: true,
-    printerCopies: 1,
 
     printerSelectedTarget: null,
     printerSaved: [],
+    printerSectionAssignments: [{
+        id: 'default-printer',
+        sectionName: 'Default',
+        printerTarget: null,
+        useSimulator: false,
+        isDefault: true,
+    }],
     printerSimulator: false,
 
     printerDelayPrintSec: 3,
@@ -127,12 +203,6 @@ export async function loadAppSettings(): Promise<AppSettings> {
             ? (parsed as any).printerAutoPrint
             : DEFAULT_APP_SETTINGS.printerAutoPrint;
 
-        const printerCopies = clampInt(
-            typeof (parsed as any)?.printerCopies === 'number' ? (parsed as any).printerCopies : DEFAULT_APP_SETTINGS.printerCopies,
-            1,
-            10
-        );
-
         const printerSelectedTarget = typeof (parsed as any)?.printerSelectedTarget === 'string'
             ? (parsed as any).printerSelectedTarget
             : DEFAULT_APP_SETTINGS.printerSelectedTarget;
@@ -140,6 +210,10 @@ export async function loadAppSettings(): Promise<AppSettings> {
         const printerSaved: SavedPrinter[] = Array.isArray((parsed as any)?.printerSaved)
             ? ((parsed as any).printerSaved as unknown[]).filter(isSavedPrinter)
             : DEFAULT_APP_SETTINGS.printerSaved;
+        const printerSectionAssignments = normalizePrinterSectionAssignments(
+            (parsed as any)?.printerSectionAssignments,
+            printerSelectedTarget
+        );
 
         const printerDelayPrintSec = clampInt(
             typeof parsed?.printerDelayPrintSec === 'number'
@@ -158,10 +232,10 @@ export async function loadAppSettings(): Promise<AppSettings> {
 
             printerEnabled,
             printerAutoPrint,
-            printerCopies,
 
             printerSelectedTarget,
             printerSaved,
+            printerSectionAssignments,
             printerSimulator: typeof (parsed as any)?.printerSimulator === 'boolean'
                 ? (parsed as any).printerSimulator
                 : DEFAULT_APP_SETTINGS.printerSimulator,
@@ -190,10 +264,13 @@ export async function saveAppSettings(settings: AppSettings): Promise<void> {
 
         printerEnabled: !!settings.printerEnabled,
         printerAutoPrint: !!settings.printerAutoPrint,
-        printerCopies: clampInt(settings.printerCopies, 1, 10),
 
         printerSelectedTarget: settings.printerSelectedTarget ? String(settings.printerSelectedTarget) : null,
         printerSaved: Array.isArray(settings.printerSaved) ? settings.printerSaved.filter(isSavedPrinter) : [],
+        printerSectionAssignments: normalizePrinterSectionAssignments(
+            settings.printerSectionAssignments,
+            settings.printerSelectedTarget ? String(settings.printerSelectedTarget) : null
+        ),
         printerSimulator: !!settings.printerSimulator,
 
         printerDelayPrintSec: clampInt(settings.printerDelayPrintSec, 0, 120),

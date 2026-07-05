@@ -66,6 +66,11 @@ export const PrintSimulatorModal: React.FC<PrintSimulatorModalProps> = ({
               <Text style={styles.simulatorSubtitle}>
                 Order #{order ? getFriendlyOrderNumber(order.order_number) : ''}
               </Text>
+              {!!imageLabels?.length && (
+                <Text style={styles.simulatorHint}>
+                  Labels show which section/printer rule each simulated ticket used.
+                </Text>
+              )}
             </View>
             <IconButton icon="close" size={24} onPress={onClose} />
           </View>
@@ -196,6 +201,12 @@ const styles = StyleSheet.create({
   simulatorSubtitle: {
     fontSize: 14,
     color: '#64748b',
+    fontWeight: '500',
+  },
+  simulatorHint: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#94a3b8',
     fontWeight: '500',
   },
   contentScroll: {
