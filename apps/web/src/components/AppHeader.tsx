@@ -13,6 +13,7 @@ const PUBLIC_ROUTES = [
   "/order", // Order page
   "/rewards", // Public rewards page (customer rewards)
   "/profile", // Customer profile should use public-facing header
+  "/unsubscribe", // Marketing unsubscribe page should not show admin navigation
   "/auth/callback", // Auth callback - avoid flashing admin navigation for customers
 ];
 
@@ -31,6 +32,7 @@ function isPublicRoute(pathname: string | null): boolean {
     pathname.startsWith("/order/") ||
     pathname.startsWith("/rewards") ||
     pathname.startsWith("/profile") ||
+    pathname.startsWith("/unsubscribe") ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/reset-password")
   ) {
@@ -64,5 +66,4 @@ export function AppHeader() {
     </header>
   );
 }
-
 
