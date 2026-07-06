@@ -651,7 +651,7 @@ export default function SettingsScreen() {
                             <View style={styles.separator} />
 
                             <Text style={styles.label}>Section printers</Text>
-                            <Text style={styles.helper}>Default printer is the fallback. Section rules must match the kitchen section values exactly.</Text>
+                            <Text style={styles.helper}>Default printer is the fallback. If a section rule has no printer and simulator is off, that section will be skipped.</Text>
                             {printerSectionAssignments.map((assignment) => {
                                 const assignmentPrinter = printerSaved.find((printer) => printer.target === assignment.printerTarget) || null;
                                 return (
@@ -699,7 +699,7 @@ export default function SettingsScreen() {
                                                 ]
                                             )}
                                         >
-                                            {assignmentPrinter?.deviceName || 'Select printer'}
+                                            {assignmentPrinter?.deviceName || (assignment.isDefault ? 'Select default printer' : 'No printer (skip)')}
                                         </Button>
                                         <View style={[styles.switchRow, styles.assignmentSwitchRow]}>
                                             <Text style={styles.label}>Use simulator for this section</Text>

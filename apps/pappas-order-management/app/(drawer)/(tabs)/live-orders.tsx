@@ -32,7 +32,7 @@ import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
 import { CashTenderModal } from '@/components/CashTenderModal';
 import { useOrderActions } from '@/hooks/useOrderActions';
 import { escposPrintOrderImage, formatPrinterError } from '@/lib/escpos-printer';
-import { getSectionPrintTickets, getSectionRoutingDebugLabel, hasAnySimulatorAssignment, resolvePrinterForSection, shouldUseSimulatorForSection } from '@/lib/printer-routing';
+import { getSectionPrintTickets, getSectionRoutingDebugLabel, hasAnySimulatorAssignment, resolvePrinterForSection, shouldSkipPrintForSection, shouldUseSimulatorForSection } from '@/lib/printer-routing';
 import { captureRef } from 'react-native-view-shot';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
 import { getFriendlyOrderNumber } from '@/utils/orderNumber';
@@ -235,6 +235,9 @@ export default function LiveOrdersScreen() {
       const printerJobs: Array<{ uri: string; sectionName: string | null }> = [];
       for (let index = 0; index < imageUris.length; index++) {
         const sectionName = tickets[index]?.sections[0]?.sectionName || null;
+        if (shouldSkipPrintForSection(s, sectionName)) {
+          continue;
+        }
         if (s.printerSimulator || shouldUseSimulatorForSection(s, sectionName)) {
           simulatorImageUris.push(imageUris[index]);
           simulatorImageLabels.push(getSectionRoutingDebugLabel(s, sectionName));
@@ -256,7 +259,7 @@ export default function LiveOrdersScreen() {
       }
 
       if (printerJobs.length > 0) {
-        const selected = resolvePrinterForSection(s, tickets[0]?.sections[0]?.sectionName || null);
+        const selected = resolvePrinterForSection(s, printerJobs[0]?.sectionName || null);
         if (!s.printerEnabled || !selected) {
           const message = `No printer is selected. ${printSettingsDetails}`;
           logOrderEvent('error', 'print', 'Manual print blocked because no printer was resolved', {

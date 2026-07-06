@@ -42,12 +42,24 @@ export function getPrinterAssignmentForSection(
   ) || getDefaultPrinterAssignment(settings);
 }
 
+export function shouldSkipPrintForSection(
+  settings: Pick<AppSettings, 'printerSectionAssignments' | 'printerSelectedTarget' | 'printerSimulator'>,
+  sectionName?: string | null
+): boolean {
+  if (settings.printerSimulator) return false;
+  const assignment = getPrinterAssignmentForSection(settings, sectionName);
+  if (!assignment) return false;
+  return !assignment.useSimulator && !assignment.printerTarget;
+}
+
 export function resolvePrinterForSection(
   settings: Pick<AppSettings, 'printerSaved' | 'printerSectionAssignments' | 'printerSelectedTarget'>,
   sectionName?: string | null
 ): SavedPrinter | null {
   const assignment = getPrinterAssignmentForSection(settings, sectionName);
-  const printerTarget = assignment?.printerTarget || settings.printerSelectedTarget || null;
+  const printerTarget = assignment?.printerTarget || (
+    assignment ? null : settings.printerSelectedTarget
+  );
 
   if (!printerTarget) return null;
   return settings.printerSaved.find((printer) => printer.target === printerTarget) || null;
@@ -72,6 +84,9 @@ export function getSectionRoutingDebugLabel(
 ): string {
   const assignment = getPrinterAssignmentForSection(settings, sectionName);
   const resolvedSection = sectionName || assignment?.sectionName || 'Default';
+  if (shouldSkipPrintForSection(settings, sectionName)) {
+    return `${resolvedSection} -> Skipped`;
+  }
   if (settings.printerSimulator || assignment?.useSimulator) {
     return `${resolvedSection} -> Simulator`;
   }

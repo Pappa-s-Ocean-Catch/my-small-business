@@ -36,7 +36,7 @@ import { PRE_ORDERS_QUERY_KEY, usePreOrdersQuery } from '@/hooks/useLiveOrdersQu
 import { captureRef } from 'react-native-view-shot';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
 import { escposPrintOrderImage } from '@/lib/escpos-printer';
-import { getSectionPrintTickets, getSectionRoutingDebugLabel, hasAnySimulatorAssignment, resolvePrinterForSection, shouldUseSimulatorForSection } from '@/lib/printer-routing';
+import { getSectionPrintTickets, getSectionRoutingDebugLabel, hasAnySimulatorAssignment, resolvePrinterForSection, shouldSkipPrintForSection, shouldUseSimulatorForSection } from '@/lib/printer-routing';
 import { getPrintDeviceId } from '@/lib/print-device';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -192,6 +192,9 @@ export default function PreOrdersScreen() {
       const printerJobs: Array<{ uri: string; sectionName: string | null }> = [];
       for (let index = 0; index < imageUris.length; index++) {
         const sectionName = tickets[index]?.sections[0]?.sectionName || null;
+        if (shouldSkipPrintForSection(s, sectionName)) {
+          continue;
+        }
         if (s.printerSimulator || shouldUseSimulatorForSection(s, sectionName)) {
           simulatorImageUris.push(imageUris[index]);
           simulatorImageLabels.push(getSectionRoutingDebugLabel(s, sectionName));
@@ -218,7 +221,7 @@ export default function PreOrdersScreen() {
         return;
       }
 
-      const selected = resolvePrinterForSection(s, tickets[0]?.sections[0]?.sectionName || null);
+      const selected = resolvePrinterForSection(s, printerJobs[0]?.sectionName || null);
       if (!s.printerEnabled || !selected) {
         console.log('[PreOrders] Manual print blocked because no printer was resolved:', printSettingsDetails);
         Alert.alert('Printer error', `No printer is selected. ${printSettingsDetails}`);

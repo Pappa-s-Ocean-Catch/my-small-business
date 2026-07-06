@@ -17,7 +17,7 @@ import {
   updateOrderStatus,
 } from '@/lib/orders';
 import { escposPrintOrderImage, formatPrinterError } from '@/lib/escpos-printer';
-import { getSectionPrintTickets, getSectionRoutingDebugLabel, hasAnySimulatorAssignment, resolvePrinterForSection, shouldUseSimulatorForSection } from '@/lib/printer-routing';
+import { getSectionPrintTickets, getSectionRoutingDebugLabel, hasAnySimulatorAssignment, resolvePrinterForSection, shouldSkipPrintForSection, shouldUseSimulatorForSection } from '@/lib/printer-routing';
 import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
 import { buildKitchenReceiptCopies, shouldPlayOrderSound } from '@/utils/orderUtils';
@@ -217,6 +217,9 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
       const printerJobs: Array<{ uri: string; sectionName: string | null }> = [];
       for (let index = 0; index < imageUris.length; index++) {
         const sectionName = ticketCopies[index]?.sections[0]?.sectionName || null;
+        if (shouldSkipPrintForSection(effectiveSettings, sectionName)) {
+          continue;
+        }
         if (effectiveSettings.printerSimulator || shouldUseSimulatorForSection(effectiveSettings, sectionName)) {
           simulatorImageUris.push(imageUris[index]);
           simulatorImageLabels.push(getSectionRoutingDebugLabel(effectiveSettings, sectionName));
@@ -239,8 +242,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
       }
 
       if (printerJobs.length > 0) {
-        const tickets = getSectionPrintTickets(freshOrder);
-        const selected = resolvePrinterForSection(effectiveSettings, tickets[0]?.sections[0]?.sectionName || null);
+        const selected = resolvePrinterForSection(effectiveSettings, printerJobs[0]?.sectionName || null);
         if (!effectiveSettings.printerEnabled || !selected) {
           processedOrderIdsRef.current.delete(order.id);
           notifyAutoPrintError(order, 'Auto-print is enabled, but no printer is selected.');

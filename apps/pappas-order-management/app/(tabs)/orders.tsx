@@ -30,7 +30,7 @@ import { Audio } from 'expo-av';
 import * as Print from 'expo-print';
 import { ConfirmationDialog } from '../../lib/ConfirmationDialog';
 import { escposPrintKitchenReceipt, formatPrinterError } from '../../lib/escpos-printer';
-import { getSectionPrintTickets, resolvePrinterForSection } from '../../lib/printer-routing';
+import { getSectionPrintTickets, resolvePrinterForSection, shouldSkipPrintForSection } from '../../lib/printer-routing';
 import { KitchenAlertOverlay } from '../../lib/KitchenAlertOverlay';
 import { getFriendlyOrderNumber } from '../../utils/orderNumber';
 import { CustomerModal } from '../../components/CustomerModal';
@@ -527,20 +527,25 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
     try {
       const s = appSettingsRef.current;
       const tickets = getSectionPrintTickets(order);
-      const selected = resolvePrinterForSection(s, tickets[0]?.sections[0]?.sectionName || null);
+      const printableTickets = tickets.filter((ticket) => !shouldSkipPrintForSection(s, ticket.sections[0]?.sectionName || null));
+      const selected = resolvePrinterForSection(s, printableTickets[0]?.sections[0]?.sectionName || null);
       if (s.printerEnabled && selected) {
         try {
-          if (tickets.length <= 1) {
+          if (printableTickets.length === 0) {
+            return;
+          }
+          if (printableTickets.length <= 1) {
             await escposPrintKitchenReceipt(order, selected, 1, 'legacy-orders:manual-line-print');
           } else {
-            for (let index = 0; index < tickets.length; index++) {
-              const printer = resolvePrinterForSection(s, tickets[index]?.sections[0]?.sectionName || null);
+            for (const ticket of printableTickets) {
+              const ticketIndex = tickets.findIndex((candidate) => candidate.key === ticket.key);
+              const printer = resolvePrinterForSection(s, ticket.sections[0]?.sectionName || null);
               if (!printer) {
-                throw new Error(`No printer configured for section ${tickets[index]?.sections[0]?.sectionName || 'Default'}.`);
+                continue;
               }
               await escposPrintKitchenReceipt(order, printer, 1, 'legacy-orders:manual-line-print', {
                 duplicateBySections: true,
-                onlyTicketIndex: index,
+                onlyTicketIndex: ticketIndex,
               });
             }
           }

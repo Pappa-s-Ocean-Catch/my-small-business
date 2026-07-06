@@ -4,7 +4,7 @@ import * as Print from 'expo-print';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { updateOrderStatus, updatePaymentStatus, getOrder } from '@/lib/orders';
 import { escposPrintKitchenReceipt, escposPrintOrderImage, formatPrinterError } from '@/lib/escpos-printer';
-import { getSectionPrintTickets, getSectionRoutingDebugLabel, hasAnySimulatorAssignment, resolvePrinterForSection, shouldUseSimulatorForSection } from '@/lib/printer-routing';
+import { getSectionPrintTickets, getSectionRoutingDebugLabel, hasAnySimulatorAssignment, resolvePrinterForSection, shouldSkipPrintForSection, shouldUseSimulatorForSection } from '@/lib/printer-routing';
 import { generatePrintHTML } from '@/utils/orderUtils';
 import { loadAppSettings, type AppSettings } from '@/lib/settings';
 import { formatSmartpayError, isSmartpayPaired, processSmartpayCardPayment } from '@/lib/smartpay';
@@ -246,30 +246,36 @@ export const useOrderActions = (
       const effectiveSettings = await getEffectiveSettings();
 
       const tickets = getSectionPrintTickets(order);
-      if (effectiveSettings.printerSimulator || tickets.some((ticket) => shouldUseSimulatorForSection(effectiveSettings, ticket.sections[0]?.sectionName || null))) {
+      const printableTickets = tickets.filter((ticket) => !shouldSkipPrintForSection(effectiveSettings, ticket.sections[0]?.sectionName || null));
+      if (effectiveSettings.printerSimulator || printableTickets.some((ticket) => shouldUseSimulatorForSection(effectiveSettings, ticket.sections[0]?.sectionName || null))) {
         setSimulatorOrder(order);
         setPrintImageUri(null); // No image URI for standard fallback print usually
         setPrintImageUris([]);
-        setPrintImageLabels(tickets.map((ticket) => getSectionRoutingDebugLabel(effectiveSettings, ticket.sections[0]?.sectionName || null)));
+        setPrintImageLabels(printableTickets.map((ticket) => getSectionRoutingDebugLabel(effectiveSettings, ticket.sections[0]?.sectionName || null)));
         setShowSimulator(true);
         return true;
       }
 
-      const firstSectionName = tickets[0]?.sections[0]?.sectionName || null;
+      if (printableTickets.length === 0) {
+        return true;
+      }
+
+      const firstSectionName = printableTickets[0]?.sections[0]?.sectionName || null;
       const selected = resolvePrinterForSection(effectiveSettings, firstSectionName);
       if (effectiveSettings.printerEnabled && selected) {
         try {
-          if (tickets.length <= 1) {
+          if (printableTickets.length <= 1) {
             await escposPrintKitchenReceipt(order, selected, 1, 'order-actions:manual-line-print');
           } else {
-            for (let index = 0; index < tickets.length; index++) {
-              const printer = resolvePrinterForSection(effectiveSettings, tickets[index]?.sections[0]?.sectionName || null);
+            for (const ticket of printableTickets) {
+              const ticketIndex = tickets.findIndex((candidate) => candidate.key === ticket.key);
+              const printer = resolvePrinterForSection(effectiveSettings, ticket.sections[0]?.sectionName || null);
               if (!printer) {
-                throw new Error(`No printer configured for section ${tickets[index]?.sections[0]?.sectionName || 'Default'}.`);
+                continue;
               }
               await escposPrintKitchenReceipt(order, printer, 1, 'order-actions:manual-line-print', {
                 duplicateBySections: true,
-                onlyTicketIndex: index,
+                onlyTicketIndex: ticketIndex,
               });
             }
           }
@@ -294,17 +300,22 @@ export const useOrderActions = (
     try {
       const effectiveSettings = await getEffectiveSettings();
       const tickets = getSectionPrintTickets(order);
+      const printableTickets = tickets.filter((ticket) => !shouldSkipPrintForSection(effectiveSettings, ticket.sections[0]?.sectionName || null));
 
       if (effectiveSettings.printerSimulator || hasAnySimulatorAssignment(effectiveSettings)) {
         setSimulatorOrder(order);
         setPrintImageUri(imageUri);
         setPrintImageUris([imageUri]);
-        setPrintImageLabels([getSectionRoutingDebugLabel(effectiveSettings, tickets[0]?.sections[0]?.sectionName || null)]);
+        setPrintImageLabels([getSectionRoutingDebugLabel(effectiveSettings, printableTickets[0]?.sections[0]?.sectionName || null)]);
         setShowSimulator(true);
         return true;
       }
 
-      const selected = resolvePrinterForSection(effectiveSettings, tickets[0]?.sections[0]?.sectionName || null);
+      if (printableTickets.length === 0) {
+        return true;
+      }
+
+      const selected = resolvePrinterForSection(effectiveSettings, printableTickets[0]?.sections[0]?.sectionName || null);
       if (effectiveSettings.printerEnabled && selected) {
         try {
           const targetDots = effectiveSettings.printerPaperWidth === '58mm' ? 384 : 576;

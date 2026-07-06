@@ -7,7 +7,7 @@ import { ActivityIndicator, Text } from 'react-native-paper';
 import { getOrder, updateOrderStatus, updatePaymentStatus } from '../lib/orders';
 import { loadAppSettings } from '../lib/settings';
 import { escposPrintKitchenReceipt, escposPrintOrderImage, formatPrinterError } from '../lib/escpos-printer';
-import { getSectionPrintTickets, hasAnySimulatorAssignment, resolvePrinterForSection, shouldUseSimulatorForSection } from '../lib/printer-routing';
+import { getSectionPrintTickets, hasAnySimulatorAssignment, resolvePrinterForSection, shouldSkipPrintForSection, shouldUseSimulatorForSection } from '../lib/printer-routing';
 import { formatSmartpayError, isSmartpayPaired, processSmartpayCardPayment } from '../lib/smartpay';
 import { OrderDetailModal } from '../components/OrderDetailModal';
 import { generatePrintHTML, getNextQuickAction } from '../utils/orderUtils';
@@ -66,11 +66,17 @@ export default function OrderDetailScreen() {
     }
   };
 
-  const processUpdateResult = (result: { data: Order | null; error: string | null }) => {
+  const processUpdateResult = (
+    result: { data: Order | null; error: string | null },
+    options?: { closeOnStatuses?: OrderStatus[] }
+  ) => {
     if (result.error) {
       Alert.alert('Error', result.error);
     } else if (result.data) {
       setOrder(result.data);
+      if (options?.closeOnStatuses?.includes(result.data.order_status)) {
+        router.back();
+      }
     }
     setUpdatingStatus(null);
   };
@@ -98,7 +104,7 @@ export default function OrderDetailScreen() {
       }
 
       const result = await updateOrderStatus(targetOrder.id, newStatus);
-      processUpdateResult(result);
+      processUpdateResult(result, { closeOnStatuses: CLOSED_ORDER_STATUSES });
     } catch (error) {
       console.error('Error updating status:', error);
       Alert.alert('Error', 'Failed to update status');
@@ -108,7 +114,7 @@ export default function OrderDetailScreen() {
 
   const completeOrderWithPayment = async (selectedOrder: Order, paymentMethodDetail: 'Card' | 'Cash') => {
     const result = await updateOrderStatus(selectedOrder.id, 'completed', 'paid', paymentMethodDetail);
-    processUpdateResult(result);
+    processUpdateResult(result, { closeOnStatuses: CLOSED_ORDER_STATUSES });
   };
 
   const handlePaymentStatusUpdate = async (
@@ -145,7 +151,8 @@ export default function OrderDetailScreen() {
     try {
       const settings = await loadAppSettings();
       const tickets = getSectionPrintTickets(selectedOrder);
-      if (settings.printerSimulator || tickets.some((ticket) => shouldUseSimulatorForSection(settings, ticket.sections[0]?.sectionName || null))) {
+      const printableTickets = tickets.filter((ticket) => !shouldSkipPrintForSection(settings, ticket.sections[0]?.sectionName || null));
+      if (settings.printerSimulator || printableTickets.some((ticket) => shouldUseSimulatorForSection(settings, ticket.sections[0]?.sectionName || null))) {
         setSimulatorOrder(selectedOrder);
         setPrintImageUri(null);
         setSimulatorImageLabels([]);
@@ -153,20 +160,25 @@ export default function OrderDetailScreen() {
         return true;
       }
 
-      const selected = resolvePrinterForSection(settings, tickets[0]?.sections[0]?.sectionName || null);
+      if (printableTickets.length === 0) {
+        return true;
+      }
+
+      const selected = resolvePrinterForSection(settings, printableTickets[0]?.sections[0]?.sectionName || null);
       if (settings.printerEnabled && selected) {
         try {
-          if (tickets.length <= 1) {
+          if (printableTickets.length <= 1) {
             await escposPrintKitchenReceipt(selectedOrder, selected, 1, 'order-detail-screen:manual-line-print');
           } else {
-            for (let index = 0; index < tickets.length; index++) {
-              const printer = resolvePrinterForSection(settings, tickets[index]?.sections[0]?.sectionName || null);
+            for (const ticket of printableTickets) {
+              const ticketIndex = tickets.findIndex((candidate) => candidate.key === ticket.key);
+              const printer = resolvePrinterForSection(settings, ticket.sections[0]?.sectionName || null);
               if (!printer) {
-                throw new Error(`No printer configured for section ${tickets[index]?.sections[0]?.sectionName || 'Default'}.`);
+                continue;
               }
               await escposPrintKitchenReceipt(selectedOrder, printer, 1, 'order-detail-screen:manual-line-print', {
                 duplicateBySections: true,
-                onlyTicketIndex: index,
+                onlyTicketIndex: ticketIndex,
               });
             }
           }
