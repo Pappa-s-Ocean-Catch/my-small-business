@@ -35,6 +35,7 @@ export interface OrderInput {
   delivery_quote_id?: string;
   delivery_quote_amount?: number;
   delivery_quote_currency?: string;
+  delivery_partner_name?: string | null;
   delivery_quote_expires_at?: string | null;
   delivery_eta_minutes?: number | null;
   reward_points_used?: number;
@@ -131,6 +132,7 @@ export interface Order {
   delivery_quote_id: string | null;
   delivery_quote_amount: number | null;
   delivery_quote_currency: string | null;
+  delivery_partner_name: string | null;
   delivery_quote_expires_at: string | null;
   delivery_eta_minutes: number | null;
   delivery_provider_id: string | null;

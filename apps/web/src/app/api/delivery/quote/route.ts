@@ -46,6 +46,7 @@ export async function POST(request: NextRequest) {
         quote_id: quote.quote_id,
         fee: quote.fee,
         currency: quote.currency,
+        provider_name: quote.provider_name,
         expires_at: quote.expires_at,
         estimated_duration_seconds: quote.estimated_duration_seconds,
         estimated_duration_minutes: quote.estimated_duration_minutes,
@@ -63,4 +64,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

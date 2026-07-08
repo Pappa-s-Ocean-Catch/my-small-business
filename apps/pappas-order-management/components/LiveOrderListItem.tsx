@@ -46,6 +46,7 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
   onPaymentStatusUpdate,
   layout = 'horizontal',
 }) => {
+  const isDeliveryOrder = order.order_type === 'delivery';
   const statusColor = STATUS_COLORS[order.order_status];
   const statusLabel = STATUS_LABELS[order.order_status];
   const paymentColor = PAYMENT_STATUS_COLORS[order.payment_status];
@@ -93,6 +94,12 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
     order.delivery_driver_name ? `Driver ${order.delivery_driver_name}` : null,
     order.delivery_driver_pin ? `PIN ${order.delivery_driver_pin}` : null,
   ].filter(Boolean).join(' • ');
+  const deliveryPartnerLabel = order.delivery_partner_name?.trim() || 'Delivery';
+  const deliveryPartnerTone = /door\s*dash/i.test(deliveryPartnerLabel)
+    ? { backgroundColor: '#fff1f2', borderColor: '#fb7185', textColor: '#be123c' }
+    : /uber/i.test(deliveryPartnerLabel)
+      ? { backgroundColor: '#ecfdf5', borderColor: '#34d399', textColor: '#047857' }
+      : { backgroundColor: '#eff6ff', borderColor: '#60a5fa', textColor: '#1d4ed8' };
 
   const statusControls = (
     <View style={layout === 'vertical' ? styles.verticalStatusControls : styles.statusControls}>
@@ -165,7 +172,13 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
 
   if (layout === 'vertical') {
     return (
-      <Card style={styles.verticalOrderCard} onPress={() => onOrderPress(order)}>
+      <Card
+        style={[
+          styles.verticalOrderCard,
+          isDeliveryOrder ? styles.deliveryOrderCard : null,
+        ]}
+        onPress={() => onOrderPress(order)}
+      >
         <Card.Content style={styles.verticalCardContent}>
           <View style={styles.verticalHeader}>
             <View style={styles.verticalIdentity}>
@@ -182,6 +195,21 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
           </View>
 
           <View style={styles.verticalChipRow}>
+            {isDeliveryOrder ? (
+              <View
+                style={[
+                  styles.partnerBadge,
+                  {
+                    backgroundColor: deliveryPartnerTone.backgroundColor,
+                    borderColor: deliveryPartnerTone.borderColor,
+                  },
+                ]}
+              >
+                <Text style={[styles.partnerBadgeText, { color: deliveryPartnerTone.textColor }]}>
+                  {deliveryPartnerLabel}
+                </Text>
+              </View>
+            ) : null}
             <View style={[styles.pickupBadge, order.scheduled_pickup_at ? styles.pickupScheduled : styles.pickupAsap]}>
               <Text style={styles.pickupText} numberOfLines={1}>{pickupLabel}</Text>
             </View>
@@ -235,12 +263,33 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
   }
 
   return (
-    <Card style={styles.orderCard} onPress={() => onOrderPress(order)}>
+    <Card
+      style={[
+        styles.orderCard,
+        isDeliveryOrder ? styles.deliveryOrderCard : null,
+      ]}
+      onPress={() => onOrderPress(order)}
+    >
       <Card.Content style={styles.cardContent}>
         <View style={styles.topRow}>
           <View style={styles.identityBlock}>
             <View style={styles.titleRow}>
               <Text style={styles.orderNumber}>{getFriendlyOrderNumber(order.order_number)}</Text>
+              {isDeliveryOrder ? (
+                <View
+                  style={[
+                    styles.partnerBadge,
+                    {
+                      backgroundColor: deliveryPartnerTone.backgroundColor,
+                      borderColor: deliveryPartnerTone.borderColor,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.partnerBadgeText, { color: deliveryPartnerTone.textColor }]}>
+                    {deliveryPartnerLabel}
+                  </Text>
+                </View>
+              ) : null}
               <View
                 style={[
                   styles.pickupBadge,
@@ -326,6 +375,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#dbe5f0',
+  },
+  deliveryOrderCard: {
+    borderColor: '#14b8a6',
+    borderWidth: 2,
   },
   cardContent: {
     paddingVertical: 10,
@@ -450,6 +503,16 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 11,
     fontWeight: '800',
+  },
+  partnerBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderWidth: 1,
+  },
+  partnerBadgeText: {
+    fontSize: 11,
+    fontWeight: '900',
   },
   urgencyBlock: {
     alignItems: 'flex-end',

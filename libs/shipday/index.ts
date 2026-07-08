@@ -16,6 +16,7 @@ export interface DeliveryQuote {
   quote_id: string;
   fee: number;
   currency: string;
+  provider_name?: string;
   expires_at?: string | null;
   estimated_duration_seconds?: number;
   estimated_duration_minutes?: number;
@@ -180,6 +181,7 @@ class ShipdayClient {
           : `sd_quote_${Date.now()}`,
         fee: Math.round(fee * 100) / 100,
         currency,
+        provider_name: typeof bestOption.name === 'string' ? bestOption.name : undefined,
         distance_km: typeof distanceKm === 'number' ? Math.round(distanceKm * 10) / 10 : undefined,
         estimated_duration_minutes: Number.isFinite(durationMinutes) ? durationMinutes : undefined,
         estimated_duration_seconds: Number.isFinite(durationMinutes) ? durationMinutes * 60 : undefined,

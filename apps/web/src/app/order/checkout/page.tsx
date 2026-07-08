@@ -1527,6 +1527,7 @@ export default function CheckoutPage() {
         orderInput.delivery_quote_id = deliveryQuote.quote_id;
         orderInput.delivery_quote_amount = deliveryQuote.fee;
         orderInput.delivery_quote_currency = deliveryQuote.currency;
+        orderInput.delivery_partner_name = deliveryQuote.provider_name || null;
         orderInput.delivery_quote_expires_at = deliveryQuote.expires_at;
         orderInput.delivery_eta_minutes =
           deliveryQuote.estimated_duration_minutes;

@@ -166,6 +166,7 @@ export interface OrderInput {
   delivery_quote_id?: string;
   delivery_quote_amount?: number;
   delivery_quote_currency?: string;
+  delivery_partner_name?: string | null;
   delivery_quote_expires_at?: string | null;
   delivery_eta_minutes?: number | null;
   reward_points_used?: number;
@@ -343,6 +344,7 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
         orderData.delivery_quote_id = input.delivery_quote_id;
         orderData.delivery_quote_amount = input.delivery_quote_amount || null;
         orderData.delivery_quote_currency = input.delivery_quote_currency || 'AUD';
+        orderData.delivery_partner_name = input.delivery_partner_name || null;
         orderData.delivery_quote_expires_at = input.delivery_quote_expires_at || null;
         orderData.delivery_eta_minutes = input.delivery_eta_minutes || null;
       }
