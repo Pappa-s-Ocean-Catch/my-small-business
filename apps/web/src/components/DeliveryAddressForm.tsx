@@ -224,9 +224,6 @@ export function DeliveryAddressForm({
 
           <div className="grid grid-cols-1 gap-4">
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Street Address *
-              </label>
               {hasAutocomplete ? (
                 <>
                   <AddressAutocomplete

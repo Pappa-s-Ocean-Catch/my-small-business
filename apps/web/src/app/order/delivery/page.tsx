@@ -73,9 +73,9 @@ export default function DeliveryEntryPage() {
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.12),_transparent_35%),linear-gradient(180deg,#f8fafc_0%,#ecfdf5_100%)] pb-12 dark:bg-neutral-950">
       <OrderHeader />
 
-      <main className="mx-auto max-w-5xl px-4 py-8 md:py-12">
+      <main className="mx-auto max-w-5xl px-2 md:px-4 py-2 md:py-12">
         <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
-          <section className="rounded-[2rem] border border-emerald-100 bg-white/90 p-6 shadow-[0_24px_80px_-32px_rgba(16,185,129,0.45)] backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/90 md:p-8">
+          <section className="rounded-2xl border border-emerald-100 bg-white/90 p-6 shadow-[0_24px_80px_-32px_rgba(16,185,129,0.45)] backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/90 md:rounded-[2rem] md:p-8">
             <div className="mb-8">
               <div className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
                 <Icon icon={FaTruck} className="h-4 w-4" />
@@ -86,7 +86,7 @@ export default function DeliveryEntryPage() {
               </h1>
             </div>
 
-            <div className="mb-6 grid gap-3 sm:grid-cols-3">
+            <div className="mb-5 grid grid-cols-3 gap-2 sm:mb-6 sm:gap-3">
               {[
                 { icon: FaMapMarkerAlt, label: 'Enter address' },
                 { icon: FaClock, label: 'See ETA' },
@@ -94,19 +94,20 @@ export default function DeliveryEntryPage() {
               ].map((step, index) => (
                 <div
                   key={step.label}
-                  className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-4 dark:border-neutral-800 dark:bg-neutral-950/50"
+                  className="rounded-2xl border border-gray-200 bg-gray-50 px-3 py-3 dark:border-neutral-800 dark:bg-neutral-950/50 sm:px-4 sm:py-4"
                 >
-                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-white text-emerald-600 shadow-sm dark:bg-neutral-900 dark:text-emerald-400">
-                    <Icon icon={step.icon} className="h-4 w-4" />
+                  <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-full bg-white text-emerald-600 shadow-sm dark:bg-neutral-900 dark:text-emerald-400 sm:mb-3 sm:h-10 sm:w-10">
+                    <Icon icon={step.icon} className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   </div>
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                    {index + 1}. {step.label}
+                  <p className="text-[11px] font-semibold leading-4 text-gray-900 dark:text-white sm:text-sm sm:leading-5">
+                    <span className="block sm:inline">{index + 1}.</span>{' '}
+                    <span>{step.label}</span>
                   </p>
                 </div>
               ))}
             </div>
 
-            <div className="rounded-[1.5rem] border border-gray-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900/80 md:p-6">
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900/80 md:rounded-[1.5rem] md:p-6">
               <DeliveryAddressForm
                 onAddressSelect={handleAddressSelect}
                 isAuthenticated={false}
@@ -131,7 +132,7 @@ export default function DeliveryEntryPage() {
 
             {quote && !loading && (
               <div className="mt-8 animate-in slide-in-from-bottom-4 fade-in duration-500">
-                <div className="rounded-[1.75rem] border border-emerald-200 bg-emerald-50 p-6 dark:border-emerald-900 dark:bg-emerald-950/30">
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 dark:border-emerald-900 dark:bg-emerald-950/30 md:rounded-[1.75rem]">
                   <div className="mb-6 flex items-start justify-between">
                     <div>
                       <h3 className="flex items-center gap-2 text-lg font-bold text-gray-900 dark:text-white">
@@ -186,7 +187,7 @@ export default function DeliveryEntryPage() {
           </section>
 
           <aside className="space-y-4">
-            <div className="rounded-[2rem] border border-gray-200 bg-white/90 p-6 shadow-sm backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/85">
+            <div className="rounded-2xl border border-gray-200 bg-white/90 p-6 shadow-sm backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/85 md:rounded-[2rem]">
               <div className="flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-300">
                   <Icon icon={FaStore} className="h-5 w-5" />
@@ -205,7 +206,7 @@ export default function DeliveryEntryPage() {
               </p>
             </div>
 
-            <div className="rounded-[2rem] border border-gray-200 bg-white/80 p-6 dark:border-neutral-800 dark:bg-neutral-900/80">
+            <div className="rounded-2xl border border-gray-200 bg-white/80 p-6 dark:border-neutral-800 dark:bg-neutral-900/80 md:rounded-[2rem]">
               <h2 className="text-lg font-bold text-gray-900 dark:text-white">Prefer pickup?</h2>
               <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
                 Skip the delivery fee and head straight to the menu.
