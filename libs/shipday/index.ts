@@ -57,6 +57,10 @@ export interface CreateDeliveryRequest {
   assign_driver?: boolean;
 }
 
+export interface MarkDeliveryReadyRequest {
+  delivery_id: string;
+}
+
 export interface CreateDeliveryResponse {
   delivery_id: string;
   order_number: string;
@@ -225,6 +229,26 @@ class ShipdayClient {
     return undefined;
   }
 
+  private getStorePhone(): string {
+    return (
+      process.env.STORE_PHONE ||
+      process.env.NEXT_PUBLIC_STORE_PHONE ||
+      '0397438150'
+    );
+  }
+
+  private getStoreName(): string {
+    return process.env.STORE_NAME || process.env.NEXT_PUBLIC_STORE_NAME || "Pappa's Ocean Catch";
+  }
+
+  private getStoreAddressFallback(): string {
+    return (
+      process.env.STORE_ADDRESS ||
+      process.env.NEXT_PUBLIC_STORE_ADDRESS ||
+      '2/87 Unitt Street, Melton VIC 3337'
+    );
+  }
+
   async createDelivery(req: CreateDeliveryRequest): Promise<CreateDeliveryResponse> {
     const placedAt = this.parseIsoDate(req.placed_at) ?? new Date();
     const expectedPickupAt =
@@ -237,9 +261,9 @@ class ShipdayClient {
       customerEmail: req.customer_email,
       customerAddress: req.delivery_address,
       customerPhoneNumber: req.customer_phone,
-      restaurantName: process.env.NEXT_PUBLIC_STORE_NAME || "Pappa's Ocean Catch",
-      restaurantAddress: req.pickup_address || process.env.NEXT_PUBLIC_STORE_ADDRESS || "2/87 Unitt Street, Melton VIC 3337",
-      restaurantPhoneNumber: process.env.NEXT_PUBLIC_STORE_PHONE || "0397438150",
+      restaurantName: this.getStoreName(),
+      restaurantAddress: req.pickup_address || this.getStoreAddressFallback(),
+      restaurantPhoneNumber: this.getStorePhone(),
       expectedPickupTime: this.toShipdayTime(expectedPickupAt),
       pickupLatitude: req.pickup_latitude ?? undefined,
       pickupLongitude: req.pickup_longitude ?? undefined,
@@ -285,6 +309,47 @@ class ShipdayClient {
       throw error;
     }
 
+  }
+
+  async markDeliveryReady(req: MarkDeliveryReadyRequest): Promise<CreateDeliveryResponse> {
+    const shipdayOrderId = Number(req.delivery_id);
+    if (!Number.isFinite(shipdayOrderId) || shipdayOrderId <= 0) {
+      throw new Error('Invalid Shipday delivery id');
+    }
+
+    try {
+      const endpoint = `https://api.shipday.com/orders/${shipdayOrderId}/meta`;
+      console.log('[Shipday SDK] Marking delivery ready via Shipday API:', endpoint);
+
+      const response = await fetch(endpoint, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Basic ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          readyToPickup: true,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Shipday API error ${response.status}: ${await response.text()}`);
+      }
+
+      const responseData = await response.json().catch(() => ({}));
+      const responseBody = responseData && typeof responseData === 'object' ? responseData : {};
+      console.log('[Shipday SDK] Ready update response:', JSON.stringify(responseBody, null, 2));
+      return {
+        delivery_id: String((responseBody as any).orderId || (responseBody as any).id || shipdayOrderId),
+        order_number: String((responseBody as any).orderNumber || ''),
+        status: 'ready',
+        tracking_url: (responseBody as any).trackingUrl || (responseBody as any).tracking_url || '',
+        raw: responseBody
+      };
+    } catch (error) {
+      console.error('[Shipday SDK] Error marking delivery ready:', error);
+      throw error;
+    }
   }
 }
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Alert } from 'react-native';
 import * as Print from 'expo-print';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
-import { updateOrderStatus, updatePaymentStatus, getOrder } from '@/lib/orders';
+import { updateOrderStatus, updatePaymentStatus, getOrder, notifyDeliveryReady } from '@/lib/orders';
 import { escposPrintKitchenReceipt, escposPrintOrderImage, formatPrinterError } from '@/lib/escpos-printer';
 import { buildSectionPrintJobs, getSectionPrintTickets, getSectionRoutingDebugLabel, hasAnySimulatorAssignment, resolvePrinterForSection, shouldSkipPrintForSection, shouldUseSimulatorForSection } from '@/lib/printer-routing';
 import { generatePrintHTML } from '@/utils/orderUtils';
@@ -142,6 +142,15 @@ export const useOrderActions = (
     if (result.error) {
       Alert.alert('Error', result.error);
     } else {
+      if (result.data?.order_status === 'ready' && result.data.order_type === 'delivery') {
+        const readySync = await notifyDeliveryReady(result.data.id);
+        if (!readySync.success) {
+          Alert.alert(
+            'Shipday sync failed',
+            readySync.error || 'Order marked ready locally, but Shipday was not updated.'
+          );
+        }
+      }
       await loadOrders();
       if (onOrderUpdated && result.data) {
         onOrderUpdated(result.data);

@@ -196,6 +196,48 @@ export async function updateOrderStatus(
   }
 }
 
+export async function notifyDeliveryReady(orderId: string): Promise<{ success: boolean; trackingUrl?: string | null; error: string | null }> {
+  try {
+    const base = process.env.EXPO_PUBLIC_SITE_URL;
+    if (!base) {
+      return { success: false, error: 'EXPO_PUBLIC_SITE_URL is not configured' };
+    }
+
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !session?.access_token) {
+      return { success: false, error: sessionError?.message || 'Missing authenticated session' };
+    }
+
+    const response = await fetch(`${base}/api/delivery/ready`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ orderId }),
+    });
+
+    const payload = await response.json().catch(() => null) as
+      | { success?: boolean; trackingUrl?: string | null; error?: string }
+      | null;
+
+    if (!response.ok || !payload?.success) {
+      return {
+        success: false,
+        error: payload?.error || `Ready sync failed (${response.status})`,
+      };
+    }
+
+    return { success: true, trackingUrl: payload.trackingUrl ?? null, error: null };
+  } catch (error) {
+    console.error('Error notifying backend about delivery ready:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to notify backend about delivery ready',
+    };
+  }
+}
+
 export async function claimOrderForAutoPrint(
   orderId: string,
   deviceId: string,

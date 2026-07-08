@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity, useWindowDimensions, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity, useWindowDimensions, Alert, ActivityIndicator, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button as PaperButton, IconButton, Surface, Card, Divider, Snackbar } from 'react-native-paper';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -308,7 +308,11 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     {!!order.delivery_driver_pin && <Text style={styles.deliveryDetailText}>PIN: {order.delivery_driver_pin}</Text>}
                     {!!order.delivery_vehicle_info && <Text style={styles.deliveryDetailText}>Vehicle: {order.delivery_vehicle_info}</Text>}
                     {!!order.delivery_provider_id && <Text style={styles.deliveryMetaText}>Provider Ref: {order.delivery_provider_id}</Text>}
-                    {!!order.delivery_tracking_url && <Text style={styles.deliveryMetaText}>Tracking: {order.delivery_tracking_url}</Text>}
+                    {!!order.delivery_tracking_url && (
+                      <TouchableOpacity onPress={() => Linking.openURL(order.delivery_tracking_url!)}>
+                        <Text style={styles.deliveryTrackingLink}>Open Tracking</Text>
+                      </TouchableOpacity>
+                    )}
                     {!!order.delivery_instructions && <Text style={styles.deliveryInstructionsText}>Instructions: {order.delivery_instructions}</Text>}
                   </Card.Content>
                 </Card>
@@ -670,6 +674,7 @@ const styles = StyleSheet.create({
   deliveryStatusBadgeText: { color: '#fff', fontSize: 12, fontWeight: '800' },
   deliveryDetailText: { fontSize: 14, color: '#1f2937', fontWeight: '600', marginBottom: 6 },
   deliveryMetaText: { fontSize: 13, color: '#475569', marginBottom: 6 },
+  deliveryTrackingLink: { fontSize: 14, color: '#2563eb', fontWeight: '700', marginBottom: 6 },
   deliveryInstructionsText: { marginTop: 4, fontSize: 14, color: '#374151', lineHeight: 20 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
   totalLabel: { fontSize: 14, color: '#6b7280' },
