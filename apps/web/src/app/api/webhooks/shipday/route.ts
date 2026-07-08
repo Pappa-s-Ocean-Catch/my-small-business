@@ -98,6 +98,7 @@ export async function POST(request: Request) {
   const trackingUrl = firstMatch(body, ['trackingUrl', 'tracking_url']);
   const driverName = firstMatch(body, ['driverName', 'dasherName', 'courierName']);
   const driverPhone = firstMatch(body, ['driverPhone', 'dasherPhone', 'courierPhone']);
+  const driverPin = firstMatch(body, ['driverPin', 'driver_pin', 'pickupPin', 'pickup_pin', 'verificationPin', 'verification_pin']);
   const vehicleInfo = firstMatch(body, ['vehicleInfo', 'vehicle', 'vehicleDescription']);
   const message = firstMatch(body, ['message', 'note', 'description']);
 
@@ -146,6 +147,9 @@ export async function POST(request: Request) {
     }
     if (driverPhone) {
       updatePayload.delivery_driver_phone = driverPhone;
+    }
+    if (driverPin) {
+      updatePayload.delivery_driver_pin = driverPin;
     }
     if (vehicleInfo) {
       updatePayload.delivery_vehicle_info = vehicleInfo;

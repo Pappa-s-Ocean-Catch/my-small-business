@@ -9,6 +9,7 @@ import {
   getOrderOptions,
   groupAddons,
 } from '../utils/orderUtils';
+import { getDeliveryStatusLabel } from '../utils/constants';
 
 interface ReceiptTemplateProps {
   order: Order;
@@ -46,6 +47,7 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
   const orderOptions = getOrderOptions(order);
   const orderNotes = getOrderNotes(order);
   const lineItemCount = getOrderLineItemCount(order);
+  const deliveryStatusLabel = getDeliveryStatusLabel(order.delivery_status);
   const allTickets = buildKitchenReceiptCopies(order.items || []);
   const combinedSections = allTickets.length > 0
     ? allTickets.flatMap((ticket) => ticket.sections)
@@ -104,6 +106,12 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
                 <Text style={styles.boldText}>
                   {[order.delivery_city, order.delivery_state, order.delivery_postcode].filter(Boolean).join(' ')}
                 </Text>
+                <Text style={styles.normalText}>Delivery Status: {deliveryStatusLabel}</Text>
+                {order.delivery_driver_name && <Text style={styles.normalText}>Driver: {order.delivery_driver_name}</Text>}
+                {order.delivery_driver_phone && <Text style={styles.normalText}>Driver Phone: {order.delivery_driver_phone}</Text>}
+                {order.delivery_driver_pin && <Text style={styles.normalText}>Driver PIN: {order.delivery_driver_pin}</Text>}
+                {order.delivery_vehicle_info && <Text style={styles.normalText}>Vehicle: {order.delivery_vehicle_info}</Text>}
+                {order.delivery_instructions && <Text style={styles.normalText}>Instructions: {order.delivery_instructions}</Text>}
               </View>
             )}
           </View>

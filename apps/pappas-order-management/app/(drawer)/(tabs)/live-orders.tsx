@@ -49,7 +49,7 @@ type JournalViewMode = 'all' | 'selected';
 const SECTION_PRINT_DELAY_MS = 1500;
 
 type FilterKey = 'all' | 'needs-action' | 'unpaid' | 'ready' | 'scheduled';
-type GroupKey = 'overdue' | 'due-soon' | 'ready' | 'attention' | 'other';
+type GroupKey = 'overdue' | 'due-soon' | 'ready' | 'on-the-way' | 'attention' | 'other';
 type ListRow =
   | { type: 'section'; key: string; title: string; count: number }
   | { type: 'order'; key: string; order: Order };
@@ -393,6 +393,7 @@ export default function LiveOrdersScreen() {
       overdue: [],
       'due-soon': [],
       ready: [],
+      'on-the-way': [],
       attention: [],
       other: [],
     };
@@ -401,7 +402,12 @@ export default function LiveOrdersScreen() {
       const targetTimeMs = new Date(order.scheduled_pickup_at || order.created_at).getTime();
       const diffMinutes = (targetTimeMs - nowMs) / (1000 * 60);
 
-      if (order.order_status === 'ready') {
+      if (
+        order.order_type === 'delivery'
+        && ['assigned', 'driver_assigned', 'inflight', 'picked_up', 'in_transit'].includes(order.delivery_status || '')
+      ) {
+        groups['on-the-way'].push(order);
+      } else if (order.order_status === 'ready') {
         groups.ready.push(order);
       } else if (Number.isFinite(diffMinutes) && diffMinutes < 0) {
         groups.overdue.push(order);
@@ -422,6 +428,7 @@ export default function LiveOrdersScreen() {
       { key: 'overdue', title: 'Overdue' },
       { key: 'due-soon', title: 'Due Soon' },
       { key: 'ready', title: 'Ready' },
+      { key: 'on-the-way', title: 'On The Way' },
       { key: 'attention', title: 'Needs Action' },
       { key: 'other', title: 'Other Live Orders' },
     ];

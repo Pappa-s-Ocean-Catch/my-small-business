@@ -104,6 +104,15 @@ export function Hero({ homePromotions, enablePickupOrder, reviewSectionId }: Her
                         Delivery Order
                         <Icon icon={FaArrowRight} className="w-5 h-5" />
                     </Link>
+                    <a
+                        href="https://pappasoceancatch-ea.com.au/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center gap-2 px-8 py-3 md:py-4 bg-transparent text-white rounded-lg font-semibold text-lg hover:bg-white/10 transition-colors border-2 border-white/20"
+                    >
+                        Delivery (Old)
+                        <Icon icon={FaArrowRight} className="w-5 h-5" />
+                    </a>
 
                     <Link
                         href="/menu"

@@ -3,7 +3,14 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Card, Button as PaperButton, IconButton } from 'react-native-paper';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { getFriendlyOrderNumber } from '../utils/orderNumber';
-import { STATUS_COLORS, STATUS_LABELS, PAYMENT_STATUS_COLORS, PAYMENT_STATUS_LABELS } from '../utils/constants';
+import {
+  STATUS_COLORS,
+  STATUS_LABELS,
+  PAYMENT_STATUS_COLORS,
+  PAYMENT_STATUS_LABELS,
+  getDeliveryStatusColor,
+  getDeliveryStatusLabel,
+} from '../utils/constants';
 import { paymentSummary, getNextQuickAction, formatElapsed } from '../utils/orderUtils';
 
 type LiveOrderCardLayout = 'horizontal' | 'vertical';
@@ -43,6 +50,8 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
   const statusLabel = STATUS_LABELS[order.order_status];
   const paymentColor = PAYMENT_STATUS_COLORS[order.payment_status];
   const paymentLabel = PAYMENT_STATUS_LABELS[order.payment_status];
+  const deliveryStatusColor = getDeliveryStatusColor(order.delivery_status);
+  const deliveryStatusLabel = getDeliveryStatusLabel(order.delivery_status);
   const quickAction = getNextQuickAction(order);
   const elapsed = formatElapsed(order.created_at, nowMs, order.scheduled_pickup_at);
   const elapsedColor = elapsed.isCountdown
@@ -80,6 +89,10 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
         minute: '2-digit',
       })}`
     : 'ASAP';
+  const deliveryMeta = [
+    order.delivery_driver_name ? `Driver ${order.delivery_driver_name}` : null,
+    order.delivery_driver_pin ? `PIN ${order.delivery_driver_pin}` : null,
+  ].filter(Boolean).join(' • ');
 
   const statusControls = (
     <View style={layout === 'vertical' ? styles.verticalStatusControls : styles.statusControls}>
@@ -175,12 +188,22 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
             <View style={[styles.compactChip, { backgroundColor: statusColor }]}>
               <Text style={styles.compactChipText}>{statusLabel}</Text>
             </View>
+            {order.order_type === 'delivery' ? (
+              <View style={[styles.compactChip, { backgroundColor: deliveryStatusColor }]}>
+                <Text style={styles.compactChipText}>{deliveryStatusLabel}</Text>
+              </View>
+            ) : null}
           </View>
 
           <View style={styles.verticalMetaGrid}>
             <View>
               <Text style={styles.verticalMetaLabel}>Summary</Text>
               <Text style={styles.verticalMetaValue} numberOfLines={2}>{paymentSummary(order)}</Text>
+              {order.order_type === 'delivery' ? (
+                <Text style={styles.deliveryMetaValue} numberOfLines={2}>
+                  {deliveryMeta || 'Awaiting driver assignment'}
+                </Text>
+              ) : null}
             </View>
             <View style={styles.verticalMetaRight}>
               <Text style={[styles.paymentAttention, isPaid ? styles.paymentAttentionPaid : styles.paymentAttentionUnpaid]}>
@@ -240,6 +263,16 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
                 {paymentSummary(order)}
               </Text>
             </View>
+            {order.order_type === 'delivery' ? (
+              <View style={styles.deliveryStatusRow}>
+                <View style={[styles.deliveryStatusBadge, { backgroundColor: deliveryStatusColor }]}>
+                  <Text style={styles.deliveryStatusText}>{deliveryStatusLabel}</Text>
+                </View>
+                <Text style={styles.deliverySummaryText} numberOfLines={1}>
+                  {deliveryMeta || 'Awaiting driver assignment'}
+                </Text>
+              </View>
+            ) : null}
           </View>
 
           <View style={styles.urgencyBlock}>
@@ -340,6 +373,12 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 6,
   },
+  deliveryStatusRow: {
+    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   customerName: {
     fontSize: 14,
     color: '#10b981',
@@ -358,6 +397,22 @@ const styles = StyleSheet.create({
   orderType: {
     fontSize: 13,
     color: '#6b7280',
+  },
+  deliveryStatusBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  deliveryStatusText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  deliverySummaryText: {
+    flex: 1,
+    color: '#475569',
+    fontSize: 12,
+    fontWeight: '600',
   },
   pickupBadge: {
     paddingHorizontal: 8,
@@ -434,6 +489,12 @@ const styles = StyleSheet.create({
     color: '#334155',
     fontSize: 14,
     fontWeight: '700',
+  },
+  deliveryMetaValue: {
+    marginTop: 6,
+    color: '#475569',
+    fontSize: 13,
+    fontWeight: '600',
   },
   verticalMetaRight: {
     alignItems: 'flex-end',

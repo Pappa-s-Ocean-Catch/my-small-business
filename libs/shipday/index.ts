@@ -162,9 +162,9 @@ class ShipdayClient {
 
       const distanceKm =
         pickup.latitude != null &&
-        pickup.longitude != null &&
-        dropoff.latitude != null &&
-        dropoff.longitude != null
+          pickup.longitude != null &&
+          dropoff.latitude != null &&
+          dropoff.longitude != null
           ? this.calculateDistance(pickup.latitude, pickup.longitude, dropoff.latitude, dropoff.longitude)
           : undefined;
 
@@ -238,8 +238,8 @@ class ShipdayClient {
       customerAddress: req.delivery_address,
       customerPhoneNumber: req.customer_phone,
       restaurantName: process.env.NEXT_PUBLIC_STORE_NAME || "Pappa's Ocean Catch",
-      restaurantAddress: req.pickup_address || process.env.NEXT_PUBLIC_STORE_ADDRESS || "123 Main St, Melton VIC 3337",
-      restaurantPhoneNumber: process.env.NEXT_PUBLIC_STORE_PHONE || "0397431234",
+      restaurantAddress: req.pickup_address || process.env.NEXT_PUBLIC_STORE_ADDRESS || "2/87 Unitt Street, Melton VIC 3337",
+      restaurantPhoneNumber: process.env.NEXT_PUBLIC_STORE_PHONE || "0397438150",
       expectedPickupTime: this.toShipdayTime(expectedPickupAt),
       pickupLatitude: req.pickup_latitude ?? undefined,
       pickupLongitude: req.pickup_longitude ?? undefined,

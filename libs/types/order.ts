@@ -138,6 +138,7 @@ export interface Order {
   delivery_tracking_url: string | null;
   delivery_driver_name: string | null;
   delivery_driver_phone: string | null;
+  delivery_driver_pin: string | null;
   delivery_vehicle_info: string | null;
   delivery_instructions: string | null;
   created_at: string;

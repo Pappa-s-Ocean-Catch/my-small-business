@@ -187,7 +187,7 @@ export async function POST(request: Request) {
                 const client = getShipdayClient();
 
                 const pickupAddress = {
-                  address_line1: process.env.STORE_ADDRESS_LINE1 || '123 Main Street',
+                  address_line1: process.env.STORE_ADDRESS_LINE1 || '2/87 Unitt Street',
                   address_line2: process.env.STORE_ADDRESS_LINE2 || null,
                   city: process.env.STORE_CITY || 'Melton',
                   state: process.env.STORE_STATE || 'VIC',
@@ -208,46 +208,46 @@ export async function POST(request: Request) {
                   longitude: orderResult.data.delivery_longitude ?? null,
                 };
 
-            const items = (orderResult.data.items || []).map((it: any) => {
-              const quantity = Number(it.quantity) || 1;
-              const subtotal = Number(it.subtotal) || 0;
-              return {
-                name: it.product_name,
-                quantity,
-                unit_price: quantity > 0 ? Number((subtotal / quantity).toFixed(2)) : subtotal,
-                add_ons: Array.isArray(it.addons)
-                  ? it.addons.map((addon: any) => `${addon.addon_item_name} (+$${Number(addon.addon_item_price || 0).toFixed(2)})`)
-                  : [],
-                detail: buildShipdayItemDetail(it),
-              };
-            });
+                const items = (orderResult.data.items || []).map((it: any) => {
+                  const quantity = Number(it.quantity) || 1;
+                  const subtotal = Number(it.subtotal) || 0;
+                  return {
+                    name: it.product_name,
+                    quantity,
+                    unit_price: quantity > 0 ? Number((subtotal / quantity).toFixed(2)) : subtotal,
+                    add_ons: Array.isArray(it.addons)
+                      ? it.addons.map((addon: any) => `${addon.addon_item_name} (+$${Number(addon.addon_item_price || 0).toFixed(2)})`)
+                      : [],
+                    detail: buildShipdayItemDetail(it),
+                  };
+                });
 
-            const assignDriver = !(process.env.SHIPDAY_TEST_MODE === 'true' || process.env.NODE_ENV !== 'production');
-            const orderPlacedAt = orderResult.data.created_at || new Date().toISOString();
-            const expectedPickupAt = new Date(new Date(orderPlacedAt).getTime() + 10 * 60 * 1000);
-            const etaMinutes =
-              Number(orderResult.data.delivery_eta_minutes) > 0
-                ? Number(orderResult.data.delivery_eta_minutes)
-                : 30;
-            const expectedDeliveryAt = new Date(expectedPickupAt.getTime() + etaMinutes * 60 * 1000);
+                const assignDriver = !(process.env.SHIPDAY_TEST_MODE === 'true' || process.env.NODE_ENV !== 'production');
+                const orderPlacedAt = orderResult.data.created_at || new Date().toISOString();
+                const expectedPickupAt = new Date(new Date(orderPlacedAt).getTime() + 10 * 60 * 1000);
+                const etaMinutes =
+                  Number(orderResult.data.delivery_eta_minutes) > 0
+                    ? Number(orderResult.data.delivery_eta_minutes)
+                    : 30;
+                const expectedDeliveryAt = new Date(expectedPickupAt.getTime() + etaMinutes * 60 * 1000);
 
-            const pickupAddressStr = [
-              pickupAddress.address_line1,
-              pickupAddress.address_line2,
-              pickupAddress.city,
-              pickupAddress.state,
-              pickupAddress.postcode,
-              pickupAddress.country || 'AU'
-            ].filter(Boolean).join(', ');
+                const pickupAddressStr = [
+                  pickupAddress.address_line1,
+                  pickupAddress.address_line2,
+                  pickupAddress.city,
+                  pickupAddress.state,
+                  pickupAddress.postcode,
+                  pickupAddress.country || 'AU'
+                ].filter(Boolean).join(', ');
 
-            const dropoffAddressStr = [
-              dropoffAddress.address_line1,
-              dropoffAddress.address_line2,
-              dropoffAddress.city,
-              dropoffAddress.state,
-              dropoffAddress.postcode,
-              dropoffAddress.country || 'AU'
-            ].filter(Boolean).join(', ');
+                const dropoffAddressStr = [
+                  dropoffAddress.address_line1,
+                  dropoffAddress.address_line2,
+                  dropoffAddress.city,
+                  dropoffAddress.state,
+                  dropoffAddress.postcode,
+                  dropoffAddress.country || 'AU'
+                ].filter(Boolean).join(', ');
 
                 const shipRes = await client.createDelivery({
                   pickup_address: pickupAddressStr,

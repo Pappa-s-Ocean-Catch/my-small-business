@@ -170,11 +170,10 @@ export function DeliveryAddressForm({
             {savedAddresses.map((address) => (
               <div
                 key={address.id}
-                className={`cursor-pointer rounded-lg border-2 p-4 transition-colors ${
-                  selectedAddressId === address.id
+                className={`cursor-pointer rounded-lg border-2 p-4 transition-colors ${selectedAddressId === address.id
                     ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20'
                     : 'border-gray-200 hover:border-gray-300 dark:border-neutral-700 dark:hover:border-neutral-600'
-                }`}
+                  }`}
                 onClick={() => handleAddressSelect(address)}
               >
                 <div className="flex items-start justify-between">
@@ -271,7 +270,7 @@ export function DeliveryAddressForm({
                     value={formData.address_line1}
                     onChange={(e) => setFormData({ ...formData, address_line1: e.target.value })}
                     className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-neutral-600 dark:bg-neutral-800 dark:text-white"
-                    placeholder="123 Main Street"
+                    placeholder="2/87 Unitt Street"
                     required
                   />
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">

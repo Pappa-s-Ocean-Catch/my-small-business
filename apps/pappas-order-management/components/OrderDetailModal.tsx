@@ -10,7 +10,14 @@ import { hasAnySimulatorAssignment } from '@/lib/printer-routing';
 import { CustomerReceiptTemplate } from './CustomerReceiptTemplate';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { getFriendlyOrderNumber } from '../utils/orderNumber';
-import { STATUS_COLORS, STATUS_LABELS, PAYMENT_STATUS_COLORS, PAYMENT_STATUS_LABELS } from '../utils/constants';
+import {
+  STATUS_COLORS,
+  STATUS_LABELS,
+  PAYMENT_STATUS_COLORS,
+  PAYMENT_STATUS_LABELS,
+  getDeliveryStatusColor,
+  getDeliveryStatusLabel,
+} from '../utils/constants';
 import { paymentSummary, getNextQuickAction, groupAddons, getOrderLineItemCount, getOrderNotes, getOrderOptions } from '../utils/orderUtils';
 import type { AppSettings } from '../lib/settings';
 import { DEFAULT_APP_SETTINGS } from '../lib/settings';
@@ -110,6 +117,8 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const statusLabel = STATUS_LABELS[order.order_status];
   const paymentColor = PAYMENT_STATUS_COLORS[order.payment_status];
   const paymentLabel = PAYMENT_STATUS_LABELS[order.payment_status];
+  const deliveryStatusColor = getDeliveryStatusColor(order.delivery_status);
+  const deliveryStatusLabel = getDeliveryStatusLabel(order.delivery_status);
   const quickAction = getNextQuickAction(order);
   const isUpdating = updatingStatus === order.id;
   const rewardPointsUsed = order.reward_points_used ?? 0;
@@ -284,6 +293,26 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                   {!!order.customer_phone && <Text style={styles.contactText}>{order.customer_phone}</Text>}
                 </Card.Content>
               </Card>
+
+              {order.order_type === 'delivery' ? (
+                <Card style={[styles.infoCard, isWide && styles.summaryCard]}>
+                  <Card.Title title="Delivery" titleStyle={styles.cardTitle} left={(props) => <IconButton {...props} icon="truck-delivery" />} />
+                  <Card.Content>
+                    <View style={styles.deliveryStatusHeader}>
+                      <View style={[styles.deliveryStatusBadge, { backgroundColor: deliveryStatusColor }]}>
+                        <Text style={styles.deliveryStatusBadgeText}>{deliveryStatusLabel}</Text>
+                      </View>
+                    </View>
+                    {!!order.delivery_driver_name && <Text style={styles.deliveryDetailText}>Driver: {order.delivery_driver_name}</Text>}
+                    {!!order.delivery_driver_phone && <Text style={styles.deliveryDetailText}>Phone: {order.delivery_driver_phone}</Text>}
+                    {!!order.delivery_driver_pin && <Text style={styles.deliveryDetailText}>PIN: {order.delivery_driver_pin}</Text>}
+                    {!!order.delivery_vehicle_info && <Text style={styles.deliveryDetailText}>Vehicle: {order.delivery_vehicle_info}</Text>}
+                    {!!order.delivery_provider_id && <Text style={styles.deliveryMetaText}>Provider Ref: {order.delivery_provider_id}</Text>}
+                    {!!order.delivery_tracking_url && <Text style={styles.deliveryMetaText}>Tracking: {order.delivery_tracking_url}</Text>}
+                    {!!order.delivery_instructions && <Text style={styles.deliveryInstructionsText}>Instructions: {order.delivery_instructions}</Text>}
+                  </Card.Content>
+                </Card>
+              ) : null}
 
               <Card style={[styles.infoCard, isWide && styles.summaryCard]}>
                 <Card.Title title="Totals" titleStyle={styles.cardTitle} left={(props) => <IconButton {...props} icon="receipt" />} />
@@ -631,6 +660,17 @@ const styles = StyleSheet.create({
   divider: { marginTop: 12 },
   instructionsCard: { borderLeftWidth: 5, borderLeftColor: '#f59e0b' },
   instructionsText: { fontSize: 15, color: '#4b5563', lineHeight: 22 },
+  deliveryStatusHeader: { marginBottom: 10 },
+  deliveryStatusBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  deliveryStatusBadgeText: { color: '#fff', fontSize: 12, fontWeight: '800' },
+  deliveryDetailText: { fontSize: 14, color: '#1f2937', fontWeight: '600', marginBottom: 6 },
+  deliveryMetaText: { fontSize: 13, color: '#475569', marginBottom: 6 },
+  deliveryInstructionsText: { marginTop: 4, fontSize: 14, color: '#374151', lineHeight: 20 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
   totalLabel: { fontSize: 14, color: '#6b7280' },
   totalValue: { fontSize: 14, color: '#111827', fontWeight: '500' },
