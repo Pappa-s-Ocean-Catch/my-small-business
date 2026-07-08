@@ -156,10 +156,10 @@ export default function DeliveryEntryPage() {
                     <div className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
                       <div className="mb-1 flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
                         <Icon icon={FaClock} className="h-4 w-4" />
-                        <span className="text-xs font-bold uppercase">Estimated ETA</span>
+                        <span className="text-xs font-bold uppercase">Usual ETA</span>
                       </div>
                       <p className="text-lg font-bold text-gray-900 dark:text-white">
-                        {quote.estimated_duration_minutes} mins
+                        {quote.estimated_duration_minutes} mins or earlier
                       </p>
                     </div>
                     <div className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">

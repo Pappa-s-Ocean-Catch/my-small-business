@@ -436,7 +436,7 @@ export default function OrderSummaryPage() {
                           Delivery Quote
                         </h3>
                         <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                          Estimated delivery time: {deliveryQuote.estimated_duration_minutes} mins
+                          Usual delivery time: {deliveryQuote.estimated_duration_minutes} mins or earlier
                         </p>
                       </div>
                       <div className="text-right">
@@ -826,7 +826,7 @@ export default function OrderSummaryPage() {
                 )}
                 {orderType === 'delivery' && deliveryQuote && (
                   <div className="text-xs text-gray-500 dark:text-gray-500 pl-6">
-                    Estimated {deliveryQuote.estimated_duration_minutes} min delivery
+                    Usually {deliveryQuote.estimated_duration_minutes} min or earlier
                   </div>
                 )}
                 {serviceFee > 0 && (

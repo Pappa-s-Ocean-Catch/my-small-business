@@ -32,8 +32,8 @@ export function OrderTypeDisplay({
           )}
           {orderType === "delivery" && deliveryQuote && (
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-              Delivery Fee: ${deliveryQuote.fee.toFixed(2)} • Est.{" "}
-              {deliveryQuote.estimated_duration_minutes} min
+              Delivery Fee: ${deliveryQuote.fee.toFixed(2)} • Usually{" "}
+              {deliveryQuote.estimated_duration_minutes} min or earlier
             </p>
           )}
         </div>
