@@ -32,7 +32,7 @@ import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
 import { CashTenderModal } from '@/components/CashTenderModal';
 import { useOrderActions } from '@/hooks/useOrderActions';
 import { escposPrintOrderImage, formatPrinterError } from '@/lib/escpos-printer';
-import { getSectionPrintTickets, getSectionRoutingDebugLabel, hasAnySimulatorAssignment, resolvePrinterForSection, shouldSkipPrintForSection, shouldUseSimulatorForSection } from '@/lib/printer-routing';
+import { buildSectionPrintJobs, hasAnySimulatorAssignment } from '@/lib/printer-routing';
 import { captureRef } from 'react-native-view-shot';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
 import { getFriendlyOrderNumber } from '@/utils/orderNumber';
@@ -70,6 +70,7 @@ export default function LiveOrdersScreen() {
   const [tempPrintingOrder, setTempPrintingOrder] = useState<Order | null>(null);
   const [tempPrintSource, setTempPrintSource] = useState<string | null>(null);
   const [tempPrintTicketIndex, setTempPrintTicketIndex] = useState(0);
+  const [tempPrintDuplicateBySections, setTempPrintDuplicateBySections] = useState(false);
   const [cashTenderOrder, setCashTenderOrder] = useState<Order | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
   const [headerExpanded, setHeaderExpanded] = useState(false);
@@ -210,39 +211,42 @@ export default function LiveOrdersScreen() {
       setTempPrintSource('live-orders:manual-list-print');
       const targetDots = s.printerPaperWidth === '58mm' ? 384 : 576;
       const scale = s.printerHighQuality ? 2 : 1;
-      setTempPrintTicketIndex(0);
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      const jobs = buildSectionPrintJobs(s, freshOrder);
+      const capturedJobs: Array<{ uri: string; label: string; useSimulator: boolean; printer: NonNullable<ReturnType<typeof buildSectionPrintJobs>[number]['printer']> | null }> = [];
+      for (const job of jobs) {
+        setTempPrintTicketIndex(job.onlyTicketIndex ?? 0);
+        setTempPrintDuplicateBySections(job.duplicateBySections);
+        await new Promise((resolve) => setTimeout(resolve, 300));
 
-      const receiptRef = await waitForReceiptTemplateRef.current();
-      if (!receiptRef) {
-        logOrderEvent('error', 'print', 'Receipt template ref was not ready for capture', {
-          order: freshOrder,
-          details: `Waited ${RECEIPT_REF_WAIT_MS * RECEIPT_REF_MAX_ATTEMPTS}ms before capture`,
+        const receiptRef = await waitForReceiptTemplateRef.current();
+        if (!receiptRef) {
+          logOrderEvent('error', 'print', 'Receipt template ref was not ready for capture', {
+            order: freshOrder,
+            details: `Waited ${RECEIPT_REF_WAIT_MS * RECEIPT_REF_MAX_ATTEMPTS}ms before capture`,
+          });
+          throw new Error('Receipt template is still loading. Please try again.');
+        }
+
+        const uri = await captureRef(receiptRef, {
+          format: 'png',
+          quality: 1,
+          result: 'tmpfile',
+          width: targetDots * scale,
         });
-        throw new Error('Receipt template is still loading. Please try again.');
+        capturedJobs.push({ uri, label: job.label, useSimulator: job.useSimulator, printer: job.printer });
       }
 
-      const imageUris = [await captureRef(receiptRef, {
-        format: 'png',
-        quality: 1,
-        result: 'tmpfile',
-        width: targetDots * scale,
-      })];
-
-      const tickets = getSectionPrintTickets(freshOrder);
       const simulatorImageUris: string[] = [];
       const simulatorImageLabels: string[] = [];
-      const printerJobs: Array<{ uri: string; sectionName: string | null }> = [];
-      for (let index = 0; index < imageUris.length; index++) {
-        const sectionName = tickets[index]?.sections[0]?.sectionName || null;
-        if (shouldSkipPrintForSection(s, sectionName)) {
-          continue;
-        }
-        if (s.printerSimulator || shouldUseSimulatorForSection(s, sectionName)) {
-          simulatorImageUris.push(imageUris[index]);
-          simulatorImageLabels.push(getSectionRoutingDebugLabel(s, sectionName));
+      const printerJobs: Array<{ uri: string; printer: NonNullable<typeof capturedJobs[number]['printer']> }> = [];
+      for (const job of capturedJobs) {
+        if (job.useSimulator) {
+          simulatorImageUris.push(job.uri);
+          simulatorImageLabels.push(job.label);
         } else {
-          printerJobs.push({ uri: imageUris[index], sectionName });
+          if (job.printer) {
+            printerJobs.push({ uri: job.uri, printer: job.printer });
+          }
         }
       }
 
@@ -259,8 +263,7 @@ export default function LiveOrdersScreen() {
       }
 
       if (printerJobs.length > 0) {
-        const selected = resolvePrinterForSection(s, printerJobs[0]?.sectionName || null);
-        if (!s.printerEnabled || !selected) {
+        if (!s.printerEnabled) {
           const message = `No printer is selected. ${printSettingsDetails}`;
           logOrderEvent('error', 'print', 'Manual print blocked because no printer was resolved', {
             order: freshOrder,
@@ -276,13 +279,9 @@ export default function LiveOrdersScreen() {
         });
 
         for (let index = 0; index < printerJobs.length; index++) {
-          const printer = resolvePrinterForSection(s, printerJobs[index].sectionName);
-          if (!printer) {
-            throw new Error(`No printer configured for section ${printerJobs[index].sectionName || 'Default'}.`);
-          }
           await escposPrintOrderImage(
             printerJobs[index].uri,
-            printer,
+            printerJobs[index].printer,
             1,
             targetDots
           );
@@ -845,7 +844,7 @@ export default function LiveOrdersScreen() {
                 printSource={tempPrintSource || undefined}
                 showTicketCounter={hasAnySimulatorAssignment(appSettings)}
                 onlyTicketIndex={tempPrintTicketIndex}
-                duplicateBySections={tempPrintSource === 'live-orders:auto-print'}
+                duplicateBySections={tempPrintDuplicateBySections}
               />
            </View>
          )}

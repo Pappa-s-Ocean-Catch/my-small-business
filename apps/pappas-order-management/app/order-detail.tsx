@@ -7,7 +7,7 @@ import { ActivityIndicator, Text } from 'react-native-paper';
 import { getOrder, updateOrderStatus, updatePaymentStatus } from '../lib/orders';
 import { loadAppSettings } from '../lib/settings';
 import { escposPrintKitchenReceipt, escposPrintOrderImage, formatPrinterError } from '../lib/escpos-printer';
-import { getSectionPrintTickets, hasAnySimulatorAssignment, resolvePrinterForSection, shouldSkipPrintForSection, shouldUseSimulatorForSection } from '../lib/printer-routing';
+import { buildSectionPrintJobs, getSectionPrintTickets, hasAnySimulatorAssignment, resolvePrinterForSection, shouldSkipPrintForSection, shouldUseSimulatorForSection } from '../lib/printer-routing';
 import { formatSmartpayError, isSmartpayPaired, processSmartpayCardPayment } from '../lib/smartpay';
 import { OrderDetailModal } from '../components/OrderDetailModal';
 import { generatePrintHTML, getNextQuickAction } from '../utils/orderUtils';
@@ -151,36 +151,27 @@ export default function OrderDetailScreen() {
     try {
       const settings = await loadAppSettings();
       const tickets = getSectionPrintTickets(selectedOrder);
-      const printableTickets = tickets.filter((ticket) => !shouldSkipPrintForSection(settings, ticket.sections[0]?.sectionName || null));
-      if (settings.printerSimulator || printableTickets.some((ticket) => shouldUseSimulatorForSection(settings, ticket.sections[0]?.sectionName || null))) {
+      const jobs = buildSectionPrintJobs(settings, selectedOrder);
+      const simulatorJobs = jobs.filter((job) => job.useSimulator);
+      const printerJobs = jobs.filter((job) => !job.useSimulator && !!job.printer);
+      if (simulatorJobs.length > 0) {
         setSimulatorOrder(selectedOrder);
         setPrintImageUri(null);
-        setSimulatorImageLabels([]);
+        setSimulatorImageLabels(simulatorJobs.map((job) => job.label));
         setShowSimulator(true);
         return true;
       }
 
-      if (printableTickets.length === 0) {
+      if (printerJobs.length === 0) {
         return true;
       }
-
-      const selected = resolvePrinterForSection(settings, printableTickets[0]?.sections[0]?.sectionName || null);
-      if (settings.printerEnabled && selected) {
+      if (settings.printerEnabled) {
         try {
-          if (printableTickets.length <= 1) {
-            await escposPrintKitchenReceipt(selectedOrder, selected, 1, 'order-detail-screen:manual-line-print');
-          } else {
-            for (const ticket of printableTickets) {
-              const ticketIndex = tickets.findIndex((candidate) => candidate.key === ticket.key);
-              const printer = resolvePrinterForSection(settings, ticket.sections[0]?.sectionName || null);
-              if (!printer) {
-                continue;
-              }
-              await escposPrintKitchenReceipt(selectedOrder, printer, 1, 'order-detail-screen:manual-line-print', {
-                duplicateBySections: true,
-                onlyTicketIndex: ticketIndex,
-              });
-            }
+          for (const job of printerJobs) {
+            await escposPrintKitchenReceipt(selectedOrder, job.printer!, 1, 'order-detail-screen:manual-line-print', {
+              duplicateBySections: job.duplicateBySections,
+              onlyTicketIndex: job.onlyTicketIndex,
+            });
           }
           return true;
         } catch (printerError) {

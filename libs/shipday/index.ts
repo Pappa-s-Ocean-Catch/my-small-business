@@ -32,11 +32,27 @@ export interface CreateDeliveryRequest {
   delivery_postcode?: string;
   pickup_address?: string;
   external_order_id?: string;
-  items?: Array<{ name: string; quantity: number; unit_price?: number }>;
+  pickup_latitude?: number | null;
+  pickup_longitude?: number | null;
+  delivery_latitude?: number | null;
+  delivery_longitude?: number | null;
+  items?: Array<{
+    name: string;
+    quantity: number;
+    unit_price?: number;
+    add_ons?: string[];
+    detail?: string;
+  }>;
+  subtotal?: number;
   total_amount?: number;
   tax?: number;
+  discount_amount?: number;
   delivery_fee?: number;
   tips?: number;
+  payment_method?: 'online' | 'store';
+  placed_at?: string;
+  expected_pickup_at?: string;
+  expected_delivery_at?: string;
   special_instructions?: string;
   assign_driver?: boolean;
 }
@@ -62,19 +78,13 @@ class ShipdayClient {
 
   /**
    * Shipday doesn't have a direct "pre-order" quote API.
-   * We calculate it based on actual driving distance using Google Maps if available.
+   * We use the on-demand availability API and return the cheapest valid option.
    */
   async requestQuote(pickup: DeliveryAddress, dropoff: DeliveryAddress): Promise<DeliveryQuote> {
-    let distanceKm = 5; // Default fallback
-    let durationMinutes = 25; // Default fallback
-
     const pickupStr = [pickup.address_line1, pickup.city, pickup.state, pickup.postcode].filter(Boolean).join(', ');
     const dropoffStr = [dropoff.address_line1, dropoff.city, dropoff.state, dropoff.postcode].filter(Boolean).join(', ');
 
     console.log('[Shipday] Requesting availability quote:', { pickupStr, dropoffStr });
-
-    let fee = 7.50; // default fee
-    let currency = 'AUD';
 
     try {
       const deliveryTime = new Date(Date.now() + 30 * 60 * 1000).toISOString();
@@ -105,59 +115,76 @@ class ShipdayClient {
 
       const options = Array.isArray(responseData) ? responseData : responseData.options;
 
-      if (Array.isArray(options) && options.length > 0) {
-        // Find the best price among Uber, DoorDash, etc.
-        let bestOption = options[0];
-        for (const option of options) {
-          if (option.deliveryFee < bestOption.deliveryFee) {
-            bestOption = option;
-          }
-        }
-        fee = bestOption.deliveryFee;
-        if (bestOption.currency) currency = bestOption.currency;
-        if (bestOption.estimatedDistance) distanceKm = bestOption.estimatedDistance;
-
-        if (bestOption.estimatedDeliveryTime && bestOption.estimatedPickupTime) {
-          const start = new Date(bestOption.estimatedPickupTime).getTime();
-          const end = new Date(bestOption.estimatedDeliveryTime).getTime();
-          if (!isNaN(start) && !isNaN(end)) {
-            durationMinutes = Math.ceil((end - start) / 60000);
-          }
-        }
-      } else {
-        console.warn('[Shipday SDK] No availability options returned, falling back to calculation');
-        if (pickup.latitude && pickup.longitude && dropoff.latitude && dropoff.longitude) {
-          distanceKm = this.calculateDistance(pickup.latitude, pickup.longitude, dropoff.latitude, dropoff.longitude);
-        }
-        durationMinutes = 10 + Math.ceil(distanceKm * 3);
-        const baseFee = 7.50;
-        const freeDistance = 2.0;
-        const ratePerKm = 2.0;
-        fee = distanceKm <= freeDistance ? baseFee : baseFee + (distanceKm - freeDistance) * ratePerKm;
+      if (!Array.isArray(options) || options.length === 0) {
+        throw new Error('No delivery quotes available for this address');
       }
+
+      const validOptions = options.filter((option): option is Record<string, unknown> => {
+        const fee = typeof option?.fee === 'number' ? option.fee : Number(option?.fee);
+        return option?.error !== true && Number.isFinite(fee);
+      });
+
+      if (validOptions.length === 0) {
+        const firstError = options.find((option: Record<string, unknown>) => option?.error === true);
+        const errorMessage =
+          typeof firstError?.errorMessage === 'string' && firstError.errorMessage.trim()
+            ? firstError.errorMessage
+            : 'No valid delivery quotes available for this address';
+        throw new Error(errorMessage);
+      }
+
+      const bestOption = validOptions.reduce((best, current) => {
+        const bestFee = typeof best.fee === 'number' ? best.fee : Number(best.fee);
+        const currentFee = typeof current.fee === 'number' ? current.fee : Number(current.fee);
+        return currentFee < bestFee ? current : best;
+      });
+
+      const fee = typeof bestOption.fee === 'number' ? bestOption.fee : Number(bestOption.fee);
+      const currency =
+        typeof bestOption.currency === 'string' && bestOption.currency.trim()
+          ? bestOption.currency
+          : 'AUD';
+      const pickupTime = typeof bestOption.pickupTime === 'string' ? bestOption.pickupTime : null;
+      const deliveryTimeStr = typeof bestOption.deliveryTime === 'string' ? bestOption.deliveryTime : null;
+
+      let durationMinutes =
+        typeof bestOption.deliveryDuration === 'number'
+          ? bestOption.deliveryDuration
+          : Number(bestOption.deliveryDuration);
+
+      if (!Number.isFinite(durationMinutes) && pickupTime && deliveryTimeStr) {
+        const start = new Date(pickupTime).getTime();
+        const end = new Date(deliveryTimeStr).getTime();
+        if (!Number.isNaN(start) && !Number.isNaN(end) && end >= start) {
+          durationMinutes = Math.ceil((end - start) / 60000);
+        }
+      }
+
+      const distanceKm =
+        pickup.latitude != null &&
+        pickup.longitude != null &&
+        dropoff.latitude != null &&
+        dropoff.longitude != null
+          ? this.calculateDistance(pickup.latitude, pickup.longitude, dropoff.latitude, dropoff.longitude)
+          : undefined;
+
+      console.log(`[Shipday] Final Quote: Fee=${fee}, Currency=${currency}, Provider=${String(bestOption.name ?? 'unknown')}`);
+
+      return {
+        quote_id: typeof bestOption.id === 'string' && bestOption.id.trim()
+          ? bestOption.id
+          : `sd_quote_${Date.now()}`,
+        fee: Math.round(fee * 100) / 100,
+        currency,
+        distance_km: typeof distanceKm === 'number' ? Math.round(distanceKm * 10) / 10 : undefined,
+        estimated_duration_minutes: Number.isFinite(durationMinutes) ? durationMinutes : undefined,
+        estimated_duration_seconds: Number.isFinite(durationMinutes) ? durationMinutes * 60 : undefined,
+        expires_at: new Date(Date.now() + 20 * 60 * 1000).toISOString(),
+      };
     } catch (error) {
       console.error('[Shipday SDK] Error getting availability:', error);
-      if (pickup.latitude && pickup.longitude && dropoff.latitude && dropoff.longitude) {
-        distanceKm = this.calculateDistance(pickup.latitude, pickup.longitude, dropoff.latitude, dropoff.longitude);
-      }
-      durationMinutes = 10 + Math.ceil(distanceKm * 3);
-      const baseFee = 7.50;
-      const freeDistance = 2.0;
-      const ratePerKm = 2.0;
-      fee = distanceKm <= freeDistance ? baseFee : baseFee + (distanceKm - freeDistance) * ratePerKm;
+      throw error instanceof Error ? error : new Error('Failed to get delivery quote');
     }
-
-    console.log(`[Shipday] Final Quote: Fee=${fee}, Currency=${currency}`);
-
-    return {
-      quote_id: `sd_quote_${Date.now()}`,
-      fee: Math.round(fee * 100) / 100,
-      currency: currency,
-      distance_km: Math.round(distanceKm * 10) / 10,
-      estimated_duration_minutes: durationMinutes,
-      estimated_duration_seconds: durationMinutes * 60,
-      expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-    };
   }
 
 
@@ -178,7 +205,32 @@ class ShipdayClient {
     return deg * (Math.PI / 180);
   }
 
+  private toShipdayDate(date: Date): string {
+    return date.toISOString().slice(0, 10);
+  }
+
+  private toShipdayTime(date: Date): string {
+    return date.toISOString().slice(11, 19);
+  }
+
+  private parseIsoDate(value?: string | null): Date | null {
+    if (!value) return null;
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  private normalizePaymentMethod(method?: 'online' | 'store'): 'credit_card' | 'cash' | undefined {
+    if (method === 'online') return 'credit_card';
+    if (method === 'store') return 'cash';
+    return undefined;
+  }
+
   async createDelivery(req: CreateDeliveryRequest): Promise<CreateDeliveryResponse> {
+    const placedAt = this.parseIsoDate(req.placed_at) ?? new Date();
+    const expectedPickupAt =
+      this.parseIsoDate(req.expected_pickup_at) ?? new Date(placedAt.getTime() + 10 * 60 * 1000);
+    const paymentMethod = this.normalizePaymentMethod(req.payment_method);
+
     const payload = {
       orderNumber: req.external_order_id,
       customerName: req.customer_name,
@@ -188,17 +240,26 @@ class ShipdayClient {
       restaurantName: process.env.NEXT_PUBLIC_STORE_NAME || "Pappa's Ocean Catch",
       restaurantAddress: req.pickup_address || process.env.NEXT_PUBLIC_STORE_ADDRESS || "123 Main St, Melton VIC 3337",
       restaurantPhoneNumber: process.env.NEXT_PUBLIC_STORE_PHONE || "0397431234",
-      expectedDeliveryDate: new Date().toISOString().split('T')[0],
-      expectedDeliveryTime: new Date(Date.now() + 45 * 60 * 1000).toLocaleTimeString('en-AU', { hour12: false }),
+      expectedPickupTime: this.toShipdayTime(expectedPickupAt),
+      pickupLatitude: req.pickup_latitude ?? undefined,
+      pickupLongitude: req.pickup_longitude ?? undefined,
+      deliveryLatitude: req.delivery_latitude ?? undefined,
+      deliveryLongitude: req.delivery_longitude ?? undefined,
       deliveryFee: req.delivery_fee || 0,
       tips: req.tips || 0,
-      totalOrderCost: req.total_amount || 0,
       tax: req.tax || 0,
+      discountAmount: req.discount_amount || 0,
+      totalOrderCost: req.total_amount || 0,
+      orderSource: 'online_ordering',
+      additionalId: req.external_order_id,
+      paymentMethod,
       deliveryInstruction: req.special_instructions || '',
       orderItem: req.items?.map(i => ({
         name: i.name,
         quantity: i.quantity,
-        unitPrice: i.unit_price || 0
+        unitPrice: i.unit_price || 0,
+        addOns: i.add_ons && i.add_ons.length > 0 ? i.add_ons : undefined,
+        detail: i.detail || undefined,
       })) || []
     };
 
@@ -241,4 +302,3 @@ export function getShipdayClient() {
 }
 
 export default getShipdayClient;
-

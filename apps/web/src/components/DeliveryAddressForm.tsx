@@ -1,9 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { FaMapMarkerAlt, FaSave, FaTrash, FaEdit, FaCheck } from 'react-icons/fa';
-import { getDeliveryAddresses, createDeliveryAddress, deleteDeliveryAddress, type DeliveryAddress } from '@/app/actions/delivery-addresses';
-import { getSupabaseClient } from '@my-small-business/supabase/client';
+import { useEffect, useState } from 'react';
+import { FaMapMarkerAlt, FaTrash } from 'react-icons/fa';
+import {
+  createDeliveryAddress,
+  deleteDeliveryAddress,
+  getDeliveryAddresses,
+  type DeliveryAddress,
+} from '@/app/actions/delivery-addresses';
 import { AddressAutocomplete } from '@/components/AddressAutocomplete';
 import { Icon } from '@/components/Icon';
 
@@ -25,33 +29,39 @@ interface DeliveryAddressFormProps {
   allowSave?: boolean;
   isAuthenticated?: boolean;
   initialAddress?: DeliveryAddressInput | null;
+  compact?: boolean;
 }
 
-export function DeliveryAddressForm({ 
-  onAddressSelect, 
+export function DeliveryAddressForm({
+  onAddressSelect,
   selectedAddressId,
   allowSave = true,
   isAuthenticated = false,
-  initialAddress = null
+  initialAddress = null,
+  compact = false,
 }: DeliveryAddressFormProps) {
   const [savedAddresses, setSavedAddresses] = useState<DeliveryAddress[]>([]);
   const [loadingAddresses, setLoadingAddresses] = useState(false);
   const [showNewAddressForm, setShowNewAddressForm] = useState(false);
-  const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
-  const [formData, setFormData] = useState<DeliveryAddressInput>(initialAddress || {
-    address_line1: '',
-    address_line2: '',
-    city: '',
-    state: '',
-    postcode: '',
-    country: 'AU',
-    delivery_instructions: '',
-  });
-
+  const [formData, setFormData] = useState<DeliveryAddressInput>(
+    initialAddress || {
+      address_line1: '',
+      address_line2: '',
+      city: '',
+      state: '',
+      postcode: '',
+      country: 'AU',
+      delivery_instructions: '',
+    }
+  );
   const [saving, setSaving] = useState(false);
   const [saveLabel, setSaveLabel] = useState('');
 
-  // Load saved addresses if user is authenticated
+  const hasAutocomplete = Boolean(
+    process.env.NEXT_PUBLIC_GEOAPIFY_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+  );
+  const [showManualFields, setShowManualFields] = useState(!hasAutocomplete);
+
   useEffect(() => {
     if (isAuthenticated && allowSave) {
       loadSavedAddresses();
@@ -64,8 +74,7 @@ export function DeliveryAddressForm({
       const result = await getDeliveryAddresses();
       if (result.data) {
         setSavedAddresses(result.data);
-        // Auto-select default address if available
-        const defaultAddress = result.data.find(addr => addr.is_default);
+        const defaultAddress = result.data.find((addr) => addr.is_default);
         if (defaultAddress && !selectedAddressId) {
           handleAddressSelect(defaultAddress);
         }
@@ -87,12 +96,11 @@ export function DeliveryAddressForm({
       country: address.country || 'AU',
       latitude: address.latitude || undefined,
       longitude: address.longitude || undefined,
-      delivery_instructions: (address as any).delivery_instructions || undefined,
+      delivery_instructions: (address as DeliveryAddressInput).delivery_instructions || undefined,
     };
 
     onAddressSelect(addressInput);
     setShowNewAddressForm(false);
-    setEditingAddressId(null);
   };
 
   const handleSaveAddress = async () => {
@@ -106,7 +114,7 @@ export function DeliveryAddressForm({
       const result = await createDeliveryAddress({
         ...formData,
         label: saveLabel,
-        is_default: savedAddresses.length === 0, // First address is default
+        is_default: savedAddresses.length === 0,
       });
 
       if (result.data) {
@@ -153,31 +161,30 @@ export function DeliveryAddressForm({
 
   return (
     <div className="space-y-4">
-      {/* Saved Addresses */}
       {isAuthenticated && allowSave && savedAddresses.length > 0 && (
         <div>
-          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          <h3 className="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">
             Saved Addresses
           </h3>
           <div className="space-y-2">
-            {savedAddresses.map(address => (
+            {savedAddresses.map((address) => (
               <div
                 key={address.id}
-                className={`p-4 border-2 rounded-lg cursor-pointer transition-colors ${
+                className={`cursor-pointer rounded-lg border-2 p-4 transition-colors ${
                   selectedAddressId === address.id
                     ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20'
-                    : 'border-gray-200 dark:border-neutral-700 hover:border-gray-300 dark:hover:border-neutral-600'
+                    : 'border-gray-200 hover:border-gray-300 dark:border-neutral-700 dark:hover:border-neutral-600'
                 }`}
                 onClick={() => handleAddressSelect(address)}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="mb-1 flex items-center gap-2">
                       <span className="font-medium text-gray-900 dark:text-white">
                         {address.label}
                       </span>
                       {address.is_default && (
-                        <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-0.5 rounded">
+                        <span className="rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-800 dark:bg-blue-900 dark:text-blue-200">
                           Default
                         </span>
                       )}
@@ -195,10 +202,10 @@ export function DeliveryAddressForm({
                       e.stopPropagation();
                       handleDeleteAddress(address.id);
                     }}
-                    className="text-red-600 hover:text-red-700 p-1"
+                    className="p-1 text-red-600 hover:text-red-700"
                     title="Delete address"
                   >
-                    <Icon icon={FaTrash} className="w-4 h-4" />
+                    <Icon icon={FaTrash} className="h-4 w-4" />
                   </button>
                 </div>
               </div>
@@ -207,11 +214,10 @@ export function DeliveryAddressForm({
         </div>
       )}
 
-      {/* New Address Form */}
       {showNewAddressForm || savedAddresses.length === 0 ? (
         <div className="space-y-4">
-          <div className="flex items-center gap-2 mb-4">
-            <Icon icon={FaMapMarkerAlt} className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+          <div className="mb-4 flex items-center gap-2">
+            <Icon icon={FaMapMarkerAlt} className="h-5 w-5 text-gray-600 dark:text-gray-400" />
             <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
               {savedAddresses.length === 0 ? 'Delivery Address' : 'New Address'}
             </h3>
@@ -219,10 +225,10 @@ export function DeliveryAddressForm({
 
           <div className="grid grid-cols-1 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Street Address *
               </label>
-              {(process.env.NEXT_PUBLIC_GEOAPIFY_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY) ? (
+              {hasAutocomplete ? (
                 <>
                   <AddressAutocomplete
                     value={formData.address_line1}
@@ -236,6 +242,7 @@ export function DeliveryAddressForm({
                         country: address.country,
                         latitude: address.latitude,
                         longitude: address.longitude,
+                        delivery_instructions: formData.delivery_instructions,
                       });
                     }}
                     onInputChange={(value) => {
@@ -245,8 +252,17 @@ export function DeliveryAddressForm({
                     country="au"
                   />
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
-                    Start typing and select from suggestions
+                    Start typing and choose your address from the list
                   </p>
+                  {!showManualFields && compact && (
+                    <button
+                      type="button"
+                      onClick={() => setShowManualFields(true)}
+                      className="mt-3 text-sm font-medium text-emerald-700 underline-offset-4 transition hover:text-emerald-800 hover:underline dark:text-emerald-300 dark:hover:text-emerald-200"
+                    >
+                      Enter address manually instead
+                    </button>
+                  )}
                 </>
               ) : (
                 <>
@@ -254,91 +270,132 @@ export function DeliveryAddressForm({
                     type="text"
                     value={formData.address_line1}
                     onChange={(e) => setFormData({ ...formData, address_line1: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-neutral-600 dark:bg-neutral-800 dark:text-white"
                     placeholder="123 Main Street"
                     required
                   />
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
-                    Add NEXT_PUBLIC_GEOAPIFY_API_KEY to enable address autocomplete
+                    Add `NEXT_PUBLIC_GEOAPIFY_API_KEY` to enable address autocomplete
                   </p>
                 </>
               )}
-
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Apartment, Suite, etc. (Optional)
-              </label>
-              <input
-                type="text"
-                value={formData.address_line2}
-                onChange={(e) => setFormData({ ...formData, address_line2: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
-                placeholder="Apt 4B"
-              />
-            </div>
+            {showManualFields && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      City *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.city}
+                      onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-neutral-600 dark:bg-neutral-800 dark:text-white"
+                      placeholder="Melton"
+                      required
+                    />
+                  </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  City *
-                </label>
-                <input
-                  type="text"
-                  value={formData.city}
-                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
-                  placeholder="Melton"
-                  required
-                />
-              </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      State *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.state}
+                      onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-neutral-600 dark:bg-neutral-800 dark:text-white"
+                      placeholder="VIC"
+                      required
+                    />
+                  </div>
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  State *
-                </label>
-                <input
-                  type="text"
-                  value={formData.state}
-                  onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
-                  placeholder="VIC"
-                  required
-                />
-              </div>
-            </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Postcode *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.postcode}
+                    onChange={(e) => setFormData({ ...formData, postcode: e.target.value })}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-neutral-600 dark:bg-neutral-800 dark:text-white"
+                    placeholder="3337"
+                    required
+                  />
+                </div>
+              </>
+            )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Postcode *
-              </label>
-              <input
-                type="text"
-                value={formData.postcode}
-                onChange={(e) => setFormData({ ...formData, postcode: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
-                placeholder="3337"
-                required
-              />
-            </div>
+            {compact ? (
+              <details className="rounded-2xl border border-dashed border-gray-300 bg-gray-50/80 px-4 py-3 dark:border-neutral-700 dark:bg-neutral-900/50">
+                <summary className="cursor-pointer list-none text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Add unit number or delivery notes
+                </summary>
+                <div className="mt-4 grid gap-4">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Apartment, Suite, etc. (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.address_line2}
+                      onChange={(e) => setFormData({ ...formData, address_line2: e.target.value })}
+                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-neutral-600 dark:bg-neutral-800 dark:text-white"
+                      placeholder="Apt 4B"
+                    />
+                  </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Delivery Instructions (Optional)
-              </label>
-              <textarea
-                value={formData.delivery_instructions}
-                onChange={(e) => setFormData({ ...formData, delivery_instructions: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white min-h-[80px]"
-                placeholder="Gate code, drop-off spot, etc."
-              />
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
-                Visible to the delivery driver
-              </p>
-            </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Delivery Instructions (Optional)
+                    </label>
+                    <textarea
+                      value={formData.delivery_instructions}
+                      onChange={(e) => setFormData({ ...formData, delivery_instructions: e.target.value })}
+                      className="min-h-[80px] w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-neutral-600 dark:bg-neutral-800 dark:text-white"
+                      placeholder="Gate code, leave at front door, etc."
+                    />
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
+                      Visible to the delivery driver
+                    </p>
+                  </div>
+                </div>
+              </details>
+            ) : (
+              <>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Apartment, Suite, etc. (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.address_line2}
+                    onChange={(e) => setFormData({ ...formData, address_line2: e.target.value })}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-neutral-600 dark:bg-neutral-800 dark:text-white"
+                    placeholder="Apt 4B"
+                  />
+                </div>
 
-            {/* Save Address Option */}
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Delivery Instructions (Optional)
+                  </label>
+                  <textarea
+                    value={formData.delivery_instructions}
+                    onChange={(e) => setFormData({ ...formData, delivery_instructions: e.target.value })}
+                    className="min-h-[80px] w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-neutral-600 dark:bg-neutral-800 dark:text-white"
+                    placeholder="Gate code, drop-off spot, etc."
+                  />
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
+                    Visible to the delivery driver
+                  </p>
+                </div>
+              </>
+            )}
+
             {isAuthenticated && allowSave && (
               <div className="flex items-center gap-2">
                 <input
@@ -350,7 +407,7 @@ export function DeliveryAddressForm({
                       setSaveLabel('');
                     }
                   }}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
                 <label htmlFor="save-address" className="text-sm text-gray-700 dark:text-gray-300">
                   Save this address for future orders
@@ -360,14 +417,14 @@ export function DeliveryAddressForm({
 
             {isAuthenticated && allowSave && saveLabel.length > 0 && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Address Label (e.g., "Home", "Work")
                 </label>
                 <input
                   type="text"
                   value={saveLabel}
                   onChange={(e) => setSaveLabel(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-neutral-600 dark:bg-neutral-800 dark:text-white"
                   placeholder="Home"
                 />
               </div>
@@ -388,15 +445,20 @@ export function DeliveryAddressForm({
                   }
                 }}
                 disabled={saving || !formData.address_line1 || !formData.city || !formData.state || !formData.postcode}
-                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="flex-1 rounded-xl bg-blue-600 px-4 py-3 font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {saving ? 'Saving...' : isAuthenticated && allowSave && saveLabel.trim() ? 'Save & Use Address' : 'Use This Address'}
+                {saving
+                  ? 'Saving...'
+                  : isAuthenticated && allowSave && saveLabel.trim()
+                    ? 'Save & Use Address'
+                    : 'Use This Address'}
               </button>
               {showNewAddressForm && (
                 <button
                   type="button"
                   onClick={() => {
                     setShowNewAddressForm(false);
+                    setShowManualFields(!hasAutocomplete);
                     setFormData({
                       address_line1: '',
                       address_line2: '',
@@ -407,7 +469,7 @@ export function DeliveryAddressForm({
                     });
                     setSaveLabel('');
                   }}
-                  className="px-4 py-2 border border-gray-300 dark:border-neutral-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-700 transition-colors"
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-gray-700 transition-colors hover:bg-gray-50 dark:border-neutral-600 dark:text-gray-300 dark:hover:bg-neutral-700"
                 >
                   Cancel
                 </button>
@@ -418,11 +480,18 @@ export function DeliveryAddressForm({
       ) : (
         <button
           type="button"
-          onClick={() => setShowNewAddressForm(true)}
-          className="w-full px-4 py-2 border-2 border-dashed border-gray-300 dark:border-neutral-600 text-gray-600 dark:text-gray-400 rounded-lg hover:border-gray-400 dark:hover:border-neutral-500 transition-colors"
+          onClick={() => {
+            setShowNewAddressForm(true);
+            setShowManualFields(!hasAutocomplete);
+          }}
+          className="w-full rounded-lg border-2 border-dashed border-gray-300 px-4 py-2 text-gray-600 transition-colors hover:border-gray-400 dark:border-neutral-600 dark:text-gray-400 dark:hover:border-neutral-500"
         >
           + Add New Address
         </button>
+      )}
+
+      {loadingAddresses && (
+        <p className="text-sm text-gray-500 dark:text-gray-400">Loading saved addresses...</p>
       )}
     </div>
   );

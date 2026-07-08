@@ -4,7 +4,7 @@ import * as Print from 'expo-print';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { updateOrderStatus, updatePaymentStatus, getOrder } from '@/lib/orders';
 import { escposPrintKitchenReceipt, escposPrintOrderImage, formatPrinterError } from '@/lib/escpos-printer';
-import { getSectionPrintTickets, getSectionRoutingDebugLabel, hasAnySimulatorAssignment, resolvePrinterForSection, shouldSkipPrintForSection, shouldUseSimulatorForSection } from '@/lib/printer-routing';
+import { buildSectionPrintJobs, getSectionPrintTickets, getSectionRoutingDebugLabel, hasAnySimulatorAssignment, resolvePrinterForSection, shouldSkipPrintForSection, shouldUseSimulatorForSection } from '@/lib/printer-routing';
 import { generatePrintHTML } from '@/utils/orderUtils';
 import { loadAppSettings, type AppSettings } from '@/lib/settings';
 import { formatSmartpayError, isSmartpayPaired, processSmartpayCardPayment } from '@/lib/smartpay';
@@ -245,39 +245,28 @@ export const useOrderActions = (
     try {
       const effectiveSettings = await getEffectiveSettings();
 
-      const tickets = getSectionPrintTickets(order);
-      const printableTickets = tickets.filter((ticket) => !shouldSkipPrintForSection(effectiveSettings, ticket.sections[0]?.sectionName || null));
-      if (effectiveSettings.printerSimulator || printableTickets.some((ticket) => shouldUseSimulatorForSection(effectiveSettings, ticket.sections[0]?.sectionName || null))) {
+      const jobs = buildSectionPrintJobs(effectiveSettings, order);
+      const simulatorJobs = jobs.filter((job) => job.useSimulator);
+      const printerJobs = jobs.filter((job) => !job.useSimulator && !!job.printer);
+      if (simulatorJobs.length > 0) {
         setSimulatorOrder(order);
         setPrintImageUri(null); // No image URI for standard fallback print usually
         setPrintImageUris([]);
-        setPrintImageLabels(printableTickets.map((ticket) => getSectionRoutingDebugLabel(effectiveSettings, ticket.sections[0]?.sectionName || null)));
+        setPrintImageLabels(simulatorJobs.map((job) => job.label));
         setShowSimulator(true);
         return true;
       }
 
-      if (printableTickets.length === 0) {
+      if (printerJobs.length === 0) {
         return true;
       }
-
-      const firstSectionName = printableTickets[0]?.sections[0]?.sectionName || null;
-      const selected = resolvePrinterForSection(effectiveSettings, firstSectionName);
-      if (effectiveSettings.printerEnabled && selected) {
+      if (effectiveSettings.printerEnabled) {
         try {
-          if (printableTickets.length <= 1) {
-            await escposPrintKitchenReceipt(order, selected, 1, 'order-actions:manual-line-print');
-          } else {
-            for (const ticket of printableTickets) {
-              const ticketIndex = tickets.findIndex((candidate) => candidate.key === ticket.key);
-              const printer = resolvePrinterForSection(effectiveSettings, ticket.sections[0]?.sectionName || null);
-              if (!printer) {
-                continue;
-              }
-              await escposPrintKitchenReceipt(order, printer, 1, 'order-actions:manual-line-print', {
-                duplicateBySections: true,
-                onlyTicketIndex: ticketIndex,
-              });
-            }
+          for (const job of printerJobs) {
+            await escposPrintKitchenReceipt(order, job.printer!, 1, 'order-actions:manual-line-print', {
+              duplicateBySections: job.duplicateBySections,
+              onlyTicketIndex: job.onlyTicketIndex,
+            });
           }
           return true;
         } catch (printerError) {
@@ -300,26 +289,26 @@ export const useOrderActions = (
     try {
       const effectiveSettings = await getEffectiveSettings();
       const tickets = getSectionPrintTickets(order);
-      const printableTickets = tickets.filter((ticket) => !shouldSkipPrintForSection(effectiveSettings, ticket.sections[0]?.sectionName || null));
+      const jobs = buildSectionPrintJobs(effectiveSettings, order);
 
       if (effectiveSettings.printerSimulator || hasAnySimulatorAssignment(effectiveSettings)) {
         setSimulatorOrder(order);
         setPrintImageUri(imageUri);
         setPrintImageUris([imageUri]);
-        setPrintImageLabels([getSectionRoutingDebugLabel(effectiveSettings, printableTickets[0]?.sections[0]?.sectionName || null)]);
+        setPrintImageLabels([jobs[0]?.label || getSectionRoutingDebugLabel(effectiveSettings, tickets[0]?.sections[0]?.sectionName || null)]);
         setShowSimulator(true);
         return true;
       }
 
-      if (printableTickets.length === 0) {
+      const firstPrinterJob = jobs.find((job) => !job.useSimulator && !!job.printer) || null;
+      if (!firstPrinterJob) {
         return true;
       }
 
-      const selected = resolvePrinterForSection(effectiveSettings, printableTickets[0]?.sections[0]?.sectionName || null);
-      if (effectiveSettings.printerEnabled && selected) {
+      if (effectiveSettings.printerEnabled) {
         try {
           const targetDots = effectiveSettings.printerPaperWidth === '58mm' ? 384 : 576;
-          await escposPrintOrderImage(imageUri, selected, 1, targetDots);
+          await escposPrintOrderImage(imageUri, firstPrinterJob.printer!, 1, targetDots);
           return true;
         } catch (printerError) {
           console.error('Print image error:', printerError);

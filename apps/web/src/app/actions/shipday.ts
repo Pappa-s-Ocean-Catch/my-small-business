@@ -43,18 +43,50 @@ export async function createShipdayOrder(orderId: string) {
 
     console.log(`[Shipday Action] Constructed Address: ${addressString}`);
 
+    const createdAt = order.created_at || new Date().toISOString();
+    const expectedPickupAt = new Date(new Date(createdAt).getTime() + 10 * 60 * 1000);
+    const etaMinutes = Number(order.delivery_eta_minutes) > 0 ? Number(order.delivery_eta_minutes) : 30;
+    const expectedDeliveryAt = new Date(expectedPickupAt.getTime() + etaMinutes * 60 * 1000);
+
+    const paymentMethod: 'online' | 'store' =
+      order.payment_method === 'store' ? 'store' : 'online';
+
     const shipdayPayload = {
       external_order_id: order.order_number,
       customer_name: order.customer_name || 'Customer',
       customer_email: order.customer_email,
       customer_phone: order.customer_phone,
       delivery_address: addressString,
+      pickup_address: [
+        process.env.STORE_ADDRESS_LINE1 || process.env.NEXT_PUBLIC_STORE_ADDRESS_LINE1 || '2/87 Unitt Street',
+        process.env.STORE_ADDRESS_LINE2 || process.env.NEXT_PUBLIC_STORE_ADDRESS_LINE2 || null,
+        process.env.STORE_CITY || process.env.NEXT_PUBLIC_STORE_CITY || 'Melton',
+        process.env.STORE_STATE || process.env.NEXT_PUBLIC_STORE_STATE || 'VIC',
+        process.env.STORE_POSTCODE || process.env.NEXT_PUBLIC_STORE_POSTCODE || '3337',
+        process.env.STORE_COUNTRY || 'AU',
+      ].filter(Boolean).join(', '),
+      pickup_latitude: process.env.STORE_LATITUDE ? Number(process.env.STORE_LATITUDE) : null,
+      pickup_longitude: process.env.STORE_LONGITUDE ? Number(process.env.STORE_LONGITUDE) : null,
+      delivery_latitude: order.delivery_latitude ?? null,
+      delivery_longitude: order.delivery_longitude ?? null,
+      subtotal: Number(order.subtotal) || 0,
+      tax: Number(order.tax) || 0,
       delivery_fee: order.delivery_fee,
       total_amount: order.total,
+      discount_amount:
+        (Number(order.promotion_discount) || 0) +
+        (Number(order.coupon_discount) || 0) +
+        (Number(order.reward_points_value) || 0),
+      payment_method: paymentMethod,
+      placed_at: createdAt,
+      expected_pickup_at: expectedPickupAt.toISOString(),
+      expected_delivery_at: expectedDeliveryAt.toISOString(),
       items: order.order_items.map((item: any) => ({
         name: item.product_name,
         quantity: item.quantity,
-        unit_price: Number(item.base_price)
+        unit_price: Number(item.quantity) > 0
+          ? Number((Number(item.subtotal || 0) / Number(item.quantity)).toFixed(2))
+          : Number(item.base_price),
       })),
       special_instructions: [
         order.special_instructions,
@@ -74,8 +106,9 @@ export async function createShipdayOrder(orderId: string) {
     const { error: updateError } = await supabase
       .from('orders')
       .update({
-        delivery_quote_id: res.delivery_id, // Store Shipday delivery ID here
-        delivery_status: 'delivery_created' // Shipday status equivalent
+        delivery_provider_id: res.delivery_id,
+        delivery_status: 'pending',
+        delivery_tracking_url: res.tracking_url || null,
       })
       .eq('id', orderId);
 

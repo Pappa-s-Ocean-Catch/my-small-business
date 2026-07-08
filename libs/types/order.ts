@@ -133,7 +133,7 @@ export interface Order {
   delivery_quote_currency: string | null;
   delivery_quote_expires_at: string | null;
   delivery_eta_minutes: number | null;
-  uber_delivery_id: string | null;
+  delivery_provider_id: string | null;
   delivery_status: string | null;
   delivery_tracking_url: string | null;
   delivery_driver_name: string | null;
@@ -148,6 +148,19 @@ export interface Order {
   kitchen_print_completed_at: string | null;
   kitchen_print_completed_by: string | null;
   items?: OrderItem[];
+}
+
+export interface OrderEvent {
+  id: string;
+  order_id: string | null;
+  source: string;
+  event_type: string;
+  status: string | null;
+  message: string | null;
+  external_order_number: string | null;
+  external_delivery_id: string | null;
+  details: Record<string, unknown>;
+  created_at: string;
 }
 
 export type OrderStatus = Order['order_status'];

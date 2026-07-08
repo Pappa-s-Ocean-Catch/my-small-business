@@ -30,7 +30,7 @@ import { Audio } from 'expo-av';
 import * as Print from 'expo-print';
 import { ConfirmationDialog } from '../../lib/ConfirmationDialog';
 import { escposPrintKitchenReceipt, formatPrinterError } from '../../lib/escpos-printer';
-import { getSectionPrintTickets, resolvePrinterForSection, shouldSkipPrintForSection } from '../../lib/printer-routing';
+import { buildSectionPrintJobs, getSectionPrintTickets, resolvePrinterForSection, shouldSkipPrintForSection } from '../../lib/printer-routing';
 import { KitchenAlertOverlay } from '../../lib/KitchenAlertOverlay';
 import { getFriendlyOrderNumber } from '../../utils/orderNumber';
 import { CustomerModal } from '../../components/CustomerModal';
@@ -526,28 +526,15 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
   const handlePrint = async (order: Order) => {
     try {
       const s = appSettingsRef.current;
-      const tickets = getSectionPrintTickets(order);
-      const printableTickets = tickets.filter((ticket) => !shouldSkipPrintForSection(s, ticket.sections[0]?.sectionName || null));
-      const selected = resolvePrinterForSection(s, printableTickets[0]?.sections[0]?.sectionName || null);
-      if (s.printerEnabled && selected) {
+      const jobs = buildSectionPrintJobs(s, order);
+      const printerJobs = jobs.filter((job) => !job.useSimulator && !!job.printer);
+      if (s.printerEnabled && printerJobs.length > 0) {
         try {
-          if (printableTickets.length === 0) {
-            return;
-          }
-          if (printableTickets.length <= 1) {
-            await escposPrintKitchenReceipt(order, selected, 1, 'legacy-orders:manual-line-print');
-          } else {
-            for (const ticket of printableTickets) {
-              const ticketIndex = tickets.findIndex((candidate) => candidate.key === ticket.key);
-              const printer = resolvePrinterForSection(s, ticket.sections[0]?.sectionName || null);
-              if (!printer) {
-                continue;
-              }
-              await escposPrintKitchenReceipt(order, printer, 1, 'legacy-orders:manual-line-print', {
-                duplicateBySections: true,
-                onlyTicketIndex: ticketIndex,
-              });
-            }
+          for (const job of printerJobs) {
+            await escposPrintKitchenReceipt(order, job.printer!, 1, 'legacy-orders:manual-line-print', {
+              duplicateBySections: job.duplicateBySections,
+              onlyTicketIndex: job.onlyTicketIndex,
+            });
           }
           return;
         } catch (printerError) {

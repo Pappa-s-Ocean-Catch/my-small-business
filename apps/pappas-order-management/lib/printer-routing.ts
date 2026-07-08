@@ -26,6 +26,7 @@ export function getDefaultPrinterAssignment(settings: Pick<AppSettings, 'printer
           sectionName: 'Default',
           printerTarget: settings.printerSelectedTarget,
           useSimulator: false,
+          printMode: 'combine',
           isDefault: true,
         }
       : null
@@ -96,4 +97,71 @@ export function getSectionRoutingDebugLabel(
 
 export function getSectionPrintTickets(order: Pick<Order, 'items'>): SectionPrintTicket[] {
   return buildKitchenReceiptCopies(order.items || []);
+}
+
+export type ResolvedSectionPrintJob = {
+  key: string;
+  assignmentId: string;
+  sectionName: string | null;
+  useSimulator: boolean;
+  printer: SavedPrinter | null;
+  printMode: 'combine' | 'separate';
+  duplicateBySections: boolean;
+  onlyTicketIndex?: number;
+  label: string;
+};
+
+export function buildSectionPrintJobs(
+  settings: Pick<AppSettings, 'printerSaved' | 'printerSectionAssignments' | 'printerSelectedTarget' | 'printerSimulator'>,
+  order: Pick<Order, 'items'>
+): ResolvedSectionPrintJob[] {
+  const tickets = getSectionPrintTickets(order);
+  const jobs: ResolvedSectionPrintJob[] = [];
+  const seenCombinedKeys = new Set<string>();
+
+  tickets.forEach((ticket, index) => {
+    const sectionName = ticket.sections[0]?.sectionName || null;
+    if (shouldSkipPrintForSection(settings, sectionName)) {
+      return;
+    }
+
+    const assignment = getPrinterAssignmentForSection(settings, sectionName);
+    const printMode = assignment?.printMode === 'separate' ? 'separate' : 'combine';
+    const useSimulator = !!settings.printerSimulator || !!assignment?.useSimulator;
+    const printer = useSimulator ? null : resolvePrinterForSection(settings, sectionName);
+    const label = getSectionRoutingDebugLabel(settings, sectionName);
+
+    if (printMode === 'combine') {
+      const combinedKey = `${assignment?.id || 'default'}:${useSimulator ? 'simulator' : printer?.target || 'printer'}`;
+      if (seenCombinedKeys.has(combinedKey)) {
+        return;
+      }
+      seenCombinedKeys.add(combinedKey);
+      jobs.push({
+        key: combinedKey,
+        assignmentId: assignment?.id || 'default',
+        sectionName,
+        useSimulator,
+        printer,
+        printMode,
+        duplicateBySections: false,
+        label,
+      });
+      return;
+    }
+
+    jobs.push({
+      key: `${assignment?.id || 'default'}:${ticket.key}`,
+      assignmentId: assignment?.id || 'default',
+      sectionName,
+      useSimulator,
+      printer,
+      printMode,
+      duplicateBySections: true,
+      onlyTicketIndex: index,
+      label,
+    });
+  });
+
+  return jobs;
 }

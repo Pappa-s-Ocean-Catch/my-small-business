@@ -8,6 +8,17 @@ import { getShipdayClient } from '@my-small-business/shipday';
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const stripe = stripeSecretKey ? new Stripe(stripeSecretKey) : null;
 
+function buildShipdayItemDetail(item: any): string | undefined {
+  const parts: string[] = [];
+  if (item.comment) {
+    parts.push(`Comment: ${item.comment}`);
+  }
+  if (Array.isArray(item.removed_ingredients) && item.removed_ingredients.length > 0) {
+    parts.push(`Remove: ${item.removed_ingredients.join(', ')}`);
+  }
+  return parts.length > 0 ? parts.join(' | ') : undefined;
+}
+
 export async function POST(request: Request) {
   try {
     if (!stripe) {
@@ -71,7 +82,7 @@ export async function POST(request: Request) {
       const supabase = await createServiceRoleClient();
       const { data: existingOrder, error: orderError } = await supabase
         .from('orders')
-        .select('id, payment_method, payment_status')
+        .select('id, payment_method, payment_status, delivery_provider_id, delivery_status')
         .eq('id', orderId)
         .single();
 
@@ -149,36 +160,76 @@ export async function POST(request: Request) {
           if (!shipdayKey) {
             console.log('[Shipday] SHIPDAY_API_KEY not configured — skipping delivery creation');
           } else {
-            const client = getShipdayClient();
+            if (existingOrder.delivery_provider_id) {
+              console.log('[Shipday] Delivery already linked for order, skipping duplicate create', {
+                orderId,
+                deliveryProviderId: existingOrder.delivery_provider_id,
+              });
+            } else {
+              const { data: claimedRows, error: claimError } = await supabase
+                .from('orders')
+                .update({ delivery_status: 'quote_requested' })
+                .eq('id', orderId)
+                .is('delivery_provider_id', null)
+                .eq('delivery_status', 'pending')
+                .select('id');
 
-            const pickupAddress = {
-              address_line1: process.env.STORE_ADDRESS_LINE1 || '123 Main Street',
-              address_line2: process.env.STORE_ADDRESS_LINE2 || null,
-              city: process.env.STORE_CITY || 'Melton',
-              state: process.env.STORE_STATE || 'VIC',
-              postcode: process.env.STORE_POSTCODE || '3337',
-              country: process.env.STORE_COUNTRY || 'AU',
-              latitude: process.env.STORE_LATITUDE ? Number(process.env.STORE_LATITUDE) : null,
-              longitude: process.env.STORE_LONGITUDE ? Number(process.env.STORE_LONGITUDE) : null,
-            };
+              if (claimError) {
+                console.error('[Shipday] Failed to claim delivery creation lock:', claimError);
+              }
 
-            const dropoffAddress = {
-              address_line1: orderResult.data.delivery_address_line1 || '',
-              address_line2: orderResult.data.delivery_address_line2 || null,
-              city: orderResult.data.delivery_city || '',
-              state: orderResult.data.delivery_state || '',
-              postcode: orderResult.data.delivery_postcode || '',
-              country: orderResult.data.delivery_country || 'AU',
-              latitude: orderResult.data.delivery_latitude ?? null,
-              longitude: orderResult.data.delivery_longitude ?? null,
-            };
+              if (!claimedRows || claimedRows.length === 0) {
+                console.log('[Shipday] Another request already claimed delivery creation, skipping duplicate create', {
+                  orderId,
+                  deliveryStatus: existingOrder.delivery_status,
+                });
+              } else {
+                const client = getShipdayClient();
 
-            const items = (orderResult.data.items || []).map((it: any) => ({
-              name: it.product_name,
-              quantity: Number(it.quantity) || 1,
-            }));
+                const pickupAddress = {
+                  address_line1: process.env.STORE_ADDRESS_LINE1 || '123 Main Street',
+                  address_line2: process.env.STORE_ADDRESS_LINE2 || null,
+                  city: process.env.STORE_CITY || 'Melton',
+                  state: process.env.STORE_STATE || 'VIC',
+                  postcode: process.env.STORE_POSTCODE || '3337',
+                  country: process.env.STORE_COUNTRY || 'AU',
+                  latitude: process.env.STORE_LATITUDE ? Number(process.env.STORE_LATITUDE) : null,
+                  longitude: process.env.STORE_LONGITUDE ? Number(process.env.STORE_LONGITUDE) : null,
+                };
+
+                const dropoffAddress = {
+                  address_line1: orderResult.data.delivery_address_line1 || '',
+                  address_line2: orderResult.data.delivery_address_line2 || null,
+                  city: orderResult.data.delivery_city || '',
+                  state: orderResult.data.delivery_state || '',
+                  postcode: orderResult.data.delivery_postcode || '',
+                  country: orderResult.data.delivery_country || 'AU',
+                  latitude: orderResult.data.delivery_latitude ?? null,
+                  longitude: orderResult.data.delivery_longitude ?? null,
+                };
+
+            const items = (orderResult.data.items || []).map((it: any) => {
+              const quantity = Number(it.quantity) || 1;
+              const subtotal = Number(it.subtotal) || 0;
+              return {
+                name: it.product_name,
+                quantity,
+                unit_price: quantity > 0 ? Number((subtotal / quantity).toFixed(2)) : subtotal,
+                add_ons: Array.isArray(it.addons)
+                  ? it.addons.map((addon: any) => `${addon.addon_item_name} (+$${Number(addon.addon_item_price || 0).toFixed(2)})`)
+                  : [],
+                detail: buildShipdayItemDetail(it),
+              };
+            });
 
             const assignDriver = !(process.env.SHIPDAY_TEST_MODE === 'true' || process.env.NODE_ENV !== 'production');
+            const orderPlacedAt = orderResult.data.created_at || new Date().toISOString();
+            const expectedPickupAt = new Date(new Date(orderPlacedAt).getTime() + 10 * 60 * 1000);
+            const etaMinutes =
+              Number(orderResult.data.delivery_eta_minutes) > 0
+                ? Number(orderResult.data.delivery_eta_minutes)
+                : 30;
+            const expectedDeliveryAt = new Date(expectedPickupAt.getTime() + etaMinutes * 60 * 1000);
 
             const pickupAddressStr = [
               pickupAddress.address_line1,
@@ -198,40 +249,65 @@ export async function POST(request: Request) {
               dropoffAddress.country || 'AU'
             ].filter(Boolean).join(', ');
 
-            const shipRes = await client.createDelivery({
-              pickup_address: pickupAddressStr,
-              delivery_address: dropoffAddressStr,
-              customer_phone: orderResult.data.customer_phone || '',
-              customer_name: orderResult.data.customer_name || orderResult.data.customer_email || 'Customer',
-              customer_email: orderResult.data.customer_email || '',
-              external_order_id: orderResult.data.order_number || orderId,
-              items,
-              special_instructions: [
-                orderResult.data.special_instructions,
-                orderResult.data.delivery_instructions ? `Delivery Instructions: ${orderResult.data.delivery_instructions}` : null
-              ].filter(Boolean).join('\n') || undefined,
-              assign_driver: assignDriver,
-            });
+                const shipRes = await client.createDelivery({
+                  pickup_address: pickupAddressStr,
+                  delivery_address: dropoffAddressStr,
+                  pickup_latitude: pickupAddress.latitude,
+                  pickup_longitude: pickupAddress.longitude,
+                  delivery_latitude: dropoffAddress.latitude,
+                  delivery_longitude: dropoffAddress.longitude,
+                  customer_phone: orderResult.data.customer_phone || '',
+                  customer_name: orderResult.data.customer_name || orderResult.data.customer_email || 'Customer',
+                  customer_email: orderResult.data.customer_email || '',
+                  external_order_id: orderResult.data.order_number || orderId,
+                  items,
+                  subtotal: Number(orderResult.data.subtotal) || 0,
+                  total_amount: Number(orderResult.data.total) || 0,
+                  tax: Number(orderResult.data.tax) || 0,
+                  delivery_fee: Number(orderResult.data.delivery_fee) || 0,
+                  discount_amount:
+                    (Number(orderResult.data.promotion_discount) || 0) +
+                    (Number(orderResult.data.coupon_discount) || 0) +
+                    (Number(orderResult.data.reward_points_value) || 0),
+                  payment_method: orderResult.data.payment_method === 'store' ? 'store' : 'online',
+                  placed_at: orderPlacedAt,
+                  expected_pickup_at: expectedPickupAt.toISOString(),
+                  expected_delivery_at: expectedDeliveryAt.toISOString(),
+                  special_instructions: [
+                    orderResult.data.special_instructions,
+                    orderResult.data.delivery_instructions ? `Delivery Instructions: ${orderResult.data.delivery_instructions}` : null
+                  ].filter(Boolean).join('\n') || undefined,
+                  assign_driver: assignDriver,
+                });
 
 
-            // Persist Shipday response to orders table (best-effort)
-            try {
-              const supabase = await createServiceRoleClient();
-              await supabase.from('orders').update({
-                delivery_provider: 'shipday',
-                delivery_provider_id: shipRes.delivery_id || null,
-                delivery_status: shipRes.status || 'delivery_created',
-                delivery_tracking_url: shipRes.tracking_url || null,
-                delivery_provider_response: shipRes.raw ? JSON.stringify(shipRes.raw) : null,
-              }).eq('id', orderId);
-              console.log('[Shipday] Delivery created and saved for order', orderId, shipRes.delivery_id);
-            } catch (dbErr) {
-              console.error('[Shipday] Failed to persist delivery info for order', orderId, dbErr);
+                // Persist Shipday response to orders table (best-effort)
+                try {
+                  const supabase = await createServiceRoleClient();
+                  await supabase.from('orders').update({
+                    delivery_provider_id: shipRes.delivery_id || null,
+                    delivery_status: 'pending',
+                    delivery_tracking_url: shipRes.tracking_url || null,
+                  }).eq('id', orderId);
+                  console.log('[Shipday] Delivery created and saved for order', orderId, shipRes.delivery_id);
+                } catch (dbErr) {
+                  console.error('[Shipday] Failed to persist delivery info for order', orderId, dbErr);
+                }
+              }
             }
           }
         }
       } catch (shipErr) {
         console.error('[Shipday] Error while creating delivery for order', orderId, shipErr);
+        try {
+          await supabase
+            .from('orders')
+            .update({ delivery_status: 'pending' })
+            .eq('id', orderId)
+            .eq('delivery_status', 'quote_requested');
+        } catch (resetErr) {
+          console.error('[Shipday] Failed to reset delivery status after Shipday error', resetErr);
+        }
       }
 
       console.log('[Stripe] Order updated successfully:', {

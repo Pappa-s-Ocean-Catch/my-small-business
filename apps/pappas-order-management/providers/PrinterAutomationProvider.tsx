@@ -17,10 +17,10 @@ import {
   updateOrderStatus,
 } from '@/lib/orders';
 import { escposPrintOrderImage, formatPrinterError } from '@/lib/escpos-printer';
-import { getSectionPrintTickets, getSectionRoutingDebugLabel, hasAnySimulatorAssignment, resolvePrinterForSection, shouldSkipPrintForSection, shouldUseSimulatorForSection } from '@/lib/printer-routing';
+import { buildSectionPrintJobs, hasAnySimulatorAssignment } from '@/lib/printer-routing';
 import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
-import { buildKitchenReceiptCopies, shouldPlayOrderSound } from '@/utils/orderUtils';
+import { shouldPlayOrderSound } from '@/utils/orderUtils';
 import { getPrintDeviceId } from '@/lib/print-device';
 import { getFriendlyOrderNumber } from '@/utils/orderNumber';
 import { playNewOrderSound } from '@/lib/sounds';
@@ -51,6 +51,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
   const [tempPrintingOrder, setTempPrintingOrder] = useState<Order | null>(null);
   const [tempPrintSource, setTempPrintSource] = useState<string | null>(null);
   const [tempPrintTicketIndex, setTempPrintTicketIndex] = useState(0);
+  const [tempPrintDuplicateBySections, setTempPrintDuplicateBySections] = useState(false);
 
   const autoPrintToast = usePrinterAutomationStore((state) => state.autoPrintToast);
   const dismissToast = usePrinterAutomationStore((state) => state.dismissToast);
@@ -187,11 +188,12 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
       setTempPrintSource('printer-automation:auto-print');
       const targetDots = effectiveSettings.printerPaperWidth === '58mm' ? 384 : 576;
       const scale = effectiveSettings.printerHighQuality ? 2 : 1;
-      const ticketCopies = buildKitchenReceiptCopies(freshOrder.items || []);
-      const imageUris: string[] = [];
+      const jobs = buildSectionPrintJobs(effectiveSettings, freshOrder);
+      const capturedJobs: Array<{ uri: string; label: string; useSimulator: boolean; printer: NonNullable<ReturnType<typeof buildSectionPrintJobs>[number]['printer']> | null }> = [];
 
-      for (let ticketIndex = 0; ticketIndex < ticketCopies.length; ticketIndex++) {
-        setTempPrintTicketIndex(ticketIndex);
+      for (const job of jobs) {
+        setTempPrintTicketIndex(job.onlyTicketIndex ?? 0);
+        setTempPrintDuplicateBySections(job.duplicateBySections);
         await new Promise((resolve) => setTimeout(resolve, 300));
 
         const receiptRef = await waitForReceiptTemplateRef();
@@ -209,22 +211,25 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
           result: 'tmpfile',
           width: targetDots * scale,
         });
-        imageUris.push(uri);
+        capturedJobs.push({
+          uri,
+          label: job.label,
+          useSimulator: job.useSimulator,
+          printer: job.printer,
+        });
       }
 
       const simulatorImageUris: string[] = [];
       const simulatorImageLabels: string[] = [];
-      const printerJobs: Array<{ uri: string; sectionName: string | null }> = [];
-      for (let index = 0; index < imageUris.length; index++) {
-        const sectionName = ticketCopies[index]?.sections[0]?.sectionName || null;
-        if (shouldSkipPrintForSection(effectiveSettings, sectionName)) {
-          continue;
-        }
-        if (effectiveSettings.printerSimulator || shouldUseSimulatorForSection(effectiveSettings, sectionName)) {
-          simulatorImageUris.push(imageUris[index]);
-          simulatorImageLabels.push(getSectionRoutingDebugLabel(effectiveSettings, sectionName));
+      const printerJobs: Array<{ uri: string; printer: NonNullable<typeof capturedJobs[number]['printer']> }> = [];
+      for (const job of capturedJobs) {
+        if (job.useSimulator) {
+          simulatorImageUris.push(job.uri);
+          simulatorImageLabels.push(job.label);
         } else {
-          printerJobs.push({ uri: imageUris[index], sectionName });
+          if (job.printer) {
+            printerJobs.push({ uri: job.uri, printer: job.printer });
+          }
         }
       }
 
@@ -242,8 +247,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
       }
 
       if (printerJobs.length > 0) {
-        const selected = resolvePrinterForSection(effectiveSettings, printerJobs[0]?.sectionName || null);
-        if (!effectiveSettings.printerEnabled || !selected) {
+        if (!effectiveSettings.printerEnabled) {
           processedOrderIdsRef.current.delete(order.id);
           notifyAutoPrintError(order, 'Auto-print is enabled, but no printer is selected.');
           return;
@@ -255,11 +259,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
         });
 
         for (let index = 0; index < printerJobs.length; index++) {
-          const printer = resolvePrinterForSection(effectiveSettings, printerJobs[index].sectionName);
-          if (!printer) {
-            throw new Error(`No printer configured for section ${printerJobs[index].sectionName || 'Default'}.`);
-          }
-          await escposPrintOrderImage(printerJobs[index].uri, printer, 1, targetDots);
+          await escposPrintOrderImage(printerJobs[index].uri, printerJobs[index].printer, 1, targetDots);
           if (index < printerJobs.length - 1) {
             await new Promise((resolve) => setTimeout(resolve, SECTION_PRINT_DELAY_MS));
           }
@@ -296,7 +296,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
       autoPrintedOrderIdsRef.current.add(order.id);
       logOrderEvent('success', 'print', 'Auto-print workflow completed', {
         order: freshOrder,
-        details: `${imageUris.length} receipt image(s) processed`,
+        details: `${capturedJobs.length} receipt image(s) processed`,
       });
     } catch (error) {
       processedOrderIdsRef.current.delete(order.id);
@@ -522,7 +522,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
               printSource={tempPrintSource || undefined}
               showTicketCounter={hasAnySimulatorAssignment(appSettings)}
               onlyTicketIndex={tempPrintTicketIndex}
-              duplicateBySections
+              duplicateBySections={tempPrintDuplicateBySections}
             />
           </View>
         ) : null}

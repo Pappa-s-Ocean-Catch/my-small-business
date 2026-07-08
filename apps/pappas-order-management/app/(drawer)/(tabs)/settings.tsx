@@ -296,6 +296,12 @@ export default function SettingsScreen() {
         )));
     };
 
+    const updatePrinterAssignmentPrintMode = (assignmentId: string, printMode: 'combine' | 'separate') => {
+        setPrinterSectionAssignments((prev) => prev.map((assignment) => (
+            assignment.id === assignmentId ? { ...assignment, printMode } : assignment
+        )));
+    };
+
     const updatePrinterAssignmentSection = (assignmentId: string, sectionName: string) => {
         setPrinterSectionAssignments((prev) => prev.map((assignment) => (
             assignment.id === assignmentId
@@ -651,7 +657,7 @@ export default function SettingsScreen() {
                             <View style={styles.separator} />
 
                             <Text style={styles.label}>Section printers</Text>
-                            <Text style={styles.helper}>Default printer is the fallback. If a section rule has no printer and simulator is off, that section will be skipped.</Text>
+                            <Text style={styles.helper}>Default printer is the fallback. `Combine` prints the full ticket. `Separate` prints only that section. If a section rule has no printer and simulator is off, that section will be skipped.</Text>
                             {printerSectionAssignments.map((assignment) => {
                                 const assignmentPrinter = printerSaved.find((printer) => printer.target === assignment.printerTarget) || null;
                                 return (
@@ -707,6 +713,23 @@ export default function SettingsScreen() {
                                                 value={!!assignment.useSimulator}
                                                 onValueChange={(value) => updatePrinterAssignmentSimulator(assignment.id, value)}
                                             />
+                                        </View>
+                                        <Text style={[styles.label, styles.assignmentSubLabel]}>Print mode</Text>
+                                        <View style={styles.buttonGroup}>
+                                            <Button
+                                                mode={(assignment.printMode || 'combine') === 'combine' ? 'contained' : 'outlined'}
+                                                onPress={() => updatePrinterAssignmentPrintMode(assignment.id, 'combine')}
+                                                style={styles.flexButton}
+                                            >
+                                                Combine
+                                            </Button>
+                                            <Button
+                                                mode={assignment.printMode === 'separate' ? 'contained' : 'outlined'}
+                                                onPress={() => updatePrinterAssignmentPrintMode(assignment.id, 'separate')}
+                                                style={styles.flexButton}
+                                            >
+                                                Separate
+                                            </Button>
                                         </View>
                                         {!assignment.isDefault && (
                                             <Button mode="text" onPress={() => removePrinterSectionAssignment(assignment.id)}>
@@ -896,6 +919,10 @@ const styles = StyleSheet.create({
     assignmentSwitchRow: {
         marginTop: 12,
         marginBottom: 0,
+    },
+    assignmentSubLabel: {
+        marginTop: 12,
+        marginBottom: 8,
     },
     printerName: {
         fontSize: 14,

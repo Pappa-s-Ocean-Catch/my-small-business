@@ -6,6 +6,7 @@ import { getPostHogClient } from '@/lib/posthog-server';
 import { buildDefaultStoreHours, isPickupTimeWithinHours, isStoreOpenNow } from '@/lib/store-hours';
 import type {
   Order,
+  OrderEvent,
   OrderItem,
   OrderItemAddon,
   OrderChannel,
@@ -891,6 +892,42 @@ export async function getOrder(orderId: string): Promise<{ data: Order | null; e
     };
   } catch (error) {
     console.error('Unexpected error fetching order:', error);
+    return { data: null, error: 'An unexpected error occurred' };
+  }
+}
+
+export async function getOrderEvents(orderId: string): Promise<{ data: OrderEvent[] | null; error: string | null }> {
+  try {
+    const supabase = await createServiceRoleClient();
+
+    const { data, error } = await supabase
+      .from('order_events')
+      .select('*')
+      .eq('order_id', orderId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching order events:', error);
+      return { data: null, error: error.message };
+    }
+
+    return {
+      data: (data ?? []).map((event) => ({
+        id: event.id,
+        order_id: event.order_id,
+        source: event.source,
+        event_type: event.event_type,
+        status: event.status,
+        message: event.message,
+        external_order_number: event.external_order_number,
+        external_delivery_id: event.external_delivery_id,
+        details: (event.details as Record<string, unknown> | null) ?? {},
+        created_at: event.created_at,
+      })),
+      error: null,
+    };
+  } catch (error) {
+    console.error('Unexpected error fetching order events:', error);
     return { data: null, error: 'An unexpected error occurred' };
   }
 }

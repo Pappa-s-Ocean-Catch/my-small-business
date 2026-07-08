@@ -12,6 +12,7 @@ export type PrinterSectionAssignment = {
     sectionName: string;
     printerTarget: string | null;
     useSimulator?: boolean;
+    printMode?: 'combine' | 'separate';
     isDefault?: boolean;
 };
 
@@ -34,6 +35,7 @@ function normalizePrinterSectionAssignment(value: unknown): PrinterSectionAssign
         sectionName,
         printerTarget,
         useSimulator: !!v.useSimulator,
+        printMode: v.printMode === 'separate' ? 'separate' : 'combine',
         isDefault: !!v.isDefault || sectionName.toLowerCase() === 'default',
     };
 }
@@ -70,6 +72,7 @@ function normalizePrinterSectionAssignments(
             sectionName: 'Default',
             printerTarget: legacySelectedTarget,
             useSimulator: false,
+            printMode: 'combine',
             isDefault: true,
         });
     }
@@ -151,6 +154,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
         sectionName: 'Default',
         printerTarget: null,
         useSimulator: false,
+        printMode: 'combine',
         isDefault: true,
     }],
     printerSimulator: false,

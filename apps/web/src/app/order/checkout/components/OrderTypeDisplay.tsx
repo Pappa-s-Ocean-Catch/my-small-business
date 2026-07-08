@@ -4,12 +4,16 @@ interface OrderTypeDisplayProps {
   orderType: "pickup" | "delivery" | null;
   deliveryAddress: any;
   deliveryQuote: any;
+  deliveryInstructions?: string;
+  onDeliveryInstructionsChange?: (value: string) => void;
 }
 
 export function OrderTypeDisplay({
   orderType,
   deliveryAddress,
   deliveryQuote,
+  deliveryInstructions = "",
+  onDeliveryInstructionsChange,
 }: OrderTypeDisplayProps) {
   if (!orderType) return null;
 
@@ -40,6 +44,25 @@ export function OrderTypeDisplay({
           Change
         </Link>
       </div>
+
+      {orderType === "delivery" && onDeliveryInstructionsChange && (
+        <div className="mt-5 border-t border-gray-200 pt-5 dark:border-neutral-700">
+          <label className="mb-2 block text-sm font-medium text-gray-900 dark:text-white">
+            Delivery Instructions
+          </label>
+          <textarea
+            value={deliveryInstructions}
+            onChange={(e) => onDeliveryInstructionsChange(e.target.value)}
+            rows={3}
+            maxLength={250}
+            className="w-full resize-none rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 dark:border-neutral-600 dark:bg-neutral-900 dark:text-white"
+            placeholder="Gate code, unit number, leave at door, or other delivery notes"
+          />
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            These notes will be shared with the delivery driver.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

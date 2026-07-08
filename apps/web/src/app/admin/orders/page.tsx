@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { getAllOrders, updateOrderStatus, updatePaymentStatus, getOrder } from '@/app/actions/orders';
+import { getAllOrders, updateOrderStatus, updatePaymentStatus, getOrder, getOrderEvents } from '@/app/actions/orders';
 import { LoadingSpinner } from '@/components/Loading';
 import { AdminGuard } from '@/components/AdminGuard';
-import { FaEye, FaPrint, FaCheckCircle, FaTimesCircle, FaClock, FaSpinner, FaFilter, FaPlay, FaCheck, FaShoppingBag, FaChevronLeft, FaChevronRight, FaCalendar } from 'react-icons/fa';
+import { FaEye, FaPrint, FaCheckCircle, FaTimesCircle, FaClock, FaSpinner, FaFilter, FaPlay, FaCheck, FaShoppingBag, FaChevronLeft, FaChevronRight, FaCalendar, FaChevronDown, FaChevronUp } from 'react-icons/fa';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 import { Icon } from '@/components/Icon';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
-import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
+import type { Order, OrderEvent, OrderStatus, PaymentStatus } from '@my-small-business/types';
 
 // Sound notification for new orders
 const playNewOrderSound = () => {
@@ -58,6 +58,8 @@ export default function OrdersPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showOrderModal, setShowOrderModal] = useState(false);
+  const [orderEvents, setOrderEvents] = useState<OrderEvent[]>([]);
+  const [expandedEventIds, setExpandedEventIds] = useState<Set<string>>(new Set());
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [paymentFilter, setPaymentFilter] = useState<string>('all');
   const [selectedDate, setSelectedDate] = useState<string>(getTodayDateString());
@@ -274,19 +276,35 @@ export default function OrdersPage() {
     setOrderLoading(true);
     setShowOrderModal(true);
     try {
-      const result = await getOrder(orderId);
-      if (result.error) {
-        setError(result.error);
+      const [orderResult, eventsResult] = await Promise.all([
+        getOrder(orderId),
+        getOrderEvents(orderId),
+      ]);
+      if (orderResult.error) {
+        setError(orderResult.error);
         setSelectedOrder(null);
-      } else if (result.data) {
-        setSelectedOrder(result.data);
+        setOrderEvents([]);
+      } else if (orderResult.data) {
+        setSelectedOrder(orderResult.data);
+        setOrderEvents(eventsResult.data || []);
+        setExpandedEventIds(new Set());
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load order');
       setSelectedOrder(null);
+      setOrderEvents([]);
     } finally {
       setOrderLoading(false);
     }
+  };
+
+  const toggleEventExpanded = (eventId: string) => {
+    setExpandedEventIds((current) => {
+      const next = new Set(current);
+      if (next.has(eventId)) next.delete(eventId);
+      else next.add(eventId);
+      return next;
+    });
   };
 
   const handleStatusUpdate = async (orderId: string, newStatus: OrderStatus) => {
@@ -854,6 +872,84 @@ export default function OrdersPage() {
                           <p className="text-gray-900 dark:text-white">{selectedOrder.special_instructions}</p>
                         </div>
                       )}
+
+                      <div className="mb-6">
+                        <div className="mb-3 flex items-center justify-between">
+                          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                            Order Events
+                          </h3>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            {orderEvents.length} event{orderEvents.length === 1 ? '' : 's'}
+                          </span>
+                        </div>
+                        {orderEvents.length === 0 ? (
+                          <div className="rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-500 dark:border-neutral-700 dark:text-gray-400">
+                            No event history recorded for this order yet.
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            {orderEvents.map((event) => {
+                              const isExpanded = expandedEventIds.has(event.id);
+                              return (
+                                <div
+                                  key={event.id}
+                                  className="overflow-hidden rounded-lg border border-gray-200 dark:border-neutral-700"
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleEventExpanded(event.id)}
+                                    className="w-full bg-gray-50 px-4 py-3 text-left transition-colors hover:bg-gray-100 dark:bg-neutral-900/60 dark:hover:bg-neutral-900"
+                                  >
+                                    <div className="flex items-start justify-between gap-4">
+                                      <div className="min-w-0">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                                            {event.event_type}
+                                          </span>
+                                          <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-200">
+                                            {event.source}
+                                          </span>
+                                          {event.status && (
+                                            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
+                                              {event.status}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                          {new Date(event.created_at).toLocaleString()}
+                                        </p>
+                                        {event.message && (
+                                          <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">
+                                            {event.message}
+                                          </p>
+                                        )}
+                                      </div>
+                                      <Icon icon={isExpanded ? FaChevronUp : FaChevronDown} className="h-4 w-4 shrink-0 text-gray-400" />
+                                    </div>
+                                  </button>
+                                  {isExpanded && (
+                                    <div className="border-t border-gray-200 bg-white p-4 dark:border-neutral-700 dark:bg-neutral-800">
+                                      <div className="mb-4 grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
+                                        <div>
+                                          <span className="text-gray-500 dark:text-gray-400">External Order:</span>{' '}
+                                          <span className="text-gray-900 dark:text-white">{event.external_order_number || 'N/A'}</span>
+                                        </div>
+                                        <div>
+                                          <span className="text-gray-500 dark:text-gray-400">Provider ID:</span>{' '}
+                                          <span className="text-gray-900 dark:text-white">{event.external_delivery_id || 'N/A'}</span>
+                                        </div>
+                                      </div>
+                                      <pre className="overflow-x-auto rounded-lg bg-gray-950 p-4 text-xs text-green-100">
+{JSON.stringify(event.details, null, 2)}
+                                      </pre>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
 
                       {/* Order Items */}
                       {selectedOrder.items && selectedOrder.items.length > 0 && (

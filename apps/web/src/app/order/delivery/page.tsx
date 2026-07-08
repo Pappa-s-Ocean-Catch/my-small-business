@@ -1,11 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DeliveryAddressForm, type DeliveryAddressInput } from '@/components/DeliveryAddressForm';
 import { OrderHeader } from '@/components/OrderHeader';
 import { Icon } from '@/components/Icon';
-import { FaTruck, FaClock, FaArrowRight, FaMapMarkerAlt } from 'react-icons/fa';
+import {
+  FaArrowRight,
+  FaCheckCircle,
+  FaClock,
+  FaMapMarkerAlt,
+  FaStore,
+  FaTruck,
+} from 'react-icons/fa';
 import { LoadingSpinner } from '@/components/Loading';
 
 export default function DeliveryEntryPage() {
@@ -34,7 +41,6 @@ export default function DeliveryEntryPage() {
             latitude: parseFloat(process.env.NEXT_PUBLIC_STORE_LATITUDE || '-37.678'),
             longitude: parseFloat(process.env.NEXT_PUBLIC_STORE_LONGITUDE || '144.579'),
           },
-
           dropoff_address: selectedAddress,
         }),
       });
@@ -56,91 +62,109 @@ export default function DeliveryEntryPage() {
   const handleContinue = () => {
     if (!address || !quote) return;
 
-    // Save to session storage
     sessionStorage.setItem('order_type', 'delivery');
     sessionStorage.setItem('delivery_address', JSON.stringify(address));
     sessionStorage.setItem('delivery_quote', JSON.stringify(quote));
 
-    // Redirect to menu
     router.push('/order');
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-neutral-900 pb-12">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.12),_transparent_35%),linear-gradient(180deg,#f8fafc_0%,#ecfdf5_100%)] pb-12 dark:bg-neutral-950">
       <OrderHeader />
-      
-      <main className="max-w-3xl mx-auto px-4 py-8 md:py-12">
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full mb-4">
-            <Icon icon={FaTruck} className="w-8 h-8 text-blue-600 dark:text-blue-400" />
-          </div>
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-2">
-            Online Delivery
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            Enter your address to see delivery fee and ETA
-          </p>
-        </div>
 
-        <div className="bg-white dark:bg-neutral-800 rounded-2xl shadow-xl border border-gray-200 dark:border-neutral-700">
+      <main className="mx-auto max-w-5xl px-4 py-8 md:py-12">
+        <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
+          <section className="rounded-[2rem] border border-emerald-100 bg-white/90 p-6 shadow-[0_24px_80px_-32px_rgba(16,185,129,0.45)] backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/90 md:p-8">
+            <div className="mb-8">
+              <div className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
+                <Icon icon={FaTruck} className="h-4 w-4" />
+                Online delivery order
+              </div>
+              <h1 className="mt-4 text-3xl font-bold tracking-tight text-gray-900 dark:text-white md:text-5xl">
+                From fryer to your door.
+              </h1>
+            </div>
 
-          <div className="p-6 md:p-8">
-            <DeliveryAddressForm 
-              onAddressSelect={handleAddressSelect}
-              isAuthenticated={false} // We handle auth during checkout
-              allowSave={false}
-            />
+            <div className="mb-6 grid gap-3 sm:grid-cols-3">
+              {[
+                { icon: FaMapMarkerAlt, label: 'Enter address' },
+                { icon: FaClock, label: 'See ETA' },
+                { icon: FaCheckCircle, label: 'Start ordering' },
+              ].map((step, index) => (
+                <div
+                  key={step.label}
+                  className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-4 dark:border-neutral-800 dark:bg-neutral-950/50"
+                >
+                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-white text-emerald-600 shadow-sm dark:bg-neutral-900 dark:text-emerald-400">
+                    <Icon icon={step.icon} className="h-4 w-4" />
+                  </div>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                    {index + 1}. {step.label}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded-[1.5rem] border border-gray-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900/80 md:p-6">
+              <DeliveryAddressForm
+                onAddressSelect={handleAddressSelect}
+                isAuthenticated={false}
+                allowSave={false}
+                compact
+              />
+            </div>
 
             {loading && (
-              <div className="mt-8 flex flex-col items-center justify-center py-10 border-t border-gray-100 dark:border-neutral-700">
+              <div className="mt-8 flex flex-col items-center justify-center rounded-2xl border border-gray-200 bg-gray-50 py-10 dark:border-neutral-800 dark:bg-neutral-900/60">
                 <LoadingSpinner size="lg" />
-                <p className="mt-4 text-gray-600 dark:text-gray-400">Calculating delivery fee...</p>
+                <p className="mt-4 text-gray-600 dark:text-gray-400">Checking delivery fee and ETA...</p>
               </div>
             )}
 
             {error && !loading && (
-              <div className="mt-8 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-red-600 dark:text-red-400 text-sm flex items-center gap-3">
-                <div className="w-2 h-2 rounded-full bg-red-600 shrink-0" />
+              <div className="mt-8 flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
+                <div className="h-2 w-2 shrink-0 rounded-full bg-red-600" />
                 {error}
               </div>
             )}
 
             {quote && !loading && (
-              <div className="mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="p-6 bg-blue-50 dark:bg-blue-900/20 rounded-2xl border border-blue-100 dark:border-blue-800">
-                  <div className="flex items-start justify-between mb-6">
+              <div className="mt-8 animate-in slide-in-from-bottom-4 fade-in duration-500">
+                <div className="rounded-[1.75rem] border border-emerald-200 bg-emerald-50 p-6 dark:border-emerald-900 dark:bg-emerald-950/30">
+                  <div className="mb-6 flex items-start justify-between">
                     <div>
-                      <h3 className="font-bold text-gray-900 dark:text-white text-lg flex items-center gap-2">
-                        <Icon icon={FaMapMarkerAlt} className="text-blue-600" />
+                      <h3 className="flex items-center gap-2 text-lg font-bold text-gray-900 dark:text-white">
+                        <Icon icon={FaMapMarkerAlt} className="text-emerald-600" />
                         Delivery Details
                       </h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                      <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
                         {address?.address_line1}, {address?.city}
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-2xl font-black text-blue-600 dark:text-blue-400">
+                      <p className="text-3xl font-black text-emerald-600 dark:text-emerald-400">
                         ${quote.fee.toFixed(2)}
                       </p>
-                      <p className="text-xs font-bold text-blue-400 dark:text-blue-500 uppercase tracking-wider">
+                      <p className="text-xs font-bold uppercase tracking-wider text-emerald-500">
                         Delivery Fee
                       </p>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4 mb-6">
-                    <div className="p-4 bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-blue-50 dark:border-neutral-700">
-                      <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 mb-1">
-                        <Icon icon={FaClock} className="w-4 h-4" />
+                  <div className="mb-6 grid grid-cols-2 gap-4">
+                    <div className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+                      <div className="mb-1 flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                        <Icon icon={FaClock} className="h-4 w-4" />
                         <span className="text-xs font-bold uppercase">Estimated ETA</span>
                       </div>
                       <p className="text-lg font-bold text-gray-900 dark:text-white">
                         {quote.estimated_duration_minutes} mins
                       </p>
                     </div>
-                    <div className="p-4 bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-blue-50 dark:border-neutral-700">
-                      <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 mb-1">
-                        <Icon icon={FaTruck} className="w-4 h-4" />
+                    <div className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+                      <div className="mb-1 flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                        <Icon icon={FaTruck} className="h-4 w-4" />
                         <span className="text-xs font-bold uppercase">Distance</span>
                       </div>
                       <p className="text-lg font-bold text-gray-900 dark:text-white">
@@ -151,27 +175,52 @@ export default function DeliveryEntryPage() {
 
                   <button
                     onClick={handleContinue}
-                    className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-200 dark:shadow-none transition-all flex items-center justify-center gap-2 group"
+                    className="group flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-4 font-bold text-white shadow-lg shadow-emerald-200 transition-all hover:bg-emerald-700 dark:shadow-none"
                   >
                     Start Ordering
-                    <Icon icon={FaArrowRight} className="group-hover:translate-x-1 transition-transform" />
+                    <Icon icon={FaArrowRight} className="transition-transform group-hover:translate-x-1" />
                   </button>
                 </div>
               </div>
             )}
-          </div>
-        </div>
+          </section>
 
-        <div className="mt-8 text-center">
-          <button 
-            onClick={() => {
-              sessionStorage.setItem('order_type', 'pickup');
-              router.push('/order');
-            }}
-            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-sm font-medium transition-colors"
-          >
-            Or switch to Pickup Order
-          </button>
+          <aside className="space-y-4">
+            <div className="rounded-[2rem] border border-gray-200 bg-white/90 p-6 shadow-sm backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/85">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-300">
+                  <Icon icon={FaStore} className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
+                    From our shop
+                  </p>
+                  <p className="text-lg font-bold text-gray-900 dark:text-white">
+                    Pappa&apos;s Ocean Catch
+                  </p>
+                </div>
+              </div>
+              <p className="mt-4 text-sm leading-6 text-gray-600 dark:text-gray-400">
+                Delivery pricing is calculated live from your address, so you only see the fee that applies to your order.
+              </p>
+            </div>
+
+            <div className="rounded-[2rem] border border-gray-200 bg-white/80 p-6 dark:border-neutral-800 dark:bg-neutral-900/80">
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white">Prefer pickup?</h2>
+              <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                Skip the delivery fee and head straight to the menu.
+              </p>
+              <button
+                onClick={() => {
+                  sessionStorage.setItem('order_type', 'pickup');
+                  router.push('/order');
+                }}
+                className="mt-4 w-full rounded-2xl border border-gray-300 px-4 py-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-neutral-700 dark:text-gray-200 dark:hover:bg-neutral-800"
+              >
+                Switch to Pickup Order
+              </button>
+            </div>
+          </aside>
         </div>
       </main>
     </div>

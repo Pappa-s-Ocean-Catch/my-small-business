@@ -279,7 +279,6 @@ export default function CheckoutPage() {
   );
   const [deliveryAddress, setDeliveryAddress] = useState<DeliveryAddressInput | null>(null);
   const [deliveryQuote, setDeliveryQuote] = useState<DeliveryQuote | null>(null);
-  const [deliveryAddressEditable, setDeliveryAddressEditable] = useState(false);
   const [scheduledPickupAt, setScheduledPickupAt] = useState<string | null>(
     null,
   );
@@ -521,7 +520,8 @@ export default function CheckoutPage() {
 
     if (storedDeliveryAddress) {
       try {
-        setDeliveryAddress(JSON.parse(storedDeliveryAddress));
+        const parsedAddress = JSON.parse(storedDeliveryAddress);
+        setDeliveryAddress(parsedAddress);
       } catch (e) {
         console.error("Error parsing delivery address:", e);
       }
@@ -542,9 +542,22 @@ export default function CheckoutPage() {
     }
   }, []);
 
-  // Set default payment method for delivery
+  const handleDeliveryInstructionsChange = (value: string) => {
+    setDeliveryAddress((current) => {
+      if (!current) return current;
+      const next = {
+        ...current,
+        delivery_instructions: value,
+      };
+      sessionStorage.setItem("deliveryAddress", JSON.stringify(next));
+      sessionStorage.setItem("delivery_address", JSON.stringify(next));
+      return next;
+    });
+  };
+
+  // Delivery checkout always uses online payment.
   useEffect(() => {
-    if (orderType === "delivery" && !paymentMethod) {
+    if (orderType === "delivery" && paymentMethod !== "online") {
       setPaymentMethod("online");
     }
   }, [orderType, paymentMethod]);
@@ -1895,6 +1908,10 @@ export default function CheckoutPage() {
             orderType={orderType}
             deliveryAddress={deliveryAddress}
             deliveryQuote={deliveryQuote}
+            deliveryInstructions={deliveryAddress?.delivery_instructions || ""}
+            onDeliveryInstructionsChange={
+              orderType === "delivery" ? handleDeliveryInstructionsChange : undefined
+            }
           />
 
           {/* Require login/signup for all payment methods */}
@@ -1964,17 +1981,14 @@ export default function CheckoutPage() {
               </p>
             </div>
           )}
-          {isAuthenticated && hasRequiredContactInfo && (
-            <>
-              {/* Payment Method Selection */}
-              <PaymentMethodSelector
-                paymentMethod={paymentMethod}
-                featureFlagsLoaded={featureFlagsLoaded}
-                featureFlags={featureFlags}
-                orderType={orderType}
-                onSelect={handlePaymentMethodSelect}
-              />
-            </>
+          {isAuthenticated && hasRequiredContactInfo && orderType !== "delivery" && (
+            <PaymentMethodSelector
+              paymentMethod={paymentMethod}
+              featureFlagsLoaded={featureFlagsLoaded}
+              featureFlags={featureFlags}
+              orderType={orderType}
+              onSelect={handlePaymentMethodSelect}
+            />
           )}
 
           {/* Coupon Section */}
