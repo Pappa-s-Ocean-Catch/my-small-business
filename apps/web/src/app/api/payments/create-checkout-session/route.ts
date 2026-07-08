@@ -17,6 +17,7 @@ const stripe = stripeSecretKey ? new Stripe(stripeSecretKey) : null;
 // Adjust if needed via env variables.
 const STRIPE_PERCENT_FEE = Number(process.env.STRIPE_PERCENT_FEE ?? '0.0175');
 const STRIPE_FIXED_FEE = Number(process.env.STRIPE_FIXED_FEE ?? '0.3');
+const DELIVERY_PROCESSING_FEE = Number(process.env.DELIVERY_PROCESSING_FEE ?? '1');
 
 interface CreateCheckoutSessionBody {
   orderId: string;
@@ -75,11 +76,11 @@ export async function POST(request: Request) {
     const orderBaseAmount = Math.max(0, body.subtotal + body.tax - rewardPointsDiscount);
     
     // Service fee calculation (matches frontend)
-    // 1.75% + 0.30c + $1.50 if delivery
+    // 1.75% + 0.30c + configurable delivery processing fee if delivery
     const totalForFeeCalculation = Math.max(0, orderBaseAmount + body.deliveryFee);
     let serviceFee = totalForFeeCalculation * STRIPE_PERCENT_FEE + STRIPE_FIXED_FEE;
     if (body.orderType === 'delivery') {
-      serviceFee += 1.5;
+      serviceFee += DELIVERY_PROCESSING_FEE;
     }
 
     const totalAmount = orderBaseAmount + body.deliveryFee + serviceFee;

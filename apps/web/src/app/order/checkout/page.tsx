@@ -58,6 +58,9 @@ const phoneLoginEnabled =
   (process.env.NEXT_PUBLIC_ENABLE_CHECKOUT_PHONE_LOGIN === "true" ||
     process.env.NEXT_PUBLIC_ENABLE_CHECKOUT_PHONE_LOGIN === "1");
 const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? "";
+const deliveryProcessingFee = Number(
+  process.env.NEXT_PUBLIC_DELIVERY_PROCESSING_FEE ?? "1",
+);
 
 declare global {
   interface Window {
@@ -495,9 +498,9 @@ export default function CheckoutPage() {
     );
     let calculatedServiceFee = baseAmount * 0.0175 + 0.3; // Stripe fees
     
-    // Additional $1.50 processing fee for delivery orders
+    // Additional configurable processing fee for delivery orders
     if (orderType === "delivery") {
-      calculatedServiceFee += 1.5;
+      calculatedServiceFee += deliveryProcessingFee;
     }
     
     setServiceFee(calculatedServiceFee);
