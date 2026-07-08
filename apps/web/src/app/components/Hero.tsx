@@ -99,7 +99,7 @@ export function Hero({ homePromotions, enablePickupOrder, reviewSectionId }: Her
                         href="/order/delivery"
                         target="_self"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center justify-center gap-2 px-8 py-3 md:py-4 bg-white/10 backdrop-blur-sm text-white rounded-lg font-semibold text-lg hover:bg-white/20 transition-colors border-2 border-white/30"
+                        className="inline-flex items-center justify-center gap-2 rounded-lg border-2 border-amber-200/70 bg-amber-500 px-8 py-3 text-lg font-bold text-slate-950 shadow-[0_16px_40px_rgba(245,158,11,0.35)] transition-all hover:scale-105 hover:bg-amber-400 hover:shadow-[0_18px_48px_rgba(245,158,11,0.45)] focus:outline-none focus:ring-4 focus:ring-amber-200/70 md:py-4"
                     >
                         Delivery Order
                         <Icon icon={FaArrowRight} className="w-5 h-5" />
@@ -114,13 +114,13 @@ export function Hero({ homePromotions, enablePickupOrder, reviewSectionId }: Her
                         <Icon icon={FaArrowRight} className="w-5 h-5" />
                     </a>
 
-                    <Link
+                    {/* <Link
                         href="/menu"
                         className="inline-flex items-center justify-center gap-2 px-8 py-3 md:py-4 bg-rose-600 text-white rounded-lg font-semibold text-lg hover:bg-rose-700 transition-colors shadow-lg hover:shadow-xl"
                     >
                         <Icon icon={FaUtensils} className="w-5 h-5" />
                         View Our Menu
-                    </Link>
+                    </Link> */}
                 </div>
             </div>
 

@@ -15,7 +15,7 @@ const HEADERS = {
     'accept': 'application/json, text/plain, */*',
     'accept-language': 'en-AU,en-GB;q=0.9,en-US;q=0.8,en;q=0.7',
     'api-token': 'J6WDf0ttQKGfYhQkRCjwraBS11JYuIDx',
-    'authorization': 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhdWQiOjMxMzU0MjIyMCwiaWF0IjoxNzc0Mzk3MDQ2LCJuYmYiOjE3NzQzOTcwNDYsImV4cCI6MzkwOTkxOTcwNDYsInN1YiI6IiIsInNjb3BlcyI6WyIqIl19.5LoZ6AuRc6eL1dRq89ofz6JHerLzW2y6L_h0NObkE_I',
+    'authorization': 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhdWQiOjMxMzU0MjIyMCwiaWF0IjoxNzgzMTM2MTQ5LCJuYmYiOjE3ODMxMzYxNDksImV4cCI6MzkxMDc5MzYxNDksInN1YiI6IiIsInNjb3BlcyI6WyIqIl19.85Hn7_kvQcLRPJkSRZN-XA1tT-1PmnOt_VUAUm6h3zg',
     'cache-control': 'no-cache',
     'deviceinfo': '{"os":"macOS","version":"12.2 (0325)","platform":"WEB","platform_id":1,"product_id":"1","path":"https://pappasoceancatch-ea.com.au/review"}',
     'language': 'en',
