@@ -1,6 +1,6 @@
 import { Linking } from 'react-native';
 
-const DEFAULT_SITE_URL = 'https://localhost:3000';
+const DEFAULT_SITE_URL = 'https://pappasoceancatch.com.au';
 const DEFAULT_STORE_ADDRESS = {
   address_line1: 'Shop 2/87 Unitt Street',
   city: 'Melton',
@@ -126,6 +126,12 @@ export async function createStripeCheckoutSession(params: {
     body: JSON.stringify(params),
   });
   return payload;
+}
+
+export async function openExternalUrl(url: string) {
+  const trimmedUrl = url.trim();
+  if (!trimmedUrl) return;
+  await Linking.openURL(trimmedUrl);
 }
 
 export async function openSmsComposer(phone: string, message: string) {

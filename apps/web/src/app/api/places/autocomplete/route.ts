@@ -5,10 +5,10 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function GET(request: NextRequest) {
   const input = request.nextUrl.searchParams.get('input')?.trim() ?? '';
   const country = request.nextUrl.searchParams.get('country')?.trim() ?? 'au';
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.trim();
+  const apiKey = process.env.GOOGLE_MAPS_SERVER_API_KEY?.trim();
 
   if (!apiKey) {
-    return NextResponse.json({ success: false, error: 'Google Maps API key is not configured' }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Google Maps server API key is not configured' }, { status: 500 });
   }
 
   if (input.length < 3) {

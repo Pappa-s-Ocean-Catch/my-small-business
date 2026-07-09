@@ -1718,14 +1718,34 @@ export default function PosScreen() {
         orderType: 'delivery',
       });
 
+      const finalTotalAmount = Number((feeSummary.orderBaseAmount + input.quote.fee + checkoutSession.serviceFee).toFixed(2));
+
+      if (
+        checkoutSession.serviceFee !== feeSummary.serviceFee
+        || finalTotalAmount !== feeSummary.totalAmount
+      ) {
+        const { error: syncOrderFeeError } = await supabase
+          .from('orders')
+          .update({
+            service_fee: checkoutSession.serviceFee,
+            total: finalTotalAmount,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', saveResult.data.id);
+
+        if (syncOrderFeeError) {
+          console.warn('Failed to sync Stripe-calculated delivery fee back to POS order', syncOrderFeeError);
+        }
+      }
+
       invalidateTopSellers();
 
       return {
         orderId: saveResult.data.id,
         paymentUrl: checkoutSession.url,
-        serviceFee: feeSummary.serviceFee,
+        serviceFee: checkoutSession.serviceFee,
         deliveryFee: input.quote.fee,
-        totalAmount: feeSummary.totalAmount,
+        totalAmount: finalTotalAmount,
       };
     } catch (error) {
       console.error('Delivery checkout failed', error);

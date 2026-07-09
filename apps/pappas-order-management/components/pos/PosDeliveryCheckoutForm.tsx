@@ -7,11 +7,14 @@ import type { CustomerLookupStatus } from './PosCheckoutPanel';
 import type {
   AddressSuggestion,
   DeliveryAddressDraft,
+  DeliveryFeeSummary,
   DeliveryQuoteResult,
 } from '../../lib/delivery';
 import {
+  calculateDeliveryFees,
   fetchAddressDetails,
   fetchAddressSuggestions,
+  openExternalUrl,
   openSmsComposer,
   requestDeliveryQuote,
 } from '../../lib/delivery';
@@ -59,6 +62,8 @@ export function PosDeliveryCheckoutForm({
   const [quote, setQuote] = useState<DeliveryQuoteResult | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [loadingAddressDetails, setLoadingAddressDetails] = useState(false);
+  const [calculatingFees, setCalculatingFees] = useState(false);
+  const [feeSummary, setFeeSummary] = useState<DeliveryFeeSummary | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [paymentRequest, setPaymentRequest] = useState<{
     orderId: string;
@@ -141,6 +146,7 @@ export function PosDeliveryCheckoutForm({
       setAddressQuery(suggestion.description);
       setSuggestions([]);
       setQuote(null);
+      setFeeSummary(null);
     } catch (error) {
       setQuoteError(error instanceof Error ? error.message : 'Failed to load address details');
     } finally {
@@ -162,6 +168,30 @@ export function PosDeliveryCheckoutForm({
       }
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleRequestQuote = async () => {
+    if (!selectedAddress) return;
+
+    setQuoteError(null);
+    setCalculatingFees(true);
+
+    try {
+      const nextQuote = await requestDeliveryQuote(selectedAddress);
+      const nextFeeSummary = await calculateDeliveryFees({
+        subtotal: totals.subtotal,
+        tax: totals.tax,
+        deliveryFee: nextQuote.fee,
+      });
+      setQuote(nextQuote);
+      setFeeSummary(nextFeeSummary);
+    } catch (error) {
+      setQuote(null);
+      setFeeSummary(null);
+      setQuoteError(error instanceof Error ? error.message : 'Failed to get delivery quote');
+    } finally {
+      setCalculatingFees(false);
     }
   };
 
@@ -220,6 +250,7 @@ export function PosDeliveryCheckoutForm({
               setAddressQuery(value);
               setSelectedAddress(null);
               setQuote(null);
+              setFeeSummary(null);
               setPaymentRequest(null);
               setQuoteError(null);
             }}
@@ -263,7 +294,10 @@ export function PosDeliveryCheckoutForm({
             mode="outlined"
             value={selectedAddress?.delivery_instructions || ''}
             onChangeText={(value) => {
-              setSelectedAddress((current) => (current ? { ...current, delivery_instructions: value } : current));
+              setSelectedAddress((current) => {
+                if (!current) return current;
+                return { ...current, delivery_instructions: value };
+              });
             }}
             multiline
             style={[styles.checkoutInput, styles.checkoutNoteInput, styles.checkoutNoteInputLarge]}
@@ -273,19 +307,9 @@ export function PosDeliveryCheckoutForm({
           <Button
             mode="outlined"
             icon="truck-delivery-outline"
-            disabled={!selectedAddress || creatingOrder || submitting || smartpayProcessing}
-            onPress={() => {
-              if (!selectedAddress) return;
-              setQuoteError(null);
-              void (async () => {
-                try {
-                  const nextQuote = await requestDeliveryQuote(selectedAddress);
-                  setQuote(nextQuote);
-                } catch (error) {
-                  setQuoteError(error instanceof Error ? error.message : 'Failed to get delivery quote');
-                }
-              })();
-            }}
+            loading={calculatingFees}
+            disabled={!selectedAddress || creatingOrder || submitting || smartpayProcessing || calculatingFees}
+            onPress={() => void handleRequestQuote()}
           >
             Get delivery quote
           </Button>
@@ -306,15 +330,24 @@ export function PosDeliveryCheckoutForm({
                 <Text style={styles.totalLabel}>Delivery fee</Text>
                 <Text style={styles.totalValue}>${quote.fee.toFixed(2)}</Text>
               </View>
-              {paymentRequest && (
+              {feeSummary && (
                 <View style={styles.totalRow}>
                   <Text style={styles.totalLabel}>Service fee</Text>
-                  <Text style={styles.totalValue}>${paymentRequest.serviceFee.toFixed(2)}</Text>
+                  <Text style={styles.totalValue}>${feeSummary.serviceFee.toFixed(2)}</Text>
+                </View>
+              )}
+              {feeSummary && (
+                <View style={styles.totalRow}>
+                  <Text style={styles.grandTotalLabel}>Customer total</Text>
+                  <Text style={styles.grandTotalValue}>${feeSummary.totalAmount.toFixed(2)}</Text>
                 </View>
               )}
               <Text style={styles.deliveryQuoteMeta}>
                 {quote.provider_name} • ETA {quote.estimated_duration_minutes ?? '-'} min
               </Text>
+              {!!quote.distance_km && (
+                <Text style={styles.deliveryQuoteMeta}>Distance {quote.distance_km.toFixed(1)} km</Text>
+              )}
             </View>
           )}
         </View>
@@ -341,6 +374,7 @@ export function PosDeliveryCheckoutForm({
             || !customerName.trim()
             || !selectedAddress
             || !quote
+            || !feeSummary
           }
           onPress={() => void handleRequestDelivery()}
           style={styles.placeOrderButton}
@@ -355,6 +389,14 @@ export function PosDeliveryCheckoutForm({
             <Text style={styles.deliveryQuoteMeta}>Order created. Send the customer their Stripe payment link.</Text>
             <View style={styles.secondaryActionsRow}>
               <Button
+                mode="outlined"
+                icon="open-in-new"
+                onPress={() => void openExternalUrl(paymentRequest.paymentUrl)}
+                style={styles.secondaryActionButton}
+              >
+                Open Link
+              </Button>
+              <Button
                 mode="contained"
                 icon="message-text-outline"
                 onPress={() => void openSmsComposer(customerPhone, messageBody)}
@@ -366,6 +408,9 @@ export function PosDeliveryCheckoutForm({
             {paymentPolling && (
               <Text style={styles.lookupText}>Polling payment status every 5 seconds...</Text>
             )}
+            <Text style={styles.deliveryLinkText} numberOfLines={2}>
+              {paymentRequest.paymentUrl}
+            </Text>
           </View>
         )}
       </View>

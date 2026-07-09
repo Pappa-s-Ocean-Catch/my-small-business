@@ -34,10 +34,10 @@ function parseAddressComponents(components: Array<{ long_name: string; short_nam
 
 export async function GET(request: NextRequest) {
   const placeId = request.nextUrl.searchParams.get('placeId')?.trim() ?? '';
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.trim();
+  const apiKey = process.env.GOOGLE_MAPS_SERVER_API_KEY?.trim();
 
   if (!apiKey) {
-    return NextResponse.json({ success: false, error: 'Google Maps API key is not configured' }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Google Maps server API key is not configured' }, { status: 500 });
   }
 
   if (!placeId) {
