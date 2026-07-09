@@ -10,7 +10,7 @@ export interface DeliveryAddressInput {
   delivery_instructions?: string;
 }
 
-export type OrderChannel = 'online' | 'phone_pickup' | 'instore';
+export type OrderChannel = 'online' | 'phone_pickup' | 'phone_delivery' | 'instore';
 
 // Note: items type is flexible to allow different implementations
 // In web app, it's CartItemData[], in mobile it might be different

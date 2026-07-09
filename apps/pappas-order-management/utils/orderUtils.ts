@@ -100,7 +100,12 @@ export const formatElapsed = (
 };
 
 export const getOrderChannel = (order: Pick<Order, 'order_channel' | 'payment_method' | 'customer_name'>): OrderChannel => {
-  if (order.order_channel === 'online' || order.order_channel === 'phone_pickup' || order.order_channel === 'instore') {
+  if (
+    order.order_channel === 'online'
+    || order.order_channel === 'phone_pickup'
+    || order.order_channel === 'phone_delivery'
+    || order.order_channel === 'instore'
+  ) {
     return order.order_channel;
   }
 

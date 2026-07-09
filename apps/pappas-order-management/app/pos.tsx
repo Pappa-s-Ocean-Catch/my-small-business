@@ -1,12 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, FlatList, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { Appbar, Button, Dialog, Divider, IconButton, Portal, TextInput } from 'react-native-paper';
+import { Alert, FlatList, Platform, Text, View, useWindowDimensions } from 'react-native';
+import { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { Appbar } from 'react-native-paper';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import type { Order, OrderItem, OrderItemAddon, PaymentStatus } from '@my-small-business/types';
-import { savePosOrder, updatePosOrder } from '../lib/orders';
+import { getOrder, savePosOrder, updatePosOrder } from '../lib/orders';
 import { createCustomerIfNotExists, findCustomerByPhone } from '../lib/customers';
+import {
+  calculateDeliveryFees,
+  createStripeCheckoutSession,
+  type DeliveryAddressDraft,
+  type DeliveryQuoteResult,
+} from '../lib/delivery';
 import {
   DEFAULT_POS_BUTTON_COLOR,
   DEFAULT_POS_QUICK_ORDER_NOTES,
@@ -15,76 +21,26 @@ import {
 } from '../lib/pos-layouts';
 import { formatKitchenSectionValue, getOrderNotes, getOrderOptions } from '../utils/orderUtils';
 import { formatSmartpayError, isSmartpayPaired, processSmartpayCardPayment } from '../lib/smartpay';
-import { CashTenderModal } from '../components/CashTenderModal';
-
-type SaleCategory = {
-  id: string;
-  name: string;
-  section?: string | null;
-  sort_order: number | null;
-  is_active: boolean | null;
-  parent_category_id: string | null;
-};
-
-type SaleProduct = {
-  id: string;
-  name: string;
-  description: string | null;
-  section?: string | null;
-  search_term: string | null;
-  sale_price: number;
-  image_url: string | null;
-  sale_category_id: string | null;
-  sub_category_id: string | null;
-  sort_order: number | null;
-  is_active: boolean | null;
-};
-
-type TopSellerProduct = SaleProduct & {
-  total_quantity_sold: number;
-  total_orders: number;
-};
-
-type AddonItem = {
-  id: string;
-  addon_group_id: string;
-  name: string;
-  extra_price: number;
-  section?: string | null;
-  sort_order: number | null;
-  is_active: boolean | null;
-};
-
-type AddonGroup = {
-  id: string;
-  name: string;
-  is_required: boolean;
-  multiple_choice: boolean;
-  display_order: number | null;
-  items: AddonItem[];
-};
-
-type RemovableIngredient = {
-  id: string;
-  ingredient_name: string;
-};
-
-type PosCartItem = OrderItem & {
-  id: string;
-  addons: OrderItemAddon[];
-};
-
-type PosPaymentChoice = 'card' | 'cash' | 'no_pay';
-type PosInstorePaymentChoice = 'card' | 'cash' | 'unpaid';
-type PosCheckoutPaymentOverride = PosPaymentChoice | 'smartpay';
-type CashTenderMode = 'pickup' | 'instore';
-
-type LayoutCategoryButton = {
-  id: string;
-  name: string;
-  color: string;
-  showProductsOnTopLevel: boolean;
-};
+import { PosCartPane } from '../components/pos/PosCartPane';
+import { PosDialogs } from '../components/pos/PosDialogs';
+import { PosMenuPane } from '../components/pos/PosMenuPane';
+import { styles } from './pos.styles';
+import type {
+  AddonGroup,
+  AddonItem,
+  CacheEntry,
+  CashTenderMode,
+  CustomizationData,
+  LayoutCategoryButton,
+  PosCartItem,
+  PosCheckoutPaymentOverride,
+  PosInstorePaymentChoice,
+  PosPaymentChoice,
+  RemovableIngredient,
+  SaleCategory,
+  SaleProduct,
+  TopSellerProduct,
+} from './pos.types';
 
 const newLocalId = () => `pos-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
@@ -121,16 +77,6 @@ const ADDON_GROUP_PALETTE = [
   { backgroundColor: '#f0fdfa', borderColor: '#5eead4', labelColor: '#0f766e' },
   { backgroundColor: '#fefce8', borderColor: '#fde047', labelColor: '#a16207' },
 ];
-
-type CacheEntry<T> = {
-  expiresAt: number;
-  data: T;
-};
-
-type CustomizationData = {
-  groups: AddonGroup[];
-  removableIngredients: RemovableIngredient[];
-};
 
 const catalogCache = {
   categories: null as CacheEntry<SaleCategory[]> | null,
@@ -559,11 +505,11 @@ export default function PosScreen() {
       return;
     }
 
-    const nextProducts = (data || []) as SaleProduct[];
-    catalogCache.allProducts = cacheEntry(nextProducts);
-    setSearchProducts(nextProducts);
-    void loadCustomizationAvailability(nextProducts.map((product) => product.id));
-  };
+  const nextProducts = (data || []) as SaleProduct[];
+  catalogCache.allProducts = cacheEntry(nextProducts);
+  setSearchProducts(nextProducts);
+  void loadCustomizationAvailability(nextProducts.map((product) => product.id));
+};
 
   useEffect(() => {
     if (menuLevel === 'search') {
@@ -801,6 +747,15 @@ export default function PosScreen() {
     );
     return { subtotal, tax, total };
   }, [cartItems, editingOrder]);
+
+  const buildCheckoutLineItems = useCallback(() => (
+    cartItems.map((item) => ({
+      name: item.product_name,
+      description: item.comment || undefined,
+      quantity: item.quantity,
+      price: Number((item.subtotal / Math.max(item.quantity, 1)).toFixed(2)),
+    }))
+  ), [cartItems]);
 
   const selectedRemovedIngredients = useMemo(
     () => editorRemovableIngredients
@@ -1646,6 +1601,151 @@ export default function PosScreen() {
     router.back();
   };
 
+  const checkDeliveryPaymentStatus = useCallback(async (deliveryOrderId: string): Promise<'pending' | 'paid' | 'failed'> => {
+    const result = await getOrder(deliveryOrderId);
+    if (result.error || !result.data) {
+      return 'failed';
+    }
+
+    if (result.data.payment_status === 'paid') {
+      invalidateTopSellers();
+      router.back();
+      return 'paid';
+    }
+
+    return 'pending';
+  }, [router]);
+
+  const handleDeliveryCheckout = useCallback(async (
+    input: { address: DeliveryAddressDraft; quote: DeliveryQuoteResult }
+  ): Promise<{ orderId: string; paymentUrl: string; serviceFee: number; deliveryFee: number; totalAmount: number } | null> => {
+    if (orderId) {
+      Alert.alert('Edit Order', 'Delivery checkout is only available for new POS orders right now.');
+      return null;
+    }
+
+    const phone = customerPhone.trim();
+    const name = customerName.trim();
+    if (!phone) {
+      Alert.alert('Delivery', 'Please enter a customer phone number.');
+      return null;
+    }
+    if (!name) {
+      Alert.alert('Delivery', 'Please enter a customer name.');
+      return null;
+    }
+
+    setCreatingOrder(true);
+
+    try {
+      const { data: customer, error: customerError } = await createCustomerIfNotExists(phone, name);
+      if (customerError) {
+        Alert.alert('Customer', customerError);
+        return null;
+      }
+
+      const feeSummary = await calculateDeliveryFees({
+        subtotal: totals.subtotal,
+        tax: totals.tax,
+        deliveryFee: input.quote.fee,
+      });
+
+      const orderPayload = {
+        user_id: customer?.id ?? null,
+        customer_email: customer?.email || '',
+        customer_phone: phone,
+        customer_name: name,
+        payment_method: 'online',
+        order_channel: 'phone_delivery',
+        payment_method_detail: null,
+        order_type: 'delivery',
+        payment_status: 'pending',
+        order_status: 'pending_online_payment',
+        subtotal: totals.subtotal,
+        tax: totals.tax,
+        delivery_fee: input.quote.fee,
+        service_fee: feeSummary.serviceFee,
+        promotion_discount: 0,
+        promotions_applied: [],
+        coupon_code: null,
+        coupon_discount: 0,
+        total: feeSummary.totalAmount,
+        reward_points_used: null,
+        reward_points_value: null,
+        order_options: orderOptions,
+        special_instructions: orderSpecialInstructions,
+        delivery_address_id: null,
+        delivery_address_line1: input.address.address_line1,
+        delivery_address_line2: input.address.address_line2 || null,
+        delivery_city: input.address.city,
+        delivery_state: input.address.state,
+        delivery_postcode: input.address.postcode,
+        delivery_country: input.address.country || 'AU',
+        delivery_latitude: input.address.latitude ?? null,
+        delivery_longitude: input.address.longitude ?? null,
+        delivery_quote_id: input.quote.quote_id,
+        delivery_quote_amount: input.quote.fee,
+        delivery_quote_currency: input.quote.currency,
+        delivery_partner_name: input.quote.provider_name,
+        delivery_quote_expires_at: input.quote.expires_at,
+        delivery_eta_minutes: input.quote.estimated_duration_minutes,
+        delivery_provider_id: null,
+        delivery_status: 'pending',
+        delivery_tracking_url: null,
+        delivery_driver_name: null,
+        delivery_driver_phone: null,
+        delivery_driver_pin: null,
+        delivery_vehicle_info: null,
+        delivery_instructions: input.address.delivery_instructions || null,
+        scheduled_pickup_at: null,
+      } as any;
+
+      const saveResult = await savePosOrder(orderPayload, cartItems);
+      if (saveResult.error || !saveResult.data) {
+        Alert.alert('Delivery', saveResult.error || 'Failed to create delivery order');
+        return null;
+      }
+
+      const checkoutSession = await createStripeCheckoutSession({
+        orderId: saveResult.data.id,
+        customerEmail: customer?.email || undefined,
+        customerName: name,
+        customerPhone: phone,
+        items: buildCheckoutLineItems(),
+        subtotal: totals.subtotal,
+        tax: totals.tax,
+        deliveryFee: input.quote.fee,
+        orderType: 'delivery',
+      });
+
+      invalidateTopSellers();
+
+      return {
+        orderId: saveResult.data.id,
+        paymentUrl: checkoutSession.url,
+        serviceFee: feeSummary.serviceFee,
+        deliveryFee: input.quote.fee,
+        totalAmount: feeSummary.totalAmount,
+      };
+    } catch (error) {
+      console.error('Delivery checkout failed', error);
+      Alert.alert('Delivery', error instanceof Error ? error.message : 'Failed to request online delivery');
+      return null;
+    } finally {
+      setCreatingOrder(false);
+    }
+  }, [
+    orderId,
+    customerPhone,
+    customerName,
+    totals.subtotal,
+    totals.tax,
+    orderOptions,
+    orderSpecialInstructions,
+    cartItems,
+    buildCheckoutLineItems,
+  ]);
+
   const openInstorePaymentPrompt = () => {
     if (orderId) {
       Alert.alert('Edit Order', 'Use Update Order when editing an existing order.');
@@ -1672,6 +1772,17 @@ export default function PosScreen() {
     void handleInstoreCheckout('cash');
   };
 
+  const handleChooseInstorePayment = (choice: PosInstorePaymentChoice) => {
+    setInstorePaymentDialogVisible(false);
+
+    if (choice === 'cash') {
+      setCashTenderMode('instore');
+      return;
+    }
+
+    void handleInstoreCheckout(choice);
+  };
+
   const activeCategoryName = categories.find((category) => category.id === selectedCatId)?.name
     || activeLayoutCategory?.title
     || 'Menu';
@@ -1694,14 +1805,9 @@ export default function PosScreen() {
   const activeCartItemId = noteItemId ?? editingItemId ?? cartItems[cartItems.length - 1]?.id ?? null;
   const checkoutPrimaryLabel = orderId
     ? 'Update Order'
-    : paymentChoice === 'card'
-      ? 'Create Pickup Order • Card'
-      : paymentChoice === 'cash'
-        ? 'Create Pickup Order • Cash'
-        : 'Create Pickup Order • No Pay';
+    : 'Create Pickup Order • Unpaid';
   const addonSelectionCount = selectedEditorAddons.length + selectedRemovedIngredients.length;
   const addonSelectionTotal = addonTotal(selectedEditorAddons);
-
   return (
     <View style={styles.container}>
       <Appbar.Header style={styles.header}>
@@ -1713,1424 +1819,134 @@ export default function PosScreen() {
 
       <View style={[styles.body, isCompactLayout ? styles.bodyCompact : null]}>
         <View style={[styles.menuPane, isCompactLayout ? styles.menuPaneCompact : null]}>
-          {menuLevel === 'groups' && (
-            <>
-              <View style={styles.groupScreen}>
-                <FlatList
-                  data={layoutTopLevelCategories}
-                  keyExtractor={(item) => item.id}
-                  numColumns={gridColumns}
-                  key={`groups-${gridColumns}`}
-                  contentContainerStyle={styles.tileGrid}
-                  renderItem={({ item }) => {
-                    return (
-                      <TouchableOpacity
-                        style={[styles.groupCard, { backgroundColor: item.color }]}
-                        onPress={() => openCategory(item.id)}
-                      >
-                        <Text style={styles.groupCardText} numberOfLines={3}>{item.name}</Text>
-                      </TouchableOpacity>
-                    );
-                  }}
-                />
-                <View style={styles.topSellersSection}>
-                  <View style={styles.topSellersHeader}>
-                    <View style={styles.topSellersHeaderText}>
-                      <Text style={styles.topSellersTitle}>Top sellers today</Text>
-                      {loadingTopSellers && <Text style={styles.topSellersLoading}>Refreshing...</Text>}
-                    </View>
-                  </View>
-                  {topSellers.length > 0 ? (
-                    <FlatList
-                      data={topSellers}
-                      keyExtractor={(item) => item.id}
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={styles.topSellersList}
-                      renderItem={({ item }) => {
-                        const quickQuantity = quickQuantityForProduct(item.id);
-                        return (
-                          <TouchableOpacity style={styles.topSellerCard} onPress={() => void quickAddProduct(item)}>
-                            {quickQuantity > 0 && (
-                              <View style={styles.topSellerQuantityBadge}>
-                                <Text style={styles.productQuantityText}>{quickQuantity}</Text>
-                              </View>
-                            )}
-                            <Text style={styles.topSellerName} numberOfLines={2}>{item.name}</Text>
-                            <Text style={styles.topSellerMeta}>{item.total_quantity_sold} sold</Text>
-                          </TouchableOpacity>
-                        );
-                      }}
-                    />
-                  ) : (
-                    <Text style={styles.topSellersEmpty}>
-                      {loadingTopSellers ? 'Loading top sellers...' : 'No sales yet today'}
-                    </Text>
-                  )}
-                </View>
-              </View>
-            </>
-          )}
-
-          {menuLevel === 'search' && (
-            <>
-              <View style={styles.menuHeader}>
-                <Button mode="outlined" icon="arrow-left" onPress={backToGroups} style={styles.backButton}>
-                  Groups
-                </Button>
-                <View style={styles.menuHeaderText}>
-                  <Text style={styles.menuTitle}>Search Items</Text>
-                  <Text style={styles.menuSubtitle}>{searchResults.length} results</Text>
-                </View>
-              </View>
-              <View style={styles.searchBody}>
-                <TextInput
-                  label="Search menu"
-                  mode="outlined"
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  autoFocus
-                  left={<TextInput.Icon icon="magnify" />}
-                  style={styles.searchInput}
-                />
-                <FlatList
-                  data={searchResults}
-                  keyExtractor={(item) => item.id}
-                  numColumns={gridColumns}
-                  key={`search-products-${gridColumns}`}
-                  contentContainerStyle={styles.searchGrid}
-                  ListEmptyComponent={(
-                    <View style={styles.emptyState}>
-                      <Text style={styles.emptyTitle}>
-                        {loadingSearchProducts ? 'Loading items...' : 'No matching items'}
-                      </Text>
-                    </View>
-                  )}
-                  renderItem={({ item }) => {
-                    const quickQuantity = quickQuantityForProduct(item.id);
-                    const tilePalette = productTilePalette(item.id);
-                    return (
-                      <TouchableOpacity
-                        style={[styles.productCard, { backgroundColor: tilePalette.backgroundColor, borderColor: tilePalette.borderColor }]}
-                        onPress={() => void quickAddProduct(item)}
-                      >
-                        {quickQuantity > 0 && (
-                          <View style={styles.productQuantityBadge}>
-                            <Text style={styles.productQuantityText}>{quickQuantity}</Text>
-                          </View>
-                        )}
-                        <View style={styles.productNameArea}>
-                          <Text style={styles.productName} numberOfLines={3}>{item.name}</Text>
-                        </View>
-                        <View style={[styles.productPricePill, { backgroundColor: tilePalette.priceColor }]}>
-                          <Text style={styles.productPrice}>${item.sale_price.toFixed(2)}</Text>
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  }}
-                />
-              </View>
-            </>
-          )}
-
-          {menuLevel === 'subgroups' && (
-            <>
-              <View style={styles.menuHeader}>
-                <Button mode="outlined" icon="arrow-left" onPress={backToGroups} style={styles.backButton}>
-                  Groups
-                </Button>
-                <View style={styles.menuHeaderText}>
-                  <Text style={styles.menuTitle}>{activeParentCategoryName}</Text>
-                  <Text style={styles.menuSubtitle}>{childCategoriesForSelectedGroup.length} sub-categories</Text>
-                </View>
-              </View>
-              <FlatList
-                data={childCategoriesForSelectedGroup}
-                keyExtractor={(item) => item.id}
-                numColumns={gridColumns}
-                key={`subgroups-${gridColumns}`}
-                contentContainerStyle={styles.tileGrid}
-                ListEmptyComponent={(
-                  <View style={styles.emptyState}>
-                    <Text style={styles.emptyTitle}>No sub-categories in this group</Text>
-                  </View>
-                )}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={[styles.groupCard, activeLayoutCategory?.color ? { backgroundColor: activeLayoutCategory.color } : null]}
-                    onPress={() => openSubcategory(item.id)}
-                  >
-                    <Text style={styles.groupCardText} numberOfLines={3}>{item.name}</Text>
-                  </TouchableOpacity>
-                )}
-              />
-            </>
-          )}
-
-          {menuLevel === 'items' && (
-            <>
-              <View style={styles.menuHeader}>
-                <Button mode="outlined" icon="arrow-left" onPress={itemsBackAction} style={styles.backButton}>
-                  {itemsBackLabel}
-                </Button>
-                <View style={styles.menuHeaderText}>
-                  <Text style={styles.menuTitle}>{activeCategoryName}</Text>
-                  <Text style={styles.menuSubtitle}>{layoutProducts.length} items</Text>
-                </View>
-              </View>
-              <FlatList
-                data={layoutProducts}
-                keyExtractor={(item) => item.id}
-                numColumns={gridColumns}
-                key={`products-${gridColumns}`}
-                contentContainerStyle={styles.tileGrid}
-                ListEmptyComponent={(
-                  <View style={styles.emptyState}>
-                    <Text style={styles.emptyTitle}>{loadingProducts ? 'Loading items...' : 'No items in this group'}</Text>
-                  </View>
-                )}
-                renderItem={({ item }) => {
-                  const quickQuantity = quickQuantityForProduct(item.id);
-                  const skipCustomization = Boolean(activeLayoutCategory?.showProductsOnTopLevel);
-                  const customColor = productButtonColor(item.id);
-                  const tilePalette = productTilePalette(item.id);
-                  return (
-                    <TouchableOpacity
-                      style={[
-                        styles.productCard,
-                        { backgroundColor: tilePalette.backgroundColor, borderColor: tilePalette.borderColor },
-                        customColor ? styles.productCardCustomColor : null,
-                        customColor ? { backgroundColor: customColor, borderColor: customColor } : null,
-                      ]}
-                      onPress={() => void quickAddProduct(item, { skipCustomization })}
-                    >
-                      {quickQuantity > 0 && (
-                        <View style={styles.productQuantityBadge}>
-                          <Text style={styles.productQuantityText}>{quickQuantity}</Text>
-                        </View>
-                      )}
-                      <View style={styles.productNameArea}>
-                        <Text style={[styles.productName, customColor ? styles.productCardCustomText : null]} numberOfLines={3}>{item.name}</Text>
-                      </View>
-                      <View style={[
-                        styles.productPricePill,
-                        customColor ? styles.productPricePillCustom : { backgroundColor: tilePalette.priceColor },
-                      ]}>
-                        <Text style={[styles.productPrice, customColor ? styles.productCardCustomText : null]}>${item.sale_price.toFixed(2)}</Text>
-                      </View>
-                    </TouchableOpacity>
-                  );
-                }}
-              />
-              <View style={styles.levelFooter}>
-                <View style={styles.levelFooterActions}>
-                  <Button
-                    mode="outlined"
-                    icon="arrow-left"
-                    onPress={itemsBackAction}
-                    style={styles.levelFooterButton}
-                    contentStyle={styles.levelFooterButtonContent}
-                    labelStyle={styles.levelFooterButtonLabel}
-                  >
-                    {selectedParentCatId ? `Back to ${activeParentCategoryName}` : 'Back to Groups'}
-                  </Button>
-                  <Button
-                    mode="contained"
-                    icon="lightning-bolt"
-                    onPress={() => setQuickListVisible(true)}
-                    style={styles.levelFooterQuickListButton}
-                    contentStyle={styles.quickListButtonContent}
-                    buttonColor="#0f766e"
-                    disabled={quickAccessProducts.length === 0}
-                  >
-                    Quick List
-                  </Button>
-                </View>
-              </View>
-            </>
-          )}
-
-          {menuLevel === 'addons' && selectedProduct && (
-            <>
-              <View style={styles.menuHeader}>
-                <Button mode="outlined" icon="arrow-left" onPress={backToItems} style={styles.backButton}>
-                  Items
-                </Button>
-                <View style={styles.menuHeaderText}>
-                  <Text style={styles.menuTitle} numberOfLines={1}>{selectedProduct.name}</Text>
-                  <Text style={styles.menuSubtitle}>Customize item</Text>
-                </View>
-              </View>
-
-              <View style={styles.editorBody}>
-                {editorRemovableIngredients.length > 0 && (
-                  <View style={styles.removableBlock}>
-                    <View style={[styles.addonGroupLabel, styles.removeGroupLabel]}>
-                      <Text style={[styles.addonGroupTitle, styles.removeGroupTitle]}>Remove Ingredients</Text>
-                    </View>
-                    <Text style={styles.groupRequirementText}>Optional removals</Text>
-                    <View style={styles.optionGrid}>
-                      {editorRemovableIngredients.map((ingredient) => {
-                        const selected = Boolean(editorRemovedIngredientIds[ingredient.id]);
-                        return (
-                          <TouchableOpacity
-                            key={ingredient.id}
-                            style={[styles.optionButton, { width: addonOptionWidth }, selected && styles.removeButtonSelected]}
-                            onPress={() => toggleRemovedIngredient(ingredient.id)}
-                          >
-                            <Text style={[styles.optionText, selected && styles.optionTextSelected]} numberOfLines={2}>
-                              No {ingredient.ingredient_name}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  </View>
-                )}
-
-                <FlatList
-                  data={editorAddonGroups}
-                  keyExtractor={(item) => item.id}
-                  style={styles.addonList}
-                  ListEmptyComponent={(
-                    <Text style={styles.emptyAddonText}>
-                      {loadingAddons ? 'Loading add-ons...' : 'No add-ons for this item'}
-                    </Text>
-                  )}
-                  renderItem={({ item: group }) => {
-                    const groupPalette = addonGroupPalette(group.id);
-                    return (
-                      <View
-                        style={[
-                          styles.addonGroup,
-                          { backgroundColor: groupPalette.backgroundColor, borderColor: groupPalette.borderColor },
-                        ]}
-                      >
-                        <View style={[styles.addonGroupLabel, { backgroundColor: groupPalette.labelColor }]}>
-                          <Text style={styles.addonGroupTitle}>
-                            {group.name}
-                          </Text>
-                        </View>
-                        <Text style={styles.groupRequirementText}>
-                          {group.is_required ? 'Required selection' : group.multiple_choice ? 'Optional, choose multiple' : 'Optional, choose one'}
-                        </Text>
-                        <View style={styles.optionGrid}>
-                          {group.items.map((item) => {
-                            const selected = Boolean(editorSelectedIds[item.id]);
-                            return (
-                              <TouchableOpacity
-                                key={item.id}
-                                style={[styles.optionButton, { width: addonOptionWidth }, selected && styles.optionButtonSelected]}
-                                onPress={() => toggleAddon(group, item)}
-                              >
-                                <Text style={[styles.optionText, selected && styles.optionTextSelected]} numberOfLines={2}>
-                                  {item.name}
-                                </Text>
-                                {item.extra_price > 0 && (
-                                  <Text style={[styles.optionPrice, selected && styles.optionTextSelected]}>
-                                    +${item.extra_price.toFixed(2)}
-                                  </Text>
-                                )}
-                              </TouchableOpacity>
-                            );
-                          })}
-                        </View>
-                      </View>
-                    );
-                  }}
-                />
-
-                <View style={styles.addonSummaryBar}>
-                  <View style={styles.addonSummaryText}>
-                    <Text style={styles.addonSummaryTitle}>
-                      {addonSelectionCount > 0 ? `${addonSelectionCount} selections` : 'No selections yet'}
-                    </Text>
-                    <Text style={styles.addonSummaryMeta}>
-                      {addonSelectionTotal > 0 ? `Add-ons +$${addonSelectionTotal.toFixed(2)}` : 'Continue when the item looks right'}
-                    </Text>
-                  </View>
-                  <Button
-                    mode="contained"
-                    icon="arrow-right"
-                    onPress={backToItems}
-                    style={styles.addonSummaryButton}
-                    contentStyle={styles.levelFooterButtonContent}
-                  >
-                    Continue
-                  </Button>
-                </View>
-
-                <View style={styles.editorActions}>
-                  <View style={styles.levelFooterActions}>
-                    <Button
-                      mode="outlined"
-                      icon="arrow-left"
-                      onPress={backToGroups}
-                      style={styles.levelFooterButton}
-                      contentStyle={styles.levelFooterButtonContent}
-                      labelStyle={styles.levelFooterButtonLabel}
-                    >
-                      Back to Groups
-                    </Button>
-                    <Button
-                      mode="contained"
-                      icon="lightning-bolt"
-                      onPress={() => setQuickListVisible(true)}
-                      style={styles.levelFooterQuickListButton}
-                      contentStyle={styles.quickListButtonContent}
-                      buttonColor="#0f766e"
-                      disabled={quickAccessProducts.length === 0}
-                    >
-                      Quick List
-                    </Button>
-                  </View>
-                </View>
-              </View>
-            </>
-          )}
-
-          {menuLevel === 'checkout' && (
-            <>
-              <View style={styles.menuHeader}>
-                <Button mode="outlined" icon="arrow-left" onPress={backToItems} style={styles.backButton}>
-                  Order
-                </Button>
-                <View style={styles.menuHeaderText}>
-                  <Text style={styles.menuTitle}>Checkout</Text>
-                  <Text style={styles.menuSubtitle}>Customer details</Text>
-                </View>
-                {customerLookupStatus === 'new' && (
-                  <View style={styles.newCustomerBadge}>
-                    <Text style={styles.newCustomerBadgeText}>New customer</Text>
-                  </View>
-                )}
-              </View>
-
-              <ScrollView
-                style={styles.checkoutBody}
-                contentContainerStyle={styles.checkoutContent}
-                keyboardShouldPersistTaps="handled"
-              >
-                <View style={styles.checkoutForm}>
-                  <TextInput
-                    label="Phone"
-                    mode="outlined"
-                    value={customerPhone}
-                    onChangeText={(value) => {
-                      setCustomerPhone(value);
-                      if (customerLookupStatus === 'found') setCustomerName('');
-                    }}
-                    keyboardType="phone-pad"
-                    style={styles.checkoutInput}
-                  />
-                  <View style={styles.lookupRow}>
-                    {customerLookupStatus === 'loading' && <Text style={styles.lookupText}>Looking up customer...</Text>}
-                    {customerLookupStatus === 'found' && <Text style={styles.foundText}>Existing customer found</Text>}
-                    {customerLookupStatus === 'new' && <Text style={styles.newText}>No customer found. A new customer will be created.</Text>}
-                    {customerLookupStatus === 'error' && <Text style={styles.errorText}>{customerLookupError}</Text>}
-                  </View>
-                  <TextInput
-                    label="Name"
-                    mode="outlined"
-                    value={customerName}
-                    onChangeText={setCustomerName}
-                    style={styles.checkoutInput}
-                  />
-                  <View style={styles.checkoutSummaryCard}>
-                    <Text style={styles.checkoutSummaryEyebrow}>Checkout summary</Text>
-                    <Text style={styles.checkoutSummaryTotal}>${totals.total.toFixed(2)}</Text>
-                    <Text style={styles.checkoutSummaryMeta}>
-                      {cartItems.length} items • {isPreOrder ? 'Pre-order pickup' : 'ASAP pickup'}
-                    </Text>
-                    <Text style={styles.checkoutSummaryMeta}>
-                      Payment: {paymentChoice === 'no_pay' ? 'No Pay' : paymentChoice.toUpperCase()}
-                    </Text>
-                  </View>
-                  <View style={styles.pickupPanel}>
-                    <Text style={styles.checkoutSectionTitle}>POS Pickup</Text>
-                    <View style={styles.pickupModeRow}>
-                      <Button
-                        mode={!isPreOrder ? 'contained' : 'outlined'}
-                        onPress={() => setIsPreOrder(false)}
-                        style={styles.pickupModeButton}
-                      >
-                        ASAP
-                      </Button>
-                      <Button
-                        mode={isPreOrder ? 'contained' : 'outlined'}
-                        onPress={() => {
-                          setIsPreOrder(true);
-                          setScheduledPickupAt((current) => (
-                            current.getTime() > Date.now() ? current : defaultPickupTime()
-                          ));
-                        }}
-                        style={styles.pickupModeButton}
-                      >
-                        Pre-order
-                      </Button>
-                    </View>
-                    {isPreOrder && (
-                      <View style={styles.preOrderPanel}>
-                        <Text style={styles.preOrderBadge}>PRE-ORDER</Text>
-                        <Text style={styles.pickupTimeText}>{formatPickupTime(scheduledPickupAt)}</Text>
-                        <View style={styles.pickupPickerButtons}>
-                          <Button mode="outlined" icon="calendar" onPress={() => openPickupPicker('date')} style={styles.pickupPickerButton}>
-                            Date
-                          </Button>
-                          <Button mode="outlined" icon="clock-outline" onPress={() => openPickupPicker('time')} style={styles.pickupPickerButton}>
-                            Time
-                          </Button>
-                        </View>
-                        {showPickupPicker && (
-                          <DateTimePicker
-                            value={scheduledPickupAt}
-                            mode={pickupPickerMode}
-                            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                            minimumDate={new Date()}
-                            onChange={handlePickupPickerChange}
-                          />
-                        )}
-                      </View>
-                    )}
-                  </View>
-                  <View style={styles.paymentPanel}>
-                    <Text style={styles.checkoutSectionTitle}>Payment</Text>
-                    <View style={styles.paymentModeRow}>
-                      <Button
-                        mode={paymentChoice === 'card' ? 'contained' : 'outlined'}
-                        icon="credit-card-outline"
-                        onPress={() => setPaymentChoice('card')}
-                        style={styles.paymentModeButton}
-                      >
-                        CARD
-                      </Button>
-                      <Button
-                        mode={paymentChoice === 'cash' ? 'contained' : 'outlined'}
-                        icon="cash"
-                        onPress={() => setPaymentChoice('cash')}
-                        style={styles.paymentModeButton}
-                      >
-                        CASH
-                      </Button>
-                      <Button
-                        mode={paymentChoice === 'no_pay' ? 'contained' : 'outlined'}
-                        icon="clock-outline"
-                        onPress={() => setPaymentChoice('no_pay')}
-                        style={styles.paymentModeButton}
-                      >
-                        No Pay
-                      </Button>
-                    </View>
-                  </View>
-                  <TextInput
-                    label="Order note"
-                    mode="outlined"
-                    value={orderNoteText}
-                    onChangeText={setOrderNoteText}
-                    multiline
-                    style={[styles.checkoutInput, styles.checkoutNoteInput]}
-                  />
-                  <Button
-                    mode="contained"
-                    icon="check"
-                    loading={creatingOrder}
-                    disabled={creatingOrder || smartpayProcessing || cartItems.length === 0 || (!orderId && !customerPhone.trim())}
-                    onPress={() => void handleCheckout()}
-                    style={styles.placeOrderButton}
-                    buttonColor="#16a34a"
-                  >
-                    {checkoutPrimaryLabel}
-                  </Button>
-                  <View style={styles.secondaryActionsPanel}>
-                    <Text style={styles.secondaryActionsTitle}>Quick actions</Text>
-                    <View style={styles.secondaryActionsRow}>
-                      <Button
-                        mode="contained-tonal"
-                        icon="credit-card-wireless-outline"
-                        loading={smartpayProcessing}
-                        disabled={!smartpayPaired || creatingOrder || smartpayProcessing || cartItems.length === 0 || (!orderId && !customerPhone.trim())}
-                        onPress={() => void handleCheckout('smartpay')}
-                        style={styles.secondaryActionButton}
-                      >
-                        SmartPay
-                      </Button>
-                      {!orderId && (
-                        <Button
-                          mode="contained-tonal"
-                          icon="cash-register"
-                          loading={creatingOrder}
-                          disabled={creatingOrder || cartItems.length === 0}
-                          onPress={openInstorePaymentPrompt}
-                          style={styles.secondaryActionButton}
-                        >
-                          In-store
-                        </Button>
-                      )}
-                    </View>
-                  </View>
-                </View>
-              </ScrollView>
-            </>
-          )}
-
-          {menuLevel !== 'groups' && menuLevel !== 'items' && menuLevel !== 'addons' && (
-            <View
-              pointerEvents="box-none"
-              style={styles.quickListButtonWrap}
-            >
-              <Button
-                mode="contained"
-                icon="lightning-bolt"
-                onPress={() => setQuickListVisible(true)}
-                style={styles.quickListButton}
-                contentStyle={styles.quickListButtonContent}
-                buttonColor="#0f766e"
-                disabled={quickAccessProducts.length === 0}
-              >
-                Quick List
-              </Button>
-            </View>
-          )}
-
-          {quickListVisible && (
-            <View style={styles.quickListOverlay}>
-              <View style={styles.quickListPanel}>
-                <View style={styles.quickListHeader}>
-                  <View>
-                    <Text style={styles.quickListTitle}>Quick list</Text>
-                    <Text style={styles.quickListSubtitle}>Tap items to add without leaving the cart</Text>
-                  </View>
-                  <IconButton icon="close" size={20} onPress={() => setQuickListVisible(false)} />
-                </View>
-                {quickAccessProducts.length > 0 ? (
-                  <FlatList
-                    data={quickAccessProducts}
-                    keyExtractor={(item) => item.id}
-                    numColumns={quickListColumns}
-                    key={`quick-list-${quickListColumns}`}
-                    contentContainerStyle={styles.quickListGrid}
-                    renderItem={({ item }) => {
-                      const quickQuantity = quickQuantityForProduct(item.id);
-                      const tilePalette = productTilePalette(item.id);
-                      return (
-                        <TouchableOpacity
-                          style={[
-                            styles.quickListCard,
-                            { backgroundColor: tilePalette.backgroundColor, borderColor: tilePalette.borderColor },
-                          ]}
-                          onPress={() => void quickAddProduct(item, { forcePlainAdd: true, skipCustomization: true })}
-                        >
-                          {quickQuantity > 0 && (
-                            <View style={styles.productQuantityBadge}>
-                              <Text style={styles.productQuantityText}>{quickQuantity}</Text>
-                            </View>
-                          )}
-                          <View style={styles.productNameArea}>
-                            <Text style={styles.productName} numberOfLines={3}>{item.name}</Text>
-                          </View>
-                          <View style={[styles.productPricePill, { backgroundColor: tilePalette.priceColor }]}>
-                            <Text style={styles.productPrice}>${item.sale_price.toFixed(2)}</Text>
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    }}
-                  />
-                ) : (
-                  <Text style={styles.quickListEmpty}>
-                    Select products in POS Layout and check `Show on quick list` to display them here.
-                  </Text>
-                )}
-              </View>
-            </View>
-          )}
-        </View>
-
-        <View style={[styles.cartPane, isCompactLayout ? styles.cartPaneCompact : null]}>
-          <View style={styles.cartHeader}>
-            <Text style={styles.cartTitle}>Current Order</Text>
-            <Button
-              mode="outlined"
-              icon="trash-can-outline"
-              compact
-              disabled={Boolean(orderId) || cartItems.length === 0}
-              onPress={handleClearCart}
-              textColor="#dc2626"
-              style={styles.clearCartButton}
-            >
-              Clear
-            </Button>
-          </View>
-          <TouchableOpacity
-            style={[styles.quickOrderNoteButton, quickOrderNote && styles.quickOrderNoteButtonSelected]}
-            onPress={() => setSaltOptionDialogVisible(true)}
-          >
-            <View style={styles.quickOrderNoteButtonText}>
-              <Text style={[styles.quickOrderNoteTitle, quickOrderNote && styles.quickOrderNoteTitleSelected]}>
-                Salt option
-              </Text>
-              <Text style={[styles.quickOrderNoteValue, quickOrderNote && styles.quickOrderNoteValueSelected]} numberOfLines={1}>
-                {quickOrderNote || 'Not selected'}
-              </Text>
-            </View>
-            <Text style={[styles.quickOrderNoteEdit, quickOrderNote && styles.quickOrderNoteEditSelected]}>
-              Change
-            </Text>
-          </TouchableOpacity>
-          <FlatList
-            data={cartItems}
-            keyExtractor={(item) => item.id}
-            style={styles.cartList}
-            ListEmptyComponent={<Text style={styles.emptyCart}>No items yet</Text>}
-            renderItem={({ item }) => {
-              const showCartActions = item.id === activeCartItemId;
-              return (
-                <View style={styles.cartRow}>
-                  <View style={styles.cartItemHeader}>
-                    <View style={styles.cartItemText}>
-                      <View style={styles.cartItemTopLine}>
-                        <TouchableOpacity
-                          style={styles.cartItemNameButton}
-                          onPress={() => openCartItemEditor(item)}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Edit ${item.product_name}`}
-                        >
-                          <Text style={styles.cartItemName} numberOfLines={2}>{item.product_name}</Text>
-                        </TouchableOpacity>
-                        <View style={styles.qtyStepper}>
-                          <IconButton icon="minus" size={16} onPress={() => updateQuantity(item.id, -1)} style={styles.stepperButton} />
-                          <Text style={styles.cartQuantity}>{item.quantity}</Text>
-                          <IconButton icon="plus" size={16} onPress={() => updateQuantity(item.id, 1)} style={styles.stepperButton} />
-                        </View>
-                        <Text style={styles.cartItemPrice}>${item.subtotal.toFixed(2)}</Text>
-                      </View>
-                      <View style={styles.cartItemDetails}>
-                        {item.addons?.map((addon) => (
-                          <Text
-                            key={`${item.id}-addon-${addon.addon_item_id}`}
-                            style={styles.cartItemMeta}
-                            numberOfLines={1}
-                          >
-                            + {addon.addon_item_name}
-                            {addon.addon_item_price > 0 ? ` $${addon.addon_item_price.toFixed(2)}` : ''}
-                          </Text>
-                        ))}
-                        {item.removed_ingredients?.map((ingredient) => (
-                          <Text
-                            key={`${item.id}-removed-${ingredient}`}
-                            style={styles.cartItemRemoved}
-                            numberOfLines={1}
-                          >
-                            No {ingredient}
-                          </Text>
-                        ))}
-                        {item.comment && <Text style={styles.cartItemNote} numberOfLines={2}>{item.comment}</Text>}
-                      </View>
-                    </View>
-                  </View>
-                  {showCartActions && (
-                    <View style={styles.cartControls}>
-                      <Button
-                        mode="outlined"
-                        compact
-                        icon="pencil"
-                        onPress={() => openCartItemEditor(item)}
-                        style={styles.cartActionButton}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        mode="outlined"
-                        compact
-                        icon={item.comment ? 'note-edit-outline' : 'note-plus-outline'}
-                        onPress={() => openNoteEditor(item)}
-                        style={styles.cartActionButton}
-                      >
-                        Note
-                      </Button>
-                      <Button
-                        mode="outlined"
-                        compact
-                        icon="trash-can-outline"
-                        textColor="#dc2626"
-                        onPress={() => removeCartItem(item.id)}
-                        style={styles.cartActionButton}
-                      >
-                        Remove
-                      </Button>
-                    </View>
-                  )}
-                </View>
-              );
-            }}
+          <PosMenuPane
+            menuLevel={menuLevel}
+            gridColumns={gridColumns}
+            quickListColumns={quickListColumns}
+            addonOptionWidth={addonOptionWidth}
+            layoutTopLevelCategories={layoutTopLevelCategories}
+            topSellers={topSellers}
+            loadingTopSellers={loadingTopSellers}
+            quickQuantityForProduct={quickQuantityForProduct}
+            openCategory={openCategory}
+            quickAddProduct={quickAddProduct}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            searchResults={searchResults}
+            loadingSearchProducts={loadingSearchProducts}
+            backToGroups={backToGroups}
+            activeParentCategoryName={activeParentCategoryName}
+            childCategoriesForSelectedGroup={childCategoriesForSelectedGroup}
+            activeLayoutCategory={activeLayoutCategory ? {
+              color: activeLayoutCategory.color,
+              title: activeLayoutCategory.title,
+              showProductsOnTopLevel: activeLayoutCategory.showProductsOnTopLevel,
+            } : null}
+            openSubcategory={openSubcategory}
+            activeCategoryName={activeCategoryName}
+            layoutProducts={layoutProducts}
+            loadingProducts={loadingProducts}
+            itemsBackAction={itemsBackAction}
+            itemsBackLabel={itemsBackLabel}
+            selectedParentCatId={selectedParentCatId}
+            setQuickListVisible={setQuickListVisible}
+            quickAccessProducts={quickAccessProducts}
+            productButtonColor={productButtonColor}
+            productTilePalette={productTilePalette}
+            selectedProduct={selectedProduct}
+            backToItems={backToItems}
+            editorRemovableIngredients={editorRemovableIngredients}
+            editorRemovedIngredientIds={editorRemovedIngredientIds}
+            toggleRemovedIngredient={toggleRemovedIngredient}
+            editorAddonGroups={editorAddonGroups}
+            loadingAddons={loadingAddons}
+            editorSelectedIds={editorSelectedIds}
+            toggleAddon={toggleAddon}
+            addonGroupPalette={addonGroupPalette}
+            addonSelectionCount={addonSelectionCount}
+            addonSelectionTotal={addonSelectionTotal}
+            openCheckout={openCheckout}
+            customerLookupStatus={customerLookupStatus}
+            customerPhone={customerPhone}
+            setCustomerPhone={setCustomerPhone}
+            customerName={customerName}
+            setCustomerName={setCustomerName}
+            customerLookupError={customerLookupError}
+            totals={totals}
+            cartItemsCount={cartItems.length}
+            isPreOrder={isPreOrder}
+            setIsPreOrder={setIsPreOrder}
+            scheduledPickupAt={scheduledPickupAt}
+            setScheduledPickupAt={setScheduledPickupAt}
+            defaultPickupTime={defaultPickupTime}
+            formatPickupTime={formatPickupTime}
+            openPickupPicker={openPickupPicker}
+            showPickupPicker={showPickupPicker}
+            pickupPickerMode={pickupPickerMode}
+            handlePickupPickerChange={handlePickupPickerChange}
+            orderNoteText={orderNoteText}
+            setOrderNoteText={setOrderNoteText}
+            creatingOrder={creatingOrder}
+            smartpayProcessing={smartpayProcessing}
+            orderId={orderId}
+            checkoutPrimaryLabel={checkoutPrimaryLabel}
+            handleCheckout={handleCheckout}
+            smartpayPaired={smartpayPaired}
+            handleInstoreCheckout={handleInstoreCheckout}
+            handleSmartpayInstoreCheckout={handleSmartpayInstoreCheckout}
+            handleDeliveryCheckout={handleDeliveryCheckout}
+            checkDeliveryPaymentStatus={checkDeliveryPaymentStatus}
+            quickListVisible={quickListVisible}
           />
-          <Divider />
-          <View style={styles.totals}>
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Total items</Text>
-              <Text style={styles.totalValue}>{cartItems.length}</Text>
-            </View>
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Subtotal</Text>
-              <Text style={styles.totalValue}>${totals.subtotal.toFixed(2)}</Text>
-            </View>
-            <View style={styles.totalRow}>
-              <Text style={styles.grandTotalLabel}>Total</Text>
-              <Text style={styles.grandTotalValue}>${totals.total.toFixed(2)}</Text>
-            </View>
-          </View>
-          <Button
-            mode="contained"
-            icon={orderId ? 'content-save' : 'cash-register'}
-            disabled={cartItems.length === 0 || creatingOrder || smartpayProcessing}
-            onPress={orderId ? () => void handleCheckout() : openCheckout}
-            style={styles.checkoutButton}
-            buttonColor="#16a34a"
-          >
-            {orderId ? 'Update Order' : 'Checkout'}
-          </Button>
-          {!orderId && (
-            <View style={styles.quickActionsPanel}>
-              <Text style={styles.quickActionsTitle}>Quick actions</Text>
-              <View style={styles.quickPaymentRow}>
-                <Button
-                  mode="contained-tonal"
-                  icon="check-circle-outline"
-                  loading={creatingOrder}
-                  disabled={creatingOrder || smartpayProcessing || cartItems.length === 0}
-                  onPress={openInstorePaymentPrompt}
-                  style={[styles.checkoutButton, styles.quickPaymentButton, styles.completeButton]}
-                  buttonColor="#dc2626"
-                  textColor="#fff"
-                >
-                  Complete
-                </Button>
-                <Button
-                  mode="contained"
-                  icon="credit-card-wireless-outline"
-                  loading={smartpayProcessing}
-                  disabled={!smartpayPaired || creatingOrder || smartpayProcessing || cartItems.length === 0}
-                  onPress={() => void handleSmartpayInstoreCheckout()}
-                  style={[styles.checkoutButton, styles.quickPaymentButton]}
-                  buttonColor="#2563eb"
-                >
-                  SmartPay
-                </Button>
-              </View>
-            </View>
-          )}
         </View>
+
+        <PosCartPane
+          isCompactLayout={isCompactLayout}
+          orderId={orderId}
+          cartItems={cartItems}
+          quickOrderNote={quickOrderNote}
+          setSaltOptionDialogVisible={setSaltOptionDialogVisible}
+          activeCartItemId={activeCartItemId}
+          openCartItemEditor={openCartItemEditor}
+          updateQuantity={updateQuantity}
+          openNoteEditor={openNoteEditor}
+          removeCartItem={removeCartItem}
+          totals={totals}
+          creatingOrder={creatingOrder}
+          smartpayProcessing={smartpayProcessing}
+          handleClearCart={handleClearCart}
+          openCheckout={openCheckout}
+          handleCheckout={() => handleCheckout()}
+          smartpayPaired={smartpayPaired}
+          handleSmartpayInstoreCheckout={handleSmartpayInstoreCheckout}
+        />
       </View>
 
-      <CashTenderModal
-        visible={cashTenderMode !== null}
+      <PosDialogs
+        cashTenderMode={cashTenderMode}
         total={totals.total}
-        onCancel={() => {
+        onCancelCashTender={() => {
           cashTenderConfirmedRef.current = false;
           setCashTenderMode(null);
         }}
-        onConfirm={handleCashTenderConfirm}
+        onConfirmCashTender={handleCashTenderConfirm}
+        smartpayProcessing={smartpayProcessing}
+        confirmDismissSmartpayLock={confirmDismissSmartpayLock}
+        saltOptionDialogVisible={saltOptionDialogVisible}
+        setSaltOptionDialogVisible={setSaltOptionDialogVisible}
+        quickOrderNotes={quickOrderNotes}
+        quickOrderNote={quickOrderNote}
+        setQuickOrderNote={setQuickOrderNote}
+        noteItemId={noteItemId}
+        closeNoteEditor={closeNoteEditor}
+        noteDraft={noteDraft}
+        setNoteDraft={setNoteDraft}
+        saveNote={saveNote}
+        instorePaymentDialogVisible={instorePaymentDialogVisible}
+        setInstorePaymentDialogVisible={setInstorePaymentDialogVisible}
+        onChooseInstorePayment={handleChooseInstorePayment}
       />
-
-      <Portal>
-        <Dialog
-          visible={smartpayProcessing}
-          dismissable
-          onDismiss={confirmDismissSmartpayLock}
-          style={styles.smartpayDialog}
-        >
-          <Dialog.Title>SmartPay payment</Dialog.Title>
-          <Dialog.Content>
-            <Text style={styles.smartpayDialogText}>
-              Follow the prompts on the terminal. This screen will unlock when Smartpay returns the result.
-            </Text>
-            <Text style={styles.smartpayAmount}>${totals.total.toFixed(2)}</Text>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={confirmDismissSmartpayLock}>Hide</Button>
-          </Dialog.Actions>
-        </Dialog>
-
-        <Dialog
-          visible={saltOptionDialogVisible}
-          onDismiss={() => setSaltOptionDialogVisible(false)}
-          style={styles.noteDialog}
-        >
-          <Dialog.Title>Salt option</Dialog.Title>
-          <Dialog.Content>
-            <View style={styles.quickOrderNoteGrid}>
-              {quickOrderNotes.map((note) => {
-                const selected = quickOrderNote === note;
-                return (
-                  <TouchableOpacity
-                    key={note}
-                    style={[styles.quickOrderNoteChip, selected && styles.quickOrderNoteChipSelected]}
-                    onPress={() => {
-                      setQuickOrderNote(selected ? null : note);
-                      setSaltOptionDialogVisible(false);
-                    }}
-                  >
-                    <Text style={[styles.quickOrderNoteChipText, selected && styles.quickOrderNoteChipTextSelected]} numberOfLines={2}>
-                      {note}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </Dialog.Content>
-          <Dialog.Actions>
-            {quickOrderNote && (
-              <Button onPress={() => {
-                setQuickOrderNote(null);
-                setSaltOptionDialogVisible(false);
-              }}>
-                Clear
-              </Button>
-            )}
-            <Button onPress={() => setSaltOptionDialogVisible(false)}>Close</Button>
-          </Dialog.Actions>
-        </Dialog>
-        <Dialog visible={Boolean(noteItemId)} onDismiss={closeNoteEditor} style={styles.noteDialog}>
-          <Dialog.Title>Item note</Dialog.Title>
-          <Dialog.Content>
-            <TextInput
-              label="Note"
-              mode="outlined"
-              value={noteDraft}
-              onChangeText={setNoteDraft}
-              multiline
-              style={styles.noteInput}
-            />
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={closeNoteEditor}>Cancel</Button>
-            <Button onPress={saveNote}>Save</Button>
-          </Dialog.Actions>
-        </Dialog>
-        <Dialog
-          visible={instorePaymentDialogVisible}
-          onDismiss={() => setInstorePaymentDialogVisible(false)}
-          style={styles.noteDialog}
-        >
-          <Dialog.Title>Complete In-store Order</Dialog.Title>
-          <Dialog.Content>
-            <Text style={styles.smartpayDialogText}>
-              Choose how this order should be recorded before it is created.
-            </Text>
-            <View style={styles.dialogActionStack}>
-              <Button mode="contained" icon="cash" onPress={() => {
-                setInstorePaymentDialogVisible(false);
-                setCashTenderMode('instore');
-              }}>
-                Cash
-              </Button>
-              <Button mode="contained-tonal" icon="credit-card-outline" onPress={() => {
-                setInstorePaymentDialogVisible(false);
-                void handleInstoreCheckout('card');
-              }}>
-                Card
-              </Button>
-              <Button mode="outlined" icon="clock-outline" onPress={() => {
-                setInstorePaymentDialogVisible(false);
-                void handleInstoreCheckout('unpaid');
-              }}>
-                Unpaid
-              </Button>
-            </View>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => setInstorePaymentDialogVisible(false)}>Cancel</Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
 
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f4f6f8' },
-  header: { backgroundColor: '#1f2937' },
-  headerTitle: { color: '#fff', fontWeight: '700' },
-  body: { flex: 1, flexDirection: 'row', gap: 12, padding: 12 },
-  bodyCompact: { flexDirection: 'column' },
-  menuPane: { flex: 1, backgroundColor: '#fff', borderRadius: 8, overflow: 'hidden' },
-  menuPaneCompact: { minHeight: 520 },
-  quickListButtonWrap: {
-    position: 'absolute',
-    left: 12,
-    bottom: 12,
-  },
-  quickListButton: {
-    borderRadius: 999,
-    elevation: 3,
-  },
-  quickListButtonContent: {
-    minHeight: 48,
-    paddingHorizontal: 8,
-  },
-  quickListOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.72)',
-    padding: 12,
-    paddingBottom: 72,
-  },
-  quickListPanel: {
-    flex: 1,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    backgroundColor: '#fff',
-    paddingTop: 8,
-    paddingHorizontal: 8,
-    paddingBottom: 8,
-    shadowColor: '#111827',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
-  },
-  quickListHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingLeft: 8,
-    paddingRight: 2,
-    paddingBottom: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  quickListTitle: { color: '#111827', fontSize: 18, fontWeight: '900' },
-  quickListSubtitle: { color: '#6b7280', fontSize: 12, fontWeight: '700', marginTop: 2 },
-  menuHeader: {
-    minHeight: 52,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  menuHeaderText: { flex: 1 },
-  menuTitle: { color: '#111827', fontSize: 19, fontWeight: '800' },
-  menuSubtitle: { color: '#6b7280', marginTop: 1 },
-  backButton: { borderRadius: 8 },
-  levelFooter: {
-    paddingHorizontal: 12,
-    paddingTop: 4,
-    paddingBottom: 6,
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-    backgroundColor: '#fff',
-  },
-  levelFooterActions: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 12,
-  },
-  levelFooterButton: {
-    borderRadius: 10,
-    minWidth: 220,
-    alignSelf: 'center',
-  },
-  levelFooterQuickListButton: {
-    borderRadius: 10,
-    minWidth: 180,
-    alignSelf: 'center',
-  },
-  levelFooterButtonContent: {
-    minHeight: 52,
-    paddingHorizontal: 16,
-  },
-  levelFooterButtonLabel: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  groupScreen: { flex: 1 },
-  tileGrid: { padding: 4, paddingBottom: 10 },
-  searchBody: { flex: 1 },
-  searchInput: { margin: 10, marginBottom: 0, backgroundColor: '#fff' },
-  searchGrid: { padding: 4, paddingBottom: 10 },
-  groupCard: {
-    flex: 1,
-    minHeight: 108,
-    margin: 5,
-    borderRadius: 8,
-    backgroundColor: '#111827',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#243244',
-  },
-  groupCardText: { color: '#fff', fontSize: 18, fontWeight: '900', textAlign: 'center' },
-  topSellersSection: {
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-    paddingHorizontal: 10,
-    paddingTop: 8,
-    paddingBottom: 10,
-    backgroundColor: '#fff',
-  },
-  topSellersHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 },
-  topSellersHeaderText: { flex: 1 },
-  topSellersTitle: { color: '#111827', fontSize: 15, fontWeight: '900' },
-  topSellersLoading: { color: '#6b7280', fontSize: 12, fontWeight: '700' },
-  topSellersList: { gap: 8, paddingRight: 8 },
-  topSellerCard: {
-    width: 118,
-    minHeight: 74,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#f9fafb',
-    padding: 8,
-    justifyContent: 'space-between',
-  },
-  topSellerQuantityBadge: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    minWidth: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#16a34a',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 6,
-  },
-  topSellerName: { color: '#111827', fontSize: 13, fontWeight: '900', paddingRight: 22 },
-  topSellerMeta: { color: '#6b7280', fontSize: 11, fontWeight: '700' },
-  topSellersEmpty: { color: '#6b7280', fontSize: 13, fontWeight: '700', paddingVertical: 8 },
-  productCard: {
-    flex: 1,
-    minHeight: 112,
-    margin: 4,
-    borderRadius: 8,
-    backgroundColor: '#fff7ed',
-    borderWidth: 1,
-    borderColor: '#fed7aa',
-    padding: 8,
-    justifyContent: 'space-between',
-  },
-  productQuantityBadge: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    zIndex: 2,
-    minWidth: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#16a34a',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 8,
-  },
-  productQuantityText: { color: '#fff', fontSize: 13, fontWeight: '900' },
-  productNameArea: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 4,
-    paddingTop: 8,
-    paddingBottom: 6,
-  },
-  productName: {
-    color: '#111827',
-    fontSize: 15,
-    lineHeight: 18,
-    fontWeight: '900',
-    textAlign: 'center',
-  },
-  productPricePill: {
-    alignSelf: 'center',
-    minWidth: 70,
-    borderRadius: 8,
-    backgroundColor: '#dc2626',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  productPricePillCustom: {
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.38)',
-  },
-  productPrice: {
-    color: '#fff',
-    fontSize: 17,
-    lineHeight: 21,
-    fontWeight: '900',
-    textAlign: 'center',
-  },
-  productCardCustomColor: { borderWidth: 1 },
-  productCardCustomText: { color: '#fff' },
-  emptyState: { padding: 30, alignItems: 'center' },
-  emptyTitle: { color: '#6b7280', fontSize: 16, fontWeight: '700' },
-  editorBody: { flex: 1, padding: 10 },
-  removableBlock: {
-    marginTop: 8,
-    marginBottom: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#fecaca',
-    backgroundColor: '#fff1f2',
-    paddingHorizontal: 10,
-    paddingTop: 18,
-    paddingBottom: 10,
-  },
-  addonList: { flex: 1, marginTop: 8 },
-  emptyAddonText: { color: '#6b7280', textAlign: 'center', paddingVertical: 24 },
-  addonGroup: {
-    marginTop: 8,
-    marginBottom: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#bfdbfe',
-    backgroundColor: '#eff6ff',
-    paddingHorizontal: 10,
-    paddingTop: 18,
-    paddingBottom: 10,
-  },
-  addonGroupLabel: {
-    position: 'absolute',
-    top: -9,
-    left: 10,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    backgroundColor: '#1d4ed8',
-  },
-  removeGroupLabel: {
-    backgroundColor: '#dc2626',
-  },
-  addonGroupTitle: { color: '#fff', fontSize: 13, lineHeight: 16, fontWeight: '900' },
-  removeGroupTitle: { color: '#fff' },
-  optionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  optionButton: {
-    minHeight: 52,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    backgroundColor: '#fff',
-    paddingHorizontal: 8,
-    paddingVertical: 7,
-    justifyContent: 'center',
-  },
-  optionButtonSelected: { backgroundColor: '#2563eb', borderColor: '#1d4ed8' },
-  removeButtonSelected: { backgroundColor: '#dc2626', borderColor: '#b91c1c' },
-  optionText: { color: '#111827', fontSize: 13, lineHeight: 16, fontWeight: '900', textAlign: 'center' },
-  optionTextSelected: { color: '#fff' },
-  optionPrice: { color: '#6b7280', fontSize: 12, marginTop: 2, fontWeight: '800', textAlign: 'center' },
-  groupRequirementText: { color: '#374151', fontSize: 12, fontWeight: '800', marginBottom: 8, marginTop: 2 },
-  editorActions: { flexDirection: 'row', gap: 10, paddingTop: 8 },
-  editorActionButton: { flex: 1, borderRadius: 8 },
-  checkoutBody: { flex: 1 },
-  checkoutContent: { flexGrow: 1, padding: 16, paddingBottom: 28 },
-  checkoutForm: { maxWidth: 520, width: '100%', gap: 10 },
-  checkoutInput: { backgroundColor: '#fff' },
-  checkoutNoteInput: { minHeight: 84 },
-  checkoutSummaryCard: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#bbf7d0',
-    backgroundColor: '#f0fdf4',
-    padding: 14,
-    gap: 4,
-  },
-  checkoutSummaryEyebrow: { color: '#166534', fontSize: 12, fontWeight: '900', textTransform: 'uppercase' },
-  checkoutSummaryTotal: { color: '#14532d', fontSize: 28, fontWeight: '900' },
-  checkoutSummaryMeta: { color: '#166534', fontSize: 13, fontWeight: '700' },
-  checkoutSectionTitle: { color: '#111827', fontSize: 15, fontWeight: '900' },
-  lookupRow: { minHeight: 22, justifyContent: 'center' },
-  lookupText: { color: '#6b7280', fontSize: 13, fontWeight: '700' },
-  foundText: { color: '#16a34a', fontSize: 13, fontWeight: '800' },
-  newText: { color: '#dc2626', fontSize: 13, fontWeight: '800' },
-  errorText: { color: '#dc2626', fontSize: 13, fontWeight: '800' },
-  newCustomerBadge: {
-    borderRadius: 8,
-    backgroundColor: '#fee2e2',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  newCustomerBadgeText: { color: '#b91c1c', fontSize: 12, fontWeight: '900' },
-  pickupPanel: {
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 8,
-    padding: 12,
-    gap: 10,
-    backgroundColor: '#f9fafb',
-  },
-  pickupModeRow: { flexDirection: 'row', gap: 8 },
-  pickupModeButton: { flex: 1, borderRadius: 8 },
-  paymentPanel: {
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 8,
-    padding: 12,
-    gap: 10,
-    backgroundColor: '#f9fafb',
-  },
-  paymentModeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  paymentModeButton: { flexGrow: 1, minWidth: 128, borderRadius: 8 },
-  preOrderPanel: {
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-    paddingTop: 10,
-    gap: 8,
-  },
-  preOrderBadge: {
-    alignSelf: 'flex-start',
-    color: '#b91c1c',
-    backgroundColor: '#fee2e2',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  pickupTimeText: { color: '#111827', fontSize: 18, fontWeight: '900' },
-  pickupPickerButtons: { flexDirection: 'row', gap: 8 },
-  pickupPickerButton: { flex: 1, borderRadius: 8 },
-  placeOrderButton: { borderRadius: 8, marginTop: 8 },
-  secondaryActionsPanel: {
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 8,
-    padding: 12,
-    gap: 10,
-    backgroundColor: '#fff',
-  },
-  secondaryActionsTitle: { color: '#111827', fontSize: 13, fontWeight: '900' },
-  secondaryActionsRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  secondaryActionButton: { flexGrow: 1, borderRadius: 8 },
-  cartPane: { width: 350, backgroundColor: '#fff', borderRadius: 8, padding: 12 },
-  cartPaneCompact: { width: '100%', minHeight: 320 },
-  cartHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 },
-  cartTitle: { color: '#111827', fontSize: 20, fontWeight: '800', flex: 1 },
-  clearCartButton: { borderRadius: 8 },
-  cartList: { flex: 1 },
-  emptyCart: { color: '#6b7280', textAlign: 'center', marginTop: 30 },
-  cartRow: { borderBottomWidth: 1, borderBottomColor: '#f3f4f6', paddingVertical: 8 },
-  cartItemHeader: { flexDirection: 'row', alignItems: 'flex-start' },
-  cartItemText: { flex: 1 },
-  cartItemTopLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  cartItemNameButton: { flex: 1 },
-  cartItemName: { flex: 1, color: '#111827', fontSize: 15, lineHeight: 18, fontWeight: '900' },
-  cartItemPrice: { minWidth: 62, color: '#111827', fontSize: 15, fontWeight: '900', textAlign: 'right' },
-  cartItemDetails: { marginTop: 4 },
-  cartItemMeta: { color: '#2563eb', fontSize: 13, marginTop: 2, fontWeight: '700' },
-  cartItemRemoved: { color: '#dc2626', fontSize: 13, marginTop: 2, fontWeight: '800' },
-  cartItemNote: { color: '#6b7280', fontSize: 14, marginTop: 3 },
-  cartControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6, marginTop: 8, flexWrap: 'wrap' },
-  qtyStepper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 8,
-    backgroundColor: '#f9fafb',
-  },
-  stepperButton: { margin: -4 },
-  cartQuantity: { minWidth: 24, textAlign: 'center', fontSize: 16, fontWeight: '900' },
-  cartActionButton: { borderRadius: 999 },
-  totals: { paddingVertical: 12, gap: 8 },
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  totalLabel: { color: '#6b7280', fontSize: 15 },
-  totalValue: { color: '#111827', fontSize: 15, fontWeight: '700' },
-  grandTotalLabel: { color: '#111827', fontSize: 20, fontWeight: '900' },
-  grandTotalValue: { color: '#111827', fontSize: 22, fontWeight: '900' },
-  quickOrderNoteButton: {
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 8,
-    backgroundColor: '#f9fafb',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    marginBottom: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  quickOrderNoteButtonSelected: {
-    borderColor: '#047857',
-    backgroundColor: '#ecfdf5',
-  },
-  quickOrderNoteButtonText: { flex: 1 },
-  quickOrderNoteTitle: { color: '#6b7280', fontSize: 11, lineHeight: 13, fontWeight: '900' },
-  quickOrderNoteTitleSelected: { color: '#047857' },
-  quickOrderNoteValue: { color: '#111827', fontSize: 14, lineHeight: 17, fontWeight: '900', marginTop: 1 },
-  quickOrderNoteValueSelected: { color: '#064e3b' },
-  quickOrderNoteEdit: { color: '#2563eb', fontSize: 12, fontWeight: '900' },
-  quickOrderNoteEditSelected: { color: '#047857' },
-  quickOrderNoteGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  quickOrderNoteChip: {
-    width: '48%',
-    minHeight: 52,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    backgroundColor: '#fff',
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  quickOrderNoteChipSelected: {
-    borderColor: '#047857',
-    backgroundColor: '#047857',
-  },
-  quickOrderNoteChipText: {
-    color: '#111827',
-    fontSize: 16,
-    lineHeight: 19,
-    fontWeight: '900',
-    textAlign: 'center',
-  },
-  quickOrderNoteChipTextSelected: { color: '#fff' },
-  checkoutButton: { borderRadius: 8, marginTop: 10 },
-  quickActionsPanel: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-  },
-  quickActionsTitle: { color: '#111827', fontSize: 13, fontWeight: '900', marginBottom: 6 },
-  quickPaymentRow: { flexDirection: 'row', gap: 8 },
-  quickPaymentButton: { flex: 1 },
-  completeButton: { marginTop: 12 },
-  smartpayDialog: { borderRadius: 8, backgroundColor: '#fff' },
-  smartpayDialogText: { color: '#374151', fontSize: 14, lineHeight: 20 },
-  smartpayAmount: { marginTop: 12, color: '#111827', fontSize: 28, fontWeight: '900', textAlign: 'center' },
-  noteDialog: { backgroundColor: '#fff' },
-  noteInput: { backgroundColor: '#fff', minHeight: 90 },
-  dialogActionStack: { marginTop: 16, gap: 10 },
-  addonSummaryBar: {
-    marginTop: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    backgroundColor: '#fff',
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  addonSummaryText: { flex: 1, gap: 2 },
-  addonSummaryTitle: { color: '#111827', fontSize: 14, fontWeight: '900' },
-  addonSummaryMeta: { color: '#6b7280', fontSize: 12, fontWeight: '700' },
-  addonSummaryButton: { borderRadius: 8 },
-  quickListGrid: { paddingTop: 8, paddingBottom: 8 },
-  quickListCard: {
-    flex: 1,
-    minHeight: 112,
-    margin: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    padding: 8,
-    justifyContent: 'space-between',
-  },
-  quickListEmpty: { color: '#6b7280', fontSize: 15, lineHeight: 22 },
-});

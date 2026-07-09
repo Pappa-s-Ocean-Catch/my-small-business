@@ -3,6 +3,7 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { getPostHogClient } from '@/lib/posthog-server';
+import { calculateServiceFee } from '@/lib/payment-fees';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 
@@ -15,13 +16,9 @@ const stripe = stripeSecretKey ? new Stripe(stripeSecretKey) : null;
 
 // Stripe fees (Australia): 1.75% + 30c for domestic cards.
 // Adjust if needed via env variables.
-const STRIPE_PERCENT_FEE = Number(process.env.STRIPE_PERCENT_FEE ?? '0.0175');
-const STRIPE_FIXED_FEE = Number(process.env.STRIPE_FIXED_FEE ?? '0.3');
-const DELIVERY_PROCESSING_FEE = Number(process.env.DELIVERY_PROCESSING_FEE ?? '1');
-
 interface CreateCheckoutSessionBody {
   orderId: string;
-  customerEmail: string;
+  customerEmail?: string;
   customerName?: string;
   customerPhone?: string;
   items: Array<{
@@ -71,19 +68,13 @@ export async function POST(request: Request) {
 
     // Calculate service fee (on amount after discounts)
     const rewardPointsDiscount = body.rewardPointsDiscount || 0;
-    
-    // Base amount is subtotal + tax - discounts (excluding delivery)
-    const orderBaseAmount = Math.max(0, body.subtotal + body.tax - rewardPointsDiscount);
-    
-    // Service fee calculation (matches frontend)
-    // 1.75% + 0.30c + configurable delivery processing fee if delivery
-    const totalForFeeCalculation = Math.max(0, orderBaseAmount + body.deliveryFee);
-    let serviceFee = totalForFeeCalculation * STRIPE_PERCENT_FEE + STRIPE_FIXED_FEE;
-    if (body.orderType === 'delivery') {
-      serviceFee += DELIVERY_PROCESSING_FEE;
-    }
-
-    const totalAmount = orderBaseAmount + body.deliveryFee + serviceFee;
+    const { orderBaseAmount, serviceFee, totalAmount } = calculateServiceFee({
+      subtotal: body.subtotal,
+      tax: body.tax,
+      deliveryFee: body.deliveryFee,
+      rewardPointsDiscount,
+      orderType: body.orderType ?? null,
+    });
 
     // Ensure minimum amount (Stripe requires at least $0.50 AUD = 50 cents)
     const amountInCents = Math.round(totalAmount * 100);
@@ -146,7 +137,7 @@ export async function POST(request: Request) {
       mode: 'payment',
       success_url: `${baseUrl}/order/confirmation?session_id={CHECKOUT_SESSION_ID}&order_id=${body.orderId}`,
       cancel_url: `${baseUrl}/order/checkout?canceled=true&order_id=${body.orderId}`,
-      customer_email: body.customerEmail,
+      ...(body.customerEmail ? { customer_email: body.customerEmail } : {}),
       metadata: {
         order_id: body.orderId,
         customer_name: body.customerName || '',
@@ -174,7 +165,7 @@ export async function POST(request: Request) {
 
     const posthog = getPostHogClient();
     posthog.capture({
-      distinctId: body.customerEmail,
+      distinctId: body.customerEmail || body.customerPhone || body.orderId,
       event: 'checkout_session_created',
       properties: {
         order_id: body.orderId,
