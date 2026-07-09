@@ -128,14 +128,21 @@ export async function createStripeCheckoutSession(params: {
   return payload;
 }
 
+export async function sendPaymentLinkSms(params: {
+  phone: string;
+  customerName?: string;
+  paymentUrl: string;
+  orderId?: string;
+}) {
+  const payload = await fetchJson<{ success: true; provider: string; result: string }>('/api/pos/send-payment-link-sms', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+  return payload;
+}
+
 export async function openExternalUrl(url: string) {
   const trimmedUrl = url.trim();
   if (!trimmedUrl) return;
   await Linking.openURL(trimmedUrl);
-}
-
-export async function openSmsComposer(phone: string, message: string) {
-  const normalizedPhone = phone.trim();
-  const url = `sms:${normalizedPhone}?body=${encodeURIComponent(message)}`;
-  await Linking.openURL(url);
 }

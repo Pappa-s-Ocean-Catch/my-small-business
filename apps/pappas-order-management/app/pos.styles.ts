@@ -358,6 +358,16 @@ export const styles = StyleSheet.create({
   },
   deliveryAddressLine: { color: '#1e3a8a', fontSize: 15, fontWeight: '900' },
   deliveryAddressMeta: { color: '#1d4ed8', fontSize: 13, fontWeight: '700' },
+  deliveryLockBanner: {
+    borderWidth: 1,
+    borderColor: '#fde68a',
+    borderRadius: 8,
+    backgroundColor: '#fffbeb',
+    padding: 12,
+    gap: 4,
+  },
+  deliveryLockTitle: { color: '#92400e', fontSize: 14, fontWeight: '900' },
+  deliveryLockText: { color: '#b45309', fontSize: 13, lineHeight: 18, fontWeight: '700' },
   deliveryQuoteCard: {
     borderWidth: 1,
     borderColor: '#cbd5e1',

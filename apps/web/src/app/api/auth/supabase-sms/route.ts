@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { sendSmsMessage } from '@/lib/sms';
 
 type SupabaseSmsHookPayload = {
   phone?: string;
@@ -7,17 +8,6 @@ type SupabaseSmsHookPayload = {
   user?: { phone?: string | null };
   sms?: { phone?: string; message?: string; otp?: string };
 };
-
-function normalizePhone(phone: string): string {
-  const digits = phone.replace(/\D/g, "");
-  if (digits.startsWith("61") && digits.length === 11) {
-    return digits;
-  }
-  if (digits.startsWith("04") && digits.length === 10) {
-    return `61${digits.slice(1)}`;
-  }
-  return digits;
-}
 
 export async function POST(request: Request) {
   try {
@@ -40,72 +30,16 @@ export async function POST(request: Request) {
       );
     }
 
-    const smsApiKey = process.env.SMS_API_KEY;
-    const sender =
-      process.env.SMS_SENDER_ID ??
-      process.env.SMS_SENDER ??
-      process.env.MOBILE_MESSAGE_SENDER;
-
-    if (!smsApiKey) {
-      return NextResponse.json(
-        {
-          error:
-            "Missing SMS_API_KEY. Set it to the Mobile Message user:password value.",
-        },
-        { status: 500 },
-      );
-    }
-
-    if (!sender) {
-      return NextResponse.json(
-        {
-          error:
-            "Missing SMS sender id. Set SMS_SENDER_ID (or SMS_SENDER / MOBILE_MESSAGE_SENDER).",
-        },
-        { status: 500 },
-      );
-    }
-
-    const authHeader = `Basic ${Buffer.from(smsApiKey).toString("base64")}`;
-
-    const mobileMessageRes = await fetch("https://api.mobilemessage.com.au/v1/messages", {
-      method: "POST",
-      headers: {
-        Authorization: authHeader,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        messages: [
-          {
-            to: normalizePhone(phone),
-            message,
-            sender,
-            custom_ref: "supabase-phone-auth",
-          },
-        ],
-      }),
+    const smsResult = await sendSmsMessage({
+      phone,
+      message,
+      customRef: 'supabase-phone-auth',
     });
-
-    const mobileMessageJson = (await mobileMessageRes.json()) as {
-      error?: string;
-      results?: Array<{ status?: string; to?: string }>;
-    };
-
-    if (!mobileMessageRes.ok) {
-      return NextResponse.json(
-        {
-          error:
-            mobileMessageJson.error ??
-            "Failed to send SMS via Mobile Message API.",
-        },
-        { status: mobileMessageRes.status },
-      );
-    }
 
     return NextResponse.json({
       success: true,
-      provider: "mobilemessage",
-      result: mobileMessageJson.results?.[0]?.status ?? "queued",
+      provider: smsResult.provider,
+      result: smsResult.result,
     });
   } catch (error) {
     const message =
