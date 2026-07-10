@@ -5,7 +5,7 @@ import { Appbar } from 'react-native-paper';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import type { Order, OrderItem, OrderItemAddon, PaymentStatus } from '@my-small-business/types';
-import { getOrder, savePosOrder, updatePosOrder } from '../lib/orders';
+import { savePosOrder, updatePosOrder } from '../lib/orders';
 import { createCustomerIfNotExists, findCustomerByPhone } from '../lib/customers';
 import {
   calculateDeliveryFees,
@@ -24,6 +24,7 @@ import { formatSmartpayError, isSmartpayPaired, processSmartpayCardPayment } fro
 import { PosCartPane } from '../components/pos/PosCartPane';
 import { PosDialogs } from '../components/pos/PosDialogs';
 import { PosMenuPane } from '../components/pos/PosMenuPane';
+import { usePendingOnlinePaymentsStore } from '../stores/pendingOnlinePaymentsStore';
 import { styles } from './pos.styles';
 import type {
   AddonGroup,
@@ -197,6 +198,7 @@ export default function PosScreen() {
   const [saltOptionDialogVisible, setSaltOptionDialogVisible] = useState(false);
   const [orderNoteText, setOrderNoteText] = useState('');
   const [quickListVisible, setQuickListVisible] = useState(false);
+  const upsertPendingOnlinePaymentSession = usePendingOnlinePaymentsStore((state) => state.upsertSession);
 
   const goHome = () => {
     router.replace('/(drawer)/(tabs)/live-orders');
@@ -1229,6 +1231,31 @@ export default function PosScreen() {
     );
   };
 
+  const resetPosForNextOrder = useCallback(() => {
+    setCartItems([]);
+    setCustomerPhone('');
+    setCustomerName('');
+    setCustomerLookupStatus('idle');
+    setCustomerLookupError(null);
+    setIsPreOrder(false);
+    setScheduledPickupAt(defaultPickupTime());
+    setPaymentChoice('no_pay');
+    setQuickOrderNote(null);
+    setOrderNoteText('');
+    setSelectedProduct(null);
+    setEditingItemId(null);
+    setEditorAddonGroups([]);
+    setEditorSelectedIds({});
+    setEditorRemovableIngredients([]);
+    setEditorRemovedIngredientIds({});
+    setSearchQuery('');
+    setMenuLevel('groups');
+    setSelectedParentCatId(null);
+    setSelectedCatId(null);
+    setProducts([]);
+    setCustomizableProductIds(new Set());
+  }, []);
+
   const updateQuantity = (id: string, delta: number) => {
     const currentItem = cartItems.find((item) => item.id === id);
     if (menuLevel === 'addons' && currentItem && currentItem.quantity + delta <= 0) {
@@ -1601,38 +1628,23 @@ export default function PosScreen() {
     router.back();
   };
 
-  const checkDeliveryPaymentStatus = useCallback(async (deliveryOrderId: string): Promise<'pending' | 'paid' | 'failed'> => {
-    const result = await getOrder(deliveryOrderId);
-    if (result.error || !result.data) {
-      return 'failed';
-    }
-
-    if (result.data.payment_status === 'paid') {
-      invalidateTopSellers();
-      router.back();
-      return 'paid';
-    }
-
-    return 'pending';
-  }, [router]);
-
   const handleDeliveryCheckout = useCallback(async (
     input: { address: DeliveryAddressDraft; quote: DeliveryQuoteResult }
-  ): Promise<{ orderId: string; paymentUrl: string; serviceFee: number; deliveryFee: number; totalAmount: number } | null> => {
+  ): Promise<void> => {
     if (orderId) {
       Alert.alert('Edit Order', 'Delivery checkout is only available for new POS orders right now.');
-      return null;
+      return;
     }
 
     const phone = customerPhone.trim();
     const name = customerName.trim();
     if (!phone) {
       Alert.alert('Delivery', 'Please enter a customer phone number.');
-      return null;
+      return;
     }
     if (!name) {
       Alert.alert('Delivery', 'Please enter a customer name.');
-      return null;
+      return;
     }
 
     setCreatingOrder(true);
@@ -1641,7 +1653,7 @@ export default function PosScreen() {
       const { data: customer, error: customerError } = await createCustomerIfNotExists(phone, name);
       if (customerError) {
         Alert.alert('Customer', customerError);
-        return null;
+        return;
       }
 
       const feeSummary = await calculateDeliveryFees({
@@ -1703,7 +1715,7 @@ export default function PosScreen() {
       const saveResult = await savePosOrder(orderPayload, cartItems);
       if (saveResult.error || !saveResult.data) {
         Alert.alert('Delivery', saveResult.error || 'Failed to create delivery order');
-        return null;
+        return;
       }
 
       const checkoutSession = await createStripeCheckoutSession({
@@ -1739,18 +1751,21 @@ export default function PosScreen() {
       }
 
       invalidateTopSellers();
-
-      return {
+      upsertPendingOnlinePaymentSession({
         orderId: saveResult.data.id,
+        orderNumber: saveResult.data.order_number,
+        customerName: name,
+        customerPhone: phone,
         paymentUrl: checkoutSession.url,
         serviceFee: checkoutSession.serviceFee,
         deliveryFee: input.quote.fee,
         totalAmount: finalTotalAmount,
-      };
+        isTestPayment: Boolean(checkoutSession.isTestPhoneCheckout),
+      });
+      resetPosForNextOrder();
     } catch (error) {
       console.error('Delivery checkout failed', error);
       Alert.alert('Delivery', error instanceof Error ? error.message : 'Failed to request online delivery');
-      return null;
     } finally {
       setCreatingOrder(false);
     }
@@ -1764,6 +1779,8 @@ export default function PosScreen() {
     orderSpecialInstructions,
     cartItems,
     buildCheckoutLineItems,
+    resetPosForNextOrder,
+    upsertPendingOnlinePaymentSession,
   ]);
 
   const openInstorePaymentPrompt = () => {
@@ -1915,7 +1932,6 @@ export default function PosScreen() {
             handleInstoreCheckout={handleInstoreCheckout}
             handleSmartpayInstoreCheckout={handleSmartpayInstoreCheckout}
             handleDeliveryCheckout={handleDeliveryCheckout}
-            checkDeliveryPaymentStatus={checkDeliveryPaymentStatus}
             quickListVisible={quickListVisible}
           />
         </View>

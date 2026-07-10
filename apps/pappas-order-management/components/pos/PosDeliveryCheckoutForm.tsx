@@ -14,9 +14,7 @@ import {
   calculateDeliveryFees,
   fetchAddressDetails,
   fetchAddressSuggestions,
-  openExternalUrl,
   requestDeliveryQuote,
-  sendPaymentLinkSms,
 } from '../../lib/delivery';
 
 type Props = {
@@ -35,8 +33,7 @@ type Props = {
   onSubmitDeliveryOrder: (input: {
     address: DeliveryAddressDraft;
     quote: DeliveryQuoteResult;
-  }) => Promise<{ orderId: string; paymentUrl: string; serviceFee: number; deliveryFee: number; totalAmount: number } | null>;
-  checkDeliveryPaymentStatus: (orderId: string) => Promise<'pending' | 'paid' | 'failed'>;
+  }) => Promise<void>;
 };
 
 export function PosDeliveryCheckoutForm({
@@ -53,7 +50,6 @@ export function PosDeliveryCheckoutForm({
   creatingOrder,
   smartpayProcessing,
   onSubmitDeliveryOrder,
-  checkDeliveryPaymentStatus,
 }: Props) {
   const [addressQuery, setAddressQuery] = useState('');
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
@@ -65,17 +61,6 @@ export function PosDeliveryCheckoutForm({
   const [calculatingFees, setCalculatingFees] = useState(false);
   const [feeSummary, setFeeSummary] = useState<DeliveryFeeSummary | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [paymentRequest, setPaymentRequest] = useState<{
-    orderId: string;
-    paymentUrl: string;
-    serviceFee: number;
-    deliveryFee: number;
-    totalAmount: number;
-  } | null>(null);
-  const [paymentPolling, setPaymentPolling] = useState(false);
-  const [sendingSms, setSendingSms] = useState(false);
-  const [smsStatus, setSmsStatus] = useState<string | null>(null);
-
   useEffect(() => {
     let cancelled = false;
 
@@ -107,38 +92,9 @@ export function PosDeliveryCheckoutForm({
     };
   }, [addressQuery, selectedAddress]);
 
-  useEffect(() => {
-    if (!paymentRequest?.orderId) return;
-
-    let cancelled = false;
-    setPaymentPolling(true);
-
-    const interval = setInterval(() => {
-      checkDeliveryPaymentStatus(paymentRequest.orderId)
-        .then((status) => {
-          if (cancelled) return;
-          if (status === 'paid') {
-            setPaymentPolling(false);
-            setPaymentRequest(null);
-          }
-        })
-        .catch(() => {
-          if (!cancelled) {
-            setPaymentPolling(false);
-          }
-        });
-    }, 5000);
-
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [checkDeliveryPaymentStatus, paymentRequest]);
-
   const displayTotal = useMemo(() => (
-    paymentRequest?.totalAmount ?? totals.total
-  ), [paymentRequest?.totalAmount, totals.total]);
-  const isLockedForPayment = Boolean(paymentRequest);
+    feeSummary?.totalAmount ?? totals.total
+  ), [feeSummary?.totalAmount, totals.total]);
 
   const chooseSuggestion = async (suggestion: AddressSuggestion) => {
     try {
@@ -166,9 +122,12 @@ export function PosDeliveryCheckoutForm({
         address: selectedAddress,
         quote,
       });
-      if (result) {
-        setPaymentRequest(result);
-        setSmsStatus(null);
+      if (result === undefined) {
+        setAddressQuery('');
+        setSuggestions([]);
+        setSelectedAddress(null);
+        setQuote(null);
+        setFeeSummary(null);
       }
     } finally {
       setSubmitting(false);
@@ -199,26 +158,6 @@ export function PosDeliveryCheckoutForm({
     }
   };
 
-  const handleSendSms = async () => {
-    if (!paymentRequest) return;
-
-    setSendingSms(true);
-    setSmsStatus(null);
-    try {
-      await sendPaymentLinkSms({
-        phone: customerPhone,
-        customerName,
-        paymentUrl: paymentRequest.paymentUrl,
-        orderId: paymentRequest.orderId,
-      });
-      setSmsStatus('Payment link SMS sent.');
-    } catch (error) {
-      setSmsStatus(error instanceof Error ? error.message : 'Failed to send payment link SMS');
-    } finally {
-      setSendingSms(false);
-    }
-  };
-
   return (
     <ScrollView
       style={styles.checkoutBody}
@@ -231,7 +170,7 @@ export function PosDeliveryCheckoutForm({
           <Text style={styles.checkoutSummaryTotal}>${displayTotal.toFixed(2)}</Text>
           <Text style={styles.checkoutSummaryMeta}>{cartItemsCount} items • Online payment required</Text>
           <Text style={styles.checkoutSummaryMeta}>
-            {paymentRequest ? 'Awaiting customer payment' : 'Get quote, then send payment link'}
+            Get quote, then request online delivery
           </Text>
         </View>
 
@@ -245,7 +184,6 @@ export function PosDeliveryCheckoutForm({
           }}
           keyboardType="phone-pad"
           style={styles.checkoutInput}
-          disabled={isLockedForPayment}
         />
         <View style={styles.lookupRow}>
           {customerLookupStatus === 'loading' && <Text style={styles.lookupText}>Looking up customer...</Text>}
@@ -259,19 +197,10 @@ export function PosDeliveryCheckoutForm({
           value={customerName}
           onChangeText={setCustomerName}
           style={styles.checkoutInput}
-          disabled={isLockedForPayment}
         />
 
         <View style={styles.deliveryPanel}>
           <Text style={styles.checkoutSectionTitle}>Delivery address</Text>
-          {isLockedForPayment && (
-            <View style={styles.deliveryLockBanner}>
-              <Text style={styles.deliveryLockTitle}>Order created</Text>
-              <Text style={styles.deliveryLockText}>
-                This screen is locked while we wait for the customer to complete online payment.
-              </Text>
-            </View>
-          )}
           <TextInput
             label="Search address"
             mode="outlined"
@@ -281,11 +210,9 @@ export function PosDeliveryCheckoutForm({
               setSelectedAddress(null);
               setQuote(null);
               setFeeSummary(null);
-              setPaymentRequest(null);
               setQuoteError(null);
             }}
             style={styles.checkoutInput}
-            disabled={isLockedForPayment}
           />
           {loadingSuggestions && <Text style={styles.lookupText}>Searching addresses...</Text>}
 
@@ -332,14 +259,14 @@ export function PosDeliveryCheckoutForm({
             }}
             multiline
             style={[styles.checkoutInput, styles.checkoutNoteInput, styles.checkoutNoteInputLarge]}
-            disabled={!selectedAddress || isLockedForPayment}
+            disabled={!selectedAddress}
           />
 
           <Button
             mode="outlined"
             icon="truck-delivery-outline"
             loading={calculatingFees}
-            disabled={!selectedAddress || creatingOrder || submitting || smartpayProcessing || calculatingFees || isLockedForPayment}
+            disabled={!selectedAddress || creatingOrder || submitting || smartpayProcessing || calculatingFees}
             onPress={() => void handleRequestQuote()}
           >
             Get delivery quote
@@ -390,70 +317,29 @@ export function PosDeliveryCheckoutForm({
           onChangeText={setOrderNoteText}
           multiline
           style={[styles.checkoutInput, styles.checkoutNoteInput, styles.checkoutNoteInputLarge]}
-          disabled={isLockedForPayment}
         />
 
-        {!isLockedForPayment && (
-          <Button
-            mode="contained"
-            icon="credit-card-outline"
-            loading={submitting || creatingOrder}
-            disabled={
-              creatingOrder
-              || smartpayProcessing
-              || submitting
-              || cartItemsCount === 0
-              || !customerPhone.trim()
-              || !customerName.trim()
-              || !selectedAddress
-              || !quote
-              || !feeSummary
-            }
-            onPress={() => void handleRequestDelivery()}
-            style={styles.placeOrderButton}
-            buttonColor="#2563eb"
-          >
-            Request Online Delivery
-          </Button>
-        )}
-
-        {paymentRequest && (
-          <View style={styles.secondaryActionsPanel}>
-            <Text style={styles.secondaryActionsTitle}>Pending Online Payment</Text>
-            <Text style={styles.deliveryQuoteMeta}>
-              Order created. Send the Stripe payment link, then wait for payment confirmation.
-            </Text>
-            <View style={styles.secondaryActionsRow}>
-              <Button
-                mode="outlined"
-                icon="open-in-new"
-                onPress={() => void openExternalUrl(paymentRequest.paymentUrl)}
-                style={styles.secondaryActionButton}
-              >
-                Open Link
-              </Button>
-              <Button
-                mode="contained"
-                icon="message-text-outline"
-                onPress={() => void handleSendSms()}
-                style={styles.secondaryActionButton}
-                loading={sendingSms}
-                disabled={sendingSms}
-              >
-                Send SMS
-              </Button>
-            </View>
-            {paymentPolling && (
-              <Text style={styles.lookupText}>Polling payment status every 5 seconds...</Text>
-            )}
-            {!!smsStatus && (
-              <Text style={smsStatus.includes('sent') ? styles.foundText : styles.errorText}>{smsStatus}</Text>
-            )}
-            <Text style={styles.deliveryLinkText} numberOfLines={2}>
-              {paymentRequest.paymentUrl}
-            </Text>
-          </View>
-        )}
+        <Button
+          mode="contained"
+          icon="credit-card-outline"
+          loading={submitting || creatingOrder}
+          disabled={
+            creatingOrder
+            || smartpayProcessing
+            || submitting
+            || cartItemsCount === 0
+            || !customerPhone.trim()
+            || !customerName.trim()
+            || !selectedAddress
+            || !quote
+            || !feeSummary
+          }
+          onPress={() => void handleRequestDelivery()}
+          style={styles.placeOrderButton}
+          buttonColor="#2563eb"
+        >
+          Request Online Delivery
+        </Button>
       </View>
     </ScrollView>
   );

@@ -13,6 +13,11 @@ if (!stripeSecretKey) {
 }
 
 const stripe = stripeSecretKey ? new Stripe(stripeSecretKey) : null;
+const STRIPE_MINIMUM_AMOUNT_AUD = 0.5;
+
+function normalizePhone(phone?: string | null) {
+  return (phone || '').replace(/\D/g, '');
+}
 
 // Stripe fees (Australia): 1.75% + 30c for domestic cards.
 // Adjust if needed via env variables.
@@ -65,6 +70,11 @@ export async function POST(request: Request) {
     const body = (await request.json()) as CreateCheckoutSessionBody;
     const currency = (body.currency || 'aud').toLowerCase();
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://localhost:3000';
+    const testPhoneNumber = process.env.TEST_PHONE_NUMBER?.trim() || '';
+    const isTestPhoneMatch = Boolean(
+      testPhoneNumber
+      && normalizePhone(body.customerPhone) === normalizePhone(testPhoneNumber)
+    );
 
     // Calculate service fee (on amount after discounts)
     const rewardPointsDiscount = body.rewardPointsDiscount || 0;
@@ -75,58 +85,75 @@ export async function POST(request: Request) {
       rewardPointsDiscount,
       orderType: body.orderType ?? null,
     });
+    const payableAmount = isTestPhoneMatch
+      ? STRIPE_MINIMUM_AMOUNT_AUD
+      : totalAmount;
 
     // Ensure minimum amount (Stripe requires at least $0.50 AUD = 50 cents)
-    const amountInCents = Math.round(totalAmount * 100);
+    const amountInCents = Math.round(payableAmount * 100);
     if (amountInCents < 50) {
       return NextResponse.json({
-        error: `Minimum order amount is $0.50 AUD. Current total: $${totalAmount.toFixed(2)}`
+        error: `Minimum order amount is $0.50 AUD. Current total: $${payableAmount.toFixed(2)}`
       }, { status: 400 });
     }
 
     // Build line items for Stripe Checkout
-    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
-      {
+    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = isTestPhoneMatch
+      ? [{
         price_data: {
           currency,
           product_data: {
-            name: 'Order',
-            description: 'Food and tax (after discounts)',
+            name: 'POS Test Payment',
+            description: `Test payment for ${body.orderType === 'delivery' ? 'delivery' : 'pickup'} order`,
           },
-          unit_amount: Math.round(orderBaseAmount * 100),
+          unit_amount: amountInCents,
         },
         quantity: 1,
-      },
-    ];
+      }]
+      : [
+        {
+          price_data: {
+            currency,
+            product_data: {
+              name: 'Order',
+              description: 'Food and tax (after discounts)',
+            },
+            unit_amount: Math.round(orderBaseAmount * 100),
+          },
+          quantity: 1,
+        },
+      ];
 
-    // Add delivery fee as a separate line item
-    if (body.deliveryFee > 0) {
-      lineItems.push({
-        price_data: {
-          currency,
-          product_data: {
-            name: 'Delivery Fee',
-            description: 'Shipping and handling',
+    if (!isTestPhoneMatch) {
+      // Add delivery fee as a separate line item
+      if (body.deliveryFee > 0) {
+        lineItems.push({
+          price_data: {
+            currency,
+            product_data: {
+              name: 'Delivery Fee',
+              description: 'Shipping and handling',
+            },
+            unit_amount: Math.round(body.deliveryFee * 100),
           },
-          unit_amount: Math.round(body.deliveryFee * 100),
-        },
-        quantity: 1,
-      });
-    }
+          quantity: 1,
+        });
+      }
 
-    // Add service fee as a separate line item
-    if (serviceFee > 0) {
-      lineItems.push({
-        price_data: {
-          currency,
-          product_data: {
-            name: 'Service Fee',
-            description: body.orderType === 'delivery' ? 'Payment & Delivery Processing Fee' : 'Payment Processing Fee',
+      // Add service fee as a separate line item
+      if (serviceFee > 0) {
+        lineItems.push({
+          price_data: {
+            currency,
+            product_data: {
+              name: 'Service Fee',
+              description: body.orderType === 'delivery' ? 'Payment & Delivery Processing Fee' : 'Payment Processing Fee',
+            },
+            unit_amount: Math.round(serviceFee * 100),
           },
-          unit_amount: Math.round(serviceFee * 100),
-        },
-        quantity: 1,
-      });
+          quantity: 1,
+        });
+      }
     }
 
 
@@ -148,6 +175,8 @@ export async function POST(request: Request) {
         delivery_fee: body.deliveryFee.toFixed(2),
         service_fee: serviceFee.toFixed(2),
         total: totalAmount.toFixed(2),
+        payable_total: payableAmount.toFixed(2),
+        is_test_phone_checkout: isTestPhoneMatch ? 'true' : 'false',
       },
       billing_address_collection: 'auto', // 'auto' = optional (shown but not required), 'required' = forced
       phone_number_collection: {
@@ -169,9 +198,11 @@ export async function POST(request: Request) {
       event: 'checkout_session_created',
       properties: {
         order_id: body.orderId,
-        total: totalAmount,
+        total: payableAmount,
+        original_total: totalAmount,
         currency,
         session_id: session.id,
+        is_test_phone_checkout: isTestPhoneMatch,
       },
     });
 
@@ -179,6 +210,7 @@ export async function POST(request: Request) {
       sessionId: session.id,
       url: session.url,
       serviceFee,
+      isTestPhoneCheckout: isTestPhoneMatch,
     });
   } catch (error) {
     // eslint-disable-next-line no-console

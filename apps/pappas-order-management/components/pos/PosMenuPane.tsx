@@ -98,8 +98,7 @@ type Props = {
   handleDeliveryCheckout: (input: {
     address: DeliveryAddressDraft;
     quote: DeliveryQuoteResult;
-  }) => Promise<{ orderId: string; paymentUrl: string; serviceFee: number; deliveryFee: number; totalAmount: number } | null>;
-  checkDeliveryPaymentStatus: (orderId: string) => Promise<'pending' | 'paid' | 'failed'>;
+  }) => Promise<void>;
   quickListVisible: boolean;
 };
 
@@ -176,7 +175,6 @@ export function PosMenuPane(props: Props) {
     handleInstoreCheckout,
     handleSmartpayInstoreCheckout,
     handleDeliveryCheckout,
-    checkDeliveryPaymentStatus,
     quickListVisible,
   } = props;
 
@@ -541,7 +539,6 @@ export function PosMenuPane(props: Props) {
             handleInstoreCheckout={handleInstoreCheckout}
             handleSmartpayInstoreCheckout={handleSmartpayInstoreCheckout}
             handleDeliveryCheckout={handleDeliveryCheckout}
-            checkDeliveryPaymentStatus={checkDeliveryPaymentStatus}
           />
         )}
 

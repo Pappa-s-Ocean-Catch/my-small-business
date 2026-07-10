@@ -8,6 +8,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { canAccessOrderManagement } from '@/lib/auth';
 import { OfflineAttentionOverlay } from '@/lib/KitchenAlertOverlay';
+import { PendingOnlinePaymentsOverlay } from '@/lib/PendingOnlinePaymentsOverlay';
 import { useKeepAwake } from 'expo-keep-awake';
 import { StatusBar } from 'expo-status-bar';
 import { appQueryClient } from '@/lib/query-client';
@@ -104,6 +105,7 @@ export default function RootLayout() {
               </Stack>
               <StatusBar hidden />
               <OfflineAttentionOverlay appName="Pappas Order" />
+              <PendingOnlinePaymentsOverlay />
             </PrinterAutomationProvider>
           </AppSettingsProvider>
         </PaperProvider>

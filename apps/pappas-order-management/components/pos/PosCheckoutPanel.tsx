@@ -46,8 +46,7 @@ type Props = {
   handleDeliveryCheckout: (input: {
     address: DeliveryAddressDraft;
     quote: DeliveryQuoteResult;
-  }) => Promise<{ orderId: string; paymentUrl: string; serviceFee: number; deliveryFee: number; totalAmount: number } | null>;
-  checkDeliveryPaymentStatus: (orderId: string) => Promise<'pending' | 'paid' | 'failed'>;
+  }) => Promise<void>;
 };
 
 export function PosCheckoutPanel({
@@ -81,7 +80,6 @@ export function PosCheckoutPanel({
   handleInstoreCheckout,
   handleSmartpayInstoreCheckout,
   handleDeliveryCheckout,
-  checkDeliveryPaymentStatus,
 }: Props) {
   const [activeTab, setActiveTab] = useState<CheckoutTab>('instore');
 
@@ -169,7 +167,6 @@ export function PosCheckoutPanel({
           creatingOrder={creatingOrder}
           smartpayProcessing={smartpayProcessing}
           onSubmitDeliveryOrder={handleDeliveryCheckout}
-          checkDeliveryPaymentStatus={checkDeliveryPaymentStatus}
         />
       )}
     </View>

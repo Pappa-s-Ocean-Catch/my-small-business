@@ -121,7 +121,7 @@ export async function createStripeCheckoutSession(params: {
   deliveryFee: number;
   orderType: 'delivery';
 }) {
-  const payload = await fetchJson<{ sessionId: string; url: string; serviceFee: number }>('/api/payments/create-checkout-session', {
+  const payload = await fetchJson<{ sessionId: string; url: string; serviceFee: number; isTestPhoneCheckout?: boolean }>('/api/payments/create-checkout-session', {
     method: 'POST',
     body: JSON.stringify(params),
   });
