@@ -6,7 +6,15 @@ type Body = {
   customerName?: string;
   paymentUrl?: string;
   orderId?: string;
+  deliveryAddress?: string;
+  totalAmount?: number;
+  deliveryFee?: number;
+  deliveryEtaMinutes?: number;
 };
+
+const formatCurrency = (amount?: number) => (
+  typeof amount === 'number' && Number.isFinite(amount) ? `$${amount.toFixed(2)}` : null
+);
 
 export async function POST(request: Request) {
   try {
@@ -14,12 +22,28 @@ export async function POST(request: Request) {
     const phone = body.phone?.trim() || '';
     const paymentUrl = body.paymentUrl?.trim() || '';
     const customerName = body.customerName?.trim() || 'there';
+    const deliveryAddress = body.deliveryAddress?.trim() || '';
+    const totalAmount = formatCurrency(body.totalAmount);
+    const deliveryFee = formatCurrency(body.deliveryFee);
+    const etaMinutes = typeof body.deliveryEtaMinutes === 'number' && body.deliveryEtaMinutes > 0
+      ? Math.round(body.deliveryEtaMinutes)
+      : null;
 
     if (!phone || !paymentUrl) {
       return NextResponse.json({ success: false, error: 'phone and paymentUrl are required' }, { status: 400 });
     }
 
-    const message = `Hi ${customerName}, please complete your Pappas delivery payment here: ${paymentUrl}`;
+    const details = [
+      deliveryAddress ? `Delivery to: ${deliveryAddress}.` : null,
+      totalAmount ? `Total: ${totalAmount}.` : null,
+      deliveryFee ? `Delivery: ${deliveryFee}.` : null,
+      etaMinutes ? `ETA about ${etaMinutes} min, likely sooner.` : null,
+    ].filter(Boolean);
+
+    const message = [
+      `Hi ${customerName}, please complete your Pappas delivery payment here: ${paymentUrl}`,
+      details.join(' '),
+    ].filter(Boolean).join(' ');
     const smsResult = await sendSmsMessage({
       phone,
       message,

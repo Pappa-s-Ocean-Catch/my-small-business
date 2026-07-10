@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, IconButton, Surface, Text } from 'react-native-paper';
+import type { Order } from '@my-small-business/types';
 
 import { getOrder, updateOrderStatus } from '@/lib/orders';
 import { openExternalUrl, sendPaymentLinkSms } from '@/lib/delivery';
 import { usePendingOnlinePaymentsStore } from '@/stores/pendingOnlinePaymentsStore';
+import { getFriendlyOrderNumber } from '@/utils/orderNumber';
 
 function formatElapsed(createdAt: number, now: number) {
   const diffMs = Math.max(0, now - createdAt);
@@ -31,6 +33,7 @@ export function PendingOnlinePaymentsOverlay() {
   const setSmsState = usePendingOnlinePaymentsStore((state) => state.setSmsState);
   const removeSession = usePendingOnlinePaymentsStore((state) => state.removeSession);
   const [now, setNow] = useState(Date.now());
+  const [activeOrder, setActiveOrder] = useState<Order | null>(null);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
@@ -65,6 +68,31 @@ export function PendingOnlinePaymentsOverlay() {
     () => (activeSession ? formatElapsed(activeSession.createdAt, now) : null),
     [activeSession, now]
   );
+
+  useEffect(() => {
+    if (!activeSession?.orderId) {
+      setActiveOrder(null);
+      return;
+    }
+
+    let cancelled = false;
+    const loadActiveOrder = async () => {
+      const result = await getOrder(activeSession.orderId);
+      if (!cancelled) {
+        setActiveOrder(result.data || null);
+      }
+    };
+
+    void loadActiveOrder();
+    const interval = setInterval(() => {
+      void loadActiveOrder();
+    }, 3000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [activeSession?.orderId]);
 
   const handleCancelOrder = (orderId: string) => {
     const session = sessions.find((item) => item.orderId === orderId);
@@ -113,6 +141,10 @@ export function PendingOnlinePaymentsOverlay() {
         customerName: session.customerName,
         paymentUrl: session.paymentUrl,
         orderId: session.orderId,
+        deliveryAddress: session.deliveryAddress ?? undefined,
+        totalAmount: session.totalAmount,
+        deliveryFee: session.deliveryFee,
+        deliveryEtaMinutes: session.deliveryEtaMinutes ?? undefined,
       });
       setSmsState(orderId, 'sent', 'Payment link SMS sent.');
     } catch (error) {
@@ -155,53 +187,144 @@ export function PendingOnlinePaymentsOverlay() {
               </Surface>
 
               <ScrollView style={styles.scrollContent} contentContainerStyle={styles.scrollContainer}>
-                <View style={styles.summaryGrid}>
-                  <Card style={styles.infoCard}>
-                    <Card.Content>
-                      <Text style={styles.cardTitle}>Customer</Text>
-                      <Text style={styles.customerName}>{activeSession.customerName}</Text>
-                      <Text style={styles.contactText}>{activeSession.customerPhone}</Text>
-                    </Card.Content>
-                  </Card>
+                <View style={styles.twoColumnLayout}>
+                  <View style={styles.leftColumn}>
+                    <View style={styles.summaryGrid}>
+                      <Card style={styles.infoCard}>
+                        <Card.Content>
+                          <Text style={styles.cardTitle}>Customer</Text>
+                          <Text style={styles.customerName}>{activeSession.customerName}</Text>
+                          <Text style={styles.contactText}>{activeSession.customerPhone}</Text>
+                        </Card.Content>
+                      </Card>
 
-                  <Card style={styles.infoCard}>
-                    <Card.Content>
-                      <Text style={styles.cardTitle}>Payment</Text>
-                      <Text style={styles.amount}>${activeSession.totalAmount.toFixed(2)}</Text>
-                      <Text style={styles.meta}>Delivery fee ${activeSession.deliveryFee.toFixed(2)} • Service fee ${activeSession.serviceFee.toFixed(2)}</Text>
-                      {activeSession.isTestPayment && (
-                        <Text style={styles.testPaymentText}>
-                          Test phone matched. Stripe checkout has been reduced to the test payment amount.
+                      <Card style={styles.infoCard}>
+                        <Card.Content>
+                          <Text style={styles.cardTitle}>Payment</Text>
+                          <Text style={styles.amount}>${activeSession.totalAmount.toFixed(2)}</Text>
+                          <Text style={styles.meta}>Delivery fee ${activeSession.deliveryFee.toFixed(2)} • Service fee ${activeSession.serviceFee.toFixed(2)}</Text>
+                          {activeSession.isTestPayment && (
+                            <Text style={styles.testPaymentText}>
+                              Test phone matched. Stripe checkout has been reduced to the test payment amount.
+                            </Text>
+                          )}
+                        </Card.Content>
+                      </Card>
+                    </View>
+
+                    <Card style={styles.infoCard}>
+                      <Card.Content>
+                        <Text style={styles.cardTitle}>Next step</Text>
+                        <Text style={styles.bodyText}>
+                          Send the payment link to the customer, then keep this order open until payment is confirmed.
                         </Text>
-                      )}
-                    </Card.Content>
-                  </Card>
+                      </Card.Content>
+                    </Card>
+
+                    <Card style={styles.infoCard}>
+                      <Card.Content>
+                        <Text style={styles.cardTitle}>Payment Link</Text>
+                        <Text style={styles.linkText}>{activeSession.paymentUrl}</Text>
+                      </Card.Content>
+                    </Card>
+
+                    <Card style={styles.infoCard}>
+                      <Card.Content>
+                        <Text style={styles.cardTitle}>SMS Status</Text>
+                        <Text style={activeSession.smsStatus === 'error' ? styles.errorText : activeSession.smsStatus === 'sent' ? styles.successText : styles.pendingText}>
+                          {getSmsStatusText(activeSession.orderId)}
+                        </Text>
+                      </Card.Content>
+                    </Card>
+                  </View>
+
+                  <View style={styles.rightColumn}>
+                    <Card style={styles.infoCard}>
+                      <Card.Content>
+                        <Text style={styles.cardTitle}>Order Items</Text>
+                        {(activeOrder?.items?.length || activeSession.itemSummaries.length > 0) ? (
+                          <View style={styles.itemList}>
+                            {(activeOrder?.items || activeSession.itemSummaries.map((item) => ({
+                              id: item.id,
+                              quantity: item.quantity,
+                              product_name: item.productName,
+                              subtotal: item.subtotal,
+                              comment: item.comment,
+                              removed_ingredients: item.removedIngredients,
+                              addons: item.addons.map((addon) => ({
+                                id: addon.id,
+                                addon_item_name: addon.name,
+                                addon_item_price: addon.price,
+                              })),
+                            }))).map((item) => (
+                              <View key={item.id} style={styles.itemRow}>
+                                <View style={styles.itemHeader}>
+                                  <Text style={styles.itemName}>
+                                    {item.quantity}x {item.product_name}
+                                  </Text>
+                                  <Text style={styles.itemPrice}>${item.subtotal.toFixed(2)}</Text>
+                                </View>
+                                {item.comment ? (
+                                  <Text style={styles.itemComment}>Note: {item.comment}</Text>
+                                ) : null}
+                                {(item.removed_ingredients || []).length > 0 ? (
+                                  <Text style={styles.itemMeta}>
+                                    Remove: {item.removed_ingredients.join(', ')}
+                                  </Text>
+                                ) : null}
+                                {item.addons?.length ? (
+                                  <View style={styles.addonsList}>
+                                    {item.addons.map((addon) => (
+                                      <Text key={addon.id} style={styles.addonText}>
+                                        + {addon.addon_item_name} (${Number(addon.addon_item_price || 0).toFixed(2)})
+                                      </Text>
+                                    ))}
+                                  </View>
+                                ) : null}
+                              </View>
+                            ))}
+                          </View>
+                        ) : (
+                          <Text style={styles.bodyText}>Loading order items...</Text>
+                        )}
+                      </Card.Content>
+                    </Card>
+
+                    {activeOrder && (
+                      <Card style={styles.infoCard}>
+                        <Card.Content>
+                          <Text style={styles.cardTitle}>Order Summary</Text>
+                          <View style={styles.summaryRow}>
+                            <Text style={styles.summaryLabel}>Order</Text>
+                            <Text style={styles.summaryValue}>{getFriendlyOrderNumber(activeOrder.order_number)}</Text>
+                          </View>
+                          <View style={styles.summaryRow}>
+                            <Text style={styles.summaryLabel}>Subtotal</Text>
+                            <Text style={styles.summaryValue}>${activeOrder.subtotal.toFixed(2)}</Text>
+                          </View>
+                          {activeOrder.tax > 0 && (
+                            <View style={styles.summaryRow}>
+                              <Text style={styles.summaryLabel}>Tax</Text>
+                              <Text style={styles.summaryValue}>${activeOrder.tax.toFixed(2)}</Text>
+                            </View>
+                          )}
+                          <View style={styles.summaryRow}>
+                            <Text style={styles.summaryLabel}>Delivery</Text>
+                            <Text style={styles.summaryValue}>${activeOrder.delivery_fee.toFixed(2)}</Text>
+                          </View>
+                          <View style={styles.summaryRow}>
+                            <Text style={styles.summaryLabel}>Service fee</Text>
+                            <Text style={styles.summaryValue}>${activeOrder.service_fee.toFixed(2)}</Text>
+                          </View>
+                          <View style={[styles.summaryRow, styles.summaryRowFinal]}>
+                            <Text style={styles.summaryFinalLabel}>Total</Text>
+                            <Text style={styles.summaryFinalValue}>${activeOrder.total.toFixed(2)}</Text>
+                          </View>
+                        </Card.Content>
+                      </Card>
+                    )}
+                  </View>
                 </View>
-
-                <Card style={styles.infoCard}>
-                  <Card.Content>
-                    <Text style={styles.cardTitle}>Next step</Text>
-                    <Text style={styles.bodyText}>
-                      Send the payment link to the customer, then keep this order open until payment is confirmed.
-                    </Text>
-                  </Card.Content>
-                </Card>
-
-                <Card style={styles.infoCard}>
-                  <Card.Content>
-                    <Text style={styles.cardTitle}>Payment Link</Text>
-                    <Text style={styles.linkText}>{activeSession.paymentUrl}</Text>
-                  </Card.Content>
-                </Card>
-
-                <Card style={styles.infoCard}>
-                  <Card.Content>
-                    <Text style={styles.cardTitle}>SMS Status</Text>
-                    <Text style={activeSession.smsStatus === 'error' ? styles.errorText : activeSession.smsStatus === 'sent' ? styles.successText : styles.pendingText}>
-                      {getSmsStatusText(activeSession.orderId)}
-                    </Text>
-                  </Card.Content>
-                </Card>
               </ScrollView>
 
               <View style={styles.actionBar}>
@@ -335,6 +458,19 @@ const styles = StyleSheet.create({
   },
   scrollContent: { flex: 1 },
   scrollContainer: { padding: 16, paddingBottom: 132, gap: 14 },
+  twoColumnLayout: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 14,
+  },
+  leftColumn: {
+    flex: 1,
+    gap: 14,
+  },
+  rightColumn: {
+    flex: 1,
+    gap: 14,
+  },
   summaryGrid: { gap: 14 },
   infoCard: {
     backgroundColor: '#fff',
@@ -350,6 +486,49 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 16, fontWeight: '800', color: '#24364d', marginBottom: 8 },
   customerName: { fontSize: 18, fontWeight: 'bold', color: '#111827', marginBottom: 4 },
   contactText: { fontSize: 14, color: '#4b5563', marginBottom: 2 },
+  itemList: { gap: 10 },
+  itemRow: {
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  itemHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  itemName: {
+    flex: 1,
+    color: '#111827',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  itemPrice: {
+    color: '#111827',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  itemComment: {
+    color: '#b45309',
+    fontSize: 13,
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  itemMeta: {
+    color: '#475569',
+    fontSize: 13,
+    marginTop: 4,
+  },
+  addonsList: {
+    marginTop: 4,
+    paddingLeft: 8,
+    gap: 2,
+  },
+  addonText: {
+    color: '#64748b',
+    fontSize: 12,
+  },
   amount: {
     color: '#1d4ed8',
     fontSize: 42,
@@ -365,6 +544,37 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     marginTop: 8,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    gap: 12,
+  },
+  summaryLabel: {
+    color: '#64748b',
+    fontSize: 14,
+  },
+  summaryValue: {
+    color: '#111827',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  summaryRowFinal: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+  },
+  summaryFinalLabel: {
+    color: '#111827',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  summaryFinalValue: {
+    color: '#0f766e',
+    fontSize: 22,
+    fontWeight: '900',
   },
   bodyText: {
     color: '#475569',

@@ -133,6 +133,10 @@ export async function sendPaymentLinkSms(params: {
   customerName?: string;
   paymentUrl: string;
   orderId?: string;
+  deliveryAddress?: string;
+  totalAmount?: number;
+  deliveryFee?: number;
+  deliveryEtaMinutes?: number;
 }) {
   const payload = await fetchJson<{ success: true; provider: string; result: string }>('/api/pos/send-payment-link-sms', {
     method: 'POST',

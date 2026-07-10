@@ -147,6 +147,16 @@ const formatPickupTime = (date: Date) => date.toLocaleString([], {
   minute: '2-digit',
 });
 
+const formatDeliveryAddress = (address: DeliveryAddressDraft) => (
+  [
+    address.address_line1,
+    address.address_line2,
+    [address.city, address.state, address.postcode].filter(Boolean).join(' '),
+  ]
+    .filter((part) => Boolean(part && part.trim().length > 0))
+    .join(', ')
+);
+
 export default function PosScreen() {
   const router = useRouter();
   const { width, height } = useWindowDimensions();
@@ -1757,10 +1767,25 @@ export default function PosScreen() {
         customerName: name,
         customerPhone: phone,
         paymentUrl: checkoutSession.url,
+        deliveryAddress: formatDeliveryAddress(input.address),
+        deliveryEtaMinutes: input.quote.estimated_duration_minutes,
         serviceFee: checkoutSession.serviceFee,
         deliveryFee: input.quote.fee,
         totalAmount: finalTotalAmount,
         isTestPayment: Boolean(checkoutSession.isTestPhoneCheckout),
+        itemSummaries: cartItems.map((item) => ({
+          id: item.id,
+          quantity: item.quantity,
+          productName: item.product_name,
+          subtotal: item.subtotal,
+          comment: item.comment,
+          removedIngredients: item.removed_ingredients || [],
+          addons: (item.addons || []).map((addon) => ({
+            id: addon.id,
+            name: addon.addon_item_name,
+            price: Number(addon.addon_item_price || 0),
+          })),
+        })),
       });
       resetPosForNextOrder();
     } catch (error) {

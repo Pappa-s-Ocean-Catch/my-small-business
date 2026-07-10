@@ -6,10 +6,25 @@ export type PendingOnlinePaymentSession = {
   customerName: string;
   customerPhone: string;
   paymentUrl: string;
+  deliveryAddress: string | null;
+  deliveryEtaMinutes: number | null;
   totalAmount: number;
   deliveryFee: number;
   serviceFee: number;
   isTestPayment: boolean;
+  itemSummaries: Array<{
+    id: string;
+    quantity: number;
+    productName: string;
+    subtotal: number;
+    comment: string | null;
+    removedIngredients: string[];
+    addons: Array<{
+      id: string;
+      name: string;
+      price: number;
+    }>;
+  }>;
   status: 'pending' | 'paid' | 'failed';
   smsStatus: 'idle' | 'sending' | 'sent' | 'error';
   smsMessage: string | null;
