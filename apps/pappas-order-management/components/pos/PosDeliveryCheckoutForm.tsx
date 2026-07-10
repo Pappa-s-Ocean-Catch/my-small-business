@@ -1,9 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { Button, TextInput } from 'react-native-paper';
 
 import { styles } from '../../app/pos.styles';
 import type { CustomerLookupStatus } from './PosCheckoutPanel';
+import { PosPhoneInputModal } from './PosPhoneInputModal';
+import { PosTextInputModal } from './PosTextInputModal';
 import type {
   AddressSuggestion,
   DeliveryAddressDraft,
@@ -61,6 +63,8 @@ export function PosDeliveryCheckoutForm({
   const [calculatingFees, setCalculatingFees] = useState(false);
   const [feeSummary, setFeeSummary] = useState<DeliveryFeeSummary | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [phoneModalVisible, setPhoneModalVisible] = useState(false);
+  const [nameModalVisible, setNameModalVisible] = useState(false);
   useEffect(() => {
     let cancelled = false;
 
@@ -91,10 +95,6 @@ export function PosDeliveryCheckoutForm({
       clearTimeout(timer);
     };
   }, [addressQuery, selectedAddress]);
-
-  const displayTotal = useMemo(() => (
-    feeSummary?.totalAmount ?? totals.total
-  ), [feeSummary?.totalAmount, totals.total]);
 
   const chooseSuggestion = async (suggestion: AddressSuggestion) => {
     try {
@@ -165,39 +165,32 @@ export function PosDeliveryCheckoutForm({
       keyboardShouldPersistTaps="handled"
     >
       <View style={styles.checkoutFormFull}>
-        <View style={styles.checkoutSummaryCard}>
-          <Text style={styles.checkoutSummaryEyebrow}>Delivery order</Text>
-          <Text style={styles.checkoutSummaryTotal}>${displayTotal.toFixed(2)}</Text>
-          <Text style={styles.checkoutSummaryMeta}>{cartItemsCount} items • Online payment required</Text>
-          <Text style={styles.checkoutSummaryMeta}>
-            Get quote, then request online delivery
-          </Text>
+        <View style={styles.customerIdentityRow}>
+          <TouchableOpacity
+            style={[styles.phoneTrigger, styles.customerIdentityField]}
+            onPress={() => setPhoneModalVisible(true)}
+          >
+            <Text style={styles.phoneTriggerLabel}>Phone</Text>
+            <Text style={[styles.phoneTriggerValue, !customerPhone ? styles.phoneTriggerPlaceholder : null]} numberOfLines={1}>
+              {customerPhone || '04'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.phoneTrigger, styles.customerIdentityField]}
+            onPress={() => setNameModalVisible(true)}
+          >
+            <Text style={styles.phoneTriggerLabel}>Name</Text>
+            <Text style={[styles.phoneTriggerValue, !customerName ? styles.phoneTriggerPlaceholder : null]} numberOfLines={1}>
+              {customerName || 'Tap to enter'}
+            </Text>
+          </TouchableOpacity>
         </View>
-
-        <TextInput
-          label="Phone"
-          mode="outlined"
-          value={customerPhone}
-          onChangeText={(value) => {
-            setCustomerPhone(value);
-            if (customerLookupStatus === 'found') setCustomerName('');
-          }}
-          keyboardType="phone-pad"
-          style={styles.checkoutInput}
-        />
         <View style={styles.lookupRow}>
           {customerLookupStatus === 'loading' && <Text style={styles.lookupText}>Looking up customer...</Text>}
           {customerLookupStatus === 'found' && <Text style={styles.foundText}>Existing customer found</Text>}
           {customerLookupStatus === 'new' && <Text style={styles.newText}>No customer found. A new customer will be created.</Text>}
           {customerLookupStatus === 'error' && <Text style={styles.errorText}>{customerLookupError}</Text>}
         </View>
-        <TextInput
-          label="Name"
-          mode="outlined"
-          value={customerName}
-          onChangeText={setCustomerName}
-          style={styles.checkoutInput}
-        />
 
         <View style={styles.deliveryPanel}>
           <Text style={styles.checkoutSectionTitle}>Delivery address</Text>
@@ -340,6 +333,26 @@ export function PosDeliveryCheckoutForm({
         >
           Request Online Delivery
         </Button>
+        <PosPhoneInputModal
+          visible={phoneModalVisible}
+          value={customerPhone}
+          onDismiss={() => setPhoneModalVisible(false)}
+          onSave={(value) => {
+            setCustomerPhone(value);
+            if (customerLookupStatus === 'found') setCustomerName('');
+            setPhoneModalVisible(false);
+          }}
+        />
+        <PosTextInputModal
+          visible={nameModalVisible}
+          title="Enter Customer Name"
+          value={customerName}
+          onDismiss={() => setNameModalVisible(false)}
+          onSave={(value) => {
+            setCustomerName(value);
+            setNameModalVisible(false);
+          }}
+        />
       </View>
     </ScrollView>
   );

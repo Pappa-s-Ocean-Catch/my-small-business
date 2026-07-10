@@ -12,6 +12,10 @@ export function getReceiptWebsiteUrl() {
   return (process.env.EXPO_PUBLIC_SITE_URL || DEFAULT_SITE_URL).trim() || DEFAULT_SITE_URL;
 }
 
+export function getReceiptQrLandingUrl() {
+  return `${getReceiptWebsiteUrl().replace(/\/+$/, '')}/qr`;
+}
+
 export function getReceiptStoreName() {
   return (process.env.EXPO_PUBLIC_RECEIPT_STORE_NAME || DEFAULT_STORE_NAME).trim() || DEFAULT_STORE_NAME;
 }

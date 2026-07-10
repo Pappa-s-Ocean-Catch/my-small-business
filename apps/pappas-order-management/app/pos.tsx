@@ -1977,6 +1977,7 @@ export default function PosScreen() {
           smartpayProcessing={smartpayProcessing}
           handleClearCart={handleClearCart}
           openCheckout={openCheckout}
+          openInstorePaymentPrompt={openInstorePaymentPrompt}
           handleCheckout={() => handleCheckout()}
           smartpayPaired={smartpayPaired}
           handleSmartpayInstoreCheckout={handleSmartpayInstoreCheckout}

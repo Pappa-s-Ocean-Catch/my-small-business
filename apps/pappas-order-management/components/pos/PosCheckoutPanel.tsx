@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 import { Button, SegmentedButtons } from 'react-native-paper';
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 
@@ -81,21 +81,14 @@ export function PosCheckoutPanel({
   handleSmartpayInstoreCheckout,
   handleDeliveryCheckout,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<CheckoutTab>('instore');
+  const [activeTab, setActiveTab] = useState<CheckoutTab>('pickup');
 
   return (
     <View style={styles.checkoutPane}>
-      <View style={styles.menuHeader}>
+      <View style={styles.checkoutTopBar}>
         <Button mode="outlined" icon="arrow-left" onPress={closeCheckout} style={styles.backButton}>
           Order
         </Button>
-        <View style={styles.menuHeaderText}>
-          <Text style={styles.menuTitle}>Checkout</Text>
-          <Text style={styles.menuSubtitle}>Pickup, in-store, or delivery</Text>
-        </View>
-      </View>
-
-      <View style={styles.checkoutTabRow}>
         <SegmentedButtons
           value={activeTab}
           onValueChange={(value) => setActiveTab(value as CheckoutTab)}
@@ -107,10 +100,8 @@ export function PosCheckoutPanel({
           ]}
         />
       </View>
-
       {activeTab === 'instore' && (
         <PosInstoreCheckoutForm
-          totals={totals}
           cartItemsCount={cartItemsCount}
           orderNoteText={orderNoteText}
           setOrderNoteText={setOrderNoteText}
@@ -130,7 +121,6 @@ export function PosCheckoutPanel({
           customerName={customerName}
           setCustomerName={setCustomerName}
           customerLookupError={customerLookupError}
-          totals={totals}
           cartItemsCount={cartItemsCount}
           isPreOrder={isPreOrder}
           setIsPreOrder={setIsPreOrder}

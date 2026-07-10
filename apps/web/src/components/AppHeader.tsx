@@ -11,6 +11,7 @@ const PUBLIC_ROUTES = [
   "/", // Home page
   "/menu", // Menu page
   "/order", // Order page
+  "/qr", // Receipt QR landing page
   "/rewards", // Public rewards page (customer rewards)
   "/profile", // Customer profile should use public-facing header
   "/unsubscribe", // Marketing unsubscribe page should not show admin navigation
@@ -66,4 +67,3 @@ export function AppHeader() {
     </header>
   );
 }
-

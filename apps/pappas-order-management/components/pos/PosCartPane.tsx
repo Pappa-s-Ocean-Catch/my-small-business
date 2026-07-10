@@ -22,6 +22,7 @@ type Props = {
   smartpayProcessing: boolean;
   handleClearCart: () => void;
   openCheckout: () => void;
+  openInstorePaymentPrompt: () => void;
   handleCheckout: () => Promise<void>;
   smartpayPaired: boolean;
   handleSmartpayInstoreCheckout: () => Promise<void>;
@@ -43,6 +44,7 @@ export function PosCartPane({
   smartpayProcessing,
   handleClearCart,
   openCheckout,
+  openInstorePaymentPrompt,
   handleCheckout,
   smartpayPaired,
   handleSmartpayInstoreCheckout,
@@ -173,7 +175,7 @@ export function PosCartPane({
               icon="check-circle-outline"
               loading={creatingOrder}
               disabled={creatingOrder || smartpayProcessing || cartItems.length === 0}
-              onPress={openCheckout}
+              onPress={openInstorePaymentPrompt}
               style={[styles.checkoutButton, styles.quickPaymentButton, styles.completeButton]}
               buttonColor="#dc2626"
               textColor="#fff"

@@ -6,7 +6,6 @@ import { styles } from '../../app/pos.styles';
 import type { PosInstorePaymentChoice } from '../../app/pos.types';
 
 type Props = {
-  totals: { total: number };
   cartItemsCount: number;
   orderNoteText: string;
   setOrderNoteText: (value: string) => void;
@@ -18,7 +17,6 @@ type Props = {
 };
 
 export function PosInstoreCheckoutForm({
-  totals,
   cartItemsCount,
   orderNoteText,
   setOrderNoteText,
@@ -43,15 +41,6 @@ export function PosInstoreCheckoutForm({
       keyboardShouldPersistTaps="handled"
     >
       <View style={styles.checkoutFormFull}>
-        <View style={styles.checkoutSummaryCard}>
-          <Text style={styles.checkoutSummaryEyebrow}>In-store order</Text>
-          <Text style={styles.checkoutSummaryTotal}>${totals.total.toFixed(2)}</Text>
-          <Text style={styles.checkoutSummaryMeta}>{cartItemsCount} items • Walk-in customer</Text>
-          <Text style={styles.checkoutSummaryMeta}>
-            Payment: {paymentChoice === 'unpaid' ? 'Unpaid' : paymentChoice.toUpperCase()}
-          </Text>
-        </View>
-
         <View style={styles.paymentPanel}>
           <Text style={styles.checkoutSectionTitle}>Payment</Text>
           <View style={styles.paymentModeRow}>

@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import type { Order } from '@my-small-business/types';
 import { ReceiptQrCode } from './ReceiptQrCode';
-import { getReceiptStoreAddressLines, getReceiptStoreName, getReceiptWebsiteUrl } from '../lib/receipt-config';
+import { getReceiptQrLandingUrl, getReceiptStoreAddressLines, getReceiptStoreName, getReceiptWebsiteUrl } from '../lib/receipt-config';
 import { getOrderChannelReceiptLabel, getOrderLineItemCount, getOrderNotes, groupAddons } from '../utils/orderUtils';
 
 type Props = {
@@ -16,6 +16,7 @@ function formatMoney(amount: number) {
 
 export function CustomerReceiptTemplate({ order, width = 576 }: Props) {
   const siteUrl = getReceiptWebsiteUrl();
+  const qrLandingUrl = getReceiptQrLandingUrl();
   const storeName = getReceiptStoreName();
   const addressLines = getReceiptStoreAddressLines();
   const orderNotes = getOrderNotes(order);
@@ -133,9 +134,9 @@ export function CustomerReceiptTemplate({ order, width = 576 }: Props) {
       </Text>
 
       <View style={styles.qrSection}>
-        <Text style={styles.qrIntro}>Order online:</Text>
-        <ReceiptQrCode value={siteUrl} size={qrSize} />
-        <Text style={styles.websiteText}>{siteUrl}</Text>
+        <Text style={styles.qrIntro}>Quick links:</Text>
+        <ReceiptQrCode value={qrLandingUrl} size={qrSize} />
+        <Text style={styles.websiteText}>{qrLandingUrl}</Text>
       </View>
     </View>
   );

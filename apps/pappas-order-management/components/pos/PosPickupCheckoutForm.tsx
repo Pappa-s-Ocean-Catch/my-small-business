@@ -1,10 +1,12 @@
-import React from 'react';
-import { Platform, ScrollView, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { Platform, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Button, TextInput } from 'react-native-paper';
 
 import { styles } from '../../app/pos.styles';
 import type { CustomerLookupStatus } from './PosCheckoutPanel';
+import { PosPhoneInputModal } from './PosPhoneInputModal';
+import { PosTextInputModal } from './PosTextInputModal';
 
 type Props = {
   customerLookupStatus: CustomerLookupStatus;
@@ -13,7 +15,6 @@ type Props = {
   customerName: string;
   setCustomerName: (value: string) => void;
   customerLookupError: string | null;
-  totals: { total: number };
   cartItemsCount: number;
   isPreOrder: boolean;
   setIsPreOrder: (value: boolean) => void;
@@ -41,7 +42,6 @@ export function PosPickupCheckoutForm({
   customerName,
   setCustomerName,
   customerLookupError,
-  totals,
   cartItemsCount,
   isPreOrder,
   setIsPreOrder,
@@ -61,6 +61,9 @@ export function PosPickupCheckoutForm({
   checkoutPrimaryLabel,
   handleCheckout,
 }: Props) {
+  const [phoneModalVisible, setPhoneModalVisible] = useState(false);
+  const [nameModalVisible, setNameModalVisible] = useState(false);
+
   return (
     <ScrollView
       style={styles.checkoutBody}
@@ -68,39 +71,32 @@ export function PosPickupCheckoutForm({
       keyboardShouldPersistTaps="handled"
     >
       <View style={styles.checkoutFormFull}>
-        <View style={styles.checkoutSummaryCard}>
-          <Text style={styles.checkoutSummaryEyebrow}>Pickup order</Text>
-          <Text style={styles.checkoutSummaryTotal}>${totals.total.toFixed(2)}</Text>
-          <Text style={styles.checkoutSummaryMeta}>
-            {cartItemsCount} items • {isPreOrder ? 'Pre-order pickup' : 'ASAP pickup'}
-          </Text>
-          <Text style={styles.checkoutSummaryMeta}>Payment: Unpaid</Text>
+        <View style={styles.customerIdentityRow}>
+          <TouchableOpacity
+            style={[styles.phoneTrigger, styles.customerIdentityField]}
+            onPress={() => setPhoneModalVisible(true)}
+          >
+            <Text style={styles.phoneTriggerLabel}>Phone</Text>
+            <Text style={[styles.phoneTriggerValue, !customerPhone ? styles.phoneTriggerPlaceholder : null]} numberOfLines={1}>
+              {customerPhone || '04'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.phoneTrigger, styles.customerIdentityField]}
+            onPress={() => setNameModalVisible(true)}
+          >
+            <Text style={styles.phoneTriggerLabel}>Name</Text>
+            <Text style={[styles.phoneTriggerValue, !customerName ? styles.phoneTriggerPlaceholder : null]} numberOfLines={1}>
+              {customerName || 'Tap to enter'}
+            </Text>
+          </TouchableOpacity>
         </View>
-
-        <TextInput
-          label="Phone"
-          mode="outlined"
-          value={customerPhone}
-          onChangeText={(value) => {
-            setCustomerPhone(value);
-            if (customerLookupStatus === 'found') setCustomerName('');
-          }}
-          keyboardType="phone-pad"
-          style={styles.checkoutInput}
-        />
         <View style={styles.lookupRow}>
           {customerLookupStatus === 'loading' && <Text style={styles.lookupText}>Looking up customer...</Text>}
           {customerLookupStatus === 'found' && <Text style={styles.foundText}>Existing customer found</Text>}
           {customerLookupStatus === 'new' && <Text style={styles.newText}>No customer found. A new customer will be created.</Text>}
           {customerLookupStatus === 'error' && <Text style={styles.errorText}>{customerLookupError}</Text>}
         </View>
-        <TextInput
-          label="Name"
-          mode="outlined"
-          value={customerName}
-          onChangeText={setCustomerName}
-          style={styles.checkoutInput}
-        />
 
         <View style={styles.pickupPanel}>
           <Text style={styles.checkoutSectionTitle}>Pickup timing</Text>
@@ -166,6 +162,26 @@ export function PosPickupCheckoutForm({
         >
           {checkoutPrimaryLabel}
         </Button>
+        <PosPhoneInputModal
+          visible={phoneModalVisible}
+          value={customerPhone}
+          onDismiss={() => setPhoneModalVisible(false)}
+          onSave={(value) => {
+            setCustomerPhone(value);
+            if (customerLookupStatus === 'found') setCustomerName('');
+            setPhoneModalVisible(false);
+          }}
+        />
+        <PosTextInputModal
+          visible={nameModalVisible}
+          title="Enter Customer Name"
+          value={customerName}
+          onDismiss={() => setNameModalVisible(false)}
+          onSave={(value) => {
+            setCustomerName(value);
+            setNameModalVisible(false);
+          }}
+        />
       </View>
     </ScrollView>
   );

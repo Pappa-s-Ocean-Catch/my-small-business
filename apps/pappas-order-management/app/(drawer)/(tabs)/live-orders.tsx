@@ -9,7 +9,6 @@ import {
   Alert,
   TouchableOpacity,
   ScrollView,
-  Modal,
 } from 'react-native';
 import {
   Button as PaperButton,
@@ -35,8 +34,7 @@ import { escposPrintOrderImage, formatPrinterError } from '@/lib/escpos-printer'
 import { buildSectionPrintJobs, hasAnySimulatorAssignment } from '@/lib/printer-routing';
 import { captureRef } from 'react-native-view-shot';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
-import { getFriendlyOrderNumber } from '@/utils/orderNumber';
-import { usePrinterAutomationStore, type JournalLevel } from '@/stores/printerAutomationStore';
+import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
 import {
   LIVE_ORDERS_QUERY_KEY,
   useLiveOrdersQuery,
@@ -44,8 +42,6 @@ import {
 } from '@/hooks/useLiveOrdersQuery';
 
 type TimeoutHandle = ReturnType<typeof setTimeout>;
-type JournalOrderRef = { id: string; order_number?: string | null };
-type JournalViewMode = 'all' | 'selected';
 const SECTION_PRINT_DELAY_MS = 1500;
 
 type FilterKey = 'all' | 'needs-action' | 'unpaid' | 'ready' | 'scheduled';
@@ -74,16 +70,11 @@ export default function LiveOrdersScreen() {
   const [cashTenderOrder, setCashTenderOrder] = useState<Order | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
   const [headerExpanded, setHeaderExpanded] = useState(false);
-  const [showJournalModal, setShowJournalModal] = useState(false);
-  const [journalOrderFilter, setJournalOrderFilter] = useState<string>('');
-  const [journalViewMode, setJournalViewMode] = useState<JournalViewMode>('all');
   const globalReceiptRef = useRef(null);
 
   const queryClient = useQueryClient();
   const countdownIntervalRef = useRef<TimeoutHandle | null>(null);
   const printQueueRef = useRef<Promise<void>>(Promise.resolve());
-  const journalEntries = usePrinterAutomationStore((state) => state.journalEntries);
-  const clearJournal = usePrinterAutomationStore((state) => state.clearJournal);
   const preOrderSkipNotice = usePrinterAutomationStore((state) => state.preOrderSkipNotice);
   const addJournalEntry = usePrinterAutomationStore((state) => state.addJournalEntry);
   const {
@@ -100,10 +91,10 @@ export default function LiveOrdersScreen() {
   const appSettingsRef = useRef(appSettings);
 
   const logOrderEvent = (
-    level: JournalLevel,
+    level: 'info' | 'decision' | 'success' | 'error',
     scope: string,
     message: string,
-    options?: { order?: JournalOrderRef | null; details?: string | null }
+    options?: { order?: { id: string; order_number?: string | null } | null; details?: string | null }
   ) => {
     addJournalEntry({
       level,
@@ -477,8 +468,6 @@ export default function LiveOrdersScreen() {
 
   const handleOrderPress = (order: Order) => {
     setSelectedOrder(order);
-    setJournalOrderFilter(order.id);
-    setJournalViewMode('selected');
     logOrderEvent('info', 'ui', 'Opened order detail from live list', {
       order,
     });
@@ -519,40 +508,7 @@ export default function LiveOrdersScreen() {
       setShowOrderModal(true);
     }
   };
-
-  const selectedJournalOrderId = selectedOrder?.id ?? '';
-  const effectiveJournalFilter = journalViewMode === 'selected'
-    ? (journalOrderFilter.trim() || selectedJournalOrderId)
-    : journalOrderFilter.trim();
   const isVerticalCardLayout = appSettings.liveOrderCardLayout === 'vertical';
-  const filteredJournalEntries = useMemo(() => {
-    if (!effectiveJournalFilter) return journalEntries;
-    return journalEntries.filter((entry) => (
-      entry.orderId?.toLowerCase().includes(effectiveJournalFilter.toLowerCase())
-      || getFriendlyOrderNumber(entry.orderNumber, entry.orderId || '').toLowerCase().includes(effectiveJournalFilter.toLowerCase())
-    ));
-  }, [effectiveJournalFilter, journalEntries]);
-
-  const formatJournalTime = (timestamp: number) => (
-    new Date(timestamp).toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    })
-  );
-
-  const getJournalLevelStyle = (level: JournalLevel) => {
-    switch (level) {
-      case 'success':
-        return styles.journalLevel_success;
-      case 'error':
-        return styles.journalLevel_error;
-      case 'decision':
-        return styles.journalLevel_decision;
-      default:
-        return styles.journalLevel_info;
-    }
-  };
 
   return (
     <View style={styles.container}>
@@ -800,19 +756,6 @@ export default function LiveOrdersScreen() {
         />
       )}
 
-      <TouchableOpacity
-        style={styles.debugFab}
-        onPress={() => {
-          if (journalViewMode === 'selected' && selectedOrder?.id) {
-            setJournalOrderFilter(selectedOrder.id);
-          }
-          setShowJournalModal(true);
-        }}
-      >
-        <Text style={styles.debugFabLabel}>Debug</Text>
-        <Text style={styles.debugFabCount}>{journalEntries.length}</Text>
-      </TouchableOpacity>
-
       <OrderDetailModal
         visible={showOrderModal}
         order={selectedOrder}
@@ -886,121 +829,6 @@ export default function LiveOrdersScreen() {
         onOrderPress={handleOpenOrderFromCustomerModal}
       />
 
-      <Modal
-        visible={showJournalModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowJournalModal(false)}
-      >
-        <View style={styles.journalBackdrop}>
-          <View style={styles.journalModal}>
-            <View style={styles.journalHeader}>
-              <View style={styles.journalHeaderText}>
-                <Text style={styles.journalTitle}>Live Screen Debug Journal</Text>
-                <Text style={styles.journalSubtitle}>
-                  {filteredJournalEntries.length} entries
-                  {effectiveJournalFilter ? ` for ${effectiveJournalFilter}` : ' across all orders'}
-                </Text>
-              </View>
-              <PaperButton mode="text" onPress={() => setShowJournalModal(false)}>
-                Close
-              </PaperButton>
-            </View>
-
-            <View style={styles.journalActions}>
-              <TouchableOpacity
-                style={[styles.journalChip, journalViewMode === 'all' ? styles.journalChipActive : null]}
-                onPress={() => {
-                  setJournalViewMode('all');
-                  setJournalOrderFilter('');
-                }}
-              >
-                <Text style={[styles.journalChipText, journalViewMode === 'all' ? styles.journalChipTextActive : null]}>
-                  All orders
-                </Text>
-              </TouchableOpacity>
-              {selectedJournalOrderId ? (
-                <TouchableOpacity
-                  style={[styles.journalChip, journalViewMode === 'selected' && effectiveJournalFilter === selectedJournalOrderId ? styles.journalChipActive : null]}
-                  onPress={() => {
-                    setJournalViewMode('selected');
-                    setJournalOrderFilter(selectedJournalOrderId);
-                  }}
-                >
-                  <Text style={[styles.journalChipText, journalViewMode === 'selected' && effectiveJournalFilter === selectedJournalOrderId ? styles.journalChipTextActive : null]}>
-                    Selected order
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
-              <TouchableOpacity
-                style={styles.journalChip}
-                onPress={clearJournal}
-              >
-                <Text style={styles.journalChipText}>Clear</Text>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.journalFilterRow}>
-              <TouchableOpacity
-                style={styles.journalFilterPill}
-                onPress={() => {
-                  if (selectedJournalOrderId) {
-                    setJournalViewMode('selected');
-                    setJournalOrderFilter(selectedJournalOrderId);
-                  } else {
-                    setJournalViewMode('all');
-                    setJournalOrderFilter('');
-                  }
-                }}
-              >
-                <Text style={styles.journalFilterPillText}>
-                  Filter: {effectiveJournalFilter || 'All'}
-                </Text>
-              </TouchableOpacity>
-            </ScrollView>
-
-            <ScrollView style={styles.journalScroll} contentContainerStyle={styles.journalScrollContent}>
-              {filteredJournalEntries.length === 0 ? (
-                <Text style={styles.journalEmpty}>No journal entries yet for this filter.</Text>
-              ) : (
-                filteredJournalEntries.map((entry) => {
-                  const orderLabel = entry.orderId
-                    ? getFriendlyOrderNumber(entry.orderNumber, entry.orderId)
-                    : null;
-                  return (
-                    <TouchableOpacity
-                      key={entry.id}
-                      style={styles.journalEntry}
-                      onPress={() => {
-                        if (entry.orderId) {
-                          setJournalViewMode('selected');
-                          setJournalOrderFilter(entry.orderId);
-                        }
-                      }}
-                    >
-                      <View style={styles.journalEntryTop}>
-                        <Text style={[styles.journalLevel, getJournalLevelStyle(entry.level)]}>
-                          {entry.level.toUpperCase()}
-                        </Text>
-                        <Text style={styles.journalTime}>{formatJournalTime(entry.timestamp)}</Text>
-                      </View>
-                      <Text style={styles.journalScope}>{entry.scope}</Text>
-                      <Text style={styles.journalMessage}>{entry.message}</Text>
-                      {orderLabel ? (
-                        <Text style={styles.journalOrder}>Order: {orderLabel}</Text>
-                      ) : null}
-                      {entry.details ? (
-                        <Text style={styles.journalDetails}>{entry.details}</Text>
-                      ) : null}
-                    </TouchableOpacity>
-                  );
-                })
-              )}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
     </View>
   );
 }
@@ -1070,175 +898,6 @@ const styles = StyleSheet.create({
   sectionHeaderCount: { color: '#6b7280', fontSize: 12, fontWeight: '800' },
   emptyContainer: { flex: 1, alignItems: 'center', marginTop: 100 },
   emptyText: { fontSize: 16, color: '#6b7280' },
-  debugFab: {
-    position: 'absolute',
-    right: 16,
-    bottom: 88,
-    backgroundColor: '#111827',
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    alignItems: 'center',
-    zIndex: 180,
-    shadowColor: '#111827',
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
-  },
-  debugFabLabel: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  debugFabCount: {
-    color: '#93c5fd',
-    fontSize: 11,
-    fontWeight: '800',
-    marginTop: 2,
-  },
-  journalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  journalModal: {
-    maxHeight: '85%',
-    backgroundColor: '#f8fafc',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 24,
-  },
-  journalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 10,
-  },
-  journalHeaderText: {
-    flex: 1,
-  },
-  journalTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#111827',
-  },
-  journalSubtitle: {
-    marginTop: 4,
-    color: '#64748b',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  journalActions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 12,
-  },
-  journalChip: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    backgroundColor: '#fff',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  journalChipActive: {
-    backgroundColor: '#111827',
-    borderColor: '#111827',
-  },
-  journalChipText: {
-    color: '#334155',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  journalChipTextActive: {
-    color: '#fff',
-  },
-  journalFilterRow: {
-    paddingVertical: 10,
-  },
-  journalFilterPill: {
-    borderRadius: 999,
-    backgroundColor: '#dbeafe',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-  },
-  journalFilterPillText: {
-    color: '#1d4ed8',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  journalScroll: {
-    marginTop: 4,
-  },
-  journalScrollContent: {
-    gap: 10,
-    paddingBottom: 12,
-  },
-  journalEmpty: {
-    color: '#64748b',
-    fontSize: 14,
-    textAlign: 'center',
-    paddingVertical: 24,
-  },
-  journalEntry: {
-    borderRadius: 14,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    padding: 12,
-    gap: 5,
-  },
-  journalEntryTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  journalLevel: {
-    fontSize: 11,
-    fontWeight: '900',
-  },
-  journalLevel_info: {
-    color: '#2563eb',
-  },
-  journalLevel_decision: {
-    color: '#7c3aed',
-  },
-  journalLevel_success: {
-    color: '#059669',
-  },
-  journalLevel_error: {
-    color: '#dc2626',
-  },
-  journalTime: {
-    color: '#64748b',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  journalScope: {
-    color: '#475569',
-    fontSize: 11,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-  },
-  journalMessage: {
-    color: '#111827',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  journalOrder: {
-    color: '#0f172a',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  journalDetails: {
-    color: '#475569',
-    fontSize: 12,
-    lineHeight: 18,
-  },
   printingOverlay: { position: 'absolute', top: 24, left: 0, right: 0, alignItems: 'center', zIndex: 100 },
   printingChip: { backgroundColor: '#2563eb', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8 },
   printingText: { color: '#fff', fontWeight: 'bold' },
