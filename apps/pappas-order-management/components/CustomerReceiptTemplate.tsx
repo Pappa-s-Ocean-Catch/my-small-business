@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import type { Order } from '@my-small-business/types';
 import { ReceiptQrCode } from './ReceiptQrCode';
-import { getReceiptQrLandingUrl, getReceiptStoreAddressLines, getReceiptStoreName, getReceiptWebsiteUrl } from '../lib/receipt-config';
+import { getReceiptQrLandingUrl, getReceiptStoreAddressLines, getReceiptStoreName, getReceiptStorePhone, getReceiptWebsiteUrl } from '../lib/receipt-config';
 import { getOrderChannelReceiptLabel, getOrderLineItemCount, getOrderNotes, groupAddons } from '../utils/orderUtils';
 
 type Props = {
@@ -19,11 +19,14 @@ export function CustomerReceiptTemplate({ order, width = 576 }: Props) {
   const qrLandingUrl = getReceiptQrLandingUrl();
   const storeName = getReceiptStoreName();
   const addressLines = getReceiptStoreAddressLines();
+  const storePhone = getReceiptStorePhone();
   const orderNotes = getOrderNotes(order);
   const rewardPointsUsed = order.reward_points_used ?? 0;
   const rewardPointsValue = order.reward_points_value ?? 0;
   const isNarrow = width <= 384;
   const qrSize = isNarrow ? 128 : 144;
+  const gstAmount = order.tax > 0 ? order.tax : Number((order.total / 11).toFixed(2));
+  const subtotalExGst = Number((order.total - gstAmount).toFixed(2));
 
   return (
     <View style={[styles.container, { width }]}>
@@ -85,13 +88,13 @@ export function CustomerReceiptTemplate({ order, width = 576 }: Props) {
       <View style={styles.divider} />
 
       <View style={styles.totalRow}>
-        <Text style={styles.totalLabel}>Subtotal</Text>
-        <Text style={styles.totalValue}>${formatMoney(order.subtotal)}</Text>
+        <Text style={styles.totalLabel}>Subtotal (ex GST)</Text>
+        <Text style={styles.totalValue}>${formatMoney(subtotalExGst)}</Text>
       </View>
-      {order.tax > 0 ? (
+      {gstAmount > 0 ? (
         <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>Tax</Text>
-          <Text style={styles.totalValue}>${formatMoney(order.tax)}</Text>
+          <Text style={styles.totalLabel}>GST (incl.)</Text>
+          <Text style={styles.totalValue}>${formatMoney(gstAmount)}</Text>
         </View>
       ) : null}
       {order.delivery_fee > 0 ? (
@@ -134,9 +137,15 @@ export function CustomerReceiptTemplate({ order, width = 576 }: Props) {
       </Text>
 
       <View style={styles.qrSection}>
-        <Text style={styles.qrIntro}>Quick links:</Text>
+        <Text style={styles.qrIntro}>Online with us</Text>
         <ReceiptQrCode value={qrLandingUrl} size={qrSize} />
         <Text style={styles.websiteText}>{qrLandingUrl}</Text>
+      </View>
+
+      <View style={styles.footerSection}>
+        <Text style={styles.footerText}>Thank you for your order.</Text>
+        <Text style={styles.footerText}>We appreciate your support and hope to see you again soon.</Text>
+        <Text style={styles.footerText}>To re-order by phone: {storePhone}</Text>
       </View>
     </View>
   );
@@ -280,6 +289,16 @@ const styles = StyleSheet.create({
   },
   websiteText: {
     fontSize: 16,
+    color: '#000',
+    textAlign: 'center',
+  },
+  footerSection: {
+    alignItems: 'center',
+    marginTop: 14,
+    gap: 2,
+  },
+  footerText: {
+    fontSize: 18,
     color: '#000',
     textAlign: 'center',
   },
