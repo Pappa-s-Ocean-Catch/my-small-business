@@ -4,6 +4,7 @@ import { Button, TextInput } from 'react-native-paper';
 
 import { styles } from '../../app/pos.styles';
 import type { CustomerLookupStatus } from './PosCheckoutPanel';
+import { PosDiscountSection } from './PosDiscountSection';
 import { PosPhoneInputModal } from './PosPhoneInputModal';
 import { PosTextInputModal } from './PosTextInputModal';
 import type {
@@ -27,6 +28,11 @@ type Props = {
   setCustomerName: (value: string) => void;
   customerLookupError: string | null;
   totals: { subtotal: number; tax: number; total: number };
+  discountLabel: string;
+  discountAmount: number;
+  activeDiscountPercent: number | null;
+  selectDiscountPreset: (percent: number) => void;
+  openDiscountDialog: () => void;
   cartItemsCount: number;
   orderNoteText: string;
   setOrderNoteText: (value: string) => void;
@@ -46,6 +52,11 @@ export function PosDeliveryCheckoutForm({
   setCustomerName,
   customerLookupError,
   totals,
+  discountLabel,
+  discountAmount,
+  activeDiscountPercent,
+  selectDiscountPreset,
+  openDiscountDialog,
   cartItemsCount,
   orderNoteText,
   setOrderNoteText,
@@ -192,6 +203,14 @@ export function PosDeliveryCheckoutForm({
           {customerLookupStatus === 'error' && <Text style={styles.errorText}>{customerLookupError}</Text>}
         </View>
 
+        <PosDiscountSection
+          discountLabel={discountLabel}
+          discountAmount={discountAmount}
+          activeDiscountPercent={activeDiscountPercent}
+          onSelectPreset={selectDiscountPreset}
+          onOpenMore={openDiscountDialog}
+        />
+
         <View style={styles.deliveryPanel}>
           <Text style={styles.checkoutSectionTitle}>Delivery address</Text>
           <TextInput
@@ -273,6 +292,12 @@ export function PosDeliveryCheckoutForm({
                 <Text style={styles.totalLabel}>Order subtotal</Text>
                 <Text style={styles.totalValue}>${totals.subtotal.toFixed(2)}</Text>
               </View>
+              {discountAmount > 0 && (
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Discount</Text>
+                  <Text style={[styles.totalValue, styles.discountTotalValue]}>-${discountAmount.toFixed(2)}</Text>
+                </View>
+              )}
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>Tax</Text>
                 <Text style={styles.totalValue}>${totals.tax.toFixed(2)}</Text>

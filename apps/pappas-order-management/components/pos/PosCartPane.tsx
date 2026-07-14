@@ -17,7 +17,7 @@ type Props = {
   updateQuantity: (itemId: string, delta: number) => void;
   openNoteEditor: (item: PosCartItem) => void;
   removeCartItem: (itemId: string) => void;
-  totals: { subtotal: number; total: number };
+  totals: { subtotal: number; discount?: number; total: number };
   creatingOrder: boolean;
   smartpayProcessing: boolean;
   handleClearCart: () => void;
@@ -151,6 +151,12 @@ export function PosCartPane({
           <Text style={styles.totalLabel}>Subtotal</Text>
           <Text style={styles.totalValue}>${totals.subtotal.toFixed(2)}</Text>
         </View>
+        {(totals.discount || 0) > 0 && (
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Discount</Text>
+            <Text style={[styles.totalValue, styles.discountTotalValue]}>-${(totals.discount || 0).toFixed(2)}</Text>
+          </View>
+        )}
         <View style={styles.totalRow}>
           <Text style={styles.grandTotalLabel}>Total</Text>
           <Text style={styles.grandTotalValue}>${totals.total.toFixed(2)}</Text>

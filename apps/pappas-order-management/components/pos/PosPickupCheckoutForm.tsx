@@ -5,6 +5,7 @@ import { Button, TextInput } from 'react-native-paper';
 
 import { styles } from '../../app/pos.styles';
 import type { CustomerLookupStatus } from './PosCheckoutPanel';
+import { PosDiscountSection } from './PosDiscountSection';
 import { PosPhoneInputModal } from './PosPhoneInputModal';
 import { PosTextInputModal } from './PosTextInputModal';
 
@@ -15,6 +16,11 @@ type Props = {
   customerName: string;
   setCustomerName: (value: string) => void;
   customerLookupError: string | null;
+  discountLabel: string;
+  discountAmount: number;
+  activeDiscountPercent: number | null;
+  selectDiscountPreset: (percent: number) => void;
+  openDiscountDialog: () => void;
   cartItemsCount: number;
   isPreOrder: boolean;
   setIsPreOrder: (value: boolean) => void;
@@ -42,6 +48,11 @@ export function PosPickupCheckoutForm({
   customerName,
   setCustomerName,
   customerLookupError,
+  discountLabel,
+  discountAmount,
+  activeDiscountPercent,
+  selectDiscountPreset,
+  openDiscountDialog,
   cartItemsCount,
   isPreOrder,
   setIsPreOrder,
@@ -97,6 +108,14 @@ export function PosPickupCheckoutForm({
           {customerLookupStatus === 'new' && <Text style={styles.newText}>No customer found. A new customer will be created.</Text>}
           {customerLookupStatus === 'error' && <Text style={styles.errorText}>{customerLookupError}</Text>}
         </View>
+
+        <PosDiscountSection
+          discountLabel={discountLabel}
+          discountAmount={discountAmount}
+          activeDiscountPercent={activeDiscountPercent}
+          onSelectPreset={selectDiscountPreset}
+          onOpenMore={openDiscountDialog}
+        />
 
         <View style={styles.pickupPanel}>
           <Text style={styles.checkoutSectionTitle}>Pickup timing</Text>

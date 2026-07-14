@@ -31,6 +31,12 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
   const formatMoney = (amount: number) => {
     return (amount || 0).toFixed(2);
   };
+  const promotionSummary = Array.isArray(order.promotions_applied)
+    ? order.promotions_applied.find((entry) => entry && typeof entry === 'object')
+    : null;
+  const promotionLabel = typeof promotionSummary?.label === 'string' && promotionSummary.label.trim().length > 0
+    ? promotionSummary.label.trim()
+    : 'Promotion Discount';
 
   const rewardPointsUsed = order.reward_points_used ?? 0;
   const rewardPointsValue = order.reward_points_value ?? 0;
@@ -193,13 +199,15 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
             )}
             {order.promotion_discount > 0 && (
               <View style={styles.totalRow}>
-                <Text style={styles.normalText}>Promotions:</Text>
+                <Text style={styles.normalText}>{promotionLabel}:</Text>
                 <Text style={styles.normalText}>-${formatMoney(order.promotion_discount)}</Text>
               </View>
             )}
             {order.coupon_discount > 0 && (
               <View style={styles.totalRow}>
-                <Text style={styles.normalText}>Coupon ({order.coupon_code}):</Text>
+                <Text style={styles.normalText}>
+                  {order.coupon_code ? `Coupon (${order.coupon_code})` : 'Coupon Discount'}:
+                </Text>
                 <Text style={styles.normalText}>-${formatMoney(order.coupon_discount)}</Text>
               </View>
             )}

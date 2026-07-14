@@ -157,6 +157,79 @@ const formatDeliveryAddress = (address: DeliveryAddressDraft) => (
     .join(', ')
 );
 
+type PosDiscountConfig =
+  | { kind: 'none' }
+  | { kind: 'percent'; percent: number }
+  | { kind: 'fixed'; amount: number };
+
+const EMPTY_DISCOUNT: PosDiscountConfig = { kind: 'none' };
+
+const normalizeMoney = (value: number) => Number(value.toFixed(2));
+
+const clampDiscountAmount = (amount: number, subtotal: number) => (
+  normalizeMoney(Math.max(0, Math.min(subtotal, amount)))
+);
+
+const getDiscountAmount = (discount: PosDiscountConfig, subtotal: number) => {
+  if (subtotal <= 0) return 0;
+  if (discount.kind === 'percent') {
+    return clampDiscountAmount(subtotal * (Math.max(0, discount.percent) / 100), subtotal);
+  }
+  if (discount.kind === 'fixed') {
+    return clampDiscountAmount(discount.amount, subtotal);
+  }
+  return 0;
+};
+
+const getDiscountLabel = (discount: PosDiscountConfig) => {
+  if (discount.kind === 'percent') return `${discount.percent}% off`;
+  if (discount.kind === 'fixed') return `$${discount.amount.toFixed(2)} off`;
+  return 'No discount';
+};
+
+const getDiscountPromotionsApplied = (discount: PosDiscountConfig, amount: number) => {
+  if (discount.kind === 'none' || amount <= 0) return [];
+  if (discount.kind === 'percent') {
+    return [{
+      source: 'pos',
+      kind: 'percent',
+      percent: discount.percent,
+      amount,
+      label: `${discount.percent}% off`,
+    }];
+  }
+
+  return [{
+    source: 'pos',
+    kind: 'fixed',
+    value: discount.amount,
+    amount,
+    label: `$${discount.amount.toFixed(2)} off`,
+  }];
+};
+
+const getDiscountConfigFromOrder = (order: Order | null): PosDiscountConfig => {
+  if (!order) return EMPTY_DISCOUNT;
+  const promotions = Array.isArray(order.promotions_applied) ? order.promotions_applied : [];
+  const firstPromotion = promotions[0] as Record<string, unknown> | undefined;
+
+  if (firstPromotion?.kind === 'percent') {
+    const percent = Number(firstPromotion.percent ?? 0);
+    if (percent > 0) return { kind: 'percent', percent };
+  }
+
+  if (firstPromotion?.kind === 'fixed') {
+    const value = Number(firstPromotion.value ?? firstPromotion.amount ?? 0);
+    if (value > 0) return { kind: 'fixed', amount: value };
+  }
+
+  if ((order.promotion_discount ?? 0) > 0) {
+    return { kind: 'fixed', amount: Number(order.promotion_discount) };
+  }
+
+  return EMPTY_DISCOUNT;
+};
+
 export default function PosScreen() {
   const router = useRouter();
   const { width, height } = useWindowDimensions();
@@ -206,7 +279,9 @@ export default function PosScreen() {
   const [posLayout, setPosLayout] = useState<PosLayoutData | null>(null);
   const [quickOrderNote, setQuickOrderNote] = useState<string | null>(null);
   const [saltOptionDialogVisible, setSaltOptionDialogVisible] = useState(false);
+  const [discountDialogVisible, setDiscountDialogVisible] = useState(false);
   const [orderNoteText, setOrderNoteText] = useState('');
+  const [discountConfig, setDiscountConfig] = useState<PosDiscountConfig>(EMPTY_DISCOUNT);
   const [quickListVisible, setQuickListVisible] = useState(false);
   const upsertPendingOnlinePaymentSession = usePendingOnlinePaymentsStore((state) => state.upsertSession);
 
@@ -647,6 +722,7 @@ export default function PosScreen() {
       setCustomerName(order.customer_name || '');
       setQuickOrderNote(getOrderOptions(order)[0] || null);
       setOrderNoteText(getOrderNotes(order) || '');
+      setDiscountConfig(getDiscountConfigFromOrder(order as Order));
       setPaymentChoice(
         order.payment_status !== 'paid'
           ? 'no_pay'
@@ -744,6 +820,24 @@ export default function PosScreen() {
     return buildAddonsFromSelection(editorAddonGroups, editorSelectedIds);
   }, [editorAddonGroups, editorSelectedIds]);
 
+  const discountAmount = useMemo(
+    () => getDiscountAmount(discountConfig, cartItems.reduce((sum, item) => sum + item.subtotal, 0)),
+    [cartItems, discountConfig]
+  );
+
+  const discountLabel = useMemo(
+    () => getDiscountLabel(discountConfig),
+    [discountConfig]
+  );
+  const activeDiscountPercent = discountConfig.kind === 'percent'
+    ? discountConfig.percent
+    : null;
+
+  const promotionsApplied = useMemo(
+    () => getDiscountPromotionsApplied(discountConfig, discountAmount),
+    [discountAmount, discountConfig]
+  );
+
   const totals = useMemo(() => {
     const subtotal = cartItems.reduce((sum, item) => sum + item.subtotal, 0);
     const tax = editingOrder?.tax ?? 0;
@@ -753,12 +847,12 @@ export default function PosScreen() {
       + tax
       + (editingOrder?.delivery_fee ?? 0)
       + (editingOrder?.service_fee ?? 0)
-      - (editingOrder?.promotion_discount ?? 0)
+      - discountAmount
       - (editingOrder?.coupon_discount ?? 0)
       - (editingOrder?.reward_points_value ?? 0)
     );
-    return { subtotal, tax, total };
-  }, [cartItems, editingOrder]);
+    return { subtotal, tax, discount: discountAmount, total };
+  }, [cartItems, discountAmount, editingOrder]);
 
   const buildCheckoutLineItems = useCallback(() => (
     cartItems.map((item) => ({
@@ -1234,6 +1328,7 @@ export default function PosScreen() {
             setCartItems([]);
             setQuickOrderNote(null);
             setOrderNoteText('');
+            setDiscountConfig(EMPTY_DISCOUNT);
             backToGroups();
           },
         },
@@ -1252,6 +1347,7 @@ export default function PosScreen() {
     setPaymentChoice('no_pay');
     setQuickOrderNote(null);
     setOrderNoteText('');
+    setDiscountConfig(EMPTY_DISCOUNT);
     setSelectedProduct(null);
     setEditingItemId(null);
     setEditorAddonGroups([]);
@@ -1396,8 +1492,8 @@ export default function PosScreen() {
       tax: totals.tax,
       delivery_fee: 0,
       service_fee: 0,
-      promotion_discount: 0,
-      promotions_applied: [],
+      promotion_discount: discountAmount,
+      promotions_applied: promotionsApplied,
       coupon_code: null,
       coupon_discount: 0,
       total: totals.total,
@@ -1443,6 +1539,10 @@ export default function PosScreen() {
         order_options: orderOptions,
         special_instructions: orderSpecialInstructions,
         scheduled_pickup_at: pickupAt ? pickupAt.toISOString() : null,
+        promotion_discount: discountAmount,
+        promotions_applied: promotionsApplied,
+        coupon_code: null,
+        coupon_discount: 0,
       })
       : await savePosOrder(orderPayload, cartItems);
 
@@ -1490,8 +1590,8 @@ export default function PosScreen() {
         tax: totals.tax,
         delivery_fee: 0,
         service_fee: 0,
-        promotion_discount: 0,
-        promotions_applied: [],
+        promotion_discount: discountAmount,
+        promotions_applied: promotionsApplied,
         coupon_code: null,
         coupon_discount: 0,
         total: totals.total,
@@ -1591,8 +1691,8 @@ export default function PosScreen() {
       tax: totals.tax,
       delivery_fee: 0,
       service_fee: 0,
-      promotion_discount: 0,
-      promotions_applied: [],
+      promotion_discount: discountAmount,
+      promotions_applied: promotionsApplied,
       coupon_code: null,
       coupon_discount: 0,
       total: totals.total,
@@ -1667,7 +1767,7 @@ export default function PosScreen() {
       }
 
       const feeSummary = await calculateDeliveryFees({
-        subtotal: totals.subtotal,
+        subtotal: Math.max(0, totals.subtotal - discountAmount),
         tax: totals.tax,
         deliveryFee: input.quote.fee,
       });
@@ -1687,8 +1787,8 @@ export default function PosScreen() {
         tax: totals.tax,
         delivery_fee: input.quote.fee,
         service_fee: feeSummary.serviceFee,
-        promotion_discount: 0,
-        promotions_applied: [],
+        promotion_discount: discountAmount,
+        promotions_applied: promotionsApplied,
         coupon_code: null,
         coupon_discount: 0,
         total: feeSummary.totalAmount,
@@ -1734,7 +1834,8 @@ export default function PosScreen() {
         customerName: name,
         customerPhone: phone,
         items: buildCheckoutLineItems(),
-        subtotal: totals.subtotal,
+        subtotal: Math.max(0, totals.subtotal - discountAmount),
+        promotionDiscount: discountAmount,
         tax: totals.tax,
         deliveryFee: input.quote.fee,
         orderType: 'delivery',
@@ -1868,6 +1969,28 @@ export default function PosScreen() {
   const checkoutPrimaryLabel = orderId
     ? 'Update Order'
     : 'Create Pickup Order • Unpaid';
+  const applyPresetDiscount = (percent: number) => {
+    const normalized = Math.max(0, Math.min(100, Number(percent) || 0));
+    if (normalized <= 0) {
+      setDiscountConfig(EMPTY_DISCOUNT);
+      return;
+    }
+    if (discountConfig.kind === 'percent' && discountConfig.percent === normalized) {
+      setDiscountConfig(EMPTY_DISCOUNT);
+      return;
+    }
+    setDiscountConfig({ kind: 'percent', percent: normalized });
+  };
+  const applyCustomPercentDiscount = (percent: number) => {
+    const normalized = Number(percent);
+    if (!Number.isFinite(normalized) || normalized <= 0) return;
+    applyPresetDiscount(normalized);
+  };
+  const applyCustomFixedDiscount = (amount: number) => {
+    const normalized = normalizeMoney(Number(amount) || 0);
+    if (!Number.isFinite(normalized) || normalized <= 0) return;
+    setDiscountConfig({ kind: 'fixed', amount: normalized });
+  };
   const addonSelectionCount = selectedEditorAddons.length + selectedRemovedIngredients.length;
   const addonSelectionTotal = addonTotal(selectedEditorAddons);
   return (
@@ -1935,6 +2058,11 @@ export default function PosScreen() {
             setCustomerName={setCustomerName}
             customerLookupError={customerLookupError}
             totals={totals}
+            discountLabel={discountLabel}
+            discountAmount={discountAmount}
+            activeDiscountPercent={activeDiscountPercent}
+            selectDiscountPreset={applyPresetDiscount}
+            openDiscountDialog={() => setDiscountDialogVisible(true)}
             cartItemsCount={cartItems.length}
             isPreOrder={isPreOrder}
             setIsPreOrder={setIsPreOrder}
@@ -2007,6 +2135,14 @@ export default function PosScreen() {
         instorePaymentDialogVisible={instorePaymentDialogVisible}
         setInstorePaymentDialogVisible={setInstorePaymentDialogVisible}
         onChooseInstorePayment={handleChooseInstorePayment}
+        discountDialogVisible={discountDialogVisible}
+        setDiscountDialogVisible={setDiscountDialogVisible}
+        discountLabel={discountLabel}
+        discountAmount={discountAmount}
+        onApplyPresetDiscount={applyPresetDiscount}
+        onApplyCustomPercentDiscount={applyCustomPercentDiscount}
+        onApplyCustomFixedDiscount={applyCustomFixedDiscount}
+        onClearDiscount={() => setDiscountConfig(EMPTY_DISCOUNT)}
       />
 
     </View>

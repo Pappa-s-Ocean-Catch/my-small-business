@@ -74,6 +74,11 @@ type Props = {
   setCustomerName: (value: string) => void;
   customerLookupError: string | null;
   totals: { subtotal: number; tax: number; total: number };
+  discountLabel: string;
+  discountAmount: number;
+  activeDiscountPercent: number | null;
+  selectDiscountPreset: (percent: number) => void;
+  openDiscountDialog: () => void;
   cartItemsCount: number;
   isPreOrder: boolean;
   setIsPreOrder: (value: boolean) => void;
@@ -153,6 +158,11 @@ export function PosMenuPane(props: Props) {
     setCustomerName,
     customerLookupError,
     totals,
+    discountLabel,
+    discountAmount,
+    activeDiscountPercent,
+    selectDiscountPreset,
+    openDiscountDialog,
     cartItemsCount,
     isPreOrder,
     setIsPreOrder,
@@ -517,6 +527,11 @@ export function PosMenuPane(props: Props) {
           setCustomerName={setCustomerName}
           customerLookupError={customerLookupError}
           totals={totals}
+          discountLabel={discountLabel}
+          discountAmount={discountAmount}
+          activeDiscountPercent={activeDiscountPercent}
+          selectDiscountPreset={selectDiscountPreset}
+          openDiscountDialog={openDiscountDialog}
           cartItemsCount={cartItemsCount}
           isPreOrder={isPreOrder}
           setIsPreOrder={setIsPreOrder}
@@ -534,13 +549,13 @@ export function PosMenuPane(props: Props) {
           smartpayProcessing={smartpayProcessing}
           orderId={orderId}
           checkoutPrimaryLabel={checkoutPrimaryLabel}
-            handleCheckout={handleCheckout}
-            smartpayPaired={smartpayPaired}
-            handleInstoreCheckout={handleInstoreCheckout}
-            handleSmartpayInstoreCheckout={handleSmartpayInstoreCheckout}
-            handleDeliveryCheckout={handleDeliveryCheckout}
-          />
-        )}
+          handleCheckout={handleCheckout}
+          smartpayPaired={smartpayPaired}
+          handleInstoreCheckout={handleInstoreCheckout}
+          handleSmartpayInstoreCheckout={handleSmartpayInstoreCheckout}
+          handleDeliveryCheckout={handleDeliveryCheckout}
+        />
+      )}
 
       {menuLevel !== 'groups' && menuLevel !== 'items' && menuLevel !== 'addons' && (
         <View pointerEvents="box-none" style={styles.quickListButtonWrap}>

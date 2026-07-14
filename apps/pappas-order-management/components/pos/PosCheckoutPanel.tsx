@@ -22,6 +22,11 @@ type Props = {
   setCustomerName: (value: string) => void;
   customerLookupError: string | null;
   totals: { subtotal: number; tax: number; total: number };
+  discountLabel: string;
+  discountAmount: number;
+  activeDiscountPercent: number | null;
+  selectDiscountPreset: (percent: number) => void;
+  openDiscountDialog: () => void;
   cartItemsCount: number;
   isPreOrder: boolean;
   setIsPreOrder: (value: boolean) => void;
@@ -58,6 +63,11 @@ export function PosCheckoutPanel({
   setCustomerName,
   customerLookupError,
   totals,
+  discountLabel,
+  discountAmount,
+  activeDiscountPercent,
+  selectDiscountPreset,
+  openDiscountDialog,
   cartItemsCount,
   isPreOrder,
   setIsPreOrder,
@@ -102,6 +112,11 @@ export function PosCheckoutPanel({
       </View>
       {activeTab === 'instore' && (
         <PosInstoreCheckoutForm
+          discountLabel={discountLabel}
+          discountAmount={discountAmount}
+          activeDiscountPercent={activeDiscountPercent}
+          selectDiscountPreset={selectDiscountPreset}
+          openDiscountDialog={openDiscountDialog}
           cartItemsCount={cartItemsCount}
           orderNoteText={orderNoteText}
           setOrderNoteText={setOrderNoteText}
@@ -121,6 +136,11 @@ export function PosCheckoutPanel({
           customerName={customerName}
           setCustomerName={setCustomerName}
           customerLookupError={customerLookupError}
+          discountLabel={discountLabel}
+          discountAmount={discountAmount}
+          activeDiscountPercent={activeDiscountPercent}
+          selectDiscountPreset={selectDiscountPreset}
+          openDiscountDialog={openDiscountDialog}
           cartItemsCount={cartItemsCount}
           isPreOrder={isPreOrder}
           setIsPreOrder={setIsPreOrder}
@@ -151,6 +171,11 @@ export function PosCheckoutPanel({
           setCustomerName={setCustomerName}
           customerLookupError={customerLookupError}
           totals={totals}
+          discountLabel={discountLabel}
+          discountAmount={discountAmount}
+          activeDiscountPercent={activeDiscountPercent}
+          selectDiscountPreset={selectDiscountPreset}
+          openDiscountDialog={openDiscountDialog}
           cartItemsCount={cartItemsCount}
           orderNoteText={orderNoteText}
           setOrderNoteText={setOrderNoteText}

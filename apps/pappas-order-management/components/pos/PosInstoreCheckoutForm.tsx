@@ -4,8 +4,14 @@ import { Button, TextInput } from 'react-native-paper';
 
 import { styles } from '../../app/pos.styles';
 import type { PosInstorePaymentChoice } from '../../app/pos.types';
+import { PosDiscountSection } from './PosDiscountSection';
 
 type Props = {
+  discountLabel: string;
+  discountAmount: number;
+  activeDiscountPercent: number | null;
+  selectDiscountPreset: (percent: number) => void;
+  openDiscountDialog: () => void;
   cartItemsCount: number;
   orderNoteText: string;
   setOrderNoteText: (value: string) => void;
@@ -17,6 +23,11 @@ type Props = {
 };
 
 export function PosInstoreCheckoutForm({
+  discountLabel,
+  discountAmount,
+  activeDiscountPercent,
+  selectDiscountPreset,
+  openDiscountDialog,
   cartItemsCount,
   orderNoteText,
   setOrderNoteText,
@@ -41,6 +52,14 @@ export function PosInstoreCheckoutForm({
       keyboardShouldPersistTaps="handled"
     >
       <View style={styles.checkoutFormFull}>
+        <PosDiscountSection
+          discountLabel={discountLabel}
+          discountAmount={discountAmount}
+          activeDiscountPercent={activeDiscountPercent}
+          onSelectPreset={selectDiscountPreset}
+          onOpenMore={openDiscountDialog}
+        />
+
         <View style={styles.paymentPanel}>
           <Text style={styles.checkoutSectionTitle}>Payment</Text>
           <View style={styles.paymentModeRow}>

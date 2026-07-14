@@ -23,6 +23,12 @@ export function CustomerReceiptTemplate({ order, width = 576 }: Props) {
   const orderNotes = getOrderNotes(order);
   const rewardPointsUsed = order.reward_points_used ?? 0;
   const rewardPointsValue = order.reward_points_value ?? 0;
+  const promotionSummary = Array.isArray(order.promotions_applied)
+    ? order.promotions_applied.find((entry) => entry && typeof entry === 'object')
+    : null;
+  const promotionLabel = typeof promotionSummary?.label === 'string' && promotionSummary.label.trim().length > 0
+    ? promotionSummary.label.trim()
+    : 'Promotion Discount';
   const isNarrow = width <= 384;
   const qrSize = isNarrow ? 128 : 144;
   const gstAmount = order.tax > 0 ? order.tax : Number((order.total / 11).toFixed(2));
@@ -111,13 +117,15 @@ export function CustomerReceiptTemplate({ order, width = 576 }: Props) {
       ) : null}
       {order.promotion_discount > 0 ? (
         <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>Promo</Text>
+          <Text style={styles.totalLabel}>{promotionLabel}</Text>
           <Text style={styles.totalValue}>-${formatMoney(order.promotion_discount)}</Text>
         </View>
       ) : null}
       {order.coupon_discount > 0 ? (
         <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>Coupon</Text>
+          <Text style={styles.totalLabel}>
+            {order.coupon_code ? `Coupon (${order.coupon_code})` : 'Coupon Discount'}
+          </Text>
           <Text style={styles.totalValue}>-${formatMoney(order.coupon_discount)}</Text>
         </View>
       ) : null}

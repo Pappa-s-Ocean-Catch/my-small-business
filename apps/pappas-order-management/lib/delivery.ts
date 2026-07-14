@@ -117,6 +117,7 @@ export async function createStripeCheckoutSession(params: {
   customerPhone?: string;
   items: Array<{ name: string; description?: string; quantity: number; price: number }>;
   subtotal: number;
+  promotionDiscount?: number;
   tax: number;
   deliveryFee: number;
   orderType: 'delivery';

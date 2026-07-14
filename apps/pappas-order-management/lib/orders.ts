@@ -427,6 +427,10 @@ export async function updatePosOrder(
     | 'order_options'
     | 'special_instructions'
     | 'scheduled_pickup_at'
+    | 'promotion_discount'
+    | 'promotions_applied'
+    | 'coupon_code'
+    | 'coupon_discount'
   >> = {}
 ): Promise<{ data: Order | null; error: string | null }> {
   try {

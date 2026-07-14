@@ -8,8 +8,11 @@ import { KITCHEN_SECTION_OPTIONS } from '@/utils/orderUtils';
 import { usePrintersDiscovery } from 'react-native-esc-pos-printer';
 import type { DeviceInfo } from 'react-native-esc-pos-printer';
 import {
+    createManualSavedPrinter,
+    buildTcpPrinterTarget,
     escposTestPrint,
     isSamePhysicalPrinter,
+    isValidIpv4Address,
     mergeSavedPrinter,
     type SavedPrinter,
 } from '@/lib/escpos-printer';
@@ -52,6 +55,8 @@ export default function SettingsScreen() {
     );
     const [printerPaperWidth, setPrinterPaperWidth] = useState<'58mm' | '80mm'>(DEFAULT_APP_SETTINGS.printerPaperWidth);
     const [printerHighQuality, setPrinterHighQuality] = useState<boolean>(DEFAULT_APP_SETTINGS.printerHighQuality);
+    const [manualPrinterIp, setManualPrinterIp] = useState('');
+    const [manualPrinterName, setManualPrinterName] = useState('');
 
     const [saving, setSaving] = useState(false);
     const [testingPrinter, setTestingPrinter] = useState(false);
@@ -238,6 +243,48 @@ export default function SettingsScreen() {
                 ? { ...assignment, printerTarget: null }
                 : assignment
         )));
+    };
+
+    const handleManualPrinterAdd = () => {
+        const ipAddress = manualPrinterIp.trim();
+        const deviceName = manualPrinterName.trim();
+
+        if (!isValidIpv4Address(ipAddress)) {
+            Alert.alert('Invalid IP address', 'Enter a valid IPv4 address like 192.168.1.50.');
+            return;
+        }
+
+        const target = buildTcpPrinterTarget(ipAddress);
+        const existingByTarget = printerSaved.find((printer) => printer.target === target) || null;
+        const existingByIp = printerSaved.find((printer) => printer.ipAddress?.trim() === ipAddress) || null;
+        const existing = existingByTarget || existingByIp;
+
+        if (existing) {
+            const updatedPrinter: SavedPrinter = {
+                ...existing,
+                ...createManualSavedPrinter(ipAddress, deviceName || existing.deviceName),
+                deviceName: deviceName || existing.deviceName,
+            };
+            setPrinterSaved((prev) => prev.map((printer) => (
+                printer.target === existing.target ? updatedPrinter : printer
+            )));
+            setPrinterSelectedTarget(updatedPrinter.target);
+            updatePrinterAssignmentTarget(defaultPrinterAssignmentId, updatedPrinter.target);
+            setPrinterEnabled(true);
+            setManualPrinterIp('');
+            setManualPrinterName('');
+            Alert.alert('Printer updated', `${updatedPrinter.deviceName} is ready to use.`);
+            return;
+        }
+
+        const manualPrinter = createManualSavedPrinter(ipAddress, deviceName);
+        setPrinterSaved((prev) => [manualPrinter, ...prev]);
+        setPrinterSelectedTarget(manualPrinter.target);
+        updatePrinterAssignmentTarget(defaultPrinterAssignmentId, manualPrinter.target);
+        setPrinterEnabled(true);
+        setManualPrinterIp('');
+        setManualPrinterName('');
+        Alert.alert('Printer added', `${manualPrinter.deviceName} was added as the default printer.`);
     };
 
     useEffect(() => {
@@ -586,6 +633,33 @@ export default function SettingsScreen() {
                                 </Button>
                             )}
 
+                            <View style={styles.group}>
+                                <Text style={styles.label}>Add printer manually</Text>
+                                <TextInput
+                                    mode="outlined"
+                                    label="Printer IP address"
+                                    value={manualPrinterIp}
+                                    onChangeText={setManualPrinterIp}
+                                    autoCapitalize="none"
+                                    autoCorrect={false}
+                                    keyboardType="decimal-pad"
+                                    placeholder="192.168.1.50"
+                                    style={styles.input}
+                                />
+                                <TextInput
+                                    mode="outlined"
+                                    label="Printer name (optional)"
+                                    value={manualPrinterName}
+                                    onChangeText={setManualPrinterName}
+                                    autoCapitalize="words"
+                                    style={styles.input}
+                                />
+                                <Text style={styles.helper}>Use this when discovery misses a network printer. We will save it as a TCP printer target.</Text>
+                                <Button mode="contained-tonal" onPress={handleManualPrinterAdd} style={styles.selectButton}>
+                                    Add manual printer
+                                </Button>
+                            </View>
+
                             {printers.length > 0 && (
                                 <View style={styles.group}>
                                     <Text style={styles.label}>Discovered printers</Text>
@@ -622,7 +696,7 @@ export default function SettingsScreen() {
                             <View style={styles.group}>
                                 <Text style={styles.label}>Saved printers</Text>
                                 {printerSaved.length === 0 ? (
-                                    <Text style={styles.helper}>No printers saved yet. Use discovery above.</Text>
+                                    <Text style={styles.helper}>No printers saved yet. Use discovery or add one manually above.</Text>
                                 ) : (
                                     printerSaved.map((p) => {
                                         const isSelected = p.target === printerSelectedTarget;

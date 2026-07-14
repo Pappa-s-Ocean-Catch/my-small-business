@@ -253,6 +253,13 @@ const buildBreakdown = (orders: Order[], groupBy: (order: Order) => string): Bre
   return Array.from(map.values()).sort((a, b) => b.total - a.total);
 };
 
+const getDiscountTotal = (orders: Order[]) => (
+  getPaidSalesOrders(orders).reduce(
+    (sum, order) => sum + (Number(order.promotion_discount) || 0) + (Number(order.coupon_discount) || 0),
+    0
+  )
+);
+
 const buildChartData = (buckets: ChartBucket[]): lineDataItem[] => (
   buckets.map((bucket, index) => {
     const showLabel = buckets.length <= 7 || index % Math.max(1, Math.ceil(buckets.length / 6)) === 0 || index === buckets.length - 1;
@@ -425,6 +432,8 @@ export default function ReportScreen() {
   const compareSalesOrders = useMemo(() => getPaidSalesOrders(compareOrders), [compareOrders]);
   const currentTotal = currentSalesOrders.reduce((sum, order) => sum + (Number(order.total) || 0), 0);
   const compareTotal = compareSalesOrders.reduce((sum, order) => sum + (Number(order.total) || 0), 0);
+  const currentDiscountTotal = getDiscountTotal(currentOrders);
+  const compareDiscountTotal = getDiscountTotal(compareOrders);
   const difference = currentTotal - compareTotal;
   const differencePercent = compareTotal > 0 ? (difference / compareTotal) * 100 : null;
 
@@ -670,6 +679,13 @@ export default function ReportScreen() {
                 <Text style={styles.statLabel}>Average order</Text>
                 <Text style={styles.statValue}>
                   {currentSalesOrders.length ? money(currentTotal / currentSalesOrders.length) : money(0)}
+                </Text>
+              </View>
+              <View style={[styles.statBox, styles.statBoxAverage]}>
+                <Text style={styles.statLabel}>Discounts</Text>
+                <Text style={styles.statValue}>{money(currentDiscountTotal)}</Text>
+                <Text style={styles.statSubtext}>
+                  Vs {compareSummaryLabel} {money(currentDiscountTotal - compareDiscountTotal)}
                 </Text>
               </View>
               <View style={[styles.statBox, difference >= 0 ? styles.statBoxPositive : styles.statBoxNegative]}>

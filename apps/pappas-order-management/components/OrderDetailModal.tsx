@@ -123,6 +123,12 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const isUpdating = updatingStatus === order.id;
   const rewardPointsUsed = order.reward_points_used ?? 0;
   const rewardPointsValue = order.reward_points_value ?? 0;
+  const promotionSummary = Array.isArray(order.promotions_applied)
+    ? order.promotions_applied.find((entry) => entry && typeof entry === 'object')
+    : null;
+  const promotionLabel = typeof promotionSummary?.label === 'string' && promotionSummary.label.trim().length > 0
+    ? promotionSummary.label.trim()
+    : 'Promotion Discount';
   const lineItemCount = getOrderLineItemCount(order);
   const orderOptions = getOrderOptions(order);
   const orderNotes = getOrderNotes(order);
@@ -343,13 +349,15 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               )}
               {order.promotion_discount > 0 && (
                 <View style={styles.totalRow}>
-                  <Text style={[styles.totalLabel, { color: '#10b981' }]}>Promotion Discount</Text>
+                  <Text style={[styles.totalLabel, { color: '#10b981' }]}>{promotionLabel}</Text>
                   <Text style={[styles.totalValue, { color: '#10b981' }]}>-${order.promotion_discount.toFixed(2)}</Text>
                 </View>
               )}
               {order.coupon_discount > 0 && (
                 <View style={styles.totalRow}>
-                  <Text style={[styles.totalLabel, { color: '#10b981' }]}>Coupon ({order.coupon_code})</Text>
+                  <Text style={[styles.totalLabel, { color: '#10b981' }]}>
+                    {order.coupon_code ? `Coupon (${order.coupon_code})` : 'Coupon Discount'}
+                  </Text>
                   <Text style={[styles.totalValue, { color: '#10b981' }]}>-${order.coupon_discount.toFixed(2)}</Text>
                 </View>
               )}

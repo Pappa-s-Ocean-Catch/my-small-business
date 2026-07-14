@@ -11,8 +11,37 @@ export type SavedPrinter = {
   deviceType?: string;
 };
 
+const TCP_TARGET_PREFIX = 'TCP:';
+
 function normalizePrinterField(value: string | undefined): string {
   return value?.trim().toLowerCase() ?? '';
+}
+
+export function isValidIpv4Address(value: string): boolean {
+  const trimmed = value.trim();
+  const parts = trimmed.split('.');
+  if (parts.length !== 4) return false;
+
+  return parts.every((part) => {
+    if (!/^\d+$/.test(part)) return false;
+    if (part.length > 1 && part.startsWith('0')) return false;
+    const valueNum = Number.parseInt(part, 10);
+    return valueNum >= 0 && valueNum <= 255;
+  });
+}
+
+export function buildTcpPrinterTarget(ipAddress: string): string {
+  return `${TCP_TARGET_PREFIX}${ipAddress.trim()}`;
+}
+
+export function createManualSavedPrinter(ipAddress: string, deviceName?: string): SavedPrinter {
+  const normalizedIp = ipAddress.trim();
+  return {
+    target: buildTcpPrinterTarget(normalizedIp),
+    deviceName: deviceName?.trim() || `Manual printer (${normalizedIp})`,
+    ipAddress: normalizedIp,
+    deviceType: 'TYPE_PRINTER',
+  };
 }
 
 export function isSamePhysicalPrinter(

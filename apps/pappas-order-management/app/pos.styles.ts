@@ -296,6 +296,81 @@ export const styles = StyleSheet.create({
   },
   checkoutSegmentedButtons: { flex: 1 },
   checkoutInput: { backgroundColor: '#fff' },
+  discountCard: {
+    minHeight: 58,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  discountCardActive: {
+    borderColor: '#86efac',
+    backgroundColor: '#f0fdf4',
+  },
+  discountCardText: {
+    flex: 1,
+  },
+  discountCardTitle: {
+    color: '#64748b',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  discountCardTitleActive: {
+    color: '#15803d',
+  },
+  discountCardValue: {
+    color: '#0f172a',
+    fontSize: 18,
+    fontWeight: '900',
+    marginTop: 3,
+  },
+  discountCardValueActive: {
+    color: '#166534',
+  },
+  discountCardAmount: {
+    color: '#2563eb',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  discountCardAmountActive: {
+    color: '#16a34a',
+  },
+  discountPresetRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    width: '100%',
+    marginTop: 14,
+  },
+  discountPresetChip: {
+    minWidth: 72,
+    minHeight: 48,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  discountPresetChipActive: {
+    borderColor: '#16a34a',
+    backgroundColor: '#16a34a',
+  },
+  discountPresetChipText: {
+    color: '#0f172a',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  discountPresetChipTextActive: {
+    color: '#fff',
+  },
   customerIdentityRow: {
     flexDirection: 'row',
     alignItems: 'stretch',
@@ -432,6 +507,10 @@ export const styles = StyleSheet.create({
   pickupPickerButtons: { flexDirection: 'row', gap: 8 },
   pickupPickerButton: { flex: 1, borderRadius: 8 },
   placeOrderButton: { borderRadius: 8, marginTop: 8 },
+  discountTotalValue: {
+    color: '#16a34a',
+    fontWeight: '900',
+  },
   secondaryActionsPanel: {
     borderWidth: 1,
     borderColor: '#e5e7eb',
@@ -554,6 +633,32 @@ export const styles = StyleSheet.create({
   noteDialog: { backgroundColor: '#fff' },
   noteInput: { backgroundColor: '#fff', minHeight: 90 },
   dialogActionStack: { marginTop: 16, gap: 10 },
+  discountPresetGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 16,
+    marginBottom: 16,
+  },
+  discountPresetButton: {
+    width: '30%',
+    minHeight: 48,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    backgroundColor: '#eff6ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  discountPresetButtonText: {
+    color: '#1d4ed8',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  discountInputGroup: {
+    gap: 8,
+    marginTop: 8,
+  },
   textEntryDialog: {
     borderRadius: 16,
     backgroundColor: '#fff',

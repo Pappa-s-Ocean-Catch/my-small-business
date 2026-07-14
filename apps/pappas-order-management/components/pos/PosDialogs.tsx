@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { Button, Dialog, Portal, TextInput } from 'react-native-paper';
 
@@ -26,6 +26,14 @@ type Props = {
   instorePaymentDialogVisible: boolean;
   setInstorePaymentDialogVisible: (visible: boolean) => void;
   onChooseInstorePayment: (choice: PosInstorePaymentChoice) => void;
+  discountDialogVisible: boolean;
+  setDiscountDialogVisible: (visible: boolean) => void;
+  discountLabel: string;
+  discountAmount: number;
+  onApplyPresetDiscount: (percent: number) => void;
+  onApplyCustomPercentDiscount: (percent: number) => void;
+  onApplyCustomFixedDiscount: (amount: number) => void;
+  onClearDiscount: () => void;
 };
 
 export function PosDialogs({
@@ -48,7 +56,24 @@ export function PosDialogs({
   instorePaymentDialogVisible,
   setInstorePaymentDialogVisible,
   onChooseInstorePayment,
+  discountDialogVisible,
+  setDiscountDialogVisible,
+  discountLabel,
+  discountAmount,
+  onApplyPresetDiscount,
+  onApplyCustomPercentDiscount,
+  onApplyCustomFixedDiscount,
+  onClearDiscount,
 }: Props) {
+  const [customPercent, setCustomPercent] = useState('');
+  const [customAmount, setCustomAmount] = useState('');
+
+  useEffect(() => {
+    if (!discountDialogVisible) return;
+    setCustomPercent('');
+    setCustomAmount('');
+  }, [discountDialogVisible]);
+
   return (
     <>
       <CashTenderModal
@@ -159,6 +184,88 @@ export function PosDialogs({
           </Dialog.Content>
           <Dialog.Actions>
             <Button onPress={() => setInstorePaymentDialogVisible(false)}>Cancel</Button>
+          </Dialog.Actions>
+        </Dialog>
+
+        <Dialog
+          visible={discountDialogVisible}
+          onDismiss={() => setDiscountDialogVisible(false)}
+          style={styles.noteDialog}
+        >
+          <Dialog.Title>Apply discount</Dialog.Title>
+          <Dialog.Content>
+            <Text style={styles.smartpayDialogText}>
+              Current: {discountAmount > 0 ? `${discountLabel} (-$${discountAmount.toFixed(2)})` : 'No discount'}
+            </Text>
+            <View style={styles.discountPresetGrid}>
+              {[5, 10, 15, 20, 25].map((percent) => (
+                <TouchableOpacity
+                  key={percent}
+                  style={styles.discountPresetButton}
+                  onPress={() => {
+                    onApplyPresetDiscount(percent);
+                    setDiscountDialogVisible(false);
+                  }}
+                >
+                  <Text style={styles.discountPresetButtonText}>{percent}%</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={styles.discountInputGroup}>
+              <TextInput
+                label="Custom percent"
+                mode="outlined"
+                value={customPercent}
+                onChangeText={setCustomPercent}
+                keyboardType="decimal-pad"
+                style={styles.checkoutInput}
+                right={<TextInput.Affix text="%" />}
+              />
+              <Button
+                mode="contained-tonal"
+                disabled={!Number.isFinite(Number(customPercent)) || Number(customPercent) <= 0}
+                onPress={() => {
+                  onApplyCustomPercentDiscount(Number(customPercent));
+                  setDiscountDialogVisible(false);
+                }}
+              >
+                Apply %
+              </Button>
+            </View>
+
+            <View style={styles.discountInputGroup}>
+              <TextInput
+                label="Fixed amount"
+                mode="outlined"
+                value={customAmount}
+                onChangeText={setCustomAmount}
+                keyboardType="decimal-pad"
+                style={styles.checkoutInput}
+                left={<TextInput.Affix text="$" />}
+              />
+              <Button
+                mode="contained-tonal"
+                disabled={!Number.isFinite(Number(customAmount)) || Number(customAmount) <= 0}
+                onPress={() => {
+                  onApplyCustomFixedDiscount(Number(customAmount));
+                  setDiscountDialogVisible(false);
+                }}
+              >
+                Apply $
+              </Button>
+            </View>
+          </Dialog.Content>
+          <Dialog.Actions>
+            {discountAmount > 0 && (
+              <Button onPress={() => {
+                onClearDiscount();
+                setDiscountDialogVisible(false);
+              }}>
+                Remove
+              </Button>
+            )}
+            <Button onPress={() => setDiscountDialogVisible(false)}>Close</Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>
