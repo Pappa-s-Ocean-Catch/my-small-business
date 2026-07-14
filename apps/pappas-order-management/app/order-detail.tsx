@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Print from 'expo-print';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { ActivityIndicator, Text } from 'react-native-paper';
-import { getOrder, updateOrderStatus, updatePaymentStatus } from '../lib/orders';
+import { getOrder, refreshDeliveryStatus, updateOrderStatus, updatePaymentStatus } from '../lib/orders';
 import { loadAppSettings } from '../lib/settings';
 import { escposPrintKitchenReceipt, escposPrintOrderImage, formatPrinterError } from '../lib/escpos-printer';
 import { buildSectionPrintJobs, getSectionPrintTickets, hasAnySimulatorAssignment, resolvePrinterForSection, shouldSkipPrintForSection, shouldUseSimulatorForSection } from '../lib/printer-routing';
@@ -145,6 +145,24 @@ export default function OrderDetailScreen() {
     const nextStatus = actionToStatus[quickAction.action];
     if (!nextStatus) return;
     await handleStatusUpdate(selectedOrder, nextStatus);
+  };
+
+  const handleRefreshDelivery = async (selectedOrder: Order) => {
+    if (selectedOrder.order_type !== 'delivery') return;
+
+    try {
+      setUpdatingStatus(selectedOrder.id);
+      const result = await refreshDeliveryStatus(selectedOrder.id);
+      if (result.error) {
+        Alert.alert('Delivery refresh failed', result.error);
+        return;
+      }
+      if (result.data) {
+        setOrder(result.data);
+      }
+    } finally {
+      setUpdatingStatus(null);
+    }
   };
 
   const handlePrint = async (selectedOrder: Order): Promise<boolean> => {
@@ -293,6 +311,7 @@ export default function OrderDetailScreen() {
       onPaymentStatusUpdate={handlePaymentStatusUpdate}
       onSmartpayPayment={handleSmartpayPayment}
       onQuickAction={handleQuickAction}
+      onRefreshDeliveryStatus={handleRefreshDelivery}
       updatingStatus={updatingStatus}
       smartpayPaired={smartpayPaired}
       smartpayProcessing={smartpayProcessing}

@@ -70,6 +70,18 @@ export interface CreateDeliveryResponse {
   raw?: any;
 }
 
+export interface DeliveryStatusResponse {
+  delivery_id: string;
+  order_number?: string;
+  status: string;
+  tracking_url?: string;
+  driver_name?: string;
+  driver_phone?: string;
+  driver_pin?: string;
+  vehicle_info?: string;
+  raw?: any;
+}
+
 class ShipdayClient {
   private sdk: any;
   private apiKey: string;
@@ -350,6 +362,32 @@ class ShipdayClient {
       };
     } catch (error) {
       console.error('[Shipday SDK] Error marking delivery ready:', error);
+      throw error;
+    }
+  }
+
+  async getDeliveryStatus(deliveryId: string): Promise<DeliveryStatusResponse> {
+    const shipdayOrderId = Number(deliveryId);
+    if (!Number.isFinite(shipdayOrderId) || shipdayOrderId <= 0) {
+      throw new Error('Invalid Shipday delivery id');
+    }
+
+    try {
+      const response = await this.sdk.orderService.getOrderDetails(shipdayOrderId);
+      const responseBody = response && typeof response === 'object' ? response : {};
+      return {
+        delivery_id: String((responseBody as any).orderId || (responseBody as any).id || shipdayOrderId),
+        order_number: String((responseBody as any).orderNumber || (responseBody as any).order_number || ''),
+        status: String((responseBody as any).status || (responseBody as any).deliveryStatus || ''),
+        tracking_url: (responseBody as any).trackingUrl || (responseBody as any).tracking_url || '',
+        driver_name: (responseBody as any).driverName || (responseBody as any).dasherName || (responseBody as any).courierName || '',
+        driver_phone: (responseBody as any).driverPhone || (responseBody as any).dasherPhone || (responseBody as any).courierPhone || '',
+        driver_pin: (responseBody as any).driverPin || (responseBody as any).pickupPin || (responseBody as any).verificationPin || '',
+        vehicle_info: (responseBody as any).vehicleInfo || (responseBody as any).vehicle || (responseBody as any).vehicleDescription || '',
+        raw: responseBody,
+      };
+    } catch (error) {
+      console.error('[Shipday SDK] Error fetching delivery status:', error);
       throw error;
     }
   }

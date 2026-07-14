@@ -37,6 +37,7 @@ interface OrderDetailModalProps {
   onPaymentStatusUpdate?: (id: string, status: PaymentStatus, paymentMethodDetail?: string | null) => void;
   onSmartpayPayment?: (order: Order) => void;
   onQuickAction?: (order: Order, action: string) => void;
+  onRefreshDeliveryStatus?: (order: Order) => void;
   updatingStatus?: string | null;
   smartpayPaired?: boolean;
   smartpayProcessing?: boolean;
@@ -64,6 +65,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   onPaymentStatusUpdate,
   onSmartpayPayment,
   onQuickAction,
+  onRefreshDeliveryStatus,
   updatingStatus,
   smartpayPaired = false,
   smartpayProcessing = false,
@@ -245,6 +247,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
 
   const showPaymentAction = onPaymentStatusUpdate && order.payment_status === 'pending';
   const showCancelAction = onStatusUpdate && order.order_status !== 'completed' && order.order_status !== 'cancelled';
+  const showDeliveryRefreshAction = !!onRefreshDeliveryStatus && order.order_type === 'delivery';
 
   const content = (
       <View style={styles.container}>
@@ -468,6 +471,19 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
             >
               Print Customer Copy
             </PaperButton>
+            {showDeliveryRefreshAction && (
+              <PaperButton
+                mode="outlined"
+                icon="refresh"
+                onPress={() => onRefreshDeliveryStatus(order)}
+                disabled={isUpdating}
+                loading={isUpdating}
+                style={styles.actionButton}
+                compact={!isWide}
+              >
+                Refresh Delivery
+              </PaperButton>
+            )}
             {showCancelAction && (
               <PaperButton
                 mode="outlined" 

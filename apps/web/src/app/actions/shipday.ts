@@ -195,3 +195,118 @@ export async function markShipdayOrderReady(orderId: string) {
     return { success: false, error: error instanceof Error ? error.message : 'Failed to mark Shipday order ready' };
   }
 }
+
+function mapShipdayStatus(rawStatus: string | null | undefined): string {
+  const status = (rawStatus || '').toLowerCase();
+
+  if (!status.trim()) return 'pending';
+  if (status.includes('deliver')) return 'delivered';
+  if (
+    status.includes('picked') ||
+    status.includes('transit') ||
+    status.includes('inflight') ||
+    status.includes('enroute') ||
+    status.includes('on_the_way')
+  ) {
+    return 'inflight';
+  }
+  if (
+    status.includes('assign') ||
+    status.includes('accept') ||
+    status.includes('driver') ||
+    status.includes('dispatch')
+  ) {
+    return 'assigned';
+  }
+  if (status.includes('cancel')) return 'cancelled';
+  if (status.includes('fail')) return 'failed';
+  return 'pending';
+}
+
+export async function refreshShipdayOrderStatus(orderId: string) {
+  try {
+    const supabase = await createServiceRoleClient();
+
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('id', orderId)
+      .single();
+
+    if (orderError || !order) {
+      return { success: false, error: orderError?.message || 'Order not found' };
+    }
+
+    if (order.order_type !== 'delivery') {
+      return { success: true, skipped: true, reason: 'Not a delivery order' };
+    }
+
+    if (!order.delivery_provider_id) {
+      return { success: true, skipped: true, reason: 'Delivery provider id missing' };
+    }
+
+    const client = getShipdayClient();
+    const res = await client.getDeliveryStatus(String(order.delivery_provider_id));
+    const normalizedStatus = mapShipdayStatus(res.status);
+
+    const updatePayload: Record<string, string | null> = {
+      delivery_status: normalizedStatus,
+      delivery_tracking_url: res.tracking_url || order.delivery_tracking_url || null,
+      delivery_driver_name: res.driver_name || null,
+      delivery_driver_phone: res.driver_phone || null,
+      delivery_driver_pin: res.driver_pin || null,
+      delivery_vehicle_info: res.vehicle_info || null,
+    };
+
+    const outOfSync =
+      order.delivery_status !== updatePayload.delivery_status ||
+      (order.delivery_tracking_url || null) !== updatePayload.delivery_tracking_url ||
+      (order.delivery_driver_name || null) !== updatePayload.delivery_driver_name ||
+      (order.delivery_driver_phone || null) !== updatePayload.delivery_driver_phone ||
+      (order.delivery_driver_pin || null) !== updatePayload.delivery_driver_pin ||
+      (order.delivery_vehicle_info || null) !== updatePayload.delivery_vehicle_info;
+
+    if (outOfSync) {
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update(updatePayload)
+        .eq('id', order.id);
+
+      if (updateError) {
+        return { success: false, error: updateError.message };
+      }
+    }
+
+    await supabase.from('order_events').insert({
+      order_id: order.id,
+      source: 'shipday',
+      event_type: 'status_refresh',
+      status: normalizedStatus,
+      message: outOfSync ? 'Delivery status refreshed from Shipday and local order updated' : 'Delivery status refreshed from Shipday',
+      external_order_number: order.order_number,
+      external_delivery_id: String(order.delivery_provider_id),
+      details: res.raw || {
+        delivery_id: res.delivery_id,
+        tracking_url: res.tracking_url || null,
+        status: res.status,
+      },
+    });
+
+    const { data: updatedOrder } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('id', order.id)
+      .single();
+
+    return {
+      success: true,
+      synced: outOfSync,
+      status: normalizedStatus,
+      trackingUrl: updatePayload.delivery_tracking_url,
+      order: updatedOrder || order,
+    };
+  } catch (error) {
+    console.error('[Shipday Action] Fatal refresh-status error:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to refresh Shipday delivery status' };
+  }
+}

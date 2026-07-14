@@ -1,10 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Card, IconButton, Surface, Text } from 'react-native-paper';
+import { Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Button, Card, IconButton, Modal, Portal, Surface, Text, TextInput } from 'react-native-paper';
 import type { Order } from '@my-small-business/types';
 
-import { getOrder, updateOrderStatus } from '@/lib/orders';
-import { openExternalUrl, sendPaymentLinkSms } from '@/lib/delivery';
+import { getOrder, updateOrderStatus, updatePendingDeliveryOrder } from '@/lib/orders';
+import {
+  calculateDeliveryFees,
+  createStripeCheckoutSession,
+  fetchAddressDetails,
+  fetchAddressSuggestions,
+  openExternalUrl,
+  requestDeliveryQuote,
+  sendPaymentLinkSms,
+  type AddressSuggestion,
+  type DeliveryAddressDraft,
+} from '@/lib/delivery';
 import { usePendingOnlinePaymentsStore } from '@/stores/pendingOnlinePaymentsStore';
 import { getFriendlyOrderNumber } from '@/utils/orderNumber';
 
@@ -32,8 +42,20 @@ export function PendingOnlinePaymentsOverlay() {
   const updateStatus = usePendingOnlinePaymentsStore((state) => state.updateStatus);
   const setSmsState = usePendingOnlinePaymentsStore((state) => state.setSmsState);
   const removeSession = usePendingOnlinePaymentsStore((state) => state.removeSession);
+  const upsertSession = usePendingOnlinePaymentsStore((state) => state.upsertSession);
   const [now, setNow] = useState(Date.now());
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
+  const [editAddressVisible, setEditAddressVisible] = useState(false);
+  const [addressQuery, setAddressQuery] = useState('');
+  const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [loadingAddressDetails, setLoadingAddressDetails] = useState(false);
+  const [selectedAddress, setSelectedAddress] = useState<DeliveryAddressDraft | null>(null);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
+  const [requoteLoading, setRequoteLoading] = useState(false);
+  const [savingAddress, setSavingAddress] = useState(false);
+  const [updatedQuoteFee, setUpdatedQuoteFee] = useState<number | null>(null);
+  const [updatedEtaMinutes, setUpdatedEtaMinutes] = useState<number | null>(null);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
@@ -94,6 +116,127 @@ export function PendingOnlinePaymentsOverlay() {
     };
   }, [activeSession?.orderId]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!editAddressVisible || addressQuery.trim().length < 3 || selectedAddress) {
+      setSuggestions([]);
+      setLoadingSuggestions(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setLoadingSuggestions(true);
+    const timer = setTimeout(() => {
+      fetchAddressSuggestions(addressQuery)
+        .then((data) => {
+          if (!cancelled) setSuggestions(data);
+        })
+        .catch((error) => {
+          if (!cancelled) setQuoteError(error instanceof Error ? error.message : 'Failed to search addresses');
+        })
+        .finally(() => {
+          if (!cancelled) setLoadingSuggestions(false);
+        });
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [addressQuery, editAddressVisible, selectedAddress]);
+
+  const formatDeliveryAddress = (address: DeliveryAddressDraft) => (
+    [
+      address.address_line1,
+      address.address_line2,
+      [address.city, address.state, address.postcode].filter(Boolean).join(' '),
+    ]
+      .filter(Boolean)
+      .join(', ')
+  );
+
+  const getActiveOrderAddressDraft = (): DeliveryAddressDraft | null => {
+    if (!activeOrder?.delivery_address_line1) return null;
+    return {
+      address_line1: activeOrder.delivery_address_line1,
+      address_line2: activeOrder.delivery_address_line2 || undefined,
+      city: activeOrder.delivery_city || '',
+      state: activeOrder.delivery_state || '',
+      postcode: activeOrder.delivery_postcode || '',
+      country: activeOrder.delivery_country || 'AU',
+      latitude: activeOrder.delivery_latitude ?? undefined,
+      longitude: activeOrder.delivery_longitude ?? undefined,
+      delivery_instructions: activeOrder.delivery_instructions || undefined,
+    };
+  };
+
+  const resetAddressEditor = () => {
+    setAddressQuery('');
+    setSuggestions([]);
+    setLoadingSuggestions(false);
+    setLoadingAddressDetails(false);
+    setSelectedAddress(null);
+    setQuoteError(null);
+    setRequoteLoading(false);
+    setSavingAddress(false);
+    setUpdatedQuoteFee(null);
+    setUpdatedEtaMinutes(null);
+  };
+
+  const openAddressEditor = () => {
+    const currentAddress = getActiveOrderAddressDraft();
+    resetAddressEditor();
+    if (currentAddress) {
+      setSelectedAddress(currentAddress);
+      setAddressQuery(formatDeliveryAddress(currentAddress));
+      setUpdatedQuoteFee(activeOrder?.delivery_fee ?? null);
+      setUpdatedEtaMinutes(activeOrder?.delivery_eta_minutes ?? null);
+    }
+    setEditAddressVisible(true);
+  };
+
+  const closeAddressEditor = () => {
+    setEditAddressVisible(false);
+    resetAddressEditor();
+  };
+
+  const chooseSuggestion = async (suggestion: AddressSuggestion) => {
+    try {
+      setLoadingAddressDetails(true);
+      setQuoteError(null);
+      setUpdatedQuoteFee(null);
+      setUpdatedEtaMinutes(null);
+      const details = await fetchAddressDetails(suggestion.placeId);
+      setSelectedAddress(details);
+      setAddressQuery(suggestion.description);
+      setSuggestions([]);
+    } catch (error) {
+      setQuoteError(error instanceof Error ? error.message : 'Failed to load address details');
+    } finally {
+      setLoadingAddressDetails(false);
+    }
+  };
+
+  const handleRequoteAddress = async () => {
+    if (!selectedAddress) return;
+
+    setQuoteError(null);
+    setRequoteLoading(true);
+    try {
+      const nextQuote = await requestDeliveryQuote(selectedAddress);
+      setUpdatedQuoteFee(nextQuote.fee);
+      setUpdatedEtaMinutes(nextQuote.estimated_duration_minutes);
+    } catch (error) {
+      setUpdatedQuoteFee(null);
+      setUpdatedEtaMinutes(null);
+      setQuoteError(error instanceof Error ? error.message : 'Failed to get updated quote');
+    } finally {
+      setRequoteLoading(false);
+    }
+  };
+
   const handleCancelOrder = (orderId: string) => {
     const session = sessions.find((item) => item.orderId === orderId);
     if (!session) return;
@@ -152,6 +295,81 @@ export function PendingOnlinePaymentsOverlay() {
     }
   };
 
+  const handleSaveUpdatedAddress = async () => {
+    if (!activeSession || !activeOrder || !selectedAddress) return;
+
+    setQuoteError(null);
+    setSavingAddress(true);
+
+    try {
+      const nextQuote = await requestDeliveryQuote(selectedAddress);
+      const discountedSubtotal = Math.max(0, activeOrder.subtotal - (activeOrder.promotion_discount || 0));
+      const nextFeeSummary = await calculateDeliveryFees({
+        subtotal: discountedSubtotal,
+        tax: activeOrder.tax,
+        deliveryFee: nextQuote.fee,
+      });
+
+      const checkoutSession = await createStripeCheckoutSession({
+        orderId: activeOrder.id,
+        customerEmail: activeOrder.customer_email || undefined,
+        customerName: activeOrder.customer_name || undefined,
+        customerPhone: activeOrder.customer_phone || undefined,
+        items: activeSession.itemSummaries.map((item) => ({
+          name: item.productName,
+          description: [
+            item.comment ? `Note: ${item.comment}` : null,
+            item.removedIngredients.length ? `Remove: ${item.removedIngredients.join(', ')}` : null,
+            item.addons.length ? `Add-ons: ${item.addons.map((addon) => addon.name).join(', ')}` : null,
+          ].filter(Boolean).join(' • ') || undefined,
+          quantity: item.quantity,
+          price: Number((item.subtotal / Math.max(item.quantity, 1)).toFixed(2)),
+        })),
+        subtotal: discountedSubtotal,
+        promotionDiscount: activeOrder.promotion_discount || 0,
+        tax: activeOrder.tax,
+        deliveryFee: nextQuote.fee,
+        orderType: 'delivery',
+      });
+
+      const finalTotalAmount = Number((nextFeeSummary.orderBaseAmount + nextQuote.fee + checkoutSession.serviceFee).toFixed(2));
+
+      const updateResult = await updatePendingDeliveryOrder(activeOrder.id, {
+        address: selectedAddress,
+        quote: nextQuote,
+        deliveryFee: nextQuote.fee,
+        serviceFee: checkoutSession.serviceFee,
+        totalAmount: finalTotalAmount,
+      });
+
+      if (updateResult.error || !updateResult.data) {
+        throw new Error(updateResult.error || 'Failed to update delivery order');
+      }
+
+      upsertSession({
+        orderId: activeOrder.id,
+        orderNumber: activeSession.orderNumber,
+        customerName: activeSession.customerName,
+        customerPhone: activeSession.customerPhone,
+        paymentUrl: checkoutSession.url,
+        deliveryAddress: formatDeliveryAddress(selectedAddress),
+        deliveryEtaMinutes: nextQuote.estimated_duration_minutes,
+        totalAmount: finalTotalAmount,
+        deliveryFee: nextQuote.fee,
+        serviceFee: checkoutSession.serviceFee,
+        isTestPayment: Boolean(checkoutSession.isTestPhoneCheckout),
+        itemSummaries: activeSession.itemSummaries,
+      });
+      setActiveOrder(updateResult.data);
+      closeAddressEditor();
+      Alert.alert('Address updated', 'Delivery address, quote, and payment link have been updated. Resend the SMS to the customer.');
+    } catch (error) {
+      setQuoteError(error instanceof Error ? error.message : 'Failed to update delivery address');
+    } finally {
+      setSavingAddress(false);
+    }
+  };
+
   return (
     <>
       {activeSession && (
@@ -195,6 +413,15 @@ export function PendingOnlinePaymentsOverlay() {
                           <Text style={styles.cardTitle}>Customer</Text>
                           <Text style={styles.customerName}>{activeSession.customerName}</Text>
                           <Text style={styles.contactText}>{activeSession.customerPhone}</Text>
+                          {!!activeSession.deliveryAddress && (
+                            <>
+                              <Text style={[styles.cardTitle, styles.inlineSectionTitle]}>Delivery Address</Text>
+                              <Text style={styles.bodyText}>{activeSession.deliveryAddress}</Text>
+                              <Button mode="text" compact icon="pencil" onPress={openAddressEditor} style={styles.inlineActionButton}>
+                                Update address
+                              </Button>
+                            </>
+                          )}
                         </Card.Content>
                       </Card>
 
@@ -373,6 +600,102 @@ export function PendingOnlinePaymentsOverlay() {
           ))}
         </View>
       )}
+
+      <Portal>
+        <Modal visible={editAddressVisible} onDismiss={closeAddressEditor} contentContainerStyle={styles.addressModal}>
+          <ScrollView contentContainerStyle={styles.addressModalContent} keyboardShouldPersistTaps="handled">
+            <Text style={styles.addressModalTitle}>Update Delivery Address</Text>
+            <TextInput
+              label="Search address"
+              mode="outlined"
+              value={addressQuery}
+              onChangeText={(value) => {
+                setAddressQuery(value);
+                setSelectedAddress(null);
+                setSuggestions([]);
+                setQuoteError(null);
+                setUpdatedQuoteFee(null);
+                setUpdatedEtaMinutes(null);
+              }}
+            />
+
+            {loadingSuggestions && <Text style={styles.pendingText}>Searching addresses...</Text>}
+
+            {suggestions.length > 0 && (
+              <View style={styles.suggestionList}>
+                {suggestions.map((suggestion) => (
+                  <TouchableOpacity key={suggestion.placeId} style={styles.suggestionCard} onPress={() => void chooseSuggestion(suggestion)}>
+                    <Text style={styles.suggestionTitle}>{suggestion.mainText}</Text>
+                    {!!suggestion.secondaryText && <Text style={styles.suggestionMeta}>{suggestion.secondaryText}</Text>}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {loadingAddressDetails && <Text style={styles.pendingText}>Loading address details...</Text>}
+
+            {selectedAddress && (
+              <>
+                <View style={styles.selectedAddressCard}>
+                  <Text style={styles.bodyText}>{selectedAddress.address_line1}</Text>
+                  {!!selectedAddress.address_line2 && <Text style={styles.bodyText}>{selectedAddress.address_line2}</Text>}
+                  <Text style={styles.bodyText}>
+                    {[selectedAddress.city, selectedAddress.state, selectedAddress.postcode].filter(Boolean).join(' ')}
+                  </Text>
+                </View>
+
+                <TextInput
+                  label="Delivery instructions"
+                  mode="outlined"
+                  value={selectedAddress.delivery_instructions || ''}
+                  onChangeText={(value) => {
+                    setSelectedAddress((current) => (current ? { ...current, delivery_instructions: value } : current));
+                  }}
+                  multiline
+                />
+
+                <Button mode="outlined" icon="truck-delivery-outline" onPress={() => void handleRequoteAddress()} loading={requoteLoading}>
+                  Recalculate quote
+                </Button>
+              </>
+            )}
+
+            {updatedQuoteFee != null && (
+              <Card style={styles.infoCard}>
+                <Card.Content>
+                  <Text style={styles.cardTitle}>Updated Delivery Quote</Text>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Current delivery fee</Text>
+                    <Text style={styles.summaryValue}>${(activeOrder?.delivery_fee || 0).toFixed(2)}</Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Updated delivery fee</Text>
+                    <Text style={styles.summaryValue}>${updatedQuoteFee.toFixed(2)}</Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Updated ETA</Text>
+                    <Text style={styles.summaryValue}>{updatedEtaMinutes ?? '-'} min</Text>
+                  </View>
+                </Card.Content>
+              </Card>
+            )}
+
+            {!!quoteError && <Text style={styles.errorText}>{quoteError}</Text>}
+
+            <View style={styles.addressModalActions}>
+              <Button mode="text" onPress={closeAddressEditor}>Cancel</Button>
+              <Button
+                mode="contained"
+                onPress={() => void handleSaveUpdatedAddress()}
+                loading={savingAddress}
+                disabled={!selectedAddress || savingAddress}
+              >
+                Save address update
+              </Button>
+            </View>
+          </ScrollView>
+        </Modal>
+      </Portal>
     </>
   );
 }
@@ -486,6 +809,8 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 16, fontWeight: '800', color: '#24364d', marginBottom: 8 },
   customerName: { fontSize: 18, fontWeight: 'bold', color: '#111827', marginBottom: 4 },
   contactText: { fontSize: 14, color: '#4b5563', marginBottom: 2 },
+  inlineSectionTitle: { marginTop: 14 },
+  inlineActionButton: { alignSelf: 'flex-start', marginTop: 6, marginLeft: -8 },
   itemList: { gap: 10 },
   itemRow: {
     paddingVertical: 10,
@@ -617,6 +942,55 @@ const styles = StyleSheet.create({
     color: '#dc2626',
     fontSize: 14,
     fontWeight: '700',
+  },
+  addressModal: {
+    margin: 20,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    maxHeight: '88%',
+  },
+  addressModalContent: {
+    padding: 20,
+    gap: 12,
+  },
+  addressModalTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#10243f',
+  },
+  suggestionList: {
+    gap: 8,
+  },
+  suggestionCard: {
+    borderWidth: 1,
+    borderColor: '#dde4ee',
+    borderRadius: 14,
+    padding: 12,
+    backgroundColor: '#f8fafc',
+  },
+  suggestionTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#10243f',
+  },
+  suggestionMeta: {
+    marginTop: 4,
+    fontSize: 13,
+    color: '#64748b',
+  },
+  selectedAddressCard: {
+    borderWidth: 1,
+    borderColor: '#dde4ee',
+    borderRadius: 14,
+    padding: 14,
+    backgroundColor: '#f8fafc',
+    gap: 2,
+  },
+  addressModalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+    marginTop: 8,
   },
   minimizedStack: {
     position: 'absolute',

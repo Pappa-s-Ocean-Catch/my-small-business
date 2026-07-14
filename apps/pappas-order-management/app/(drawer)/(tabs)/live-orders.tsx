@@ -19,6 +19,7 @@ import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   getOrder,
+  refreshDeliveryStatus,
 } from '@/lib/orders';
 import type { Order, PaymentStatus } from '@my-small-business/types';
 import { DEFAULT_APP_SETTINGS, loadAppSettings } from '@/lib/settings';
@@ -70,6 +71,7 @@ export default function LiveOrdersScreen() {
   const [cashTenderOrder, setCashTenderOrder] = useState<Order | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
   const [headerExpanded, setHeaderExpanded] = useState(false);
+  const [refreshingDeliveryIds, setRefreshingDeliveryIds] = useState<string[]>([]);
   const globalReceiptRef = useRef(null);
 
   const queryClient = useQueryClient();
@@ -111,9 +113,43 @@ export default function LiveOrdersScreen() {
       const result = await refetchOrders();
       if (result.error) {
         Alert.alert('Error', result.error.message);
+      } else if (result.data) {
+        void syncDeliveryStatuses(result.data);
       }
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const syncDeliveryStatuses = async (sourceOrders: Order[]) => {
+    const deliveryOrders = sourceOrders.filter((order) => (
+      order.order_type === 'delivery' && !!order.delivery_provider_id
+    ));
+
+    if (deliveryOrders.length === 0) return;
+
+    const ids = deliveryOrders.map((order) => order.id);
+    setRefreshingDeliveryIds((current) => Array.from(new Set([...current, ...ids])));
+
+    try {
+      const results = await Promise.all(deliveryOrders.map((order) => refreshDeliveryStatus(order.id)));
+      const updatedOrders = results
+        .map((result) => result.data)
+        .filter((order): order is Order => !!order);
+
+      if (updatedOrders.length > 0) {
+        const updatedById = new Map(updatedOrders.map((order) => [order.id, order]));
+        queryClient.setQueryData<Order[]>(LIVE_ORDERS_QUERY_KEY, (prev = []) => (
+          prev.map((order) => updatedById.get(order.id) || order)
+        ));
+
+        if (selectedOrder) {
+          const nextSelected = updatedById.get(selectedOrder.id);
+          if (nextSelected) setSelectedOrder(nextSelected);
+        }
+      }
+    } finally {
+      setRefreshingDeliveryIds((current) => current.filter((id) => !ids.includes(id)));
     }
   };
 
@@ -304,6 +340,11 @@ export default function LiveOrdersScreen() {
   }, [dataUpdatedAt]);
 
   useEffect(() => {
+    if (orders.length === 0) return;
+    void syncDeliveryStatuses(orders);
+  }, [dataUpdatedAt]);
+
+  useEffect(() => {
     if (refreshCountdown > 0) {
       countdownIntervalRef.current = setInterval(() => {
         setRefreshCountdown((prev) => {
@@ -472,6 +513,30 @@ export default function LiveOrdersScreen() {
       order,
     });
     setShowOrderModal(true);
+  };
+
+  const handleRefreshDeliveryStatus = async (order: Order) => {
+    if (order.order_type !== 'delivery') return;
+
+    setRefreshingDeliveryIds((current) => Array.from(new Set([...current, order.id])));
+    try {
+      const result = await refreshDeliveryStatus(order.id);
+      if (result.error) {
+        Alert.alert('Delivery refresh failed', result.error);
+        return;
+      }
+
+      if (result.data) {
+        queryClient.setQueryData<Order[]>(LIVE_ORDERS_QUERY_KEY, (prev = []) => (
+          prev.map((item) => (item.id === result.data!.id ? result.data! : item))
+        ));
+        if (selectedOrder?.id === result.data.id) {
+          setSelectedOrder(result.data);
+        }
+      }
+    } finally {
+      setRefreshingDeliveryIds((current) => current.filter((id) => id !== order.id));
+    }
   };
 
   const handleCustomerPress = (order: Order) => {
@@ -773,8 +838,9 @@ export default function LiveOrdersScreen() {
         onStatusUpdate={handleStatusUpdate}
         onPaymentStatusUpdate={handlePaymentStatusUpdateWithTender}
         onSmartpayPayment={handleSmartpayPayment}
-        onQuickAction={handleQuickAction}
-        updatingStatus={updatingStatus}
+          onQuickAction={handleQuickAction}
+          onRefreshDeliveryStatus={handleRefreshDeliveryStatus}
+          updatingStatus={updatingStatus || refreshingDeliveryIds[0] || null}
         smartpayPaired={smartpayPaired}
         smartpayProcessing={!!selectedOrder && smartpayProcessingOrderId === selectedOrder.id}
         showSimulator={showSimulator}

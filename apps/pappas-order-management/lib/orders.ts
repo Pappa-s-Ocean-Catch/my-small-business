@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import type { Order, OrderItem, OrderItemAddon, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { getOrderNotes, getOrderOptions } from '../utils/orderUtils';
+import type { DeliveryAddressDraft, DeliveryQuoteResult } from './delivery';
 
 type OrderRow = Omit<Order, 'items'> & {
   items?: never;
@@ -196,6 +197,64 @@ export async function updateOrderStatus(
   }
 }
 
+export async function updatePendingDeliveryOrder(
+  orderId: string,
+  input: {
+    address: DeliveryAddressDraft;
+    quote: DeliveryQuoteResult;
+    deliveryFee: number;
+    serviceFee: number;
+    totalAmount: number;
+  }
+): Promise<{ data: Order | null; error: string | null }> {
+  try {
+    const updatePayload: any = {
+      delivery_fee: input.deliveryFee,
+      service_fee: input.serviceFee,
+      total: input.totalAmount,
+      delivery_address_line1: input.address.address_line1,
+      delivery_address_line2: input.address.address_line2 || null,
+      delivery_city: input.address.city,
+      delivery_state: input.address.state,
+      delivery_postcode: input.address.postcode,
+      delivery_country: input.address.country || 'AU',
+      delivery_latitude: input.address.latitude ?? null,
+      delivery_longitude: input.address.longitude ?? null,
+      delivery_quote_id: input.quote.quote_id,
+      delivery_quote_amount: input.quote.fee,
+      delivery_quote_currency: input.quote.currency,
+      delivery_partner_name: input.quote.provider_name,
+      delivery_quote_expires_at: input.quote.expires_at,
+      delivery_eta_minutes: input.quote.estimated_duration_minutes,
+      delivery_instructions: input.address.delivery_instructions || null,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase
+      .from('orders')
+      .update(updatePayload)
+      .eq('id', orderId)
+      .select('*, order_items(*, order_item_addons(*))')
+      .single();
+
+    if (error) {
+      return { data: null, error: error.message };
+    }
+
+    if (!data) {
+      return { data: null, error: 'Order not found' };
+    }
+
+    return { data: mapEmbeddedOrder(data as unknown as OrderWithEmbeddedItemsRow), error: null };
+  } catch (error) {
+    console.error('Error updating pending delivery order:', error);
+    return {
+      data: null,
+      error: error instanceof Error ? error.message : 'Failed to update pending delivery order',
+    };
+  }
+}
+
 export async function notifyDeliveryReady(orderId: string): Promise<{ success: boolean; trackingUrl?: string | null; error: string | null }> {
   try {
     const base = process.env.EXPO_PUBLIC_SITE_URL;
@@ -234,6 +293,53 @@ export async function notifyDeliveryReady(orderId: string): Promise<{ success: b
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to notify backend about delivery ready',
+    };
+  }
+}
+
+export async function refreshDeliveryStatus(orderId: string): Promise<{ data: Order | null; error: string | null; synced?: boolean }> {
+  try {
+    const base = process.env.EXPO_PUBLIC_SITE_URL;
+    if (!base) {
+      return { data: null, error: 'EXPO_PUBLIC_SITE_URL is not configured' };
+    }
+
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !session?.access_token) {
+      return { data: null, error: sessionError?.message || 'Missing authenticated session' };
+    }
+
+    const response = await fetch(`${base}/api/delivery/status`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ orderId }),
+    });
+
+    const payload = await response.json().catch(() => null) as
+      | { success?: boolean; synced?: boolean; error?: string }
+      | null;
+
+    if (!response.ok || !payload?.success) {
+      return {
+        data: null,
+        error: payload?.error || `Delivery refresh failed (${response.status})`,
+      };
+    }
+
+    const latestOrder = await getOrder(orderId);
+    return {
+      data: latestOrder.data,
+      error: latestOrder.error,
+      synced: Boolean(payload?.synced),
+    };
+  } catch (error) {
+    console.error('Error refreshing delivery status:', error);
+    return {
+      data: null,
+      error: error instanceof Error ? error.message : 'Failed to refresh delivery status',
     };
   }
 }
