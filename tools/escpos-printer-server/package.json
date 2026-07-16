@@ -1,0 +1,17 @@
+{
+  "name": "escpos-printer-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local TCP ESC/POS printer simulator that renders print jobs to SVG files.",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test:basic": "node test/basic-print.js",
+    "test:kitchen": "node test/kitchen-ticket.js",
+    "test:alignment": "node test/alignment-sample.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

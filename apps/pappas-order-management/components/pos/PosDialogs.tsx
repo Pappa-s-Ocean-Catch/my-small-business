@@ -3,7 +3,7 @@ import { Text, TouchableOpacity, View } from 'react-native';
 import { Button, Dialog, Portal, TextInput } from 'react-native-paper';
 
 import { CashTenderModal } from '../CashTenderModal';
-import { styles } from '../../app/pos.styles';
+import { styles } from './pos.styles';
 import type { CashTenderMode, PosInstorePaymentChoice } from '../../app/pos.types';
 
 type Props = {

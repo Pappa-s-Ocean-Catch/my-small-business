@@ -1,7 +1,9 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Card, Button as PaperButton, IconButton } from 'react-native-paper';
+import { Card, Button as PaperButton } from 'react-native-paper';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
+import type { SavedPrinter } from '@/lib/escpos-printer';
+import { ManualPrintButton } from '@/components/printer/ManualPrintButton';
 import { getFriendlyOrderNumber } from '../utils/orderNumber';
 import {
   STATUS_COLORS,
@@ -21,7 +23,8 @@ interface LiveOrderListItemProps {
   updatingStatus: string | null;
   onOrderPress: (order: Order) => void;
   onCustomerPress: (order: Order) => void;
-  onPrintPress: (order: Order) => void;
+  onPrintPress: (order: Order, printer: SavedPrinter | null) => void;
+  availablePrinters: SavedPrinter[];
   onQuickAction: (order: Order, action: string) => void;
   onSmartpayPayment?: (order: Order) => void;
   smartpayPaired?: boolean;
@@ -38,6 +41,7 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
   onOrderPress,
   onCustomerPress,
   onPrintPress,
+  availablePrinters,
   onQuickAction,
   onSmartpayPayment,
   smartpayPaired = false,
@@ -132,12 +136,11 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
 
   const actionButtons = (
     <View style={layout === 'vertical' ? styles.verticalActionsCluster : styles.actionsCluster}>
-      <IconButton
-        icon="printer"
-        size={18}
-        onPress={() => onPrintPress(order)}
-        accessibilityLabel="Print order"
-        style={styles.printButton}
+      <ManualPrintButton
+        printers={availablePrinters}
+        mode="icon"
+        label="Print order"
+        onSelectPrinter={(printer) => onPrintPress(order, printer)}
       />
       {canSmartpay && (
         <PaperButton

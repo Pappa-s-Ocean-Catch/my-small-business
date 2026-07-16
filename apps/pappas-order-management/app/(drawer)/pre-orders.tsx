@@ -33,9 +33,10 @@ import { useOrderActions } from '@/hooks/useOrderActions';
 import { DEFAULT_APP_SETTINGS, loadAppSettings } from '@/lib/settings';
 import { useAppSettingsQuery } from '@/hooks/useAppSettingsQuery';
 import { PRE_ORDERS_QUERY_KEY, usePreOrdersQuery } from '@/hooks/useLiveOrdersQuery';
-import { captureRef } from 'react-native-view-shot';
+import { captureReceiptForPrinter, captureReceiptPreview, type PrinterImageSource } from '@/lib/printer-image';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
 import { escposPrintOrderImage } from '@/lib/escpos-printer';
+import type { SavedPrinter } from '@/lib/escpos-printer';
 import { buildSectionPrintJobs, hasAnySimulatorAssignment } from '@/lib/printer-routing';
 import { getPrintDeviceId } from '@/lib/print-device';
 import { useQueryClient } from '@tanstack/react-query';
@@ -112,7 +113,7 @@ export default function PreOrdersScreen() {
     if (selectedOrder?.id === updated.id) setSelectedOrder(updated);
   });
 
-  const quickPrintOrder = async (order: Order) => {
+  const quickPrintOrder = async (order: Order, selectedPrinter?: SavedPrinter | null) => {
     let claimedDeviceId: string | null = null;
     let shouldReleaseClaim = false;
 
@@ -166,8 +167,45 @@ export default function PreOrdersScreen() {
       setTempPrintSource('pre-orders:manual-list-print');
       const targetDots = s.printerPaperWidth === '58mm' ? 384 : 576;
       const scale = s.printerHighQuality ? 2 : 1;
-      const jobs = buildSectionPrintJobs(s, freshOrder);
-      const capturedJobs: Array<{ uri: string; label: string; useSimulator: boolean; printer: NonNullable<ReturnType<typeof buildSectionPrintJobs>[number]['printer']> | null }> = [];
+      if (selectedPrinter) {
+        setTempPrintTicketIndex(0);
+        setTempPrintDuplicateBySections(false);
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        const receiptRef = await waitForReceiptTemplateRef();
+        if (!receiptRef) {
+          throw new Error('Receipt template is still loading. Please try again.');
+        }
+
+        const image = await captureReceiptForPrinter(receiptRef, selectedPrinter, targetDots * scale);
+
+        if (!s.printerEnabled) {
+          Alert.alert('Printer error', `No printer is selected. ${printSettingsDetails}`);
+          return;
+        }
+
+        await escposPrintOrderImage(image, selectedPrinter, 1, targetDots);
+        const completion = await completeKitchenPrintClaim(order.id, claimedDeviceId);
+        if (!completion.completed) {
+          throw new Error(completion.error || 'Failed to complete kitchen print claim');
+        }
+        shouldReleaseClaim = false;
+        return;
+      }
+
+      const jobs = selectedPrinter
+        ? [{
+            key: `manual:${selectedPrinter.target}`,
+            assignmentId: 'manual-selected-printer',
+            sectionName: null,
+            useSimulator: false,
+            printer: selectedPrinter,
+            printMode: 'combine' as const,
+            duplicateBySections: false,
+            label: `Manual -> ${selectedPrinter.deviceName}`,
+          }]
+        : buildSectionPrintJobs(s, freshOrder);
+      const capturedJobs: Array<{ image: PrinterImageSource; previewUri: string | null; label: string; useSimulator: boolean; printer: NonNullable<ReturnType<typeof buildSectionPrintJobs>[number]['printer']> | null }> = [];
 
       for (const job of jobs) {
         setTempPrintTicketIndex(job.onlyTicketIndex ?? 0);
@@ -179,25 +217,26 @@ export default function PreOrdersScreen() {
           throw new Error('Receipt template is still loading. Please try again.');
         }
 
-        const uri = await captureRef(receiptRef, {
-          format: 'png',
-          quality: 1,
-          result: 'tmpfile',
-          width: targetDots * scale,
-        });
-        capturedJobs.push({ uri, label: job.label, useSimulator: job.useSimulator, printer: job.printer });
+        if (job.useSimulator || !job.printer) {
+          const uri = await captureReceiptPreview(receiptRef, targetDots * scale);
+          capturedJobs.push({ image: { kind: 'uri', uri }, previewUri: uri, label: job.label, useSimulator: job.useSimulator, printer: job.printer });
+        } else {
+          const image = await captureReceiptForPrinter(receiptRef, job.printer, targetDots * scale);
+          const previewUri = image.kind === 'uri' ? image.uri : await captureReceiptPreview(receiptRef, targetDots * scale);
+          capturedJobs.push({ image, previewUri, label: job.label, useSimulator: job.useSimulator, printer: job.printer });
+        }
       }
 
       const simulatorImageUris: string[] = [];
       const simulatorImageLabels: string[] = [];
-      const printerJobs: Array<{ uri: string; printer: NonNullable<typeof capturedJobs[number]['printer']> }> = [];
+      const printerJobs: Array<{ image: PrinterImageSource; printer: NonNullable<typeof capturedJobs[number]['printer']> }> = [];
       for (const job of capturedJobs) {
         if (job.useSimulator) {
-          simulatorImageUris.push(job.uri);
+          if (job.previewUri) simulatorImageUris.push(job.previewUri);
           simulatorImageLabels.push(job.label);
         } else {
           if (job.printer) {
-            printerJobs.push({ uri: job.uri, printer: job.printer });
+            printerJobs.push({ image: job.image, printer: job.printer });
           }
         }
       }
@@ -227,7 +266,7 @@ export default function PreOrdersScreen() {
       }
 
       for (let index = 0; index < printerJobs.length; index++) {
-        await escposPrintOrderImage(printerJobs[index].uri, printerJobs[index].printer, 1, targetDots);
+        await escposPrintOrderImage(printerJobs[index].image, printerJobs[index].printer, 1, targetDots);
       }
       const completion = await completeKitchenPrintClaim(order.id, claimedDeviceId);
       if (!completion.completed) {
@@ -343,7 +382,8 @@ export default function PreOrdersScreen() {
             updatingStatus={updatingStatus}
             onOrderPress={handleOrderPress}
             onCustomerPress={handleCustomerPress}
-            onPrintPress={quickPrintOrder}
+            onPrintPress={(order, printer) => void quickPrintOrder(order, printer)}
+            availablePrinters={appSettings.printerSaved}
             onQuickAction={handleQuickAction}
             onStatusUpdate={handleStatusUpdate}
             onPaymentStatusUpdate={handlePaymentStatusUpdate}
@@ -366,6 +406,7 @@ export default function PreOrdersScreen() {
         onPrint={handlePrint}
         onPrintImage={handlePrintImage}
         onPrintCustomerCopyImage={handlePrintImage}
+        availablePrinters={appSettings.printerSaved}
         onCustomerPress={handleCustomerPress}
         onStatusUpdate={handleStatusUpdate}
         onPaymentStatusUpdate={handlePaymentStatusUpdate}

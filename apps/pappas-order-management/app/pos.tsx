@@ -25,7 +25,7 @@ import { PosCartPane } from '../components/pos/PosCartPane';
 import { PosDialogs } from '../components/pos/PosDialogs';
 import { PosMenuPane } from '../components/pos/PosMenuPane';
 import { usePendingOnlinePaymentsStore } from '../stores/pendingOnlinePaymentsStore';
-import { styles } from './pos.styles';
+import { styles } from '../components/pos/pos.styles';
 import type {
   AddonGroup,
   AddonItem,

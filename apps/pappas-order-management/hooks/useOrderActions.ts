@@ -4,6 +4,8 @@ import * as Print from 'expo-print';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { updateOrderStatus, updatePaymentStatus, getOrder, notifyDeliveryReady } from '@/lib/orders';
 import { escposPrintKitchenReceipt, escposPrintOrderImage, formatPrinterError } from '@/lib/escpos-printer';
+import type { SavedPrinter } from '@/lib/escpos-printer';
+import type { PrinterImageSource } from '@/lib/printer-image';
 import { buildSectionPrintJobs, getSectionPrintTickets, getSectionRoutingDebugLabel, hasAnySimulatorAssignment, resolvePrinterForSection, shouldSkipPrintForSection, shouldUseSimulatorForSection } from '@/lib/printer-routing';
 import { generatePrintHTML } from '@/utils/orderUtils';
 import { loadAppSettings, type AppSettings } from '@/lib/settings';
@@ -250,9 +252,19 @@ export const useOrderActions = (
     await handleStatusUpdate(order, newStatus);
   };
 
-  const handlePrint = async (order: Order): Promise<boolean> => {
+  const handlePrint = async (order: Order, selectedPrinter?: SavedPrinter | null): Promise<boolean> => {
     try {
       const effectiveSettings = await getEffectiveSettings();
+
+      if (selectedPrinter) {
+        if (effectiveSettings.printerEnabled) {
+          await escposPrintKitchenReceipt(order, selectedPrinter, 1, 'order-actions:manual-single-printer');
+          return true;
+        }
+        const html = generatePrintHTML(order);
+        await Print.printAsync({ html });
+        return true;
+      }
 
       const jobs = buildSectionPrintJobs(effectiveSettings, order);
       const simulatorJobs = jobs.filter((job) => job.useSimulator);
@@ -294,16 +306,27 @@ export const useOrderActions = (
     }
   };
 
-  const handlePrintImage = async (order: Order, imageUri: string): Promise<boolean> => {
+  const handlePrintImage = async (order: Order, image: PrinterImageSource, selectedPrinter?: SavedPrinter | null): Promise<boolean> => {
     try {
       const effectiveSettings = await getEffectiveSettings();
+      if (selectedPrinter) {
+        if (effectiveSettings.printerEnabled) {
+          const targetDots = effectiveSettings.printerPaperWidth === '58mm' ? 384 : 576;
+          await escposPrintOrderImage(image, selectedPrinter, 1, targetDots);
+          return true;
+        }
+        const html = generatePrintHTML(order);
+        await Print.printAsync({ html });
+        return true;
+      }
       const tickets = getSectionPrintTickets(order);
       const jobs = buildSectionPrintJobs(effectiveSettings, order);
 
       if (effectiveSettings.printerSimulator || hasAnySimulatorAssignment(effectiveSettings)) {
         setSimulatorOrder(order);
-        setPrintImageUri(imageUri);
-        setPrintImageUris([imageUri]);
+        const previewUri = image.kind === 'uri' ? image.uri : (image.previewUri ?? null);
+        setPrintImageUri(previewUri);
+        setPrintImageUris(previewUri ? [previewUri] : []);
         setPrintImageLabels([jobs[0]?.label || getSectionRoutingDebugLabel(effectiveSettings, tickets[0]?.sections[0]?.sectionName || null)]);
         setShowSimulator(true);
         return true;
@@ -317,7 +340,7 @@ export const useOrderActions = (
       if (effectiveSettings.printerEnabled) {
         try {
           const targetDots = effectiveSettings.printerPaperWidth === '58mm' ? 384 : 576;
-          await escposPrintOrderImage(imageUri, firstPrinterJob.printer!, 1, targetDots);
+          await escposPrintOrderImage(image, firstPrinterJob.printer!, 1, targetDots);
           return true;
         } catch (printerError) {
           console.error('Print image error:', printerError);

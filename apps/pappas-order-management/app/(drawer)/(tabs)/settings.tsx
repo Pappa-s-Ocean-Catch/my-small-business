@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { Appbar, Button, Switch, Text, TextInput } from 'react-native-paper';
 import { useRouter } from 'expo-router';
@@ -8,11 +8,13 @@ import { KITCHEN_SECTION_OPTIONS } from '@/utils/orderUtils';
 import { usePrintersDiscovery } from 'react-native-esc-pos-printer';
 import type { DeviceInfo } from 'react-native-esc-pos-printer';
 import {
+    DEFAULT_MANUAL_PRINTER_PORT,
     createManualSavedPrinter,
     buildTcpPrinterTarget,
     escposTestPrint,
     isSamePhysicalPrinter,
     isValidIpv4Address,
+    isValidPrinterPort,
     mergeSavedPrinter,
     type SavedPrinter,
 } from '@/lib/escpos-printer';
@@ -56,10 +58,15 @@ export default function SettingsScreen() {
     const [printerPaperWidth, setPrinterPaperWidth] = useState<'58mm' | '80mm'>(DEFAULT_APP_SETTINGS.printerPaperWidth);
     const [printerHighQuality, setPrinterHighQuality] = useState<boolean>(DEFAULT_APP_SETTINGS.printerHighQuality);
     const [manualPrinterIp, setManualPrinterIp] = useState('');
+    const [manualPrinterPortText, setManualPrinterPortText] = useState(String(DEFAULT_MANUAL_PRINTER_PORT));
     const [manualPrinterName, setManualPrinterName] = useState('');
+    const [editingManualPrinterTarget, setEditingManualPrinterTarget] = useState<string | null>(null);
 
     const [saving, setSaving] = useState(false);
     const [testingPrinter, setTestingPrinter] = useState(false);
+    const [testingPrinterTarget, setTestingPrinterTarget] = useState<string | null>(null);
+    const printerTestRunIdRef = useRef(0);
+    const printerTestTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const { printers, isDiscovering, printerError, start, stop, pairBluetoothDevice } = usePrintersDiscovery();
 
@@ -146,6 +153,59 @@ export default function SettingsScreen() {
         return Number.isFinite(n) ? n : fallback;
     };
 
+    const clearPrinterTestingState = () => {
+        if (printerTestTimeoutRef.current) {
+            clearTimeout(printerTestTimeoutRef.current);
+            printerTestTimeoutRef.current = null;
+        }
+        setTestingPrinter(false);
+        setTestingPrinterTarget(null);
+    };
+
+    const handleStartDiscovery = async () => {
+        try {
+            if (isDiscovering) {
+                stop();
+                await new Promise((resolve) => setTimeout(resolve, 300));
+            } else {
+                try {
+                    stop();
+                } catch {
+                    // Some native implementations throw when stop is called while idle.
+                }
+                await new Promise((resolve) => setTimeout(resolve, 300));
+            }
+            await start({ timeout: 8000, autoStop: true });
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            if (message.toLowerCase().includes('try to start search when search had been done')) {
+                return;
+            }
+            Alert.alert('Printer discovery error', message || 'Failed to start printer discovery.');
+        }
+    };
+
+    const beginPrinterTest = (target: string) => {
+        const runId = printerTestRunIdRef.current + 1;
+        printerTestRunIdRef.current = runId;
+        if (printerTestTimeoutRef.current) {
+            clearTimeout(printerTestTimeoutRef.current);
+        }
+        setTestingPrinter(true);
+        setTestingPrinterTarget(target);
+        printerTestTimeoutRef.current = setTimeout(() => {
+            if (printerTestRunIdRef.current !== runId) return;
+            clearPrinterTestingState();
+            Alert.alert('Printer test timeout', 'The test print took too long to finish. The printer may still have received the job.');
+        }, 15000);
+        return runId;
+    };
+
+    const finishPrinterTest = (runId: number) => {
+        if (printerTestRunIdRef.current !== runId) return;
+        clearPrinterTestingState();
+    };
+
     const handlePreview = async () => {
         const repeatCount = parseIntOr(repeatCountText, DEFAULT_APP_SETTINGS.soundRepeatCount);
         await playNewOrderSound({ soundId, repeatCount, delayMs: 2000 });
@@ -159,34 +219,58 @@ export default function SettingsScreen() {
             return;
         }
 
+        const runId = beginPrinterTest(selected.target);
         try {
-            setTestingPrinter(true);
             await escposTestPrint(selected, 1);
             Alert.alert('Success', 'Test print sent.');
         } catch (e) {
             Alert.alert('Printer error', e instanceof Error ? e.message : 'Failed to test print');
         } finally {
-            setTestingPrinter(false);
+            finishPrinterTest(runId);
         }
     };
 
+    const handleTestSpecificPrinter = async (printer: SavedPrinter) => {
+        const runId = beginPrinterTest(printer.target);
+        try {
+            await escposTestPrint(printer, 1);
+            Alert.alert('Success', `Test print sent to ${printer.deviceName}.`);
+        } catch (e) {
+            Alert.alert('Printer error', e instanceof Error ? e.message : 'Failed to test print');
+        } finally {
+            finishPrinterTest(runId);
+        }
+    };
+
+    useEffect(() => () => {
+        if (printerTestTimeoutRef.current) {
+            clearTimeout(printerTestTimeoutRef.current);
+        }
+    }, []);
+
     useEffect(() => {
         if (printerError && (printerError as any)?.message) {
-            Alert.alert('Printer discovery error', (printerError as any).message);
+            const message = String((printerError as any).message);
+            if (message.toLowerCase().includes('try to start search when search had been done')) {
+                return;
+            }
+            Alert.alert('Printer discovery error', message);
         }
     }, [printerError]);
 
     const toSavedPrinter = (p: DeviceInfo): SavedPrinter => ({
         target: p.target,
         deviceName: p.deviceName,
+        driver: 'epsonSdk',
         ipAddress: p.ipAddress,
         macAddress: p.macAddress,
         bdAddress: p.bdAddress,
         deviceType: p.deviceType,
     });
 
-    const syncPrinterSelection = async (p: DeviceInfo, options?: { replaceExisting?: boolean }) => {
-        if (p.macAddress) {
+    const addDiscoveredPrinter = async (p: DeviceInfo, options?: { replaceExisting?: boolean }) => {
+        const hasBluetoothIdentity = !!p.bdAddress;
+        if (hasBluetoothIdentity && p.macAddress) {
             try {
                 await pairBluetoothDevice(p.macAddress);
             } catch {
@@ -205,7 +289,7 @@ export default function SettingsScreen() {
             }
 
             const matchedIndex = prev.findIndex((existing) => isSamePhysicalPrinter(existing, saved));
-            if (matchedIndex >= 0 && options?.replaceExisting !== false) {
+            if (matchedIndex >= 0 && options?.replaceExisting === true) {
                 const next = [...prev];
                 next[matchedIndex] = mergeSavedPrinter(prev[matchedIndex], saved);
                 return next;
@@ -233,6 +317,7 @@ export default function SettingsScreen() {
             ));
         });
         setPrinterEnabled(true);
+        Alert.alert('Printer added', `${saved.deviceName} was added to saved printers.`);
     };
 
     const removeSavedPrinter = (target: string) => {
@@ -243,47 +328,79 @@ export default function SettingsScreen() {
                 ? { ...assignment, printerTarget: null }
                 : assignment
         )));
+        if (editingManualPrinterTarget === target) {
+            setEditingManualPrinterTarget(null);
+            setManualPrinterIp('');
+            setManualPrinterPortText(String(DEFAULT_MANUAL_PRINTER_PORT));
+            setManualPrinterName('');
+        }
+    };
+
+    const resetManualPrinterForm = () => {
+        setEditingManualPrinterTarget(null);
+        setManualPrinterIp('');
+        setManualPrinterPortText(String(DEFAULT_MANUAL_PRINTER_PORT));
+        setManualPrinterName('');
+    };
+
+    const startEditingManualPrinter = (printer: SavedPrinter) => {
+        setEditingManualPrinterTarget(printer.target);
+        setManualPrinterIp(printer.ipAddress?.trim() || '');
+        setManualPrinterPortText(String(printer.port ?? DEFAULT_MANUAL_PRINTER_PORT));
+        setManualPrinterName(printer.deviceName || '');
     };
 
     const handleManualPrinterAdd = () => {
         const ipAddress = manualPrinterIp.trim();
         const deviceName = manualPrinterName.trim();
+        const port = parseIntOr(manualPrinterPortText, DEFAULT_MANUAL_PRINTER_PORT);
 
         if (!isValidIpv4Address(ipAddress)) {
             Alert.alert('Invalid IP address', 'Enter a valid IPv4 address like 192.168.1.50.');
             return;
         }
+        if (!isValidPrinterPort(port)) {
+            Alert.alert('Invalid port', 'Enter a printer port between 1 and 65535. Port 9100 is the usual default.');
+            return;
+        }
 
-        const target = buildTcpPrinterTarget(ipAddress);
+        const target = buildTcpPrinterTarget(ipAddress, port);
+        const editingPrinter = editingManualPrinterTarget
+            ? printerSaved.find((printer) => printer.target === editingManualPrinterTarget) || null
+            : null;
         const existingByTarget = printerSaved.find((printer) => printer.target === target) || null;
-        const existingByIp = printerSaved.find((printer) => printer.ipAddress?.trim() === ipAddress) || null;
-        const existing = existingByTarget || existingByIp;
+        const existingByIp = printerSaved.find((printer) => (
+            printer.ipAddress?.trim() === ipAddress && (printer.port ?? DEFAULT_MANUAL_PRINTER_PORT) === port
+        )) || null;
+        const existing = editingPrinter || existingByTarget || existingByIp;
 
         if (existing) {
             const updatedPrinter: SavedPrinter = {
                 ...existing,
-                ...createManualSavedPrinter(ipAddress, deviceName || existing.deviceName),
+                ...createManualSavedPrinter(ipAddress, deviceName || existing.deviceName, port),
                 deviceName: deviceName || existing.deviceName,
             };
             setPrinterSaved((prev) => prev.map((printer) => (
                 printer.target === existing.target ? updatedPrinter : printer
             )));
             setPrinterSelectedTarget(updatedPrinter.target);
-            updatePrinterAssignmentTarget(defaultPrinterAssignmentId, updatedPrinter.target);
+            setPrinterSectionAssignments((prev) => prev.map((assignment) => (
+                assignment.printerTarget === existing.target
+                    ? { ...assignment, printerTarget: updatedPrinter.target }
+                    : assignment
+            )));
             setPrinterEnabled(true);
-            setManualPrinterIp('');
-            setManualPrinterName('');
+            resetManualPrinterForm();
             Alert.alert('Printer updated', `${updatedPrinter.deviceName} is ready to use.`);
             return;
         }
 
-        const manualPrinter = createManualSavedPrinter(ipAddress, deviceName);
+        const manualPrinter = createManualSavedPrinter(ipAddress, deviceName, port);
         setPrinterSaved((prev) => [manualPrinter, ...prev]);
         setPrinterSelectedTarget(manualPrinter.target);
         updatePrinterAssignmentTarget(defaultPrinterAssignmentId, manualPrinter.target);
         setPrinterEnabled(true);
-        setManualPrinterIp('');
-        setManualPrinterName('');
+        resetManualPrinterForm();
         Alert.alert('Printer added', `${manualPrinter.deviceName} was added as the default printer.`);
     };
 
@@ -620,7 +737,7 @@ export default function SettingsScreen() {
 
                             <Button
                                 mode="outlined"
-                                onPress={() => start({ timeout: 8000, autoStop: true })}
+                                onPress={() => void handleStartDiscovery()}
                                 disabled={isDiscovering}
                                 style={styles.selectButton}
                             >
@@ -648,16 +765,32 @@ export default function SettingsScreen() {
                                 />
                                 <TextInput
                                     mode="outlined"
+                                    label="Printer port"
+                                    value={manualPrinterPortText}
+                                    onChangeText={setManualPrinterPortText}
+                                    keyboardType="number-pad"
+                                    placeholder={String(DEFAULT_MANUAL_PRINTER_PORT)}
+                                    style={styles.input}
+                                />
+                                <TextInput
+                                    mode="outlined"
                                     label="Printer name (optional)"
                                     value={manualPrinterName}
                                     onChangeText={setManualPrinterName}
                                     autoCapitalize="words"
                                     style={styles.input}
                                 />
-                                <Text style={styles.helper}>Use this when discovery misses a network printer. We will save it as a TCP printer target.</Text>
-                                <Button mode="contained-tonal" onPress={handleManualPrinterAdd} style={styles.selectButton}>
-                                    Add manual printer
-                                </Button>
+                                <Text style={styles.helper}>Use this when discovery misses a network printer. Port defaults to 9100, which is the usual raw TCP printer port.</Text>
+                                <View style={styles.buttonGroup}>
+                                    <Button mode="contained-tonal" onPress={handleManualPrinterAdd} style={styles.flexButton}>
+                                        {editingManualPrinterTarget ? 'Update manual printer' : 'Add manual printer'}
+                                    </Button>
+                                    {editingManualPrinterTarget ? (
+                                        <Button mode="text" onPress={resetManualPrinterForm} style={styles.flexButton}>
+                                            Cancel edit
+                                        </Button>
+                                    ) : null}
+                                </View>
                             </View>
 
                             {printers.length > 0 && (
@@ -682,10 +815,10 @@ export default function SettingsScreen() {
                                             </View>
                                             <View style={styles.printerActions}>
                                                 <Button
-                                                    mode={isSelected ? 'contained' : 'outlined'}
-                                                    onPress={() => syncPrinterSelection(p)}
+                                                    mode={matchedSaved ? (isSelected ? 'contained' : 'outlined') : 'contained-tonal'}
+                                                    onPress={() => void addDiscoveredPrinter(p, { replaceExisting: needsReplacement })}
                                                 >
-                                                    {needsReplacement ? 'Replace' : isSelected ? 'Selected' : 'Use'}
+                                                    {needsReplacement ? 'Replace saved' : matchedSaved ? (isSelected ? 'Saved' : 'Update saved') : 'Add'}
                                                 </Button>
                                             </View>
                                         </View>
@@ -695,29 +828,60 @@ export default function SettingsScreen() {
 
                             <View style={styles.group}>
                                 <Text style={styles.label}>Saved printers</Text>
+                                <Text style={styles.helper}>Each printer can be tested on its own. Set the default printer for fallback routing.</Text>
                                 {printerSaved.length === 0 ? (
                                     <Text style={styles.helper}>No printers saved yet. Use discovery or add one manually above.</Text>
                                 ) : (
                                     printerSaved.map((p) => {
                                         const isSelected = p.target === printerSelectedTarget;
+                                        const isTestingThisPrinter = testingPrinter && testingPrinterTarget === p.target;
                                         return (
-                                            <View key={p.target} style={styles.printerRow}>
+                                            <View key={p.target} style={[styles.printerCard, styles.savedPrinterCard, isSelected ? styles.selectedPrinterCard : null]}>
                                                 <View style={styles.printerDetails}>
-                                                    <Text style={styles.printerName}>{p.deviceName}</Text>
+                                                    <View style={styles.printerHeaderRow}>
+                                                        <Text style={styles.printerName}>{p.deviceName}</Text>
+                                                        <View style={[styles.printerBadge, isSelected ? styles.printerBadgeDefault : styles.printerBadgeSaved]}>
+                                                            <Text style={styles.printerBadgeText}>{isSelected ? 'Default' : 'Saved'}</Text>
+                                                        </View>
+                                                    </View>
                                                     <Text style={styles.printerMeta}>
-                                                        {p.ipAddress || p.macAddress || p.bdAddress || p.target}
+                                                        {p.ipAddress ? `${p.ipAddress}:${p.port ?? DEFAULT_MANUAL_PRINTER_PORT}` : (p.macAddress || p.bdAddress || p.target)}
+                                                    </Text>
+                                                    <Text style={styles.helper}>
+                                                        {p.ipAddress
+                                                            ? `Network printer${(p.port ?? DEFAULT_MANUAL_PRINTER_PORT) === DEFAULT_MANUAL_PRINTER_PORT ? ' • port 9100' : ` • port ${p.port}`}`
+                                                            : 'Discovered printer'}
                                                     </Text>
                                                 </View>
-                                                <View style={styles.printerActions}>
+                                                <View style={[styles.printerActions, styles.savedPrinterActions]}>
                                                     <Button
                                                         mode={isSelected ? 'contained' : 'outlined'}
                                                         onPress={() => {
                                                             setPrinterSelectedTarget(p.target);
                                                             updatePrinterAssignmentTarget(defaultPrinterAssignmentId, p.target);
                                                         }}
+                                                        disabled={testingPrinter}
                                                     >
                                                         {isSelected ? 'Default' : 'Set default'}
                                                     </Button>
+                                                    <Button
+                                                        mode="outlined"
+                                                        icon="printer-check"
+                                                        loading={isTestingThisPrinter}
+                                                        disabled={testingPrinter}
+                                                        onPress={() => void handleTestSpecificPrinter(p)}
+                                                    >
+                                                        Test
+                                                    </Button>
+                                                    {p.driver === 'rawTcp' ? (
+                                                        <Button
+                                                            mode="text"
+                                                            onPress={() => startEditingManualPrinter(p)}
+                                                            disabled={testingPrinter}
+                                                        >
+                                                            Edit
+                                                        </Button>
+                                                    ) : null}
                                                     <Button mode="text" onPress={() => removeSavedPrinter(p.target)}>
                                                         Remove
                                                     </Button>
@@ -870,12 +1034,12 @@ export default function SettingsScreen() {
 
                             <Button
                                 mode="outlined"
-                                loading={testingPrinter}
+                                loading={testingPrinter && testingPrinterTarget === (defaultPrinterAssignment?.printerTarget || printerSelectedTarget)}
                                 disabled={testingPrinter}
                                 onPress={handleTestPrint}
                                 style={styles.previewButton}
                             >
-                                Test print
+                                Test default printer
                             </Button>
                             </>
                         )}
@@ -981,6 +1145,40 @@ const styles = StyleSheet.create({
     printerActions: {
         alignItems: 'flex-end',
         gap: 6,
+    },
+    savedPrinterCard: {
+        alignItems: 'stretch',
+        paddingVertical: 14,
+    },
+    selectedPrinterCard: {
+        borderColor: '#93c5fd',
+        backgroundColor: '#f8fbff',
+    },
+    savedPrinterActions: {
+        minWidth: 120,
+    },
+    printerHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 8,
+        marginBottom: 4,
+    },
+    printerBadge: {
+        borderRadius: 999,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+    },
+    printerBadgeDefault: {
+        backgroundColor: '#dbeafe',
+    },
+    printerBadgeSaved: {
+        backgroundColor: '#e5e7eb',
+    },
+    printerBadgeText: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#334155',
     },
     assignmentCard: {
         marginTop: 10,

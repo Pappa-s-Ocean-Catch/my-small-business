@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { Dialog, IconButton, Portal } from 'react-native-paper';
 
-import { styles } from '../../app/pos.styles';
+import { styles } from './pos.styles';
 
 type Props = {
   visible: boolean;

@@ -4,7 +4,7 @@ import type { DimensionValue } from 'react-native';
 import { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Button, IconButton, TextInput } from 'react-native-paper';
 
-import { styles } from '../../app/pos.styles';
+import { styles } from './pos.styles';
 import type {
   AddonGroup,
   LayoutCategoryButton,

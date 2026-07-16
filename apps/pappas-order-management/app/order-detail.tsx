@@ -7,6 +7,8 @@ import { ActivityIndicator, Text } from 'react-native-paper';
 import { getOrder, refreshDeliveryStatus, updateOrderStatus, updatePaymentStatus } from '../lib/orders';
 import { loadAppSettings } from '../lib/settings';
 import { escposPrintKitchenReceipt, escposPrintOrderImage, formatPrinterError } from '../lib/escpos-printer';
+import type { SavedPrinter } from '../lib/escpos-printer';
+import type { PrinterImageSource } from '../lib/printer-image';
 import { buildSectionPrintJobs, getSectionPrintTickets, hasAnySimulatorAssignment, resolvePrinterForSection, shouldSkipPrintForSection, shouldUseSimulatorForSection } from '../lib/printer-routing';
 import { formatSmartpayError, isSmartpayPaired, processSmartpayCardPayment } from '../lib/smartpay';
 import { OrderDetailModal } from '../components/OrderDetailModal';
@@ -165,9 +167,17 @@ export default function OrderDetailScreen() {
     }
   };
 
-  const handlePrint = async (selectedOrder: Order): Promise<boolean> => {
+  const handlePrint = async (selectedOrder: Order, selectedPrinter?: SavedPrinter | null): Promise<boolean> => {
     try {
       const settings = await loadAppSettings();
+      if (selectedPrinter) {
+        if (settings.printerEnabled) {
+          await escposPrintKitchenReceipt(selectedOrder, selectedPrinter, 1, 'order-detail-screen:manual-single-printer');
+          return true;
+        }
+        await Print.printAsync({ html: generatePrintHTML(selectedOrder) });
+        return true;
+      }
       const tickets = getSectionPrintTickets(selectedOrder);
       const jobs = buildSectionPrintJobs(settings, selectedOrder);
       const simulatorJobs = jobs.filter((job) => job.useSimulator);
@@ -217,12 +227,21 @@ export default function OrderDetailScreen() {
     }
   };
 
-  const handlePrintImage = async (selectedOrder: Order, imageUri: string): Promise<boolean> => {
+  const handlePrintImage = async (selectedOrder: Order, image: PrinterImageSource, selectedPrinter?: SavedPrinter | null): Promise<boolean> => {
     try {
       const settings = await loadAppSettings();
+      if (selectedPrinter) {
+        if (settings.printerEnabled) {
+          const targetDots = settings.printerPaperWidth === '58mm' ? 384 : 576;
+          await escposPrintOrderImage(image, selectedPrinter, 1, targetDots);
+          return true;
+        }
+        await Print.printAsync({ html: generatePrintHTML(selectedOrder) });
+        return true;
+      }
       if (settings.printerSimulator || hasAnySimulatorAssignment(settings)) {
         setSimulatorOrder(selectedOrder);
-        setPrintImageUri(imageUri);
+        setPrintImageUri(image.kind === 'uri' ? image.uri : (image.previewUri ?? null));
         setSimulatorImageLabels(['Customer Copy']);
         setShowSimulator(true);
         return true;
@@ -231,7 +250,7 @@ export default function OrderDetailScreen() {
       const selected = resolvePrinterForSection(settings, getSectionPrintTickets(selectedOrder)[0]?.sections[0]?.sectionName || null);
       if (settings.printerEnabled && selected) {
         const targetDots = settings.printerPaperWidth === '58mm' ? 384 : 576;
-        await escposPrintOrderImage(imageUri, selected, 1, targetDots);
+        await escposPrintOrderImage(image, selected, 1, targetDots);
         return true;
       }
 
@@ -306,6 +325,7 @@ export default function OrderDetailScreen() {
       onPrint={handlePrint}
       onPrintImage={handlePrintImage}
       onPrintCustomerCopyImage={handlePrintImage}
+      availablePrinters={settings.printerSaved}
       onCustomerPress={() => {}}
       onStatusUpdate={handleStatusUpdate}
       onPaymentStatusUpdate={handlePaymentStatusUpdate}

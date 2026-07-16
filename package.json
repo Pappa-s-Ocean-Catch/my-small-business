@@ -18,6 +18,8 @@
     "mobile:android:start:direct": "pnpm --filter pappas-order-management android:start:direct",
     "mobile:ios:tablet": "pnpm --filter pappas-order-management ios:tablet",
     "mobile:android:tablet": "pnpm --filter pappas-order-management android:tablet",
+    "escpos-sim": "pnpm --dir tools/escpos-printer-server start",
+    "escpos-sim:dev": "pnpm --dir tools/escpos-printer-server dev",
     "app:prebuild": "pnpm --filter pappas-order-management exec expo prebuild",
     "app:prebuild:clean": "pnpm --filter pappas-order-management exec expo prebuild --clean",
     "app:run:android": "pnpm --filter pappas-order-management exec expo run:android",

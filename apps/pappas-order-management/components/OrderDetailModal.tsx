@@ -3,11 +3,13 @@ import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity, useWindowD
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button as PaperButton, IconButton, Surface, Card, Divider, Snackbar } from 'react-native-paper';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { captureRef } from 'react-native-view-shot';
 import { ReceiptTemplate } from './ReceiptTemplate';
 import { PrintSimulatorModal } from './PrintSimulatorModal';
 import { hasAnySimulatorAssignment } from '@/lib/printer-routing';
 import { CustomerReceiptTemplate } from './CustomerReceiptTemplate';
+import { captureReceiptPreviewAndRaw, type PrinterImageSource } from '@/lib/printer-image';
+import type { SavedPrinter } from '@/lib/escpos-printer';
+import { ManualPrintButton } from '@/components/printer/ManualPrintButton';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { getFriendlyOrderNumber } from '../utils/orderNumber';
 import {
@@ -29,9 +31,9 @@ interface OrderDetailModalProps {
   order: Order | null;
   onClose: () => void;
   onOrderRefresh?: (order: Order) => void;
-  onPrint: (order: Order) => Promise<boolean>;
-  onPrintImage?: (order: Order, imageUri: string) => Promise<boolean>;
-  onPrintCustomerCopyImage?: (order: Order, imageUri: string) => Promise<boolean>;
+  onPrint: (order: Order, printer?: SavedPrinter | null) => Promise<boolean>;
+  onPrintImage?: (order: Order, image: PrinterImageSource, printer?: SavedPrinter | null) => Promise<boolean>;
+  onPrintCustomerCopyImage?: (order: Order, image: PrinterImageSource, printer?: SavedPrinter | null) => Promise<boolean>;
   onCustomerPress: (order: Order) => void;
   onStatusUpdate?: (order: Order, status: OrderStatus) => void;
   onPaymentStatusUpdate?: (id: string, status: PaymentStatus, paymentMethodDetail?: string | null) => void;
@@ -48,6 +50,7 @@ interface OrderDetailModalProps {
   printImageUri?: string | null;
   simulatorImageLabels?: string[] | null;
   appSettings?: AppSettings;
+  availablePrinters?: SavedPrinter[];
   renderInModal?: boolean;
   forceFullScreen?: boolean;
 }
@@ -75,6 +78,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   printImageUri,
   simulatorImageLabels,
   appSettings = DEFAULT_APP_SETTINGS,
+  availablePrinters = [],
   renderInModal = true,
   forceFullScreen = false,
 }) => {
@@ -141,7 +145,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     order.order_status !== 'completed' &&
     order.order_status !== 'cancelled';
 
-  const handleInternalPrint = async () => {
+  const handleInternalPrint = async (printer?: SavedPrinter | null) => {
     let success = false;
     let printOrder = order;
 
@@ -163,23 +167,20 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
         const targetDots = appSettings.printerPaperWidth === '58mm' ? 384 : 576;
         const scale = appSettings.printerHighQuality ? 2 : 1;
         
-        const uri = await captureRef(receiptRef.current, {
-          format: 'png',
-          quality: 1,
-          result: 'tmpfile',
-          width: targetDots * scale,
-        });
-        
-        success = await onPrintImage(printOrder, uri);
+        const image = await captureReceiptPreviewAndRaw(receiptRef.current, targetDots * scale);
+        success = await onPrintImage(printOrder, image, printer);
       } catch (error) {
-        console.error('Failed to capture receipt:', error);
-        // Fallback to standard print if capture fails
-        success = await onPrint(printOrder);
+        console.error('Manual receipt print failed:', error);
+        Alert.alert(
+          'Print error',
+          error instanceof Error ? error.message : 'Failed to print receipt.'
+        );
+        success = false;
       } finally {
         setIsCapturing(false);
       }
     } else {
-      success = await onPrint(printOrder);
+      success = await onPrint(printOrder, printer);
     }
 
     // Only show "Printing successful" toast if we are NOT in simulator mode
@@ -189,7 +190,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     }
   };
 
-  const handleCustomerCopyPrint = async () => {
+  const handleCustomerCopyPrint = async (printer?: SavedPrinter | null) => {
     if (!onPrintCustomerCopyImage || !customerReceiptRef.current) {
       Alert.alert('Customer copy unavailable', 'This screen is not ready to print the customer receipt yet.');
       return;
@@ -212,14 +213,8 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       const targetDots = appSettings.printerPaperWidth === '58mm' ? 384 : 576;
       const scale = appSettings.printerHighQuality ? 2 : 1;
 
-      const uri = await captureRef(customerReceiptRef.current, {
-        format: 'png',
-        quality: 1,
-        result: 'tmpfile',
-        width: targetDots * scale,
-      });
-
-      await onPrintCustomerCopyImage(printOrder, uri);
+      const image = await captureReceiptPreviewAndRaw(customerReceiptRef.current, targetDots * scale);
+      await onPrintCustomerCopyImage(printOrder, image, printer);
     } catch (error) {
       console.error('Failed to capture customer receipt:', error);
       Alert.alert('Print error', 'Failed to prepare the customer receipt.');
@@ -449,28 +444,22 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
           elevation={4}
         >
           <View style={styles.secondaryActions}>
-            <PaperButton
-              mode="outlined"
+            <ManualPrintButton
+              printers={availablePrinters}
+              label="Print"
               icon="printer"
-              onPress={handleInternalPrint}
               loading={isCapturing}
               disabled={isCapturing}
-              style={styles.actionButton}
-              compact={!isWide}
-            >
-              Print
-            </PaperButton>
-            <PaperButton
-              mode="outlined"
+              onSelectPrinter={handleInternalPrint}
+            />
+            <ManualPrintButton
+              printers={availablePrinters}
+              label="Print Customer Copy"
               icon="receipt-text-outline"
-              onPress={handleCustomerCopyPrint}
               loading={isCapturing}
               disabled={isCapturing || !onPrintCustomerCopyImage}
-              style={styles.actionButton}
-              compact={!isWide}
-            >
-              Print Customer Copy
-            </PaperButton>
+              onSelectPrinter={handleCustomerCopyPrint}
+            />
             {showDeliveryRefreshAction && (
               <PaperButton
                 mode="outlined"

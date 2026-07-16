@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { Button, TextInput } from 'react-native-paper';
 
-import { styles } from '../../app/pos.styles';
+import { styles } from './pos.styles';
 import type { PosInstorePaymentChoice } from '../../app/pos.types';
 import { PosDiscountSection } from './PosDiscountSection';
 

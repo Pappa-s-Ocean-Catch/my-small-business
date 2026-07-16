@@ -270,6 +270,7 @@ export default function CustomersScreen() {
         onPrint={handlePrint}
         onPrintImage={handlePrintImage}
         onPrintCustomerCopyImage={handlePrintImage}
+        availablePrinters={appSettings.printerSaved}
         onCustomerPress={handleCustomerPressFromOrder}
         onStatusUpdate={handleStatusUpdate}
         onPaymentStatusUpdate={handlePaymentStatusUpdate}

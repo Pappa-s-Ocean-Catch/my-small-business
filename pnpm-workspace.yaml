@@ -1,6 +1,7 @@
 packages:
   - apps/*
   - libs/*
+  - tools/*
 
 onlyBuiltDependencies:
   - react-native-esc-pos-printer

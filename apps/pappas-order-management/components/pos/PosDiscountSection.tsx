@@ -1,7 +1,7 @@
 import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 
-import { styles } from '../../app/pos.styles';
+import { styles } from './pos.styles';
 
 type Props = {
   discountLabel: string;

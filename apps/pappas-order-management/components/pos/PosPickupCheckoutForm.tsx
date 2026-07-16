@@ -3,7 +3,7 @@ import { Platform, ScrollView, Text, TouchableOpacity, View } from 'react-native
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Button, TextInput } from 'react-native-paper';
 
-import { styles } from '../../app/pos.styles';
+import { styles } from './pos.styles';
 import type { CustomerLookupStatus } from './PosCheckoutPanel';
 import { PosDiscountSection } from './PosDiscountSection';
 import { PosPhoneInputModal } from './PosPhoneInputModal';

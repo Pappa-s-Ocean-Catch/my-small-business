@@ -30,12 +30,14 @@ import { Audio } from 'expo-av';
 import * as Print from 'expo-print';
 import { ConfirmationDialog } from '../../lib/ConfirmationDialog';
 import { escposPrintKitchenReceipt, formatPrinterError } from '../../lib/escpos-printer';
+import type { SavedPrinter } from '../../lib/escpos-printer';
 import { buildSectionPrintJobs, getSectionPrintTickets, resolvePrinterForSection, shouldSkipPrintForSection } from '../../lib/printer-routing';
 import { KitchenAlertOverlay } from '../../lib/KitchenAlertOverlay';
 import { getFriendlyOrderNumber } from '../../utils/orderNumber';
 import { CustomerModal } from '../../components/CustomerModal';
 import { getOrderChannelLabel, getOrderLineItemCount, getOrderNotes, getOrderOptions, getPaymentMethodType, shouldPlayOrderSound } from '../../utils/orderUtils';
 import { useAppSettingsQuery } from '@/hooks/useAppSettingsQuery';
+import { ManualPrintButton } from '@/components/printer/ManualPrintButton';
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
   pending: '#f59e0b',
@@ -523,9 +525,18 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
     }
   };
 
-  const handlePrint = async (order: Order) => {
+  const handlePrint = async (order: Order, selectedPrinter?: SavedPrinter | null) => {
     try {
       const s = appSettingsRef.current;
+      if (selectedPrinter) {
+        if (s.printerEnabled) {
+          await escposPrintKitchenReceipt(order, selectedPrinter, 1, 'legacy-orders:manual-single-printer');
+          return;
+        }
+        const html = generatePrintHTML(order);
+        await Print.printAsync({ html });
+        return;
+      }
       const jobs = buildSectionPrintJobs(s, order);
       const printerJobs = jobs.filter((job) => !job.useSimulator && !!job.printer);
       if (s.printerEnabled && printerJobs.length > 0) {
@@ -739,15 +750,18 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
               ) : (
                 <Text style={styles.orderTime}>{new Date(order.created_at).toLocaleTimeString()}</Text>
               )}
-              <IconButton
-                icon="printer"
-                size={20}
-                onPress={(e) => {
+              <View
+                onTouchEnd={(e) => {
                   e.stopPropagation();
-                  handlePrint(order);
                 }}
-                accessibilityLabel="Print order"
-              />
+              >
+                <ManualPrintButton
+                  printers={appSettings.printerSaved}
+                  mode="icon"
+                  label="Print order"
+                  onSelectPrinter={(printer) => handlePrint(order, printer)}
+                />
+              </View>
             </View>
           </View>
 
@@ -1140,12 +1154,13 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
               Order {selectedOrder ? getFriendlyOrderNumber(selectedOrder.order_number) : ''}
             </Text>
             <View style={styles.modalHeaderActions}>
-              <TouchableOpacity
-                style={styles.modalActionButton}
-                onPress={() => selectedOrder && handlePrint(selectedOrder)}
-              >
-                <Text style={styles.modalActionButtonText}>Print</Text>
-              </TouchableOpacity>
+              {selectedOrder ? (
+                <ManualPrintButton
+                  printers={appSettings.printerSaved}
+                  label="Print"
+                  onSelectPrinter={(printer) => handlePrint(selectedOrder, printer)}
+                />
+              ) : null}
               <TouchableOpacity
                 style={styles.modalCloseButton}
                 onPress={() => setShowOrderModal(false)}

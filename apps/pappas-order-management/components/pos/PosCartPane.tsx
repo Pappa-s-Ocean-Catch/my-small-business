@@ -1,7 +1,7 @@
 import React from 'react';
 import { FlatList, Text, TouchableOpacity, View } from 'react-native';
 import { Button, Divider, IconButton } from 'react-native-paper';
-import { styles } from '../../app/pos.styles';
+import { styles } from './pos.styles';
 import type {
   PosCartItem,
 } from '../../app/pos.types';

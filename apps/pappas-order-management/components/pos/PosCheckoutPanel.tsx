@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { Button, SegmentedButtons } from 'react-native-paper';
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 
-import { styles } from '../../app/pos.styles';
+import { styles } from './pos.styles';
 import type { PosInstorePaymentChoice } from '../../app/pos.types';
 import { PosInstoreCheckoutForm } from './PosInstoreCheckoutForm';
 import { PosDeliveryCheckoutForm } from './PosDeliveryCheckoutForm';

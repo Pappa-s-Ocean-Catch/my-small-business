@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState, type PropsWithChildren } from
 import { View } from 'react-native';
 import { Snackbar } from 'react-native-paper';
 import { Audio } from 'expo-av';
-import { captureRef } from 'react-native-view-shot';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Order } from '@my-small-business/types';
 import { useAppSettingsQuery } from '@/hooks/useAppSettingsQuery';
@@ -17,6 +16,7 @@ import {
   updateOrderStatus,
 } from '@/lib/orders';
 import { escposPrintOrderImage, formatPrinterError } from '@/lib/escpos-printer';
+import { captureReceiptForPrinter, captureReceiptPreview, type PrinterImageSource } from '@/lib/printer-image';
 import { buildSectionPrintJobs, hasAnySimulatorAssignment } from '@/lib/printer-routing';
 import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
@@ -189,7 +189,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
       const targetDots = effectiveSettings.printerPaperWidth === '58mm' ? 384 : 576;
       const scale = effectiveSettings.printerHighQuality ? 2 : 1;
       const jobs = buildSectionPrintJobs(effectiveSettings, freshOrder);
-      const capturedJobs: Array<{ uri: string; label: string; useSimulator: boolean; printer: NonNullable<ReturnType<typeof buildSectionPrintJobs>[number]['printer']> | null }> = [];
+      const capturedJobs: Array<{ image: PrinterImageSource; previewUri: string | null; label: string; useSimulator: boolean; printer: NonNullable<ReturnType<typeof buildSectionPrintJobs>[number]['printer']> | null }> = [];
 
       for (const job of jobs) {
         setTempPrintTicketIndex(job.onlyTicketIndex ?? 0);
@@ -205,30 +205,38 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
           throw new Error('Receipt template is still loading. Please try again.');
         }
 
-        const uri = await captureRef(receiptRef, {
-          format: 'png',
-          quality: 1,
-          result: 'tmpfile',
-          width: targetDots * scale,
-        });
-        capturedJobs.push({
-          uri,
-          label: job.label,
-          useSimulator: job.useSimulator,
-          printer: job.printer,
-        });
+        if (job.useSimulator || !job.printer) {
+          const uri = await captureReceiptPreview(receiptRef, targetDots * scale);
+          capturedJobs.push({
+            image: { kind: 'uri', uri },
+            previewUri: uri,
+            label: job.label,
+            useSimulator: job.useSimulator,
+            printer: job.printer,
+          });
+        } else {
+          const image = await captureReceiptForPrinter(receiptRef, job.printer, targetDots * scale);
+          const previewUri = image.kind === 'uri' ? image.uri : await captureReceiptPreview(receiptRef, targetDots * scale);
+          capturedJobs.push({
+            image,
+            previewUri,
+            label: job.label,
+            useSimulator: job.useSimulator,
+            printer: job.printer,
+          });
+        }
       }
 
       const simulatorImageUris: string[] = [];
       const simulatorImageLabels: string[] = [];
-      const printerJobs: Array<{ uri: string; printer: NonNullable<typeof capturedJobs[number]['printer']> }> = [];
+      const printerJobs: Array<{ image: PrinterImageSource; printer: NonNullable<typeof capturedJobs[number]['printer']> }> = [];
       for (const job of capturedJobs) {
         if (job.useSimulator) {
-          simulatorImageUris.push(job.uri);
+          if (job.previewUri) simulatorImageUris.push(job.previewUri);
           simulatorImageLabels.push(job.label);
         } else {
           if (job.printer) {
-            printerJobs.push({ uri: job.uri, printer: job.printer });
+            printerJobs.push({ image: job.image, printer: job.printer });
           }
         }
       }
@@ -259,7 +267,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
         });
 
         for (let index = 0; index < printerJobs.length; index++) {
-          await escposPrintOrderImage(printerJobs[index].uri, printerJobs[index].printer, 1, targetDots);
+          await escposPrintOrderImage(printerJobs[index].image, printerJobs[index].printer, 1, targetDots);
           if (index < printerJobs.length - 1) {
             await new Promise((resolve) => setTimeout(resolve, SECTION_PRINT_DELAY_MS));
           }

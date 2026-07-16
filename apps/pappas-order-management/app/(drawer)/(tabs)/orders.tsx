@@ -291,6 +291,7 @@ export default function HistoryScreen() {
         onPrint={handlePrint}
         onPrintImage={handlePrintImage}
         onPrintCustomerCopyImage={handlePrintImage}
+        availablePrinters={appSettings.printerSaved}
         onCustomerPress={handleCustomerPress}
         onStatusUpdate={handleStatusUpdate}
         onPaymentStatusUpdate={handlePaymentStatusUpdate}
