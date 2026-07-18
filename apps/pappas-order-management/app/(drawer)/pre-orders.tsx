@@ -35,11 +35,12 @@ import { useAppSettingsQuery } from '@/hooks/useAppSettingsQuery';
 import { PRE_ORDERS_QUERY_KEY, usePreOrdersQuery } from '@/hooks/useLiveOrdersQuery';
 import { captureReceiptForPrinter, captureReceiptPreview, type PrinterImageSource } from '@/lib/printer-image';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
-import { escposPrintOrderImage } from '@/lib/escpos-printer';
 import type { SavedPrinter } from '@/lib/escpos-printer';
 import { buildSectionPrintJobs, hasAnySimulatorAssignment } from '@/lib/printer-routing';
 import { getPrintDeviceId } from '@/lib/print-device';
 import { useQueryClient } from '@tanstack/react-query';
+import { enqueuePreparedPrintJobs, waitForPrintJobs } from '@/lib/print-queue';
+import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
 
 const RECEIPT_REF_WAIT_MS = 120;
 const RECEIPT_REF_MAX_ATTEMPTS = 8;
@@ -68,6 +69,7 @@ export default function PreOrdersScreen() {
   } = usePreOrdersQuery();
   const appSettingsRef = useRef(appSettings);
   const printDeviceIdRef = useRef<string | null>(null);
+  const orderPrintStates = usePrinterAutomationStore((state) => state.orderPrintStates);
 
   const waitForReceiptTemplateRef = useCallback(async () => {
     for (let attempt = 0; attempt < RECEIPT_REF_MAX_ATTEMPTS; attempt++) {
@@ -184,7 +186,21 @@ export default function PreOrdersScreen() {
           return;
         }
 
-        await escposPrintOrderImage(image, selectedPrinter, 1, targetDots);
+        const queuedJobs = enqueuePreparedPrintJobs({
+          order: freshOrder,
+          source: 'manual',
+          scope: 'pre-orders:manual-direct',
+          jobs: [{
+            image,
+            printer: selectedPrinter,
+            width: targetDots,
+            label: selectedPrinter.deviceName,
+          }],
+        });
+        const queueResult = await waitForPrintJobs(queuedJobs.map((job) => job.id));
+        if (!queueResult.success) {
+          throw new Error(queueResult.failedJobs[0]?.error || 'Queued print job failed');
+        }
         const completion = await completeKitchenPrintClaim(order.id, claimedDeviceId);
         if (!completion.completed) {
           throw new Error(completion.error || 'Failed to complete kitchen print claim');
@@ -265,8 +281,20 @@ export default function PreOrdersScreen() {
         return;
       }
 
-      for (let index = 0; index < printerJobs.length; index++) {
-        await escposPrintOrderImage(printerJobs[index].image, printerJobs[index].printer, 1, targetDots);
+      const queuedJobs = enqueuePreparedPrintJobs({
+        order: freshOrder,
+        source: 'manual',
+        scope: 'pre-orders:manual-routed',
+        jobs: printerJobs.map((job) => ({
+          image: job.image,
+          printer: job.printer,
+          width: targetDots,
+          label: job.printer.deviceName,
+        })),
+      });
+      const queueResult = await waitForPrintJobs(queuedJobs.map((job) => job.id));
+      if (!queueResult.success) {
+        throw new Error(queueResult.failedJobs[0]?.error || 'Queued print job failed');
       }
       const completion = await completeKitchenPrintClaim(order.id, claimedDeviceId);
       if (!completion.completed) {
@@ -285,6 +313,10 @@ export default function PreOrdersScreen() {
       }
       setIsCapturing(false);
       setPrintingOrderId(null);
+      setTempPrintingOrder(null);
+      setTempPrintSource(null);
+      setTempPrintTicketIndex(0);
+      setTempPrintDuplicateBySections(false);
     }
   };
 
@@ -378,6 +410,7 @@ export default function PreOrdersScreen() {
         renderItem={({ item }) => (
           <LiveOrderListItem
             order={item}
+            printState={orderPrintStates[item.id] || null}
             nowMs={nowMs}
             updatingStatus={updatingStatus}
             onOrderPress={handleOrderPress}

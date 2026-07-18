@@ -5,14 +5,15 @@ import * as Print from 'expo-print';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { ActivityIndicator, Text } from 'react-native-paper';
 import { getOrder, refreshDeliveryStatus, updateOrderStatus, updatePaymentStatus } from '../lib/orders';
-import { loadAppSettings } from '../lib/settings';
-import { escposPrintKitchenReceipt, escposPrintOrderImage, formatPrinterError } from '../lib/escpos-printer';
+import { DEFAULT_APP_SETTINGS, loadAppSettings } from '../lib/settings';
+import { escposPrintKitchenReceipt, formatPrinterError } from '../lib/escpos-printer';
 import type { SavedPrinter } from '../lib/escpos-printer';
 import type { PrinterImageSource } from '../lib/printer-image';
 import { buildSectionPrintJobs, getSectionPrintTickets, hasAnySimulatorAssignment, resolvePrinterForSection, shouldSkipPrintForSection, shouldUseSimulatorForSection } from '../lib/printer-routing';
 import { formatSmartpayError, isSmartpayPaired, processSmartpayCardPayment } from '../lib/smartpay';
 import { OrderDetailModal } from '../components/OrderDetailModal';
 import { generatePrintHTML, getNextQuickAction } from '../utils/orderUtils';
+import { enqueuePreparedPrintJobs, waitForPrintJobs } from '../lib/print-queue';
 
 const CLOSED_ORDER_STATUSES: OrderStatus[] = ['completed', 'cancelled'];
 
@@ -28,10 +29,12 @@ export default function OrderDetailScreen() {
   const [simulatorOrder, setSimulatorOrder] = useState<Order | null>(null);
   const [printImageUri, setPrintImageUri] = useState<string | null>(null);
   const [simulatorImageLabels, setSimulatorImageLabels] = useState<string[]>([]);
+  const [settings, setSettings] = useState(DEFAULT_APP_SETTINGS);
 
   useEffect(() => {
     void loadOrder();
     isSmartpayPaired().then(setSmartpayPaired).catch(() => setSmartpayPaired(false));
+    loadAppSettings().then(setSettings).catch(() => setSettings(DEFAULT_APP_SETTINGS));
   }, [orderId]);
 
   useEffect(() => {
@@ -233,7 +236,21 @@ export default function OrderDetailScreen() {
       if (selectedPrinter) {
         if (settings.printerEnabled) {
           const targetDots = settings.printerPaperWidth === '58mm' ? 384 : 576;
-          await escposPrintOrderImage(image, selectedPrinter, 1, targetDots);
+          const queuedJobs = enqueuePreparedPrintJobs({
+            order: selectedOrder,
+            source: 'manual',
+            scope: 'order-detail:manual-image-direct',
+            jobs: [{
+              image,
+              printer: selectedPrinter,
+              width: targetDots,
+              label: selectedPrinter.deviceName,
+            }],
+          });
+          const queueResult = await waitForPrintJobs(queuedJobs.map((job) => job.id));
+          if (!queueResult.success) {
+            throw new Error(queueResult.failedJobs[0]?.error || 'Queued print job failed');
+          }
           return true;
         }
         await Print.printAsync({ html: generatePrintHTML(selectedOrder) });
@@ -250,7 +267,21 @@ export default function OrderDetailScreen() {
       const selected = resolvePrinterForSection(settings, getSectionPrintTickets(selectedOrder)[0]?.sections[0]?.sectionName || null);
       if (settings.printerEnabled && selected) {
         const targetDots = settings.printerPaperWidth === '58mm' ? 384 : 576;
-        await escposPrintOrderImage(image, selected, 1, targetDots);
+        const queuedJobs = enqueuePreparedPrintJobs({
+          order: selectedOrder,
+          source: 'manual',
+          scope: 'order-detail:manual-image-routed',
+          jobs: [{
+            image,
+            printer: selected,
+            width: targetDots,
+            label: selected.deviceName,
+          }],
+        });
+        const queueResult = await waitForPrintJobs(queuedJobs.map((job) => job.id));
+        if (!queueResult.success) {
+          throw new Error(queueResult.failedJobs[0]?.error || 'Queued print job failed');
+        }
         return true;
       }
 

@@ -23,20 +23,25 @@ import { SettingsActionTile } from '@/components/settings/SettingsActionTile';
 import { SettingsSectionCard } from '@/components/settings/SettingsSectionCard';
 import { useAppSettingsQuery } from '@/hooks/useAppSettingsQuery';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
+import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
+import { JOURNAL_LOGS_ENABLED } from '@/lib/journal-config';
 
-type SettingsDialogKey = 'refresh' | 'sound' | 'printer' | 'liveOrders' | null;
+type SettingsDialogKey = 'refresh' | 'sound' | 'printer' | 'liveOrders' | 'journal' | null;
 
 const SETTINGS_MODAL_TITLES: Record<Exclude<SettingsDialogKey, null>, string> = {
     refresh: 'Refresh interval',
     sound: 'Order sound',
     printer: 'Kitchen printer',
     liveOrders: 'Live order cards',
+    journal: 'Journal',
 };
 
 export default function SettingsScreen() {
     const router = useRouter();
     const { data: currentSettings = DEFAULT_APP_SETTINGS } = useAppSettingsQuery();
     const saveSettings = useAppSettingsStore((state) => state.saveSettings);
+    const journalEntries = usePrinterAutomationStore((state) => state.journalEntries);
+    const clearJournal = usePrinterAutomationStore((state) => state.clearJournal);
     const [activeDialog, setActiveDialog] = useState<SettingsDialogKey>(null);
     const [refreshIntervalSecText, setRefreshIntervalSecText] = useState(String(DEFAULT_APP_SETTINGS.refreshIntervalSec));
     const [soundEnabled, setSoundEnabled] = useState<boolean>(DEFAULT_APP_SETTINGS.soundEnabled);
@@ -133,6 +138,15 @@ export default function SettingsScreen() {
         : `${selectedPrinter?.deviceName ?? (printerSimulator ? 'Simulator' : 'No default printer selected')} • ${Math.max(printerSectionAssignments.length - 1, 0)} section rule${printerSectionAssignments.length === 2 ? '' : 's'}`;
     const hasSimulatorRouting = hasAnySimulatorAssignment({ printerSectionAssignments, printerSimulator });
     const hasPrinterCapability = printerEnabled || hasSimulatorRouting;
+    const recentJournalLabel = journalEntries.length === 0
+        ? 'No logs yet'
+        : `${journalEntries.length} recent entr${journalEntries.length === 1 ? 'y' : 'ies'}`;
+    const logLevelBadgeStyles = {
+        info: styles.logLevelBadgeinfo,
+        decision: styles.logLevelBadgedecision,
+        success: styles.logLevelBadgesuccess,
+        error: styles.logLevelBadgeerror,
+    };
 
     const openSoundPicker = () => {
         Alert.alert(
@@ -209,6 +223,21 @@ export default function SettingsScreen() {
     const handlePreview = async () => {
         const repeatCount = parseIntOr(repeatCountText, DEFAULT_APP_SETTINGS.soundRepeatCount);
         await playNewOrderSound({ soundId, repeatCount, delayMs: 2000 });
+    };
+
+    const handleClearJournal = () => {
+        Alert.alert(
+            'Clear journal?',
+            'This removes all saved journal entries on this device.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Clear journal',
+                    style: 'destructive',
+                    onPress: () => clearJournal(),
+                },
+            ]
+        );
     };
 
     const handleTestPrint = async () => {
@@ -1041,6 +1070,66 @@ export default function SettingsScreen() {
                             >
                                 Test default printer
                             </Button>
+
+                            {JOURNAL_LOGS_ENABLED ? (
+                                <>
+                                <Button
+                                    mode="outlined"
+                                    icon="text-box-search-outline"
+                                    onPress={() => setActiveDialog('journal')}
+                                    style={styles.previewButton}
+                                >
+                                    View journal
+                                </Button>
+                                <Text style={styles.helper}>{recentJournalLabel}</Text>
+                                </>
+                            ) : null}
+                            </>
+                        )}
+
+                        {activeDialog === 'journal' && JOURNAL_LOGS_ENABLED && (
+                            <>
+                            <View style={styles.logsHeaderRow}>
+                                <Text style={styles.helper}>
+                                    Review recent journal events for this device. Newest entries appear first.
+                                </Text>
+                                <Button
+                                    mode="text"
+                                    icon="delete-outline"
+                                    onPress={handleClearJournal}
+                                    disabled={journalEntries.length === 0}
+                                >
+                                    Clear journal
+                                </Button>
+                            </View>
+
+                            {journalEntries.length === 0 ? (
+                                <View style={styles.logsEmptyState}>
+                                    <Text style={styles.label}>No journal entries yet.</Text>
+                                    <Text style={styles.helper}>Run a test print or wait for the next kitchen workflow event to populate this list.</Text>
+                                </View>
+                            ) : (
+                                journalEntries.map((entry) => (
+                                    <View key={entry.id} style={styles.logCard}>
+                                        <View style={styles.logCardHeader}>
+                                            <View style={[styles.logLevelBadge, logLevelBadgeStyles[entry.level]]}>
+                                                <Text style={styles.logLevelBadgeText}>{entry.level.toUpperCase()}</Text>
+                                            </View>
+                                            <Text style={styles.logTimestamp}>{new Date(entry.timestamp).toLocaleString()}</Text>
+                                        </View>
+                                        <Text style={styles.logScope}>{entry.scope}</Text>
+                                        <Text style={styles.logMessage}>{entry.message}</Text>
+                                        {entry.orderNumber || entry.orderId ? (
+                                            <Text style={styles.logMeta}>
+                                                Order: {entry.orderNumber || entry.orderId}
+                                            </Text>
+                                        ) : null}
+                                        {entry.details ? (
+                                            <Text style={styles.logDetails}>{entry.details}</Text>
+                                        ) : null}
+                                    </View>
+                                ))
+                            )}
                             </>
                         )}
                     </ScrollView>
@@ -1237,5 +1326,80 @@ const styles = StyleSheet.create({
     },
     group: {
         marginTop: 12,
+    },
+    logsHeaderRow: {
+        gap: 8,
+        marginBottom: 12,
+    },
+    logsEmptyState: {
+        marginTop: 8,
+        padding: 16,
+        borderRadius: 12,
+        backgroundColor: '#fff',
+        borderWidth: 1,
+        borderColor: '#ececec',
+    },
+    logCard: {
+        marginTop: 10,
+        padding: 12,
+        borderRadius: 12,
+        backgroundColor: '#fff',
+        borderWidth: 1,
+        borderColor: '#ececec',
+        gap: 6,
+    },
+    logCardHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 8,
+    },
+    logLevelBadge: {
+        borderRadius: 999,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        alignSelf: 'flex-start',
+    },
+    logLevelBadgeinfo: {
+        backgroundColor: '#dbeafe',
+    },
+    logLevelBadgedecision: {
+        backgroundColor: '#ede9fe',
+    },
+    logLevelBadgesuccess: {
+        backgroundColor: '#dcfce7',
+    },
+    logLevelBadgeerror: {
+        backgroundColor: '#fee2e2',
+    },
+    logLevelBadgeText: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#334155',
+    },
+    logTimestamp: {
+        flex: 1,
+        textAlign: 'right',
+        fontSize: 11,
+        color: '#64748b',
+    },
+    logScope: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#475569',
+        textTransform: 'uppercase',
+    },
+    logMessage: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#0f172a',
+    },
+    logMeta: {
+        fontSize: 12,
+        color: '#475569',
+    },
+    logDetails: {
+        fontSize: 12,
+        color: '#334155',
     },
 });

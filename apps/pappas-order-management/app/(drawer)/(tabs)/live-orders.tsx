@@ -15,6 +15,7 @@ import {
   Surface,
   Badge,
 } from 'react-native-paper';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -31,12 +32,15 @@ import { OrderDetailModal } from '@/components/OrderDetailModal';
 import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
 import { CashTenderModal } from '@/components/CashTenderModal';
 import { useOrderActions } from '@/hooks/useOrderActions';
-import { escposPrintOrderImage, formatPrinterError } from '@/lib/escpos-printer';
+import { formatPrinterError } from '@/lib/escpos-printer';
 import type { SavedPrinter } from '@/lib/escpos-printer';
 import { buildSectionPrintJobs, hasAnySimulatorAssignment } from '@/lib/printer-routing';
 import { captureReceiptForPrinter, captureReceiptPreview, type PrinterImageSource } from '@/lib/printer-image';
+import { enqueuePreparedPrintJobs, waitForPrintJobs } from '@/lib/print-queue';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
+import { JournalLogsModal } from '@/components/PrintLogsModal';
 import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
+import { JOURNAL_LOGS_ENABLED } from '@/lib/journal-config';
 import {
   LIVE_ORDERS_QUERY_KEY,
   useLiveOrdersQuery,
@@ -44,7 +48,7 @@ import {
 } from '@/hooks/useLiveOrdersQuery';
 
 type TimeoutHandle = ReturnType<typeof setTimeout>;
-const SECTION_PRINT_DELAY_MS = 1500;
+const RECEIPT_RENDER_SETTLE_MS = 300;
 
 type FilterKey = 'all' | 'needs-action' | 'unpaid' | 'ready' | 'scheduled';
 type GroupKey = 'overdue' | 'due-soon' | 'ready' | 'on-the-way' | 'attention' | 'other';
@@ -72,14 +76,16 @@ export default function LiveOrdersScreen() {
   const [cashTenderOrder, setCashTenderOrder] = useState<Order | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
   const [headerExpanded, setHeaderExpanded] = useState(false);
+  const [showPrintLogs, setShowPrintLogs] = useState(false);
   const [refreshingDeliveryIds, setRefreshingDeliveryIds] = useState<string[]>([]);
   const globalReceiptRef = useRef(null);
 
   const queryClient = useQueryClient();
   const countdownIntervalRef = useRef<TimeoutHandle | null>(null);
-  const printQueueRef = useRef<Promise<void>>(Promise.resolve());
   const preOrderSkipNotice = usePrinterAutomationStore((state) => state.preOrderSkipNotice);
   const addJournalEntry = usePrinterAutomationStore((state) => state.addJournalEntry);
+  const journalEntries = usePrinterAutomationStore((state) => state.journalEntries);
+  const orderPrintStates = usePrinterAutomationStore((state) => state.orderPrintStates);
   const {
     data: orders = [],
     isLoading: loading,
@@ -108,6 +114,8 @@ export default function LiveOrdersScreen() {
       details: options?.details ?? null,
     });
   };
+
+  const formatDurationMs = (startedAt: number): string => `${Date.now() - startedAt}ms`;
 
   const loadOrders = async () => {
     try {
@@ -191,7 +199,7 @@ export default function LiveOrdersScreen() {
   });
 
   const quickPrintOrder = async (order: Order, selectedPrinter?: SavedPrinter | null) => {
-    let releasePrintQueue = () => {};
+    const workflowStartedAt = Date.now();
 
     try {
       let freshOrder = order;
@@ -228,11 +236,10 @@ export default function LiveOrdersScreen() {
       });
       setPrintingOrderId(order.id);
 
-      const previousPrint = printQueueRef.current;
-      printQueueRef.current = new Promise<void>((resolve) => {
-        releasePrintQueue = resolve;
+      logOrderEvent('info', 'print', 'Manual print queue acquired', {
+        order: freshOrder,
+        details: `driver=${selectedPrinter ? selectedPrinter.driver ?? 'epsonSdk' : 'section-routing'}`,
       });
-      await previousPrint.catch(() => undefined);
       
       // Update the hidden template with this order
       setTempPrintingOrder(freshOrder);
@@ -242,21 +249,54 @@ export default function LiveOrdersScreen() {
       if (selectedPrinter) {
         setTempPrintTicketIndex(0);
         setTempPrintDuplicateBySections(false);
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        const prepStartedAt = Date.now();
+        await new Promise((resolve) => setTimeout(resolve, RECEIPT_RENDER_SETTLE_MS));
+        logOrderEvent('info', 'print', 'Prepared receipt template for direct printer', {
+          order: freshOrder,
+          details: `renderSettle=${formatDurationMs(prepStartedAt)} printer=${selectedPrinter.deviceName}`,
+        });
 
+        const refWaitStartedAt = Date.now();
         const receiptRef = await waitForReceiptTemplateRef.current();
         if (!receiptRef) {
           throw new Error('Receipt template is still loading. Please try again.');
         }
+        logOrderEvent('info', 'print', 'Receipt template ref resolved for direct printer', {
+          order: freshOrder,
+          details: `wait=${formatDurationMs(refWaitStartedAt)}`,
+        });
 
+        const captureStartedAt = Date.now();
         const image = await captureReceiptForPrinter(receiptRef, selectedPrinter, targetDots * scale);
+        logOrderEvent('info', 'print', 'Captured receipt image for direct printer', {
+          order: freshOrder,
+          details: `capture=${formatDurationMs(captureStartedAt)} width=${targetDots * scale}`,
+        });
 
         if (!s.printerEnabled) {
           Alert.alert('Printer error', `No printer is selected. ${printSettingsDetails}`);
           return;
         }
 
-        await escposPrintOrderImage(image, selectedPrinter, 1, targetDots);
+        const queuedJobs = enqueuePreparedPrintJobs({
+          order: freshOrder,
+          source: 'manual',
+          scope: 'live-orders:manual-direct',
+          jobs: [{
+            image,
+            printer: selectedPrinter,
+            width: targetDots,
+            label: selectedPrinter.deviceName,
+          }],
+        });
+        const queueResult = await waitForPrintJobs(queuedJobs.map((job) => job.id));
+        if (!queueResult.success) {
+          throw new Error(queueResult.failedJobs[0]?.error || 'Queued print job failed');
+        }
+        logOrderEvent('success', 'print', 'Manual print sent to direct printer', {
+          order: freshOrder,
+          details: `queuedJobs=${queuedJobs.length} total=${formatDurationMs(workflowStartedAt)} printer=${selectedPrinter.deviceName}`,
+        });
         return;
       }
 
@@ -274,10 +314,16 @@ export default function LiveOrdersScreen() {
         : buildSectionPrintJobs(s, freshOrder);
       const capturedJobs: Array<{ image: PrinterImageSource; previewUri: string | null; label: string; useSimulator: boolean; printer: NonNullable<ReturnType<typeof buildSectionPrintJobs>[number]['printer']> | null }> = [];
       for (const job of jobs) {
+        const jobStartedAt = Date.now();
         setTempPrintTicketIndex(job.onlyTicketIndex ?? 0);
         setTempPrintDuplicateBySections(job.duplicateBySections);
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        await new Promise((resolve) => setTimeout(resolve, RECEIPT_RENDER_SETTLE_MS));
+        logOrderEvent('info', 'print', 'Prepared receipt template for routed print job', {
+          order: freshOrder,
+          details: `job=${job.label} renderSettle=${formatDurationMs(jobStartedAt)}`,
+        });
 
+        const refWaitStartedAt = Date.now();
         const receiptRef = await waitForReceiptTemplateRef.current();
         if (!receiptRef) {
           logOrderEvent('error', 'print', 'Receipt template ref was not ready for capture', {
@@ -286,13 +332,27 @@ export default function LiveOrdersScreen() {
           });
           throw new Error('Receipt template is still loading. Please try again.');
         }
+        logOrderEvent('info', 'print', 'Receipt template ref resolved for routed print job', {
+          order: freshOrder,
+          details: `job=${job.label} wait=${formatDurationMs(refWaitStartedAt)}`,
+        });
 
         if (job.useSimulator || !job.printer) {
+          const captureStartedAt = Date.now();
           const uri = await captureReceiptPreview(receiptRef, targetDots * scale);
+          logOrderEvent('info', 'print', 'Captured simulator preview for routed print job', {
+            order: freshOrder,
+            details: `job=${job.label} capture=${formatDurationMs(captureStartedAt)} width=${targetDots * scale}`,
+          });
           capturedJobs.push({ image: { kind: 'uri', uri }, previewUri: uri, label: job.label, useSimulator: job.useSimulator, printer: job.printer });
         } else {
+          const captureStartedAt = Date.now();
           const image = await captureReceiptForPrinter(receiptRef, job.printer, targetDots * scale);
           const previewUri = image.kind === 'uri' ? image.uri : await captureReceiptPreview(receiptRef, targetDots * scale);
+          logOrderEvent('info', 'print', 'Captured receipt image for routed print job', {
+            order: freshOrder,
+            details: `job=${job.label} capture=${formatDurationMs(captureStartedAt)} printer=${job.printer.deviceName} driver=${job.printer.driver ?? 'epsonSdk'}`,
+          });
           capturedJobs.push({ image, previewUri, label: job.label, useSimulator: job.useSimulator, printer: job.printer });
         }
       }
@@ -339,26 +399,44 @@ export default function LiveOrdersScreen() {
           details: `${printerJobs.length} image(s) using section printer routing`,
         });
 
-        for (let index = 0; index < printerJobs.length; index++) {
-          await escposPrintOrderImage(
-            printerJobs[index].image,
-            printerJobs[index].printer,
-            1,
-            targetDots
-          );
-          if (index < printerJobs.length - 1) {
-            await new Promise((resolve) => setTimeout(resolve, SECTION_PRINT_DELAY_MS));
-          }
+        const queuedJobs = enqueuePreparedPrintJobs({
+          order: freshOrder,
+          source: 'manual',
+          scope: 'live-orders:manual-routed',
+          jobs: printerJobs.map((job) => ({
+            image: job.image,
+            printer: job.printer,
+            width: targetDots,
+            label: job.printer.deviceName,
+          })),
+        });
+        const queueResult = await waitForPrintJobs(queuedJobs.map((job) => job.id));
+        if (!queueResult.success) {
+          throw new Error(queueResult.failedJobs[0]?.error || 'Queued print job failed');
         }
+        logOrderEvent('success', 'print', 'Manual routed print jobs completed', {
+          order: freshOrder,
+          details: `queuedJobs=${queuedJobs.length} total=${formatDurationMs(workflowStartedAt)}`,
+        });
       }
+      logOrderEvent('success', 'print', 'Manual print workflow completed', {
+        order: freshOrder,
+        details: `total=${formatDurationMs(workflowStartedAt)} capturedJobs=${capturedJobs.length}`,
+      });
     } catch (error) {
       console.error('Quick print failed:', error);
       const message = formatPrinterError(error) || 'Failed to print order.';
+      logOrderEvent('error', 'print', 'Manual print workflow failed', {
+        order,
+        details: `after=${formatDurationMs(workflowStartedAt)} reason=${message}`,
+      });
       Alert.alert('Print error', message);
     } finally {
-      releasePrintQueue();
       setPrintingOrderId(null);
-      // We don't clear tempPrintingOrder immediately to avoid flicker if nested
+      setTempPrintingOrder(null);
+      setTempPrintSource(null);
+      setTempPrintTicketIndex(0);
+      setTempPrintDuplicateBySections(false);
     }
   };
 
@@ -685,6 +763,19 @@ export default function LiveOrdersScreen() {
             >
               {activeFilterOption.label}
             </PaperButton>
+            {JOURNAL_LOGS_ENABLED ? (
+              <TouchableOpacity
+                style={styles.logButton}
+                onPress={() => setShowPrintLogs(true)}
+              >
+                <MaterialCommunityIcons name="text-box-search-outline" size={20} color="#1f2937" />
+                {journalEntries.length > 0 ? (
+                  <Badge style={styles.logBadge} size={18}>
+                    {journalEntries.length > 99 ? '99+' : journalEntries.length}
+                  </Badge>
+                ) : null}
+              </TouchableOpacity>
+            ) : null}
             <PaperButton
               mode="contained"
               onPress={() => {
@@ -757,6 +848,7 @@ export default function LiveOrdersScreen() {
                     <LiveOrderListItem
                       key={order.id}
                       order={order}
+                      printState={orderPrintStates[order.id] || null}
                       nowMs={nowMs}
                       updatingStatus={updatingStatus}
                       layout="vertical"
@@ -811,6 +903,7 @@ export default function LiveOrdersScreen() {
             return (
               <LiveOrderListItem
                 order={order}
+                printState={orderPrintStates[order.id] || null}
                 nowMs={nowMs}
                 updatingStatus={updatingStatus}
                 layout="horizontal"
@@ -932,6 +1025,11 @@ export default function LiveOrdersScreen() {
         onOrderPress={handleOpenOrderFromCustomerModal}
       />
 
+      <JournalLogsModal
+        visible={showPrintLogs}
+        onClose={() => setShowPrintLogs(false)}
+      />
+
     </View>
   );
 }
@@ -947,6 +1045,23 @@ const styles = StyleSheet.create({
   preOrderBadgeContainer: { position: 'relative' },
   preOrderButton: { borderRadius: 8, borderColor: '#2563eb' },
   filterToggleButton: { borderRadius: 8 },
+  logButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  logBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -8,
+    backgroundColor: '#dc2626',
+  },
   preOrderBadge: {
     position: 'absolute',
     top: -8,

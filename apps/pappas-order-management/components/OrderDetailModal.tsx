@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity, useWindowDimensions, Alert, ActivityIndicator, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Button as PaperButton, IconButton, Surface, Card, Divider, Snackbar } from 'react-native-paper';
+import { Button as PaperButton, IconButton, Surface, Card, Divider } from 'react-native-paper';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { ReceiptTemplate } from './ReceiptTemplate';
 import { PrintSimulatorModal } from './PrintSimulatorModal';
@@ -25,6 +25,7 @@ import type { AppSettings } from '../lib/settings';
 import { DEFAULT_APP_SETTINGS } from '../lib/settings';
 import { useRouter } from 'expo-router';
 import { getOrder } from '../lib/orders';
+import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
 
 interface OrderDetailModalProps {
   visible: boolean;
@@ -86,11 +87,13 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const isWide = width >= 920;
-  const [toastVisible, setToastVisible] = React.useState(false);
   const [isCapturing, setIsCapturing] = React.useState(false);
   const [printPreviewOrder, setPrintPreviewOrder] = React.useState<Order | null>(null);
   const receiptRef = React.useRef(null);
   const customerReceiptRef = React.useRef(null);
+  const orderPrintState = usePrinterAutomationStore((state) => (
+    order?.id ? state.orderPrintStates[order.id] || null : null
+  ));
 
   React.useEffect(() => {
     setPrintPreviewOrder(order);
@@ -144,6 +147,43 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     order.payment_status !== 'paid' &&
     order.order_status !== 'completed' &&
     order.order_status !== 'cancelled';
+  const printFeedbackTone = orderPrintState?.status === 'failed'
+    ? {
+        backgroundColor: '#fee2e2',
+        borderColor: '#fca5a5',
+        icon: 'alert-circle-outline' as const,
+        iconColor: '#b91c1c',
+        title: 'Print failed',
+        message: orderPrintState.error || 'The last print job failed.',
+      }
+    : orderPrintState?.status === 'printing'
+      ? {
+          backgroundColor: '#dbeafe',
+          borderColor: '#93c5fd',
+          icon: 'printer-outline' as const,
+          iconColor: '#1d4ed8',
+          title: 'Printing',
+          message: 'The printer is processing this order now.',
+        }
+      : orderPrintState?.status === 'queued'
+        ? {
+            backgroundColor: '#fef3c7',
+            borderColor: '#fcd34d',
+            icon: 'clock-outline' as const,
+            iconColor: '#b45309',
+            title: 'Queued for print',
+            message: 'This print job is waiting in the queue.',
+          }
+        : orderPrintState?.status === 'success'
+          ? {
+              backgroundColor: '#dcfce7',
+              borderColor: '#86efac',
+              icon: 'check-circle-outline' as const,
+              iconColor: '#15803d',
+              title: 'Printed',
+              message: 'The latest print job completed successfully.',
+            }
+          : null;
 
   const handleInternalPrint = async (printer?: SavedPrinter | null) => {
     let success = false;
@@ -183,11 +223,6 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       success = await onPrint(printOrder, printer);
     }
 
-    // Only show "Printing successful" toast if we are NOT in simulator mode
-    // (In simulator mode, the modal will show up instead)
-    if (success && !showSimulator && setShowSimulator) {
-      setToastVisible(true);
-    }
   };
 
   const handleCustomerCopyPrint = async (printer?: SavedPrinter | null) => {
@@ -283,6 +318,19 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
 
         <ScrollView style={styles.scrollContent} contentContainerStyle={[styles.scrollContainer, isWide && styles.scrollContainerWide]}>
           <View style={styles.contentStack}>
+            {printFeedbackTone ? (
+              <View style={[styles.printFeedbackBanner, { backgroundColor: printFeedbackTone.backgroundColor, borderColor: printFeedbackTone.borderColor }]}>
+                <MaterialCommunityIcons
+                  name={printFeedbackTone.icon}
+                  size={20}
+                  color={printFeedbackTone.iconColor}
+                />
+                <View style={styles.printFeedbackCopy}>
+                  <Text style={styles.printFeedbackTitle}>{printFeedbackTone.title}</Text>
+                  <Text style={styles.printFeedbackMessage}>{printFeedbackTone.message}</Text>
+                </View>
+              </View>
+            ) : null}
             <View style={[styles.summaryGrid, isWide && styles.summaryGridWide]}>
               <Card style={[styles.infoCard, isWide && styles.summaryCard]}>
                 <Card.Title title="Customer" titleStyle={styles.cardTitle} left={(props) => <IconButton {...props} icon="account" />} />
@@ -543,19 +591,6 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
           {renderActionButton()}
         </Surface>
 
-        <Snackbar
-          visible={toastVisible}
-          onDismiss={() => setToastVisible(false)}
-          duration={3000}
-          action={{
-            label: 'OK',
-            onPress: () => setToastVisible(false),
-          }}
-          style={styles.snackbar}
-        >
-          Printing successful
-        </Snackbar>
-
         {/* Hidden Receipt Template for capture */}
         <View style={styles.hiddenReceiptContainer} pointerEvents="none">
            <View ref={receiptRef} collapsable={false}>
@@ -647,6 +682,29 @@ const styles = StyleSheet.create({
   scrollContainer: { padding: 16, paddingBottom: 132 },
   scrollContainerWide: { padding: 18, paddingBottom: 96 },
   contentStack: { gap: 14 },
+  printFeedbackBanner: {
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  printFeedbackCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  printFeedbackTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  printFeedbackMessage: {
+    fontSize: 13,
+    color: '#334155',
+    lineHeight: 18,
+  },
   summaryGrid: { gap: 14 },
   summaryGridWide: { flexDirection: 'row', alignItems: 'stretch', gap: 14 },
   summaryCard: { flex: 1, alignSelf: 'stretch' },
@@ -716,9 +774,6 @@ const styles = StyleSheet.create({
   primaryActionButton: { minWidth: 220, borderRadius: 14, backgroundColor: '#10243f' },
   primaryActionButtonCompact: { flexGrow: 1 },
   primaryActionButtonContent: { height: 52 },
-  snackbar: {
-    marginBottom: 80, // Position above the action bar
-  },
   hiddenReceiptContainer: {
     position: 'absolute',
     top: -9999,

@@ -3,13 +3,14 @@ import { Alert } from 'react-native';
 import * as Print from 'expo-print';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { updateOrderStatus, updatePaymentStatus, getOrder, notifyDeliveryReady } from '@/lib/orders';
-import { escposPrintKitchenReceipt, escposPrintOrderImage, formatPrinterError } from '@/lib/escpos-printer';
+import { escposPrintKitchenReceipt, formatPrinterError } from '@/lib/escpos-printer';
 import type { SavedPrinter } from '@/lib/escpos-printer';
 import type { PrinterImageSource } from '@/lib/printer-image';
 import { buildSectionPrintJobs, getSectionPrintTickets, getSectionRoutingDebugLabel, hasAnySimulatorAssignment, resolvePrinterForSection, shouldSkipPrintForSection, shouldUseSimulatorForSection } from '@/lib/printer-routing';
 import { generatePrintHTML } from '@/utils/orderUtils';
 import { loadAppSettings, type AppSettings } from '@/lib/settings';
 import { formatSmartpayError, isSmartpayPaired, processSmartpayCardPayment } from '@/lib/smartpay';
+import { enqueuePreparedPrintJobs, waitForPrintJobs } from '@/lib/print-queue';
 
 const webBaseUrl = process.env.EXPO_PUBLIC_SITE_URL;
 const CLOSED_ORDER_STATUSES: OrderStatus[] = ['completed', 'cancelled'];
@@ -312,7 +313,21 @@ export const useOrderActions = (
       if (selectedPrinter) {
         if (effectiveSettings.printerEnabled) {
           const targetDots = effectiveSettings.printerPaperWidth === '58mm' ? 384 : 576;
-          await escposPrintOrderImage(image, selectedPrinter, 1, targetDots);
+          const queuedJobs = enqueuePreparedPrintJobs({
+            order,
+            source: 'manual',
+            scope: 'order-actions:manual-image-direct',
+            jobs: [{
+              image,
+              printer: selectedPrinter,
+              width: targetDots,
+              label: selectedPrinter.deviceName,
+            }],
+          });
+          const queueResult = await waitForPrintJobs(queuedJobs.map((job) => job.id));
+          if (!queueResult.success) {
+            throw new Error(queueResult.failedJobs[0]?.error || 'Queued print job failed');
+          }
           return true;
         }
         const html = generatePrintHTML(order);
@@ -340,7 +355,21 @@ export const useOrderActions = (
       if (effectiveSettings.printerEnabled) {
         try {
           const targetDots = effectiveSettings.printerPaperWidth === '58mm' ? 384 : 576;
-          await escposPrintOrderImage(image, firstPrinterJob.printer!, 1, targetDots);
+          const queuedJobs = enqueuePreparedPrintJobs({
+            order,
+            source: 'manual',
+            scope: 'order-actions:manual-image-routed',
+            jobs: [{
+              image,
+              printer: firstPrinterJob.printer!,
+              width: targetDots,
+              label: firstPrinterJob.printer!.deviceName,
+            }],
+          });
+          const queueResult = await waitForPrintJobs(queuedJobs.map((job) => job.id));
+          if (!queueResult.success) {
+            throw new Error(queueResult.failedJobs[0]?.error || 'Queued print job failed');
+          }
           return true;
         } catch (printerError) {
           console.error('Print image error:', printerError);

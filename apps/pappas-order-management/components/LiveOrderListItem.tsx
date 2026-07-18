@@ -14,6 +14,7 @@ import {
   getDeliveryStatusLabel,
 } from '../utils/constants';
 import { paymentSummary, getNextQuickAction, formatElapsed } from '../utils/orderUtils';
+import type { OrderPrintState } from '@/stores/printerAutomationStore';
 
 type LiveOrderCardLayout = 'horizontal' | 'vertical';
 
@@ -32,6 +33,7 @@ interface LiveOrderListItemProps {
   onStatusUpdate: (order: Order, status: OrderStatus) => void;
   onPaymentStatusUpdate: (orderId: string, status: PaymentStatus, paymentMethodDetail?: string | null) => void;
   layout?: LiveOrderCardLayout;
+  printState?: OrderPrintState | null;
 }
 
 export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
@@ -49,6 +51,7 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
   onStatusUpdate,
   onPaymentStatusUpdate,
   layout = 'horizontal',
+  printState = null,
 }) => {
   const isDeliveryOrder = order.order_type === 'delivery';
   const statusColor = STATUS_COLORS[order.order_status];
@@ -104,6 +107,15 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
     : /uber/i.test(deliveryPartnerLabel)
       ? { backgroundColor: '#ecfdf5', borderColor: '#34d399', textColor: '#047857' }
       : { backgroundColor: '#eff6ff', borderColor: '#60a5fa', textColor: '#1d4ed8' };
+  const printStateTone = printState?.status === 'failed'
+    ? { backgroundColor: '#fee2e2', textColor: '#b91c1c', borderColor: '#fca5a5', label: 'Print failed' }
+    : printState?.status === 'printing'
+      ? { backgroundColor: '#dbeafe', textColor: '#1d4ed8', borderColor: '#93c5fd', label: 'Printing...' }
+      : printState?.status === 'queued'
+        ? { backgroundColor: '#fef3c7', textColor: '#b45309', borderColor: '#fcd34d', label: 'Queued' }
+        : printState?.status === 'success'
+          ? { backgroundColor: '#dcfce7', textColor: '#15803d', borderColor: '#86efac', label: 'Printed' }
+          : null;
 
   const statusControls = (
     <View style={layout === 'vertical' ? styles.verticalStatusControls : styles.statusControls}>
@@ -185,7 +197,16 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
         <Card.Content style={styles.verticalCardContent}>
           <View style={styles.verticalHeader}>
             <View style={styles.verticalIdentity}>
-              <Text style={styles.orderNumber}>{getFriendlyOrderNumber(order.order_number)}</Text>
+              <View style={styles.orderTitleRow}>
+                <Text style={styles.orderNumber}>{getFriendlyOrderNumber(order.order_number)}</Text>
+                {printStateTone ? (
+                  <View style={[styles.printStateBadge, { backgroundColor: printStateTone.backgroundColor, borderColor: printStateTone.borderColor }]}>
+                    <Text style={[styles.printStateBadgeText, { color: printStateTone.textColor }]}>
+                      {printStateTone.label}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
               <TouchableOpacity onPress={() => onCustomerPress(order)}>
                 <Text style={styles.verticalCustomerName} numberOfLines={1}>
                   {order.customer_name || order.customer_email}
@@ -278,6 +299,13 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
           <View style={styles.identityBlock}>
             <View style={styles.titleRow}>
               <Text style={styles.orderNumber}>{getFriendlyOrderNumber(order.order_number)}</Text>
+              {printStateTone ? (
+                <View style={[styles.printStateBadge, { backgroundColor: printStateTone.backgroundColor, borderColor: printStateTone.borderColor }]}>
+                  <Text style={[styles.printStateBadgeText, { color: printStateTone.textColor }]}>
+                    {printStateTone.label}
+                  </Text>
+                </View>
+              ) : null}
               {isDeliveryOrder ? (
                 <View
                   style={[
@@ -417,10 +445,26 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 6,
   },
+  orderTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
   orderNumber: {
     fontSize: 18,
     fontWeight: '800',
     color: '#111827',
+  },
+  printStateBadge: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  printStateBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
   },
   metaRow: {
     marginTop: 3,

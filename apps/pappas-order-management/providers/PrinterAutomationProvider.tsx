@@ -15,9 +15,10 @@ import {
   releaseKitchenPrintClaim,
   updateOrderStatus,
 } from '@/lib/orders';
-import { escposPrintOrderImage, formatPrinterError } from '@/lib/escpos-printer';
+import { formatPrinterError } from '@/lib/escpos-printer';
 import { captureReceiptForPrinter, captureReceiptPreview, type PrinterImageSource } from '@/lib/printer-image';
 import { buildSectionPrintJobs, hasAnySimulatorAssignment } from '@/lib/printer-routing';
+import { enqueuePreparedPrintJobs, processNextPendingPrintJob, waitForPrintJobs } from '@/lib/print-queue';
 import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
 import { shouldPlayOrderSound } from '@/utils/orderUtils';
@@ -29,10 +30,10 @@ import { usePrinterAutomationStore, type JournalLevel } from '@/stores/printerAu
 type TimeoutHandle = ReturnType<typeof setTimeout>;
 type JournalOrderRef = { id: string; order_number?: string | null };
 
-const SECTION_PRINT_DELAY_MS = 1500;
 const PRINT_CLAIM_STALE_AFTER_SECONDS = 15;
 const RECEIPT_REF_WAIT_MS = 120;
 const RECEIPT_REF_MAX_ATTEMPTS = 8;
+const RECEIPT_RENDER_SETTLE_MS = 300;
 
 export function PrinterAutomationProvider({ children }: PropsWithChildren) {
   const queryClient = useQueryClient();
@@ -44,7 +45,6 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
   const soundedOrderIdsRef = useRef<Set<string>>(new Set());
   const autoPrintingOrderIdsRef = useRef<Set<string>>(new Set());
   const autoPrintedOrderIdsRef = useRef<Set<string>>(new Set());
-  const printQueueRef = useRef<Promise<void>>(Promise.resolve());
   const printDeviceIdRef = useRef<string | null>(null);
   const lastAutoStatusAlertAtRef = useRef<number>(0);
   const preOrderNoticeTimeoutRef = useRef<TimeoutHandle | null>(null);
@@ -57,6 +57,9 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
   const dismissToast = usePrinterAutomationStore((state) => state.dismissToast);
   const showToast = usePrinterAutomationStore((state) => state.showToast);
   const addJournalEntry = usePrinterAutomationStore((state) => state.addJournalEntry);
+  const printJobs = usePrinterAutomationStore((state) => state.printJobs);
+  const activePrintJobId = usePrinterAutomationStore((state) => state.activePrintJobId);
+  const pruneRuntimeState = usePrinterAutomationStore((state) => state.pruneRuntimeState);
   const setPreOrderSkipNotice = usePrinterAutomationStore((state) => state.setPreOrderSkipNotice);
   const autoPrintSimulator = usePrinterAutomationStore((state) => state.autoPrintSimulator);
   const showAutoPrintSimulator = usePrinterAutomationStore((state) => state.showAutoPrintSimulator);
@@ -78,9 +81,11 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
     });
   }, [addJournalEntry]);
 
+  const formatDurationMs = useCallback((startedAt: number) => `${Date.now() - startedAt}ms`, []);
+
   const notifyAutoPrintError = useCallback((order: JournalOrderRef, reason: string) => {
     const orderLabel = getFriendlyOrderNumber(order.order_number, order.id);
-    showToast(`Auto print failed for ${orderLabel}: ${reason}`);
+    showToast(`Auto print failed for ${orderLabel}: ${reason}`, 'error');
     logOrderEvent('error', 'auto-print', 'Auto print failed', {
       order,
       details: reason,
@@ -113,9 +118,9 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
   }, [appSettings.soundEnabled, appSettings.soundId, appSettings.soundRepeatCount]);
 
   const quickPrintAutoOrder = useCallback(async (order: Order) => {
-    let releasePrintQueue = () => {};
     let claimedDeviceId: string | null = null;
     let shouldReleaseClaim = false;
+    const workflowStartedAt = Date.now();
 
     try {
       if (autoPrintedOrderIdsRef.current.has(order.id) || autoPrintingOrderIdsRef.current.has(order.id)) {
@@ -178,24 +183,28 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
         });
       }
 
-      const previousPrint = printQueueRef.current;
-      printQueueRef.current = new Promise<void>((resolve) => {
-        releasePrintQueue = resolve;
-      });
-      await previousPrint.catch(() => undefined);
-
       setTempPrintingOrder(freshOrder);
       setTempPrintSource('printer-automation:auto-print');
       const targetDots = effectiveSettings.printerPaperWidth === '58mm' ? 384 : 576;
       const scale = effectiveSettings.printerHighQuality ? 2 : 1;
       const jobs = buildSectionPrintJobs(effectiveSettings, freshOrder);
+      logOrderEvent('info', 'print', 'Auto-print queue acquired', {
+        order: freshOrder,
+        details: `jobs=${jobs.length}`,
+      });
       const capturedJobs: Array<{ image: PrinterImageSource; previewUri: string | null; label: string; useSimulator: boolean; printer: NonNullable<ReturnType<typeof buildSectionPrintJobs>[number]['printer']> | null }> = [];
 
       for (const job of jobs) {
+        const jobStartedAt = Date.now();
         setTempPrintTicketIndex(job.onlyTicketIndex ?? 0);
         setTempPrintDuplicateBySections(job.duplicateBySections);
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        await new Promise((resolve) => setTimeout(resolve, RECEIPT_RENDER_SETTLE_MS));
+        logOrderEvent('info', 'print', 'Prepared receipt template for auto-print job', {
+          order: freshOrder,
+          details: `job=${job.label} renderSettle=${formatDurationMs(jobStartedAt)}`,
+        });
 
+        const refWaitStartedAt = Date.now();
         const receiptRef = await waitForReceiptTemplateRef();
         if (!receiptRef) {
           logOrderEvent('error', 'print', 'Receipt template ref was not ready for capture', {
@@ -204,9 +213,18 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
           });
           throw new Error('Receipt template is still loading. Please try again.');
         }
+        logOrderEvent('info', 'print', 'Receipt template ref resolved for auto-print job', {
+          order: freshOrder,
+          details: `job=${job.label} wait=${formatDurationMs(refWaitStartedAt)}`,
+        });
 
         if (job.useSimulator || !job.printer) {
+          const captureStartedAt = Date.now();
           const uri = await captureReceiptPreview(receiptRef, targetDots * scale);
+          logOrderEvent('info', 'print', 'Captured simulator preview for auto-print job', {
+            order: freshOrder,
+            details: `job=${job.label} capture=${formatDurationMs(captureStartedAt)} width=${targetDots * scale}`,
+          });
           capturedJobs.push({
             image: { kind: 'uri', uri },
             previewUri: uri,
@@ -215,8 +233,13 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
             printer: job.printer,
           });
         } else {
+          const captureStartedAt = Date.now();
           const image = await captureReceiptForPrinter(receiptRef, job.printer, targetDots * scale);
           const previewUri = image.kind === 'uri' ? image.uri : await captureReceiptPreview(receiptRef, targetDots * scale);
+          logOrderEvent('info', 'print', 'Captured receipt image for auto-print job', {
+            order: freshOrder,
+            details: `job=${job.label} capture=${formatDurationMs(captureStartedAt)} printer=${job.printer.deviceName} driver=${job.printer.driver ?? 'epsonSdk'}`,
+          });
           capturedJobs.push({
             image,
             previewUri,
@@ -266,11 +289,21 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
           details: `${printerJobs.length} image(s) using section printer routing`,
         });
 
-        for (let index = 0; index < printerJobs.length; index++) {
-          await escposPrintOrderImage(printerJobs[index].image, printerJobs[index].printer, 1, targetDots);
-          if (index < printerJobs.length - 1) {
-            await new Promise((resolve) => setTimeout(resolve, SECTION_PRINT_DELAY_MS));
-          }
+        const queuedJobs = enqueuePreparedPrintJobs({
+          order: freshOrder,
+          source: 'auto',
+          scope: 'auto-print',
+          jobs: printerJobs.map((job) => ({
+            image: job.image,
+            printer: job.printer,
+            width: targetDots,
+            label: job.printer.deviceName,
+          })),
+          silentSuccess: true,
+        });
+        const queueResult = await waitForPrintJobs(queuedJobs.map((job) => job.id));
+        if (!queueResult.success) {
+          throw new Error(queueResult.failedJobs[0]?.error || 'Queued print job failed');
         }
       }
 
@@ -280,7 +313,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
           const now = Date.now();
           if (now - lastAutoStatusAlertAtRef.current > 4000) {
             lastAutoStatusAlertAtRef.current = now;
-            showToast(`Printed order, but auto status update failed: ${statusResult.error}`);
+            showToast(`Printed order, but auto status update failed: ${statusResult.error}`, 'error');
           }
         } else {
           logOrderEvent('success', 'status', 'Moved order to preparing after auto-print', {
@@ -304,10 +337,14 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
       autoPrintedOrderIdsRef.current.add(order.id);
       logOrderEvent('success', 'print', 'Auto-print workflow completed', {
         order: freshOrder,
-        details: `${capturedJobs.length} receipt image(s) processed`,
+        details: `${capturedJobs.length} receipt image(s) processed in ${formatDurationMs(workflowStartedAt)}`,
       });
     } catch (error) {
       processedOrderIdsRef.current.delete(order.id);
+      logOrderEvent('error', 'print', 'Auto-print workflow failed', {
+        order,
+        details: `after=${formatDurationMs(workflowStartedAt)} reason=${formatPrinterError(error)}`,
+      });
       notifyAutoPrintError(order, formatPrinterError(error) || 'Failed to print order.');
     } finally {
       if (claimedDeviceId && shouldReleaseClaim) {
@@ -316,7 +353,10 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
           console.error('Failed to release kitchen print claim:', released.error);
         }
       }
-      releasePrintQueue();
+      setTempPrintingOrder(null);
+      setTempPrintSource(null);
+      setTempPrintTicketIndex(0);
+      setTempPrintDuplicateBySections(false);
       autoPrintingOrderIdsRef.current.delete(order.id);
     }
   }, [appSettings, logOrderEvent, notifyAutoPrintError, showAutoPrintSimulator, showToast, waitForReceiptTemplateRef]);
@@ -429,6 +469,22 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
   }, []);
 
   useEffect(() => {
+    if (activePrintJobId) return;
+    const pendingJobs = printJobs.filter((job) => job.status === 'queued');
+    if (pendingJobs.length === 0) return;
+
+    void processNextPendingPrintJob();
+  }, [activePrintJobId, printJobs]);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      pruneRuntimeState();
+    }, 60 * 1000);
+
+    return () => clearInterval(intervalId);
+  }, [pruneRuntimeState]);
+
+  useEffect(() => {
     const subscription = supabase
       .channel('printer-automation-orders')
       .on(
@@ -539,6 +595,13 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
         visible={autoPrintToast.visible}
         onDismiss={dismissToast}
         duration={5000}
+        style={{
+          backgroundColor: autoPrintToast.level === 'error'
+            ? '#991b1b'
+            : autoPrintToast.level === 'success'
+              ? '#166534'
+              : '#1f2937',
+        }}
         action={{
           label: 'Dismiss',
           onPress: dismissToast,
