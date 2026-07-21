@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { generateMarketingEmail } from '@/lib/google-genai';
+import { getBrandSettings } from '@/lib/brand-settings';
 
 export async function POST(request: Request) {
   try {
@@ -9,7 +10,12 @@ export async function POST(request: Request) {
       discountPercentage: number;
     } = await request.json();
 
-    const storeName = process.env.NEXT_PUBLIC_STORE_NAME || 'Our Store';
+    const brandSettings = await getBrandSettings();
+    const storeName =
+      process.env.NEXT_PUBLIC_STORE_NAME
+      || process.env.STORE_NAME
+      || brandSettings?.business_name
+      || "Pappa's Ocean Catch";
     const storePhone = process.env.NEXT_PUBLIC_STORE_PHONE || process.env.STORE_PHONE || '(03) 9743 8150';
     const storeAddress =
       process.env.NEXT_PUBLIC_STORE_ADDRESS

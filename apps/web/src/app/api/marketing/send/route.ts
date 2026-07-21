@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@my-small-business/supabase/server';
 import { Resend } from 'resend';
 import { sendSmsMessage } from '@/lib/sms';
+import { getBrandSettings } from '@/lib/brand-settings';
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const DUPLICATE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
@@ -129,7 +130,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Email service is not configured' }, { status: 500 });
     }
 
-    const storeName = process.env.NEXT_PUBLIC_STORE_NAME || 'Our Store';
+    const brandSettings = await getBrandSettings();
+    const storeName =
+      process.env.NEXT_PUBLIC_STORE_NAME
+      || process.env.STORE_NAME
+      || brandSettings?.business_name
+      || "Pappa's Ocean Catch";
     const storePhone = process.env.NEXT_PUBLIC_STORE_PHONE || process.env.STORE_PHONE || '(03) 9743 8150';
     const storeAddress =
       process.env.NEXT_PUBLIC_STORE_ADDRESS
