@@ -59,6 +59,7 @@ type ListRow =
 
 const RECEIPT_REF_WAIT_MS = 120;
 const RECEIPT_REF_MAX_ATTEMPTS = 8;
+const DELIVERY_STATUS_SYNC_INTERVAL_MS = 10_000;
 
 export default function LiveOrdersScreen() {
   const router = useRouter();
@@ -80,6 +81,7 @@ export default function LiveOrdersScreen() {
   const [showPrintLogs, setShowPrintLogs] = useState(false);
   const [refreshingDeliveryIds, setRefreshingDeliveryIds] = useState<string[]>([]);
   const globalReceiptRef = useRef(null);
+  const lastDeliverySyncAtRef = useRef(0);
 
   const queryClient = useQueryClient();
   const countdownIntervalRef = useRef<TimeoutHandle | null>(null);
@@ -124,6 +126,7 @@ export default function LiveOrdersScreen() {
       if (result.error) {
         Alert.alert('Error', result.error.message);
       } else if (result.data) {
+        lastDeliverySyncAtRef.current = Date.now();
         void syncDeliveryStatuses(result.data);
       }
     } finally {
@@ -465,6 +468,8 @@ export default function LiveOrdersScreen() {
 
   useEffect(() => {
     if (orders.length === 0) return;
+    if (Date.now() - lastDeliverySyncAtRef.current < DELIVERY_STATUS_SYNC_INTERVAL_MS) return;
+    lastDeliverySyncAtRef.current = Date.now();
     void syncDeliveryStatuses(orders);
   }, [dataUpdatedAt]);
 

@@ -3,6 +3,7 @@
 import { getShipdayClient } from '@my-small-business/shipday';
 import { createServiceRoleClient } from '@my-small-business/supabase/server';
 import type { Order } from '@my-small-business/types';
+import { getShipdayPayloadHash } from '@/lib/shipday-event-dedupe';
 
 export async function createShipdayOrder(orderId: string) {
   try {
@@ -255,6 +256,38 @@ export async function refreshShipdayOrderStatus(orderId: string) {
     const client = getShipdayClient();
     const res = await client.getDeliveryStatus(String(order.delivery_provider_id));
     const normalizedStatus = mapShipdayStatus(res.status);
+    const payloadHash = getShipdayPayloadHash((res.raw ?? {
+      delivery_id: res.delivery_id,
+      order_number: res.order_number || null,
+      status: res.status,
+      tracking_url: res.tracking_url || null,
+      driver_name: res.driver_name || null,
+      driver_phone: res.driver_phone || null,
+      driver_pin: res.driver_pin || null,
+      vehicle_info: res.vehicle_info || null,
+    }) as any);
+
+    const { data: latestMatchingEvent } = await supabase
+      .from('order_events')
+      .select('id, payload_hash')
+      .eq('source', 'shipday')
+      .eq('order_id', order.id)
+      .eq('external_delivery_id', String(order.delivery_provider_id))
+      .eq('payload_hash', payloadHash)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (latestMatchingEvent) {
+      return {
+        success: true,
+        skippedDuplicatePayload: true,
+        synced: false,
+        status: normalizedStatus,
+        trackingUrl: order.delivery_tracking_url || null,
+        order,
+      };
+    }
 
     const updatePayload: Record<string, string | null> = {
       delivery_status: normalizedStatus,
@@ -292,6 +325,7 @@ export async function refreshShipdayOrderStatus(orderId: string) {
       message: outOfSync ? 'Delivery status refreshed from Shipday and local order updated' : 'Delivery status refreshed from Shipday',
       external_order_number: order.order_number,
       external_delivery_id: String(order.delivery_provider_id),
+      payload_hash: payloadHash,
       details: res.raw || {
         delivery_id: res.delivery_id,
         tracking_url: res.tracking_url || null,

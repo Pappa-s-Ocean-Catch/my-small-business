@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@my-small-business/supabase/server';
+import { getShipdayPayloadHash } from '@/lib/shipday-event-dedupe';
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
@@ -142,6 +143,36 @@ export async function POST(request: Request) {
   }
 
   const normalizedStatus = mapShipdayStatus(rawStatus, rawEventType) ?? matchedOrderStatus ?? 'pending';
+  const payloadHash = getShipdayPayloadHash(body);
+
+  if (orderId || externalDeliveryId) {
+    let duplicateQuery = supabase
+      .from('order_events')
+      .select('id, payload_hash')
+      .eq('source', 'shipday')
+      .eq('payload_hash', payloadHash)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (orderId) {
+      duplicateQuery = duplicateQuery.eq('order_id', orderId);
+    } else if (externalDeliveryId) {
+      duplicateQuery = duplicateQuery.eq('external_delivery_id', externalDeliveryId);
+    }
+
+    const { data: latestMatchingEvent } = await duplicateQuery.maybeSingle();
+
+    if (latestMatchingEvent) {
+      return NextResponse.json({
+        success: true,
+        skippedDuplicatePayload: true,
+        matched_order_id: orderId,
+        external_delivery_id: externalDeliveryId,
+        external_order_number: externalOrderNumber,
+        delivery_status: normalizedStatus,
+      });
+    }
+  }
 
   if (orderId) {
     const updatePayload: Record<string, string | null> = {
@@ -186,6 +217,7 @@ export async function POST(request: Request) {
     message,
     external_order_number: externalOrderNumber,
     external_delivery_id: externalDeliveryId,
+    payload_hash: payloadHash,
     details: body,
   });
 
