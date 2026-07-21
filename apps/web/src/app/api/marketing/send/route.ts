@@ -33,6 +33,10 @@ function fillTemplate(template: string, values: Record<string, string>) {
   );
 }
 
+function normalizeStorePlaceholders(template: string) {
+  return template.replace(/\bOur Store\b/gi, '{{STORE_NAME}}');
+}
+
 function stripHtml(value: string) {
   return value
     .replace(/<br\s*\/?>/gi, '\n')
@@ -100,6 +104,13 @@ export async function POST(request: NextRequest) {
       channels?: RequestedChannel[];
     };
 
+    console.log('[marketing/send] request received', {
+      customerCount: Array.isArray(customers) ? customers.length : 0,
+      discountPercentage,
+      channels,
+      customerIds: Array.isArray(customers) ? customers.map((customer) => customer.id) : [],
+    });
+
     const requestedChannels: RequestedChannel[] = Array.isArray(channels) && channels.length > 0
       ? Array.from(new Set(channels.filter((channel): channel is RequestedChannel => channel === 'email' || channel === 'sms')))
       : ['email'];
@@ -119,18 +130,28 @@ export async function POST(request: NextRequest) {
     }
 
     const storeName = process.env.NEXT_PUBLIC_STORE_NAME || 'Our Store';
+    const storePhone = process.env.NEXT_PUBLIC_STORE_PHONE || process.env.STORE_PHONE || '(03) 9743 8150';
+    const storeAddress =
+      process.env.NEXT_PUBLIC_STORE_ADDRESS
+      || process.env.NEXT_PUBLIC_STORE_ADDRESS_LINE1
+      || process.env.STORE_ADDRESS_LINE1
+      || 'Shop 2/87 Unitt Street, Melton VIC 3337';
     const emailFrom = process.env.EMAIL_FROM || 'no-reply@pappasfishnchips.com.au';
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
     const hmacSecret = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.RESEND_API_KEY || 'default_secret';
     const defaultSubject = customSubject || `A ${discountPercentage}% thank-you offer from ${storeName}`;
     const defaultHtmlBody = customHtmlBody || `
       <p>Hi {{CUSTOMER_NAME}},</p>
-      <p>Here is your ${discountPercentage}% off discount!</p>
-      <p>Use code: <strong>{{COUPON_CODE}}</strong> at checkout.</p>
-      <a href="{{STORE_LINK}}">Shop Now</a>
+      <p>{{STORE_NAME}} has a special ${discountPercentage}% off offer just for you.</p>
+      <p>Use code: <strong>{{COUPON_CODE}}</strong> when ordering online.</p>
+      <p><a href="{{STORE_LINK}}">Order online now</a></p>
+      <p>Prefer to call? Phone us on <strong>{{STORE_PHONE}}</strong> and mention your code.</p>
+      <p>Want to visit? Come and see us at <strong>{{STORE_ADDRESS}}</strong>.</p>
       <br><br><small><a href="{{UNSUBSCRIBE_LINK}}">Unsubscribe from marketing emails</a></small>
     `;
-    const defaultSmsBody = customSmsBody || `Hi {{CUSTOMER_NAME}}, enjoy ${discountPercentage}% off with code {{COUPON_CODE}}. Order here: {{STORE_LINK}}`;
+    const defaultSmsBody =
+      customSmsBody
+      || `Hi {{CUSTOMER_NAME}}, enjoy ${discountPercentage}% off at {{STORE_NAME}} with code {{COUPON_CODE}}. Order online: {{STORE_LINK}}. Phone order: {{STORE_PHONE}}. Visit us: {{STORE_ADDRESS}}`;
 
     const uniqueCustomerIds = Array.from(
       new Set(
@@ -146,6 +167,7 @@ export async function POST(request: NextRequest) {
       .in('id', uniqueCustomerIds);
 
     if (profilesError) {
+      console.error('[marketing/send] failed to load profiles', profilesError);
       return NextResponse.json({ error: profilesError.message }, { status: 500 });
     }
 
@@ -165,10 +187,12 @@ export async function POST(request: NextRequest) {
       try {
         const profile = profileMap.get(customer.id);
         if (!profile) {
+          console.warn('[marketing/send] profile missing', { customerId: customer.id });
           results.push({ customer, success: false, error: 'Customer profile not found' });
           continue;
         }
         if (profile.opt_in_marketing === false) {
+          console.warn('[marketing/send] opted out', { customerId: customer.id });
           results.push({ customer, success: false, skippedChannels: requestedChannels, error: 'Customer opted out of marketing' });
           continue;
         }
@@ -194,6 +218,12 @@ export async function POST(request: NextRequest) {
             missingChannels.length > 0 ? `missing ${missingChannels.join('/')}` : null,
             skippedForDuplicate.length > 0 ? `recently sent via ${skippedForDuplicate.join('/')}` : null,
           ].filter(Boolean).join('; ');
+          console.warn('[marketing/send] no eligible channel', {
+            customerId: customer.id,
+            missingChannels,
+            skippedForDuplicate,
+            requestedChannels,
+          });
           results.push({
             customer,
             success: false,
@@ -213,6 +243,9 @@ export async function POST(request: NextRequest) {
           COUPON_CODE: couponCode,
           STORE_LINK: storeLink,
           UNSUBSCRIBE_LINK: unsubscribeLink,
+          STORE_NAME: storeName,
+          STORE_PHONE: storePhone,
+          STORE_ADDRESS: storeAddress,
         };
 
         const startsAt = new Date();
@@ -234,13 +267,17 @@ export async function POST(request: NextRequest) {
         });
 
         if (couponError) {
+          console.error('[marketing/send] coupon creation failed', {
+            customerId: customer.id,
+            couponError,
+          });
           results.push({ customer, success: false, error: `Failed to create coupon: ${couponError.message}` });
           continue;
         }
 
-        const finalSubject = fillTemplate(defaultSubject, replacements);
-        const finalHtmlBody = fillTemplate(defaultHtmlBody, replacements);
-        const finalSmsBody = stripHtml(fillTemplate(defaultSmsBody, replacements));
+        const finalSubject = fillTemplate(normalizeStorePlaceholders(defaultSubject), replacements);
+        const finalHtmlBody = fillTemplate(normalizeStorePlaceholders(defaultHtmlBody), replacements);
+        const finalSmsBody = stripHtml(fillTemplate(normalizeStorePlaceholders(defaultSmsBody), replacements));
         const succeededChannels: RequestedChannel[] = [];
 
         if (dedupedChannels.includes('email')) {
@@ -252,6 +289,11 @@ export async function POST(request: NextRequest) {
           });
 
           if (emailError) {
+            console.error('[marketing/send] email send failed', {
+              customerId: customer.id,
+              email: resolvedEmail,
+              emailError,
+            });
             throw new Error(`Failed to send email: ${emailError.message}`);
           }
 
@@ -259,11 +301,20 @@ export async function POST(request: NextRequest) {
         }
 
         if (dedupedChannels.includes('sms')) {
-          await sendSmsMessage({
-            phone: resolvedPhone,
-            message: finalSmsBody,
-            customRef: `marketing-${customer.id}`,
-          });
+          try {
+            await sendSmsMessage({
+              phone: resolvedPhone,
+              message: finalSmsBody,
+              customRef: `marketing-${customer.id}`,
+            });
+          } catch (smsError) {
+            console.error('[marketing/send] sms send failed', {
+              customerId: customer.id,
+              phone: resolvedPhone,
+              smsError,
+            });
+            throw smsError;
+          }
           succeededChannels.push('sms');
         }
 
@@ -287,6 +338,13 @@ export async function POST(request: NextRequest) {
           }
         }
 
+        console.log('[marketing/send] customer success', {
+          customerId: customer.id,
+          succeededChannels,
+          missingChannels,
+          skippedForDuplicate,
+        });
+
         results.push({
           customer,
           success: true,
@@ -294,9 +352,19 @@ export async function POST(request: NextRequest) {
           skippedChannels: ([] as RequestedChannel[]).concat(missingChannels, skippedForDuplicate),
         });
       } catch (err) {
+        console.error('[marketing/send] customer failure', {
+          customerId: customer.id,
+          error: err instanceof Error ? err.message : err,
+        });
         results.push({ customer, success: false, error: err instanceof Error ? err.message : 'Unknown error' });
       }
     }
+
+    console.log('[marketing/send] completed', {
+      successCount: results.filter((item) => item.success).length,
+      failedCount: results.filter((item) => !item.success).length,
+      results,
+    });
 
     return NextResponse.json({ success: true, results });
   } catch (error) {

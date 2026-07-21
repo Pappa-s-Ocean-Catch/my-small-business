@@ -16,6 +16,22 @@ export type MarketingGenerateResult = {
   smsBody: string;
 };
 
+function buildFallbackMarketingCampaign(discountPercentage: number): MarketingGenerateResult {
+  return {
+    subject: `Enjoy ${discountPercentage}% off at {{STORE_NAME}}`,
+    htmlBody: [
+      '<p>Hi {{CUSTOMER_NAME}},</p>',
+      `<p>{{STORE_NAME}} has a special ${discountPercentage}% off offer just for you.</p>`,
+      '<p>Use code <strong>{{COUPON_CODE}}</strong> when ordering online.</p>',
+      '<p><a href="{{STORE_LINK}}">Order online now</a></p>',
+      '<p>Prefer to call? Phone us on <strong>{{STORE_PHONE}}</strong> and mention your code.</p>',
+      '<p>Want to visit? Come and see us at <strong>{{STORE_ADDRESS}}</strong>.</p>',
+      '<br><small><a href="{{UNSUBSCRIBE_LINK}}">Unsubscribe from marketing emails</a></small>',
+    ].join(''),
+    smsBody: `Hi {{CUSTOMER_NAME}}, enjoy ${discountPercentage}% off at {{STORE_NAME}} with code {{COUPON_CODE}}. Order online: {{STORE_LINK}}. Phone order: {{STORE_PHONE}}. Visit us: {{STORE_ADDRESS}}`,
+  };
+}
+
 export async function getMarketingAccessToken() {
   const { data: { session }, error } = await supabase.auth.getSession();
   if (error || !session?.access_token) {
@@ -26,22 +42,28 @@ export async function getMarketingAccessToken() {
 }
 
 export async function generateMarketingCampaign(discountPercentage: number): Promise<MarketingGenerateResult> {
-  const response = await fetch(getApiUrl('/api/marketing/generate'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ discountPercentage }),
-  });
+  try {
+    const url = getApiUrl('/api/marketing/generate');
+    console.log('[marketing] generateMarketingCampaign url', { url });
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ discountPercentage }),
+    });
 
-  const payload = await response.json().catch(() => null) as Partial<MarketingGenerateResult> & { error?: string } | null;
-  if (!response.ok || !payload?.subject || !payload?.htmlBody || !payload?.smsBody) {
-    throw new Error(payload?.error || 'Failed to generate marketing content');
+    const payload = await response.json().catch(() => null) as Partial<MarketingGenerateResult> & { error?: string } | null;
+    if (!response.ok) {
+      throw new Error(payload?.error || 'Failed to generate marketing content');
+    }
+
+    return {
+      subject: payload?.subject?.trim() || buildFallbackMarketingCampaign(discountPercentage).subject,
+      htmlBody: payload?.htmlBody?.trim() || buildFallbackMarketingCampaign(discountPercentage).htmlBody,
+      smsBody: payload?.smsBody?.trim() || buildFallbackMarketingCampaign(discountPercentage).smsBody,
+    };
+  } catch {
+    return buildFallbackMarketingCampaign(discountPercentage);
   }
-
-  return {
-    subject: payload.subject,
-    htmlBody: payload.htmlBody,
-    smsBody: payload.smsBody,
-  };
 }
 
 export async function generateMarketingImage(params: {
@@ -50,7 +72,9 @@ export async function generateMarketingImage(params: {
   discountPercentage: number;
 }) {
   const token = await getMarketingAccessToken();
-  const response = await fetch(getApiUrl('/api/ai/generate-image'), {
+  const url = getApiUrl('/api/ai/generate-image');
+  console.log('[marketing] generateMarketingImage url', { url });
+  const response = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -82,7 +106,16 @@ export async function sendMarketingCampaign(params: {
   channels: MarketingChannel[];
 }) {
   const token = await getMarketingAccessToken();
-  const response = await fetch(getApiUrl('/api/marketing/send'), {
+  const url = getApiUrl('/api/marketing/send');
+  console.log('[marketing] sendMarketingCampaign request', {
+    url,
+    customerCount: params.customers.length,
+    channels: params.channels,
+    discountPercentage: params.discountPercentage,
+    customerIds: params.customers.map((customer) => customer.id),
+  });
+
+  const response = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -93,8 +126,20 @@ export async function sendMarketingCampaign(params: {
 
   const payload = await response.json().catch(() => null) as {
     error?: string;
-    results?: Array<{ success?: boolean }>;
+    results?: Array<{
+      success?: boolean;
+      error?: string;
+      channels?: MarketingChannel[];
+      skippedChannels?: MarketingChannel[];
+      customer?: { id?: string; email?: string | null; phone?: string | null };
+    }>;
   } | null;
+
+  console.log('[marketing] sendMarketingCampaign response', {
+    ok: response.ok,
+    status: response.status,
+    payload,
+  });
 
   if (!response.ok) {
     throw new Error(payload?.error || 'Failed to send marketing campaign');

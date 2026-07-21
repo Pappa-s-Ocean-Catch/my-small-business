@@ -459,9 +459,13 @@ export async function analyzeAndEnhanceImage(imageBase64: string, prompt: string
 export async function generateMarketingEmail({
   discountPercentage,
   storeName,
+  storePhone,
+  storeAddress,
 }: {
   discountPercentage: number;
   storeName: string;
+  storePhone: string;
+  storeAddress: string;
 }): Promise<{ subject: string; htmlBody: string; smsBody: string; error?: string }> {
   try {
     const genAI = getGoogleGenAI();
@@ -472,21 +476,35 @@ export async function generateMarketingEmail({
       Write a short, engaging marketing email template to send to customers.
       Offer them a special ${discountPercentage}% off discount as a token of appreciation.
       The coupon is valid for 1 week and can only be used once.
-      Include a clear call to action to visit our online store and use the code.
+      Include clear call to actions for:
+      - ordering online
+      - calling the shop to place a phone order
+      - visiting the shop in person
       
       CRITICAL INSTRUCTIONS:
       Use exact placeholders where dynamic customer data will be inserted:
       - For the customer's name, use exactly: {{CUSTOMER_NAME}}
       - For the discount code, use exactly: {{COUPON_CODE}}
+      - For the shop name, use exactly: {{STORE_NAME}}
+      - For the shop phone, use exactly: {{STORE_PHONE}}
+      - For the shop address, use exactly: {{STORE_ADDRESS}}
       
       Format the response strictly as a JSON object with two fields:
       - "subject": A catchy email subject line.
       - "htmlBody": The HTML content of the email (do not include <html>, <head>, or <body> tags, just the inner content with basic styling like <strong>, <p>, <br/>, <a>, and <div>). 
         - You must include a placeholder {{STORE_LINK}} in the <a> tag href which will be replaced later.
+        - You must mention the shop phone {{STORE_PHONE}} and shop address {{STORE_ADDRESS}}.
         - You MUST include a small, discreet unsubscribe link at the very bottom of the email. The href for the unsubscribe link must be exactly {{UNSUBSCRIBE_LINK}}.
+        - Do not write the literal phrase "Our Store"; always use {{STORE_NAME}} instead.
       - "smsBody": A concise SMS version under 320 characters.
-        - It must include the placeholders {{CUSTOMER_NAME}}, {{COUPON_CODE}}, and {{STORE_LINK}}.
+        - It must include the placeholders {{CUSTOMER_NAME}}, {{COUPON_CODE}}, {{STORE_LINK}}, {{STORE_NAME}}, {{STORE_PHONE}}, and {{STORE_ADDRESS}}.
         - Do not mention unsubscribe links in the SMS copy.
+        - Do not write the literal phrase "Our Store"; always use {{STORE_NAME}} instead.
+
+      Shop details:
+      - Store name: ${storeName}
+      - Store phone: ${storePhone}
+      - Store address: ${storeAddress}
       
       Return only the valid JSON, no markdown formatting blocks.`;
     for (const modelName of modelsToTry) {

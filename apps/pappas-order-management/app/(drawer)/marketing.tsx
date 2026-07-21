@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Image, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { Appbar, Button, Card, Checkbox, Chip, HelperText, List, Searchbar, SegmentedButtons, Surface, Text, TextInput } from 'react-native-paper';
+import { Alert, Image, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Appbar, Button, Card, Checkbox, Chip, HelperText, Searchbar, SegmentedButtons, Surface, Text, TextInput } from 'react-native-paper';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { Customer, getRecentCustomers, searchCustomers } from '@/lib/customers';
@@ -11,6 +11,14 @@ type MarketingCustomer = Customer & {
   optInMarketing?: boolean;
   lastMarketingEmailSentAt?: string | null;
   lastMarketingSmsSentAt?: string | null;
+};
+
+type SortOption = 'last-order' | 'last-email' | 'last-sms' | 'total-orders';
+type SortDirection = 'asc' | 'desc';
+
+type CustomerRow = {
+  customer: MarketingCustomer;
+  listKey: string;
 };
 
 const PAGE_SIZE = 25;
@@ -35,23 +43,112 @@ function htmlToPlainText(value: string) {
     .trim();
 }
 
+function sortCustomerRows(rows: CustomerRow[], sortOption: SortOption, sortDirection: SortDirection) {
+  const getTime = (value?: string | null) => {
+    if (!value) return 0;
+    const parsed = new Date(value).getTime();
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const sorted = [...rows].sort((a, b) => {
+    if (sortOption === 'last-email') {
+      return getTime(a.customer.lastMarketingEmailSentAt) - getTime(b.customer.lastMarketingEmailSentAt);
+    }
+    if (sortOption === 'last-sms') {
+      return getTime(a.customer.lastMarketingSmsSentAt) - getTime(b.customer.lastMarketingSmsSentAt);
+    }
+    if (sortOption === 'total-orders') {
+      return Number(b.customer.totalOrders || 0) - Number(a.customer.totalOrders || 0);
+    }
+    return getTime(a.customer.lastOrderDate) - getTime(b.customer.lastOrderDate);
+  });
+
+  return sortDirection === 'desc' ? sorted.reverse() : sorted;
+}
+
+function CustomerTable({
+  title,
+  rows,
+  selected,
+  emptyText,
+  onToggleCustomer,
+}: {
+  title: string;
+  rows: CustomerRow[];
+  selected: boolean;
+  emptyText: string;
+  onToggleCustomer: (customer: MarketingCustomer) => void;
+}) {
+  return (
+    <View style={styles.dualListColumn}>
+      <Text variant="titleSmall" style={styles.columnTitle}>{title}</Text>
+      {rows.length === 0 ? <Text style={styles.emptyColumnText}>{emptyText}</Text> : null}
+      <View style={styles.tableHeader}>
+        <Text style={[styles.tableHeaderText, styles.colName]}>Customer</Text>
+        <Text style={[styles.tableHeaderText, styles.colOrders]}>Orders</Text>
+        <Text style={[styles.tableHeaderText, styles.colDate]}>Last Order</Text>
+        <Text style={[styles.tableHeaderText, styles.colDate]}>Email</Text>
+        <Text style={[styles.tableHeaderText, styles.colDate]}>SMS</Text>
+        <Text style={[styles.tableHeaderText, styles.colAction]}>Action</Text>
+      </View>
+
+      {rows.map(({ customer, listKey }) => (
+        <View
+          key={selected ? `${listKey}-selected` : listKey}
+          style={[styles.tableRow, selected ? styles.selectedListItem : null]}
+        >
+          <View style={styles.colName}>
+            <View style={styles.checkboxCell}>
+              <Checkbox status={selected ? 'checked' : 'unchecked'} disabled={!customer.profileId} />
+              <View style={styles.customerCell}>
+                <Text numberOfLines={1} style={styles.tablePrimaryText}>{customer.name || 'Customer'}</Text>
+                <Text numberOfLines={1} style={styles.tableSecondaryText}>{customer.email || customer.phone || 'No contact'}</Text>
+              </View>
+            </View>
+          </View>
+          <Text style={[styles.tableCellText, styles.colOrders]}>{customer.totalOrders || 0}</Text>
+          <Text style={[styles.tableCellText, styles.colDate]}>{formatDateLabel(customer.lastOrderDate)}</Text>
+          <Text style={[styles.tableCellText, styles.colDate]}>{formatDateLabel(customer.lastMarketingEmailSentAt)}</Text>
+          <Text style={[styles.tableCellText, styles.colDate]}>{formatDateLabel(customer.lastMarketingSmsSentAt)}</Text>
+          <View style={styles.colAction}>
+            {selected ? (
+              <Button compact mode="contained-tonal" onPress={() => onToggleCustomer(customer)}>
+                Remove
+              </Button>
+            ) : customer.optInMarketing === false ? (
+              <Chip compact>Opted out</Chip>
+            ) : (
+              <Button compact mode="contained" disabled={!customer.profileId} onPress={() => onToggleCustomer(customer)}>
+                Add
+              </Button>
+            )}
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export default function MarketingScreen() {
   const navigation = useNavigation<DrawerNavigationProp<any>>();
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
-  const [customers, setCustomers] = useState<MarketingCustomer[]>([]);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [allCustomers, setAllCustomers] = useState<MarketingCustomer[]>([]);
+  const [selectedCustomers, setSelectedCustomers] = useState<Map<string, MarketingCustomer>>(new Map());
+  const [sortOption, setSortOption] = useState<SortOption>('last-order');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const [discountPercentage, setDiscountPercentage] = useState('10');
   const [subject, setSubject] = useState('');
   const [emailBody, setEmailBody] = useState('');
   const [smsBody, setSmsBody] = useState('');
   const [imageBase64, setImageBase64] = useState<string | null>(null);
-  const [channels, setChannels] = useState<MarketingChannel[]>(['email']);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [generatingContent, setGeneratingContent] = useState(false);
   const [generatingImage, setGeneratingImage] = useState(false);
-  const [sending, setSending] = useState(false);
+  const [sendingChannel, setSendingChannel] = useState<MarketingChannel | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [resultMessage, setResultMessage] = useState<string | null>(null);
 
@@ -60,17 +157,20 @@ export default function MarketingScreen() {
     return () => clearTimeout(handler);
   }, [searchQuery]);
 
-  const loadCustomers = async (query = debouncedQuery) => {
+  const loadCustomers = async (query = debouncedQuery, nextPage = 0) => {
     setLoading(true);
     setError(null);
     try {
       const response = query.trim()
-        ? await searchCustomers(query, 0, PAGE_SIZE)
-        : await getRecentCustomers(0, PAGE_SIZE);
+        ? await searchCustomers(query, 0, 500)
+        : await getRecentCustomers(0, 500);
       if (response.error) {
         throw new Error(response.error);
       }
-      setCustomers((response.data || []) as MarketingCustomer[]);
+
+      const nextCustomers = (response.data || []) as MarketingCustomer[];
+      setAllCustomers(nextCustomers);
+      setPage(nextPage);
     } catch (loadError: any) {
       setError(loadError?.message || 'Failed to load customers');
     } finally {
@@ -81,37 +181,93 @@ export default function MarketingScreen() {
 
   useFocusEffect(
     React.useCallback(() => {
-      void loadCustomers(debouncedQuery);
+      void loadCustomers(debouncedQuery, 0);
     }, [debouncedQuery])
   );
 
-  const eligibleSelectedCustomers = useMemo(
-    () => customers.filter((customer) => customer.profileId && selectedIds.has(customer.profileId)),
-    [customers, selectedIds]
+  const customerListRows = useMemo(() => {
+    const seen = new Map<string, number>();
+    return allCustomers.map((customer) => {
+      const baseKey = customer.profileId || [
+        customer.email || 'no-email',
+        customer.phone || 'no-phone',
+        customer.name || 'no-name',
+      ].join('|');
+      const count = (seen.get(baseKey) || 0) + 1;
+      seen.set(baseKey, count);
+
+      return {
+        customer,
+        listKey: `${baseKey}#${count}`,
+      };
+    });
+  }, [allCustomers]);
+
+  const selectedIds = useMemo(() => new Set(selectedCustomers.keys()), [selectedCustomers]);
+
+  const sortedCustomerRows = useMemo(
+    () => sortCustomerRows(customerListRows, sortOption, sortDirection),
+    [customerListRows, sortOption, sortDirection]
   );
 
-  const selectedCount = eligibleSelectedCustomers.length;
-  const parsedDiscount = Number(discountPercentage);
-  const requiresEmailContent = channels.includes('email');
-  const requiresSmsContent = channels.includes('sms');
+  const selectedCustomerRows = useMemo(() => {
+    const rows = Array.from(selectedCustomers.values()).map((customer, index) => ({
+      customer,
+      listKey: `${customer.profileId || customer.email || customer.phone || 'selected'}#${index + 1}`,
+    }));
+    return sortCustomerRows(rows, sortOption, sortDirection);
+  }, [selectedCustomers, sortOption, sortDirection]);
 
-  const toggleChannel = (channel: MarketingChannel) => {
-    setChannels((current) => {
-      if (current.includes(channel)) {
-        return current.filter((item) => item !== channel);
+  const availableCustomerRows = useMemo(
+    () => sortedCustomerRows.filter(({ customer }) => !customer.profileId || !selectedIds.has(customer.profileId)),
+    [sortedCustomerRows, selectedIds]
+  );
+
+  const pagedAvailableCustomerRows = useMemo(() => {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE;
+    return availableCustomerRows.slice(from, to);
+  }, [availableCustomerRows, page]);
+
+  const eligibleSelectedCustomers = useMemo(
+    () => selectedCustomerRows.map(({ customer }) => customer).filter((customer) => customer.profileId),
+    [selectedCustomerRows]
+  );
+
+  const selectedCount = selectedCustomerRows.length;
+  const parsedDiscount = Number(discountPercentage);
+
+  useEffect(() => {
+    const maxPage = Math.max(0, Math.ceil(availableCustomerRows.length / PAGE_SIZE) - 1);
+    setHasMore(page < maxPage);
+    if (page > maxPage) {
+      setPage(maxPage);
+    }
+  }, [availableCustomerRows.length, page]);
+
+  const toggleCustomer = (customer: MarketingCustomer) => {
+    const profileId = customer.profileId;
+    if (!profileId) return;
+
+    setSelectedCustomers((current) => {
+      const next = new Map(current);
+      if (next.has(profileId)) {
+        next.delete(profileId);
+      } else {
+        next.set(profileId, customer);
       }
-      return [...current, channel];
+      return next;
     });
   };
 
-  const toggleCustomer = (profileId?: string) => {
-    if (!profileId) return;
-    setSelectedIds((current) => {
-      const next = new Set(current);
-      if (next.has(profileId)) next.delete(profileId);
-      else next.add(profileId);
-      return next;
-    });
+  const handlePrevPage = () => {
+    if (page === 0 || loading) return;
+    setPage((current) => Math.max(0, current - 1));
+  };
+
+  const handleNextPage = () => {
+    if (!hasMore || loading) return;
+    setPage((current) => current + 1);
   };
 
   const handleGenerateContent = async () => {
@@ -123,8 +279,11 @@ export default function MarketingScreen() {
       setSubject(result.subject);
       setEmailBody(result.htmlBody);
       setSmsBody(result.smsBody);
+      setResultMessage('Campaign copy generated and ready to edit.');
     } catch (generateError: any) {
-      setError(generateError?.message || 'Failed to generate campaign content');
+      const message = generateError?.message || 'Failed to generate campaign content';
+      setError(message);
+      Alert.alert('Generate Copy', message);
     } finally {
       setGeneratingContent(false);
     }
@@ -141,17 +300,28 @@ export default function MarketingScreen() {
       });
       setImageBase64(generatedImage);
     } catch (imageError: any) {
-      setError(imageError?.message || 'Failed to generate campaign image');
+      const message = imageError?.message || 'Failed to generate campaign image';
+      setError(message);
+      Alert.alert('Generate Image', message);
     } finally {
       setGeneratingImage(false);
     }
   };
 
-  const handleSend = async () => {
-    setSending(true);
+  const handleSend = async (channel: MarketingChannel) => {
+    setSendingChannel(channel);
     setError(null);
     setResultMessage(null);
     try {
+      if (channel === 'email' && (!subject || !emailBody)) {
+        Alert.alert('Send Email', 'Please generate or enter the email subject and email body first.');
+        return;
+      }
+      if (channel === 'sms' && !smsBody) {
+        Alert.alert('Send SMS', 'Please generate or enter the SMS body first.');
+        return;
+      }
+
       const payloadCustomers = eligibleSelectedCustomers.map((customer) => ({
         id: customer.profileId!,
         name: customer.name,
@@ -165,18 +335,45 @@ export default function MarketingScreen() {
         subject,
         htmlBody: emailBody,
         smsBody,
-        channels,
+        channels: [channel],
       });
 
       const success = result.results?.filter((item) => item.success).length || 0;
       const failed = result.results?.filter((item) => !item.success).length || 0;
-      setResultMessage(`Campaign processed. Success: ${success}. Failed or skipped: ${failed}.`);
-      setSelectedIds(new Set());
-      await loadCustomers(debouncedQuery);
+      const failedItems = (result.results || []).filter((item) => !item.success);
+      const debugSummary = failedItems
+        .slice(0, 5)
+        .map((item) => {
+          const customerLabel = item.customer?.email || item.customer?.phone || item.customer?.id || 'unknown-customer';
+          const skipped = item.skippedChannels?.length ? ` skipped=${item.skippedChannels.join(',')}` : '';
+          const sent = item.channels?.length ? ` sent=${item.channels.join(',')}` : '';
+          return `${customerLabel}: ${item.error || 'unknown error'}${sent}${skipped}`;
+        })
+        .join('\n');
+
+      console.log('[marketing] send results', result.results);
+      setResultMessage(
+        failedItems.length > 0
+          ? `${channel.toUpperCase()} campaign processed. Success: ${success}. Failed or skipped: ${failed}.\n${debugSummary}`
+          : `${channel.toUpperCase()} campaign processed. Success: ${success}. Failed or skipped: ${failed}.`
+      );
+
+      if (failedItems.length > 0) {
+        Alert.alert(
+          `Send ${channel.toUpperCase()} Debug`,
+          debugSummary || 'Some recipients failed. Check the app logs for full details.'
+        );
+      }
+
+      setSelectedCustomers(new Map());
+      await loadCustomers(debouncedQuery, page);
     } catch (sendError: any) {
-      setError(sendError?.message || 'Failed to send campaign');
+      const message = sendError?.message || 'Failed to send campaign';
+      console.error('[marketing] send failed before results', sendError);
+      setError(message);
+      Alert.alert(channel === 'email' ? 'Send Email' : 'Send SMS', message);
     } finally {
-      setSending(false);
+      setSendingChannel(null);
     }
   };
 
@@ -191,7 +388,7 @@ export default function MarketingScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => {
           setRefreshing(true);
-          void loadCustomers(debouncedQuery);
+          void loadCustomers(debouncedQuery, page);
         }} />}
       >
         <Surface style={styles.panel} elevation={1}>
@@ -213,12 +410,8 @@ export default function MarketingScreen() {
             </Button>
           </View>
 
-          <View style={styles.channelRow}>
-            <Chip selected={channels.includes('email')} onPress={() => toggleChannel('email')} icon="email-outline">Email</Chip>
-            <Chip selected={channels.includes('sms')} onPress={() => toggleChannel('sms')} icon="message-outline">SMS</Chip>
-          </View>
-          <HelperText type={channels.length === 0 ? 'error' : 'info'} visible>
-            {channels.length === 0 ? 'Select at least one channel.' : 'Server-side rules will respect opt-in and skip recent duplicate sends.'}
+          <HelperText type="info" visible>
+            Email and SMS are sent separately. Server-side rules still respect opt-in and skip recent duplicates.
           </HelperText>
 
           <TextInput mode="outlined" label="Email subject" value={subject} onChangeText={setSubject} style={styles.field} />
@@ -258,42 +451,81 @@ export default function MarketingScreen() {
           />
 
           <SegmentedButtons
-            value={selectedCount > 0 && selectedCount === customers.filter((customer) => customer.profileId).length ? 'all' : 'custom'}
-            onValueChange={(value) => {
-              if (value === 'all') {
-                setSelectedIds(new Set(customers.map((customer) => customer.profileId).filter(Boolean) as string[]));
-              } else {
-                setSelectedIds(new Set());
-              }
-            }}
+            value={sortOption}
+            onValueChange={(value) => setSortOption(value as SortOption)}
             buttons={[
-              { value: 'all', label: 'Select all' },
-              { value: 'custom', label: 'Clear' },
+              { value: 'last-order', label: 'Last order' },
+              { value: 'last-email', label: 'Last email' },
+              { value: 'last-sms', label: 'Last SMS' },
+              { value: 'total-orders', label: 'Total orders' },
             ]}
             style={styles.segmented}
           />
 
-          {customers.map((customer) => {
-            const profileId = customer.profileId;
-            const selected = profileId ? selectedIds.has(profileId) : false;
-            return (
-              <List.Item
-                key={profileId || `${customer.email}-${customer.phone}`}
-                title={customer.name || 'Customer'}
-                description={`${customer.email || 'No email'} • ${customer.phone || 'No phone'}\nOpt-in: ${customer.optInMarketing === false ? 'No' : 'Yes'} • Email: ${formatDateLabel(customer.lastMarketingEmailSentAt)} • SMS: ${formatDateLabel(customer.lastMarketingSmsSentAt)}`}
-                onPress={() => toggleCustomer(profileId)}
-                left={() => (
-                  <Checkbox status={selected ? 'checked' : 'unchecked'} disabled={!profileId} />
-                )}
-                right={() => customer.optInMarketing === false ? <Chip compact>Opted out</Chip> : null}
-                titleNumberOfLines={1}
-                descriptionNumberOfLines={3}
-                style={styles.listItem}
-              />
-            );
-          })}
+          <View style={styles.sortDirectionRow}>
+            <Text style={styles.sortDirectionLabel}>Direction</Text>
+            <SegmentedButtons
+              value={sortDirection}
+              onValueChange={(value) => setSortDirection(value as SortDirection)}
+              buttons={[
+                { value: 'asc', label: 'Asc' },
+                { value: 'desc', label: 'Desc' },
+              ]}
+              style={styles.sortDirectionButtons}
+            />
+          </View>
 
-          {!loading && customers.length === 0 ? (
+          <View style={styles.selectionSummaryRow}>
+            <Button
+              mode="text"
+              onPress={() => setSelectedCustomers((current) => {
+                const next = new Map(current);
+                for (const { customer } of pagedAvailableCustomerRows) {
+                  if (customer.profileId) {
+                    next.set(customer.profileId, customer);
+                  }
+                }
+                return next;
+              })}
+              compact
+            >
+              Select all visible
+            </Button>
+            <Button mode="text" onPress={() => setSelectedCustomers(new Map())} compact>
+              Clear selection
+            </Button>
+          </View>
+
+          <View style={styles.paginationRow}>
+            <Text style={styles.paginationText}>Page {page + 1}</Text>
+            <View style={styles.paginationActions}>
+              <Button mode="outlined" compact onPress={handlePrevPage} disabled={page === 0 || loading}>
+                Prev
+              </Button>
+              <Button mode="outlined" compact onPress={handleNextPage} disabled={!hasMore || loading}>
+                Next
+              </Button>
+            </View>
+          </View>
+
+          <View style={styles.dualListWrapper}>
+            <CustomerTable
+              title={`Selected (${selectedCustomerRows.length})`}
+              rows={selectedCustomerRows}
+              selected
+              emptyText="Selected customers will appear here."
+              onToggleCustomer={toggleCustomer}
+            />
+            <CustomerTable
+              title={`Available (${availableCustomerRows.length})`}
+              rows={pagedAvailableCustomerRows}
+              selected={false}
+              emptyText="No more visible customers to add."
+              onToggleCustomer={toggleCustomer}
+            />
+          </View>
+
+          {!loading && sortedCustomerRows.length === 0 ? (
             <Text style={styles.emptyText}>No customers found for this search.</Text>
           ) : null}
         </Surface>
@@ -301,21 +533,26 @@ export default function MarketingScreen() {
         {error ? <HelperText type="error" visible>{error}</HelperText> : null}
         {resultMessage ? <HelperText type="info" visible>{resultMessage}</HelperText> : null}
 
-        <Button
-          mode="contained"
-          onPress={handleSend}
-          loading={sending}
-          disabled={
-            sending
-            || selectedCount === 0
-            || channels.length === 0
-            || (requiresEmailContent && (!subject || !emailBody))
-            || (requiresSmsContent && !smsBody)
-          }
-          style={styles.sendButton}
-        >
-          Send to {selectedCount} customer{selectedCount === 1 ? '' : 's'}
-        </Button>
+        <View style={styles.sendActions}>
+          <Button
+            mode="contained"
+            onPress={() => handleSend('email')}
+            loading={sendingChannel === 'email'}
+            disabled={sendingChannel !== null || selectedCount === 0 || !subject || !emailBody}
+            style={[styles.sendButton, styles.sendButtonHalf]}
+          >
+            Send Email
+          </Button>
+          <Button
+            mode="outlined"
+            onPress={() => handleSend('sms')}
+            loading={sendingChannel === 'sms'}
+            disabled={sendingChannel !== null || selectedCount === 0 || !smsBody}
+            style={[styles.sendButton, styles.sendButtonHalf]}
+          >
+            Send SMS
+          </Button>
+        </View>
       </ScrollView>
     </View>
   );
@@ -358,11 +595,6 @@ const styles = StyleSheet.create({
   field: {
     marginTop: 12,
   },
-  channelRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 12,
-  },
   imageCard: {
     marginTop: 12,
     overflow: 'hidden',
@@ -378,8 +610,128 @@ const styles = StyleSheet.create({
   segmented: {
     marginBottom: 12,
   },
-  listItem: {
-    paddingHorizontal: 0,
+  sortDirectionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 12,
+    flexWrap: 'wrap',
+  },
+  sortDirectionLabel: {
+    color: '#334155',
+    fontWeight: '600',
+  },
+  sortDirectionButtons: {
+    minWidth: 180,
+  },
+  selectionSummaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 12,
+    flexWrap: 'wrap',
+  },
+  paginationRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 12,
+    flexWrap: 'wrap',
+  },
+  paginationText: {
+    color: '#334155',
+    fontWeight: '600',
+  },
+  paginationActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  dualListWrapper: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'flex-start',
+    flexWrap: 'wrap',
+  },
+  dualListColumn: {
+    flex: 1,
+    minWidth: 480,
+    backgroundColor: '#f8fafc',
+    borderRadius: 14,
+    padding: 8,
+  },
+  columnTitle: {
+    marginBottom: 8,
+    paddingHorizontal: 8,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  emptyColumnText: {
+    color: '#64748b',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#dbe4ee',
+  },
+  tableHeaderText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  tableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+    gap: 8,
+  },
+  checkboxCell: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  customerCell: {
+    flex: 1,
+    minWidth: 0,
+  },
+  tablePrimaryText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#0f172a',
+  },
+  tableSecondaryText: {
+    fontSize: 11,
+    color: '#64748b',
+  },
+  tableCellText: {
+    fontSize: 12,
+    color: '#334155',
+  },
+  colName: {
+    flex: 2.6,
+  },
+  colOrders: {
+    flex: 0.7,
+  },
+  colDate: {
+    flex: 1,
+  },
+  colAction: {
+    flex: 0.9,
+    alignItems: 'flex-end',
+  },
+  selectedListItem: {
+    backgroundColor: '#ecfeff',
+    borderRadius: 12,
   },
   emptyText: {
     color: '#64748b',
@@ -388,5 +740,14 @@ const styles = StyleSheet.create({
   },
   sendButton: {
     marginBottom: 24,
+  },
+  sendActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 24,
+  },
+  sendButtonHalf: {
+    flex: 1,
+    marginBottom: 0,
   },
 });

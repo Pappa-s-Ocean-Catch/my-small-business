@@ -46,9 +46,18 @@ export const getTodayDateString = () => {
 };
 
 export const getApiUrl = (path: string) => {
-  const base = process.env.EXPO_PUBLIC_API_URL || '';
-  if (base.endsWith('/')) return base + path.replace(/^\//, '');
-  return base + (path.startsWith('/') ? path : '/' + path);
+  const base = (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/+$/, '');
+  const normalizedPath = `/${path.replace(/^\/+/, '')}`;
+
+  if (!base) {
+    return normalizedPath;
+  }
+
+  if (base.endsWith('/api') && normalizedPath.startsWith('/api/')) {
+    return `${base}${normalizedPath.slice(4)}`;
+  }
+
+  return `${base}${normalizedPath}`;
 };
 
 export const formatElapsed = (
