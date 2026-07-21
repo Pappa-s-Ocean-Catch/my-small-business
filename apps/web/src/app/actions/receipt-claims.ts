@@ -25,7 +25,7 @@ type ClaimLookupResult = {
 function normalizeClaimToken(token: string): string | null {
   const normalized = token.trim();
   if (!normalized) return null;
-  if (!/^[A-Za-z0-9_-]{32,256}$/.test(normalized)) return null;
+  if (!/^[A-Z0-9]{8}$/.test(normalized)) return null;
   return normalized;
 }
 
