@@ -65,11 +65,16 @@ function isAuthorized(request: Request): boolean {
   const configured = process.env.SHIPDAY_WEBHOOK_SECRET?.trim();
   if (!configured) return true;
 
-  const auth = request.headers.get('authorization')?.trim();
-  const headerSecret = request.headers.get('x-webhook-secret')?.trim();
-  const bearer = auth?.startsWith('Bearer ') ? auth.slice(7).trim() : null;
+  const tokenHeader = request.headers.get('token')?.trim() ?? '';
+  const matched = configured === tokenHeader;
 
-  return configured === headerSecret || configured === bearer;
+  if (!matched) {
+    console.warn('[Shipday Webhook] Unauthorized request', {
+      hasTokenHeader: Boolean(tokenHeader),
+    });
+  }
+
+  return matched;
 }
 
 export async function POST(request: Request) {
