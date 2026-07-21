@@ -7,6 +7,7 @@ interface OrderSummaryProps {
   cartSubtotal: number;
   promotionDiscount: number;
   subtotal: number;
+  promotionsApplied?: Array<{ title: string; amount: number; kind?: string; selected_item_name?: string }>;
   rewardPointsDiscount: number;
   couponDiscount?: number;
   couponCode?: string | null;
@@ -26,6 +27,7 @@ export function OrderSummary({
   cartSubtotal,
   promotionDiscount,
   subtotal,
+  promotionsApplied = [],
   rewardPointsDiscount,
   couponDiscount = 0,
   couponCode,
@@ -52,10 +54,26 @@ export function OrderSummary({
           <span>{itemCount}</span>
         </div>
         {promotionDiscount > 0.009 && (
-          <div className="flex justify-between text-green-600 dark:text-green-400 font-medium">
-            <span>Promotions</span>
-            <span>-${promotionDiscount.toFixed(2)}</span>
-          </div>
+          <>
+            <div className="flex justify-between text-green-600 dark:text-green-400 font-medium">
+              <span>Promotions</span>
+              <span>-${promotionDiscount.toFixed(2)}</span>
+            </div>
+            {promotionsApplied.length > 0 && (
+              <div className="rounded-lg border border-green-100 bg-green-50/70 px-3 py-2 text-sm dark:border-green-900/50 dark:bg-green-900/10">
+                <div className="space-y-1">
+                  {promotionsApplied.map((promotion, index) => (
+                    <div key={`${promotion.title}-${index}`} className="flex justify-between gap-3 text-green-800 dark:text-green-300">
+                      <span>
+                        {promotion.kind === 'free_item' ? 'Discount' : promotion.title}
+                      </span>
+                      <span>-${promotion.amount.toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
         <div className="flex justify-between text-gray-600 dark:text-gray-400">
           <span>Subtotal</span>

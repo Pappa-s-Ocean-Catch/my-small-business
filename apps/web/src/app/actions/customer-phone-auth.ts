@@ -1,6 +1,7 @@
 "use server";
 
 import { createServiceRoleClient } from "@my-small-business/supabase/server";
+import { mergeExistingCustomerProfileIntoAuthUser } from "@/app/actions/customer-profile-linking";
 
 function normalizeAuPhone(phone: string): string {
   const digits = phone.replace(/\D/g, "");
@@ -36,6 +37,20 @@ export async function completePhoneCustomerProfile(input: {
     const normalizedEmail = input.email?.trim().toLowerCase() || null;
 
     const supabase = await createServiceRoleClient();
+
+    const mergeResult = await mergeExistingCustomerProfileIntoAuthUser({
+      userId: input.userId,
+      email: normalizedEmail,
+      phone: normalizedPhone,
+      fullName,
+    });
+
+    if (!mergeResult.success) {
+      return {
+        success: false,
+        error: mergeResult.error || "Failed to link existing customer profile.",
+      };
+    }
 
     const profileUpdate: {
       full_name: string;

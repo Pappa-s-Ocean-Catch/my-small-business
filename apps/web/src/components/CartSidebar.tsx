@@ -1,15 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FaShoppingCart, FaTimes, FaPlus, FaMinus, FaTrash, FaChevronRight, FaEdit, FaComment } from 'react-icons/fa';
+import { FaShoppingCart, FaTimes, FaPlus, FaMinus, FaTrash, FaChevronRight, FaEdit, FaComment, FaGift } from 'react-icons/fa';
 import { Icon } from '@/components/Icon';
 import { useCart } from '@/contexts/CartContext';
 import type { CartItem } from '@/contexts/CartContext';
 import { ItemCustomizationModal } from '@/components/ItemCustomizationModal';
 import { toast } from 'react-toastify';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
+import { getActivePromotions } from '@/app/actions/promotions';
+import { computeCartPromotionTotals, findFreeItemEncouragement, type PromotionWithProducts } from '@/lib/promotions';
 
 export function CartSidebar({ hideFloatBubble = false }: { hideFloatBubble?: boolean }) {
   const { items, removeItem, updateQuantity, updateItem, getTotal, clearCart } = useCart();
@@ -18,7 +20,28 @@ export function CartSidebar({ hideFloatBubble = false }: { hideFloatBubble?: boo
   const [commentText, setCommentText] = useState<string>('');
   const [itemToRemove, setItemToRemove] = useState<string | null>(null);
   const [itemToEdit, setItemToEdit] = useState<CartItem | null>(null);
+  const [activePromotions, setActivePromotions] = useState<PromotionWithProducts[]>([]);
+  const [promotionsLoaded, setPromotionsLoaded] = useState(false);
+  const [selectedFreeItemId, setSelectedFreeItemId] = useState<string | null>(null);
   const router = useRouter();
+
+  useEffect(() => {
+    const loadPromotions = async () => {
+      const result = await getActivePromotions();
+      if (result.data) setActivePromotions(result.data);
+      setPromotionsLoaded(true);
+    };
+
+    void loadPromotions();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const stored = window.sessionStorage.getItem('checkout:selectedFreeItemId');
+    if (stored) {
+      setSelectedFreeItemId(stored);
+    }
+  }, []);
 
   const handleCheckout = () => {
     setIsOpen(false);
@@ -30,6 +53,52 @@ export function CartSidebar({ hideFloatBubble = false }: { hideFloatBubble?: boo
   const itemCount = items.reduce((sum, i) => sum + i.quantity, 0);
   const subtotalExGst = total / 1.1;
   const gstAmount = total - subtotalExGst;
+  const freeItemEncouragement = findFreeItemEncouragement({
+    promotions: activePromotions,
+    items: items.map((item) => ({
+      id: item.id,
+      product_id: item.product_id,
+      name: item.name,
+      base_price: item.base_price,
+      quantity: item.quantity,
+      subtotal: item.subtotal,
+    })),
+    cartSubtotal: total,
+  });
+  const freeItemPromoTotals = computeCartPromotionTotals({
+    promotions: activePromotions,
+    items: items.map((item) => ({
+      id: item.id,
+      product_id: item.product_id,
+      name: item.name,
+      base_price: item.base_price,
+      quantity: item.quantity,
+      subtotal: item.subtotal,
+    })),
+    cartSubtotal: total,
+    selectedFreeItemId,
+  });
+
+  useEffect(() => {
+    if (!promotionsLoaded || !selectedFreeItemId) return;
+    if (freeItemPromoTotals.freeItemPromotion) return;
+
+    const stillExists = items.some((item) => item.id === selectedFreeItemId);
+    if (!stillExists) {
+      setSelectedFreeItemId(null);
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.removeItem('checkout:selectedFreeItemId');
+      }
+      return;
+    }
+
+    removeItem(selectedFreeItemId);
+    setSelectedFreeItemId(null);
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.removeItem('checkout:selectedFreeItemId');
+    }
+    toast.info('Free item removed because the cart no longer qualifies for that promotion.');
+  }, [freeItemPromoTotals.freeItemPromotion, items, promotionsLoaded, removeItem, selectedFreeItemId]);
 
   if ((items.length === 0 && !isOpen) || hideFloatBubble) {
     if (hideFloatBubble) return null;
@@ -255,6 +324,21 @@ export function CartSidebar({ hideFloatBubble = false }: { hideFloatBubble?: boo
             {/* Footer - Order Summary */}
             {items.length > 0 && (
               <div className="border-t border-gray-200 dark:border-neutral-700 p-4 space-y-3">
+                {freeItemEncouragement && (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
+                    <div className="flex items-start gap-2">
+                      <Icon icon={FaGift} className="mt-0.5 h-4 w-4 text-amber-600 dark:text-amber-300" />
+                      <div>
+                        <p className="font-semibold">
+                          Add ${freeItemEncouragement.remainingAmount.toFixed(2)} more to claim {freeItemEncouragement.promotion.title}.
+                        </p>
+                        <p className="mt-1 text-amber-800/80 dark:text-amber-100/80">
+                          You&apos;re close to unlocking a free eligible item.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <h3 className="font-semibold text-gray-900 dark:text-white">Order Summary</h3>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between text-gray-600 dark:text-gray-400">

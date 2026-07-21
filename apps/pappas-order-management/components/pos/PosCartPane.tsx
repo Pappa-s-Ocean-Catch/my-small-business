@@ -18,6 +18,12 @@ type Props = {
   openNoteEditor: (item: PosCartItem) => void;
   removeCartItem: (itemId: string) => void;
   totals: { subtotal: number; discount?: number; total: number };
+  freeItemPromotionTitle?: string | null;
+  freeItemSelectionRequired: boolean;
+  selectedFreeItemName?: string | null;
+  onOpenFreeItemDialog: () => void;
+  getCartItemDisplayName: (item: PosCartItem) => string;
+  isFreePromotionItem: (item: PosCartItem) => boolean;
   creatingOrder: boolean;
   smartpayProcessing: boolean;
   handleClearCart: () => void;
@@ -40,6 +46,12 @@ export function PosCartPane({
   openNoteEditor,
   removeCartItem,
   totals,
+  freeItemPromotionTitle,
+  freeItemSelectionRequired,
+  selectedFreeItemName,
+  onOpenFreeItemDialog,
+  getCartItemDisplayName,
+  isFreePromotionItem,
   creatingOrder,
   smartpayProcessing,
   handleClearCart,
@@ -81,6 +93,24 @@ export function PosCartPane({
           Change
         </Text>
       </TouchableOpacity>
+      {freeItemPromotionTitle ? (
+        <TouchableOpacity
+          style={[styles.quickOrderNoteButton, freeItemSelectionRequired ? styles.discountCardActive : null]}
+          onPress={onOpenFreeItemDialog}
+        >
+          <View style={styles.quickOrderNoteButtonText}>
+            <Text style={styles.quickOrderNoteTitle}>
+              {freeItemSelectionRequired ? 'Free item unlocked' : 'Free item selected'}
+            </Text>
+            <Text style={styles.quickOrderNoteValue} numberOfLines={2}>
+              {selectedFreeItemName || freeItemPromotionTitle}
+            </Text>
+          </View>
+          <Text style={styles.quickOrderNoteEdit}>
+            {selectedFreeItemName ? 'Change' : 'Choose'}
+          </Text>
+        </TouchableOpacity>
+      ) : null}
       <FlatList
         data={cartItems}
         keyExtractor={(item) => item.id}
@@ -99,14 +129,16 @@ export function PosCartPane({
                       accessibilityRole="button"
                       accessibilityLabel={`Edit ${item.product_name}`}
                     >
-                      <Text style={styles.cartItemName} numberOfLines={2}>{item.product_name}</Text>
+                      <Text style={styles.cartItemName} numberOfLines={2}>{getCartItemDisplayName(item)}</Text>
                     </TouchableOpacity>
                     <View style={styles.qtyStepper}>
                       <IconButton icon="minus" size={16} onPress={() => updateQuantity(item.id, -1)} style={styles.stepperButton} />
                       <Text style={styles.cartQuantity}>{item.quantity}</Text>
                       <IconButton icon="plus" size={16} onPress={() => updateQuantity(item.id, 1)} style={styles.stepperButton} />
                     </View>
-                    <Text style={styles.cartItemPrice}>${item.subtotal.toFixed(2)}</Text>
+                    <Text style={styles.cartItemPrice}>
+                      {isFreePromotionItem(item) ? 'FREE' : `$${item.subtotal.toFixed(2)}`}
+                    </Text>
                   </View>
                   <View style={styles.cartItemDetails}>
                     {item.addons?.map((addon) => (

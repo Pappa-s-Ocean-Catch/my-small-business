@@ -44,6 +44,8 @@ import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
 
 const RECEIPT_REF_WAIT_MS = 120;
 const RECEIPT_REF_MAX_ATTEMPTS = 8;
+const RECEIPT_RENDER_SETTLE_MS = 300;
+const RECEIPT_RENDER_FRAME_COUNT = 2;
 
 export default function PreOrdersScreen() {
   const router = useRouter();
@@ -79,6 +81,12 @@ export default function PreOrdersScreen() {
       await new Promise((resolve) => setTimeout(resolve, RECEIPT_REF_WAIT_MS));
     }
     return null;
+  }, []);
+
+  const waitForReceiptRenderFrames = useCallback(async (frameCount: number = RECEIPT_RENDER_FRAME_COUNT) => {
+    for (let index = 0; index < frameCount; index += 1) {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    }
   }, []);
 
   const loadOrders = async () => {
@@ -172,7 +180,7 @@ export default function PreOrdersScreen() {
       if (selectedPrinter) {
         setTempPrintTicketIndex(0);
         setTempPrintDuplicateBySections(false);
-        await new Promise(resolve => setTimeout(resolve, 300));
+        await new Promise(resolve => setTimeout(resolve, RECEIPT_RENDER_SETTLE_MS));
 
         const receiptRef = await waitForReceiptTemplateRef();
         if (!receiptRef) {
@@ -223,10 +231,15 @@ export default function PreOrdersScreen() {
         : buildSectionPrintJobs(s, freshOrder);
       const capturedJobs: Array<{ image: PrinterImageSource; previewUri: string | null; label: string; useSimulator: boolean; printer: NonNullable<ReturnType<typeof buildSectionPrintJobs>[number]['printer']> | null }> = [];
 
-      for (const job of jobs) {
+      for (let index = 0; index < jobs.length; index += 1) {
+        const job = jobs[index];
         setTempPrintTicketIndex(job.onlyTicketIndex ?? 0);
         setTempPrintDuplicateBySections(job.duplicateBySections);
-        await new Promise(resolve => setTimeout(resolve, 300));
+        if (index === 0) {
+          await new Promise(resolve => setTimeout(resolve, RECEIPT_RENDER_SETTLE_MS));
+        } else {
+          await waitForReceiptRenderFrames();
+        }
 
         const receiptRef = await waitForReceiptTemplateRef();
         if (!receiptRef) {

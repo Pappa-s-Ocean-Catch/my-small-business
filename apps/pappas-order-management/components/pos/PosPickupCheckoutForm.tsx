@@ -1,21 +1,30 @@
-import React, { useState } from 'react';
-import { Platform, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import React from 'react';
+import { Platform, ScrollView, Text, View } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Button, TextInput } from 'react-native-paper';
 
 import { styles } from './pos.styles';
 import type { CustomerLookupStatus } from './PosCheckoutPanel';
 import { PosDiscountSection } from './PosDiscountSection';
-import { PosPhoneInputModal } from './PosPhoneInputModal';
-import { PosTextInputModal } from './PosTextInputModal';
+import { PosCustomerSelector } from './PosCustomerSelector';
+import type { Customer } from '../../lib/customers';
 
 type Props = {
   customerLookupStatus: CustomerLookupStatus;
   customerPhone: string;
-  setCustomerPhone: (value: string) => void;
+  onChangeCustomerPhone: (value: string) => void;
   customerName: string;
-  setCustomerName: (value: string) => void;
+  onChangeCustomerName: (value: string) => void;
   customerLookupError: string | null;
+  selectedCustomer: Customer | null;
+  onSelectCustomer: (customer: Customer) => void;
+  onClearCustomer: () => void;
+  rewardPointsEnabled: boolean;
+  rewardPointsBalance: number;
+  rewardPointsDollarValue: number;
+  rewardPointsApplied: boolean;
+  appliedRewardPointsValue: number;
+  onToggleRewardPoints: () => void;
   discountLabel: string;
   discountAmount: number;
   activeDiscountPercent: number | null;
@@ -44,10 +53,19 @@ type Props = {
 export function PosPickupCheckoutForm({
   customerLookupStatus,
   customerPhone,
-  setCustomerPhone,
+  onChangeCustomerPhone,
   customerName,
-  setCustomerName,
+  onChangeCustomerName,
   customerLookupError,
+  selectedCustomer,
+  onSelectCustomer,
+  onClearCustomer,
+  rewardPointsEnabled,
+  rewardPointsBalance,
+  rewardPointsDollarValue,
+  rewardPointsApplied,
+  appliedRewardPointsValue,
+  onToggleRewardPoints,
   discountLabel,
   discountAmount,
   activeDiscountPercent,
@@ -72,9 +90,6 @@ export function PosPickupCheckoutForm({
   checkoutPrimaryLabel,
   handleCheckout,
 }: Props) {
-  const [phoneModalVisible, setPhoneModalVisible] = useState(false);
-  const [nameModalVisible, setNameModalVisible] = useState(false);
-
   return (
     <ScrollView
       style={styles.checkoutBody}
@@ -82,32 +97,23 @@ export function PosPickupCheckoutForm({
       keyboardShouldPersistTaps="handled"
     >
       <View style={styles.checkoutFormFull}>
-        <View style={styles.customerIdentityRow}>
-          <TouchableOpacity
-            style={[styles.phoneTrigger, styles.customerIdentityField]}
-            onPress={() => setPhoneModalVisible(true)}
-          >
-            <Text style={styles.phoneTriggerLabel}>Phone</Text>
-            <Text style={[styles.phoneTriggerValue, !customerPhone ? styles.phoneTriggerPlaceholder : null]} numberOfLines={1}>
-              {customerPhone || '04'}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.phoneTrigger, styles.customerIdentityField]}
-            onPress={() => setNameModalVisible(true)}
-          >
-            <Text style={styles.phoneTriggerLabel}>Name</Text>
-            <Text style={[styles.phoneTriggerValue, !customerName ? styles.phoneTriggerPlaceholder : null]} numberOfLines={1}>
-              {customerName || 'Tap to enter'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.lookupRow}>
-          {customerLookupStatus === 'loading' && <Text style={styles.lookupText}>Looking up customer...</Text>}
-          {customerLookupStatus === 'found' && <Text style={styles.foundText}>Existing customer found</Text>}
-          {customerLookupStatus === 'new' && <Text style={styles.newText}>No customer found. A new customer will be created.</Text>}
-          {customerLookupStatus === 'error' && <Text style={styles.errorText}>{customerLookupError}</Text>}
-        </View>
+        <PosCustomerSelector
+          customerLookupStatus={customerLookupStatus}
+          customerPhone={customerPhone}
+          onChangePhone={onChangeCustomerPhone}
+          customerName={customerName}
+          onChangeName={onChangeCustomerName}
+          customerLookupError={customerLookupError}
+          selectedCustomer={selectedCustomer}
+          onSelectCustomer={onSelectCustomer}
+          onClearCustomer={onClearCustomer}
+          rewardPointsEnabled={rewardPointsEnabled}
+          rewardPointsBalance={rewardPointsBalance}
+          rewardPointsDollarValue={rewardPointsDollarValue}
+          rewardPointsApplied={rewardPointsApplied}
+          appliedRewardPointsValue={appliedRewardPointsValue}
+          onToggleRewardPoints={onToggleRewardPoints}
+        />
 
         <PosDiscountSection
           discountLabel={discountLabel}
@@ -181,26 +187,6 @@ export function PosPickupCheckoutForm({
         >
           {checkoutPrimaryLabel}
         </Button>
-        <PosPhoneInputModal
-          visible={phoneModalVisible}
-          value={customerPhone}
-          onDismiss={() => setPhoneModalVisible(false)}
-          onSave={(value) => {
-            setCustomerPhone(value);
-            if (customerLookupStatus === 'found') setCustomerName('');
-            setPhoneModalVisible(false);
-          }}
-        />
-        <PosTextInputModal
-          visible={nameModalVisible}
-          title="Enter Customer Name"
-          value={customerName}
-          onDismiss={() => setNameModalVisible(false)}
-          onSave={(value) => {
-            setCustomerName(value);
-            setNameModalVisible(false);
-          }}
-        />
       </View>
     </ScrollView>
   );

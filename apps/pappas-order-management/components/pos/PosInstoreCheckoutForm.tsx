@@ -5,6 +5,9 @@ import { Button, TextInput } from 'react-native-paper';
 import { styles } from './pos.styles';
 import type { PosInstorePaymentChoice } from '../../app/pos.types';
 import { PosDiscountSection } from './PosDiscountSection';
+import { PosCustomerSelector } from './PosCustomerSelector';
+import type { CustomerLookupStatus } from './PosCheckoutPanel';
+import type { Customer } from '../../lib/customers';
 
 type Props = {
   discountLabel: string;
@@ -12,6 +15,22 @@ type Props = {
   activeDiscountPercent: number | null;
   selectDiscountPreset: (percent: number) => void;
   openDiscountDialog: () => void;
+  customerLookupStatus: CustomerLookupStatus;
+  customerPhone: string;
+  onChangeCustomerPhone: (value: string) => void;
+  customerName: string;
+  onChangeCustomerName: (value: string) => void;
+  customerLookupError: string | null;
+  selectedCustomer: Customer | null;
+  onSelectCustomer: (customer: Customer) => void;
+  onClearCustomer: () => void;
+  onResetToDefaultInstore: () => void;
+  rewardPointsEnabled: boolean;
+  rewardPointsBalance: number;
+  rewardPointsDollarValue: number;
+  rewardPointsApplied: boolean;
+  appliedRewardPointsValue: number;
+  onToggleRewardPoints: () => void;
   cartItemsCount: number;
   orderNoteText: string;
   setOrderNoteText: (value: string) => void;
@@ -28,6 +47,22 @@ export function PosInstoreCheckoutForm({
   activeDiscountPercent,
   selectDiscountPreset,
   openDiscountDialog,
+  customerLookupStatus,
+  customerPhone,
+  onChangeCustomerPhone,
+  customerName,
+  onChangeCustomerName,
+  customerLookupError,
+  selectedCustomer,
+  onSelectCustomer,
+  onClearCustomer,
+  onResetToDefaultInstore,
+  rewardPointsEnabled,
+  rewardPointsBalance,
+  rewardPointsDollarValue,
+  rewardPointsApplied,
+  appliedRewardPointsValue,
+  onToggleRewardPoints,
   cartItemsCount,
   orderNoteText,
   setOrderNoteText,
@@ -52,6 +87,26 @@ export function PosInstoreCheckoutForm({
       keyboardShouldPersistTaps="handled"
     >
       <View style={styles.checkoutFormFull}>
+        <PosCustomerSelector
+          customerLookupStatus={customerLookupStatus}
+          customerPhone={customerPhone}
+          onChangePhone={onChangeCustomerPhone}
+          customerName={customerName}
+          onChangeName={onChangeCustomerName}
+          customerLookupError={customerLookupError}
+          selectedCustomer={selectedCustomer}
+          onSelectCustomer={onSelectCustomer}
+          onClearCustomer={onClearCustomer}
+          onResetToDefaultInstore={onResetToDefaultInstore}
+          rewardPointsEnabled={rewardPointsEnabled}
+          rewardPointsBalance={rewardPointsBalance}
+          rewardPointsDollarValue={rewardPointsDollarValue}
+          rewardPointsApplied={rewardPointsApplied}
+          appliedRewardPointsValue={appliedRewardPointsValue}
+          onToggleRewardPoints={onToggleRewardPoints}
+          allowEmptyPhone
+        />
+
         <PosDiscountSection
           discountLabel={discountLabel}
           discountAmount={discountAmount}

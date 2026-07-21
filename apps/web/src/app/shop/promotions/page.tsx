@@ -5,7 +5,7 @@ import { AdminGuard } from '@/components/AdminGuard';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
 import { createPromotion, deletePromotion, getPromotions, updatePromotion } from '@/app/actions/promotions';
 import type { PromotionWithProducts } from '@/lib/promotions';
-import { promotionLabel } from '@/lib/promotions';
+import { getPromotionDetailsCopy, isFreeItemPromotion, promotionLabel } from '@/lib/promotions';
 
 type SaleProduct = { id: string; name: string; sale_price: number; is_active: boolean };
 
@@ -88,6 +88,18 @@ export default function PromotionsAdminPage() {
         if (!q) return list;
         return list.filter((p) => p.name.toLowerCase().includes(q));
     }, [products, form.productSearch]);
+
+    const selectedProducts = useMemo(() => {
+        const selected = new Set(form.product_ids);
+        return products
+            .filter((product) => selected.has(product.id))
+            .sort((a, b) => a.name.localeCompare(b.name));
+    }, [form.product_ids, products]);
+
+    const availableProducts = useMemo(() => {
+        const selected = new Set(form.product_ids);
+        return filteredProducts.filter((product) => !selected.has(product.id));
+    }, [filteredProducts, form.product_ids]);
 
     useEffect(() => {
         const load = async () => {
@@ -222,13 +234,23 @@ export default function PromotionsAdminPage() {
         setForm((f) => ({ ...f, product_ids: Array.from(next) }));
     };
 
+    const addAllVisibleProducts = () => {
+        const next = new Set(form.product_ids);
+        availableProducts.forEach((product) => next.add(product.id));
+        setForm((f) => ({ ...f, product_ids: Array.from(next) }));
+    };
+
+    const clearSelectedProducts = () => {
+        setForm((f) => ({ ...f, product_ids: [] }));
+    };
+
     return (
         <AdminGuard>
             <div className="p-6 max-w-6xl mx-auto">
                 <div className="flex items-start justify-between gap-4 mb-6">
                     <div>
                         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Promotions</h1>
-                        <p className="text-gray-600 dark:text-gray-400">Create cart and product promotions (discount excludes delivery fee).</p>
+                        <p className="text-gray-600 dark:text-gray-400">Create website promotions including spend-threshold free items. Delivery fee is excluded.</p>
                     </div>
                     <button
                         onClick={openCreate}
@@ -269,8 +291,8 @@ export default function PromotionsAdminPage() {
                                                 <div className="text-xs text-green-700 dark:text-green-300">Home banner: {p.home_title || 'Enabled'}</div>
                                             )}
                                         </td>
-                                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{p.applies_to}</td>
-                                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{promotionLabel(p)}</td>
+                                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{isFreeItemPromotion(p) ? 'free-item cart' : p.applies_to}</td>
+                                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{isFreeItemPromotion(p) ? 'Selected item price' : promotionLabel(p)}</td>
                                         <td className="px-4 py-3">
                                             {p.is_active ? (
                                                 <span className="inline-flex px-2 py-1 rounded-full bg-green-100 text-green-800 text-xs font-semibold">Active</span>
@@ -340,12 +362,13 @@ export default function PromotionsAdminPage() {
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description (optional)</label>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Promotion details</label>
                                         <textarea
                                             value={form.description || ''}
                                             onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                                             className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-800"
-                                            rows={2}
+                                            rows={4}
+                                            placeholder="Add free text for customers: event notes, selected free-item rules, dates, exclusions, or anything special about this promotion."
                                         />
                                     </div>
 
@@ -395,6 +418,11 @@ export default function PromotionsAdminPage() {
                                                 onChange={(e) => setForm((f) => ({ ...f, discount_value: Number(e.target.value) }))}
                                                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-800"
                                             />
+                                            {form.applies_to === 'cart' && form.product_ids.length > 0 && (
+                                                <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                                                    When eligible free items are selected below, checkout discounts the chosen item price automatically.
+                                                </p>
+                                            )}
                                         </div>
 
                                         <div className="flex items-center gap-3 pt-6">
@@ -490,7 +518,7 @@ export default function PromotionsAdminPage() {
                                         </div>
                                     </div>
 
-                                    {form.applies_to === 'product' && (
+                                    {(form.applies_to === 'product' || form.applies_to === 'cart') && (
                                         <div className="space-y-3">
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Product targeting</label>
@@ -499,13 +527,27 @@ export default function PromotionsAdminPage() {
                                                     onChange={(e) => setForm((f) => ({ ...f, product_scope: e.target.value as any }))}
                                                     className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-800"
                                                 >
-                                                    <option value="all">All products</option>
-                                                    <option value="specific">Specific products</option>
-                                                    <option value="min_price">Product price ≥</option>
+                                                    {form.applies_to === 'product' ? (
+                                                        <>
+                                                            <option value="all">All products</option>
+                                                            <option value="specific">Specific products</option>
+                                                            <option value="min_price">Product price ≥</option>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <option value="all">No free-item selection</option>
+                                                            <option value="specific">Eligible free items</option>
+                                                        </>
+                                                    )}
                                                 </select>
+                                                {form.applies_to === 'cart' && (
+                                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                        Choose eligible free items to require customers to add one of those items before checkout.
+                                                    </p>
+                                                )}
                                             </div>
 
-                                            {form.product_scope === 'min_price' && (
+                                            {form.applies_to === 'product' && form.product_scope === 'min_price' && (
                                                 <div>
                                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Min product price</label>
                                                     <input
@@ -519,25 +561,98 @@ export default function PromotionsAdminPage() {
                                             )}
 
                                             {form.product_scope === 'specific' && (
-                                                <div className="rounded-lg border border-gray-200 dark:border-neutral-800 p-3">
-                                                    <input
-                                                        value={form.productSearch}
-                                                        onChange={(e) => setForm((f) => ({ ...f, productSearch: e.target.value }))}
-                                                        className="w-full mb-3 px-3 py-2 rounded-lg border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-800"
-                                                        placeholder="Search products..."
-                                                    />
-                                                    <div className="max-h-56 overflow-auto space-y-2">
-                                                        {filteredProducts.map((p) => (
-                                                            <label key={p.id} className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={form.product_ids.includes(p.id)}
-                                                                    onChange={() => toggleProduct(p.id)}
-                                                                />
-                                                                <span className="flex-1">{p.name}</span>
-                                                                <span className="text-gray-500">${p.sale_price.toFixed(2)}</span>
-                                                            </label>
-                                                        ))}
+                                                <div className="rounded-2xl border border-gray-200 bg-gray-50/80 p-4 dark:border-neutral-800 dark:bg-neutral-900/80">
+                                                    <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                                        <input
+                                                            value={form.productSearch}
+                                                            onChange={(e) => setForm((f) => ({ ...f, productSearch: e.target.value }))}
+                                                            className="w-full md:max-w-sm px-3 py-2 rounded-xl border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-800"
+                                                            placeholder="Search products..."
+                                                        />
+                                                        <div className="flex flex-wrap gap-2">
+                                                            <button
+                                                                type="button"
+                                                                onClick={addAllVisibleProducts}
+                                                                disabled={availableProducts.length === 0}
+                                                                className="px-3 py-2 rounded-xl bg-slate-900 text-white text-sm font-medium disabled:opacity-40 dark:bg-white dark:text-slate-900"
+                                                            >
+                                                                Add visible
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={clearSelectedProducts}
+                                                                disabled={selectedProducts.length === 0}
+                                                                className="px-3 py-2 rounded-xl border border-gray-300 text-sm font-medium text-gray-700 disabled:opacity-40 dark:border-neutral-700 dark:text-gray-200"
+                                                            >
+                                                                Clear selected
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="grid gap-4 md:grid-cols-[1fr_auto_1fr]">
+                                                        <div className="rounded-2xl bg-white p-3 shadow-sm dark:bg-neutral-950">
+                                                            <div className="mb-3 flex items-center justify-between">
+                                                                <div>
+                                                                    <div className="text-sm font-semibold text-gray-900 dark:text-white">Available items</div>
+                                                                    <div className="text-xs text-gray-500 dark:text-gray-400">Click an item to add it</div>
+                                                                </div>
+                                                                <div className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600 dark:bg-neutral-800 dark:text-gray-300">
+                                                                    {availableProducts.length}
+                                                                </div>
+                                                            </div>
+                                                            <div className="max-h-72 space-y-2 overflow-auto pr-1">
+                                                                {availableProducts.length === 0 ? (
+                                                                    <div className="rounded-xl border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-gray-500 dark:border-neutral-800 dark:text-gray-400">
+                                                                        No matching items left to add.
+                                                                    </div>
+                                                                ) : availableProducts.map((product) => (
+                                                                    <button
+                                                                        key={product.id}
+                                                                        type="button"
+                                                                        onClick={() => toggleProduct(product.id)}
+                                                                        className="flex w-full items-center justify-between rounded-xl border border-transparent bg-gray-50 px-3 py-3 text-left transition hover:border-emerald-300 hover:bg-emerald-50 dark:bg-neutral-900 dark:hover:border-emerald-700 dark:hover:bg-emerald-950/30"
+                                                                    >
+                                                                        <span className="pr-3 text-sm font-medium text-gray-900 dark:text-white">{product.name}</span>
+                                                                        <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">${product.sale_price.toFixed(2)}</span>
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex items-center justify-center">
+                                                            <div className="rounded-full bg-white px-3 py-2 text-sm font-semibold text-emerald-700 shadow-sm dark:bg-neutral-950 dark:text-emerald-300">
+                                                                Move
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="rounded-2xl bg-slate-900 p-3 text-white shadow-sm dark:bg-neutral-950">
+                                                            <div className="mb-3 flex items-center justify-between">
+                                                                <div>
+                                                                    <div className="text-sm font-semibold">Selected items</div>
+                                                                    <div className="text-xs text-white/60">These are part of the promotion</div>
+                                                                </div>
+                                                                <div className="rounded-full bg-white/10 px-2.5 py-1 text-xs font-semibold text-white/80">
+                                                                    {selectedProducts.length}
+                                                                </div>
+                                                            </div>
+                                                            <div className="max-h-72 space-y-2 overflow-auto pr-1">
+                                                                {selectedProducts.length === 0 ? (
+                                                                    <div className="rounded-xl border border-dashed border-white/15 px-4 py-6 text-center text-sm text-white/60">
+                                                                        No items selected yet.
+                                                                    </div>
+                                                                ) : selectedProducts.map((product) => (
+                                                                    <button
+                                                                        key={product.id}
+                                                                        type="button"
+                                                                        onClick={() => toggleProduct(product.id)}
+                                                                        className="flex w-full items-center justify-between rounded-xl bg-white/8 px-3 py-3 text-left transition hover:bg-white/14"
+                                                                    >
+                                                                        <span className="pr-3 text-sm font-medium">{product.name}</span>
+                                                                        <span className="text-xs font-semibold text-emerald-200">${product.sale_price.toFixed(2)}</span>
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             )}
@@ -570,6 +685,20 @@ export default function PromotionsAdminPage() {
                                                     />
                                                 </div>
                                             )}
+                                            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-100">
+                                                <div className="font-semibold">
+                                                    {form.product_scope === 'specific' ? 'Free item promotion preview' : 'Cart promotion preview'}
+                                                </div>
+                                                <div className="mt-1">
+                                                    {getPromotionDetailsCopy({
+                                                        ...form,
+                                                        id: editingId || 'preview',
+                                                        created_at: '',
+                                                        updated_at: '',
+                                                        product_ids: form.product_scope === 'specific' ? form.product_ids : [],
+                                                    })}
+                                                </div>
+                                            </div>
                                         </div>
                                     )}
                                 </div>

@@ -26,6 +26,7 @@ import { DEFAULT_APP_SETTINGS } from '../lib/settings';
 import { useRouter } from 'expo-router';
 import { getOrder } from '../lib/orders';
 import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
+import { getOrderPromotionSummary, isFreePromotionOrderItem } from '@/lib/promotion-summary';
 
 interface OrderDetailModalProps {
   visible: boolean;
@@ -132,12 +133,9 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const isUpdating = updatingStatus === order.id;
   const rewardPointsUsed = order.reward_points_used ?? 0;
   const rewardPointsValue = order.reward_points_value ?? 0;
-  const promotionSummary = Array.isArray(order.promotions_applied)
-    ? order.promotions_applied.find((entry) => entry && typeof entry === 'object')
-    : null;
-  const promotionLabel = typeof promotionSummary?.label === 'string' && promotionSummary.label.trim().length > 0
-    ? promotionSummary.label.trim()
-    : 'Promotion Discount';
+  const rewardPointsBalance = Number((order as Order & { reward_points_balance?: number | null }).reward_points_balance ?? 0);
+  const promotionSummary = getOrderPromotionSummary(order);
+  const promotionLabel = promotionSummary?.label || 'Promotion Discount';
   const lineItemCount = getOrderLineItemCount(order);
   const orderOptions = getOrderOptions(order);
   const orderNotes = getOrderNotes(order);
@@ -415,6 +413,12 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                   <Text style={[styles.totalValue, { color: '#10b981' }]}>-${rewardPointsValue.toFixed(2)}</Text>
                 </View>
               )}
+              {rewardPointsBalance > 0 && (
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Points Balance</Text>
+                  <Text style={styles.totalValue}>{rewardPointsBalance.toLocaleString()}</Text>
+                </View>
+              )}
               {order.service_fee > 0 && (
                 <View style={styles.totalRow}>
                   <Text style={styles.totalLabel}>Service Fee</Text>
@@ -447,7 +451,14 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                   <View key={index} style={styles.itemRow}>
                     <View style={styles.itemHeader}>
                       <Text style={styles.itemName}>{item.quantity}x {item.product_name}</Text>
-                      <Text style={styles.itemPrice}>${item.subtotal.toFixed(2)}</Text>
+                      {isFreePromotionOrderItem(order, item.product_name) ? (
+                        <View style={styles.itemPriceGroup}>
+                          <Text style={styles.itemPriceFree}>FREE</Text>
+                          <Text style={styles.itemPriceOriginal}>${item.subtotal.toFixed(2)}</Text>
+                        </View>
+                      ) : (
+                        <Text style={styles.itemPrice}>${item.subtotal.toFixed(2)}</Text>
+                      )}
                     </View>
                     {item.comment && <Text style={styles.itemComment}>Note: {item.comment}</Text>}
                     {((item.removed_ingredients && item.removed_ingredients.length > 0) || (item.addons && item.addons.length > 0)) && (
@@ -728,6 +739,9 @@ const styles = StyleSheet.create({
   itemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
   itemName: { fontSize: 16, fontWeight: '600', color: '#111827', flex: 1 },
   itemPrice: { fontSize: 16, fontWeight: 'bold', color: '#111827' },
+  itemPriceGroup: { alignItems: 'flex-end' },
+  itemPriceFree: { fontSize: 16, fontWeight: 'bold', color: '#059669' },
+  itemPriceOriginal: { fontSize: 12, color: '#6b7280', textDecorationLine: 'line-through' },
   itemComment: { fontSize: 14, color: '#b45309', fontStyle: 'italic', marginTop: 4 },
   addonsList: { marginTop: 4, paddingLeft: 12 },
   addonText: { fontSize: 13, color: '#6b7280' },

@@ -9,6 +9,7 @@ import {
   getOrderNotes,
   getOrderOptions,
 } from '../utils/orderUtils';
+import { getOrderPromotionSummary } from './promotion-summary';
 // this file is no longer use
 const FONT_SIZE = {
   large: { width: 2, height: 2 },
@@ -261,7 +262,11 @@ export function buildKitchenReceiptLines(
     lines.push(`Subtotal: $${formatMoney(order.subtotal)}`);
     if (order.tax > 0) lines.push(`Tax:      $${formatMoney(order.tax)}`);
     if (order.delivery_fee > 0) lines.push(`Delivery: $${formatMoney(order.delivery_fee)}`);
-    if (order.promotion_discount > 0) lines.push(`Promo:   -$${formatMoney(order.promotion_discount)}`);
+    if (order.promotion_discount > 0) {
+      const promotionLabel = getOrderPromotionSummary(order)?.label || 'Promo';
+      const compactLabel = `${promotionLabel}:`.slice(0, 18).padEnd(18);
+      lines.push(`${compactLabel} -$${formatMoney(order.promotion_discount)}`);
+    }
     if (order.coupon_discount > 0) lines.push(`Coupon:  -$${formatMoney(order.coupon_discount)}`);
     if ((order.reward_points_used ?? 0) > 0 && (order.reward_points_value ?? 0) > 0) {
       lines.push(`Points:  -$${formatMoney(order.reward_points_value ?? 0)} (${(order.reward_points_used ?? 0).toLocaleString()} pts)`);

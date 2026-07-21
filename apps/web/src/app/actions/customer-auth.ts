@@ -2,6 +2,7 @@
 
 import { createServiceRoleClient } from '@my-small-business/supabase/server';
 import { getPostHogClient } from '@/lib/posthog-server';
+import { mergeExistingCustomerProfileIntoAuthUser } from '@/app/actions/customer-profile-linking';
 
 // Sign up a new customer
 export async function signUpCustomer(
@@ -147,6 +148,17 @@ export async function signUpCustomer(
         email: existingProfile.email,
         role: existingProfile.role_slug
       });
+    }
+
+    const mergeResult = await mergeExistingCustomerProfileIntoAuthUser({
+      userId: authData.user.id,
+      email: normalizedEmail,
+      phone: phone || null,
+      fullName: fullName || null,
+    });
+
+    if (!mergeResult.success) {
+      return { success: false, error: mergeResult.error || 'Failed to link existing customer profile' };
     }
 
     // Update or create profile with customer role and additional info

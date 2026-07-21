@@ -1,8 +1,17 @@
 import { supabase } from '@/lib/supabase';
 import { Order } from '@/types/order';
 
-interface CustomerSummaryRewardRow {
-    rewardPoints: number | null;
+export interface CustomerRewardHistoryItem {
+    id: string;
+    orderId: string | null;
+    type: 'earned' | 'used' | 'expired' | 'adjusted';
+    points: number;
+    balanceAfter: number;
+    description: string | null;
+    createdAt: string;
+    dollarValue: number;
+    adjustmentType?: 'credit' | 'debit' | null;
+    adjustedByName?: string | null;
 }
 
 export interface CustomerSummary {
@@ -22,6 +31,7 @@ export interface CustomerSummary {
         total: number;
         status: string;
     }>;
+    rewardHistory: CustomerRewardHistoryItem[];
 }
 
 export async function fetchCustomerSummary({ email, phone }: { email?: string; phone?: string }): Promise<CustomerSummary | null> {
@@ -72,6 +82,34 @@ export async function fetchCustomerSummary({ email, phone }: { email?: string; p
         total: o.total,
         status: o.order_status,
     }));
+
+    let rewardHistory: CustomerRewardHistoryItem[] = [];
+    if (profileId) {
+        const { data: rewardRows, error: rewardError } = await supabase
+            .from('reward_point_transactions')
+            .select('id, order_id, transaction_type, points, points_balance_after, description, metadata, created_at')
+            .eq('user_id', profileId)
+            .order('created_at', { ascending: false })
+            .limit(25);
+
+        if (rewardError) {
+            throw new Error(rewardError.message);
+        }
+
+        rewardHistory = (rewardRows || []).map((row: any) => ({
+            id: row.id,
+            orderId: row.order_id ?? null,
+            type: row.transaction_type,
+            points: Number(row.points ?? 0),
+            balanceAfter: Number(row.points_balance_after ?? 0),
+            description: row.description ?? null,
+            createdAt: row.created_at,
+            dollarValue: Number(row.metadata?.dollar_value ?? 0),
+            adjustmentType: row.metadata?.adjustment_type ?? null,
+            adjustedByName: row.metadata?.adjusted_by_name ?? null,
+        }));
+    }
+
     return {
         profileId,
         name,
@@ -83,6 +121,7 @@ export async function fetchCustomerSummary({ email, phone }: { email?: string; p
         totalAmount,
         rewardPoints,
         orders: orderList,
+        rewardHistory,
     };
 }
 

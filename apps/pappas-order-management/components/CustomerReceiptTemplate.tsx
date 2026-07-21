@@ -4,6 +4,7 @@ import type { Order } from '@my-small-business/types';
 import { ReceiptQrCode } from './ReceiptQrCode';
 import { getReceiptQrLandingUrl, getReceiptStoreAddressLines, getReceiptStoreName, getReceiptStorePhone, getReceiptWebsiteUrl } from '../lib/receipt-config';
 import { getOrderChannelReceiptLabel, getOrderLineItemCount, getOrderNotes, groupAddons } from '../utils/orderUtils';
+import { getOrderPromotionSummary, isFreePromotionOrderItem } from '../lib/promotion-summary';
 
 type Props = {
   order: Order;
@@ -23,12 +24,9 @@ export function CustomerReceiptTemplate({ order, width = 576 }: Props) {
   const orderNotes = getOrderNotes(order);
   const rewardPointsUsed = order.reward_points_used ?? 0;
   const rewardPointsValue = order.reward_points_value ?? 0;
-  const promotionSummary = Array.isArray(order.promotions_applied)
-    ? order.promotions_applied.find((entry) => entry && typeof entry === 'object')
-    : null;
-  const promotionLabel = typeof promotionSummary?.label === 'string' && promotionSummary.label.trim().length > 0
-    ? promotionSummary.label.trim()
-    : 'Promotion Discount';
+  const rewardPointsBalance = Number((order as Order & { reward_points_balance?: number | null }).reward_points_balance ?? 0);
+  const promotionSummary = getOrderPromotionSummary(order);
+  const promotionLabel = promotionSummary?.label || 'Promotion Discount';
   const isNarrow = width <= 384;
   const qrSize = isNarrow ? 128 : 144;
   const gstAmount = order.tax > 0 ? order.tax : Number((order.total / 11).toFixed(2));
@@ -57,13 +55,25 @@ export function CustomerReceiptTemplate({ order, width = 576 }: Props) {
         <Text style={styles.sectionTitle}>{getOrderLineItemCount(order)}</Text>
       </View>
 
-      {(order.items || []).map((item, index) => (
+      {(order.items || []).map((item, index) => {
+        const isFreeItem = isFreePromotionOrderItem(order, item.product_name);
+
+        return (
         <View key={`${item.product_id || item.product_name}-${index}`} style={styles.itemBlock}>
           <View style={styles.itemRow}>
             <Text style={styles.itemName}>
               {item.quantity}x {item.product_name}
             </Text>
-            <Text style={styles.itemPrice}>${formatMoney(item.subtotal)}</Text>
+            <View style={styles.itemPriceBlock}>
+              {isFreeItem ? (
+                <>
+                  <Text style={styles.itemPriceFree}>FREE</Text>
+                  <Text style={styles.itemPriceOriginal}>${formatMoney(item.subtotal)}</Text>
+                </>
+              ) : (
+                <Text style={styles.itemPrice}>${formatMoney(item.subtotal)}</Text>
+              )}
+            </View>
           </View>
           {groupAddons(item.addons || []).map((addon, addonIndex) => (
             <Text key={`${item.product_name}-addon-${addonIndex}`} style={styles.modifierText}>
@@ -81,7 +91,7 @@ export function CustomerReceiptTemplate({ order, width = 576 }: Props) {
             <Text style={styles.modifierText}>Note: {item.comment.trim()}</Text>
           ) : null}
         </View>
-      ))}
+      )})}
 
       {orderNotes ? (
         <>
@@ -133,6 +143,12 @@ export function CustomerReceiptTemplate({ order, width = 576 }: Props) {
         <View style={styles.totalRow}>
           <Text style={styles.totalLabel}>Points ({rewardPointsUsed.toLocaleString()})</Text>
           <Text style={styles.totalValue}>-${formatMoney(rewardPointsValue)}</Text>
+        </View>
+      ) : null}
+      {rewardPointsBalance > 0 ? (
+        <View style={styles.totalRow}>
+          <Text style={styles.totalLabel}>Points Balance</Text>
+          <Text style={styles.totalValue}>{rewardPointsBalance.toLocaleString()}</Text>
         </View>
       ) : null}
 
@@ -224,6 +240,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 12,
   },
+  itemPriceBlock: {
+    alignItems: 'flex-end',
+  },
   itemName: {
     flex: 1,
     fontSize: 24,
@@ -234,6 +253,16 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: '#000',
+  },
+  itemPriceFree: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  itemPriceOriginal: {
+    fontSize: 16,
+    color: '#6b7280',
+    textDecorationLine: 'line-through',
   },
   modifierText: {
     fontSize: 18,

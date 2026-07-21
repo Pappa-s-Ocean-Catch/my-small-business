@@ -33,6 +33,11 @@ import Link from "next/link";
 import { LoadingSpinner } from "@/components/Loading";
 import {
   computeCartPromotionTotals,
+  getFreeItemDisplayName,
+  getPromotionDetailsCopy,
+  getPromotionDisplayTitle,
+  isFreeItemPromotion,
+  pickUnlockedFreeItemPromotion,
   type PromotionWithProducts,
 } from "@/lib/promotions";
 import { validateCouponCode } from "@/app/actions/coupons";
@@ -234,7 +239,7 @@ export default function CheckoutPage() {
     };
     fetchLiveOrders();
   }, [userId]);
-  const { items, getTotal, clearCart, isLoading: cartLoading } = useCart();
+  const { items, getTotal, clearCart, removeItem, isLoading: cartLoading } = useCart();
   const router = useRouter();
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(
     null,
@@ -324,6 +329,7 @@ export default function CheckoutPage() {
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
   const [couponResult, setCouponResult] = useState<CouponValidationResult | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
+  const [selectedFreeItemId, setSelectedFreeItemId] = useState<string | null>(null);
 
   const { flags: flagsFromHook, isLoading: featureFlagsLoading } =
     useFeatureFlag();
@@ -338,6 +344,7 @@ export default function CheckoutPage() {
   const [activePromotions, setActivePromotions] = useState<
     PromotionWithProducts[]
   >([]);
+  const [promotionsLoaded, setPromotionsLoaded] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -424,6 +431,7 @@ export default function CheckoutPage() {
     const loadPromotions = async () => {
       const res = await getActivePromotions();
       if (res.data) setActivePromotions(res.data);
+      setPromotionsLoaded(true);
     };
     void loadPromotions();
   }, []);
@@ -432,17 +440,69 @@ export default function CheckoutPage() {
   const promoTotals = computeCartPromotionTotals({
     promotions: activePromotions,
     items: items.map((i) => ({
+      id: i.id,
       product_id: i.product_id,
+      name: i.name,
       base_price: i.base_price,
       quantity: i.quantity,
       subtotal: i.subtotal,
     })),
     cartSubtotal,
+    selectedFreeItemId,
   });
 
   const subtotal = promoTotals.subtotalAfterPromotions;
   const promotionDiscount = promoTotals.totalDiscount;
   const promotionsApplied = promoTotals.applied;
+  const freeItemPromotion = promoTotals.freeItemPromotion;
+  const unlockedFreeItemPromotion = promoTotals.unlockedFreeItemPromotion;
+  const freeItemSelectionRequired = promoTotals.freeItemSelectionRequired;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.sessionStorage.getItem("checkout:selectedFreeItemId");
+    if (stored) {
+      setSelectedFreeItemId(stored);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!selectedFreeItemId) return;
+    const stillExists = items.some((item) => item.id === selectedFreeItemId);
+    if (!stillExists) {
+      setSelectedFreeItemId(null);
+    }
+  }, [items, selectedFreeItemId]);
+
+  useEffect(() => {
+    if (!promotionsLoaded || !selectedFreeItemId) return;
+    if (freeItemPromotion) return;
+
+    const stillExists = items.some((item) => item.id === selectedFreeItemId);
+    if (!stillExists) {
+      setSelectedFreeItemId(null);
+      return;
+    }
+
+    removeItem(selectedFreeItemId);
+    setSelectedFreeItemId(null);
+    toast.info("Free item removed because the cart no longer qualifies for that promotion.");
+  }, [freeItemPromotion, items, promotionsLoaded, removeItem, selectedFreeItemId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (selectedFreeItemId) {
+      window.sessionStorage.setItem("checkout:selectedFreeItemId", selectedFreeItemId);
+      return;
+    }
+    window.sessionStorage.removeItem("checkout:selectedFreeItemId");
+  }, [selectedFreeItemId]);
+
+  const eligibleFreeItemPromotions = activePromotions.filter((promotion) => isFreeItemPromotion(promotion));
+  const highlightedFreeItemPromotion = freeItemPromotion?.promotion
+    || unlockedFreeItemPromotion
+    || pickUnlockedFreeItemPromotion(eligibleFreeItemPromotions, cartSubtotal)
+    || null;
 
   const promotionsAppliedRef = useRef(false);
   useEffect(() => {
@@ -1410,6 +1470,11 @@ export default function CheckoutPage() {
     setIsSubmitting(true);
     let errorMessage = null;
     try {
+      if (freeItemSelectionRequired) {
+        errorMessage = "Please add and choose your free item before checkout.";
+        throw new Error(errorMessage);
+      }
+
       // Validate required contact fields
       if (!customerName.trim()) {
         errorMessage = "Please enter your full name to continue checkout.";
@@ -1465,28 +1530,35 @@ export default function CheckoutPage() {
         order_type: orderType || "pickup",
         user_id: currentUser?.id,
         special_instructions: specialInstructions || undefined,
-        items: items.map((item) => ({
-          product_id: item.product_id,
-          product_name: item.name,
-          product_description: item.description,
-          product_image_url: item.image_url,
-          base_price: item.base_price,
-          quantity: item.quantity,
-          subtotal: item.subtotal,
-          section: item.section ?? null,
-          removed_ingredients: item.removed_ingredients || [],
-          comment: item.comment || null,
-          addons: item.addon_groups.flatMap((group) =>
-            group.selected_items.map((addonItem) => ({
-              addon_group_id: group.id,
-              addon_group_name: group.name,
-              addon_item_id: addonItem.id,
-              addon_item_name: addonItem.name,
-              addon_item_price: addonItem.extra_price,
-              section: addonItem.section ?? null,
-            })),
-          ),
-        })),
+        items: items.map((item) => {
+          const itemDisplayName =
+            selectedFreeItemId === item.id && freeItemPromotion?.item.id === item.id
+              ? getFreeItemDisplayName(freeItemPromotion.promotion, item.name)
+              : item.name;
+
+          return {
+            product_id: item.product_id,
+            product_name: itemDisplayName,
+            product_description: item.description,
+            product_image_url: item.image_url,
+            base_price: item.base_price,
+            quantity: item.quantity,
+            subtotal: item.subtotal,
+            section: item.section ?? null,
+            removed_ingredients: item.removed_ingredients || [],
+            comment: item.comment || null,
+            addons: item.addon_groups.flatMap((group) =>
+              group.selected_items.map((addonItem) => ({
+                addon_group_id: group.id,
+                addon_group_name: group.name,
+                addon_item_id: addonItem.id,
+                addon_item_name: addonItem.name,
+                addon_item_price: addonItem.extra_price,
+                section: addonItem.section ?? null,
+              })),
+            ),
+          };
+        }),
         subtotal: cartSubtotal,
         promotion_discount: promotionDiscount,
         promotions_applied: promotionsApplied,
@@ -1997,59 +2069,98 @@ export default function CheckoutPage() {
 
           {/* Coupon Section */}
           {paymentMethod && (
-            <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Coupon Code
-              </h3>
-              {couponResult?.isValid ? (
-                <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-800 flex items-center justify-center text-green-600 dark:text-green-400">
-                      <Icon icon={FaGift} className="w-5 h-5" />
-                    </div>
+            <div className="space-y-4">
+              {highlightedFreeItemPromotion && (
+                <div className={`rounded-2xl border p-5 ${freeItemSelectionRequired ? 'border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20' : 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20'}`}>
+                  <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="font-semibold text-green-800 dark:text-green-300">
-                        {couponResult.coupon?.code} applied!
+                      <p className={`text-sm font-semibold uppercase tracking-[0.2em] ${freeItemSelectionRequired ? 'text-amber-700 dark:text-amber-300' : 'text-emerald-700 dark:text-emerald-300'}`}>
+                        Offer details
                       </p>
-                      <p className="text-sm text-green-600 dark:text-green-400">
-                        -${couponDiscount.toFixed(2)} savings
+                      <h3 className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
+                        {getPromotionDisplayTitle(highlightedFreeItemPromotion)}
+                      </h3>
+                      <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">
+                        {getPromotionDetailsCopy(highlightedFreeItemPromotion)}
                       </p>
+                      <Link href="/promotions" className="mt-2 inline-flex text-sm font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200">
+                        View promotion details
+                      </Link>
+                      {freeItemSelectionRequired ? (
+                        <Link href="/order/summary" className="mt-2 ml-4 inline-flex text-sm font-medium text-amber-700 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200">
+                          Choose free item in cart
+                        </Link>
+                      ) : null}
                     </div>
+                    {freeItemPromotion && (
+                      <div className="rounded-xl bg-white/80 px-3 py-2 text-right shadow-sm dark:bg-neutral-950/40">
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Selected free item</div>
+                        <div className="font-semibold text-gray-900 dark:text-white">{freeItemPromotion.item.name}</div>
+                        <div className="text-sm text-emerald-700 dark:text-emerald-300">-${freeItemPromotion.discountAmount.toFixed(2)}</div>
+                      </div>
+                    )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleRemoveCoupon}
-                    className="text-sm font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                  >
-                    Remove
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={couponCodeInput}
-                      onChange={(e) => setCouponCodeInput(e.target.value.toUpperCase())}
-                      placeholder="Enter code (e.g. SAVE10)"
-                      className="flex-1 px-4 py-2 bg-gray-50 dark:bg-neutral-900 border border-gray-200 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none uppercase text-gray-900 dark:text-white"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleApplyCoupon()}
-                      disabled={isValidatingCoupon || !couponCodeInput.trim()}
-                      className="px-6 py-2 bg-gray-900 dark:bg-blue-600 hover:bg-black dark:hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50"
-                    >
-                      {isValidatingCoupon ? <LoadingSpinner size="sm" /> : "Apply"}
-                    </button>
-                  </div>
-                  {couponError && (
-                    <p className="text-sm text-red-600 dark:text-red-400">
-                      {couponError}
+                  {freeItemSelectionRequired && (
+                    <p className="mt-3 text-sm font-medium text-amber-800 dark:text-amber-200">
+                      Choose the eligible free item on the summary step before checkout so the discount can be applied.
                     </p>
                   )}
                 </div>
               )}
+              <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                  Coupon Code
+                </h3>
+                {couponResult?.isValid ? (
+                  <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-800 flex items-center justify-center text-green-600 dark:text-green-400">
+                        <Icon icon={FaGift} className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-green-800 dark:text-green-300">
+                          {couponResult.coupon?.code} applied!
+                        </p>
+                        <p className="text-sm text-green-600 dark:text-green-400">
+                          -${couponDiscount.toFixed(2)} savings
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleRemoveCoupon}
+                      className="text-sm font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={couponCodeInput}
+                        onChange={(e) => setCouponCodeInput(e.target.value.toUpperCase())}
+                        placeholder="Enter code (e.g. SAVE10)"
+                        className="flex-1 px-4 py-2 bg-gray-50 dark:bg-neutral-900 border border-gray-200 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none uppercase text-gray-900 dark:text-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleApplyCoupon()}
+                        disabled={isValidatingCoupon || !couponCodeInput.trim()}
+                        className="px-6 py-2 bg-gray-900 dark:bg-blue-600 hover:bg-black dark:hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        {isValidatingCoupon ? <LoadingSpinner size="sm" /> : "Apply"}
+                      </button>
+                    </div>
+                    {couponError && (
+                      <p className="text-sm text-red-600 dark:text-red-400">
+                        {couponError}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -2060,6 +2171,7 @@ export default function CheckoutPage() {
             cartSubtotal={cartSubtotal}
             promotionDiscount={promotionDiscount}
             subtotal={subtotal}
+            promotionsApplied={promotionsApplied}
             rewardPointsDiscount={rewardPointsDiscount}
             couponDiscount={couponDiscount}
             couponCode={couponResult?.coupon?.code}

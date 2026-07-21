@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import type { Order, OrderItem, OrderItemAddon, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { getOrderNotes, getOrderOptions } from '../utils/orderUtils';
 import type { DeliveryAddressDraft, DeliveryQuoteResult } from './delivery';
+import { ensureRewardPointsForOrder } from './reward-points';
 
 type OrderRow = Omit<Order, 'items'> & {
   items?: never;
@@ -185,6 +186,13 @@ export async function updateOrderStatus(
 
     if (error) {
       return { data: null, error: error.message };
+    }
+
+    if (data && status === 'completed' && data.payment_status === 'paid') {
+      const rewardResult = await ensureRewardPointsForOrder(orderId);
+      if (!rewardResult.success) {
+        console.error('Failed to ensure reward points on POS completion:', rewardResult.error);
+      }
     }
 
     return { data: data as Order, error: null };
@@ -537,6 +545,8 @@ export async function updatePosOrder(
     | 'promotions_applied'
     | 'coupon_code'
     | 'coupon_discount'
+    | 'reward_points_used'
+    | 'reward_points_value'
   >> = {}
 ): Promise<{ data: Order | null; error: string | null }> {
   try {

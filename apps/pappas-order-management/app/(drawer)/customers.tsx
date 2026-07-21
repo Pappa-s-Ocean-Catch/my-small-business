@@ -1,32 +1,25 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, StyleSheet, FlatList, RefreshControl, ActivityIndicator, Alert } from 'react-native';
-import { 
-  Text, 
-  Searchbar, 
-  Surface, 
-  Avatar, 
-  IconButton,
-  Card,
-  useTheme,
-  Appbar,
-} from 'react-native-paper';
+import { View, StyleSheet, Alert } from 'react-native';
+import { Appbar } from 'react-native-paper';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { useRouter } from 'expo-router';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { Order } from '@my-small-business/types';
-import { getRecentCustomers, searchCustomers, Customer } from '@/lib/customers';
+import { createCustomerProfile, getRecentCustomers, searchCustomers, Customer } from '@/lib/customers';
 import { getOrder } from '@/lib/orders';
 import { CustomerModal } from '@/components/CustomerModal';
 import { OrderDetailModal } from '@/components/OrderDetailModal';
 import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
+import { CustomerDirectoryList } from '@/components/customers/CustomerDirectoryList';
+import { AddCustomerModal } from '@/components/customers/AddCustomerModal';
 import { useOrderActions } from '@/hooks/useOrderActions';
 import { DEFAULT_APP_SETTINGS, loadAppSettings, subscribeAppSettings, type AppSettings } from '@/lib/settings';
+import { canAccessOrderManagement, isAdminUser } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
 
 const PAGE_SIZE = 20;
 
 export default function CustomersScreen() {
-  const theme = useTheme();
   const navigation = useNavigation<DrawerNavigationProp<any>>();
   const router = useRouter();
   
@@ -38,6 +31,10 @@ export default function CustomersScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
+  const [canCreateCustomers, setCanCreateCustomers] = useState(false);
+  const [canAdjustRewardPoints, setCanAdjustRewardPoints] = useState(false);
+  const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
+  const [savingCustomer, setSavingCustomer] = useState(false);
   
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<{ email?: string; phone?: string } | null>(null);
@@ -56,6 +53,27 @@ export default function CustomersScreen() {
   useEffect(() => {
     const unsubscribe = subscribeAppSettings(setAppSettings);
     return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    const loadPermissions = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      if (!userId) return;
+
+      try {
+        const [canAccess, isAdmin] = await Promise.all([
+          canAccessOrderManagement(userId),
+          isAdminUser(userId),
+        ]);
+        setCanCreateCustomers(canAccess);
+        setCanAdjustRewardPoints(isAdmin);
+      } catch (error) {
+        console.error('Failed to load customer admin permissions:', error);
+      }
+    };
+
+    void loadPermissions();
   }, []);
 
   useFocusEffect(
@@ -155,57 +173,25 @@ export default function CustomersScreen() {
     }
   };
 
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2) || '??';
-  };
+  const handleCreateCustomer = async (input: { name: string; email?: string; phone?: string }) => {
+    setSavingCustomer(true);
+    try {
+      const result = await createCustomerProfile(input);
+      if (result.error || !result.data) {
+        Alert.alert('Add Customer', result.error || 'Failed to save customer');
+        return;
+      }
 
-  const renderCustomerItem = ({ item }: { item: Customer }) => (
-    <Card 
-      style={styles.card} 
-      onPress={() => handleCustomerPress(item)}
-      mode="contained"
-    >
-      <Card.Content style={styles.cardContent}>
-        <Avatar.Text 
-          size={48} 
-          label={getInitials(item.name || 'Unknown')} 
-          style={[styles.avatar, { backgroundColor: theme.colors.primaryContainer }]} 
-          labelStyle={{ color: theme.colors.onPrimaryContainer }}
-        />
-        <View style={styles.infoContainer}>
-          <Text variant="titleMedium" style={styles.name}>{item.name || 'Unknown'}</Text>
-          <Text variant="bodySmall" style={styles.contact}>{item.email || item.phone}</Text>
-          <View style={styles.statsRow}>
-            <View style={styles.stat}>
-              <MaterialCommunityIcons name="cart-outline" size={14} color={theme.colors.secondary} />
-              <Text variant="labelSmall" style={styles.statText}>{item.totalOrders} orders</Text>
-            </View>
-            <View style={styles.stat}>
-              <MaterialCommunityIcons name="currency-usd" size={14} color="#16a34a" />
-              <Text variant="labelSmall" style={styles.statText}>
-                ${(Number(item.totalSpent) || 0).toFixed(2)} spent
-              </Text>
-            </View>
-            <View style={styles.stat}>
-              <MaterialCommunityIcons name="star-outline" size={14} color="#f59e0b" />
-              <Text variant="labelSmall" style={styles.statText}>
-                {item.rewardPoints || 0} pts
-              </Text>
-            </View>
-          </View>
-        </View>
-        <IconButton icon="chevron-right" size={20} />
-      </Card.Content>
-    </Card>
-  );
-
-  const renderFooter = () => {
-    if (!loadingMore) return null;
-    return (
-      <View style={styles.footerLoader}>
-        <ActivityIndicator size="small" color={theme.colors.primary} />
-      </View>
-    );
+      setShowAddCustomerModal(false);
+      setSearchQuery(result.data.name || result.data.email || result.data.phone);
+      setDebouncedQuery(result.data.name || result.data.email || result.data.phone);
+      await loadCustomers(0, result.data.name || '', false);
+      setSelectedCustomer({ email: result.data.email, phone: result.data.phone });
+      setShowCustomerModal(true);
+      Alert.alert('Saved', 'Customer added successfully.');
+    } finally {
+      setSavingCustomer(false);
+    }
   };
 
   return (
@@ -216,42 +202,19 @@ export default function CustomersScreen() {
         <Appbar.Action icon="home" onPress={() => router.replace('/(drawer)/(tabs)/live-orders')} iconColor="#fff" />
       </Appbar.Header>
 
-      <Surface style={styles.searchSurface} elevation={1}>
-        <Searchbar
-          placeholder="Search customers..."
-          onChangeText={setSearchQuery}
-          value={searchQuery}
-          style={styles.searchBar}
-          elevation={0}
-        />
-      </Surface>
-
-      {loading && !refreshing ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={styles.loadingText}>Loading customers...</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={customers}
-          keyExtractor={(item) => item.email + item.phone}
-          renderItem={renderCustomerItem}
-          ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-          }
-          onEndReached={handleLoadMore}
-          onEndReachedThreshold={0.5}
-          ListFooterComponent={renderFooter}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <MaterialCommunityIcons name="account-search-outline" size={64} color="#ccc" />
-              <Text style={styles.emptyText}>No customers found</Text>
-            </View>
-          }
-        />
-      )}
+      <CustomerDirectoryList
+        customers={customers}
+        searchQuery={searchQuery}
+        onChangeSearchQuery={setSearchQuery}
+        onSelectCustomer={handleCustomerPress}
+        loading={loading}
+        loadingMore={loadingMore}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
+        onEndReached={handleLoadMore}
+        headerActionLabel={canCreateCustomers ? 'New Customer' : undefined}
+        onHeaderActionPress={canCreateCustomers ? () => setShowAddCustomerModal(true) : undefined}
+      />
 
       {selectedCustomer && (
         <CustomerModal
@@ -260,8 +223,17 @@ export default function CustomersScreen() {
           phone={selectedCustomer.phone}
           onClose={() => setShowCustomerModal(false)}
           onOrderPress={handleOpenOrderFromCustomerModal}
+          allowRewardAdjustments={canAdjustRewardPoints}
+          onCustomerUpdated={() => void loadCustomers(0, debouncedQuery, false)}
         />
       )}
+
+      <AddCustomerModal
+        visible={showAddCustomerModal}
+        saving={savingCustomer}
+        onClose={() => setShowAddCustomerModal(false)}
+        onSubmit={handleCreateCustomer}
+      />
 
       <OrderDetailModal
         visible={showOrderModal}
@@ -303,81 +275,5 @@ const styles = StyleSheet.create({
   appbarTitle: {
     color: '#fff',
     fontWeight: 'bold',
-  },
-  searchSurface: {
-    padding: 12,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-  },
-  searchBar: {
-    backgroundColor: '#f1f5f9',
-    borderRadius: 12,
-  },
-  listContent: {
-    padding: 16,
-  },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  cardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-  },
-  avatar: {
-    marginRight: 16,
-  },
-  infoContainer: {
-    flex: 1,
-  },
-  name: {
-    fontWeight: 'bold',
-    color: '#1e293b',
-  },
-  contact: {
-    color: '#64748b',
-    marginTop: 2,
-    fontSize: 14,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    marginTop: 8,
-    gap: 12,
-  },
-  stat: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  statText: {
-    color: '#64748b',
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 12,
-    color: '#64748b',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 100,
-  },
-  emptyText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#94a3b8',
-  },
-  footerLoader: {
-    paddingVertical: 20,
-    alignItems: 'center',
   },
 });

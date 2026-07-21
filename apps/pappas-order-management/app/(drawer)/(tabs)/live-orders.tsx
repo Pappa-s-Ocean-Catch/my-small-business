@@ -49,6 +49,7 @@ import {
 
 type TimeoutHandle = ReturnType<typeof setTimeout>;
 const RECEIPT_RENDER_SETTLE_MS = 300;
+const RECEIPT_RENDER_FRAME_COUNT = 2;
 
 type FilterKey = 'all' | 'needs-action' | 'unpaid' | 'ready' | 'scheduled';
 type GroupKey = 'overdue' | 'due-soon' | 'ready' | 'on-the-way' | 'attention' | 'other';
@@ -198,6 +199,12 @@ export default function LiveOrdersScreen() {
     return null;
   });
 
+  const waitForReceiptRenderFrames = async (frameCount: number = RECEIPT_RENDER_FRAME_COUNT) => {
+    for (let index = 0; index < frameCount; index += 1) {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    }
+  };
+
   const quickPrintOrder = async (order: Order, selectedPrinter?: SavedPrinter | null) => {
     const workflowStartedAt = Date.now();
 
@@ -313,14 +320,19 @@ export default function LiveOrdersScreen() {
           }]
         : buildSectionPrintJobs(s, freshOrder);
       const capturedJobs: Array<{ image: PrinterImageSource; previewUri: string | null; label: string; useSimulator: boolean; printer: NonNullable<ReturnType<typeof buildSectionPrintJobs>[number]['printer']> | null }> = [];
-      for (const job of jobs) {
+      for (let index = 0; index < jobs.length; index += 1) {
+        const job = jobs[index];
         const jobStartedAt = Date.now();
         setTempPrintTicketIndex(job.onlyTicketIndex ?? 0);
         setTempPrintDuplicateBySections(job.duplicateBySections);
-        await new Promise((resolve) => setTimeout(resolve, RECEIPT_RENDER_SETTLE_MS));
+        if (index === 0) {
+          await new Promise((resolve) => setTimeout(resolve, RECEIPT_RENDER_SETTLE_MS));
+        } else {
+          await waitForReceiptRenderFrames();
+        }
         logOrderEvent('info', 'print', 'Prepared receipt template for routed print job', {
           order: freshOrder,
-          details: `job=${job.label} renderSettle=${formatDurationMs(jobStartedAt)}`,
+          details: `job=${job.label} renderSettle=${formatDurationMs(jobStartedAt)} mode=${index === 0 ? 'initial-wait' : 'frame-sync'}`,
         });
 
         const refWaitStartedAt = Date.now();

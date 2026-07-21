@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { getApiUrl } from '../utils/orderUtils';
 
 export interface Customer {
   id: string;
@@ -52,6 +53,15 @@ function newUuid(): string {
   });
 }
 
+async function getAccessToken(): Promise<{ token: string | null; error: string | null }> {
+  const { data: { session }, error } = await supabase.auth.getSession();
+  if (error || !session?.access_token) {
+    return { token: null, error: error?.message || 'Missing authenticated session' };
+  }
+
+  return { token: session.access_token, error: null };
+}
+
 export async function getRecentCustomers(page = 0, pageSize = 20): Promise<{ data: Customer[] | null; error: string | null }> {
   try {
     const from = page * pageSize;
@@ -72,13 +82,18 @@ export async function getRecentCustomers(page = 0, pageSize = 20): Promise<{ dat
 
 export async function searchCustomers(query: string, page = 0, pageSize = 20): Promise<{ data: Customer[] | null; error: string | null }> {
   try {
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) {
+      return getRecentCustomers(page, pageSize);
+    }
+
     const from = page * pageSize;
     const to = from + pageSize - 1;
 
     const { data, error } = await supabase
       .from('customer_summary')
       .select('*')
-      .or(`name.ilike.%${query}%,email.ilike.%${query}%,phone.ilike.%${query}%`)
+      .or(`name.ilike.%${trimmedQuery}%,email.ilike.%${trimmedQuery}%,phone.ilike.%${trimmedQuery}%`)
       .order('lastOrderDate', { ascending: false })
       .range(from, to);
 
@@ -92,6 +107,18 @@ export async function searchCustomers(query: string, page = 0, pageSize = 20): P
 export async function findCustomerByPhone(phone: string): Promise<{ data: Customer | null; error: string | null }> {
   try {
     const phoneLookupValues = getPhoneLookupValues(phone);
+    const summaryResult = await supabase
+      .from('customer_summary')
+      .select('*')
+      .in('phone', phoneLookupValues)
+      .order('lastOrderDate', { ascending: false })
+      .limit(1);
+
+    if (summaryResult.error) return { data: null, error: summaryResult.error.message };
+    if (summaryResult.data?.[0]) {
+      return { data: summaryResult.data[0] as Customer, error: null };
+    }
+
     const { data, error } = await supabase
       .from('profiles')
       .select('id, full_name, email, phone')
@@ -143,6 +170,40 @@ export async function createCustomerIfNotExists(phone: string, name: string): Pr
       },
       error: null,
     };
+  } catch (err) {
+    return { data: null, error: err instanceof Error ? err.message : 'Unknown error' };
+  }
+}
+
+export async function createCustomerProfile(input: {
+  name: string;
+  email?: string;
+  phone?: string;
+}): Promise<{ data: Customer | null; error: string | null }> {
+  try {
+    const { token, error: authError } = await getAccessToken();
+    if (authError || !token) {
+      return { data: null, error: authError || 'Missing authenticated session' };
+    }
+
+    const response = await fetch(getApiUrl('/api/customers/create'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(input),
+    });
+
+    const payload = await response.json().catch(() => null) as
+      | { customer?: Customer; error?: string }
+      | null;
+
+    if (!response.ok || !payload?.customer) {
+      return { data: null, error: payload?.error || `Create customer failed (${response.status})` };
+    }
+
+    return { data: payload.customer, error: null };
   } catch (err) {
     return { data: null, error: err instanceof Error ? err.message : 'Unknown error' };
   }

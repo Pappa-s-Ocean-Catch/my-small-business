@@ -1,6 +1,7 @@
 import type { Order, OrderStatus, OrderItemAddon, OrderChannel } from '@my-small-business/types';
 import { getFriendlyOrderNumber } from './orderNumber';
 import { STATUS_LABELS, PAYMENT_STATUS_LABELS } from './constants';
+import { getOrderPromotionSummary } from '../lib/promotion-summary';
 
 export const KITCHEN_SECTION_OPTIONS = ['Fried', 'Grilled', 'Till'] as const;
 
@@ -429,7 +430,7 @@ export const generatePrintHTML = (order: Order): string => {
           <p>Subtotal: $${order.subtotal.toFixed(2)}</p>
           ${order.tax > 0 ? `<p>Tax: $${order.tax.toFixed(2)}</p>` : ''}
           ${order.delivery_fee > 0 ? `<p>Delivery Fee: $${order.delivery_fee.toFixed(2)}</p>` : ''}
-          ${order.promotion_discount > 0 ? `<p style="color: #16a34a;">Promotion Discount: -$${order.promotion_discount.toFixed(2)}</p>` : ''}
+          ${order.promotion_discount > 0 ? `<p style="color: #16a34a;">${getOrderPromotionSummary(order)?.label || 'Promotion Discount'}: -$${order.promotion_discount.toFixed(2)}</p>` : ''}
           ${order.coupon_discount > 0 ? `<p style="color: #16a34a;">Coupon (${order.coupon_code}): -$${order.coupon_discount.toFixed(2)}</p>` : ''}
           ${rewardPointsUsed > 0 && rewardPointsValue > 0 ? `<p style="color: #16a34a;">Points Applied (${rewardPointsUsed.toLocaleString()} pts): -$${rewardPointsValue.toFixed(2)}</p>` : ''}
           ${order.service_fee > 0 ? `<p>Service Fee: $${order.service_fee.toFixed(2)}</p>` : ''}

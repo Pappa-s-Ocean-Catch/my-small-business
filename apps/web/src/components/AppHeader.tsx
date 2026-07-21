@@ -6,11 +6,12 @@ import { AuthenticatedHeader } from "./AuthenticatedHeader";
 import { Logo } from "./Logo";
 import { PublicNavigation } from "./PublicNavigation";
 
-// List of public routes that should not show the header
-const PUBLIC_ROUTES = [
+// Public routes that should hide the header completely.
+const HEADERLESS_PUBLIC_ROUTES = [
   "/", // Home page
   "/menu", // Menu page
   "/order", // Order page
+  "/promotions", // Promotions page uses OrderHeader
   "/qr", // Receipt QR landing page
   "/rewards", // Public rewards page (customer rewards)
   "/profile", // Customer profile should use public-facing header
@@ -18,12 +19,11 @@ const PUBLIC_ROUTES = [
   "/auth/callback", // Auth callback - avoid flashing admin navigation for customers
 ];
 
-// Check if a pathname is a public route
-function isPublicRoute(pathname: string | null): boolean {
+function isHeaderlessPublicRoute(pathname: string | null): boolean {
   if (!pathname) return false;
   
   // Exact matches
-  if (PUBLIC_ROUTES.includes(pathname)) {
+  if (HEADERLESS_PUBLIC_ROUTES.includes(pathname)) {
     return true;
   }
   
@@ -31,6 +31,7 @@ function isPublicRoute(pathname: string | null): boolean {
   if (
     pathname.startsWith("/menu/") ||
     pathname.startsWith("/order/") ||
+    pathname.startsWith("/promotions/") ||
     pathname.startsWith("/rewards") ||
     pathname.startsWith("/profile") ||
     pathname.startsWith("/unsubscribe") ||
@@ -46,8 +47,7 @@ function isPublicRoute(pathname: string | null): boolean {
 export function AppHeader() {
   const pathname = usePathname();
   
-  // Hide header for all public pages
-  if (isPublicRoute(pathname)) {
+  if (isHeaderlessPublicRoute(pathname)) {
     return null;
   }
   

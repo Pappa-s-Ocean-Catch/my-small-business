@@ -9,6 +9,7 @@ import { ReviewSummaryWidget } from "@/components/ReviewSummaryWidget";
 import React from "react";
 
 import type { Promotion } from "@/lib/promotions";
+import { getPromotionDetailsCopy } from "@/lib/promotions";
 
 interface HeroProps {
     homePromotions: Promotion[];
@@ -46,8 +47,39 @@ export function Hero({ homePromotions, enablePickupOrder, reviewSectionId }: Her
             {/* Hero Content */}
             <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
                 {homePromotions.length > 0 && (
-                    <div className="inline-flex items-center justify-center mb-4 px-4 py-2 rounded-full bg-green-600/90 text-white text-sm font-semibold backdrop-blur">
-                        {homePromotions[0].home_title || homePromotions[0].title}
+                    <div className="mb-8">
+                        <div className="inline-flex max-w-3xl flex-wrap items-center justify-center gap-x-4 gap-y-2 text-left text-white/92">
+                            <span className="text-[11px] font-bold uppercase tracking-[0.45em] text-emerald-300/90 animate-pulse">
+                                Current promotions
+                            </span>
+                            {homePromotions.map((promotion, index) => (
+                                <React.Fragment key={promotion.id}>
+                                    <Link
+                                        href="/promotions"
+                                        className="group inline-flex items-center gap-3 transition-transform duration-300 hover:-translate-y-0.5"
+                                        style={{ animation: `fadeInUp 500ms ease ${index * 120}ms both` }}
+                                    >
+                                        <span className="text-base font-semibold md:text-lg">
+                                            {promotion.home_title || promotion.title}
+                                        </span>
+                                        <span className="hidden text-sm text-white/65 md:inline">
+                                            {getPromotionDetailsCopy(promotion)}
+                                        </span>
+                                        <span className="text-emerald-300 transition-transform duration-300 group-hover:translate-x-1">
+                                            →
+                                        </span>
+                                    </Link>
+                                    {index < homePromotions.length - 1 && (
+                                        <span
+                                            className="hidden text-white/25 md:inline"
+                                            style={{ animation: `fadeInUp 500ms ease ${index * 120 + 60}ms both` }}
+                                        >
+                                            /
+                                        </span>
+                                    )}
+                                </React.Fragment>
+                            ))}
+                        </div>
                     </div>
                 )}
                 {/* Review summary widget */}
@@ -130,6 +162,19 @@ export function Hero({ homePromotions, enablePickupOrder, reviewSectionId }: Her
                     <div className="w-1 h-3 bg-white/50 rounded-full mt-2" />
                 </div>
             </div>
+
+            <style jsx>{`
+                @keyframes fadeInUp {
+                    from {
+                        opacity: 0;
+                        transform: translateY(10px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
+                }
+            `}</style>
         </section>
     );
 }

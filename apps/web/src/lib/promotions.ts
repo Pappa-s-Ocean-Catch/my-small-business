@@ -36,6 +36,32 @@ export type AppliedPromotion = {
     title: string;
     applies_to: PromotionAppliesTo;
     amount: number;
+    kind?: 'standard' | 'free_item';
+    selected_item_id?: string;
+    selected_item_name?: string;
+    threshold?: number | null;
+};
+
+export type CartPromotionItem = {
+    id?: string;
+    product_id: string;
+    base_price: number;
+    quantity: number;
+    subtotal: number;
+    name?: string;
+};
+
+export type FreeItemPromotionMatch = {
+    promotion: PromotionWithProducts;
+    item: CartPromotionItem;
+    unitPrice: number;
+    discountAmount: number;
+};
+
+export type FreeItemEncouragement = {
+    promotion: PromotionWithProducts;
+    remainingAmount: number;
+    progressRatio: number;
 };
 
 export const DEFAULT_STORE_TIMEZONE = 'Australia/Melbourne';
@@ -144,6 +170,51 @@ export function promotionLabel(promo: Pick<Promotion, 'discount_type' | 'discoun
     return `$${Number(promo.discount_value || 0).toFixed(2)} off`;
 }
 
+function formatThresholdAmount(amount: number | null | undefined): string | null {
+    const value = Number(amount ?? 0);
+    if (!(value > 0)) return null;
+    return Number.isInteger(value) ? value.toFixed(0) : value.toFixed(2);
+}
+
+export function isFreeItemPromotion(promo: PromotionWithProducts): boolean {
+    return promo.applies_to === 'cart' && Array.isArray(promo.product_ids) && promo.product_ids.length > 0;
+}
+
+export function getFreeItemDisplayName(
+    promo: Pick<Promotion, 'min_cart_subtotal'>,
+    itemName: string
+): string {
+    const threshold = formatThresholdAmount(promo.min_cart_subtotal);
+    if (threshold) {
+        return `FREE ${itemName} on orders over $${threshold}`;
+    }
+    return `FREE ${itemName}`;
+}
+
+export function getPromotionDisplayTitle(promo: PromotionWithProducts | Promotion): string {
+    if ('product_ids' in promo && isFreeItemPromotion(promo as PromotionWithProducts)) {
+        return promo.title || 'Free item';
+    }
+    return promo.title;
+}
+
+export function getPromotionDetailsCopy(promo: PromotionWithProducts | Promotion): string {
+    const maybeWithProducts = promo as PromotionWithProducts;
+    if (isFreeItemPromotion(maybeWithProducts)) {
+        const threshold = Number(promo.min_cart_subtotal ?? 0) || 0;
+        if (threshold > 0) {
+            return `Spend $${threshold.toFixed(2)} or more after discounts to unlock 1 free eligible item. Delivery fee is excluded.`;
+        }
+        return 'Add 1 eligible item to your cart and it will be free. Delivery fee is excluded.';
+    }
+
+    if (promo.applies_to === 'cart' && promo.cart_scope === 'subtotal_min' && typeof promo.min_cart_subtotal === 'number') {
+        return `Spend $${promo.min_cart_subtotal.toFixed(2)} or more and get ${promotionLabel(promo)}. Delivery fee is excluded.`;
+    }
+
+    return `${promotionLabel(promo)}. Delivery fee is excluded.`;
+}
+
 export function appliesToProduct(
     promo: PromotionWithProducts,
     product: { id: string; sale_price: number }
@@ -227,18 +298,153 @@ export function pickBestCartPromotion(
     return { promo: best, discountAmount: clampCurrency(bestAmount) };
 }
 
+export function findSelectedFreeItemPromotion(params: {
+    promotions: PromotionWithProducts[];
+    items: CartPromotionItem[];
+    cartSubtotal: number;
+    selectedItemId?: string | null;
+}): FreeItemPromotionMatch | null {
+    const { promotions, items, cartSubtotal, selectedItemId } = params;
+    if (!selectedItemId) return null;
+
+    const selectedItem = items.find((item) => item.id === selectedItemId);
+    if (!selectedItem) return null;
+
+    let best: FreeItemPromotionMatch | null = null;
+
+    for (const promotion of promotions) {
+        if (!isFreeItemPromotion(promotion)) continue;
+        if (!appliesToCart(promotion, cartSubtotal)) continue;
+        if (!(promotion.product_ids || []).includes(selectedItem.product_id)) continue;
+
+        const quantity = Math.max(1, Number(selectedItem.quantity) || 1);
+        const unitPrice = clampCurrency((Number(selectedItem.subtotal) || 0) / quantity);
+        if (unitPrice <= 0) continue;
+
+        const configuredCap = Number(promotion.discount_value || 0);
+        const discountAmount = clampCurrency(
+            configuredCap > 0 ? Math.min(unitPrice, configuredCap) : unitPrice
+        );
+        if (discountAmount <= 0) continue;
+
+        if (
+            !best
+            || discountAmount > best.discountAmount + 0.0001
+            || (
+                Math.abs(discountAmount - best.discountAmount) < 0.0001
+                && (promotion.priority ?? 0) > (best.promotion.priority ?? 0)
+            )
+        ) {
+            best = {
+                promotion,
+                item: selectedItem,
+                unitPrice,
+                discountAmount,
+            };
+        }
+    }
+
+    return best;
+}
+
+export function pickUnlockedFreeItemPromotion(
+    promotions: PromotionWithProducts[],
+    cartSubtotal: number
+): PromotionWithProducts | null {
+    let best: PromotionWithProducts | null = null;
+
+    for (const promotion of promotions) {
+        if (!isFreeItemPromotion(promotion)) continue;
+        if (!appliesToCart(promotion, cartSubtotal)) continue;
+
+        if (
+            !best
+            || (promotion.priority ?? 0) > (best.priority ?? 0)
+            || (
+                (promotion.priority ?? 0) === (best.priority ?? 0)
+                && (Number(promotion.min_cart_subtotal ?? 0) || 0) > (Number(best.min_cart_subtotal ?? 0) || 0)
+            )
+        ) {
+            best = promotion;
+        }
+    }
+
+    return best;
+}
+
+export function findFreeItemEncouragement(params: {
+    promotions: PromotionWithProducts[];
+    items: CartPromotionItem[];
+    cartSubtotal: number;
+    triggerRatio?: number;
+}): FreeItemEncouragement | null {
+    const { promotions, items, cartSubtotal, triggerRatio = 0.8 } = params;
+
+    let productDiscount = 0;
+    for (const item of items) {
+        const { promo, discountPerUnit } = pickBestProductPromotion(promotions, {
+            id: item.product_id,
+            sale_price: Number(item.base_price) || 0,
+        });
+
+        if (!promo || discountPerUnit <= 0) continue;
+        const itemDiscount = clampCurrency(discountPerUnit * Math.max(1, Number(item.quantity) || 1));
+        if (itemDiscount <= 0) continue;
+        productDiscount = clampCurrency(productDiscount + itemDiscount);
+    }
+
+    const eligibleSubtotal = clampCurrency(Math.max(0, cartSubtotal - productDiscount));
+    let best: FreeItemEncouragement | null = null;
+
+    for (const promotion of promotions) {
+        if (!isFreeItemPromotion(promotion)) continue;
+
+        const threshold = Number(promotion.min_cart_subtotal ?? 0) || 0;
+        if (threshold <= 0) continue;
+        if (eligibleSubtotal >= threshold) continue;
+
+        const progressRatio = eligibleSubtotal / threshold;
+        if (progressRatio < triggerRatio) continue;
+
+        const remainingAmount = clampCurrency(Math.max(0, threshold - eligibleSubtotal));
+        if (
+            !best
+            || (promotion.priority ?? 0) > (best.promotion.priority ?? 0)
+            || (
+                (promotion.priority ?? 0) === (best.promotion.priority ?? 0)
+                && threshold < (Number(best.promotion.min_cart_subtotal ?? 0) || 0)
+            )
+        ) {
+            best = {
+                promotion,
+                remainingAmount,
+                progressRatio,
+            };
+        }
+    }
+
+    return best;
+}
+
 export function computeCartPromotionTotals(params: {
     promotions: PromotionWithProducts[];
-    items: Array<{ product_id: string; base_price: number; quantity: number; subtotal: number }>;
+    items: CartPromotionItem[];
     cartSubtotal: number;
+    selectedFreeItemId?: string | null;
 }): {
     productDiscount: number;
     cartDiscount: number;
     totalDiscount: number;
     subtotalAfterPromotions: number;
     applied: AppliedPromotion[];
+    freeItemPromotion: FreeItemPromotionMatch | null;
+    unlockedFreeItemPromotion: PromotionWithProducts | null;
+    freeItemSelectionRequired: boolean;
 } {
-    const { promotions, items, cartSubtotal } = params;
+    const { promotions, items, cartSubtotal, selectedFreeItemId } = params;
+    const selectedFreeItem = selectedFreeItemId
+        ? items.find((item) => item.id === selectedFreeItemId) ?? null
+        : null;
 
     let productDiscount = 0;
     const applied: AppliedPromotion[] = [];
@@ -258,14 +464,39 @@ export function computeCartPromotionTotals(params: {
     }
 
     const eligibleForCartPromo = clampCurrency(Math.max(0, cartSubtotal - productDiscount));
-    const { promo: cartPromo, discountAmount: cartDiscount } = pickBestCartPromotion(promotions, eligibleForCartPromo);
+    const qualifyingCartSubtotal = clampCurrency(
+        Math.max(0, eligibleForCartPromo - (Number(selectedFreeItem?.subtotal) || 0))
+    );
+    const freeItemPromotion = findSelectedFreeItemPromotion({
+        promotions,
+        items,
+        cartSubtotal: qualifyingCartSubtotal,
+        selectedItemId: selectedFreeItemId,
+    });
+    const unlockedFreeItemPromotion = pickUnlockedFreeItemPromotion(promotions, qualifyingCartSubtotal);
+    const standardCartPromotions = promotions.filter((promotion) => !isFreeItemPromotion(promotion));
+    const { promo: cartPromo, discountAmount: standardCartDiscount } = pickBestCartPromotion(standardCartPromotions, eligibleForCartPromo);
+    const cartDiscount = freeItemPromotion?.discountAmount ?? standardCartDiscount;
+    const selectedCartPromo = freeItemPromotion?.promotion ?? cartPromo;
 
-    if (cartPromo && cartDiscount > 0) {
-        applied.push({ id: cartPromo.id, title: cartPromo.title, applies_to: 'cart', amount: cartDiscount });
+    if (selectedCartPromo && cartDiscount > 0) {
+        applied.push({
+            id: selectedCartPromo.id,
+            title: selectedCartPromo.title,
+            applies_to: 'cart',
+            amount: cartDiscount,
+            kind: freeItemPromotion ? 'free_item' : 'standard',
+            selected_item_id: freeItemPromotion?.item.id,
+            selected_item_name: freeItemPromotion
+                ? getFreeItemDisplayName(selectedCartPromo, freeItemPromotion.item.name ?? 'Eligible item')
+                : undefined,
+            threshold: selectedCartPromo.min_cart_subtotal ?? null,
+        });
     }
 
     const totalDiscount = clampCurrency(Math.min(cartSubtotal, productDiscount + cartDiscount));
     const subtotalAfterPromotions = clampCurrency(Math.max(0, cartSubtotal - totalDiscount));
+    const freeItemSelectionRequired = !!unlockedFreeItemPromotion && !freeItemPromotion;
 
     return {
         productDiscount: clampCurrency(productDiscount),
@@ -273,5 +504,8 @@ export function computeCartPromotionTotals(params: {
         totalDiscount,
         subtotalAfterPromotions,
         applied,
+        freeItemPromotion,
+        unlockedFreeItemPromotion,
+        freeItemSelectionRequired,
     };
 }

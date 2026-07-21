@@ -211,7 +211,11 @@ function OrderConfirmationContent() {
     for (const p of promotionsApplied) {
       if (!p) continue;
       const id = p.id != null ? String(p.id) : '';
-      const title = p.title != null ? String(p.title) : 'Promotion';
+      const title = p.kind === 'free_item'
+        ? 'Discount'
+        : p.title != null
+          ? String(p.title)
+          : 'Promotion';
       const amount = Number(p.amount ?? 0) || 0;
       if (amount <= 0) continue;
       const key = id || title;
@@ -224,6 +228,13 @@ function OrderConfirmationContent() {
     }
     return Array.from(byKey.values()).sort((a, b) => b.amount - a.amount);
   })();
+
+  const freePromotionItemNames = new Set(
+    promotionsApplied
+      .filter((p) => p?.kind === 'free_item' && typeof p?.selected_item_name === 'string')
+      .map((p) => String(p.selected_item_name).trim())
+      .filter((name) => name.length > 0)
+  );
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -658,6 +669,7 @@ function OrderConfirmationContent() {
                 {order.items.map((item, index) => {
                   const addons = item.addons ?? [];
                   const removed = item.removed_ingredients;
+                  const isFreePromotionItem = freePromotionItemNames.has((item.product_name || '').trim());
 
                   return (
                     <div
@@ -724,9 +736,20 @@ function OrderConfirmationContent() {
                             Note: {item.comment}
                           </p>
                         )}
-                        <p className="text-lg font-semibold text-gray-900 dark:text-white mt-2">
-                          ${item.subtotal.toFixed(2)}
-                        </p>
+                        {isFreePromotionItem ? (
+                          <div className="mt-2">
+                            <p className="text-lg font-semibold text-emerald-700 dark:text-emerald-300">
+                              Free
+                            </p>
+                            <p className="text-xs text-gray-500 line-through dark:text-gray-400">
+                              ${item.subtotal.toFixed(2)}
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="text-lg font-semibold text-gray-900 dark:text-white mt-2">
+                            ${item.subtotal.toFixed(2)}
+                          </p>
+                        )}
                       </div>
                     </div>
                   );

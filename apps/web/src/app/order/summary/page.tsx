@@ -13,13 +13,20 @@ import { DeliveryAddressForm, type DeliveryAddressInput } from '@/components/Del
 import type { DeliveryQuote } from '@my-small-business/shipday';
 import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 import { getActivePromotions } from '@/app/actions/promotions';
-import { FaShoppingCart, FaArrowLeft, FaCheck, FaDollarSign, FaEdit, FaComment, FaTruck, FaClock, FaSpinner, FaTrash, FaMinus, FaPlus, FaMapMarkerAlt } from 'react-icons/fa';
+import { FaShoppingCart, FaArrowLeft, FaCheck, FaDollarSign, FaEdit, FaComment, FaTruck, FaClock, FaSpinner, FaTrash, FaMinus, FaPlus, FaMapMarkerAlt, FaGift, FaTimes } from 'react-icons/fa';
 
 import { Icon } from '@/components/Icon';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 import Link from 'next/link';
 import { toast } from 'react-toastify';
-import { computeCartPromotionTotals, type PromotionWithProducts } from '@/lib/promotions';
+import {
+  computeCartPromotionTotals,
+  getFreeItemDisplayName,
+  getPromotionDisplayTitle,
+  isFreeItemPromotion,
+  pickUnlockedFreeItemPromotion,
+  type PromotionWithProducts,
+} from '@/lib/promotions';
 import type { StoreHours } from '@my-small-business/types';
 import { buildDefaultStoreHours, getPickupTimeSlots, isStoreOpenNow, type PickupDayOption } from '@/lib/store-hours';
 
@@ -27,6 +34,15 @@ type StoreHoursForOrderResult = {
   storeHours: StoreHours;
   isOpenNow: boolean;
   pickupDayOptions: PickupDayOption[];
+};
+
+type EligibleFreeItemProduct = {
+  id: string;
+  name: string;
+  description: string | null;
+  sale_price: number;
+  image_url: string | null;
+  section: string | null;
 };
 
 export default function OrderSummaryPage() {
@@ -42,7 +58,7 @@ export default function OrderSummaryPage() {
       }
     })();
   }, []);
-  const { items, getTotal, clearCart, isLoading, updateItem, removeItem, updateQuantity } = useCart();
+  const { items, getTotal, clearCart, isLoading, updateItem, removeItem, updateQuantity, addItem } = useCart();
   const router = useRouter();
   const [editingCommentItemId, setEditingCommentItemId] = useState<string | null>(null);
   const [commentText, setCommentText] = useState<string>('');
@@ -69,11 +85,17 @@ export default function OrderSummaryPage() {
   const [selectedPickupDate, setSelectedPickupDate] = useState<string | null>(null);
 
   const [activePromotions, setActivePromotions] = useState<PromotionWithProducts[]>([]);
+  const [selectedFreeItemId, setSelectedFreeItemId] = useState<string | null>(null);
+  const [eligibleFreeItemProducts, setEligibleFreeItemProducts] = useState<EligibleFreeItemProduct[]>([]);
+  const [freeItemPickerOpen, setFreeItemPickerOpen] = useState(false);
+  const [showFreeItemReminder, setShowFreeItemReminder] = useState(false);
+  const [promotionsLoaded, setPromotionsLoaded] = useState(false);
 
   useEffect(() => {
     const loadPromotions = async () => {
       const res = await getActivePromotions();
       if (res.data) setActivePromotions(res.data);
+      setPromotionsLoaded(true);
     };
     void loadPromotions();
   }, []);
@@ -82,16 +104,23 @@ export default function OrderSummaryPage() {
   const promoTotals = computeCartPromotionTotals({
     promotions: activePromotions,
     items: items.map((i) => ({
+      id: i.id,
       product_id: i.product_id,
+      name: i.name,
       base_price: i.base_price,
       quantity: i.quantity,
       subtotal: i.subtotal,
     })),
     cartSubtotal,
+    selectedFreeItemId,
   });
 
   const subtotal = promoTotals.subtotalAfterPromotions;
   const promotionDiscount = promoTotals.totalDiscount;
+  const promotionsApplied = promoTotals.applied;
+  const freeItemPromotion = promoTotals.freeItemPromotion;
+  const unlockedFreeItemPromotion = promoTotals.unlockedFreeItemPromotion;
+  const freeItemSelectionRequired = promoTotals.freeItemSelectionRequired;
   const deliveryFee = deliveryQuote?.fee || 0;
   const serviceFee = 0;
   const tax = 0;
@@ -99,6 +128,116 @@ export default function OrderSummaryPage() {
   const itemCount = items.reduce((sum, i) => sum + i.quantity, 0);
   const subtotalExGst = total / 1.1;
   const gstAmount = total - subtotalExGst;
+
+  useEffect(() => {
+    const eligibleIds = Array.from(new Set(unlockedFreeItemPromotion?.product_ids || []));
+
+    if (eligibleIds.length === 0) {
+      setEligibleFreeItemProducts([]);
+      return;
+    }
+
+    const loadEligibleProducts = async () => {
+      try {
+        const supabase = getSupabaseClient();
+        const { data, error } = await supabase
+          .from('sale_products')
+          .select('id, name, description, sale_price, image_url, section')
+          .in('id', eligibleIds)
+          .eq('is_active', true)
+          .order('name', { ascending: true });
+
+        if (error) {
+          console.error('Failed to load eligible free-item products', error);
+          setEligibleFreeItemProducts([]);
+          return;
+        }
+
+        setEligibleFreeItemProducts((data || []) as EligibleFreeItemProduct[]);
+      } catch (error) {
+        console.error('Failed to load eligible free-item products', error);
+        setEligibleFreeItemProducts([]);
+      }
+    };
+
+    void loadEligibleProducts();
+  }, [unlockedFreeItemPromotion]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const stored = window.sessionStorage.getItem('checkout:selectedFreeItemId');
+    if (stored) {
+      setSelectedFreeItemId(stored);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (selectedFreeItemId) {
+      window.sessionStorage.setItem('checkout:selectedFreeItemId', selectedFreeItemId);
+    } else {
+      window.sessionStorage.removeItem('checkout:selectedFreeItemId');
+    }
+  }, [selectedFreeItemId]);
+
+  useEffect(() => {
+    if (!selectedFreeItemId) return;
+    const stillExists = items.some((item) => item.id === selectedFreeItemId);
+    if (!stillExists) {
+      setSelectedFreeItemId(null);
+    }
+  }, [items, selectedFreeItemId]);
+
+  useEffect(() => {
+    if (!promotionsLoaded || !selectedFreeItemId) return;
+    if (freeItemPromotion) return;
+
+    const stillExists = items.some((item) => item.id === selectedFreeItemId);
+    if (!stillExists) {
+      setSelectedFreeItemId(null);
+      return;
+    }
+
+    removeItem(selectedFreeItemId);
+    setSelectedFreeItemId(null);
+    toast.info('Free item removed because the cart no longer qualifies for that promotion.');
+  }, [freeItemPromotion, items, promotionsLoaded, removeItem, selectedFreeItemId]);
+
+  const eligibleFreeItemPromotions = activePromotions.filter((promotion) => isFreeItemPromotion(promotion));
+  const highlightedFreeItemPromotion = freeItemPromotion?.promotion
+    || unlockedFreeItemPromotion
+    || pickUnlockedFreeItemPromotion(eligibleFreeItemPromotions, cartSubtotal)
+    || null;
+  const getCartItemDisplayName = (item: CartItem) => {
+    if (selectedFreeItemId === item.id && freeItemPromotion?.item.id === item.id) {
+      return getFreeItemDisplayName(freeItemPromotion.promotion, item.name);
+    }
+    return item.name;
+  };
+
+  const handleAddFreeItem = (product: EligibleFreeItemProduct) => {
+    if (selectedFreeItemId) {
+      removeItem(selectedFreeItemId);
+      setSelectedFreeItemId(null);
+    }
+
+    const cartItemId = addItem({
+      product_id: product.id,
+      name: product.name,
+      description: product.description,
+      base_price: product.sale_price,
+      image_url: product.image_url,
+      quantity: 1,
+      section: product.section,
+      addon_groups: [],
+      removed_ingredients: [],
+      comment: null,
+    });
+    setSelectedFreeItemId(cartItemId);
+
+    setFreeItemPickerOpen(false);
+    toast.success(`${product.name} added to cart as your free-item selection.`);
+  };
 
   // Load order type and delivery info from sessionStorage
   useEffect(() => {
@@ -284,6 +423,11 @@ export default function OrderSummaryPage() {
   };
 
   const handleProceedToCheckout = () => {
+    if (freeItemSelectionRequired) {
+      setShowFreeItemReminder(true);
+      return;
+    }
+
     // Store order type and delivery info in sessionStorage to pass to checkout
     if (orderType === 'delivery' && deliveryAddress && deliveryQuote) {
       sessionStorage.setItem('orderType', 'delivery');
@@ -632,8 +776,14 @@ export default function OrderSummaryPage() {
                       <div className="flex items-start justify-between mb-2">
                         <div>
                           <h3 className="font-semibold text-gray-900 dark:text-white">
-                            {item.name}
+                            {getCartItemDisplayName(item)}
                           </h3>
+                          {selectedFreeItemId === item.id && freeItemPromotion?.item.id === item.id && (
+                            <div className="mt-1 inline-flex items-center gap-2 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                              <Icon icon={FaGift} className="w-3 h-3" />
+                              Free
+                            </div>
+                          )}
                           <div className="flex items-center gap-3 mt-1">
                             <div className="flex items-center gap-2">
                               <button
@@ -670,9 +820,18 @@ export default function OrderSummaryPage() {
                             </button>
                           </div>
                         </div>
-                        <span className="text-lg font-semibold text-gray-900 dark:text-white">
-                          ${item.subtotal.toFixed(2)}
-                        </span>
+                        <div className="text-right">
+                          {selectedFreeItemId === item.id && freeItemPromotion?.item.id === item.id ? (
+                            <>
+                              <div className="text-lg font-semibold text-emerald-700 dark:text-emerald-300">Free</div>
+                              <div className="text-xs text-gray-500 line-through dark:text-gray-400">${item.subtotal.toFixed(2)}</div>
+                            </>
+                          ) : (
+                            <span className="text-lg font-semibold text-gray-900 dark:text-white">
+                              ${item.subtotal.toFixed(2)}
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       {/* Add-ons */}
@@ -800,16 +959,69 @@ export default function OrderSummaryPage() {
                 Order Summary
               </h2>
 
+              {highlightedFreeItemPromotion && (
+                <div className={`mb-6 rounded-2xl border p-5 ${freeItemSelectionRequired ? 'border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20' : 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20'}`}>
+                  <div className="flex items-start gap-3">
+                    <div className={`mt-0.5 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full ${freeItemSelectionRequired ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'}`}>
+                      <Icon icon={FaGift} className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className={`text-sm font-semibold ${freeItemSelectionRequired ? 'text-amber-800 dark:text-amber-200' : 'text-emerald-800 dark:text-emerald-200'}`}>
+                        Congratulations, you&apos;ve unlocked{' '}
+                        <Link href="/promotions" className="underline decoration-current underline-offset-2">
+                          {getPromotionDisplayTitle(highlightedFreeItemPromotion)}
+                        </Link>
+                        .
+                      </p>
+                      {freeItemPromotion ? (
+                        <p className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
+                          Selected: <span className="text-emerald-700 dark:text-emerald-300">{freeItemPromotion.item.name}</span>
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {eligibleFreeItemProducts.length > 0 && (
+                    <div className="mt-4">
+                      <button
+                        type="button"
+                        onClick={() => setFreeItemPickerOpen(true)}
+                        className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                      >
+                        <Icon icon={FaGift} className="w-4 h-4" />
+                        {freeItemPromotion ? 'Change free item' : 'Select free item'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="space-y-3 mb-6">
                 <div className="flex justify-between text-gray-600 dark:text-gray-400">
                   <span>Items</span>
                   <span>{itemCount}</span>
                 </div>
                 {promotionDiscount > 0.009 && (
-                  <div className="flex justify-between text-green-700 dark:text-green-300">
-                    <span>Promotions</span>
-                    <span>-${promotionDiscount.toFixed(2)}</span>
-                  </div>
+                  <>
+                    <div className="flex justify-between text-green-700 dark:text-green-300">
+                      <span>Promotions</span>
+                      <span>-${promotionDiscount.toFixed(2)}</span>
+                    </div>
+                    {promotionsApplied.length > 0 && (
+                      <div className="rounded-lg border border-green-100 bg-green-50/70 px-3 py-2 text-sm dark:border-green-900/50 dark:bg-green-900/10">
+                        <div className="space-y-1">
+                          {promotionsApplied.map((promotion, index) => (
+                            <div key={`${promotion.title}-${index}`} className="flex justify-between gap-3 text-green-800 dark:text-green-300">
+                              <span>
+                                {promotion.kind === 'free_item' ? 'Discount' : promotion.title}
+                              </span>
+                              <span>-${promotion.amount.toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
                 <div className="flex justify-between text-gray-600 dark:text-gray-400">
                   <span>Subtotal</span>
@@ -952,6 +1164,88 @@ export default function OrderSummaryPage() {
         cancelText="Cancel"
         variant="warning"
       />
+
+      <ConfirmationDialog
+        isOpen={showFreeItemReminder}
+        onClose={() => setShowFreeItemReminder(false)}
+        onConfirm={() => {
+          setShowFreeItemReminder(false);
+          setFreeItemPickerOpen(true);
+        }}
+        title="Free Item Available"
+        message="You’ve unlocked a free item with this order. Do you want to pick it now before continuing to checkout?"
+        confirmText="Select free item"
+        cancelText="Continue anyway"
+        variant="info"
+      />
+
+      {freeItemPickerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl dark:bg-neutral-900">
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-neutral-800">
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Add free item</h3>
+                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Choose an eligible item and we&apos;ll add it to your cart.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFreeItemPickerOpen(false)}
+                className="rounded-full p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-neutral-800 dark:hover:text-white"
+                aria-label="Close free item picker"
+              >
+                <Icon icon={FaTimes} className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="max-h-[70vh] overflow-auto p-6">
+              <div className="grid gap-4 sm:grid-cols-2">
+                {eligibleFreeItemProducts.map((product) => (
+                  <button
+                    key={product.id}
+                    type="button"
+                    onClick={() => handleAddFreeItem(product)}
+                    className="group overflow-hidden rounded-2xl border border-gray-200 bg-white text-left transition hover:border-emerald-300 hover:shadow-lg dark:border-neutral-800 dark:bg-neutral-950 dark:hover:border-emerald-700"
+                  >
+                    <div className="flex gap-4 p-4">
+                      {product.image_url ? (
+                        <img
+                          src={product.image_url}
+                          alt={product.name}
+                          className="h-20 w-20 rounded-xl object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-20 w-20 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                          <Icon icon={FaGift} className="w-6 h-6" />
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="font-semibold text-gray-900 dark:text-white">{product.name}</div>
+                            {product.section ? (
+                              <div className="mt-1 text-xs uppercase tracking-[0.2em] text-gray-400">{product.section}</div>
+                            ) : null}
+                          </div>
+                          <div className="rounded-full bg-emerald-100 px-3 py-1 text-sm font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                            ${product.sale_price.toFixed(2)}
+                          </div>
+                        </div>
+                        {product.description ? (
+                          <p className="mt-2 line-clamp-3 text-sm text-gray-600 dark:text-gray-400">{product.description}</p>
+                        ) : (
+                          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Add this item and we&apos;ll mark it as your free selection.</p>
+                        )}
+                        <div className="mt-3 text-sm font-medium text-emerald-700 transition group-hover:translate-x-1 dark:text-emerald-300">
+                          Add to cart as free item →
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

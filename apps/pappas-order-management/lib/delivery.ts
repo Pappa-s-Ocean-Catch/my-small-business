@@ -118,6 +118,7 @@ export async function createStripeCheckoutSession(params: {
   items: Array<{ name: string; description?: string; quantity: number; price: number }>;
   subtotal: number;
   promotionDiscount?: number;
+  rewardPointsDiscount?: number;
   tax: number;
   deliveryFee: number;
   orderType: 'delivery';

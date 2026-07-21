@@ -5,8 +5,8 @@ import { Button, TextInput } from 'react-native-paper';
 import { styles } from './pos.styles';
 import type { CustomerLookupStatus } from './PosCheckoutPanel';
 import { PosDiscountSection } from './PosDiscountSection';
-import { PosPhoneInputModal } from './PosPhoneInputModal';
-import { PosTextInputModal } from './PosTextInputModal';
+import { PosCustomerSelector } from './PosCustomerSelector';
+import type { Customer } from '../../lib/customers';
 import type {
   AddressSuggestion,
   DeliveryAddressDraft,
@@ -23,10 +23,19 @@ import {
 type Props = {
   customerLookupStatus: CustomerLookupStatus;
   customerPhone: string;
-  setCustomerPhone: (value: string) => void;
+  onChangeCustomerPhone: (value: string) => void;
   customerName: string;
-  setCustomerName: (value: string) => void;
+  onChangeCustomerName: (value: string) => void;
   customerLookupError: string | null;
+  selectedCustomer: Customer | null;
+  onSelectCustomer: (customer: Customer) => void;
+  onClearCustomer: () => void;
+  rewardPointsEnabled: boolean;
+  rewardPointsBalance: number;
+  rewardPointsDollarValue: number;
+  rewardPointsApplied: boolean;
+  appliedRewardPointsValue: number;
+  onToggleRewardPoints: () => void;
   totals: { subtotal: number; tax: number; total: number };
   discountLabel: string;
   discountAmount: number;
@@ -47,10 +56,19 @@ type Props = {
 export function PosDeliveryCheckoutForm({
   customerLookupStatus,
   customerPhone,
-  setCustomerPhone,
+  onChangeCustomerPhone,
   customerName,
-  setCustomerName,
+  onChangeCustomerName,
   customerLookupError,
+  selectedCustomer,
+  onSelectCustomer,
+  onClearCustomer,
+  rewardPointsEnabled,
+  rewardPointsBalance,
+  rewardPointsDollarValue,
+  rewardPointsApplied,
+  appliedRewardPointsValue,
+  onToggleRewardPoints,
   totals,
   discountLabel,
   discountAmount,
@@ -74,8 +92,6 @@ export function PosDeliveryCheckoutForm({
   const [calculatingFees, setCalculatingFees] = useState(false);
   const [feeSummary, setFeeSummary] = useState<DeliveryFeeSummary | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [phoneModalVisible, setPhoneModalVisible] = useState(false);
-  const [nameModalVisible, setNameModalVisible] = useState(false);
   useEffect(() => {
     let cancelled = false;
 
@@ -176,32 +192,23 @@ export function PosDeliveryCheckoutForm({
       keyboardShouldPersistTaps="handled"
     >
       <View style={styles.checkoutFormFull}>
-        <View style={styles.customerIdentityRow}>
-          <TouchableOpacity
-            style={[styles.phoneTrigger, styles.customerIdentityField]}
-            onPress={() => setPhoneModalVisible(true)}
-          >
-            <Text style={styles.phoneTriggerLabel}>Phone</Text>
-            <Text style={[styles.phoneTriggerValue, !customerPhone ? styles.phoneTriggerPlaceholder : null]} numberOfLines={1}>
-              {customerPhone || '04'}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.phoneTrigger, styles.customerIdentityField]}
-            onPress={() => setNameModalVisible(true)}
-          >
-            <Text style={styles.phoneTriggerLabel}>Name</Text>
-            <Text style={[styles.phoneTriggerValue, !customerName ? styles.phoneTriggerPlaceholder : null]} numberOfLines={1}>
-              {customerName || 'Tap to enter'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.lookupRow}>
-          {customerLookupStatus === 'loading' && <Text style={styles.lookupText}>Looking up customer...</Text>}
-          {customerLookupStatus === 'found' && <Text style={styles.foundText}>Existing customer found</Text>}
-          {customerLookupStatus === 'new' && <Text style={styles.newText}>No customer found. A new customer will be created.</Text>}
-          {customerLookupStatus === 'error' && <Text style={styles.errorText}>{customerLookupError}</Text>}
-        </View>
+        <PosCustomerSelector
+          customerLookupStatus={customerLookupStatus}
+          customerPhone={customerPhone}
+          onChangePhone={onChangeCustomerPhone}
+          customerName={customerName}
+          onChangeName={onChangeCustomerName}
+          customerLookupError={customerLookupError}
+          selectedCustomer={selectedCustomer}
+          onSelectCustomer={onSelectCustomer}
+          onClearCustomer={onClearCustomer}
+          rewardPointsEnabled={rewardPointsEnabled}
+          rewardPointsBalance={rewardPointsBalance}
+          rewardPointsDollarValue={rewardPointsDollarValue}
+          rewardPointsApplied={rewardPointsApplied}
+          appliedRewardPointsValue={appliedRewardPointsValue}
+          onToggleRewardPoints={onToggleRewardPoints}
+        />
 
         <PosDiscountSection
           discountLabel={discountLabel}
@@ -358,26 +365,6 @@ export function PosDeliveryCheckoutForm({
         >
           Request Online Delivery
         </Button>
-        <PosPhoneInputModal
-          visible={phoneModalVisible}
-          value={customerPhone}
-          onDismiss={() => setPhoneModalVisible(false)}
-          onSave={(value) => {
-            setCustomerPhone(value);
-            if (customerLookupStatus === 'found') setCustomerName('');
-            setPhoneModalVisible(false);
-          }}
-        />
-        <PosTextInputModal
-          visible={nameModalVisible}
-          title="Enter Customer Name"
-          value={customerName}
-          onDismiss={() => setNameModalVisible(false)}
-          onSave={(value) => {
-            setCustomerName(value);
-            setNameModalVisible(false);
-          }}
-        />
       </View>
     </ScrollView>
   );

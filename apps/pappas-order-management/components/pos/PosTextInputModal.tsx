@@ -10,6 +10,8 @@ type Props = {
   value: string;
   onDismiss: () => void;
   onSave: (value: string) => void;
+  placeholder?: string;
+  extraKeys?: string[];
 };
 
 const KEYBOARD_ROWS = [
@@ -24,6 +26,8 @@ export function PosTextInputModal({
   value,
   onDismiss,
   onSave,
+  placeholder = 'Enter text',
+  extraKeys = [],
 }: Props) {
   const [draft, setDraft] = useState(value);
 
@@ -68,7 +72,7 @@ export function PosTextInputModal({
           <View style={styles.textEntryHeaderRow}>
             <View style={styles.textEntryDisplay}>
               <Text style={[styles.textEntryDisplayText, !draft ? styles.textEntryPlaceholder : null]} numberOfLines={2}>
-                {draft || 'Enter customer name'}
+                {draft || placeholder}
               </Text>
             </View>
             <TouchableOpacity
@@ -103,6 +107,20 @@ export function PosTextInputModal({
                 ))}
               </View>
             ))}
+
+            {extraKeys.length > 0 ? (
+              <View style={styles.textEntryKeyboardRow}>
+                {extraKeys.map((key) => (
+                  <TouchableOpacity
+                    key={key}
+                    style={[styles.textEntryActionKey, styles.textEntrySecondaryKey]}
+                    onPress={() => appendKey(key)}
+                  >
+                    <Text style={styles.textEntryKeyText}>{key}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : null}
 
             <View style={styles.textEntryKeyboardRow}>
               <TouchableOpacity

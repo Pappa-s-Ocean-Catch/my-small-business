@@ -10,6 +10,7 @@ import {
   groupAddons,
 } from '../utils/orderUtils';
 import { getDeliveryStatusLabel } from '../utils/constants';
+import { getOrderPromotionSummary, isFreePromotionOrderItem } from '../lib/promotion-summary';
 
 interface ReceiptTemplateProps {
   order: Order;
@@ -31,12 +32,9 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
   const formatMoney = (amount: number) => {
     return (amount || 0).toFixed(2);
   };
-  const promotionSummary = Array.isArray(order.promotions_applied)
-    ? order.promotions_applied.find((entry) => entry && typeof entry === 'object')
-    : null;
-  const promotionLabel = typeof promotionSummary?.label === 'string' && promotionSummary.label.trim().length > 0
-    ? promotionSummary.label.trim()
-    : 'Promotion Discount';
+  const rewardPointsBalance = Number((order as Order & { reward_points_balance?: number | null }).reward_points_balance ?? 0);
+  const promotionSummary = getOrderPromotionSummary(order);
+  const promotionLabel = promotionSummary?.label || 'Promotion Discount';
 
   const rewardPointsUsed = order.reward_points_used ?? 0;
   const rewardPointsValue = order.reward_points_value ?? 0;
@@ -151,7 +149,14 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
                     <Text style={styles.itemNameLine} numberOfLines={3}>
                       {item.quantity}x {item.product_name}
                     </Text>
-                    <Text style={styles.itemLinePrice}>${formatMoney(item.subtotal)}</Text>
+                    {isFreePromotionOrderItem(order, item.product_name) ? (
+                      <View style={styles.itemPriceGroup}>
+                        <Text style={styles.itemLinePriceFree}>FREE</Text>
+                        <Text style={styles.itemLinePriceOriginal}>${formatMoney(item.subtotal)}</Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.itemLinePrice}>${formatMoney(item.subtotal)}</Text>
+                    )}
                   </View>
                   {item.removed_ingredients?.map((ing, rIdx) => (
                     <Text key={`rm-${ticketIdx}-${sectionIdx}-${rIdx}`} style={styles.removedText}>
@@ -215,6 +220,12 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
               <View style={styles.totalRow}>
                 <Text style={styles.normalText}>Points ({rewardPointsUsed.toLocaleString()}):</Text>
                 <Text style={styles.normalText}>-${formatMoney(rewardPointsValue)}</Text>
+              </View>
+            )}
+            {rewardPointsBalance > 0 && (
+              <View style={styles.totalRow}>
+                <Text style={styles.normalText}>Points Balance:</Text>
+                <Text style={styles.normalText}>{rewardPointsBalance.toLocaleString()}</Text>
               </View>
             )}
             {order.service_fee > 0 && (
@@ -357,6 +368,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 8,
   },
+  itemPriceGroup: {
+    alignItems: 'flex-end',
+  },
   itemNameLine: {
     flex: 1,
     fontSize: 36,
@@ -369,6 +383,17 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#000',
     lineHeight: 40,
+  },
+  itemLinePriceFree: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: '#059669',
+    lineHeight: 40,
+  },
+  itemLinePriceOriginal: {
+    fontSize: 18,
+    color: '#6b7280',
+    textDecorationLine: 'line-through',
   },
   addonText: {
     fontSize: 30,

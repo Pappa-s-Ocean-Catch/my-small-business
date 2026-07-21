@@ -17,6 +17,7 @@ import type {
 } from '../../app/pos.types';
 import { PosCheckoutPanel } from './PosCheckoutPanel';
 import type { DeliveryAddressDraft, DeliveryQuoteResult } from '../../lib/delivery';
+import type { Customer } from '../../lib/customers';
 
 type MenuLevel = 'groups' | 'subgroups' | 'items' | 'addons' | 'checkout' | 'search';
 type CustomerLookupStatus = 'idle' | 'loading' | 'found' | 'new' | 'error';
@@ -69,11 +70,25 @@ type Props = {
   openCheckout: () => void;
   customerLookupStatus: CustomerLookupStatus;
   customerPhone: string;
-  setCustomerPhone: (value: string) => void;
+  onChangeCustomerPhone: (value: string) => void;
   customerName: string;
-  setCustomerName: (value: string) => void;
+  onChangeCustomerName: (value: string) => void;
   customerLookupError: string | null;
+  selectedCustomer: Customer | null;
+  onSelectCustomer: (customer: Customer) => void;
+  onClearCustomer: () => void;
+  onResetToDefaultInstore: () => void;
+  rewardPointsEnabled: boolean;
+  rewardPointsBalance: number;
+  rewardPointsDollarValue: number;
+  rewardPointsApplied: boolean;
+  appliedRewardPointsValue: number;
+  onToggleRewardPoints: () => void;
   totals: { subtotal: number; tax: number; total: number };
+  freeItemPromotionTitle?: string | null;
+  freeItemSelectionRequired: boolean;
+  selectedFreeItemName?: string | null;
+  onOpenFreeItemDialog: () => void;
   discountLabel: string;
   discountAmount: number;
   activeDiscountPercent: number | null;
@@ -153,11 +168,25 @@ export function PosMenuPane(props: Props) {
     openCheckout,
     customerLookupStatus,
     customerPhone,
-    setCustomerPhone,
+    onChangeCustomerPhone,
     customerName,
-    setCustomerName,
+    onChangeCustomerName,
     customerLookupError,
+    selectedCustomer,
+    onSelectCustomer,
+    onClearCustomer,
+    onResetToDefaultInstore,
+    rewardPointsEnabled,
+    rewardPointsBalance,
+    rewardPointsDollarValue,
+    rewardPointsApplied,
+    appliedRewardPointsValue,
+    onToggleRewardPoints,
     totals,
+    freeItemPromotionTitle,
+    freeItemSelectionRequired,
+    selectedFreeItemName,
+    onOpenFreeItemDialog,
     discountLabel,
     discountAmount,
     activeDiscountPercent,
@@ -522,11 +551,25 @@ export function PosMenuPane(props: Props) {
           closeCheckout={backToItems}
           customerLookupStatus={customerLookupStatus}
           customerPhone={customerPhone}
-          setCustomerPhone={setCustomerPhone}
+          onChangeCustomerPhone={onChangeCustomerPhone}
           customerName={customerName}
-          setCustomerName={setCustomerName}
+          onChangeCustomerName={onChangeCustomerName}
           customerLookupError={customerLookupError}
+          selectedCustomer={selectedCustomer}
+          onSelectCustomer={onSelectCustomer}
+          onClearCustomer={onClearCustomer}
+          onResetToDefaultInstore={onResetToDefaultInstore}
+          rewardPointsEnabled={rewardPointsEnabled}
+          rewardPointsBalance={rewardPointsBalance}
+          rewardPointsDollarValue={rewardPointsDollarValue}
+          rewardPointsApplied={rewardPointsApplied}
+          appliedRewardPointsValue={appliedRewardPointsValue}
+          onToggleRewardPoints={onToggleRewardPoints}
           totals={totals}
+          freeItemPromotionTitle={freeItemPromotionTitle}
+          freeItemSelectionRequired={freeItemSelectionRequired}
+          selectedFreeItemName={selectedFreeItemName}
+          onOpenFreeItemDialog={onOpenFreeItemDialog}
           discountLabel={discountLabel}
           discountAmount={discountAmount}
           activeDiscountPercent={activeDiscountPercent}

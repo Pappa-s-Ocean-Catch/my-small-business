@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { Button, Dialog, Portal, TextInput } from 'react-native-paper';
 
 import { CashTenderModal } from '../CashTenderModal';
 import { styles } from './pos.styles';
-import type { CashTenderMode, PosInstorePaymentChoice } from '../../app/pos.types';
+import type { CashTenderMode, PosInstorePaymentChoice, SaleProduct } from '../../app/pos.types';
 
 type Props = {
   cashTenderMode: CashTenderMode | null;
@@ -26,6 +26,10 @@ type Props = {
   instorePaymentDialogVisible: boolean;
   setInstorePaymentDialogVisible: (visible: boolean) => void;
   onChooseInstorePayment: (choice: PosInstorePaymentChoice) => void;
+  freeItemDialogVisible: boolean;
+  setFreeItemDialogVisible: (visible: boolean) => void;
+  eligibleFreeItemProducts: SaleProduct[];
+  onSelectFreeItem: (product: SaleProduct) => void;
   discountDialogVisible: boolean;
   setDiscountDialogVisible: (visible: boolean) => void;
   discountLabel: string;
@@ -56,6 +60,10 @@ export function PosDialogs({
   instorePaymentDialogVisible,
   setInstorePaymentDialogVisible,
   onChooseInstorePayment,
+  freeItemDialogVisible,
+  setFreeItemDialogVisible,
+  eligibleFreeItemProducts,
+  onSelectFreeItem,
   discountDialogVisible,
   setDiscountDialogVisible,
   discountLabel,
@@ -184,6 +192,35 @@ export function PosDialogs({
           </Dialog.Content>
           <Dialog.Actions>
             <Button onPress={() => setInstorePaymentDialogVisible(false)}>Cancel</Button>
+          </Dialog.Actions>
+        </Dialog>
+
+        <Dialog
+          visible={freeItemDialogVisible}
+          onDismiss={() => setFreeItemDialogVisible(false)}
+          style={styles.noteDialog}
+        >
+          <Dialog.Title>Select free item</Dialog.Title>
+          <Dialog.Content>
+            <ScrollView style={{ maxHeight: 360 }}>
+              <View style={styles.quickOrderNoteGrid}>
+                {eligibleFreeItemProducts.map((product) => (
+                  <TouchableOpacity
+                    key={product.id}
+                    style={styles.quickOrderNoteChip}
+                    onPress={() => onSelectFreeItem(product)}
+                  >
+                    <Text style={styles.quickOrderNoteChipText} numberOfLines={2}>
+                      {product.name}
+                    </Text>
+                    <Text style={styles.cartItemMeta}>${product.sale_price.toFixed(2)}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setFreeItemDialogVisible(false)}>Close</Button>
           </Dialog.Actions>
         </Dialog>
 

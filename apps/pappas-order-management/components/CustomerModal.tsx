@@ -18,6 +18,7 @@ import { fetchCustomerSummary, type CustomerSummary, updateCustomerNameByContact
 import { getFriendlyOrderNumber } from '../utils/orderNumber';
 import { STATUS_COLORS, STATUS_LABELS } from '../utils/constants';
 import { getApiUrl } from '../utils/orderUtils';
+import { adjustCustomerRewardPoints } from '@/lib/reward-points';
 
 function orderStatusColor(status: string): string {
   if (Object.prototype.hasOwnProperty.call(STATUS_COLORS, status)) {
@@ -33,18 +34,39 @@ function orderStatusLabel(status: string): string {
   return status.replace(/_/g, ' ');
 }
 
+function formatMoney(value: number) {
+  return `$${value.toFixed(2)}`;
+}
+
+function rewardHistoryTone(type: string) {
+  switch (type) {
+    case 'earned':
+      return { label: 'Earned', color: '#15803d', background: '#dcfce7' };
+    case 'used':
+      return { label: 'Used', color: '#b45309', background: '#fef3c7' };
+    case 'expired':
+      return { label: 'Expired', color: '#b91c1c', background: '#fee2e2' };
+    default:
+      return { label: 'Manual Adjust', color: '#1d4ed8', background: '#dbeafe' };
+  }
+}
+
 export function CustomerModal({
   email,
   phone,
   visible,
   onClose,
   onOrderPress,
+  allowRewardAdjustments = false,
+  onCustomerUpdated,
 }: {
   email?: string;
   phone?: string;
   visible: boolean;
   onClose: () => void;
   onOrderPress: (orderId: string) => void;
+  allowRewardAdjustments?: boolean;
+  onCustomerUpdated?: () => void;
 }) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -58,27 +80,36 @@ export function CustomerModal({
   const [editingName, setEditingName] = useState(false);
   const [draftName, setDraftName] = useState('');
   const [savingName, setSavingName] = useState(false);
+  const [editingPoints, setEditingPoints] = useState(false);
+  const [pointsDelta, setPointsDelta] = useState('');
+  const [pointsReason, setPointsReason] = useState('');
+  const [savingPoints, setSavingPoints] = useState(false);
 
-  useEffect(() => {
-    if (!visible) return;
-
+  const loadCustomer = async () => {
     setLoading(true);
     setError(null);
     setCustomer(null);
     setEditingName(false);
+    setEditingPoints(false);
     setDraftName('');
+    setPointsDelta('');
+    setPointsReason('');
 
-    fetchCustomerSummary({ email, phone })
-      .then((data) => {
-        setCustomer(data);
-        setDraftName(data?.name ?? '');
-        setLoading(false);
-        if (!data) setError('No customer data found for this contact.');
-      })
-      .catch(() => {
-        setError('Failed to load customer details. Please try again.');
-        setLoading(false);
-      });
+    try {
+      const data = await fetchCustomerSummary({ email, phone });
+      setCustomer(data);
+      setDraftName(data?.name ?? '');
+      if (!data) setError('No customer data found for this contact.');
+    } catch {
+      setError('Failed to load customer details. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!visible) return;
+    void loadCustomer();
   }, [email, phone, visible]);
 
   const getInitials = (name: string) =>
@@ -190,6 +221,48 @@ export function CustomerModal({
         },
       },
     ]);
+  };
+
+  const handleAdjustPoints = async () => {
+    const trimmedReason = pointsReason.trim();
+    const delta = Number(pointsDelta);
+
+    if (!customer?.profileId) {
+      Alert.alert('Error', 'This customer does not have a saved profile to adjust.');
+      return;
+    }
+    if (!Number.isFinite(delta) || delta === 0 || !Number.isInteger(delta)) {
+      Alert.alert('Invalid points', 'Enter a whole number of points to add or remove.');
+      return;
+    }
+    if (!trimmedReason) {
+      Alert.alert('Reason required', 'Please add a short note for this manual adjustment.');
+      return;
+    }
+
+    setSavingPoints(true);
+    try {
+      const result = await adjustCustomerRewardPoints({
+        userId: customer.profileId,
+        pointsDelta: delta,
+        description: trimmedReason,
+      });
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to adjust reward points');
+      }
+
+      setEditingPoints(false);
+      setPointsDelta('');
+      setPointsReason('');
+      await loadCustomer();
+      onCustomerUpdated?.();
+      Alert.alert('Saved', 'Reward point balance updated successfully.');
+    } catch (adjustError: any) {
+      Alert.alert('Error', adjustError?.message || 'Failed to adjust reward points.');
+    } finally {
+      setSavingPoints(false);
+    }
   };
 
   const topPadding = isWide ? 16 : Math.max(insets.top, 10);
@@ -397,6 +470,70 @@ export function CustomerModal({
                       ))
                     )}
                   </View>
+
+                  <View style={styles.section}>
+                    <Text variant="titleMedium" style={styles.sectionTitle}>
+                      Reward History
+                    </Text>
+                    {customer.rewardHistory.length === 0 ? (
+                      <Text variant="bodyMedium" style={styles.emptyText}>
+                        No reward point activity yet.
+                      </Text>
+                    ) : (
+                      customer.rewardHistory.map((item) => {
+                        const tone = rewardHistoryTone(item.type);
+                        return (
+                          <Card key={item.id} style={styles.rewardCard} mode="contained">
+                            <Card.Content style={styles.rewardCardContent}>
+                              <View style={styles.rewardCardTopRow}>
+                                <View style={styles.rewardCardInfo}>
+                                  <View style={[styles.rewardBadge, { backgroundColor: tone.background }]}>
+                                    <Text style={[styles.rewardBadgeText, { color: tone.color }]}>{tone.label}</Text>
+                                  </View>
+                                  <Text variant="bodySmall" style={styles.rewardDateMuted}>
+                                    {formatDate(item.createdAt)}
+                                  </Text>
+                                </View>
+                                <View style={styles.rewardCardAmountBlock}>
+                                  <Text variant="titleSmall" style={[styles.rewardPointsAmount, { color: tone.color }]}>
+                                    {item.points > 0 ? '+' : ''}{item.points.toLocaleString()} pts
+                                  </Text>
+                                  {item.dollarValue > 0 ? (
+                                    <Text variant="bodySmall" style={styles.rewardDollarValue}>
+                                      {formatMoney(item.dollarValue)}
+                                    </Text>
+                                  ) : null}
+                                  {item.type === 'adjusted' ? (
+                                    <Text variant="bodySmall" style={styles.rewardManualFlag}>
+                                      {item.adjustmentType === 'debit' ? 'Manual debit' : 'Manual credit'}
+                                    </Text>
+                                  ) : null}
+                                </View>
+                              </View>
+                              <View style={styles.rewardCardBottomRow}>
+                                <Text variant="bodyMedium" style={styles.rewardDescription}>
+                                  {item.description || 'Reward point activity'}
+                                </Text>
+                                <Text variant="bodySmall" style={styles.rewardBalanceText}>
+                                  Balance {item.balanceAfter.toLocaleString()}
+                                </Text>
+                              </View>
+                              {item.type === 'adjusted' && item.adjustedByName ? (
+                                <Text variant="bodySmall" style={styles.rewardAuditText}>
+                                  Updated by {item.adjustedByName}
+                                </Text>
+                              ) : null}
+                              {item.orderId ? (
+                                <Button mode="text" compact onPress={() => onOrderPress(item.orderId)} style={styles.rewardOrderButton}>
+                                  View order
+                                </Button>
+                              ) : null}
+                            </Card.Content>
+                          </Card>
+                        );
+                      })
+                    )}
+                  </View>
                 </View>
 
                 <View style={styles.secondaryColumn}>
@@ -423,6 +560,46 @@ export function CustomerModal({
                     >
                       Send Marketing Email
                     </Button>
+                    {allowRewardAdjustments ? (
+                      editingPoints ? (
+                        <View style={styles.pointsEditorCard}>
+                          <TextInput
+                            mode="outlined"
+                            label="Points change"
+                            value={pointsDelta}
+                            onChangeText={setPointsDelta}
+                            keyboardType="numbers-and-punctuation"
+                            disabled={savingPoints}
+                            placeholder="Use 500 or -500"
+                          />
+                          <TextInput
+                            mode="outlined"
+                            label="Reason"
+                            value={pointsReason}
+                            onChangeText={setPointsReason}
+                            disabled={savingPoints}
+                            multiline
+                          />
+                          <View style={styles.pointsEditorActions}>
+                            <Button mode="text" onPress={() => setEditingPoints(false)} disabled={savingPoints}>
+                              Cancel
+                            </Button>
+                            <Button mode="contained" onPress={handleAdjustPoints} loading={savingPoints} disabled={savingPoints}>
+                              Save Points
+                            </Button>
+                          </View>
+                        </View>
+                      ) : (
+                        <Button
+                          mode="contained-tonal"
+                          icon="star-cog-outline"
+                          onPress={() => setEditingPoints(true)}
+                          style={styles.actionButton}
+                        >
+                          Adjust Reward Points
+                        </Button>
+                      )
+                    ) : null}
                   </View>
                 </View>
               </View>
@@ -625,6 +802,20 @@ const styles = StyleSheet.create({
   actionButton: {
     marginTop: 8,
   },
+  pointsEditorCard: {
+    marginTop: 12,
+    gap: 10,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+  },
+  pointsEditorActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
   emptyText: {
     color: '#64748b',
   },
@@ -635,6 +826,75 @@ const styles = StyleSheet.create({
   },
   orderCardContent: {
     paddingVertical: 10,
+  },
+  rewardCard: {
+    marginBottom: 10,
+    borderRadius: 12,
+    backgroundColor: '#f8fafc',
+  },
+  rewardCardContent: {
+    paddingVertical: 12,
+    gap: 8,
+  },
+  rewardCardTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  rewardCardInfo: {
+    flex: 1,
+    minWidth: 0,
+    gap: 6,
+  },
+  rewardBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  rewardBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  rewardDateMuted: {
+    color: '#64748b',
+  },
+  rewardCardAmountBlock: {
+    alignItems: 'flex-end',
+    gap: 2,
+    flexShrink: 0,
+  },
+  rewardPointsAmount: {
+    fontWeight: '700',
+  },
+  rewardDollarValue: {
+    color: '#64748b',
+  },
+  rewardManualFlag: {
+    color: '#1d4ed8',
+    fontWeight: '600',
+  },
+  rewardCardBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 10,
+  },
+  rewardDescription: {
+    color: '#0f172a',
+    flex: 1,
+  },
+  rewardBalanceText: {
+    color: '#475569',
+    flexShrink: 0,
+  },
+  rewardAuditText: {
+    color: '#64748b',
+  },
+  rewardOrderButton: {
+    alignSelf: 'flex-start',
+    marginLeft: -8,
   },
   orderTopRow: {
     flexDirection: 'row',

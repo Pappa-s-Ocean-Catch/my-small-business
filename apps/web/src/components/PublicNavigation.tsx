@@ -44,6 +44,12 @@ export function PublicNavigation() {
   return (
     <nav className="hidden md:flex items-center gap-4">
       <Link
+        href="/promotions"
+        className="flex items-center gap-2 px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
+      >
+        Promotions
+      </Link>
+      <Link
         href="/menu"
         className="flex items-center gap-2 px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
       >

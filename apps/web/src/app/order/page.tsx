@@ -16,7 +16,7 @@ import { FaUtensils, FaSearch, FaFire, FaStar, FaClock, FaChevronLeft, FaChevron
 import { Icon } from '@/components/Icon';
 import { LazyImage } from '@/components/LazyImage';
 import type { CartAddonGroup } from '@/contexts/CartContext';
-import { pickBestProductPromotion, promotionLabel, type PromotionWithProducts } from '@/lib/promotions';
+import { getPromotionDetailsCopy, pickBestProductPromotion, promotionLabel, type PromotionWithProducts } from '@/lib/promotions';
 import type { StoreHours } from '@my-small-business/types';
 import { buildDefaultStoreHours, isStoreOpenNow } from '@/lib/store-hours';
 import { toast } from 'react-toastify';
@@ -647,9 +647,7 @@ function OrderPageContent() {
               <div className="mt-3 rounded-lg border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-900/20 px-4 py-3 text-sm text-green-900 dark:text-green-100">
                 <div className="font-semibold">{topCartPromo.title}</div>
                 <div className="opacity-90">
-                  {topCartPromo.cart_scope === 'subtotal_min' && typeof topCartPromo.min_cart_subtotal === 'number'
-                    ? `Spend $${topCartPromo.min_cart_subtotal.toFixed(2)}+ and get ${promotionLabel(topCartPromo)} (excludes delivery fee).`
-                    : `${promotionLabel(topCartPromo)} (excludes delivery fee).`}
+                  {getPromotionDetailsCopy(topCartPromo)}
                 </div>
               </div>
             )}

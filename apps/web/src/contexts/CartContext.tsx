@@ -35,7 +35,7 @@ export interface CartItem {
 interface CartContextType {
   items: CartItem[];
   isLoading: boolean;
-  addItem: (item: Omit<CartItem, 'id' | 'subtotal'>) => void;
+  addItem: (item: Omit<CartItem, 'id' | 'subtotal'>) => string;
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
   updateItem: (id: string, updates: Partial<CartItem>) => void;
@@ -221,12 +221,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const addItem = useCallback((item: Omit<CartItem, 'id' | 'subtotal'>) => {
     const subtotal = calculateSubtotal(item);
+    const id = `${item.product_id}-${Date.now()}-${Math.random()}`;
     const newItem: CartItem = {
       ...item,
-      id: `${item.product_id}-${Date.now()}-${Math.random()}`,
+      id,
       subtotal
     };
     setItems(prev => [...prev, newItem]);
+    return id;
   }, [calculateSubtotal]);
 
   const removeItem = useCallback((id: string) => {

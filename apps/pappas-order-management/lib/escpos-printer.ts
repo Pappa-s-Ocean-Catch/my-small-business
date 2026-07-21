@@ -284,6 +284,12 @@ function encodeText(value: string): number[] {
   return Array.from(value, (char) => char.charCodeAt(0) & 0xff);
 }
 
+function yieldToJsLoop(): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, 0);
+  });
+}
+
 function decodeBase64(base64: string): Uint8Array {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
   const clean = base64.replace(/[^A-Za-z0-9+/=]/g, '');
@@ -366,8 +372,9 @@ async function readImageBytes(imageUri: string): Promise<Uint8Array> {
   return new Uint8Array(buffer);
 }
 
-function rgbaToEscPosBitImage(width: number, height: number, rgba: Uint8Array): Uint8Array {
+async function rgbaToEscPosBitImage(width: number, height: number, rgba: Uint8Array): Promise<Uint8Array> {
   const parts: Array<number[] | Uint8Array> = [Uint8Array.from([ESC, 0x33, 24])];
+  let stripeCount = 0;
 
   for (let y = 0; y < height; y += 24) {
     const line = new Uint8Array(5 + (width * 3) + 1);
@@ -402,6 +409,13 @@ function rgbaToEscPosBitImage(width: number, height: number, rgba: Uint8Array): 
 
     line[offset] = LF;
     parts.push(line);
+    stripeCount += 1;
+
+    // Large raw-TCP images can take several hundred ms of CPU on the JS
+    // thread, so we periodically yield to keep POS interactions responsive.
+    if (stripeCount % 4 === 0) {
+      await yieldToJsLoop();
+    }
   }
 
   parts.push(Uint8Array.from([ESC, 0x32]));
@@ -419,7 +433,7 @@ function argbToRgba(argb: Uint8Array): Uint8Array {
   return rgba;
 }
 
-function resizeRgbaToWidth(width: number, height: number, rgba: Uint8Array, maxWidth: number) {
+async function resizeRgbaToWidth(width: number, height: number, rgba: Uint8Array, maxWidth: number) {
   const alignWidth = (value: number) => {
     const safe = Math.max(8, value);
     return safe - (safe % 8);
@@ -434,6 +448,7 @@ function resizeRgbaToWidth(width: number, height: number, rgba: Uint8Array, maxW
   const nextWidth = alignWidth(Math.floor(width * scale));
   const nextHeight = Math.max(1, Math.floor(height * scale));
   const output = new Uint8Array(nextWidth * nextHeight * 4);
+  const rowYieldInterval = scale === 1 ? 64 : 24;
 
   for (let y = 0; y < nextHeight; y += 1) {
     const sourceY = Math.min(height - 1, Math.floor(y / scale));
@@ -446,6 +461,10 @@ function resizeRgbaToWidth(width: number, height: number, rgba: Uint8Array, maxW
       output[targetIndex + 2] = rgba[sourceIndex + 2];
       output[targetIndex + 3] = rgba[sourceIndex + 3];
     }
+
+    if ((y + 1) % rowYieldInterval === 0) {
+      await yieldToJsLoop();
+    }
   }
 
   return { width: nextWidth, height: nextHeight, rgba: output };
@@ -454,15 +473,15 @@ function resizeRgbaToWidth(width: number, height: number, rgba: Uint8Array, maxW
 async function buildRawImagePrintBytes(imageSource: PrinterImageSource | string, maxWidth: number): Promise<Uint8Array> {
   const source = typeof imageSource === 'string' ? { kind: 'uri', uri: imageSource } as const : imageSource;
   const normalized = source.kind === 'raw-argb'
-    ? resizeRgbaToWidth(source.width, source.height, argbToRgba(source.argb), maxWidth)
+    ? await resizeRgbaToWidth(source.width, source.height, argbToRgba(source.argb), maxWidth)
     : await (async () => {
       const pngBytes = source.kind === 'png-base64'
         ? decodeBase64(source.base64)
         : await readImageBytes(source.uri);
       const decoded = await decodePngRgba(pngBytes);
-      return resizeRgbaToWidth(decoded.width, decoded.height, decoded.rgba, maxWidth);
+      return await resizeRgbaToWidth(decoded.width, decoded.height, decoded.rgba, maxWidth);
     })();
-  const raster = rgbaToEscPosBitImage(normalized.width, normalized.height, normalized.rgba);
+  const raster = await rgbaToEscPosBitImage(normalized.width, normalized.height, normalized.rgba);
   return concatBytes([
     Uint8Array.from([ESC, 0x40, ESC, 0x61, 0x01]),
     raster,

@@ -6,7 +6,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import type { Order, OrderItem, OrderItemAddon, PaymentStatus } from '@my-small-business/types';
 import { savePosOrder, updatePosOrder } from '../lib/orders';
-import { createCustomerIfNotExists, findCustomerByPhone } from '../lib/customers';
+import { createCustomerIfNotExists, findCustomerByPhone, type Customer } from '../lib/customers';
 import {
   calculateDeliveryFees,
   createStripeCheckoutSession,
@@ -21,6 +21,13 @@ import {
 } from '../lib/pos-layouts';
 import { formatKitchenSectionValue, getOrderNotes, getOrderOptions } from '../utils/orderUtils';
 import { formatSmartpayError, isSmartpayPaired, processSmartpayCardPayment } from '../lib/smartpay';
+import { applyRewardPointsToOrder, fetchRewardPointsSettings, type RewardPointsSettings } from '../lib/reward-points';
+import {
+  computePosFreeItemPromotion,
+  getFreeItemDisplayName,
+  isPromotionActiveNow,
+  type PosPromotion,
+} from '../lib/pos-promotions';
 import { PosCartPane } from '../components/pos/PosCartPane';
 import { PosDialogs } from '../components/pos/PosDialogs';
 import { PosMenuPane } from '../components/pos/PosMenuPane';
@@ -163,6 +170,11 @@ type PosDiscountConfig =
   | { kind: 'fixed'; amount: number };
 
 const EMPTY_DISCOUNT: PosDiscountConfig = { kind: 'none' };
+const DEFAULT_REWARD_POINTS_SETTINGS: RewardPointsSettings = {
+  points_per_dollar: 10,
+  dollars_per_point: 0.001,
+  enabled: true,
+};
 
 const normalizeMoney = (value: number) => Number(value.toFixed(2));
 
@@ -263,8 +275,12 @@ export default function PosScreen() {
   const [noteDraft, setNoteDraft] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerName, setCustomerName] = useState('');
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerLookupStatus, setCustomerLookupStatus] = useState<'idle' | 'loading' | 'found' | 'new' | 'error'>('idle');
   const [customerLookupError, setCustomerLookupError] = useState<string | null>(null);
+  const [rewardPointsSettings, setRewardPointsSettings] = useState<RewardPointsSettings>(DEFAULT_REWARD_POINTS_SETTINGS);
+  const [rewardPointsToUse, setRewardPointsToUse] = useState(0);
+  const [rewardPointsValue, setRewardPointsValue] = useState(0);
   const [creatingOrder, setCreatingOrder] = useState(false);
   const [smartpayProcessing, setSmartpayProcessing] = useState(false);
   const [smartpayPaired, setSmartpayPaired] = useState(false);
@@ -283,6 +299,11 @@ export default function PosScreen() {
   const [orderNoteText, setOrderNoteText] = useState('');
   const [discountConfig, setDiscountConfig] = useState<PosDiscountConfig>(EMPTY_DISCOUNT);
   const [quickListVisible, setQuickListVisible] = useState(false);
+  const [activePromotions, setActivePromotions] = useState<PosPromotion[]>([]);
+  const [promotionsLoaded, setPromotionsLoaded] = useState(false);
+  const [selectedFreeItemId, setSelectedFreeItemId] = useState<string | null>(null);
+  const [freeItemDialogVisible, setFreeItemDialogVisible] = useState(false);
+  const [eligibleFreeItemProducts, setEligibleFreeItemProducts] = useState<SaleProduct[]>([]);
   const upsertPendingOnlinePaymentSession = usePendingOnlinePaymentsStore((state) => state.upsertSession);
 
   const goHome = () => {
@@ -294,6 +315,42 @@ export default function PosScreen() {
   };
 
 
+
+  useEffect(() => {
+    void fetchRewardPointsSettings().then(setRewardPointsSettings);
+  }, []);
+
+  useEffect(() => {
+    const loadPromotions = async () => {
+      const { data, error } = await supabase
+        .from('promotions')
+        .select('*, promotion_products(sale_product_id)')
+        .eq('is_active', true)
+        .order('priority', { ascending: false });
+
+      if (error) {
+        console.warn('POS promotions load failed', error);
+        setPromotionsLoaded(true);
+        return;
+      }
+
+      const nextPromotions: PosPromotion[] = (data || [])
+        .map((row: any) => ({
+          ...row,
+          discount_value: Number(row.discount_value ?? 0),
+          min_product_price: row.min_product_price != null ? Number(row.min_product_price) : null,
+          min_cart_subtotal: row.min_cart_subtotal != null ? Number(row.min_cart_subtotal) : null,
+          priority: Number(row.priority ?? 0),
+          product_ids: (row.promotion_products || []).map((pp: any) => String(pp.sale_product_id)),
+        }))
+        .filter((promotion: PosPromotion) => isPromotionActiveNow(promotion));
+
+      setActivePromotions(nextPromotions);
+      setPromotionsLoaded(true);
+    };
+
+    void loadPromotions();
+  }, []);
 
   useEffect(() => {
     pruneCatalogCache();
@@ -720,6 +777,8 @@ export default function PosScreen() {
       setCartItems(items);
       setCustomerPhone(order.customer_phone || '');
       setCustomerName(order.customer_name || '');
+      setRewardPointsToUse(Number(order.reward_points_used ?? 0));
+      setRewardPointsValue(Number(order.reward_points_value ?? 0));
       setQuickOrderNote(getOrderOptions(order)[0] || null);
       setOrderNoteText(getOrderNotes(order) || '');
       setDiscountConfig(getDiscountConfigFromOrder(order as Order));
@@ -748,12 +807,14 @@ export default function PosScreen() {
   useEffect(() => {
     const phone = customerPhone.trim();
     if (!phone) {
+      setSelectedCustomer(null);
       setCustomerLookupStatus('idle');
       setCustomerLookupError(null);
       return;
     }
 
     if (phone.length < 6) {
+      setSelectedCustomer(null);
       setCustomerLookupStatus('idle');
       setCustomerLookupError(null);
       return;
@@ -768,17 +829,20 @@ export default function PosScreen() {
         if (cancelled) return;
 
         if (result.error) {
+          setSelectedCustomer(null);
           setCustomerLookupStatus('error');
           setCustomerLookupError(result.error);
           return;
         }
 
         if (result.data) {
+          setSelectedCustomer(result.data);
           setCustomerLookupStatus('found');
           setCustomerName(result.data.name || '');
           return;
         }
 
+        setSelectedCustomer(null);
         setCustomerLookupStatus('new');
       });
     }, 450);
@@ -788,6 +852,78 @@ export default function PosScreen() {
       clearTimeout(timer);
     };
   }, [customerPhone]);
+
+  const handleCustomerPhoneChange = useCallback((value: string) => {
+    setCustomerPhone(value);
+    setSelectedCustomer(null);
+    setRewardPointsToUse(0);
+    setRewardPointsValue(0);
+    if (customerLookupStatus === 'found') {
+      setCustomerName('');
+    }
+  }, [customerLookupStatus]);
+
+  const handleCustomerNameChange = useCallback((value: string) => {
+    setCustomerName(value);
+  }, []);
+
+  const handleSelectCustomer = useCallback((customer: Customer) => {
+    setSelectedCustomer(customer);
+    setCustomerPhone(customer.phone ?? '');
+    setCustomerName(customer.name ?? '');
+    setRewardPointsToUse(0);
+    setRewardPointsValue(0);
+    setCustomerLookupError(null);
+    setCustomerLookupStatus('found');
+  }, []);
+
+  const handleClearCustomer = useCallback(() => {
+    setSelectedCustomer(null);
+    setCustomerPhone('');
+    setCustomerName('');
+    setRewardPointsToUse(0);
+    setRewardPointsValue(0);
+    setCustomerLookupError(null);
+    setCustomerLookupStatus('idle');
+  }, []);
+
+  const handleResetToDefaultInstore = useCallback(() => {
+    setSelectedCustomer(null);
+    setCustomerPhone('');
+    setCustomerName('INSTORE');
+    setRewardPointsToUse(0);
+    setRewardPointsValue(0);
+    setCustomerLookupError(null);
+    setCustomerLookupStatus('idle');
+  }, []);
+
+  const handleToggleRewardPoints = useCallback(() => {
+    if (!rewardPointsSettings.enabled || !selectedCustomer) return;
+    if (rewardPointsToUse > 0) {
+      setRewardPointsToUse(0);
+      setRewardPointsValue(0);
+      return;
+    }
+
+    const nextPoints = maxRewardPointsForOrder;
+    setRewardPointsToUse(nextPoints);
+    setRewardPointsValue(Number((nextPoints * rewardPointsSettings.dollars_per_point).toFixed(2)));
+  }, [maxRewardPointsForOrder, rewardPointsSettings, rewardPointsToUse, selectedCustomer]);
+
+  const applyRewardPointsForSavedOrder = useCallback(async (orderIdToApply: string, customerUserId?: string | null) => {
+    if (!orderIdToApply || !customerUserId || rewardPointsToUse <= 0) return;
+
+    const result = await applyRewardPointsToOrder({
+      userId: customerUserId,
+      orderId: orderIdToApply,
+      pointsToUse: rewardPointsToUse,
+    });
+
+    if (!result.success) {
+      console.warn('Failed to apply reward points to POS order', result.error);
+      Alert.alert('Reward points', result.error || 'Failed to apply reward points. The order was still created.');
+    }
+  }, [rewardPointsToUse]);
 
   const buildAddonsFromSelection = (
     groups: AddonGroup[],
@@ -824,6 +960,33 @@ export default function PosScreen() {
     () => getDiscountAmount(discountConfig, cartItems.reduce((sum, item) => sum + item.subtotal, 0)),
     [cartItems, discountConfig]
   );
+  const cartSubtotal = useMemo(
+    () => cartItems.reduce((sum, item) => sum + item.subtotal, 0),
+    [cartItems]
+  );
+  const freeItemPromoTotals = useMemo(
+    () => computePosFreeItemPromotion({
+      promotions: activePromotions,
+      items: cartItems.map((item) => ({
+        id: item.id,
+        product_id: item.product_id,
+        product_name: item.product_name,
+        base_price: Number(item.base_price || 0),
+        quantity: item.quantity,
+        subtotal: Number(item.subtotal || 0),
+      })),
+      cartSubtotal,
+      selectedFreeItemId,
+    }),
+    [activePromotions, cartItems, cartSubtotal, selectedFreeItemId]
+  );
+  const freeItemPromotion = freeItemPromoTotals.freeItemPromotion;
+  const unlockedFreeItemPromotion = freeItemPromoTotals.unlockedFreeItemPromotion;
+  const freeItemSelectionRequired = freeItemPromoTotals.freeItemSelectionRequired;
+  const freeItemDiscountAmount = freeItemPromoTotals.discountAmount;
+  const freeItemAppliedPromotion = freeItemPromoTotals.appliedPromotion;
+  const freeItemPromotionTitle = unlockedFreeItemPromotion?.title ?? freeItemPromotion?.promotion.title ?? null;
+  const selectedFreeItemName = freeItemPromotion ? getFreeItemDisplayName(freeItemPromotion.promotion, freeItemPromotion.item.product_name) : null;
 
   const discountLabel = useMemo(
     () => getDiscountLabel(discountConfig),
@@ -832,14 +995,52 @@ export default function PosScreen() {
   const activeDiscountPercent = discountConfig.kind === 'percent'
     ? discountConfig.percent
     : null;
+  const rewardPointsBalance = Number(selectedCustomer?.rewardPoints ?? 0);
+  const rewardPointsDollarValue = Number((rewardPointsBalance * rewardPointsSettings.dollars_per_point).toFixed(2));
+
+  const maxRewardPointsForOrder = useMemo(() => {
+    const currentBalance = Number(selectedCustomer?.rewardPoints ?? 0);
+    const dollarsPerPoint = rewardPointsSettings.dollars_per_point;
+    if (!rewardPointsSettings.enabled || !selectedCustomer || currentBalance <= 0 || dollarsPerPoint <= 0) return 0;
+
+    const eligibleOrderAmount = Math.max(
+      0,
+      cartSubtotal
+      + (editingOrder?.tax ?? 0)
+      + (editingOrder?.delivery_fee ?? 0)
+      + (editingOrder?.service_fee ?? 0)
+      - discountAmount
+      - freeItemDiscountAmount
+      - (editingOrder?.coupon_discount ?? 0)
+    );
+
+    return Math.min(currentBalance, Math.floor(eligibleOrderAmount / dollarsPerPoint));
+  }, [cartSubtotal, discountAmount, editingOrder, freeItemDiscountAmount, rewardPointsSettings, selectedCustomer]);
+
+  useEffect(() => {
+    if (!rewardPointsSettings.enabled || maxRewardPointsForOrder <= 0) {
+      setRewardPointsToUse(0);
+      setRewardPointsValue(0);
+      return;
+    }
+
+    setRewardPointsToUse((current) => {
+      const next = Math.min(current, maxRewardPointsForOrder);
+      setRewardPointsValue(Number((next * rewardPointsSettings.dollars_per_point).toFixed(2)));
+      return next;
+    });
+  }, [maxRewardPointsForOrder, rewardPointsSettings]);
 
   const promotionsApplied = useMemo(
-    () => getDiscountPromotionsApplied(discountConfig, discountAmount),
-    [discountAmount, discountConfig]
+    () => {
+      const manualPromotions = getDiscountPromotionsApplied(discountConfig, discountAmount);
+      return freeItemAppliedPromotion ? [...manualPromotions, freeItemAppliedPromotion] : manualPromotions;
+    },
+    [discountAmount, discountConfig, freeItemAppliedPromotion]
   );
 
   const totals = useMemo(() => {
-    const subtotal = cartItems.reduce((sum, item) => sum + item.subtotal, 0);
+    const subtotal = cartSubtotal;
     const tax = editingOrder?.tax ?? 0;
     const total = Math.max(
       0,
@@ -848,20 +1049,65 @@ export default function PosScreen() {
       + (editingOrder?.delivery_fee ?? 0)
       + (editingOrder?.service_fee ?? 0)
       - discountAmount
+      - freeItemDiscountAmount
       - (editingOrder?.coupon_discount ?? 0)
-      - (editingOrder?.reward_points_value ?? 0)
+      - rewardPointsValue
     );
-    return { subtotal, tax, discount: discountAmount, total };
-  }, [cartItems, discountAmount, editingOrder]);
+    return { subtotal, tax, discount: discountAmount + freeItemDiscountAmount, total };
+  }, [cartSubtotal, discountAmount, editingOrder, freeItemDiscountAmount, rewardPointsValue]);
 
   const buildCheckoutLineItems = useCallback(() => (
     cartItems.map((item) => ({
-      name: item.product_name,
+      name: selectedFreeItemId === item.id && freeItemPromotion?.item.id === item.id
+        ? getFreeItemDisplayName(freeItemPromotion.promotion, item.product_name)
+        : item.product_name,
       description: item.comment || undefined,
       quantity: item.quantity,
       price: Number((item.subtotal / Math.max(item.quantity, 1)).toFixed(2)),
     }))
-  ), [cartItems]);
+  ), [cartItems, freeItemPromotion, selectedFreeItemId]);
+
+  useEffect(() => {
+    const eligibleIds = Array.from(new Set(unlockedFreeItemPromotion?.product_ids || []));
+    if (eligibleIds.length === 0) {
+      setEligibleFreeItemProducts([]);
+      return;
+    }
+
+    const loadEligibleProducts = async () => {
+      const { data, error } = await supabase
+        .from('sale_products')
+        .select('id, name, description, section, search_term, sale_price, image_url, sale_category_id, sub_category_id, sort_order, is_active')
+        .in('id', eligibleIds)
+        .eq('is_active', true)
+        .order('name', { ascending: true });
+
+      if (error) {
+        console.warn('POS eligible free items load failed', error);
+        setEligibleFreeItemProducts([]);
+        return;
+      }
+
+      setEligibleFreeItemProducts((data || []) as SaleProduct[]);
+    };
+
+    void loadEligibleProducts();
+  }, [unlockedFreeItemPromotion]);
+
+  useEffect(() => {
+    if (!promotionsLoaded || !selectedFreeItemId) return;
+    if (freeItemPromotion) return;
+
+    const stillExists = cartItems.some((item) => item.id === selectedFreeItemId);
+    if (!stillExists) {
+      setSelectedFreeItemId(null);
+      return;
+    }
+
+    setCartItems((current) => current.filter((item) => item.id !== selectedFreeItemId));
+    setSelectedFreeItemId(null);
+    Alert.alert('Free item removed', 'This order no longer qualifies for the free-item promotion.');
+  }, [cartItems, freeItemPromotion, promotionsLoaded, selectedFreeItemId]);
 
   const selectedRemovedIngredients = useMemo(
     () => editorRemovableIngredients
@@ -1160,6 +1406,24 @@ export default function PosScreen() {
     addons,
   });
 
+  const getPosCartItemDisplayName = useCallback((item: PosCartItem) => (
+    selectedFreeItemId === item.id && freeItemPromotion?.item.id === item.id
+      ? getFreeItemDisplayName(freeItemPromotion.promotion, item.product_name)
+      : item.product_name
+  ), [freeItemPromotion, selectedFreeItemId]);
+
+  const handleSelectFreeItem = useCallback((product: SaleProduct) => {
+    if (selectedFreeItemId) {
+      setCartItems((current) => current.filter((item) => item.id !== selectedFreeItemId));
+      setSelectedFreeItemId(null);
+    }
+
+    const newItem = buildCartItem(product, 1, [], '', []);
+    setCartItems((current) => [...current, newItem]);
+    setSelectedFreeItemId(newItem.id);
+    setFreeItemDialogVisible(false);
+  }, [buildCartItem, selectedFreeItemId]);
+
   const quickAddProduct = async (
     product: SaleProduct,
     options: { skipCustomization?: boolean; forcePlainAdd?: boolean } = {}
@@ -1169,6 +1433,7 @@ export default function PosScreen() {
     ));
     const existingPlainItem = cartItems.find((item) => (
       item.product_id === product.id
+      && item.id !== selectedFreeItemId
       && !cartItemHasCustomizations(item)
     ));
 
@@ -1239,6 +1504,7 @@ export default function PosScreen() {
     const normalizedComment = comment.trim();
     const existing = cartItems.find((item) => (
       item.product_id === product.id
+      && item.id !== selectedFreeItemId
       && addonSelectionKey(item.addons || []) === addonSelectionKey(addons)
       && (item.comment ?? '') === normalizedComment
       && JSON.stringify(item.removed_ingredients || []) === JSON.stringify(removedIngredients)
@@ -1277,6 +1543,9 @@ export default function PosScreen() {
 
   const removeCartItem = (id: string) => {
     if (menuLevel === 'addons') backToItems();
+    if (selectedFreeItemId === id) {
+      setSelectedFreeItemId(null);
+    }
     setCartItems((prev) => prev.filter((item) => item.id !== id));
   };
 
@@ -1326,9 +1595,12 @@ export default function PosScreen() {
           style: 'destructive',
           onPress: () => {
             setCartItems([]);
+            setSelectedFreeItemId(null);
             setQuickOrderNote(null);
             setOrderNoteText('');
             setDiscountConfig(EMPTY_DISCOUNT);
+            setRewardPointsToUse(0);
+            setRewardPointsValue(0);
             backToGroups();
           },
         },
@@ -1340,8 +1612,12 @@ export default function PosScreen() {
     setCartItems([]);
     setCustomerPhone('');
     setCustomerName('');
+    setSelectedCustomer(null);
+    setRewardPointsToUse(0);
+    setRewardPointsValue(0);
     setCustomerLookupStatus('idle');
     setCustomerLookupError(null);
+    setSelectedFreeItemId(null);
     setIsPreOrder(false);
     setScheduledPickupAt(defaultPickupTime());
     setPaymentChoice('no_pay');
@@ -1368,11 +1644,18 @@ export default function PosScreen() {
       backToItems();
     }
 
+    const shouldClearSelectedFreeItem = selectedFreeItemId === id && (currentItem?.quantity ?? 0) + delta <= 0;
+    if (shouldClearSelectedFreeItem) {
+      setSelectedFreeItemId(null);
+    }
+
     setCartItems((prev) => prev
       .map((item) => {
         if (item.id !== id) return item;
         const nextQuantity = item.quantity + delta;
-        if (nextQuantity <= 0) return null;
+        if (nextQuantity <= 0) {
+          return null;
+        }
         return {
           ...item,
           quantity: nextQuantity,
@@ -1415,6 +1698,12 @@ export default function PosScreen() {
   };
 
   const handleCheckout = async (paymentOverride?: PosCheckoutPaymentOverride) => {
+    if (freeItemSelectionRequired) {
+      setFreeItemDialogVisible(true);
+      Alert.alert('Free item available', 'Please choose the free promotion item before checkout.');
+      return;
+    }
+
     const phone = customerPhone.trim();
     const name = customerName.trim();
     const isEditingExistingOrder = Boolean(orderId);
@@ -1492,13 +1781,13 @@ export default function PosScreen() {
       tax: totals.tax,
       delivery_fee: 0,
       service_fee: 0,
-      promotion_discount: discountAmount,
+      promotion_discount: discountAmount + freeItemDiscountAmount,
       promotions_applied: promotionsApplied,
       coupon_code: null,
       coupon_discount: 0,
       total: totals.total,
-      reward_points_used: null,
-      reward_points_value: null,
+      reward_points_used: rewardPointsToUse || null,
+      reward_points_value: rewardPointsValue || null,
       order_options: orderOptions,
       special_instructions: orderSpecialInstructions,
       delivery_address_id: null,
@@ -1528,7 +1817,10 @@ export default function PosScreen() {
     } as any;
 
     const result = orderId
-      ? await updatePosOrder(orderId, cartItems, totals, {
+      ? await updatePosOrder(orderId, cartItems.map((item) => ({
+        ...item,
+        product_name: getPosCartItemDisplayName(item),
+      })), totals, {
         user_id: customerId,
         customer_phone: phone || editingOrder?.customer_phone || '',
         customer_name: name || editingOrder?.customer_name || null,
@@ -1539,12 +1831,17 @@ export default function PosScreen() {
         order_options: orderOptions,
         special_instructions: orderSpecialInstructions,
         scheduled_pickup_at: pickupAt ? pickupAt.toISOString() : null,
-        promotion_discount: discountAmount,
+        promotion_discount: discountAmount + freeItemDiscountAmount,
         promotions_applied: promotionsApplied,
         coupon_code: null,
         coupon_discount: 0,
+        reward_points_used: rewardPointsToUse || null,
+        reward_points_value: rewardPointsValue || null,
       })
-      : await savePosOrder(orderPayload, cartItems);
+      : await savePosOrder(orderPayload, cartItems.map((item) => ({
+        ...item,
+        product_name: getPosCartItemDisplayName(item),
+      })));
 
     setCreatingOrder(false);
     cashTenderConfirmedRef.current = false;
@@ -1554,11 +1851,20 @@ export default function PosScreen() {
       Alert.alert('Checkout', result.error);
       return;
     }
+    if (result.data?.id) {
+      await applyRewardPointsForSavedOrder(result.data.id, customerId);
+    }
     invalidateTopSellers();
     router.back();
   };
 
   const handleSmartpayInstoreCheckout = async () => {
+    if (freeItemSelectionRequired) {
+      setFreeItemDialogVisible(true);
+      Alert.alert('Free item available', 'Please choose the free promotion item before checkout.');
+      return;
+    }
+
     if (orderId) {
       Alert.alert('Edit Order', 'Use Update Order when editing an existing order.');
       return;
@@ -1574,12 +1880,26 @@ export default function PosScreen() {
       setSmartpayProcessing(true);
       await processSmartpayCardPayment(totals.total);
       setCreatingOrder(true);
+      const phone = customerPhone.trim();
+      const name = customerName.trim();
+      let customerId: string | null = null;
+      let customerEmail = '';
+
+      if (phone) {
+        const { data: customer, error: customerError } = await createCustomerIfNotExists(phone, name);
+        if (customerError) {
+          Alert.alert('Customer', customerError);
+          return;
+        }
+        customerId = customer?.id ?? null;
+        customerEmail = customer?.email ?? '';
+      }
 
       const orderPayload = {
-        user_id: null,
-        customer_email: '',
-        customer_phone: '',
-        customer_name: 'INSTORE',
+        user_id: customerId,
+        customer_email: customerEmail,
+        customer_phone: phone,
+        customer_name: name || 'INSTORE',
         payment_method: 'store',
         order_channel: 'instore',
         payment_method_detail: 'SmartPay',
@@ -1590,13 +1910,13 @@ export default function PosScreen() {
         tax: totals.tax,
         delivery_fee: 0,
         service_fee: 0,
-        promotion_discount: discountAmount,
+        promotion_discount: discountAmount + freeItemDiscountAmount,
         promotions_applied: promotionsApplied,
         coupon_code: null,
         coupon_discount: 0,
         total: totals.total,
-        reward_points_used: null,
-        reward_points_value: null,
+        reward_points_used: rewardPointsToUse || null,
+        reward_points_value: rewardPointsValue || null,
         order_options: orderOptions,
         special_instructions: orderSpecialInstructions,
         delivery_address_id: null,
@@ -1625,12 +1945,18 @@ export default function PosScreen() {
         scheduled_pickup_at: null,
       } as any;
 
-      const result = await savePosOrder(orderPayload, cartItems);
+      const result = await savePosOrder(orderPayload, cartItems.map((item) => ({
+        ...item,
+        product_name: getPosCartItemDisplayName(item),
+      })));
       setCreatingOrder(false);
 
       if (result.error) {
         Alert.alert('Instore Order', result.error);
         return;
+      }
+      if (result.data?.id) {
+        await applyRewardPointsForSavedOrder(result.data.id, customerId);
       }
       invalidateTopSellers();
       router.back();
@@ -1657,6 +1983,12 @@ export default function PosScreen() {
   };
 
   const handleInstoreCheckout = async (payment: PosInstorePaymentChoice) => {
+    if (freeItemSelectionRequired) {
+      setFreeItemDialogVisible(true);
+      Alert.alert('Free item available', 'Please choose the free promotion item before checkout.');
+      return;
+    }
+
     if (orderId) {
       Alert.alert('Edit Order', 'Use Update Order when editing an existing order.');
       return;
@@ -1670,6 +2002,22 @@ export default function PosScreen() {
     }
 
     setCreatingOrder(true);
+    const phone = customerPhone.trim();
+    const name = customerName.trim();
+    let customerId: string | null = null;
+    let customerEmail = '';
+
+    if (phone) {
+      const { data: customer, error: customerError } = await createCustomerIfNotExists(phone, name);
+      if (customerError) {
+        setCreatingOrder(false);
+        Alert.alert('Customer', customerError);
+        return;
+      }
+      customerId = customer?.id ?? null;
+      customerEmail = customer?.email ?? '';
+    }
+
     const paymentStatus: PaymentStatus = payment === 'unpaid' ? 'pending' : 'paid';
     const paymentMethodDetail =
       payment === 'card' ? 'Card' :
@@ -1677,10 +2025,10 @@ export default function PosScreen() {
           null;
 
     const orderPayload = {
-      user_id: null,
-      customer_email: '',
-      customer_phone: '',
-      customer_name: 'INSTORE',
+      user_id: customerId,
+      customer_email: customerEmail,
+      customer_phone: phone,
+      customer_name: name || 'INSTORE',
       payment_method: 'store',
       order_channel: 'instore',
       payment_method_detail: paymentMethodDetail,
@@ -1691,13 +2039,13 @@ export default function PosScreen() {
       tax: totals.tax,
       delivery_fee: 0,
       service_fee: 0,
-      promotion_discount: discountAmount,
+      promotion_discount: discountAmount + freeItemDiscountAmount,
       promotions_applied: promotionsApplied,
       coupon_code: null,
       coupon_discount: 0,
       total: totals.total,
-      reward_points_used: null,
-      reward_points_value: null,
+      reward_points_used: rewardPointsToUse || null,
+      reward_points_value: rewardPointsValue || null,
       order_options: orderOptions,
       special_instructions: orderSpecialInstructions,
       delivery_address_id: null,
@@ -1726,13 +2074,19 @@ export default function PosScreen() {
       scheduled_pickup_at: null,
     } as any;
 
-    const result = await savePosOrder(orderPayload, cartItems);
+    const result = await savePosOrder(orderPayload, cartItems.map((item) => ({
+      ...item,
+      product_name: getPosCartItemDisplayName(item),
+    })));
 
     setCreatingOrder(false);
     cashTenderConfirmedRef.current = false;
     if (result.error) {
       Alert.alert('Instore Order', result.error);
       return;
+    }
+    if (result.data?.id) {
+      await applyRewardPointsForSavedOrder(result.data.id, customerId);
     }
     invalidateTopSellers();
     router.back();
@@ -1741,6 +2095,12 @@ export default function PosScreen() {
   const handleDeliveryCheckout = useCallback(async (
     input: { address: DeliveryAddressDraft; quote: DeliveryQuoteResult }
   ): Promise<void> => {
+    if (freeItemSelectionRequired) {
+      setFreeItemDialogVisible(true);
+      Alert.alert('Free item available', 'Please choose the free promotion item before checkout.');
+      return;
+    }
+
     if (orderId) {
       Alert.alert('Edit Order', 'Delivery checkout is only available for new POS orders right now.');
       return;
@@ -1767,7 +2127,7 @@ export default function PosScreen() {
       }
 
       const feeSummary = await calculateDeliveryFees({
-        subtotal: Math.max(0, totals.subtotal - discountAmount),
+        subtotal: Math.max(0, totals.subtotal - discountAmount - freeItemDiscountAmount - rewardPointsValue),
         tax: totals.tax,
         deliveryFee: input.quote.fee,
       });
@@ -1787,13 +2147,13 @@ export default function PosScreen() {
         tax: totals.tax,
         delivery_fee: input.quote.fee,
         service_fee: feeSummary.serviceFee,
-        promotion_discount: discountAmount,
+        promotion_discount: discountAmount + freeItemDiscountAmount,
         promotions_applied: promotionsApplied,
         coupon_code: null,
         coupon_discount: 0,
         total: feeSummary.totalAmount,
-        reward_points_used: null,
-        reward_points_value: null,
+        reward_points_used: rewardPointsToUse || null,
+        reward_points_value: rewardPointsValue || null,
         order_options: orderOptions,
         special_instructions: orderSpecialInstructions,
         delivery_address_id: null,
@@ -1822,11 +2182,16 @@ export default function PosScreen() {
         scheduled_pickup_at: null,
       } as any;
 
-      const saveResult = await savePosOrder(orderPayload, cartItems);
+      const saveResult = await savePosOrder(orderPayload, cartItems.map((item) => ({
+        ...item,
+        product_name: getPosCartItemDisplayName(item),
+      })));
       if (saveResult.error || !saveResult.data) {
         Alert.alert('Delivery', saveResult.error || 'Failed to create delivery order');
         return;
       }
+
+      await applyRewardPointsForSavedOrder(saveResult.data.id, customer?.id ?? null);
 
       const checkoutSession = await createStripeCheckoutSession({
         orderId: saveResult.data.id,
@@ -1834,8 +2199,9 @@ export default function PosScreen() {
         customerName: name,
         customerPhone: phone,
         items: buildCheckoutLineItems(),
-        subtotal: Math.max(0, totals.subtotal - discountAmount),
-        promotionDiscount: discountAmount,
+        subtotal: Math.max(0, totals.subtotal - discountAmount - freeItemDiscountAmount - rewardPointsValue),
+        promotionDiscount: discountAmount + freeItemDiscountAmount,
+        rewardPointsDiscount: rewardPointsValue,
         tax: totals.tax,
         deliveryFee: input.quote.fee,
         orderType: 'delivery',
@@ -1877,7 +2243,7 @@ export default function PosScreen() {
         itemSummaries: cartItems.map((item) => ({
           id: item.id,
           quantity: item.quantity,
-          productName: item.product_name,
+          productName: getPosCartItemDisplayName(item),
           subtotal: item.subtotal,
           comment: item.comment,
           removedIngredients: item.removed_ingredients || [],
@@ -1899,12 +2265,16 @@ export default function PosScreen() {
     orderId,
     customerPhone,
     customerName,
+    freeItemSelectionRequired,
     totals.subtotal,
     totals.tax,
     orderOptions,
     orderSpecialInstructions,
     cartItems,
     buildCheckoutLineItems,
+    discountAmount,
+    freeItemDiscountAmount,
+    getPosCartItemDisplayName,
     resetPosForNextOrder,
     upsertPendingOnlinePaymentSession,
   ]);
@@ -2053,11 +2423,25 @@ export default function PosScreen() {
             openCheckout={openCheckout}
             customerLookupStatus={customerLookupStatus}
             customerPhone={customerPhone}
-            setCustomerPhone={setCustomerPhone}
+            onChangeCustomerPhone={handleCustomerPhoneChange}
             customerName={customerName}
-            setCustomerName={setCustomerName}
+            onChangeCustomerName={handleCustomerNameChange}
             customerLookupError={customerLookupError}
+            selectedCustomer={selectedCustomer}
+            onSelectCustomer={handleSelectCustomer}
+            onClearCustomer={handleClearCustomer}
+            onResetToDefaultInstore={handleResetToDefaultInstore}
+            rewardPointsEnabled={rewardPointsSettings.enabled}
+            rewardPointsBalance={rewardPointsBalance}
+            rewardPointsDollarValue={rewardPointsDollarValue}
+            rewardPointsApplied={rewardPointsToUse > 0}
+            appliedRewardPointsValue={rewardPointsValue}
+            onToggleRewardPoints={handleToggleRewardPoints}
             totals={totals}
+            freeItemPromotionTitle={freeItemPromotionTitle}
+            freeItemSelectionRequired={freeItemSelectionRequired}
+            selectedFreeItemName={selectedFreeItemName}
+            onOpenFreeItemDialog={() => setFreeItemDialogVisible(true)}
             discountLabel={discountLabel}
             discountAmount={discountAmount}
             activeDiscountPercent={activeDiscountPercent}
@@ -2101,6 +2485,12 @@ export default function PosScreen() {
           openNoteEditor={openNoteEditor}
           removeCartItem={removeCartItem}
           totals={totals}
+          freeItemPromotionTitle={freeItemPromotionTitle}
+          freeItemSelectionRequired={freeItemSelectionRequired}
+          selectedFreeItemName={selectedFreeItemName}
+          onOpenFreeItemDialog={() => setFreeItemDialogVisible(true)}
+          getCartItemDisplayName={getPosCartItemDisplayName}
+          isFreePromotionItem={(item) => selectedFreeItemId === item.id && freeItemPromotion?.item.id === item.id}
           creatingOrder={creatingOrder}
           smartpayProcessing={smartpayProcessing}
           handleClearCart={handleClearCart}
@@ -2112,9 +2502,9 @@ export default function PosScreen() {
         />
       </View>
 
-      <PosDialogs
-        cashTenderMode={cashTenderMode}
-        total={totals.total}
+        <PosDialogs
+          cashTenderMode={cashTenderMode}
+          total={totals.total}
         onCancelCashTender={() => {
           cashTenderConfirmedRef.current = false;
           setCashTenderMode(null);
@@ -2135,6 +2525,10 @@ export default function PosScreen() {
         instorePaymentDialogVisible={instorePaymentDialogVisible}
         setInstorePaymentDialogVisible={setInstorePaymentDialogVisible}
         onChooseInstorePayment={handleChooseInstorePayment}
+        freeItemDialogVisible={freeItemDialogVisible}
+        setFreeItemDialogVisible={setFreeItemDialogVisible}
+        eligibleFreeItemProducts={eligibleFreeItemProducts}
+        onSelectFreeItem={handleSelectFreeItem}
         discountDialogVisible={discountDialogVisible}
         setDiscountDialogVisible={setDiscountDialogVisible}
         discountLabel={discountLabel}

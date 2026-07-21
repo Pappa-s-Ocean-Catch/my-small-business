@@ -34,6 +34,7 @@ const PRINT_CLAIM_STALE_AFTER_SECONDS = 15;
 const RECEIPT_REF_WAIT_MS = 120;
 const RECEIPT_REF_MAX_ATTEMPTS = 8;
 const RECEIPT_RENDER_SETTLE_MS = 300;
+const RECEIPT_RENDER_FRAME_COUNT = 2;
 
 export function PrinterAutomationProvider({ children }: PropsWithChildren) {
   const queryClient = useQueryClient();
@@ -102,6 +103,12 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
       await new Promise((resolve) => setTimeout(resolve, RECEIPT_REF_WAIT_MS));
     }
     return null;
+  }, []);
+
+  const waitForReceiptRenderFrames = useCallback(async (frameCount: number = RECEIPT_RENDER_FRAME_COUNT) => {
+    for (let index = 0; index < frameCount; index += 1) {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    }
   }, []);
 
   const playAttentionSoundForOrder = useCallback((order: Pick<Order, 'id' | 'order_channel' | 'payment_method' | 'customer_name' | 'scheduled_pickup_at'>) => {
@@ -194,14 +201,19 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
       });
       const capturedJobs: Array<{ image: PrinterImageSource; previewUri: string | null; label: string; useSimulator: boolean; printer: NonNullable<ReturnType<typeof buildSectionPrintJobs>[number]['printer']> | null }> = [];
 
-      for (const job of jobs) {
+      for (let index = 0; index < jobs.length; index += 1) {
+        const job = jobs[index];
         const jobStartedAt = Date.now();
         setTempPrintTicketIndex(job.onlyTicketIndex ?? 0);
         setTempPrintDuplicateBySections(job.duplicateBySections);
-        await new Promise((resolve) => setTimeout(resolve, RECEIPT_RENDER_SETTLE_MS));
+        if (index === 0) {
+          await new Promise((resolve) => setTimeout(resolve, RECEIPT_RENDER_SETTLE_MS));
+        } else {
+          await waitForReceiptRenderFrames();
+        }
         logOrderEvent('info', 'print', 'Prepared receipt template for auto-print job', {
           order: freshOrder,
-          details: `job=${job.label} renderSettle=${formatDurationMs(jobStartedAt)}`,
+          details: `job=${job.label} renderSettle=${formatDurationMs(jobStartedAt)} mode=${index === 0 ? 'initial-wait' : 'frame-sync'}`,
         });
 
         const refWaitStartedAt = Date.now();
@@ -359,7 +371,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
       setTempPrintDuplicateBySections(false);
       autoPrintingOrderIdsRef.current.delete(order.id);
     }
-  }, [appSettings, logOrderEvent, notifyAutoPrintError, showAutoPrintSimulator, showToast, waitForReceiptTemplateRef]);
+  }, [appSettings, logOrderEvent, notifyAutoPrintError, showAutoPrintSimulator, showToast, waitForReceiptRenderFrames, waitForReceiptTemplateRef]);
 
   const announceAndPrintOrder = useCallback(async (order: Order) => {
     if (processedOrderIdsRef.current.has(order.id)) return;
