@@ -202,11 +202,17 @@ function mapShipdayStatus(rawStatus: string | null | undefined): string {
   if (!status.trim()) return 'pending';
   if (status.includes('deliver')) return 'delivered';
   if (
+    status.includes('picked_up') ||
+    status.includes('picked up') ||
+    status.includes('pickup complete') ||
+    status.includes('in_transit') ||
+    status.includes('in transit') ||
     status.includes('picked') ||
     status.includes('transit') ||
     status.includes('inflight') ||
     status.includes('enroute') ||
-    status.includes('on_the_way')
+    status.includes('on_the_way') ||
+    status.includes('on the way')
   ) {
     return 'inflight';
   }
@@ -214,7 +220,8 @@ function mapShipdayStatus(rawStatus: string | null | undefined): string {
     status.includes('assign') ||
     status.includes('accept') ||
     status.includes('driver') ||
-    status.includes('dispatch')
+    status.includes('dispatch') ||
+    status.includes('scheduled')
   ) {
     return 'assigned';
   }

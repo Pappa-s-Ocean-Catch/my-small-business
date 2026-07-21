@@ -82,6 +82,39 @@ export interface DeliveryStatusResponse {
   raw?: any;
 }
 
+type JsonLike = string | number | boolean | null | JsonLike[] | { [key: string]: JsonLike };
+
+function collectValues(
+  value: JsonLike | undefined,
+  keyNames: Set<string>,
+  found: string[] = [],
+): string[] {
+  if (value == null) return found;
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectValues(item, keyNames, found);
+    }
+    return found;
+  }
+
+  if (typeof value === 'object') {
+    for (const [key, nested] of Object.entries(value)) {
+      if (keyNames.has(key) && typeof nested === 'string' && nested.trim()) {
+        found.push(nested.trim());
+      }
+      collectValues(nested as JsonLike, keyNames, found);
+    }
+  }
+
+  return found;
+}
+
+function firstMatch(body: JsonLike | undefined, keys: string[]): string {
+  const values = collectValues(body, new Set(keys));
+  return values[0] ?? '';
+}
+
 class ShipdayClient {
   private sdk: any;
   private apiKey: string;
@@ -376,14 +409,14 @@ class ShipdayClient {
       const response = await this.sdk.orderService.getOrderDetails(shipdayOrderId);
       const responseBody = response && typeof response === 'object' ? response : {};
       return {
-        delivery_id: String((responseBody as any).orderId || (responseBody as any).id || shipdayOrderId),
-        order_number: String((responseBody as any).orderNumber || (responseBody as any).order_number || ''),
-        status: String((responseBody as any).status || (responseBody as any).deliveryStatus || ''),
-        tracking_url: (responseBody as any).trackingUrl || (responseBody as any).tracking_url || '',
-        driver_name: (responseBody as any).driverName || (responseBody as any).dasherName || (responseBody as any).courierName || '',
-        driver_phone: (responseBody as any).driverPhone || (responseBody as any).dasherPhone || (responseBody as any).courierPhone || '',
-        driver_pin: (responseBody as any).driverPin || (responseBody as any).pickupPin || (responseBody as any).verificationPin || '',
-        vehicle_info: (responseBody as any).vehicleInfo || (responseBody as any).vehicle || (responseBody as any).vehicleDescription || '',
+        delivery_id: firstMatch(responseBody as JsonLike, ['orderId', 'id']) || String(shipdayOrderId),
+        order_number: firstMatch(responseBody as JsonLike, ['orderNumber', 'order_number', 'externalOrderId', 'external_order_id']),
+        status: firstMatch(responseBody as JsonLike, ['status', 'deliveryStatus', 'orderStatus', 'state']),
+        tracking_url: firstMatch(responseBody as JsonLike, ['trackingUrl', 'tracking_url', 'trackingLink', 'tracking_link']),
+        driver_name: firstMatch(responseBody as JsonLike, ['driverName', 'dasherName', 'courierName', 'name']),
+        driver_phone: firstMatch(responseBody as JsonLike, ['driverPhone', 'dasherPhone', 'courierPhone', 'phoneNumber', 'phone_number']),
+        driver_pin: firstMatch(responseBody as JsonLike, ['driverPin', 'pickupPin', 'verificationPin', 'driver_pin', 'pickup_pin', 'verification_pin']),
+        vehicle_info: firstMatch(responseBody as JsonLike, ['vehicleInfo', 'vehicle', 'vehicleDescription', 'vehicle_description']),
         raw: responseBody,
       };
     } catch (error) {
