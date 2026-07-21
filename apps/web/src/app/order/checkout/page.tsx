@@ -43,6 +43,7 @@ import {
 import { validateCouponCode } from "@/app/actions/coupons";
 import { getCouponErrorMessage, type CouponValidationResult } from "@/lib/coupons";
 import posthog from "posthog-js";
+import { toast } from "react-toastify";
 
 import { OrderTypeDisplay } from "./components/OrderTypeDisplay";
 import { PaymentMethodSelector } from "./components/PaymentMethodSelector";

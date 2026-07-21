@@ -46,16 +46,6 @@ class TryPosHubAPI {
       clientSecret: process.env.TRYPOSHUB_CLIENT_SECRET || '',
       baseUrl: 'https://api.tryposhub.com'
     };
-    
-    console.log('🔧 TryPosHub API Configuration:', {
-      baseUrl: this.config.baseUrl,
-      clientId: this.config.clientId ? `${this.config.clientId.substring(0, 8)}...` : 'MISSING',
-      clientSecret: this.config.clientSecret ? `${this.config.clientSecret.substring(0, 8)}...` : 'MISSING',
-      envCheck: {
-        TRYPOSHUB_CLIENT_ID: process.env.TRYPOSHUB_CLIENT_ID ? 'SET' : 'NOT_SET',
-        TRYPOSHUB_CLIENT_SECRET: process.env.TRYPOSHUB_CLIENT_SECRET ? 'SET' : 'NOT_SET'
-      }
-    });
   }
 
 
@@ -121,7 +111,7 @@ class TryPosHubAPI {
 
       this.accessToken = data.access_token;
       this.tokenExpiry = Date.now() + (data.expires_in * 1000) - 60000; // 1 minute buffer
-      
+
       console.log('💾 Token cached, expires at:', new Date(this.tokenExpiry).toISOString());
       return this.accessToken!;
     } catch (error) {
@@ -135,10 +125,10 @@ class TryPosHubAPI {
 
   private async makeRequest(endpoint: string, options: RequestInit = {}): Promise<unknown> {
     console.log('🌐 Making API request to:', `${this.config.baseUrl}${endpoint}`);
-    
+
     const token = await this.getAccessToken();
     console.log('🔑 Using token:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN');
-    
+
     const response = await fetch(`${this.config.baseUrl}${endpoint}`, {
       ...options,
       headers: {
@@ -174,7 +164,7 @@ class TryPosHubAPI {
     endDate?: string;
   } = {}): Promise<OrdersResponse> {
     const queryParams = new URLSearchParams();
-    
+
     if (params.page) queryParams.append('page', params.page.toString());
     if (params.limit) queryParams.append('limit', params.limit.toString());
     if (params.status) queryParams.append('status', params.status);
@@ -182,7 +172,7 @@ class TryPosHubAPI {
     if (params.endDate) queryParams.append('end_date', params.endDate);
 
     const endpoint = `/orders${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-    
+
     return this.makeRequest(endpoint) as Promise<OrdersResponse>;
   }
 }
@@ -193,7 +183,7 @@ const tryposhubAPI = new TryPosHubAPI();
 export async function GET(request: NextRequest) {
   try {
     console.log('🚀 Server-side: Starting to fetch orders...');
-    
+
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
@@ -219,7 +209,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('❌ Server-side: Error fetching orders:', error);
     return NextResponse.json(
-      { 
+      {
         error: error instanceof Error ? error.message : 'Failed to fetch orders',
         orders: [],
         total: 0,

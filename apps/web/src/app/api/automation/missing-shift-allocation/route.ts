@@ -6,12 +6,6 @@ import { getPublicSiteUrl } from '@/lib/public-site-url';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-// Debug: Check Resend configuration
-console.log('📧 Resend configuration check:');
-console.log('  - RESEND_API_KEY exists:', !!process.env.RESEND_API_KEY);
-console.log('  - RESEND_API_KEY length:', process.env.RESEND_API_KEY?.length || 0);
-console.log('  - RESEND_API_KEY prefix:', process.env.RESEND_API_KEY?.substring(0, 10) + '...' || 'undefined');
-
 export async function POST(request: NextRequest) {
   try {
     // Verify webhook signature and get parsed body
@@ -39,11 +33,11 @@ export async function POST(request: NextRequest) {
       console.error('Error fetching schedule:', scheduleError);
       console.error('Schedule ID:', schedule_id);
       console.error('Job type:', job_type);
-      return NextResponse.json({ 
-        error: 'Schedule not found', 
+      return NextResponse.json({
+        error: 'Schedule not found',
         details: scheduleError,
         schedule_id,
-        job_type 
+        job_type
       }, { status: 404 });
     }
 
@@ -90,12 +84,12 @@ export async function POST(request: NextRequest) {
     // Find dates without shifts
     const datesWithoutShifts: string[] = [];
     const currentDate = new Date(today);
-    
+
     for (let i = 0; i < daysToCheck; i++) {
       const checkDate = new Date(currentDate);
       checkDate.setDate(currentDate.getDate() + i);
       const dateStr = checkDate.toISOString().split('T')[0];
-      
+
       if (!datesWithShifts.has(dateStr)) {
         datesWithoutShifts.push(dateStr);
       }
@@ -116,7 +110,7 @@ export async function POST(request: NextRequest) {
         job_type: 'missing_shift_allocation',
         status: 'success',
         message: 'All days have shift allocations',
-        details: { 
+        details: {
           days_checked: daysToCheck,
           total_shifts: shifts?.length || 0,
           missing_days: 0
@@ -163,7 +157,7 @@ export async function POST(request: NextRequest) {
     console.log('  - Custom recipient emails:', recipientEmails);
     console.log('  - Days to check:', daysToCheck);
     console.log('  - Missing shift days found:', datesWithoutShifts.length);
-    
+
     if (emailRecipients.length === 0) {
       console.log('📧 No custom recipients, fetching admin emails...');
       const { data: admins, error: adminsError } = await supabase
@@ -190,11 +184,11 @@ export async function POST(request: NextRequest) {
     // Format dates for display
     const formatDate = (dateStr: string) => {
       const date = new Date(dateStr);
-      return date.toLocaleDateString('en-US', { 
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
+      return date.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
       });
     };
 
@@ -245,15 +239,15 @@ export async function POST(request: NextRequest) {
       htmlLength: emailHtml.length,
       fromAddress: process.env.EMAIL_FROM!
     });
-    
+
     const emailResults = [];
-    
+
     for (const recipientEmail of emailRecipients) {
       console.log(`📧 Sending email to: ${recipientEmail}`);
       try {
         const emailSubject = `Missing Shift Allocation Alert - ${datesWithoutShifts.length} Days Need Coverage`;
         console.log(`📧 Email subject: ${emailSubject}`);
-        
+
         const result = await resend.emails.send({
           from: process.env.EMAIL_FROM!,
           to: [recipientEmail],
@@ -305,7 +299,7 @@ export async function POST(request: NextRequest) {
       job_type: 'missing_shift_allocation',
       status: 'success',
       message: `Found ${datesWithoutShifts.length} days without shift allocations`,
-      details: { 
+      details: {
         days_checked: daysToCheck,
         total_shifts: shifts?.length || 0,
         missing_days: datesWithoutShifts.length,
@@ -357,7 +351,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Missing shift allocation automation error:', error);
-    
+
     // Log the error
     try {
       const supabase = await createServiceRoleClient();
