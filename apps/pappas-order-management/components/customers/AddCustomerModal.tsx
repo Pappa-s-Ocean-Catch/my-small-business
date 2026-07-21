@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Button, Dialog, HelperText, IconButton, Portal, Surface, Text } from 'react-native-paper';
+import { Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Button, HelperText, IconButton, Surface, Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PosPhoneInputModal } from '@/components/pos/PosPhoneInputModal';
 import { PosTextInputModal } from '@/components/pos/PosTextInputModal';
@@ -8,20 +8,62 @@ import { PosTextInputModal } from '@/components/pos/PosTextInputModal';
 type Props = {
   visible: boolean;
   saving?: boolean;
+  title?: string;
+  subtitle?: string;
+  submitLabel?: string;
+  requireContact?: boolean;
+  showEmailField?: boolean;
+  showPhoneField?: boolean;
+  initialValues?: {
+    name?: string;
+    email?: string;
+    phone?: string;
+  };
+  showSaveAndAddMore?: boolean;
   onClose: () => void;
-  onSubmit: (input: { name: string; email?: string; phone?: string }) => Promise<void> | void;
+  onSubmit: (
+    input: { name: string; email?: string; phone?: string },
+    options?: { keepOpen?: boolean }
+  ) => Promise<boolean | void> | boolean | void;
 };
 
-export function AddCustomerModal({ visible, saving = false, onClose, onSubmit }: Props) {
+export function AddCustomerModal({
+  visible,
+  saving = false,
+  title = 'Add Customer',
+  subtitle = 'Save a customer with name plus email, phone, or both.',
+  submitLabel = 'Save Customer',
+  requireContact = true,
+  showEmailField = true,
+  showPhoneField = true,
+  initialValues,
+  showSaveAndAddMore = false,
+  onClose,
+  onSubmit,
+}: Props) {
   const insets = useSafeAreaInsets();
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
+  const [name, setName] = useState(initialValues?.name ?? '');
+  const [email, setEmail] = useState(initialValues?.email ?? '');
+  const [phone, setPhone] = useState(initialValues?.phone ?? '');
   const [nameModalVisible, setNameModalVisible] = useState(false);
   const [emailModalVisible, setEmailModalVisible] = useState(false);
   const [phoneModalVisible, setPhoneModalVisible] = useState(false);
 
-  const canSubmit = useMemo(() => name.trim().length > 0 && (email.trim().length > 0 || phone.trim().length > 0), [email, name, phone]);
+  React.useEffect(() => {
+    if (!visible) return;
+    setName(initialValues?.name ?? '');
+    setEmail(initialValues?.email ?? '');
+    setPhone(initialValues?.phone ?? '');
+  }, [initialValues?.email, initialValues?.name, initialValues?.phone, visible]);
+
+  const canSubmit = useMemo(() => {
+    const hasName = name.trim().length > 0;
+    if (!requireContact) return hasName;
+
+    const hasEmail = showEmailField && email.trim().length > 0;
+    const hasPhone = showPhoneField && phone.trim().length > 0;
+    return hasName && (hasEmail || hasPhone);
+  }, [email, name, phone, requireContact, showEmailField, showPhoneField]);
 
   const reset = () => {
     setName('');
@@ -38,136 +80,240 @@ export function AddCustomerModal({ visible, saving = false, onClose, onSubmit }:
     onClose();
   };
 
-  const handleSubmit = async () => {
+  const closeEditorOverlays = () => {
+    setNameModalVisible(false);
+    setEmailModalVisible(false);
+    setPhoneModalVisible(false);
+  };
+
+  const handleSubmit = async (options?: { keepOpen?: boolean }) => {
     if (!canSubmit || saving) return;
 
-    await onSubmit({
+    const result = await onSubmit({
       name: name.trim(),
       email: email.trim() || undefined,
       phone: phone.trim() || undefined,
-    });
+    }, options);
+
+    if (result === false) {
+      return;
+    }
+
+    if (options?.keepOpen) {
+      reset();
+      closeEditorOverlays();
+      return;
+    }
+
     reset();
   };
 
   return (
     <>
-      <Portal>
-        <Dialog visible={visible} onDismiss={handleClose} style={styles.dialog}>
-          <Surface style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]} elevation={0}>
-            <View style={styles.header}>
-              <View style={styles.headerText}>
-                <Text variant="headlineSmall" style={styles.title}>Add Customer</Text>
-                <Text variant="bodyMedium" style={styles.subtitle}>
-                  Save a customer with name plus email, phone, or both.
-                </Text>
+      <Modal visible={visible} transparent={false} animationType="slide" onRequestClose={handleClose}>
+        <View style={styles.container}>
+          <Surface style={[styles.header, { paddingTop: Math.max(insets.top, 8) }]} elevation={1}>
+            <View style={styles.headerTop}>
+              <View style={styles.headerTitleBlock}>
+                <Text style={styles.headerTitle}>{title}</Text>
+                <Text style={styles.headerMeta}>{subtitle}</Text>
               </View>
-              <IconButton icon="close" onPress={handleClose} disabled={saving} />
+              <IconButton icon="close" size={24} iconColor="#f8fafc" onPress={handleClose} disabled={saving} />
             </View>
+            <View style={styles.headerSub}>
+              <View style={[styles.statusBadge, canSubmit ? styles.statusBadgeReady : styles.statusBadgeRequired]}>
+                <Text style={styles.statusBadgeText}>{canSubmit ? 'Ready to Save' : 'Details Required'}</Text>
+              </View>
+            </View>
+          </Surface>
 
-            <View style={styles.form}>
+          <ScrollView style={styles.scrollView} contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, 16) + 96 }]}>
+            <Surface style={styles.infoCard} elevation={0}>
+              <Text style={styles.cardTitle}>Customer Details</Text>
               <TouchableOpacity style={styles.fieldTrigger} onPress={() => setNameModalVisible(true)} disabled={saving}>
                 <Text style={styles.fieldLabel}>Name</Text>
                 <Text style={[styles.fieldValue, !name ? styles.fieldPlaceholder : null]} numberOfLines={1}>
                   {name || 'Tap to enter customer name'}
                 </Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.fieldTrigger} onPress={() => setEmailModalVisible(true)} disabled={saving}>
-                <Text style={styles.fieldLabel}>Email</Text>
-                <Text style={[styles.fieldValue, !email ? styles.fieldPlaceholder : null]} numberOfLines={1}>
-                  {email || 'Tap to enter email'}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.fieldTrigger} onPress={() => setPhoneModalVisible(true)} disabled={saving}>
-                <Text style={styles.fieldLabel}>Phone</Text>
-                <Text style={[styles.fieldValue, !phone ? styles.fieldPlaceholder : null]} numberOfLines={1}>
-                  {phone || '04'}
-                </Text>
-              </TouchableOpacity>
+              {showEmailField ? (
+                <TouchableOpacity style={styles.fieldTrigger} onPress={() => setEmailModalVisible(true)} disabled={saving}>
+                  <Text style={styles.fieldLabel}>Email</Text>
+                  <Text style={[styles.fieldValue, !email ? styles.fieldPlaceholder : null]} numberOfLines={1}>
+                    {email || 'Tap to enter email'}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+              {showPhoneField ? (
+                <TouchableOpacity style={styles.fieldTrigger} onPress={() => setPhoneModalVisible(true)} disabled={saving}>
+                  <Text style={styles.fieldLabel}>Phone</Text>
+                  <Text style={[styles.fieldValue, !phone ? styles.fieldPlaceholder : null]} numberOfLines={1}>
+                    {phone || 'Tap to enter phone'}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
               <HelperText type={canSubmit ? 'info' : 'error'} visible>
-                {canSubmit ? 'The customer will be added to the shared web/POS profile list.' : 'Name plus email or phone is required.'}
+                {canSubmit
+                  ? requireContact
+                    ? 'The customer will be added to the shared web/POS profile list.'
+                    : 'Save the updated customer details.'
+                  : requireContact
+                    ? 'Name plus email or phone is required.'
+                    : 'Customer name is required.'}
               </HelperText>
-            </View>
+            </Surface>
+          </ScrollView>
 
-            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-              <Button mode="text" onPress={handleClose} disabled={saving}>Cancel</Button>
-              <Button mode="contained" onPress={handleSubmit} loading={saving} disabled={!canSubmit || saving}>
-                Save Customer
+          <Surface style={[styles.actionBar, { paddingBottom: Math.max(insets.bottom, 16) }]} elevation={4}>
+            <View style={styles.primaryActionsRow}>
+              {showSaveAndAddMore ? (
+                <Button
+                  mode="outlined"
+                  onPress={() => void handleSubmit({ keepOpen: true })}
+                  loading={saving}
+                  disabled={!canSubmit || saving}
+                  style={[styles.actionButton, styles.splitActionButton]}
+                  contentStyle={styles.primaryActionButtonContent}
+                >
+                  Save & Add More
+                </Button>
+              ) : null}
+              <Button
+                mode="contained"
+                onPress={() => void handleSubmit()}
+                loading={saving}
+                disabled={!canSubmit || saving}
+                style={[
+                  styles.primaryActionButton,
+                  showSaveAndAddMore ? styles.splitActionButton : null,
+                ]}
+                contentStyle={styles.primaryActionButtonContent}
+              >
+                {showSaveAndAddMore ? 'Save & Close' : submitLabel}
               </Button>
             </View>
           </Surface>
-        </Dialog>
-      </Portal>
 
-      <PosTextInputModal
-        visible={nameModalVisible}
-        title="Enter Customer Name"
-        value={name}
-        placeholder="Enter customer name"
-        onDismiss={() => setNameModalVisible(false)}
-        onSave={(value) => {
-          setName(value);
-          setNameModalVisible(false);
-        }}
-      />
+          <PosTextInputModal
+            visible={nameModalVisible}
+            title="Enter Customer Name"
+            value={name}
+            placeholder="Enter customer name"
+            renderInline
+            onDismiss={() => setNameModalVisible(false)}
+            onSave={(value) => {
+              setName(value);
+              setNameModalVisible(false);
+            }}
+          />
 
-      <PosTextInputModal
-        visible={emailModalVisible}
-        title="Enter Customer Email"
-        value={email}
-        placeholder="Enter customer email"
-        extraKeys={['@', '.', '-', '_']}
-        onDismiss={() => setEmailModalVisible(false)}
-        onSave={(value) => {
-          setEmail(value.toLowerCase());
-          setEmailModalVisible(false);
-        }}
-      />
+          {showEmailField ? (
+            <PosTextInputModal
+              visible={emailModalVisible}
+              title="Enter Customer Email"
+              value={email}
+              placeholder="Enter customer email"
+              extraKeys={['@', '.', '-', '_']}
+              renderInline
+              onDismiss={() => setEmailModalVisible(false)}
+              onSave={(value) => {
+                setEmail(value.toLowerCase());
+                setEmailModalVisible(false);
+              }}
+            />
+          ) : null}
 
-      <PosPhoneInputModal
-        visible={phoneModalVisible}
-        value={phone}
-        onDismiss={() => setPhoneModalVisible(false)}
-        onSave={(value) => {
-          setPhone(value);
-          setPhoneModalVisible(false);
-        }}
-      />
+          {showPhoneField ? (
+            <PosPhoneInputModal
+              visible={phoneModalVisible}
+              value={phone}
+              renderInline
+              onDismiss={() => setPhoneModalVisible(false)}
+              onSave={(value) => {
+                setPhone(value);
+                setPhoneModalVisible(false);
+              }}
+            />
+          ) : null}
+        </View>
+      </Modal>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  dialog: {
-    alignSelf: 'center',
-    width: '92%',
-    maxWidth: 720,
-    backgroundColor: '#fff',
-  },
   container: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 20,
-    paddingTop: 8,
+    flex: 1,
+    backgroundColor: '#f8fafc',
   },
   header: {
+    backgroundColor: '#0f172a',
+    paddingBottom: 18,
+  },
+  headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    gap: 12,
-    paddingBottom: 20,
+    paddingLeft: 20,
+    paddingRight: 8,
   },
-  headerText: {
+  headerTitleBlock: {
     flex: 1,
-    gap: 4,
+    paddingRight: 12,
   },
-  title: {
-    color: '#0f172a',
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#f8fafc',
+  },
+  headerMeta: {
+    fontSize: 14,
+    color: '#b9c8dd',
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  headerSub: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    paddingHorizontal: 20,
+    marginTop: 14,
+    gap: 8,
+  },
+  statusBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  statusBadgeReady: {
+    backgroundColor: '#16a34a',
+  },
+  statusBadgeRequired: {
+    backgroundColor: '#f97316',
+  },
+  statusBadgeText: {
+    color: '#fff',
+    fontSize: 12,
     fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
-  subtitle: {
-    color: '#64748b',
+  scrollView: {
+    flex: 1,
   },
-  form: {
+  scrollContent: {
+    padding: 20,
+  },
+  infoCard: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 20,
     gap: 14,
+  },
+  cardTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#0f172a',
   },
   fieldTrigger: {
     borderWidth: 1,
@@ -192,11 +338,28 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     fontWeight: '500',
   },
-  footer: {
-    marginTop: 'auto',
+  actionBar: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+  },
+  primaryActionsRow: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
     gap: 10,
-    paddingTop: 20,
+  },
+  actionButton: {
+    borderRadius: 14,
+  },
+  splitActionButton: {
+    flex: 1,
+  },
+  primaryActionButton: {
+    borderRadius: 16,
+    backgroundColor: '#2563eb',
+  },
+  primaryActionButtonContent: {
+    minHeight: 52,
   },
 });

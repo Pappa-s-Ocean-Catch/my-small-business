@@ -5,7 +5,6 @@ import {
   Avatar,
   Button,
   Card,
-  Divider,
   IconButton,
   Surface,
   Text,
@@ -19,6 +18,7 @@ import { getFriendlyOrderNumber } from '../utils/orderNumber';
 import { STATUS_COLORS, STATUS_LABELS } from '../utils/constants';
 import { getApiUrl } from '../utils/orderUtils';
 import { adjustCustomerRewardPoints } from '@/lib/reward-points';
+import { AddCustomerModal } from '@/components/customers/AddCustomerModal';
 
 function orderStatusColor(status: string): string {
   if (Object.prototype.hasOwnProperty.call(STATUS_COLORS, status)) {
@@ -70,16 +70,15 @@ export function CustomerModal({
 }) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { width, height } = useWindowDimensions();
+  const { width } = useWindowDimensions();
   const isWide = width >= 920;
   const isMedium = width >= 640;
   const [customer, setCustomer] = useState<CustomerSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sendingMarketing, setSendingMarketing] = useState(false);
-  const [editingName, setEditingName] = useState(false);
-  const [draftName, setDraftName] = useState('');
   const [savingName, setSavingName] = useState(false);
+  const [showEditCustomerModal, setShowEditCustomerModal] = useState(false);
   const [editingPoints, setEditingPoints] = useState(false);
   const [pointsDelta, setPointsDelta] = useState('');
   const [pointsReason, setPointsReason] = useState('');
@@ -89,16 +88,13 @@ export function CustomerModal({
     setLoading(true);
     setError(null);
     setCustomer(null);
-    setEditingName(false);
     setEditingPoints(false);
-    setDraftName('');
     setPointsDelta('');
     setPointsReason('');
 
     try {
       const data = await fetchCustomerSummary({ email, phone });
       setCustomer(data);
-      setDraftName(data?.name ?? '');
       if (!data) setError('No customer data found for this contact.');
     } catch {
       setError('Failed to load customer details. Please try again.');
@@ -157,17 +153,11 @@ export function CustomerModal({
   };
 
   const handleStartEditName = () => {
-    setDraftName(customer?.name ?? '');
-    setEditingName(true);
+    setShowEditCustomerModal(true);
   };
 
-  const handleCancelEditName = () => {
-    setDraftName(customer?.name ?? '');
-    setEditingName(false);
-  };
-
-  const handleSaveName = async () => {
-    const trimmedName = draftName.trim();
+  const handleSaveName = async (input: { name: string }) => {
+    const trimmedName = input.name.trim();
     if (!trimmedName) {
       Alert.alert('Name required', 'Please enter the customer name before saving.');
       return;
@@ -177,8 +167,8 @@ export function CustomerModal({
     try {
       const result = await updateCustomerNameByContact({ profileId: customer?.profileId, name: trimmedName });
       setCustomer((current) => (current ? { ...current, name: trimmedName } : current));
-      setDraftName(trimmedName);
-      setEditingName(false);
+      setShowEditCustomerModal(false);
+      onCustomerUpdated?.();
       Alert.alert('Saved', result.updatedCount > 0 ? 'Customer name updated successfully.' : 'Name saved for this customer.');
     } catch (saveError: any) {
       Alert.alert('Error', saveError?.message || 'Failed to update customer name.');
@@ -265,25 +255,14 @@ export function CustomerModal({
     }
   };
 
-  const topPadding = isWide ? 16 : Math.max(insets.top, 10);
+  const topPadding = isWide ? 14 : Math.max(insets.top, 8);
   const bottomPadding = Math.max(insets.bottom, 16);
-  const modalShellStyle = isWide
-    ? {
-        width: Math.min(width - 48, 1120),
-        height: Math.min(height - 32, 920),
-        borderRadius: 28,
-      }
-    : {
-        width,
-        height,
-        borderRadius: 0,
-      };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={[styles.modalBackdrop, isWide && styles.modalBackdropWide]}>
-        <Surface style={[styles.modalContent, modalShellStyle]} elevation={5}>
-          <View style={[styles.header, { paddingTop: topPadding }]}>
+    <Modal visible={visible} transparent={false} animationType="slide" onRequestClose={onClose}>
+      <View style={styles.container}>
+        <Surface style={[styles.header, { paddingTop: topPadding }]} elevation={1}>
+          <View style={styles.headerTop}>
             <View style={styles.headerInfo}>
               <Avatar.Text
                 size={isMedium ? 60 : 52}
@@ -291,58 +270,36 @@ export function CustomerModal({
                 style={styles.avatar}
               />
               <View style={styles.headerTextContainer}>
-                {editingName ? (
-                  <View style={styles.nameEditorBlock}>
-                    <TextInput
-                      mode="outlined"
-                      label="Customer name"
-                      value={draftName}
-                      onChangeText={setDraftName}
-                      autoFocus
-                      dense={!isMedium}
-                      disabled={savingName}
+                <View style={styles.nameRow}>
+                  <Text variant={isMedium ? 'headlineSmall' : 'titleLarge'} style={styles.customerName}>
+                    {loading ? 'Loading...' : customer?.name || 'Customer Summary'}
+                  </Text>
+                  {!!customer && (
+                    <IconButton
+                      icon="pencil-outline"
+                      size={20}
+                      onPress={handleStartEditName}
+                      style={styles.editNameButton}
                     />
-                    <View style={styles.nameEditorActions}>
-                      <Button mode="text" onPress={handleCancelEditName} disabled={savingName}>
-                        Cancel
-                      </Button>
-                      <Button mode="contained" onPress={handleSaveName} loading={savingName} disabled={savingName}>
-                        Save
-                      </Button>
-                    </View>
-                  </View>
-                ) : (
-                  <View style={styles.nameRow}>
-                    <Text variant={isMedium ? 'headlineSmall' : 'titleLarge'} style={styles.customerName}>
-                      {loading ? 'Loading...' : customer?.name || 'Customer Summary'}
-                    </Text>
-                    {!!customer && (
-                      <IconButton
-                        icon="pencil-outline"
-                        size={20}
-                        onPress={handleStartEditName}
-                        style={styles.editNameButton}
-                      />
-                    )}
-                  </View>
-                )}
+                  )}
+                </View>
 
-                <View style={styles.contactRow}>
+                <View style={styles.headerSub}>
                   {customer?.email ? (
-                    <Text style={styles.customerContact} onPress={() => handleEmail(customer.email)}>
+                    <Text style={styles.headerMeta} onPress={() => handleEmail(customer.email)}>
                       {customer.email}
                     </Text>
                   ) : (
-                    <Text style={styles.customerContactFallback}>{email || phone || 'Details'}</Text>
+                    <Text style={styles.headerMeta}>{email || phone || 'Details'}</Text>
                   )}
                 </View>
               </View>
             </View>
-            <IconButton icon="close" size={24} onPress={onClose} style={styles.closeIcon} />
+            <IconButton icon="close" size={24} iconColor="#f8fafc" onPress={onClose} style={styles.closeIcon} />
           </View>
+        </Surface>
 
-          <Divider />
-
+        <View style={styles.contentArea}>
           {loading && (
             <View style={styles.centerContainer}>
               <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -545,7 +502,6 @@ export function CustomerModal({
                       mode="contained-tonal"
                       icon="pencil-outline"
                       onPress={handleStartEditName}
-                      disabled={editingName}
                       style={styles.actionButton}
                     >
                       Edit Customer Name
@@ -605,33 +561,46 @@ export function CustomerModal({
               </View>
             </ScrollView>
           )}
-        </Surface>
+        </View>
       </View>
+
+      <AddCustomerModal
+        visible={showEditCustomerModal}
+        saving={savingName}
+        title="Edit Customer Name"
+        subtitle="Update the saved customer name for this profile."
+        submitLabel="Save Name"
+        requireContact={false}
+        showEmailField={false}
+        showPhoneField={false}
+        initialValues={{
+          name: customer?.name || '',
+        }}
+        onClose={() => {
+          if (savingName) return;
+          setShowEditCustomerModal(false);
+        }}
+        onSubmit={handleSaveName}
+      />
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  modalBackdrop: {
+  container: {
     flex: 1,
-    backgroundColor: '#fff',
-  },
-  modalBackdropWide: {
-    backgroundColor: 'rgba(15, 23, 42, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    overflow: 'hidden',
+    backgroundColor: '#f8fafc',
   },
   header: {
+    backgroundColor: '#0f172a',
+    paddingBottom: 18,
+  },
+  headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    backgroundColor: '#f8fafc',
+    alignItems: 'flex-start',
+    paddingLeft: 20,
+    paddingRight: 8,
   },
   headerInfo: {
     flexDirection: 'row',
@@ -640,7 +609,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   avatar: {
-    backgroundColor: '#e2e8f0',
+    backgroundColor: '#1e40af',
     marginRight: 16,
   },
   headerTextContainer: {
@@ -654,34 +623,27 @@ const styles = StyleSheet.create({
   },
   customerName: {
     fontWeight: 'bold',
-    color: '#1e293b',
+    color: '#f8fafc',
     flexShrink: 1,
   },
   editNameButton: {
     margin: 0,
     marginLeft: 4,
   },
-  nameEditorBlock: {
-    gap: 10,
-  },
-  nameEditorActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-  },
-  contactRow: {
+  headerSub: {
     marginTop: 2,
   },
-  customerContact: {
-    color: '#2563eb',
-    textDecorationLine: 'underline',
-  },
-  customerContactFallback: {
-    color: '#64748b',
+  headerMeta: {
+    fontSize: 14,
+    color: '#b9c8dd',
+    fontWeight: '600',
   },
   closeIcon: {
     margin: 0,
     marginLeft: 12,
+  },
+  contentArea: {
+    flex: 1,
   },
   centerContainer: {
     flex: 1,

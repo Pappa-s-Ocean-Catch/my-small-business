@@ -57,6 +57,7 @@ export async function POST(request: NextRequest) {
       const { data: existingByEmail, error: existingEmailError } = await supabase
         .from('profiles')
         .select('id, full_name, email, phone')
+        .eq('role_slug', 'customer')
         .eq('email', email)
         .maybeSingle();
 
@@ -65,14 +66,19 @@ export async function POST(request: NextRequest) {
       }
 
       if (existingByEmail) {
-        return NextResponse.json({
-          customer: {
-            id: existingByEmail.id,
-            name: existingByEmail.full_name ?? '',
-            email: existingByEmail.email ?? '',
-            phone: existingByEmail.phone ?? '',
+        return NextResponse.json(
+          {
+            error: 'A customer with this email already exists.',
+            duplicateField: 'email',
+            customer: {
+              id: existingByEmail.id,
+              name: existingByEmail.full_name ?? '',
+              email: existingByEmail.email ?? '',
+              phone: existingByEmail.phone ?? '',
+            },
           },
-        });
+          { status: 409 }
+        );
       }
     }
 
@@ -80,6 +86,7 @@ export async function POST(request: NextRequest) {
       const { data: existingByPhone, error: existingPhoneError } = await supabase
         .from('profiles')
         .select('id, full_name, email, phone')
+        .eq('role_slug', 'customer')
         .eq('phone', normalizedPhone)
         .maybeSingle();
 
@@ -88,14 +95,19 @@ export async function POST(request: NextRequest) {
       }
 
       if (existingByPhone) {
-        return NextResponse.json({
-          customer: {
-            id: existingByPhone.id,
-            name: existingByPhone.full_name ?? '',
-            email: existingByPhone.email ?? '',
-            phone: existingByPhone.phone ?? '',
+        return NextResponse.json(
+          {
+            error: 'A customer with this phone number already exists.',
+            duplicateField: 'phone',
+            customer: {
+              id: existingByPhone.id,
+              name: existingByPhone.full_name ?? '',
+              email: existingByPhone.email ?? '',
+              phone: existingByPhone.phone ?? '',
+            },
           },
-        });
+          { status: 409 }
+        );
       }
     }
 

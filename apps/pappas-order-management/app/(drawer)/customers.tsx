@@ -173,22 +173,31 @@ export default function CustomersScreen() {
     }
   };
 
-  const handleCreateCustomer = async (input: { name: string; email?: string; phone?: string }) => {
+  const handleCreateCustomer = async (
+    input: { name: string; email?: string; phone?: string },
+    options?: { keepOpen?: boolean }
+  ) => {
     setSavingCustomer(true);
     try {
       const result = await createCustomerProfile(input);
       if (result.error || !result.data) {
         Alert.alert('Add Customer', result.error || 'Failed to save customer');
-        return;
+        return false;
       }
 
-      setShowAddCustomerModal(false);
-      setSearchQuery(result.data.name || result.data.email || result.data.phone);
-      setDebouncedQuery(result.data.name || result.data.email || result.data.phone);
+      const focusValue = result.data.name || result.data.email || result.data.phone;
+      setSearchQuery(focusValue);
+      setDebouncedQuery(focusValue);
       await loadCustomers(0, result.data.name || '', false);
-      setSelectedCustomer({ email: result.data.email, phone: result.data.phone });
-      setShowCustomerModal(true);
-      Alert.alert('Saved', 'Customer added successfully.');
+      if (options?.keepOpen) {
+        Alert.alert('Saved', 'Customer added. You can enter another one now.');
+      } else {
+        setShowAddCustomerModal(false);
+        setSelectedCustomer({ email: result.data.email, phone: result.data.phone });
+        setShowCustomerModal(true);
+        Alert.alert('Saved', 'Customer added successfully.');
+      }
+      return true;
     } finally {
       setSavingCustomer(false);
     }
@@ -231,6 +240,7 @@ export default function CustomersScreen() {
       <AddCustomerModal
         visible={showAddCustomerModal}
         saving={savingCustomer}
+        showSaveAndAddMore
         onClose={() => setShowAddCustomerModal(false)}
         onSubmit={handleCreateCustomer}
       />

@@ -13,6 +13,12 @@ export interface Customer {
   rewardPoints?: number;
 }
 
+type CreateCustomerPayload = {
+  customer?: Customer;
+  error?: string;
+  duplicateField?: 'email' | 'phone';
+};
+
 function normalizeAuPhone(phone: string): string {
   const digits = phone.replace(/\D/g, '');
   if (digits.startsWith('61') && digits.length === 11) {
@@ -142,6 +148,110 @@ export async function findCustomerByPhone(phone: string): Promise<{ data: Custom
   }
 }
 
+export async function findCustomerByEmail(email: string): Promise<{ data: Customer | null; error: string | null }> {
+  try {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      return { data: null, error: null };
+    }
+
+    const summaryResult = await supabase
+      .from('customer_summary')
+      .select('*')
+      .eq('email', normalizedEmail)
+      .order('lastOrderDate', { ascending: false })
+      .limit(1);
+
+    if (summaryResult.error) return { data: null, error: summaryResult.error.message };
+    if (summaryResult.data?.[0]) {
+      return { data: summaryResult.data[0] as Customer, error: null };
+    }
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, full_name, email, phone')
+      .eq('role_slug', 'customer')
+      .eq('email', normalizedEmail)
+      .limit(1);
+
+    if (error) return { data: null, error: error.message };
+    const profile = data?.[0];
+    if (!profile) return { data: null, error: null };
+    return {
+      data: {
+        id: profile.id,
+        name: profile.full_name ?? '',
+        email: profile.email ?? '',
+        phone: profile.phone ?? '',
+      },
+      error: null,
+    };
+  } catch (err) {
+    return { data: null, error: err instanceof Error ? err.message : 'Unknown error' };
+  }
+}
+
+async function createCustomerProfileDirect(input: {
+  name: string;
+  email?: string;
+  phone?: string;
+}): Promise<{ data: Customer | null; error: string | null }> {
+  const name = input.name.trim();
+  const email = input.email?.trim().toLowerCase() || '';
+  const phone = input.phone?.trim() || '';
+  const normalizedPhone = phone ? normalizeAuPhone(phone) : '';
+
+  if (!name) {
+    return { data: null, error: 'Customer name is required' };
+  }
+
+  if (!email && !normalizedPhone) {
+    return { data: null, error: 'Please provide an email or phone number' };
+  }
+
+  if (email) {
+    const existingByEmail = await findCustomerByEmail(email);
+    if (existingByEmail.error) return { data: null, error: existingByEmail.error };
+    if (existingByEmail.data) {
+      return { data: null, error: 'A customer with this email already exists.' };
+    }
+  }
+
+  if (normalizedPhone) {
+    const existingByPhone = await findCustomerByPhone(normalizedPhone);
+    if (existingByPhone.error) return { data: null, error: existingByPhone.error };
+    if (existingByPhone.data) {
+      return { data: null, error: 'A customer with this phone number already exists.' };
+    }
+  }
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .insert({
+      id: newUuid(),
+      full_name: name,
+      email: email || null,
+      phone: normalizedPhone || null,
+      role_slug: 'customer',
+    })
+    .select('id, full_name, email, phone')
+    .single();
+
+  if (error) {
+    return { data: null, error: error.message };
+  }
+
+  return {
+    data: {
+      id: data.id,
+      name: data.full_name ?? '',
+      email: data.email ?? '',
+      phone: data.phone ?? '',
+    },
+    error: null,
+  };
+}
+
 export async function createCustomerIfNotExists(phone: string, name: string): Promise<{ data: Customer | null; error: string | null }> {
   try {
     const existing = await findCustomerByPhone(phone);
@@ -181,6 +291,32 @@ export async function createCustomerProfile(input: {
   phone?: string;
 }): Promise<{ data: Customer | null; error: string | null }> {
   try {
+    const normalizedInput = {
+      name: input.name.trim(),
+      email: input.email?.trim().toLowerCase() || undefined,
+      phone: input.phone?.trim() || undefined,
+    };
+
+    if (normalizedInput.email) {
+      const existingByEmail = await findCustomerByEmail(normalizedInput.email);
+      if (existingByEmail.error) {
+        return { data: null, error: existingByEmail.error };
+      }
+      if (existingByEmail.data) {
+        return { data: null, error: 'A customer with this email already exists.' };
+      }
+    }
+
+    if (normalizedInput.phone) {
+      const existingByPhone = await findCustomerByPhone(normalizedInput.phone);
+      if (existingByPhone.error) {
+        return { data: null, error: existingByPhone.error };
+      }
+      if (existingByPhone.data) {
+        return { data: null, error: 'A customer with this phone number already exists.' };
+      }
+    }
+
     const { token, error: authError } = await getAccessToken();
     if (authError || !token) {
       return { data: null, error: authError || 'Missing authenticated session' };
@@ -192,12 +328,14 @@ export async function createCustomerProfile(input: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(input),
+      body: JSON.stringify(normalizedInput),
     });
 
-    const payload = await response.json().catch(() => null) as
-      | { customer?: Customer; error?: string }
-      | null;
+    const payload = await response.json().catch(() => null) as CreateCustomerPayload | null;
+
+    if (response.status === 404) {
+      return await createCustomerProfileDirect(normalizedInput);
+    }
 
     if (!response.ok || !payload?.customer) {
       return { data: null, error: payload?.error || `Create customer failed (${response.status})` };

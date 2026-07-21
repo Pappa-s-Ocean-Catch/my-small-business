@@ -1,6 +1,4 @@
 import type { Order } from '@my-small-business/types';
-import { Printer, PrinterModelLang, PrinterConstants } from 'react-native-esc-pos-printer';
-import TcpSocket from 'react-native-tcp-socket';
 import { buildKitchenReceiptLines, type ReceiptLine } from './epson-epos';
 import { decodePngRgba } from './png';
 import type { PrinterImageSource } from './printer-image';
@@ -23,6 +21,27 @@ export const DEFAULT_MANUAL_PRINTER_PORT = 9100;
 const ESC = 0x1b;
 const GS = 0x1d;
 const LF = 0x0a;
+
+type EscPosModule = typeof import('react-native-esc-pos-printer');
+type TcpSocketModule = typeof import('react-native-tcp-socket');
+type EscPosPrinterInstance = InstanceType<EscPosModule['Printer']>;
+
+let escPosModuleCache: EscPosModule | null = null;
+let tcpSocketModuleCache: TcpSocketModule | null = null;
+
+function getEscPosModule(): EscPosModule {
+  if (escPosModuleCache) return escPosModuleCache;
+  // Delay loading the native printer module until a print action actually runs.
+  escPosModuleCache = require('react-native-esc-pos-printer') as EscPosModule;
+  return escPosModuleCache;
+}
+
+function getTcpSocketModule(): TcpSocketModule {
+  if (tcpSocketModuleCache) return tcpSocketModuleCache;
+  // Delay loading the raw TCP native module until a raw printer action runs.
+  tcpSocketModuleCache = require('react-native-tcp-socket') as TcpSocketModule;
+  return tcpSocketModuleCache;
+}
 
 function normalizePrinterField(value: string | undefined): string {
   return value?.trim().toLowerCase() ?? '';
@@ -133,9 +152,10 @@ export function formatPrinterError(error: unknown): string {
 
 async function withConnectedPrinter<T>(
   printer: SavedPrinter,
-  fn: (p: Printer) => Promise<T>,
+  fn: (p: EscPosPrinterInstance) => Promise<T>,
   { timeoutMs }: { timeoutMs: number }
 ): Promise<T> {
+  const { Printer, PrinterModelLang } = getEscPosModule();
   const instance = new Printer({
     target: printer.target,
     deviceName: printer.deviceName,
@@ -183,6 +203,7 @@ async function withRawTcpPrinter<T>(
     let pendingResult: T | undefined;
     let waitingForClose = false;
     let closeTimer: ReturnType<typeof setTimeout> | null = null;
+    const TcpSocket = getTcpSocketModule().default;
     const socket = TcpSocket.createConnection({
       host: options.host,
       port: options.port,
@@ -612,7 +633,8 @@ const ESC_M_FONT_A = new Uint8Array([0x1b, 0x4d, 0]);
 const ESC_M_FONT_B = new Uint8Array([0x1b, 0x4d, 1]);
 
 // Helper to print a single line with formatting
-async function printReceiptLine(p: Printer, line: ReceiptLine) {
+async function printReceiptLine(p: EscPosPrinterInstance, line: ReceiptLine) {
+  const { PrinterConstants } = getEscPosModule();
   // Reset formatting for each line
   await p.addCommand(ESC_M_FONT_A);
   await p.addTextStyle({ em: PrinterConstants.FALSE });

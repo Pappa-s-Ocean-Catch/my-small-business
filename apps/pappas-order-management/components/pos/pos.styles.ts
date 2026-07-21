@@ -870,9 +870,35 @@ export const styles = StyleSheet.create({
     gap: 8,
     marginTop: 8,
   },
+  overlayScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+    zIndex: 9999,
+    elevation: 9999,
+  },
+  overlayCenter: {
+    width: '100%',
+    maxWidth: 920,
+  },
+  overlayTitle: {
+    color: '#111827',
+    fontSize: 24,
+    fontWeight: '900',
+    paddingLeft: 24,
+    paddingTop: 18,
+  },
+  overlayBody: {
+    paddingHorizontal: 24,
+    paddingBottom: 24,
+    paddingTop: 8,
+  },
   textEntryDialog: {
     borderRadius: 16,
     backgroundColor: '#fff',
+    width: '100%',
   },
   textEntryTitleRow: {
     flexDirection: 'row',
@@ -991,6 +1017,7 @@ export const styles = StyleSheet.create({
   phonePadDialog: {
     borderRadius: 16,
     backgroundColor: '#fff',
+    width: '100%',
   },
   phonePadTitleRow: {
     flexDirection: 'row',

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
-import { Dialog, IconButton, Portal } from 'react-native-paper';
+import { Modal, Text, TouchableOpacity, View } from 'react-native';
+import { IconButton } from 'react-native-paper';
 
 import { styles } from './pos.styles';
 
@@ -9,6 +9,7 @@ type Props = {
   value: string;
   onDismiss: () => void;
   onSave: (value: string) => void;
+  renderInline?: boolean;
 };
 
 const PHONE_KEYS = [
@@ -35,6 +36,7 @@ export function PosPhoneInputModal({
   value,
   onDismiss,
   onSave,
+  renderInline = false,
 }: Props) {
   const [draft, setDraft] = useState(value || DEFAULT_PHONE_PREFIX);
   const isValid = isValidAustralianPhoneNumber(draft);
@@ -74,51 +76,61 @@ export function PosPhoneInputModal({
     setDraft((current) => `${current}${key}`);
   };
 
-  return (
-    <Portal>
-      <Dialog visible={visible} onDismiss={onDismiss} style={styles.phonePadDialog}>
-        <View style={styles.phonePadTitleRow}>
-          <Dialog.Title>Enter Phone Number</Dialog.Title>
-          <IconButton icon="close" size={30} onPress={onDismiss} style={styles.phonePadCloseButton} />
-        </View>
-        <Dialog.Content>
-          <View style={styles.phonePadHeaderRow}>
-            <View style={styles.phonePadDisplay}>
-              <Text style={styles.phonePadDisplayText} numberOfLines={1}>
-                {draft || 'Enter phone number'}
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={[styles.phonePadDoneButton, !isValid ? styles.phonePadDoneButtonDisabled : null]}
-              onPress={() => {
-                if (isValid) onSave(draft);
-              }}
-              disabled={!isValid}
-            >
-              <Text style={styles.phonePadDoneButtonText}>Done</Text>
-            </TouchableOpacity>
+  const content = (
+    <View style={styles.overlayScrim}>
+      <View style={styles.overlayCenter}>
+        <View style={styles.phonePadDialog}>
+          <View style={styles.phonePadTitleRow}>
+            <Text style={styles.overlayTitle}>Enter Phone Number</Text>
+            <IconButton icon="close" size={30} onPress={onDismiss} style={styles.phonePadCloseButton} />
           </View>
-          <View style={styles.phonePadGrid}>
-            {PHONE_KEYS.map((key) => (
-              <TouchableOpacity
-                key={key}
-                style={[
-                  styles.phonePadKey,
-                  key === 'backspace' || key === 'clear' ? styles.phonePadKeySecondary : null,
-                  key === 'done' ? styles.phonePadKeyPrimary : null,
-                  key === 'done' && !isValid ? styles.phonePadKeyDisabled : null,
-                ]}
-                onPress={() => appendDigit(key)}
-                disabled={key === 'done' && !isValid}
-              >
-                <Text style={styles.phonePadKeyText}>
-                  {key === 'backspace' ? 'DEL' : key === 'clear' ? 'CLEAR' : key === 'done' ? 'DONE' : key}
+          <View style={styles.overlayBody}>
+            <View style={styles.phonePadHeaderRow}>
+              <View style={styles.phonePadDisplay}>
+                <Text style={styles.phonePadDisplayText} numberOfLines={1}>
+                  {draft || 'Enter phone number'}
                 </Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.phonePadDoneButton, !isValid ? styles.phonePadDoneButtonDisabled : null]}
+                onPress={() => {
+                  if (isValid) onSave(draft);
+                }}
+                disabled={!isValid}
+              >
+                <Text style={styles.phonePadDoneButtonText}>Done</Text>
               </TouchableOpacity>
-            ))}
+            </View>
+            <View style={styles.phonePadGrid}>
+              {PHONE_KEYS.map((key) => (
+                <TouchableOpacity
+                  key={key}
+                  style={[
+                    styles.phonePadKey,
+                    key === 'backspace' || key === 'clear' ? styles.phonePadKeySecondary : null,
+                    key === 'done' ? styles.phonePadKeyPrimary : null,
+                    key === 'done' && !isValid ? styles.phonePadKeyDisabled : null,
+                  ]}
+                  onPress={() => appendDigit(key)}
+                  disabled={key === 'done' && !isValid}
+                >
+                  <Text style={styles.phonePadKeyText}>
+                    {key === 'backspace' ? 'DEL' : key === 'clear' ? 'CLEAR' : key === 'done' ? 'DONE' : key}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
-        </Dialog.Content>
-      </Dialog>
-    </Portal>
+        </View>
+      </View>
+    </View>
+  );
+
+  return renderInline ? (
+    visible ? content : null
+  ) : (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onDismiss}>
+      {content}
+    </Modal>
   );
 }
