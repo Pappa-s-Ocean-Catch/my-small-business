@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(
-      { subject: result.subject, htmlBody: result.htmlBody },
+      { subject: result.subject, htmlBody: result.htmlBody, smsBody: result.smsBody },
       { status: 200 }
     );
   } catch (err) {

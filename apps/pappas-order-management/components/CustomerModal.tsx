@@ -19,6 +19,7 @@ import { STATUS_COLORS, STATUS_LABELS } from '../utils/constants';
 import { getApiUrl } from '../utils/orderUtils';
 import { adjustCustomerRewardPoints } from '@/lib/reward-points';
 import { AddCustomerModal } from '@/components/customers/AddCustomerModal';
+import { supabase } from '@/lib/supabase';
 
 function orderStatusColor(status: string): string {
   if (Object.prototype.hasOwnProperty.call(STATUS_COLORS, status)) {
@@ -190,11 +191,28 @@ export function CustomerModal({
         onPress: async () => {
           setSendingMarketing(true);
           try {
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+            if (sessionError || !session?.access_token) {
+              throw new Error(sessionError?.message || 'Missing authenticated session');
+            }
+
             const url = getApiUrl('/api/marketing/send');
             const response = await fetch(url, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ customerIds: [customer.profileId] }),
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({
+                customers: [{
+                  id: customer.profileId,
+                  name: customer.name,
+                  email: customer.email,
+                  phone: customer.phone,
+                }],
+                discountPercentage: 10,
+                channels: ['email'],
+              }),
             });
 
             const result = await response.json();

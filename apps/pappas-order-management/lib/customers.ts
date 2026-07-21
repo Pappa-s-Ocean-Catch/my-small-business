@@ -6,11 +6,15 @@ export interface Customer {
   name: string;
   email: string;
   phone: string;
+  profileId?: string;
   firstOrderDate?: string;
   lastOrderDate?: string;
   totalOrders?: number;
   totalSpent?: number;
   rewardPoints?: number;
+  optInMarketing?: boolean;
+  lastMarketingEmailSentAt?: string | null;
+  lastMarketingSmsSentAt?: string | null;
 }
 
 type CreateCustomerPayload = {

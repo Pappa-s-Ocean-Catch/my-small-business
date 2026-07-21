@@ -462,11 +462,11 @@ export async function generateMarketingEmail({
 }: {
   discountPercentage: number;
   storeName: string;
-}): Promise<{ subject: string; htmlBody: string; error?: string }> {
+}): Promise<{ subject: string; htmlBody: string; smsBody: string; error?: string }> {
   try {
     const genAI = getGoogleGenAI();
     const modelsToTry = ['gemini-flash-latest'];
-    let parsedResult: { subject: string; htmlBody: string } | null = null;
+    let parsedResult: { subject: string; htmlBody: string; smsBody: string } | null = null;
     let lastError: any = null;
     const prompt = `You are a professional marketing copywriter for a restaurant/shop named "${storeName}".
       Write a short, engaging marketing email template to send to customers.
@@ -484,6 +484,9 @@ export async function generateMarketingEmail({
       - "htmlBody": The HTML content of the email (do not include <html>, <head>, or <body> tags, just the inner content with basic styling like <strong>, <p>, <br/>, <a>, and <div>). 
         - You must include a placeholder {{STORE_LINK}} in the <a> tag href which will be replaced later.
         - You MUST include a small, discreet unsubscribe link at the very bottom of the email. The href for the unsubscribe link must be exactly {{UNSUBSCRIBE_LINK}}.
+      - "smsBody": A concise SMS version under 320 characters.
+        - It must include the placeholders {{CUSTOMER_NAME}}, {{COUPON_CODE}}, and {{STORE_LINK}}.
+        - Do not mention unsubscribe links in the SMS copy.
       
       Return only the valid JSON, no markdown formatting blocks.`;
     for (const modelName of modelsToTry) {
@@ -493,8 +496,8 @@ export async function generateMarketingEmail({
         const response = await result.response;
         const text = response.text();
         const jsonString = text.replace(/^```(json)?/i, '').replace(/```$/i, '').trim();
-        const parsed = JSON.parse(jsonString) as { subject: string; htmlBody: string };
-        if (parsed && parsed.subject && parsed.htmlBody) {
+        const parsed = JSON.parse(jsonString) as { subject: string; htmlBody: string; smsBody: string };
+        if (parsed && parsed.subject && parsed.htmlBody && parsed.smsBody) {
           parsedResult = parsed;
           break;
         } else {
@@ -514,8 +517,8 @@ export async function generateMarketingEmail({
     return {
       subject: '',
       htmlBody: '',
+      smsBody: '',
       error: error instanceof Error ? error.message : 'Failed to generate email',
     };
   }
 }
-
