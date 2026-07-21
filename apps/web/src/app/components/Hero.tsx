@@ -163,7 +163,7 @@ export function Hero({ homePromotions, enablePickupOrder, reviewSectionId }: Her
                 </div>
             </div>
 
-            <style jsx>{`
+            <style>{`
                 @keyframes fadeInUp {
                     from {
                         opacity: 0;
