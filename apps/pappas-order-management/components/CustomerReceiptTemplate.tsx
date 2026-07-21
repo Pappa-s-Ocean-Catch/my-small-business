@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import type { Order } from '@my-small-business/types';
 import { ReceiptQrCode } from './ReceiptQrCode';
-import { getReceiptQrLandingUrl, getReceiptStoreAddressLines, getReceiptStoreName, getReceiptStorePhone, getReceiptWebsiteUrl } from '../lib/receipt-config';
+import { getReceiptOrderClaimUrl, getReceiptQrLandingUrl, getReceiptStoreAddressLines, getReceiptStoreName, getReceiptStorePhone, getReceiptWebsiteUrl } from '../lib/receipt-config';
 import { getOrderChannelReceiptLabel, getOrderLineItemCount, getOrderNotes, groupAddons } from '../utils/orderUtils';
 import { getOrderPromotionSummary, isFreePromotionOrderItem } from '../lib/promotion-summary';
 
@@ -18,6 +18,15 @@ function formatMoney(amount: number) {
 export function CustomerReceiptTemplate({ order, width = 576 }: Props) {
   const siteUrl = getReceiptWebsiteUrl();
   const qrLandingUrl = getReceiptQrLandingUrl();
+  const claimQrUrl = order.receipt_claim_token ? getReceiptOrderClaimUrl(order.receipt_claim_token) : null;
+  console.log('[CustomerReceiptTemplate] render', {
+    orderId: order.id,
+    orderNumber: order.order_number,
+    customerName: order.customer_name,
+    userId: order.user_id,
+    receiptClaimToken: order.receipt_claim_token,
+    claimQrUrl,
+  });
   const storeName = getReceiptStoreName();
   const addressLines = getReceiptStoreAddressLines();
   const storePhone = getReceiptStorePhone();
@@ -28,7 +37,9 @@ export function CustomerReceiptTemplate({ order, width = 576 }: Props) {
   const promotionSummary = getOrderPromotionSummary(order);
   const promotionLabel = promotionSummary?.label || 'Promotion Discount';
   const isNarrow = width <= 384;
-  const qrSize = isNarrow ? 128 : 144;
+  const qrSize = claimQrUrl
+    ? (isNarrow ? 112 : 128)
+    : (isNarrow ? 128 : 144);
   const gstAmount = order.tax > 0 ? order.tax : Number((order.total / 11).toFixed(2));
   const subtotalExGst = Number((order.total - gstAmount).toFixed(2));
 
@@ -161,9 +172,18 @@ export function CustomerReceiptTemplate({ order, width = 576 }: Props) {
       </Text>
 
       <View style={styles.qrSection}>
-        <Text style={styles.qrIntro}>Online with us</Text>
-        <ReceiptQrCode value={qrLandingUrl} size={qrSize} />
-        <Text style={styles.websiteText}>{qrLandingUrl}</Text>
+        <View style={styles.qrColumn}>
+          <Text style={styles.qrIntro}>Online with us</Text>
+          <ReceiptQrCode value={qrLandingUrl} size={qrSize} />
+          <Text style={styles.websiteText}>{qrLandingUrl}</Text>
+        </View>
+        {claimQrUrl ? (
+          <View style={styles.qrColumn}>
+            <Text style={styles.qrIntro}>Claim rewards</Text>
+            <ReceiptQrCode value={claimQrUrl} size={qrSize} />
+            <Text style={styles.websiteText}>Scan to link this order</Text>
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.footerSection}>
@@ -315,19 +335,29 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   qrSection: {
-    alignItems: 'center',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    flexWrap: 'nowrap',
     marginTop: 16,
-    gap: 8,
+    gap: 12,
+  },
+  qrColumn: {
+    alignItems: 'center',
+    flex: 1,
+    maxWidth: '48%',
   },
   qrIntro: {
     fontSize: 20,
     fontWeight: '700',
     color: '#000',
+    marginBottom: 8,
   },
   websiteText: {
     fontSize: 16,
     color: '#000',
     textAlign: 'center',
+    marginTop: 8,
   },
   footerSection: {
     alignItems: 'center',

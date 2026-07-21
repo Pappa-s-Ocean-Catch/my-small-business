@@ -235,6 +235,13 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     if (latestOrderResult.data) {
       printOrder = latestOrderResult.data;
       setPrintPreviewOrder(latestOrderResult.data);
+      console.log('[OrderDetailModal] refreshed customer copy order', {
+        orderId: latestOrderResult.data.id,
+        orderNumber: latestOrderResult.data.order_number,
+        customerName: latestOrderResult.data.customer_name,
+        userId: latestOrderResult.data.user_id,
+        receiptClaimToken: latestOrderResult.data.receipt_claim_token,
+      });
     } else if (latestOrderResult.error) {
       console.warn('[OrderDetailModal] Failed to refresh order before customer copy print:', latestOrderResult.error);
     }
@@ -242,6 +249,13 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     try {
       setIsCapturing(true);
       await new Promise((resolve) => setTimeout(resolve, 300));
+      console.log('[OrderDetailModal] customer copy capture source', {
+        orderId: printOrder.id,
+        orderNumber: printOrder.order_number,
+        customerName: printOrder.customer_name,
+        userId: printOrder.user_id,
+        receiptClaimToken: printOrder.receipt_claim_token,
+      });
 
       const targetDots = appSettings.printerPaperWidth === '58mm' ? 384 : 576;
       const scale = appSettings.printerHighQuality ? 2 : 1;
@@ -613,6 +627,13 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               />
            </View>
            <View ref={customerReceiptRef} collapsable={false}>
+              {console.log('[OrderDetailModal] hidden customer receipt order', {
+                orderId: (printPreviewOrder || order).id,
+                orderNumber: (printPreviewOrder || order).order_number,
+                customerName: (printPreviewOrder || order).customer_name,
+                userId: (printPreviewOrder || order).user_id,
+                receiptClaimToken: (printPreviewOrder || order).receipt_claim_token,
+              })}
               <CustomerReceiptTemplate
                 order={printPreviewOrder || order}
                 width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}

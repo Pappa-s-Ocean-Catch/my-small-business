@@ -17,6 +17,10 @@ export function getReceiptQrLandingUrl() {
   return `${getReceiptWebsiteUrl().replace(/\/+$/, '')}/qr`;
 }
 
+export function getReceiptOrderClaimUrl(token: string) {
+  return `${getReceiptWebsiteUrl().replace(/\/+$/, '')}/rewards/claim?token=${encodeURIComponent(token.trim())}`;
+}
+
 export function getReceiptStoreName() {
   return (process.env.EXPO_PUBLIC_RECEIPT_STORE_NAME || DEFAULT_STORE_NAME).trim() || DEFAULT_STORE_NAME;
 }

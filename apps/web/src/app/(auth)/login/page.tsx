@@ -71,7 +71,10 @@ export default function LoginPage() {
           throw new Error(check.reason);
         }
 
-        const result = await sendMagicLinkInvite(email);
+        const redirectPath = typeof window !== 'undefined'
+          ? new URLSearchParams(window.location.search).get('redirect') ?? undefined
+          : undefined;
+        const result = await sendMagicLinkInvite(email, redirectPath);
         if (!result.success) throw new Error(result.error || 'Failed to send magic link');
         posthog.capture('magic_link_sent', { email });
         setMessage("Magic link sent from Pappas Ocean Catch. Please check your inbox.");
@@ -275,5 +278,4 @@ export default function LoginPage() {
     </div>
   );
 }
-
 

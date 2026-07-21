@@ -12,6 +12,79 @@ type OrderWithEmbeddedItemsRow = OrderRow & {
   order_items?: Array<(OrderItem & { order_item_addons?: OrderItemAddon[] | null })> | null;
 };
 
+function generateReceiptClaimToken(): string {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const tokenLength = 8;
+  let token = '';
+
+  if (globalThis.crypto?.getRandomValues) {
+    const values = new Uint32Array(tokenLength);
+    globalThis.crypto.getRandomValues(values);
+    for (let index = 0; index < tokenLength; index += 1) {
+      token += alphabet[values[index] % alphabet.length];
+    }
+    return token;
+  }
+
+  for (let index = 0; index < tokenLength; index += 1) {
+    token += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+
+  return token;
+}
+
+function shouldGenerateReceiptClaimToken(orderPayload: Pick<Order, 'order_channel' | 'customer_name' | 'user_id' | 'receipt_claim_token'>): boolean {
+  const normalizedCustomerName = orderPayload.customer_name?.trim().toUpperCase() ?? '';
+  return (
+    orderPayload.order_channel === 'instore' &&
+    normalizedCustomerName === 'INSTORE' &&
+    !orderPayload.user_id &&
+    !orderPayload.receipt_claim_token
+  );
+}
+
+async function ensureReceiptClaimTokenForOrder(order: Order): Promise<Order> {
+  if (!shouldGenerateReceiptClaimToken(order)) {
+    return order;
+  }
+
+  const receiptClaimToken = generateReceiptClaimToken();
+  console.log('[ensureReceiptClaimTokenForOrder] backfilling token', {
+    orderId: order.id,
+    orderNumber: order.order_number,
+    customerName: order.customer_name,
+    userId: order.user_id,
+    generatedReceiptClaimToken: receiptClaimToken,
+  });
+
+  const { data, error } = await supabase
+    .from('orders')
+    .update({
+      receipt_claim_token: receiptClaimToken,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', order.id)
+    .is('receipt_claim_token', null)
+    .select('*, order_items(*, order_item_addons(*))')
+    .single();
+
+  if (error) {
+    console.warn('[ensureReceiptClaimTokenForOrder] failed to backfill token', {
+      orderId: order.id,
+      error: error.message,
+    });
+    return order;
+  }
+
+  const updatedOrder = mapEmbeddedOrder(data as unknown as OrderWithEmbeddedItemsRow);
+  console.log('[ensureReceiptClaimTokenForOrder] backfilled token successfully', {
+    orderId: updatedOrder.id,
+    orderNumber: updatedOrder.order_number,
+    receiptClaimToken: updatedOrder.receipt_claim_token,
+  });
+  return updatedOrder;
+}
+
 function mapEmbeddedOrder(row: OrderWithEmbeddedItemsRow): Order {
   const items: OrderItem[] =
     (row.order_items || []).map((item) => ({
@@ -148,7 +221,9 @@ export async function getOrder(orderId: string): Promise<{ data: Order | null; e
       return { data: null, error: 'Order not found' };
     }
 
-    return { data: mapEmbeddedOrder(data as unknown as OrderWithEmbeddedItemsRow), error: null };
+    const mappedOrder = mapEmbeddedOrder(data as unknown as OrderWithEmbeddedItemsRow);
+    const hydratedOrder = await ensureReceiptClaimTokenForOrder(mappedOrder);
+    return { data: hydratedOrder, error: null };
   } catch (error) {
     console.error('Error fetching order:', error);
     return {
@@ -464,10 +539,22 @@ export async function savePosOrder(
   try {
     const normalizedOrderPayload = normalizeOrderOptions(orderPayload);
     const finalOrderStatus = normalizedOrderPayload.order_status;
+    const receiptClaimToken =
+      shouldGenerateReceiptClaimToken(normalizedOrderPayload)
+        ? generateReceiptClaimToken()
+        : normalizedOrderPayload.receipt_claim_token ?? null;
+    console.log('[savePosOrder] receipt claim decision', {
+      orderChannel: normalizedOrderPayload.order_channel,
+      customerName: normalizedOrderPayload.customer_name,
+      userId: normalizedOrderPayload.user_id,
+      existingReceiptClaimToken: normalizedOrderPayload.receipt_claim_token ?? null,
+      generatedReceiptClaimToken: receiptClaimToken,
+    });
     const { data: orderData, error: orderError } = await supabase
       .from('orders')
       .insert({
         ...normalizedOrderPayload,
+        receipt_claim_token: receiptClaimToken,
         order_status: 'pending_online_payment',
       })
       .select()

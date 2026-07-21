@@ -97,6 +97,9 @@ export interface Order {
   id: string;
   order_number: string;
   user_id: string | null;
+  receipt_claim_token: string | null;
+  receipt_claimed_at: string | null;
+  receipt_claimed_by_user_id: string | null;
   customer_email: string;
   customer_phone: string;
   customer_name: string | null;

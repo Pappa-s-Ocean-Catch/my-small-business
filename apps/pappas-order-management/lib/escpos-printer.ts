@@ -25,6 +25,9 @@ const LF = 0x0a;
 type EscPosModule = typeof import('react-native-esc-pos-printer');
 type TcpSocketModule = typeof import('react-native-tcp-socket');
 type EscPosPrinterInstance = InstanceType<EscPosModule['Printer']>;
+type TcpSocketLike = {
+  createConnection: (...args: any[]) => any;
+};
 
 let escPosModuleCache: EscPosModule | null = null;
 let tcpSocketModuleCache: TcpSocketModule | null = null;
@@ -41,6 +44,25 @@ function getTcpSocketModule(): TcpSocketModule {
   // Delay loading the raw TCP native module until a raw printer action runs.
   tcpSocketModuleCache = require('react-native-tcp-socket') as TcpSocketModule;
   return tcpSocketModuleCache;
+}
+
+function getTcpSocketClient(): TcpSocketLike {
+  const tcpSocketModule = getTcpSocketModule() as TcpSocketModule & {
+    default?: TcpSocketLike;
+    createConnection?: TcpSocketLike['createConnection'];
+  };
+
+  const client = tcpSocketModule.default && typeof tcpSocketModule.default.createConnection === 'function'
+    ? tcpSocketModule.default
+    : typeof tcpSocketModule.createConnection === 'function'
+      ? tcpSocketModule
+      : null;
+
+  if (!client) {
+    throw new Error('react-native-tcp-socket is unavailable in this build');
+  }
+
+  return client;
 }
 
 function normalizePrinterField(value: string | undefined): string {
@@ -203,7 +225,7 @@ async function withRawTcpPrinter<T>(
     let pendingResult: T | undefined;
     let waitingForClose = false;
     let closeTimer: ReturnType<typeof setTimeout> | null = null;
-    const TcpSocket = getTcpSocketModule().default;
+    const TcpSocket = getTcpSocketClient();
     const socket = TcpSocket.createConnection({
       host: options.host,
       port: options.port,
