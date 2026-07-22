@@ -93,6 +93,7 @@ function OrderPageContent() {
   const [customizingProduct, setCustomizingProduct] = useState<MenuProduct | null>(null);
 
   const [activePromotions, setActivePromotions] = useState<PromotionWithProducts[]>([]);
+  const [rotatingPromotionIndex, setRotatingPromotionIndex] = useState(0);
 
   // Store hours for today (Melbourne) – for messaging on menu
   const [storeHours, setStoreHours] = useState<StoreHours | null>(null);
@@ -102,11 +103,14 @@ function OrderPageContent() {
 
   const { onlineOrderEnabled, isLoading: flagLoading } = useFeatureFlag();
 
-  const topCartPromo = useMemo(() => {
-    const carts = activePromotions.filter((p) => p.applies_to === 'cart');
-    if (carts.length === 0) return null;
-    return [...carts].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0))[0];
-  }, [activePromotions]);
+  const rotatingPromotions = useMemo(
+    () => [...activePromotions].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0)),
+    [activePromotions]
+  );
+
+  const currentPromotion = rotatingPromotions.length > 0
+    ? rotatingPromotions[rotatingPromotionIndex % rotatingPromotions.length]
+    : null;
 
   const hasLoadedRef = useRef(false);
 
@@ -117,6 +121,20 @@ function OrderPageContent() {
       router.push('/');
     }
   }, [flagLoading, onlineOrderEnabled, router]);
+
+  useEffect(() => {
+    setRotatingPromotionIndex(0);
+  }, [rotatingPromotions.length]);
+
+  useEffect(() => {
+    if (rotatingPromotions.length <= 1) return;
+
+    const intervalId = window.setInterval(() => {
+      setRotatingPromotionIndex((current) => (current + 1) % rotatingPromotions.length);
+    }, 4000);
+
+    return () => window.clearInterval(intervalId);
+  }, [rotatingPromotions]);
 
 
   // Optimized: Load menu, promotions, and store hours in parallel
@@ -643,11 +661,20 @@ function OrderPageContent() {
               </Link>
             </div>
 
-            {topCartPromo && (
+            {currentPromotion && (
               <div className="mt-3 rounded-lg border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-900/20 px-4 py-3 text-sm text-green-900 dark:text-green-100">
-                <div className="font-semibold">{topCartPromo.title}</div>
-                <div className="opacity-90">
-                  {getPromotionDetailsCopy(topCartPromo)}
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="font-semibold">{currentPromotion.title}</div>
+                    <div className="opacity-90">
+                      {getPromotionDetailsCopy(currentPromotion)}
+                    </div>
+                  </div>
+                  {rotatingPromotions.length > 1 && (
+                    <div className="shrink-0 text-xs font-medium opacity-75">
+                      {rotatingPromotionIndex + 1}/{rotatingPromotions.length}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

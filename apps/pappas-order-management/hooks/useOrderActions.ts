@@ -3,10 +3,9 @@ import { Alert } from 'react-native';
 import * as Print from 'expo-print';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { updateOrderStatus, updatePaymentStatus, getOrder, notifyDeliveryReady } from '@/lib/orders';
-import { escposPrintKitchenReceipt, formatPrinterError } from '@/lib/escpos-printer';
-import type { SavedPrinter } from '@/lib/escpos-printer';
+import { escposPrintKitchenReceipt, formatPrinterError, isSimulatorPrinter, type SavedPrinter } from '@/lib/escpos-printer';
 import type { PrinterImageSource } from '@/lib/printer-image';
-import { buildSectionPrintJobs, getSectionPrintTickets, getSectionRoutingDebugLabel, hasAnySimulatorAssignment, resolvePrinterForSection, shouldSkipPrintForSection, shouldUseSimulatorForSection } from '@/lib/printer-routing';
+import { buildSectionPrintJobs, getSectionPrintTickets, getSectionRoutingDebugLabel, resolvePrinterForSection, shouldSkipPrintForSection } from '@/lib/printer-routing';
 import { generatePrintHTML } from '@/utils/orderUtils';
 import { loadAppSettings, type AppSettings } from '@/lib/settings';
 import { formatSmartpayError, isSmartpayPaired, processSmartpayCardPayment } from '@/lib/smartpay';
@@ -258,6 +257,14 @@ export const useOrderActions = (
       const effectiveSettings = await getEffectiveSettings();
 
       if (selectedPrinter) {
+        if (isSimulatorPrinter(selectedPrinter)) {
+          setSimulatorOrder(order);
+          setPrintImageUri(null);
+          setPrintImageUris([]);
+          setPrintImageLabels([selectedPrinter.deviceName]);
+          setShowSimulator(true);
+          return true;
+        }
         if (effectiveSettings.printerEnabled) {
           await escposPrintKitchenReceipt(order, selectedPrinter, 1, 'order-actions:manual-single-printer');
           return true;
@@ -268,8 +275,8 @@ export const useOrderActions = (
       }
 
       const jobs = buildSectionPrintJobs(effectiveSettings, order);
-      const simulatorJobs = jobs.filter((job) => job.useSimulator);
-      const printerJobs = jobs.filter((job) => !job.useSimulator && !!job.printer);
+      const simulatorJobs = jobs.filter((job) => !!job.printer && isSimulatorPrinter(job.printer));
+      const printerJobs = jobs.filter((job) => !!job.printer && !isSimulatorPrinter(job.printer));
       if (simulatorJobs.length > 0) {
         setSimulatorOrder(order);
         setPrintImageUri(null); // No image URI for standard fallback print usually
@@ -311,6 +318,15 @@ export const useOrderActions = (
     try {
       const effectiveSettings = await getEffectiveSettings();
       if (selectedPrinter) {
+        if (isSimulatorPrinter(selectedPrinter)) {
+          setSimulatorOrder(order);
+          const previewUri = image.kind === 'uri' ? image.uri : (image.previewUri ?? null);
+          setPrintImageUri(previewUri);
+          setPrintImageUris(previewUri ? [previewUri] : []);
+          setPrintImageLabels([selectedPrinter.deviceName]);
+          setShowSimulator(true);
+          return true;
+        }
         if (effectiveSettings.printerEnabled) {
           const targetDots = effectiveSettings.printerPaperWidth === '58mm' ? 384 : 576;
           const queuedJobs = enqueuePreparedPrintJobs({
@@ -337,17 +353,18 @@ export const useOrderActions = (
       const tickets = getSectionPrintTickets(order);
       const jobs = buildSectionPrintJobs(effectiveSettings, order);
 
-      if (effectiveSettings.printerSimulator || hasAnySimulatorAssignment(effectiveSettings)) {
+      const simulatorJob = jobs.find((job) => !!job.printer && isSimulatorPrinter(job.printer)) || null;
+      if (simulatorJob) {
         setSimulatorOrder(order);
         const previewUri = image.kind === 'uri' ? image.uri : (image.previewUri ?? null);
         setPrintImageUri(previewUri);
         setPrintImageUris(previewUri ? [previewUri] : []);
-        setPrintImageLabels([jobs[0]?.label || getSectionRoutingDebugLabel(effectiveSettings, tickets[0]?.sections[0]?.sectionName || null)]);
+        setPrintImageLabels([simulatorJob.label || getSectionRoutingDebugLabel(effectiveSettings, tickets[0]?.sections[0]?.sectionName || null)]);
         setShowSimulator(true);
         return true;
       }
 
-      const firstPrinterJob = jobs.find((job) => !job.useSimulator && !!job.printer) || null;
+      const firstPrinterJob = jobs.find((job) => !!job.printer && !isSimulatorPrinter(job.printer)) || null;
       if (!firstPrinterJob) {
         return true;
       }

@@ -538,7 +538,7 @@ export function OrdersScreenBase({ mode, enableStatusUpdates }: { mode: 'live' |
         return;
       }
       const jobs = buildSectionPrintJobs(s, order);
-      const printerJobs = jobs.filter((job) => !job.useSimulator && !!job.printer);
+      const printerJobs = jobs.filter((job) => !!job.printer);
       if (s.printerEnabled && printerJobs.length > 0) {
         try {
           for (const job of printerJobs) {

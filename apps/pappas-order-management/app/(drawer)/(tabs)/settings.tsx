@@ -8,10 +8,14 @@ import { KITCHEN_SECTION_OPTIONS } from '@/utils/orderUtils';
 import { usePrintersDiscovery } from 'react-native-esc-pos-printer';
 import type { DeviceInfo } from 'react-native-esc-pos-printer';
 import {
+    DEFAULT_SIMULATOR_PRINTER_NAME,
     DEFAULT_MANUAL_PRINTER_PORT,
+    createSimulatorSavedPrinter,
     createManualSavedPrinter,
     buildTcpPrinterTarget,
     escposTestPrint,
+    getPrinterDriver,
+    isSimulatorPrinter,
     isSamePhysicalPrinter,
     isValidIpv4Address,
     isValidPrinterPort,
@@ -56,7 +60,6 @@ export default function SettingsScreen() {
     const [printerSectionAssignments, setPrinterSectionAssignments] = useState<PrinterSectionAssignment[]>(
         DEFAULT_APP_SETTINGS.printerSectionAssignments
     );
-    const [printerSimulator, setPrinterSimulator] = useState<boolean>(DEFAULT_APP_SETTINGS.printerSimulator);
     const [printerDelayPrintSecText, setPrinterDelayPrintSecText] = useState(
         String(DEFAULT_APP_SETTINGS.printerDelayPrintSec)
     );
@@ -65,6 +68,7 @@ export default function SettingsScreen() {
     const [manualPrinterIp, setManualPrinterIp] = useState('');
     const [manualPrinterPortText, setManualPrinterPortText] = useState(String(DEFAULT_MANUAL_PRINTER_PORT));
     const [manualPrinterName, setManualPrinterName] = useState('');
+    const [manualPrinterDriver, setManualPrinterDriver] = useState<'rawTcp' | 'simulator'>('rawTcp');
     const [editingManualPrinterTarget, setEditingManualPrinterTarget] = useState<string | null>(null);
 
     const [saving, setSaving] = useState(false);
@@ -87,7 +91,6 @@ export default function SettingsScreen() {
         setPrinterSaved(currentSettings.printerSaved);
         setPrinterSelectedTarget(currentSettings.printerSelectedTarget);
         setPrinterSectionAssignments(currentSettings.printerSectionAssignments);
-        setPrinterSimulator(currentSettings.printerSimulator);
         setPrinterDelayPrintSecText(String(currentSettings.printerDelayPrintSec));
         setPrinterPaperWidth(currentSettings.printerPaperWidth);
         setPrinterHighQuality(currentSettings.printerHighQuality);
@@ -132,11 +135,14 @@ export default function SettingsScreen() {
         ? 'Vertical cards with horizontal scrolling'
         : 'Full-width horizontal rows';
     const printerSummary = !printerEnabled
-        ? printerSimulator || printerSectionAssignments.some((assignment) => assignment.useSimulator)
+        ? printerSectionAssignments.some((assignment) => {
+            const printer = printerSaved.find((item) => item.target === assignment.printerTarget) || null;
+            return isSimulatorPrinter(printer);
+        })
             ? 'Simulator'
             : 'Disabled'
-        : `${selectedPrinter?.deviceName ?? (printerSimulator ? 'Simulator' : 'No default printer selected')} • ${Math.max(printerSectionAssignments.length - 1, 0)} section rule${printerSectionAssignments.length === 2 ? '' : 's'}`;
-    const hasSimulatorRouting = hasAnySimulatorAssignment({ printerSectionAssignments, printerSimulator });
+        : `${selectedPrinter?.deviceName ?? 'No default printer selected'} • ${Math.max(printerSectionAssignments.length - 1, 0)} section rule${printerSectionAssignments.length === 2 ? '' : 's'}`;
+    const hasSimulatorRouting = hasAnySimulatorAssignment({ printerSectionAssignments });
     const hasPrinterCapability = printerEnabled || hasSimulatorRouting;
     const recentJournalLabel = journalEntries.length === 0
         ? 'No logs yet'
@@ -362,6 +368,7 @@ export default function SettingsScreen() {
             setManualPrinterIp('');
             setManualPrinterPortText(String(DEFAULT_MANUAL_PRINTER_PORT));
             setManualPrinterName('');
+            setManualPrinterDriver('rawTcp');
         }
     };
 
@@ -370,18 +377,38 @@ export default function SettingsScreen() {
         setManualPrinterIp('');
         setManualPrinterPortText(String(DEFAULT_MANUAL_PRINTER_PORT));
         setManualPrinterName('');
+        setManualPrinterDriver('rawTcp');
     };
 
     const startEditingManualPrinter = (printer: SavedPrinter) => {
         setEditingManualPrinterTarget(printer.target);
+        setManualPrinterDriver(getPrinterDriver(printer) === 'simulator' ? 'simulator' : 'rawTcp');
         setManualPrinterIp(printer.ipAddress?.trim() || '');
         setManualPrinterPortText(String(printer.port ?? DEFAULT_MANUAL_PRINTER_PORT));
         setManualPrinterName(printer.deviceName || '');
     };
 
     const handleManualPrinterAdd = () => {
-        const ipAddress = manualPrinterIp.trim();
         const deviceName = manualPrinterName.trim();
+        if (manualPrinterDriver === 'simulator') {
+            const simulatorPrinter = createSimulatorSavedPrinter(deviceName || DEFAULT_SIMULATOR_PRINTER_NAME);
+            const existing = printerSaved.find((printer) => printer.target === simulatorPrinter.target) || null;
+
+            if (existing) {
+                Alert.alert('Printer already exists', `${simulatorPrinter.deviceName} is already saved.`);
+                return;
+            }
+
+            setPrinterSaved((prev) => [simulatorPrinter, ...prev]);
+            setPrinterSelectedTarget(simulatorPrinter.target);
+            updatePrinterAssignmentTarget(defaultPrinterAssignmentId, simulatorPrinter.target);
+            setPrinterEnabled(true);
+            resetManualPrinterForm();
+            Alert.alert('Printer added', `${simulatorPrinter.deviceName} was added as the default virtual printer.`);
+            return;
+        }
+
+        const ipAddress = manualPrinterIp.trim();
         const port = parseIntOr(manualPrinterPortText, DEFAULT_MANUAL_PRINTER_PORT);
 
         if (!isValidIpv4Address(ipAddress)) {
@@ -483,12 +510,6 @@ export default function SettingsScreen() {
         )));
     };
 
-    const updatePrinterAssignmentSimulator = (assignmentId: string, useSimulator: boolean) => {
-        setPrinterSectionAssignments((prev) => prev.map((assignment) => (
-            assignment.id === assignmentId ? { ...assignment, useSimulator } : assignment
-        )));
-    };
-
     const updatePrinterAssignmentPrintMode = (assignmentId: string, printMode: 'combine' | 'separate') => {
         setPrinterSectionAssignments((prev) => prev.map((assignment) => (
             assignment.id === assignmentId ? { ...assignment, printMode } : assignment
@@ -572,7 +593,6 @@ export default function SettingsScreen() {
                 printerSelectedTarget,
                 printerSaved,
                 printerSectionAssignments: normalizedAssignments,
-                printerSimulator,
                 printerDelayPrintSec,
                 printerPaperWidth,
                 printerHighQuality,
@@ -781,6 +801,24 @@ export default function SettingsScreen() {
 
                             <View style={styles.group}>
                                 <Text style={styles.label}>Add printer manually</Text>
+                                <View style={styles.buttonGroup}>
+                                    <Button
+                                        mode={manualPrinterDriver === 'rawTcp' ? 'contained' : 'outlined'}
+                                        onPress={() => setManualPrinterDriver('rawTcp')}
+                                        style={styles.flexButton}
+                                    >
+                                        TCP Raw
+                                    </Button>
+                                    <Button
+                                        mode={manualPrinterDriver === 'simulator' ? 'contained' : 'outlined'}
+                                        onPress={() => setManualPrinterDriver('simulator')}
+                                        style={styles.flexButton}
+                                    >
+                                        Simulator
+                                    </Button>
+                                </View>
+                                {manualPrinterDriver === 'rawTcp' ? (
+                                    <>
                                 <TextInput
                                     mode="outlined"
                                     label="Printer IP address"
@@ -810,9 +848,24 @@ export default function SettingsScreen() {
                                     style={styles.input}
                                 />
                                 <Text style={styles.helper}>Use this when discovery misses a network printer. Port defaults to 9100, which is the usual raw TCP printer port.</Text>
+                                    </>
+                                ) : (
+                                    <>
+                                <TextInput
+                                    mode="outlined"
+                                    label="Simulator name"
+                                    value={manualPrinterName}
+                                    onChangeText={setManualPrinterName}
+                                    autoCapitalize="words"
+                                    placeholder={DEFAULT_SIMULATOR_PRINTER_NAME}
+                                    style={styles.input}
+                                />
+                                <Text style={styles.helper}>Virtual printers open the receipt in the in-app simulator instead of sending it to physical hardware.</Text>
+                                    </>
+                                )}
                                 <View style={styles.buttonGroup}>
                                     <Button mode="contained-tonal" onPress={handleManualPrinterAdd} style={styles.flexButton}>
-                                        {editingManualPrinterTarget ? 'Update manual printer' : 'Add manual printer'}
+                                        {editingManualPrinterTarget ? 'Update printer' : 'Add printer'}
                                     </Button>
                                     {editingManualPrinterTarget ? (
                                         <Button mode="text" onPress={resetManualPrinterForm} style={styles.flexButton}>
@@ -877,7 +930,9 @@ export default function SettingsScreen() {
                                                         {p.ipAddress ? `${p.ipAddress}:${p.port ?? DEFAULT_MANUAL_PRINTER_PORT}` : (p.macAddress || p.bdAddress || p.target)}
                                                     </Text>
                                                     <Text style={styles.helper}>
-                                                        {p.ipAddress
+                                                        {isSimulatorPrinter(p)
+                                                            ? 'Virtual simulator printer'
+                                                            : p.ipAddress
                                                             ? `Network printer${(p.port ?? DEFAULT_MANUAL_PRINTER_PORT) === DEFAULT_MANUAL_PRINTER_PORT ? ' • port 9100' : ` • port ${p.port}`}`
                                                             : 'Discovered printer'}
                                                     </Text>
@@ -902,7 +957,7 @@ export default function SettingsScreen() {
                                                     >
                                                         Test
                                                     </Button>
-                                                    {p.driver === 'rawTcp' ? (
+                                                    {p.driver === 'rawTcp' || p.driver === 'simulator' ? (
                                                         <Button
                                                             mode="text"
                                                             onPress={() => startEditingManualPrinter(p)}
@@ -924,7 +979,7 @@ export default function SettingsScreen() {
                             <View style={styles.separator} />
 
                             <Text style={styles.label}>Section printers</Text>
-                            <Text style={styles.helper}>Default printer is the fallback. `Combine` prints the full ticket. `Separate` prints only that section. If a section rule has no printer and simulator is off, that section will be skipped.</Text>
+                            <Text style={styles.helper}>Default printer is the fallback. `Combine` prints the full ticket. `Separate` prints only that section. Assign a simulator printer when you want virtual printing for that route.</Text>
                             {printerSectionAssignments.map((assignment) => {
                                 const assignmentPrinter = printerSaved.find((printer) => printer.target === assignment.printerTarget) || null;
                                 return (
@@ -974,13 +1029,6 @@ export default function SettingsScreen() {
                                         >
                                             {assignmentPrinter?.deviceName || (assignment.isDefault ? 'Select default printer' : 'No printer (skip)')}
                                         </Button>
-                                        <View style={[styles.switchRow, styles.assignmentSwitchRow]}>
-                                            <Text style={styles.label}>Use simulator for this section</Text>
-                                            <Switch
-                                                value={!!assignment.useSimulator}
-                                                onValueChange={(value) => updatePrinterAssignmentSimulator(assignment.id, value)}
-                                            />
-                                        </View>
                                         <Text style={[styles.label, styles.assignmentSubLabel]}>Print mode</Text>
                                         <View style={styles.buttonGroup}>
                                             <Button
@@ -1009,12 +1057,6 @@ export default function SettingsScreen() {
                             <Button mode="contained-tonal" onPress={addPrinterSectionAssignment} style={styles.previewButton}>
                                 Add section printer
                             </Button>
-
-                            <View style={styles.switchRow}>
-                                <Text style={styles.label}>Legacy simulator fallback</Text>
-                                <Switch value={printerSimulator} onValueChange={setPrinterSimulator} />
-                            </View>
-                            <Text style={styles.helper}>Keeps the old all-sections simulator behavior. Section simulator rules above are more flexible.</Text>
 
                             <View style={styles.switchRow}>
                                 <Text style={styles.label}>Auto print new orders</Text>

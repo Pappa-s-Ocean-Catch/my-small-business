@@ -35,7 +35,7 @@ import { useAppSettingsQuery } from '@/hooks/useAppSettingsQuery';
 import { PRE_ORDERS_QUERY_KEY, usePreOrdersQuery } from '@/hooks/useLiveOrdersQuery';
 import { captureReceiptForPrinter, captureReceiptPreview, type PrinterImageSource } from '@/lib/printer-image';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
-import type { SavedPrinter } from '@/lib/escpos-printer';
+import { isSimulatorPrinter, type SavedPrinter } from '@/lib/escpos-printer';
 import { buildSectionPrintJobs, hasAnySimulatorAssignment } from '@/lib/printer-routing';
 import { getPrintDeviceId } from '@/lib/print-device';
 import { useQueryClient } from '@tanstack/react-query';
@@ -187,6 +187,21 @@ export default function PreOrdersScreen() {
           throw new Error('Receipt template is still loading. Please try again.');
         }
 
+        if (isSimulatorPrinter(selectedPrinter)) {
+          const uri = await captureReceiptPreview(receiptRef, targetDots * scale);
+          setSimulatorOrder(freshOrder);
+          setPrintImageUri(uri);
+          setPrintImageUris([uri]);
+          setPrintImageLabels([selectedPrinter.deviceName]);
+          setShowSimulator(true);
+          const completion = await completeKitchenPrintClaim(order.id, claimedDeviceId);
+          if (!completion.completed) {
+            throw new Error(completion.error || 'Failed to complete kitchen print claim');
+          }
+          shouldReleaseClaim = false;
+          return;
+        }
+
         const image = await captureReceiptForPrinter(receiptRef, selectedPrinter, targetDots * scale);
 
         if (!s.printerEnabled) {
@@ -222,14 +237,13 @@ export default function PreOrdersScreen() {
             key: `manual:${selectedPrinter.target}`,
             assignmentId: 'manual-selected-printer',
             sectionName: null,
-            useSimulator: false,
             printer: selectedPrinter,
             printMode: 'combine' as const,
             duplicateBySections: false,
             label: `Manual -> ${selectedPrinter.deviceName}`,
           }]
         : buildSectionPrintJobs(s, freshOrder);
-      const capturedJobs: Array<{ image: PrinterImageSource; previewUri: string | null; label: string; useSimulator: boolean; printer: NonNullable<ReturnType<typeof buildSectionPrintJobs>[number]['printer']> | null }> = [];
+      const capturedJobs: Array<{ image: PrinterImageSource; previewUri: string | null; label: string; printer: NonNullable<ReturnType<typeof buildSectionPrintJobs>[number]['printer']> | null }> = [];
 
       for (let index = 0; index < jobs.length; index += 1) {
         const job = jobs[index];
@@ -246,13 +260,13 @@ export default function PreOrdersScreen() {
           throw new Error('Receipt template is still loading. Please try again.');
         }
 
-        if (job.useSimulator || !job.printer) {
+        if (!job.printer || isSimulatorPrinter(job.printer)) {
           const uri = await captureReceiptPreview(receiptRef, targetDots * scale);
-          capturedJobs.push({ image: { kind: 'uri', uri }, previewUri: uri, label: job.label, useSimulator: job.useSimulator, printer: job.printer });
+          capturedJobs.push({ image: { kind: 'uri', uri }, previewUri: uri, label: job.label, printer: job.printer });
         } else {
           const image = await captureReceiptForPrinter(receiptRef, job.printer, targetDots * scale);
           const previewUri = image.kind === 'uri' ? image.uri : await captureReceiptPreview(receiptRef, targetDots * scale);
-          capturedJobs.push({ image, previewUri, label: job.label, useSimulator: job.useSimulator, printer: job.printer });
+          capturedJobs.push({ image, previewUri, label: job.label, printer: job.printer });
         }
       }
 
@@ -260,7 +274,7 @@ export default function PreOrdersScreen() {
       const simulatorImageLabels: string[] = [];
       const printerJobs: Array<{ image: PrinterImageSource; printer: NonNullable<typeof capturedJobs[number]['printer']> }> = [];
       for (const job of capturedJobs) {
-        if (job.useSimulator) {
+        if (isSimulatorPrinter(job.printer)) {
           if (job.previewUri) simulatorImageUris.push(job.previewUri);
           simulatorImageLabels.push(job.label);
         } else {

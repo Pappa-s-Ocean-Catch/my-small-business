@@ -89,6 +89,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const insets = useSafeAreaInsets();
   const isWide = width >= 920;
   const [isCapturing, setIsCapturing] = React.useState(false);
+  const [captureTarget, setCaptureTarget] = React.useState<'kitchen' | 'customer' | null>(null);
   const [printPreviewOrder, setPrintPreviewOrder] = React.useState<Order | null>(null);
   const receiptRef = React.useRef(null);
   const customerReceiptRef = React.useRef(null);
@@ -199,6 +200,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     if (onPrintImage && receiptRef.current) {
       try {
         setIsCapturing(true);
+        setCaptureTarget('kitchen');
         // Small delay to ensure the hidden view is rendered
         await new Promise(resolve => setTimeout(resolve, 300));
         
@@ -216,6 +218,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
         success = false;
       } finally {
         setIsCapturing(false);
+        setCaptureTarget(null);
       }
     } else {
       success = await onPrint(printOrder, printer);
@@ -224,7 +227,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   };
 
   const handleCustomerCopyPrint = async (printer?: SavedPrinter | null) => {
-    if (!onPrintCustomerCopyImage || !customerReceiptRef.current) {
+    if (!onPrintCustomerCopyImage) {
       Alert.alert('Customer copy unavailable', 'This screen is not ready to print the customer receipt yet.');
       return;
     }
@@ -248,7 +251,11 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
 
     try {
       setIsCapturing(true);
+      setCaptureTarget('customer');
       await new Promise((resolve) => setTimeout(resolve, 300));
+      if (!customerReceiptRef.current) {
+        throw new Error('Customer receipt preview is not ready yet.');
+      }
       console.log('[OrderDetailModal] customer copy capture source', {
         orderId: printOrder.id,
         orderNumber: printOrder.order_number,
@@ -267,6 +274,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       Alert.alert('Print error', 'Failed to prepare the customer receipt.');
     } finally {
       setIsCapturing(false);
+      setCaptureTarget(null);
     }
   };
 
@@ -617,29 +625,28 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
         </Surface>
 
         {/* Hidden Receipt Template for capture */}
-        <View style={styles.hiddenReceiptContainer} pointerEvents="none">
-           <View ref={receiptRef} collapsable={false}>
-              <ReceiptTemplate 
-                order={printPreviewOrder || order} 
-                width={appSettings.printerPaperWidth === '58mm' ? 384 : 576} 
-                printSource="order-detail-modal:capture"
-                showTicketCounter={hasAnySimulatorAssignment(appSettings)}
-              />
-           </View>
-           <View ref={customerReceiptRef} collapsable={false}>
-              {console.log('[OrderDetailModal] hidden customer receipt order', {
-                orderId: (printPreviewOrder || order).id,
-                orderNumber: (printPreviewOrder || order).order_number,
-                customerName: (printPreviewOrder || order).customer_name,
-                userId: (printPreviewOrder || order).user_id,
-                receiptClaimToken: (printPreviewOrder || order).receipt_claim_token,
-              })}
-              <CustomerReceiptTemplate
-                order={printPreviewOrder || order}
-                width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
-              />
-           </View>
-        </View>
+        {captureTarget ? (
+          <View style={styles.hiddenReceiptContainer} pointerEvents="none">
+            {captureTarget === 'kitchen' ? (
+              <View ref={receiptRef} collapsable={false}>
+                <ReceiptTemplate
+                  order={printPreviewOrder || order}
+                  width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
+                  printSource="order-detail-modal:capture"
+                  showTicketCounter={hasAnySimulatorAssignment(appSettings)}
+                />
+              </View>
+            ) : null}
+            {captureTarget === 'customer' ? (
+              <View ref={customerReceiptRef} collapsable={false}>
+                <CustomerReceiptTemplate
+                  order={printPreviewOrder || order}
+                  width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
+                />
+              </View>
+            ) : null}
+          </View>
+        ) : null}
 
         <PrintSimulatorModal
           visible={!!showSimulator}

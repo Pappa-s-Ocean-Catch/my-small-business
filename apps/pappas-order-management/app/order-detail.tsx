@@ -6,10 +6,9 @@ import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types
 import { ActivityIndicator, Text } from 'react-native-paper';
 import { getOrder, refreshDeliveryStatus, updateOrderStatus, updatePaymentStatus } from '../lib/orders';
 import { DEFAULT_APP_SETTINGS, loadAppSettings } from '../lib/settings';
-import { escposPrintKitchenReceipt, formatPrinterError } from '../lib/escpos-printer';
-import type { SavedPrinter } from '../lib/escpos-printer';
+import { escposPrintKitchenReceipt, formatPrinterError, isSimulatorPrinter, type SavedPrinter } from '../lib/escpos-printer';
 import type { PrinterImageSource } from '../lib/printer-image';
-import { buildSectionPrintJobs, getSectionPrintTickets, hasAnySimulatorAssignment, resolvePrinterForSection, shouldSkipPrintForSection, shouldUseSimulatorForSection } from '../lib/printer-routing';
+import { buildSectionPrintJobs, getSectionPrintTickets, resolvePrinterForSection, shouldSkipPrintForSection } from '../lib/printer-routing';
 import { formatSmartpayError, isSmartpayPaired, processSmartpayCardPayment } from '../lib/smartpay';
 import { OrderDetailModal } from '../components/OrderDetailModal';
 import { generatePrintHTML, getNextQuickAction } from '../utils/orderUtils';
@@ -174,6 +173,13 @@ export default function OrderDetailScreen() {
     try {
       const settings = await loadAppSettings();
       if (selectedPrinter) {
+        if (isSimulatorPrinter(selectedPrinter)) {
+          setSimulatorOrder(selectedOrder);
+          setPrintImageUri(null);
+          setSimulatorImageLabels([selectedPrinter.deviceName]);
+          setShowSimulator(true);
+          return true;
+        }
         if (settings.printerEnabled) {
           await escposPrintKitchenReceipt(selectedOrder, selectedPrinter, 1, 'order-detail-screen:manual-single-printer');
           return true;
@@ -183,8 +189,8 @@ export default function OrderDetailScreen() {
       }
       const tickets = getSectionPrintTickets(selectedOrder);
       const jobs = buildSectionPrintJobs(settings, selectedOrder);
-      const simulatorJobs = jobs.filter((job) => job.useSimulator);
-      const printerJobs = jobs.filter((job) => !job.useSimulator && !!job.printer);
+      const simulatorJobs = jobs.filter((job) => !!job.printer && isSimulatorPrinter(job.printer));
+      const printerJobs = jobs.filter((job) => !!job.printer && !isSimulatorPrinter(job.printer));
       if (simulatorJobs.length > 0) {
         setSimulatorOrder(selectedOrder);
         setPrintImageUri(null);
@@ -234,6 +240,13 @@ export default function OrderDetailScreen() {
     try {
       const settings = await loadAppSettings();
       if (selectedPrinter) {
+        if (isSimulatorPrinter(selectedPrinter)) {
+          setSimulatorOrder(selectedOrder);
+          setPrintImageUri(image.kind === 'uri' ? image.uri : (image.previewUri ?? null));
+          setSimulatorImageLabels([selectedPrinter.deviceName]);
+          setShowSimulator(true);
+          return true;
+        }
         if (settings.printerEnabled) {
           const targetDots = settings.printerPaperWidth === '58mm' ? 384 : 576;
           const queuedJobs = enqueuePreparedPrintJobs({
@@ -256,7 +269,8 @@ export default function OrderDetailScreen() {
         await Print.printAsync({ html: generatePrintHTML(selectedOrder) });
         return true;
       }
-      if (settings.printerSimulator || hasAnySimulatorAssignment(settings)) {
+      const selected = resolvePrinterForSection(settings, getSectionPrintTickets(selectedOrder)[0]?.sections[0]?.sectionName || null);
+      if (selected && isSimulatorPrinter(selected)) {
         setSimulatorOrder(selectedOrder);
         setPrintImageUri(image.kind === 'uri' ? image.uri : (image.previewUri ?? null));
         setSimulatorImageLabels(['Customer Copy']);
@@ -264,7 +278,6 @@ export default function OrderDetailScreen() {
         return true;
       }
 
-      const selected = resolvePrinterForSection(settings, getSectionPrintTickets(selectedOrder)[0]?.sections[0]?.sectionName || null);
       if (settings.printerEnabled && selected) {
         const targetDots = settings.printerPaperWidth === '58mm' ? 384 : 576;
         const queuedJobs = enqueuePreparedPrintJobs({

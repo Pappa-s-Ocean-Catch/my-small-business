@@ -15,7 +15,7 @@ import {
   releaseKitchenPrintClaim,
   updateOrderStatus,
 } from '@/lib/orders';
-import { formatPrinterError } from '@/lib/escpos-printer';
+import { formatPrinterError, isSimulatorPrinter } from '@/lib/escpos-printer';
 import { captureReceiptForPrinter, captureReceiptPreview, type PrinterImageSource } from '@/lib/printer-image';
 import { buildSectionPrintJobs, hasAnySimulatorAssignment } from '@/lib/printer-routing';
 import { enqueuePreparedPrintJobs, processNextPendingPrintJob, waitForPrintJobs } from '@/lib/print-queue';
@@ -199,7 +199,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
         order: freshOrder,
         details: `jobs=${jobs.length}`,
       });
-      const capturedJobs: Array<{ image: PrinterImageSource; previewUri: string | null; label: string; useSimulator: boolean; printer: NonNullable<ReturnType<typeof buildSectionPrintJobs>[number]['printer']> | null }> = [];
+      const capturedJobs: Array<{ image: PrinterImageSource; previewUri: string | null; label: string; printer: NonNullable<ReturnType<typeof buildSectionPrintJobs>[number]['printer']> | null }> = [];
 
       for (let index = 0; index < jobs.length; index += 1) {
         const job = jobs[index];
@@ -230,7 +230,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
           details: `job=${job.label} wait=${formatDurationMs(refWaitStartedAt)}`,
         });
 
-        if (job.useSimulator || !job.printer) {
+        if (!job.printer || isSimulatorPrinter(job.printer)) {
           const captureStartedAt = Date.now();
           const uri = await captureReceiptPreview(receiptRef, targetDots * scale);
           logOrderEvent('info', 'print', 'Captured simulator preview for auto-print job', {
@@ -241,7 +241,6 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
             image: { kind: 'uri', uri },
             previewUri: uri,
             label: job.label,
-            useSimulator: job.useSimulator,
             printer: job.printer,
           });
         } else {
@@ -256,7 +255,6 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
             image,
             previewUri,
             label: job.label,
-            useSimulator: job.useSimulator,
             printer: job.printer,
           });
         }
@@ -266,7 +264,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
       const simulatorImageLabels: string[] = [];
       const printerJobs: Array<{ image: PrinterImageSource; printer: NonNullable<typeof capturedJobs[number]['printer']> }> = [];
       for (const job of capturedJobs) {
-        if (job.useSimulator) {
+        if (isSimulatorPrinter(job.printer)) {
           if (job.previewUri) simulatorImageUris.push(job.previewUri);
           simulatorImageLabels.push(job.label);
         } else {

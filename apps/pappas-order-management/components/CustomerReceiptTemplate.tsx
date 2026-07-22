@@ -19,14 +19,6 @@ export function CustomerReceiptTemplate({ order, width = 576 }: Props) {
   const siteUrl = getReceiptWebsiteUrl();
   const qrLandingUrl = getReceiptQrLandingUrl();
   const claimQrUrl = order.receipt_claim_token ? getReceiptOrderClaimUrl(order.receipt_claim_token) : null;
-  console.log('[CustomerReceiptTemplate] render', {
-    orderId: order.id,
-    orderNumber: order.order_number,
-    customerName: order.customer_name,
-    userId: order.user_id,
-    receiptClaimToken: order.receipt_claim_token,
-    claimQrUrl,
-  });
   const storeName = getReceiptStoreName();
   const addressLines = getReceiptStoreAddressLines();
   const storePhone = getReceiptStorePhone();
@@ -42,39 +34,70 @@ export function CustomerReceiptTemplate({ order, width = 576 }: Props) {
     : (isNarrow ? 128 : 144);
   const gstAmount = order.tax > 0 ? order.tax : Number((order.total / 11).toFixed(2));
   const subtotalExGst = Number((order.total - gstAmount).toFixed(2));
+  const orderDate = new Date(order.created_at);
+  const shortOrderNumber = `P${order.order_number?.split('-').pop()?.replace(/\D+/g, '') || order.id.slice(0, 6).toUpperCase()}`;
+  const paymentLabel = order.payment_status?.toUpperCase() === 'PAID' ? 'Paid' : 'Payment Pending';
+  const hasClaimQr = !!claimQrUrl;
 
   return (
     <View style={[styles.container, { width }]}>
-      <View style={styles.header}>
-        <Text style={styles.dateText}>{new Date(order.created_at).toLocaleString()}</Text>
+      <View style={styles.heroBand}>
+        <Text style={styles.heroEyebrow}>Customer Receipt</Text>
         <Text style={styles.storeName}>{storeName}</Text>
-        {addressLines.map((line) => (
-          <Text key={line} style={styles.addressText}>{line}</Text>
-        ))}
-        <Text style={styles.orderNumberText}>
-          P{order.order_number?.split('-').pop()?.replace(/\D+/g, '')}
-        </Text>
-        <Text style={styles.metaText}>
-          {getOrderChannelReceiptLabel(order)}
-        </Text>
+        <View style={styles.contactBlock}>
+          {addressLines.map((line) => (
+            <Text key={line} style={styles.addressText}>{line}</Text>
+          ))}
+          <Text style={styles.contactText}>{storePhone}</Text>
+          <Text style={styles.contactText}>{siteUrl.replace(/^https?:\/\//, '')}</Text>
+        </View>
       </View>
 
-      <View style={styles.divider} />
+      <View style={styles.headerCard}>
+        <View style={styles.headerRow}>
+          <View style={styles.headerMetaBlock}>
+            <Text style={styles.headerLabel}>Order</Text>
+            <Text style={styles.orderNumberText}>{shortOrderNumber}</Text>
+          </View>
+          <View style={styles.statusPill}>
+            <Text style={styles.statusPillText}>{paymentLabel}</Text>
+          </View>
+        </View>
+        <View style={styles.infoGrid}>
+          <View style={styles.infoCell}>
+            <Text style={styles.infoLabel}>Date</Text>
+            <Text style={styles.infoValue}>{orderDate.toLocaleDateString()}</Text>
+          </View>
+          <View style={styles.infoCell}>
+            <Text style={styles.infoLabel}>Time</Text>
+            <Text style={styles.infoValue}>{orderDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</Text>
+          </View>
+          <View style={styles.infoCell}>
+            <Text style={styles.infoLabel}>Order Type</Text>
+            <Text style={styles.infoValue}>{getOrderChannelReceiptLabel(order)}</Text>
+          </View>
+          <View style={styles.infoCell}>
+            <Text style={styles.infoLabel}>Guest</Text>
+            <Text style={styles.infoValue}>{order.customer_name?.trim() || 'Valued Customer'}</Text>
+          </View>
+        </View>
+      </View>
 
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Items</Text>
-        <Text style={styles.sectionTitle}>{getOrderLineItemCount(order)}</Text>
+        <Text style={styles.sectionTitle}>Order Items</Text>
+        <Text style={styles.sectionCount}>{getOrderLineItemCount(order)}</Text>
       </View>
 
       {(order.items || []).map((item, index) => {
         const isFreeItem = isFreePromotionOrderItem(order, item.product_name);
 
         return (
-        <View key={`${item.product_id || item.product_name}-${index}`} style={styles.itemBlock}>
+        <View key={`${item.product_id || item.product_name}-${index}`} style={styles.itemCard}>
           <View style={styles.itemRow}>
-            <Text style={styles.itemName}>
-              {item.quantity}x {item.product_name}
-            </Text>
+            <View style={styles.itemNameBlock}>
+              <Text style={styles.itemQty}>{item.quantity}x</Text>
+              <Text style={styles.itemName}>{item.product_name}</Text>
+            </View>
             <View style={styles.itemPriceBlock}>
               {isFreeItem ? (
                 <>
@@ -106,80 +129,79 @@ export function CustomerReceiptTemplate({ order, width = 576 }: Props) {
 
       {orderNotes ? (
         <>
-          <View style={styles.divider} />
-          <Text style={styles.notesTitle}>Notes</Text>
-          <Text style={styles.notesText}>{orderNotes}</Text>
+          <View style={styles.notePanel}>
+            <Text style={styles.notesTitle}>Order Notes</Text>
+            <Text style={styles.notesText}>{orderNotes}</Text>
+          </View>
         </>
       ) : null}
 
-      <View style={styles.divider} />
+      <View style={styles.totalsCard}>
+        <View style={styles.totalRow}>
+          <Text style={styles.totalLabel}>Subtotal (ex GST)</Text>
+          <Text style={styles.totalValue}>${formatMoney(subtotalExGst)}</Text>
+        </View>
+        {gstAmount > 0 ? (
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>GST (incl.)</Text>
+            <Text style={styles.totalValue}>${formatMoney(gstAmount)}</Text>
+          </View>
+        ) : null}
+        {order.delivery_fee > 0 ? (
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Delivery</Text>
+            <Text style={styles.totalValue}>${formatMoney(order.delivery_fee)}</Text>
+          </View>
+        ) : null}
+        {order.service_fee > 0 ? (
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Service Fee</Text>
+            <Text style={styles.totalValue}>${formatMoney(order.service_fee)}</Text>
+          </View>
+        ) : null}
+        {order.promotion_discount > 0 ? (
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>{promotionLabel}</Text>
+            <Text style={[styles.totalValue, styles.discountValue]}>-${formatMoney(order.promotion_discount)}</Text>
+          </View>
+        ) : null}
+        {order.coupon_discount > 0 ? (
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>
+              {order.coupon_code ? `Coupon (${order.coupon_code})` : 'Coupon Discount'}
+            </Text>
+            <Text style={[styles.totalValue, styles.discountValue]}>-${formatMoney(order.coupon_discount)}</Text>
+          </View>
+        ) : null}
+        {rewardPointsUsed > 0 && rewardPointsValue > 0 ? (
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Points ({rewardPointsUsed.toLocaleString()})</Text>
+            <Text style={[styles.totalValue, styles.discountValue]}>-${formatMoney(rewardPointsValue)}</Text>
+          </View>
+        ) : null}
+        {rewardPointsBalance > 0 ? (
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Points Balance</Text>
+            <Text style={styles.totalValue}>{rewardPointsBalance.toLocaleString()}</Text>
+          </View>
+        ) : null}
 
-      <View style={styles.totalRow}>
-        <Text style={styles.totalLabel}>Subtotal (ex GST)</Text>
-        <Text style={styles.totalValue}>${formatMoney(subtotalExGst)}</Text>
+        <View style={[styles.totalRow, styles.totalRowFinal]}>
+          <Text style={styles.grandTotalLabel}>TOTAL</Text>
+          <Text style={styles.grandTotalValue}>${formatMoney(order.total)}</Text>
+        </View>
+        <Text style={styles.paymentStatus}>{paymentLabel}</Text>
       </View>
-      {gstAmount > 0 ? (
-        <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>GST (incl.)</Text>
-          <Text style={styles.totalValue}>${formatMoney(gstAmount)}</Text>
-        </View>
-      ) : null}
-      {order.delivery_fee > 0 ? (
-        <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>Delivery</Text>
-          <Text style={styles.totalValue}>${formatMoney(order.delivery_fee)}</Text>
-        </View>
-      ) : null}
-      {order.service_fee > 0 ? (
-        <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>Service Fee</Text>
-          <Text style={styles.totalValue}>${formatMoney(order.service_fee)}</Text>
-        </View>
-      ) : null}
-      {order.promotion_discount > 0 ? (
-        <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>{promotionLabel}</Text>
-          <Text style={styles.totalValue}>-${formatMoney(order.promotion_discount)}</Text>
-        </View>
-      ) : null}
-      {order.coupon_discount > 0 ? (
-        <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>
-            {order.coupon_code ? `Coupon (${order.coupon_code})` : 'Coupon Discount'}
-          </Text>
-          <Text style={styles.totalValue}>-${formatMoney(order.coupon_discount)}</Text>
-        </View>
-      ) : null}
-      {rewardPointsUsed > 0 && rewardPointsValue > 0 ? (
-        <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>Points ({rewardPointsUsed.toLocaleString()})</Text>
-          <Text style={styles.totalValue}>-${formatMoney(rewardPointsValue)}</Text>
-        </View>
-      ) : null}
-      {rewardPointsBalance > 0 ? (
-        <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>Points Balance</Text>
-          <Text style={styles.totalValue}>{rewardPointsBalance.toLocaleString()}</Text>
-        </View>
-      ) : null}
 
-      <View style={[styles.totalRow, styles.totalRowFinal]}>
-        <Text style={styles.grandTotalLabel}>TOTAL</Text>
-        <Text style={styles.grandTotalValue}>${formatMoney(order.total)}</Text>
-      </View>
-      <Text style={styles.paymentStatus}>
-        {order.payment_status?.toUpperCase() === 'PAID' ? 'PAID' : 'UNPAID'}
-      </Text>
-
-      <View style={styles.qrSection}>
+      <View style={[styles.qrSection, !hasClaimQr ? styles.qrSectionSingle : null]}>
         <View style={styles.qrColumn}>
-          <Text style={styles.qrIntro}>Online with us</Text>
+          <Text style={styles.qrIntro}>Order Online</Text>
           <ReceiptQrCode value={qrLandingUrl} size={qrSize} />
-          <Text style={styles.websiteText}>{qrLandingUrl}</Text>
+          <Text style={styles.websiteText}>Scan for menu and online ordering</Text>
         </View>
         {claimQrUrl ? (
           <View style={styles.qrColumn}>
-            <Text style={styles.qrIntro}>Claim rewards</Text>
+            <Text style={styles.qrIntro}>Claim Rewards</Text>
             <ReceiptQrCode value={claimQrUrl} size={qrSize} />
             <Text style={styles.websiteText}>Scan to link this order</Text>
           </View>
@@ -187,9 +209,10 @@ export function CustomerReceiptTemplate({ order, width = 576 }: Props) {
       </View>
 
       <View style={styles.footerSection}>
-        <Text style={styles.footerText}>Thank you for your order.</Text>
-        <Text style={styles.footerText}>We appreciate your support and hope to see you again soon.</Text>
-        <Text style={styles.footerText}>To re-order by phone: {storePhone}</Text>
+        <Text style={styles.footerHeadline}>Thank you for your order</Text>
+        <Text style={styles.footerText}>Prepared fresh with care by {storeName}.</Text>
+        <Text style={styles.footerText}>Receipt issued on {orderDate.toLocaleString()}.</Text>
+        <Text style={styles.footerText}>To place your next order, call {storePhone}.</Text>
       </View>
     </View>
   );
@@ -198,61 +221,138 @@ export function CustomerReceiptTemplate({ order, width = 576 }: Props) {
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 18,
+  },
+  heroBand: {
     paddingHorizontal: 10,
-    paddingVertical: 10,
-  },
-  header: {
+    paddingTop: 6,
+    paddingBottom: 12,
     alignItems: 'center',
-    gap: 4,
+    borderBottomWidth: 2,
+    borderBottomColor: '#111',
   },
-  dateText: {
-    fontSize: 22,
-    color: '#000',
-    textAlign: 'center',
+  heroEyebrow: {
+    fontSize: 14,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    fontWeight: '700',
+    color: '#44403c',
+    marginBottom: 4,
+  },
+  contactBlock: {
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  headerCard: {
+    paddingTop: 12,
+    paddingBottom: 10,
   },
   storeName: {
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: '800',
     color: '#000',
     textAlign: 'center',
   },
   addressText: {
-    fontSize: 18,
+    fontSize: 16,
     color: '#000',
     textAlign: 'center',
   },
-  metaText: {
-    fontSize: 18,
+  contactText: {
+    fontSize: 15,
     color: '#000',
     textAlign: 'center',
-    marginTop: 2,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  headerMetaBlock: {
+    flex: 1,
+  },
+  headerLabel: {
+    fontSize: 13,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    fontWeight: '700',
+    color: '#57534e',
   },
   orderNumberText: {
-    fontSize: 42,
+    fontSize: 30,
     fontWeight: '900',
     color: '#000',
-    textAlign: 'center',
-    marginTop: 6,
+    marginTop: 4,
+  },
+  statusPill: {
+    borderWidth: 1.5,
+    borderColor: '#111',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#fff',
+  },
+  statusPillText: {
+    fontSize: 13,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    color: '#111',
+  },
+  infoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#d6d3d1',
+    paddingTop: 10,
+    gap: 8,
+  },
+  infoCell: {
+    width: '48%',
+  },
+  infoLabel: {
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    fontWeight: '700',
+    color: '#78716c',
+    marginBottom: 2,
+  },
+  infoValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111',
   },
   divider: {
     borderBottomWidth: 1,
-    borderBottomColor: '#000',
+    borderBottomColor: '#57534e',
     borderStyle: 'dashed',
-    marginVertical: 10,
+    marginVertical: 12,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginTop: 8,
+    marginBottom: 10,
   },
   sectionTitle: {
     fontSize: 22,
     fontWeight: '700',
     color: '#000',
   },
-  itemBlock: {
-    marginBottom: 8,
+  sectionCount: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#44403c',
+  },
+  itemCard: {
+    marginBottom: 12,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e7e5e4',
   },
   itemRow: {
     flexDirection: 'row',
@@ -260,22 +360,34 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 12,
   },
+  itemNameBlock: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  itemQty: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#111',
+    minWidth: 30,
+  },
   itemPriceBlock: {
     alignItems: 'flex-end',
   },
   itemName: {
     flex: 1,
-    fontSize: 24,
+    fontSize: 21,
     fontWeight: '700',
     color: '#000',
   },
   itemPrice: {
-    fontSize: 24,
+    fontSize: 21,
     fontWeight: '700',
     color: '#000',
   },
   itemPriceFree: {
-    fontSize: 24,
+    fontSize: 21,
     fontWeight: '700',
     color: '#059669',
   },
@@ -285,20 +397,36 @@ const styles = StyleSheet.create({
     textDecorationLine: 'line-through',
   },
   modifierText: {
-    fontSize: 18,
-    color: '#000',
-    paddingLeft: 12,
-    marginTop: 2,
+    fontSize: 15,
+    color: '#44403c',
+    paddingLeft: 38,
+    marginTop: 4,
+    lineHeight: 20,
+  },
+  notePanel: {
+    marginTop: 8,
+    paddingTop: 4,
+    paddingBottom: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#d6d3d1',
   },
   notesTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: '#000',
     marginBottom: 4,
   },
   notesText: {
-    fontSize: 18,
+    fontSize: 16,
     color: '#000',
+    lineHeight: 22,
+  },
+  totalsCard: {
+    marginTop: 6,
+    paddingTop: 12,
+    paddingBottom: 4,
+    borderTopWidth: 2,
+    borderTopColor: '#111',
   },
   totalRow: {
     flexDirection: 'row',
@@ -307,66 +435,93 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   totalLabel: {
-    fontSize: 20,
+    fontSize: 17,
     color: '#000',
   },
   totalValue: {
-    fontSize: 20,
+    fontSize: 17,
     color: '#000',
+    fontWeight: '600',
+  },
+  discountValue: {
+    color: '#047857',
   },
   totalRowFinal: {
-    marginTop: 6,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#111',
   },
   grandTotalLabel: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '800',
     color: '#000',
   },
   grandTotalValue: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '800',
     color: '#000',
   },
   paymentStatus: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: '700',
-    color: '#000',
+    color: '#44403c',
     textAlign: 'right',
-    marginTop: 2,
+    marginTop: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   qrSection: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     flexWrap: 'nowrap',
-    marginTop: 16,
+    marginTop: 18,
     gap: 12,
+  },
+  qrSectionSingle: {
+    justifyContent: 'center',
   },
   qrColumn: {
     alignItems: 'center',
     flex: 1,
     maxWidth: '48%',
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#d6d3d1',
   },
   qrIntro: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: '#000',
     marginBottom: 8,
   },
   websiteText: {
-    fontSize: 16,
-    color: '#000',
+    fontSize: 14,
+    color: '#44403c',
     textAlign: 'center',
     marginTop: 8,
   },
   footerSection: {
     alignItems: 'center',
-    marginTop: 14,
-    gap: 2,
+    marginTop: 16,
+    borderTopWidth: 2,
+    borderTopColor: '#111',
+    paddingTop: 14,
+  },
+  footerHeadline: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#111',
+    textAlign: 'center',
+    marginBottom: 4,
   },
   footerText: {
-    fontSize: 18,
-    color: '#000',
+    fontSize: 15,
+    color: '#44403c',
     textAlign: 'center',
+    lineHeight: 21,
+    marginTop: 2,
   },
 });

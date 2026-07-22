@@ -3,7 +3,7 @@ import { buildKitchenReceiptLines, type ReceiptLine } from './epson-epos';
 import { decodePngRgba } from './png';
 import type { PrinterImageSource } from './printer-image';
 
-export type PrinterDriver = 'epsonSdk' | 'rawTcp';
+export type PrinterDriver = 'epsonSdk' | 'rawTcp' | 'simulator';
 
 export type SavedPrinter = {
   target: string;
@@ -17,7 +17,9 @@ export type SavedPrinter = {
 };
 
 const TCP_TARGET_PREFIX = 'TCP:';
+const SIMULATOR_TARGET_PREFIX = 'SIMULATOR:';
 export const DEFAULT_MANUAL_PRINTER_PORT = 9100;
+export const DEFAULT_SIMULATOR_PRINTER_NAME = 'Print Simulator';
 const ESC = 0x1b;
 const GS = 0x1d;
 const LF = 0x0a;
@@ -107,8 +109,32 @@ export function createManualSavedPrinter(ipAddress: string, deviceName?: string,
   };
 }
 
+export function buildSimulatorPrinterTarget(name: string = DEFAULT_SIMULATOR_PRINTER_NAME): string {
+  const normalizedName = name.trim() || DEFAULT_SIMULATOR_PRINTER_NAME;
+  return `${SIMULATOR_TARGET_PREFIX}${normalizedName}`;
+}
+
+export function createSimulatorSavedPrinter(deviceName?: string): SavedPrinter {
+  const normalizedName = deviceName?.trim() || DEFAULT_SIMULATOR_PRINTER_NAME;
+  return {
+    target: buildSimulatorPrinterTarget(normalizedName),
+    deviceName: normalizedName,
+    driver: 'simulator',
+    deviceType: 'TYPE_VIRTUAL_PRINTER',
+  };
+}
+
+export function isSimulatorPrinter(printer: SavedPrinter | null | undefined): boolean {
+  return getPrinterDriver(printer) === 'simulator';
+}
+
+export function isSimulatorPrinterTarget(target: string | null | undefined): boolean {
+  return typeof target === 'string' && target.startsWith(SIMULATOR_TARGET_PREFIX);
+}
+
 export function getPrinterDriver(printer: SavedPrinter | null | undefined): PrinterDriver {
   if (printer?.driver === 'rawTcp') return 'rawTcp';
+  if (printer?.driver === 'simulator' || isSimulatorPrinterTarget(printer?.target)) return 'simulator';
   return 'epsonSdk';
 }
 

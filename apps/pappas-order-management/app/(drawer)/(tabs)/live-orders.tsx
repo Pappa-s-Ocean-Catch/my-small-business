@@ -32,8 +32,7 @@ import { OrderDetailModal } from '@/components/OrderDetailModal';
 import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
 import { CashTenderModal } from '@/components/CashTenderModal';
 import { useOrderActions } from '@/hooks/useOrderActions';
-import { formatPrinterError } from '@/lib/escpos-printer';
-import type { SavedPrinter } from '@/lib/escpos-printer';
+import { formatPrinterError, isSimulatorPrinter, type SavedPrinter } from '@/lib/escpos-printer';
 import { buildSectionPrintJobs, hasAnySimulatorAssignment } from '@/lib/printer-routing';
 import { captureReceiptForPrinter, captureReceiptPreview, type PrinterImageSource } from '@/lib/printer-image';
 import { enqueuePreparedPrintJobs, waitForPrintJobs } from '@/lib/print-queue';
@@ -276,6 +275,25 @@ export default function LiveOrdersScreen() {
           details: `wait=${formatDurationMs(refWaitStartedAt)}`,
         });
 
+        if (isSimulatorPrinter(selectedPrinter)) {
+          const captureStartedAt = Date.now();
+          const uri = await captureReceiptPreview(receiptRef, targetDots * scale);
+          logOrderEvent('info', 'print', 'Captured simulator preview for direct printer', {
+            order: freshOrder,
+            details: `capture=${formatDurationMs(captureStartedAt)} width=${targetDots * scale}`,
+          });
+          setSimulatorOrder(freshOrder);
+          setPrintImageUri(uri);
+          setPrintImageUris([uri]);
+          setPrintImageLabels([selectedPrinter.deviceName]);
+          setShowSimulator(true);
+          logOrderEvent('success', 'print', 'Manual print opened in simulator', {
+            order: freshOrder,
+            details: `printer=${selectedPrinter.deviceName}`,
+          });
+          return;
+        }
+
         const captureStartedAt = Date.now();
         const image = await captureReceiptForPrinter(receiptRef, selectedPrinter, targetDots * scale);
         logOrderEvent('info', 'print', 'Captured receipt image for direct printer', {
@@ -315,14 +333,13 @@ export default function LiveOrdersScreen() {
             key: `manual:${selectedPrinter.target}`,
             assignmentId: 'manual-selected-printer',
             sectionName: null,
-            useSimulator: false,
             printer: selectedPrinter,
             printMode: 'combine' as const,
             duplicateBySections: false,
             label: `Manual -> ${selectedPrinter.deviceName}`,
           }]
         : buildSectionPrintJobs(s, freshOrder);
-      const capturedJobs: Array<{ image: PrinterImageSource; previewUri: string | null; label: string; useSimulator: boolean; printer: NonNullable<ReturnType<typeof buildSectionPrintJobs>[number]['printer']> | null }> = [];
+      const capturedJobs: Array<{ image: PrinterImageSource; previewUri: string | null; label: string; printer: NonNullable<ReturnType<typeof buildSectionPrintJobs>[number]['printer']> | null }> = [];
       for (let index = 0; index < jobs.length; index += 1) {
         const job = jobs[index];
         const jobStartedAt = Date.now();
@@ -352,14 +369,14 @@ export default function LiveOrdersScreen() {
           details: `job=${job.label} wait=${formatDurationMs(refWaitStartedAt)}`,
         });
 
-        if (job.useSimulator || !job.printer) {
+        if (!job.printer || isSimulatorPrinter(job.printer)) {
           const captureStartedAt = Date.now();
           const uri = await captureReceiptPreview(receiptRef, targetDots * scale);
           logOrderEvent('info', 'print', 'Captured simulator preview for routed print job', {
             order: freshOrder,
             details: `job=${job.label} capture=${formatDurationMs(captureStartedAt)} width=${targetDots * scale}`,
           });
-          capturedJobs.push({ image: { kind: 'uri', uri }, previewUri: uri, label: job.label, useSimulator: job.useSimulator, printer: job.printer });
+          capturedJobs.push({ image: { kind: 'uri', uri }, previewUri: uri, label: job.label, printer: job.printer });
         } else {
           const captureStartedAt = Date.now();
           const image = await captureReceiptForPrinter(receiptRef, job.printer, targetDots * scale);
@@ -368,7 +385,7 @@ export default function LiveOrdersScreen() {
             order: freshOrder,
             details: `job=${job.label} capture=${formatDurationMs(captureStartedAt)} printer=${job.printer.deviceName} driver=${job.printer.driver ?? 'epsonSdk'}`,
           });
-          capturedJobs.push({ image, previewUri, label: job.label, useSimulator: job.useSimulator, printer: job.printer });
+          capturedJobs.push({ image, previewUri, label: job.label, printer: job.printer });
         }
       }
 
@@ -376,7 +393,7 @@ export default function LiveOrdersScreen() {
       const simulatorImageLabels: string[] = [];
       const printerJobs: Array<{ image: PrinterImageSource; printer: NonNullable<typeof capturedJobs[number]['printer']> }> = [];
       for (const job of capturedJobs) {
-        if (job.useSimulator) {
+        if (isSimulatorPrinter(job.printer)) {
           if (job.previewUri) simulatorImageUris.push(job.previewUri);
           simulatorImageLabels.push(job.label);
         } else {

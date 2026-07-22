@@ -1,6 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SOUND_OPTIONS, type SoundId } from './sounds';
-import type { SavedPrinter } from './escpos-printer';
+import {
+    createSimulatorSavedPrinter,
+    isSimulatorPrinterTarget,
+    type SavedPrinter,
+} from './escpos-printer';
 
 function isSavedPrinter(value: unknown): value is SavedPrinter {
     const v = value as any;
@@ -11,7 +15,6 @@ export type PrinterSectionAssignment = {
     id: string;
     sectionName: string;
     printerTarget: string | null;
-    useSimulator?: boolean;
     printMode?: 'combine' | 'separate';
     isDefault?: boolean;
 };
@@ -34,7 +37,6 @@ function normalizePrinterSectionAssignment(value: unknown): PrinterSectionAssign
         id,
         sectionName,
         printerTarget,
-        useSimulator: !!v.useSimulator,
         printMode: v.printMode === 'separate' ? 'separate' : 'combine',
         isDefault: !!v.isDefault || sectionName.toLowerCase() === 'default',
     };
@@ -42,10 +44,21 @@ function normalizePrinterSectionAssignment(value: unknown): PrinterSectionAssign
 
 function normalizePrinterSectionAssignments(
     value: unknown,
-    legacySelectedTarget: string | null
+    legacySelectedTarget: string | null,
+    simulatorTarget: string | null,
+    legacySimulatorEnabled: boolean
 ): PrinterSectionAssignment[] {
     const rawAssignments = Array.isArray(value)
-        ? value.map(normalizePrinterSectionAssignment).filter((item): item is PrinterSectionAssignment => !!item)
+        ? value
+            .map((item) => {
+                const normalized = normalizePrinterSectionAssignment(item);
+                if (!normalized) return null;
+                const legacyUseSimulator = !!(item as Partial<{ useSimulator: boolean }> | null)?.useSimulator;
+                return legacyUseSimulator && simulatorTarget
+                    ? { ...normalized, printerTarget: simulatorTarget }
+                    : normalized;
+            })
+            .filter((item): item is PrinterSectionAssignment => !!item)
         : [];
 
     const deduped: PrinterSectionAssignment[] = [];
@@ -70,8 +83,7 @@ function normalizePrinterSectionAssignments(
         deduped.unshift({
             id: 'default-printer',
             sectionName: 'Default',
-            printerTarget: legacySelectedTarget,
-            useSimulator: false,
+            printerTarget: legacySimulatorEnabled && simulatorTarget ? simulatorTarget : legacySelectedTarget,
             printMode: 'combine',
             isDefault: true,
         });
@@ -94,8 +106,6 @@ export type AppSettings = {
     printerSelectedTarget: string | null;
     printerSaved: SavedPrinter[];
     printerSectionAssignments: PrinterSectionAssignment[];
-    printerSimulator: boolean;
-
     /** Seconds to wait before auto-printing a new kitchen ticket. */
     printerDelayPrintSec: number;
 
@@ -153,11 +163,9 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
         id: 'default-printer',
         sectionName: 'Default',
         printerTarget: null,
-        useSimulator: false,
         printMode: 'combine',
         isDefault: true,
     }],
-    printerSimulator: false,
 
     printerDelayPrintSec: 3,
     printerPaperWidth: '80mm',
@@ -211,12 +219,29 @@ export async function loadAppSettings(): Promise<AppSettings> {
             ? (parsed as any).printerSelectedTarget
             : DEFAULT_APP_SETTINGS.printerSelectedTarget;
 
-        const printerSaved: SavedPrinter[] = Array.isArray((parsed as any)?.printerSaved)
+        const legacySimulatorEnabled = typeof (parsed as any)?.printerSimulator === 'boolean'
+            ? (parsed as any).printerSimulator
+            : false;
+        const legacyHasSimulatorAssignment = Array.isArray((parsed as any)?.printerSectionAssignments)
+            && (parsed as any).printerSectionAssignments.some((assignment: any) => !!assignment?.useSimulator);
+        const shouldEnsureSimulatorPrinter = legacySimulatorEnabled || legacyHasSimulatorAssignment;
+        let printerSaved: SavedPrinter[] = Array.isArray((parsed as any)?.printerSaved)
             ? ((parsed as any).printerSaved as unknown[]).filter(isSavedPrinter)
             : DEFAULT_APP_SETTINGS.printerSaved;
+        let simulatorTarget: string | null = null;
+        const existingSimulator = printerSaved.find((printer) => isSimulatorPrinterTarget(printer.target)) || null;
+        if (existingSimulator) {
+            simulatorTarget = existingSimulator.target;
+        } else if (shouldEnsureSimulatorPrinter) {
+            const simulatorPrinter = createSimulatorSavedPrinter();
+            printerSaved = [simulatorPrinter, ...printerSaved];
+            simulatorTarget = simulatorPrinter.target;
+        }
         const printerSectionAssignments = normalizePrinterSectionAssignments(
             (parsed as any)?.printerSectionAssignments,
-            printerSelectedTarget
+            printerSelectedTarget,
+            simulatorTarget,
+            legacySimulatorEnabled
         );
 
         const printerDelayPrintSec = clampInt(
@@ -240,9 +265,6 @@ export async function loadAppSettings(): Promise<AppSettings> {
             printerSelectedTarget,
             printerSaved,
             printerSectionAssignments,
-            printerSimulator: typeof (parsed as any)?.printerSimulator === 'boolean'
-                ? (parsed as any).printerSimulator
-                : DEFAULT_APP_SETTINGS.printerSimulator,
 
             printerDelayPrintSec,
             printerPaperWidth: parsed?.printerPaperWidth === '58mm' ? '58mm' : '80mm',
@@ -273,9 +295,10 @@ export async function saveAppSettings(settings: AppSettings): Promise<void> {
         printerSaved: Array.isArray(settings.printerSaved) ? settings.printerSaved.filter(isSavedPrinter) : [],
         printerSectionAssignments: normalizePrinterSectionAssignments(
             settings.printerSectionAssignments,
-            settings.printerSelectedTarget ? String(settings.printerSelectedTarget) : null
+            settings.printerSelectedTarget ? String(settings.printerSelectedTarget) : null,
+            null,
+            false
         ),
-        printerSimulator: !!settings.printerSimulator,
 
         printerDelayPrintSec: clampInt(settings.printerDelayPrintSec, 0, 120),
         printerPaperWidth: settings.printerPaperWidth === '58mm' ? '58mm' : '80mm',
