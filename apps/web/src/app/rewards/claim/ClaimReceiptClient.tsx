@@ -8,8 +8,48 @@ import { claimReceiptOrder, getReceiptClaimDetails } from '@/app/actions/receipt
 import { signUpCustomer } from '@/app/actions/customer-auth';
 import { canSendMagicLink } from '@/app/actions/auth';
 import { sendMagicLinkInvite } from '@/app/actions/email';
+import { completePhoneCustomerProfile } from '@/app/actions/customer-phone-auth';
 
 type ClaimState = Awaited<ReturnType<typeof getReceiptClaimDetails>>;
+const phoneLoginEnabled =
+  typeof process.env.NEXT_PUBLIC_ENABLE_CHECKOUT_PHONE_LOGIN === 'string' &&
+  (process.env.NEXT_PUBLIC_ENABLE_CHECKOUT_PHONE_LOGIN === 'true' ||
+    process.env.NEXT_PUBLIC_ENABLE_CHECKOUT_PHONE_LOGIN === '1');
+
+function normalizeAuPhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.startsWith('61') && digits.length === 11) {
+    return `+${digits}`;
+  }
+  if (digits.startsWith('04') && digits.length === 10) {
+    return `+61${digits.slice(1)}`;
+  }
+  if (phone.startsWith('+614') && phone.replace(/\D/g, '').length === 11) {
+    return `+${phone.replace(/\D/g, '')}`;
+  }
+  return phone.trim();
+}
+
+function buildFallbackOrderEmail(phone: string): string {
+  const normalizedDigits = phone.replace(/\D/g, '');
+  return `phone-${normalizedDigits}@no-email.local`;
+}
+
+function isPlaceholderCustomerEmail(email: string | undefined | null): boolean {
+  if (!email || !email.trim()) return true;
+  return /^phone-\d+@no-email\.local$/i.test(email.trim());
+}
+
+function mapPhoneAuthError(errorMessage: string): string {
+  const normalized = errorMessage.toLowerCase();
+  if (normalized.includes('unsupported phone provider')) {
+    return 'Phone login is not enabled yet. Please use email login for now.';
+  }
+  if (normalized.includes('invalid phone')) {
+    return 'Please enter a valid Australian mobile number like +614XXXXXXXX.';
+  }
+  return errorMessage;
+}
 
 export function ClaimReceiptClient() {
   const searchParams = useSearchParams();
@@ -23,9 +63,24 @@ export function ClaimReceiptClient() {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
+  const [loginPhone, setLoginPhone] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpResendCountdown, setOtpResendCountdown] = useState(0);
+  const [requiresPhoneProfileCompletion, setRequiresPhoneProfileCompletion] = useState(false);
+  const [phoneProfileName, setPhoneProfileName] = useState('');
+  const [phoneProfileEmail, setPhoneProfileEmail] = useState('');
+  const [phoneAuthUser, setPhoneAuthUser] = useState<{ id: string; phone: string; email: string } | null>(null);
   const [isClaimPending, startClaimTransition] = useTransition();
   const [isSignupPending, startSignupTransition] = useTransition();
   const [isMagicPending, startMagicTransition] = useTransition();
+  const [isPhonePending, startPhoneTransition] = useTransition();
+
+  useEffect(() => {
+    if (otpResendCountdown <= 0) return;
+    const timer = window.setTimeout(() => setOtpResendCountdown((value) => value - 1), 1000);
+    return () => window.clearTimeout(timer);
+  }, [otpResendCountdown]);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,6 +99,7 @@ export function ClaimReceiptClient() {
   }, [token]);
 
   const order = claimState?.order;
+  const shouldHideOrderDetails = Boolean(order?.alreadyClaimed && !order?.claimedByCurrentUser);
 
   const handleClaim = () => {
     setErrorMessage(null);
@@ -130,6 +186,150 @@ export function ClaimReceiptClient() {
     });
   };
 
+  const handleSendPhoneOtp = () => {
+    setErrorMessage(null);
+    setStatusMessage(null);
+
+    startPhoneTransition(async () => {
+      try {
+        const normalizedPhone = normalizeAuPhone(loginPhone);
+        if (!normalizedPhone.startsWith('+614')) {
+          throw new Error('Please enter a valid Australian mobile number (e.g. +61 4XX XXX XXX).');
+        }
+
+        const supabase = getSupabaseClient();
+        const { error } = await supabase.auth.signInWithOtp({
+          phone: normalizedPhone,
+          options: {
+            shouldCreateUser: true,
+            data: { phone: normalizedPhone },
+          },
+        });
+
+        if (error) {
+          throw new Error(mapPhoneAuthError(error.message));
+        }
+
+        setLoginPhone(normalizedPhone);
+        setOtpSent(true);
+        setOtpResendCountdown(30);
+        setStatusMessage('Verification code sent to your mobile.');
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : 'Failed to send verification code.');
+      }
+    });
+  };
+
+  const handleVerifyPhoneOtp = () => {
+    setErrorMessage(null);
+    setStatusMessage(null);
+
+    startPhoneTransition(async () => {
+      try {
+        const normalizedPhone = normalizeAuPhone(loginPhone);
+        if (!otpCode || otpCode.length < 6) {
+          throw new Error('Please enter the 6-digit verification code.');
+        }
+
+        const supabase = getSupabaseClient();
+        const { data, error } = await supabase.auth.verifyOtp({
+          phone: normalizedPhone,
+          token: otpCode,
+          type: 'sms',
+        });
+
+        if (error) {
+          throw new Error(mapPhoneAuthError(error.message));
+        }
+
+        if (!data.user) {
+          throw new Error('Verification succeeded but no user session was found.');
+        }
+
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('id, email, full_name, phone')
+          .eq('id', data.user.id)
+          .single();
+
+        if (profileError || !profile) {
+          throw new Error('Phone verified, but profile could not be loaded. Please try again.');
+        }
+
+        const profilePhone = profile.phone || normalizedPhone;
+        const finalEmail = profile.email || buildFallbackOrderEmail(profilePhone);
+        setPhoneAuthUser({ id: profile.id, phone: profilePhone, email: finalEmail });
+        setOtpCode('');
+
+        if (!profile.full_name) {
+          setRequiresPhoneProfileCompletion(true);
+          setPhoneProfileName('');
+          setPhoneProfileEmail(isPlaceholderCustomerEmail(profile.email) ? '' : profile.email || '');
+          setStatusMessage('Mobile verified. Finish your profile to link this receipt.');
+          return;
+        }
+
+        const claimResult = await claimReceiptOrder(token);
+        if (!claimResult.success) {
+          throw new Error(claimResult.error || 'Failed to link receipt after mobile login.');
+        }
+
+        setStatusMessage(
+          claimResult.pointsEarned
+            ? `Mobile verified and receipt linked. ${claimResult.pointsEarned.toLocaleString()} reward points added.`
+            : 'Mobile verified and receipt linked successfully.'
+        );
+        setClaimState(await getReceiptClaimDetails(token));
+        router.refresh();
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : 'Failed to verify code.');
+      }
+    });
+  };
+
+  const handleCompletePhoneProfile = () => {
+    setErrorMessage(null);
+    setStatusMessage(null);
+
+    startPhoneTransition(async () => {
+      try {
+        if (!phoneAuthUser?.id) {
+          throw new Error('Missing authenticated mobile user.');
+        }
+        if (!phoneProfileName.trim()) {
+          throw new Error('Please enter your full name.');
+        }
+
+        const result = await completePhoneCustomerProfile({
+          userId: phoneAuthUser.id,
+          fullName: phoneProfileName.trim(),
+          email: phoneProfileEmail.trim() || undefined,
+          phone: phoneAuthUser.phone,
+        });
+
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to complete profile.');
+        }
+
+        setRequiresPhoneProfileCompletion(false);
+        const claimResult = await claimReceiptOrder(token);
+        if (!claimResult.success) {
+          throw new Error(claimResult.error || 'Failed to link receipt after profile completion.');
+        }
+
+        setStatusMessage(
+          claimResult.pointsEarned
+            ? `Profile completed and receipt linked. ${claimResult.pointsEarned.toLocaleString()} reward points added.`
+            : 'Profile completed and receipt linked successfully.'
+        );
+        setClaimState(await getReceiptClaimDetails(token));
+        router.refresh();
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : 'Failed to complete profile.');
+      }
+    });
+  };
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#fde68a_0%,_#fff7ed_32%,_#fff_72%)] px-4 py-10 text-gray-900">
       <div className="mx-auto max-w-4xl overflow-hidden rounded-[2rem] bg-white shadow-[0_24px_80px_rgba(120,53,15,0.12)] ring-1 ring-amber-100">
@@ -143,7 +343,7 @@ export function ClaimReceiptClient() {
               Link this purchase to your account and keep your in-store rewards in one place.
             </p>
 
-            {order ? (
+            {order && !shouldHideOrderDetails ? (
               <div className="mt-8 grid gap-4 rounded-[1.5rem] bg-white/10 p-5 backdrop-blur-sm sm:grid-cols-2">
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] text-amber-200">Order</p>
@@ -161,6 +361,10 @@ export function ClaimReceiptClient() {
                   <p className="text-xs uppercase tracking-[0.2em] text-amber-200">Purchased</p>
                   <p className="mt-1 text-sm text-white/80">{new Date(order.createdAt).toLocaleString()}</p>
                 </div>
+              </div>
+            ) : order ? (
+              <div className="mt-8 rounded-[1.5rem] bg-white/10 p-5 text-sm text-white/80 backdrop-blur-sm">
+                This receipt has already been linked to a rewards account.
               </div>
             ) : (
               <div className="mt-8 rounded-[1.5rem] bg-white/10 p-5 text-sm text-white/80 backdrop-blur-sm">
@@ -186,24 +390,26 @@ export function ClaimReceiptClient() {
               </div>
             ) : (
               <>
-                <div className="rounded-[1.5rem] border border-amber-100 bg-amber-50/60 p-5">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.2em] text-amber-700">Receipt summary</p>
-                      <p className="mt-1 text-lg font-semibold text-gray-950">{order.orderNumber}</p>
+                {!shouldHideOrderDetails ? (
+                  <div className="rounded-[1.5rem] border border-amber-100 bg-amber-50/60 p-5">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.2em] text-amber-700">Receipt summary</p>
+                        <p className="mt-1 text-lg font-semibold text-gray-950">{order.orderNumber}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs uppercase tracking-[0.2em] text-amber-700">Total</p>
+                        <p className="mt-1 text-lg font-semibold text-gray-950">${order.total.toFixed(2)}</p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-xs uppercase tracking-[0.2em] text-amber-700">Total</p>
-                      <p className="mt-1 text-lg font-semibold text-gray-950">${order.total.toFixed(2)}</p>
+                    <div className="mt-4 grid gap-2 text-sm text-gray-600 sm:grid-cols-2">
+                      <p>Purchased: {new Date(order.createdAt).toLocaleString()}</p>
+                      <p>Points to add: {order.rewardPointsEstimate.toLocaleString()}</p>
+                      {order.customerName ? <p>Name on receipt: {order.customerName}</p> : <p>Guest in-store order</p>}
+                      <p>Status: {order.paymentStatus.toUpperCase()} / {order.orderStatus.toUpperCase()}</p>
                     </div>
                   </div>
-                  <div className="mt-4 grid gap-2 text-sm text-gray-600 sm:grid-cols-2">
-                    <p>Purchased: {new Date(order.createdAt).toLocaleString()}</p>
-                    <p>Points to add: {order.rewardPointsEstimate.toLocaleString()}</p>
-                    {order.customerName ? <p>Name on receipt: {order.customerName}</p> : <p>Guest in-store order</p>}
-                    <p>Status: {order.paymentStatus.toUpperCase()} / {order.orderStatus.toUpperCase()}</p>
-                  </div>
-                </div>
+                ) : null}
 
                 {statusMessage ? (
                   <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
@@ -219,10 +425,98 @@ export function ClaimReceiptClient() {
 
                 {order.alreadyClaimed && !order.claimedByCurrentUser ? (
                   <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-                    This receipt has already been linked to another customer account.
+                    This receipt has already been linked to a rewards account.
                   </div>
                 ) : claimState.requiresAuth ? (
                   <div className="mt-6 grid gap-5">
+                    {phoneLoginEnabled ? (
+                      <div className="rounded-[1.5rem] border border-gray-200 p-5 shadow-sm">
+                        <h3 className="text-lg font-semibold text-gray-950">Login with mobile number</h3>
+                        <p className="mt-2 text-sm text-gray-600">
+                          Use your phone number to verify your account and link this receipt.
+                        </p>
+                        {!requiresPhoneProfileCompletion ? (
+                          <div className="mt-4 grid gap-3">
+                            <input
+                              type="tel"
+                              value={loginPhone}
+                              onChange={(event) => setLoginPhone(event.target.value)}
+                              placeholder="+61 4XX XXX XXX"
+                              className="h-11 rounded-xl border border-gray-300 px-3 outline-none ring-0 transition focus:border-amber-500"
+                            />
+                            {!otpSent ? (
+                              <button
+                                type="button"
+                                onClick={handleSendPhoneOtp}
+                                disabled={!loginPhone || isPhonePending}
+                                className="h-11 rounded-xl bg-gray-950 px-5 text-sm font-medium text-white transition hover:bg-gray-800 disabled:opacity-50"
+                              >
+                                {isPhonePending ? 'Sending code...' : 'Send verification code'}
+                              </button>
+                            ) : (
+                              <>
+                                <input
+                                  type="text"
+                                  value={otpCode}
+                                  onChange={(event) => setOtpCode(event.target.value)}
+                                  placeholder="Enter 6-digit code"
+                                  maxLength={6}
+                                  className="h-11 rounded-xl border border-gray-300 px-3 outline-none ring-0 transition focus:border-amber-500"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={handleVerifyPhoneOtp}
+                                  disabled={!otpCode || isPhonePending}
+                                  className="h-11 rounded-xl bg-emerald-600 px-5 text-sm font-medium text-white transition hover:bg-emerald-500 disabled:opacity-50"
+                                >
+                                  {isPhonePending ? 'Verifying...' : 'Verify and continue'}
+                                </button>
+                                {otpResendCountdown > 0 ? (
+                                  <p className="text-sm text-gray-500">
+                                    You can request a new code in {otpResendCountdown}s.
+                                  </p>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={handleSendPhoneOtp}
+                                    disabled={isPhonePending}
+                                    className="h-11 rounded-xl border border-gray-300 px-5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
+                                  >
+                                    Resend code
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="mt-4 grid gap-3">
+                            <input
+                              type="text"
+                              value={phoneProfileName}
+                              onChange={(event) => setPhoneProfileName(event.target.value)}
+                              placeholder="Full name"
+                              className="h-11 rounded-xl border border-gray-300 px-3 outline-none ring-0 transition focus:border-amber-500"
+                            />
+                            <input
+                              type="email"
+                              value={phoneProfileEmail}
+                              onChange={(event) => setPhoneProfileEmail(event.target.value)}
+                              placeholder="Email (optional)"
+                              className="h-11 rounded-xl border border-gray-300 px-3 outline-none ring-0 transition focus:border-amber-500"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleCompletePhoneProfile}
+                              disabled={!phoneProfileName || isPhonePending}
+                              className="h-11 rounded-xl bg-amber-500 px-5 text-sm font-medium text-black transition hover:bg-amber-400 disabled:opacity-50"
+                            >
+                              {isPhonePending ? 'Saving profile...' : 'Complete profile and link receipt'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+
                     <div className="rounded-[1.5rem] border border-gray-200 p-5 shadow-sm">
                       <h3 className="text-lg font-semibold text-gray-950">Already have an account?</h3>
                       <p className="mt-2 text-sm text-gray-600">

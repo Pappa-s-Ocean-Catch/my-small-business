@@ -131,14 +131,7 @@ export async function claimReceiptOrder(token: string): Promise<{
     }
 
     const supabase = await createServiceRoleClient();
-    const [{ data: profile, error: profileError }, order] = await Promise.all([
-      supabase.from('profiles').select('full_name, email, phone').eq('id', user.id).single(),
-      fetchClaimableOrder(normalizedToken),
-    ]);
-
-    if (profileError) {
-      return { success: false, error: profileError.message };
-    }
+    const order = await fetchClaimableOrder(normalizedToken);
 
     if (!order || order.order_channel !== 'instore') {
       return { success: false, error: 'This receipt claim link is not available.' };
@@ -172,9 +165,6 @@ export async function claimReceiptOrder(token: string): Promise<{
       user_id: user.id,
       receipt_claimed_at: new Date().toISOString(),
       receipt_claimed_by_user_id: user.id,
-      customer_name: order.customer_name?.trim() ? order.customer_name : profile.full_name ?? null,
-      customer_email: order.customer_email?.trim() ? order.customer_email : profile.email ?? '',
-      customer_phone: order.customer_phone?.trim() ? order.customer_phone : profile.phone ?? '',
       updated_at: new Date().toISOString(),
     };
 

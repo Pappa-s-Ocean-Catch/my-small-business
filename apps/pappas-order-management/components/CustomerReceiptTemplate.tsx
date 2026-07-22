@@ -38,7 +38,7 @@ export function CustomerReceiptTemplate({ order, width = 576 }: Props) {
   const promotionLabel = promotionSummary?.label || 'Promotion Discount';
   const isNarrow = width <= 384;
   const qrSize = claimQrUrl
-    ? (isNarrow ? 112 : 128)
+    ? (isNarrow ? 146 : 166)
     : (isNarrow ? 128 : 144);
   const gstAmount = order.tax > 0 ? order.tax : Number((order.total / 11).toFixed(2));
   const subtotalExGst = Number((order.total - gstAmount).toFixed(2));
