@@ -380,6 +380,14 @@ export function ClaimReceiptClient() {
               <p className="mt-2 text-sm leading-6 text-gray-600">
                 Sign in or create your account to save this in-store order to your rewards profile.
               </p>
+              <div className="mt-4">
+                <Link
+                  href="/"
+                  className="inline-flex items-center justify-center rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900 transition hover:bg-amber-100"
+                >
+                  Back to home
+                </Link>
+              </div>
             </div>
 
             {!claimState ? (
