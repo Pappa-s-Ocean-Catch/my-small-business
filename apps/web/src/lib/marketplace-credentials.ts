@@ -1,4 +1,4 @@
-import { createCipheriv, createHash, randomBytes } from 'crypto';
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
 import { createServiceRoleClient } from '@my-small-business/supabase/server';
 
 export type MarketplaceProvider = 'uber_eats' | 'doordash';
@@ -11,6 +11,14 @@ export type MarketplaceCredentialStatus = {
 };
 
 const MARKETPLACE_PROVIDERS: MarketplaceProvider[] = ['uber_eats', 'doordash'];
+
+function normalizeCookieHeaderValue(rawValue: string) {
+  return rawValue
+    .trim()
+    .replace(/^cookie\s*:\s*/i, '')
+    .replace(/\r?\n/g, ' ')
+    .trim();
+}
 
 function getMarketplaceSecret(): string {
   const secret = process.env.MARKETPLACE_CONFIG_SECRET;
@@ -31,9 +39,10 @@ function getEncryptionKey() {
 }
 
 function encryptCookies(rawCookies: string) {
+  const normalizedCookies = normalizeCookieHeaderValue(rawCookies);
   const iv = randomBytes(12);
   const cipher = createCipheriv('aes-256-gcm', getEncryptionKey(), iv);
-  const encrypted = Buffer.concat([cipher.update(rawCookies, 'utf8'), cipher.final()]);
+  const encrypted = Buffer.concat([cipher.update(normalizedCookies, 'utf8'), cipher.final()]);
   const tag = cipher.getAuthTag();
 
   return {
@@ -41,6 +50,26 @@ function encryptCookies(rawCookies: string) {
     encryptionIv: iv.toString('base64'),
     encryptionTag: tag.toString('base64'),
   };
+}
+
+function decryptCookies(input: {
+  encryptedCookies: string;
+  encryptionIv: string;
+  encryptionTag: string;
+}) {
+  const decipher = createDecipheriv(
+    'aes-256-gcm',
+    getEncryptionKey(),
+    Buffer.from(input.encryptionIv, 'base64')
+  );
+  decipher.setAuthTag(Buffer.from(input.encryptionTag, 'base64'));
+
+  const decrypted = Buffer.concat([
+    decipher.update(Buffer.from(input.encryptedCookies, 'base64')),
+    decipher.final(),
+  ]);
+
+  return decrypted.toString('utf8');
 }
 
 export async function authenticateMarketplaceRequest(request: Request) {
@@ -98,7 +127,12 @@ export async function saveMarketplaceCookies(input: {
   cookies: string;
   configuredBy: string;
 }) {
-  const payload = encryptCookies(input.cookies);
+  const normalizedCookies = normalizeCookieHeaderValue(input.cookies);
+  if (!normalizedCookies) {
+    throw new Error('Cookie header is empty');
+  }
+
+  const payload = encryptCookies(normalizedCookies);
   const supabase = await createServiceRoleClient();
 
   const { error } = await supabase
@@ -129,4 +163,27 @@ export async function deleteMarketplaceCookies(provider: MarketplaceProvider) {
   if (error) {
     throw new Error(error.message);
   }
+}
+
+export async function getMarketplaceCookies(provider: MarketplaceProvider) {
+  const supabase = await createServiceRoleClient();
+  const { data, error } = await supabase
+    .from('marketplace_provider_credentials')
+    .select('encrypted_cookies, encryption_iv, encryption_tag')
+    .eq('provider', provider)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new Error(`No saved credentials for provider ${provider}`);
+  }
+
+  return decryptCookies({
+    encryptedCookies: data.encrypted_cookies,
+    encryptionIv: data.encryption_iv,
+    encryptionTag: data.encryption_tag,
+  });
 }

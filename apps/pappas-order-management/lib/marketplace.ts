@@ -10,6 +10,28 @@ export type MarketplaceCredentialStatus = {
   configuredBy: string | null;
 };
 
+export type MarketplaceHistoryOrder = {
+  orderId: string;
+  workflowUuid: string;
+  orderUuid: string;
+  customerName: string;
+  salesTotal: string;
+  netPayout: string;
+  requestedAt: string;
+  courierName: string;
+  fulfillmentType: string;
+  issueType: string;
+  orderChannel: string;
+  isSubscriber: boolean;
+  subscriptionPass: string;
+};
+
+export type MarketplaceHistoryResult = {
+  provider: MarketplaceProvider;
+  orders: MarketplaceHistoryOrder[];
+  nextCursor: string | null;
+};
+
 async function getAccessToken() {
   const { data: { session }, error } = await supabase.auth.getSession();
   if (error || !session?.access_token) {
@@ -65,4 +87,25 @@ export async function deleteMarketplaceCookies(provider: MarketplaceProvider) {
   if (!response.ok || !payload?.success) {
     throw new Error(payload?.error || 'Failed to clear marketplace cookies');
   }
+}
+
+export async function getMarketplaceHistory(provider: MarketplaceProvider, cursor?: string) {
+  const token = await getAccessToken();
+  const params = new URLSearchParams();
+  if (cursor) params.set('cursor', cursor);
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+
+  const response = await fetch(getApiUrl(`/api/marketplace/providers/${provider}/history${suffix}`), {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const payload = await response.json().catch(() => null) as { success?: boolean; data?: MarketplaceHistoryResult; error?: string } | null;
+  if (!response.ok || !payload?.success || !payload.data) {
+    throw new Error(payload?.error || 'Failed to load marketplace history');
+  }
+
+  return payload.data;
 }

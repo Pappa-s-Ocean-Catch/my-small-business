@@ -8,6 +8,8 @@ import { useRouter } from 'expo-router';
 import {
   deleteMarketplaceCookies,
   getMarketplaceCredentialStatus,
+  getMarketplaceHistory,
+  type MarketplaceHistoryOrder,
   saveMarketplaceCookies,
   type MarketplaceCredentialStatus,
   type MarketplaceProvider,
@@ -52,6 +54,8 @@ export default function MarketplaceScreen() {
   const [saving, setSaving] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [cookieInput, setCookieInput] = useState('');
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyOrders, setHistoryOrders] = useState<MarketplaceHistoryOrder[]>([]);
   const [credentialStatus, setCredentialStatus] = useState<Record<MarketplaceProvider, MarketplaceCredentialStatus>>({
     uber_eats: { provider: 'uber_eats', configured: false, updatedAt: null, configuredBy: null },
     doordash: { provider: 'doordash', configured: false, updatedAt: null, configuredBy: null },
@@ -80,13 +84,34 @@ export default function MarketplaceScreen() {
     }, [loadStatuses])
   );
 
+  useFocusEffect(
+    useCallback(() => {
+      void loadHistory();
+    }, [loadHistory])
+  );
+
   const currentStatus = credentialStatus[providerTab];
   const providerLabel = PROVIDER_LABELS[providerTab];
   const isUberEats = providerTab === 'uber_eats';
 
+  const loadHistory = useCallback(async () => {
+    if (providerTab !== 'uber_eats' || listTab !== 'history' || !credentialStatus.uber_eats.configured) {
+      setHistoryOrders([]);
+      return;
+    }
+
+    try {
+      setHistoryLoading(true);
+      const result = await getMarketplaceHistory('uber_eats');
+      setHistoryOrders(result.orders);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [credentialStatus.uber_eats.configured, listTab, providerTab]);
+
   const handleRefresh = () => {
     setRefreshing(true);
-    void loadStatuses();
+    void Promise.all([loadStatuses(), loadHistory()]).finally(() => setRefreshing(false));
   };
 
   const handleSaveCookies = async () => {
@@ -99,6 +124,10 @@ export default function MarketplaceScreen() {
       setCredentialStatus((prev) => ({ ...prev, [providerTab]: status }));
       setCookieInput('');
       setShowSettingsModal(false);
+      if (providerTab === 'uber_eats' && listTab === 'history') {
+        const result = await getMarketplaceHistory('uber_eats');
+        setHistoryOrders(result.orders);
+      }
     } finally {
       setSaving(false);
     }
@@ -119,6 +148,9 @@ export default function MarketplaceScreen() {
       }));
       setCookieInput('');
       setShowSettingsModal(false);
+      if (providerTab === 'uber_eats') {
+        setHistoryOrders([]);
+      }
     } finally {
       setSaving(false);
     }
@@ -198,8 +230,8 @@ export default function MarketplaceScreen() {
               <Button
                 mode="outlined"
                 icon="refresh"
-                onPress={() => void loadStatuses()}
-                loading={loading}
+                onPress={() => void Promise.all([loadStatuses(), loadHistory()])}
+                loading={loading || historyLoading}
               >
                 Refresh
               </Button>
@@ -225,16 +257,56 @@ export default function MarketplaceScreen() {
                 <Text style={styles.tableHeading}>Status</Text>
                 <Text style={styles.tableHeading}>Updated</Text>
               </View>
-              <View style={styles.placeholderPanel}>
-                <Text style={styles.placeholderTitle}>
-                  {providerLabel} {listTab === 'active' ? 'active orders' : 'history orders'}
-                </Text>
-                <Text style={styles.placeholderText}>
-                  {isUberEats
-                    ? 'Waiting for the marketplace curl command so we can map the front-end API response into this table.'
-                    : 'DoorDash will reuse the same layout and settings pattern after Uber Eats is connected.'}
-                </Text>
-              </View>
+              {isUberEats && listTab === 'history' && currentStatus.configured ? (
+                historyOrders.length > 0 ? (
+                  <View style={styles.historyList}>
+                    {historyOrders.map((order) => (
+                      <View key={order.workflowUuid} style={styles.historyRow}>
+                        <View style={[styles.historyCell, styles.flex2]}>
+                          <Text style={styles.historyPrimary}>{order.orderId}</Text>
+                          <Text style={styles.historySecondary}>{order.salesTotal} net {order.netPayout}</Text>
+                        </View>
+                        <View style={styles.historyCell}>
+                          <Text style={styles.historyPrimary}>{order.customerName}</Text>
+                          <Text style={styles.historySecondary}>
+                            {order.subscriptionPass || (order.isSubscriber ? 'Subscriber' : 'Standard')}
+                          </Text>
+                        </View>
+                        <View style={styles.historyCell}>
+                          <Text style={styles.historyPrimary}>{order.fulfillmentType.replace('FULFILLMENT_TYPE_', '')}</Text>
+                          <Text style={styles.historySecondary}>{order.courierName || 'No courier'}</Text>
+                        </View>
+                        <View style={styles.historyCell}>
+                          <Text style={styles.historyPrimary}>{order.requestedAt}</Text>
+                          <Text style={styles.historySecondary}>{order.issueType || 'Completed'}</Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <View style={styles.placeholderPanel}>
+                    <Text style={styles.placeholderTitle}>No Uber Eats history orders yet</Text>
+                    <Text style={styles.placeholderText}>
+                      Cookies are configured, but the latest history request returned no rows for the recent default range.
+                    </Text>
+                  </View>
+                )
+              ) : (
+                <View style={styles.placeholderPanel}>
+                  <Text style={styles.placeholderTitle}>
+                    {providerLabel} {listTab === 'active' ? 'active orders' : 'history orders'}
+                  </Text>
+                  <Text style={styles.placeholderText}>
+                    {!isUberEats
+                      ? 'DoorDash will reuse the same layout and settings pattern after Uber Eats is connected.'
+                      : listTab === 'active'
+                        ? 'Active orders are the next step once you share the matching Uber Eats live-orders request.'
+                        : currentStatus.configured
+                          ? 'Loading history from Uber Eats.'
+                          : 'Configure Uber Eats cookies first to load history orders.'}
+                  </Text>
+                </View>
+              )}
             </Card.Content>
           </Card>
         </View>
@@ -434,6 +506,30 @@ const styles = StyleSheet.create({
   placeholderPanel: {
     paddingVertical: 24,
     gap: 8,
+  },
+  historyList: {
+    gap: 10,
+    paddingTop: 12,
+  },
+  historyRow: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  historyCell: {
+    flex: 1,
+    gap: 4,
+  },
+  historyPrimary: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  historySecondary: {
+    fontSize: 12,
+    color: '#64748b',
   },
   placeholderTitle: {
     fontSize: 16,
