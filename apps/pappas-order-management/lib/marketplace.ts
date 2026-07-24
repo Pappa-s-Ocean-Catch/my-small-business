@@ -32,6 +32,51 @@ export type MarketplaceHistoryResult = {
   nextCursor: string | null;
 };
 
+export type MarketplaceOrderDetailItemOption = {
+  name: string;
+  quantity: number;
+  price: string | null;
+};
+
+export type MarketplaceOrderDetailItemCustomization = {
+  name: string;
+  options: MarketplaceOrderDetailItemOption[];
+};
+
+export type MarketplaceOrderDetailItem = {
+  name: string;
+  price: string;
+  quantity: number;
+  specialInstructions: string;
+  customizations: MarketplaceOrderDetailItemCustomization[];
+};
+
+export type MarketplaceOrderStateChange = {
+  changedAt: number;
+  orderState: string;
+};
+
+export type MarketplaceOrderDetail = {
+  orderId: string;
+  orderUUID: string;
+  requestedAt: number;
+  completedAtTimestamp: number | null;
+  customerName: string;
+  customerPhone: string | null;
+  customerAddress: string | null;
+  courierName: string | null;
+  courierPhone: string | null;
+  restaurantName: string;
+  netPayout: string;
+  marketplaceFeeRate: string | null;
+  fulfillmentType: string;
+  orderJobState: string | null;
+  statusDescription: string | null;
+  checkoutInfo: Array<{ key: string; amount: string; label: string }>;
+  orderStateChanges: MarketplaceOrderStateChange[];
+  items: MarketplaceOrderDetailItem[];
+};
+
 async function getAccessToken() {
   const { data: { session }, error } = await supabase.auth.getSession();
   if (error || !session?.access_token) {
@@ -105,6 +150,23 @@ export async function getMarketplaceHistory(provider: MarketplaceProvider, curso
   const payload = await response.json().catch(() => null) as { success?: boolean; data?: MarketplaceHistoryResult; error?: string } | null;
   if (!response.ok || !payload?.success || !payload.data) {
     throw new Error(payload?.error || 'Failed to load marketplace history');
+  }
+
+  return payload.data;
+}
+
+export async function getMarketplaceOrderDetail(provider: MarketplaceProvider, workflowUuid: string) {
+  const token = await getAccessToken();
+  const response = await fetch(getApiUrl(`/api/marketplace/providers/${provider}/orders/${workflowUuid}`), {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const payload = await response.json().catch(() => null) as { success?: boolean; data?: MarketplaceOrderDetail; error?: string } | null;
+  if (!response.ok || !payload?.success || !payload.data) {
+    throw new Error(payload?.error || 'Failed to load marketplace order details');
   }
 
   return payload.data;
