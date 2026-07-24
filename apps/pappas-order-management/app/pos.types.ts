@@ -61,6 +61,7 @@ export type PosPaymentChoice = 'card' | 'cash' | 'no_pay';
 export type PosInstorePaymentChoice = 'card' | 'cash' | 'unpaid';
 export type PosCheckoutPaymentOverride = PosPaymentChoice | 'smartpay';
 export type CashTenderMode = 'pickup' | 'instore';
+export type PosThirdPartySource = 'Uber Eats' | 'DoorDash';
 
 export type LayoutCategoryButton = {
   id: string;

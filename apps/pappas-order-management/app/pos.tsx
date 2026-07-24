@@ -44,6 +44,7 @@ import type {
   PosCheckoutPaymentOverride,
   PosInstorePaymentChoice,
   PosPaymentChoice,
+  PosThirdPartySource,
   RemovableIngredient,
   SaleCategory,
   SaleProduct,
@@ -148,6 +149,14 @@ const addonGroupPalette = (groupId: string) => {
 
 const formatPickupTime = (date: Date) => date.toLocaleString([], {
   weekday: 'short',
+  month: 'short',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+});
+
+const formatOrderTime = (date: Date) => date.toLocaleString([], {
+  year: 'numeric',
   month: 'short',
   day: 'numeric',
   hour: 'numeric',
@@ -290,6 +299,12 @@ export default function PosScreen() {
   const [scheduledPickupAt, setScheduledPickupAt] = useState<Date>(defaultPickupTime);
   const [showPickupPicker, setShowPickupPicker] = useState(false);
   const [pickupPickerMode, setPickupPickerMode] = useState<'date' | 'time'>('date');
+  const [thirdPartySource, setThirdPartySource] = useState<PosThirdPartySource>('Uber Eats');
+  const [thirdPartyCustomerName, setThirdPartyCustomerName] = useState('');
+  const [thirdPartyExternalOrderId, setThirdPartyExternalOrderId] = useState('');
+  const [thirdPartyOrderAt, setThirdPartyOrderAt] = useState<Date>(new Date());
+  const [showThirdPartyOrderAtPicker, setShowThirdPartyOrderAtPicker] = useState(false);
+  const [thirdPartyOrderAtPickerMode, setThirdPartyOrderAtPickerMode] = useState<'date' | 'time'>('date');
   const [paymentChoice, setPaymentChoice] = useState<PosPaymentChoice>('no_pay');
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [posLayout, setPosLayout] = useState<PosLayoutData | null>(null);
@@ -1581,6 +1596,17 @@ export default function PosScreen() {
     setScheduledPickupAt(date);
   };
 
+  const openThirdPartyOrderAtPicker = (mode: 'date' | 'time') => {
+    setThirdPartyOrderAtPickerMode(mode);
+    setShowThirdPartyOrderAtPicker(true);
+  };
+
+  const handleThirdPartyOrderAtPickerChange = (_event: DateTimePickerEvent, date?: Date) => {
+    if (Platform.OS !== 'ios') setShowThirdPartyOrderAtPicker(false);
+    if (!date) return;
+    setThirdPartyOrderAt(date);
+  };
+
   const handleClearCart = () => {
     if (orderId) return;
 
@@ -1942,7 +1968,7 @@ export default function PosScreen() {
         delivery_driver_pin: null,
         delivery_vehicle_info: null,
         delivery_instructions: null,
-        scheduled_pickup_at: null,
+        scheduled_pickup_at: thirdPartyOrderAt.toISOString(),
       } as any;
 
       const result = await savePosOrder(orderPayload, cartItems.map((item) => ({
@@ -2090,6 +2116,100 @@ export default function PosScreen() {
     }
     invalidateTopSellers();
     router.back();
+  };
+
+  const handleThirdPartyCheckout = async () => {
+    if (freeItemSelectionRequired) {
+      setFreeItemDialogVisible(true);
+      Alert.alert('Free item available', 'Please choose the free promotion item before checkout.');
+      return;
+    }
+
+    if (orderId) {
+      Alert.alert('Edit Order', 'Third-party checkout is only available for new POS orders right now.');
+      return;
+    }
+
+    if (cartItems.length === 0) return;
+
+    const externalOrderNumber = thirdPartyExternalOrderId.trim();
+    const marketplaceCustomerName = thirdPartyCustomerName.trim();
+    if (!externalOrderNumber) {
+      Alert.alert('Third-party order', 'Please enter the external order ID.');
+      return;
+    }
+
+    setCreatingOrder(true);
+
+    try {
+      const orderPayload = {
+        user_id: null,
+        customer_email: '',
+        customer_phone: externalOrderNumber,
+        customer_name: marketplaceCustomerName || thirdPartySource,
+        payment_method: 'store',
+        order_channel: 'third_party',
+        payment_method_detail: thirdPartySource,
+        order_type: 'pickup',
+        payment_status: 'paid',
+        order_status: 'confirmed',
+        subtotal: totals.subtotal,
+        tax: totals.tax,
+        delivery_fee: 0,
+        service_fee: 0,
+        promotion_discount: discountAmount + freeItemDiscountAmount,
+        promotions_applied: promotionsApplied,
+        coupon_code: null,
+        coupon_discount: 0,
+        total: totals.total,
+        reward_points_used: null,
+        reward_points_value: null,
+        order_options: orderOptions,
+        special_instructions: orderSpecialInstructions,
+        delivery_address_id: null,
+        delivery_address_line1: null,
+        delivery_address_line2: null,
+        delivery_city: null,
+        delivery_state: null,
+        delivery_postcode: null,
+        delivery_country: null,
+        delivery_latitude: null,
+        delivery_longitude: null,
+        delivery_quote_id: null,
+        delivery_quote_amount: null,
+        delivery_quote_currency: null,
+        delivery_partner_name: thirdPartySource,
+        external_order_number: externalOrderNumber,
+        delivery_quote_expires_at: null,
+        delivery_eta_minutes: null,
+        delivery_provider_id: null,
+        delivery_status: null,
+        delivery_tracking_url: null,
+        delivery_driver_name: null,
+        delivery_driver_phone: null,
+        delivery_driver_pin: null,
+        delivery_vehicle_info: null,
+        delivery_instructions: null,
+        scheduled_pickup_at: null,
+      } as any;
+
+      const result = await savePosOrder(orderPayload, cartItems.map((item) => ({
+        ...item,
+        product_name: getPosCartItemDisplayName(item),
+      })));
+
+      if (result.error) {
+        Alert.alert('Third-party order', result.error);
+        return;
+      }
+
+      setThirdPartyExternalOrderId('');
+      setThirdPartyCustomerName('');
+      invalidateTopSellers();
+      router.back();
+    } finally {
+      setCreatingOrder(false);
+    }
   };
 
   const handleDeliveryCheckout = useCallback(async (
@@ -2458,6 +2578,12 @@ export default function PosScreen() {
             showPickupPicker={showPickupPicker}
             pickupPickerMode={pickupPickerMode}
             handlePickupPickerChange={handlePickupPickerChange}
+            thirdPartyOrderAt={thirdPartyOrderAt}
+            formatOrderTime={formatOrderTime}
+            openThirdPartyOrderAtPicker={openThirdPartyOrderAtPicker}
+            showThirdPartyOrderAtPicker={showThirdPartyOrderAtPicker}
+            thirdPartyOrderAtPickerMode={thirdPartyOrderAtPickerMode}
+            handleThirdPartyOrderAtPickerChange={handleThirdPartyOrderAtPickerChange}
             orderNoteText={orderNoteText}
             setOrderNoteText={setOrderNoteText}
             creatingOrder={creatingOrder}
@@ -2469,6 +2595,13 @@ export default function PosScreen() {
             handleInstoreCheckout={handleInstoreCheckout}
             handleSmartpayInstoreCheckout={handleSmartpayInstoreCheckout}
             handleDeliveryCheckout={handleDeliveryCheckout}
+            thirdPartySource={thirdPartySource}
+            setThirdPartySource={setThirdPartySource}
+            thirdPartyCustomerName={thirdPartyCustomerName}
+            setThirdPartyCustomerName={setThirdPartyCustomerName}
+            thirdPartyExternalOrderId={thirdPartyExternalOrderId}
+            setThirdPartyExternalOrderId={setThirdPartyExternalOrderId}
+            handleThirdPartyCheckout={handleThirdPartyCheckout}
             quickListVisible={quickListVisible}
           />
         </View>

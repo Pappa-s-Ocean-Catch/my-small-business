@@ -148,7 +148,7 @@ type PrinterAutomationState = {
   };
   journalEntries: JournalEntry[];
   printJobs: PrintJob[];
-  activePrintJobId: string | null;
+  activePrintJobIdsByPrinter: Record<string, string>;
   orderPrintStates: Record<string, OrderPrintState>;
   preOrderSkipNotice: string | null;
   autoPrintSimulator: {
@@ -186,7 +186,7 @@ export const usePrinterAutomationStore = create<PrinterAutomationState>((set, ge
   },
   journalEntries: [],
   printJobs: [],
-  activePrintJobId: null,
+  activePrintJobIdsByPrinter: {},
   orderPrintStates: {},
   preOrderSkipNotice: null,
   autoPrintSimulator: {
@@ -267,6 +267,20 @@ export const usePrinterAutomationStore = create<PrinterAutomationState>((set, ge
     let startedJob: PrintJob | null = null;
     set((state) => {
       const now = Date.now();
+      const targetJob = state.printJobs.find((job) => job.id === jobId) || null;
+      if (!targetJob) {
+        return state;
+      }
+
+      const printerTarget = targetJob.printer.target;
+      if (state.printJobs.some((job) => (
+        job.id !== jobId
+        && job.printer.target === printerTarget
+        && job.status === 'printing'
+      ))) {
+        return state;
+      }
+
       const printJobs = pruneJobs(state.printJobs.map((job) => {
         if (job.id !== jobId) return job;
         startedJob = {
@@ -282,7 +296,12 @@ export const usePrinterAutomationStore = create<PrinterAutomationState>((set, ge
 
       return {
         printJobs,
-        activePrintJobId: startedJob ? jobId : state.activePrintJobId,
+        activePrintJobIdsByPrinter: startedJob
+          ? {
+              ...state.activePrintJobIdsByPrinter,
+              [printerTarget]: jobId,
+            }
+          : state.activePrintJobIdsByPrinter,
         orderPrintStates: deriveOrderPrintStates(printJobs, now),
       };
     });
@@ -306,7 +325,11 @@ export const usePrinterAutomationStore = create<PrinterAutomationState>((set, ge
 
       return {
         printJobs,
-        activePrintJobId: state.activePrintJobId === jobId ? null : state.activePrintJobId,
+        activePrintJobIdsByPrinter: completedJob
+          ? Object.fromEntries(
+              Object.entries(state.activePrintJobIdsByPrinter).filter(([, activeJobId]) => activeJobId !== jobId)
+            )
+          : state.activePrintJobIdsByPrinter,
         orderPrintStates: deriveOrderPrintStates(printJobs, now),
       };
     });
@@ -330,7 +353,11 @@ export const usePrinterAutomationStore = create<PrinterAutomationState>((set, ge
 
       return {
         printJobs,
-        activePrintJobId: state.activePrintJobId === jobId ? null : state.activePrintJobId,
+        activePrintJobIdsByPrinter: completedJob
+          ? Object.fromEntries(
+              Object.entries(state.activePrintJobIdsByPrinter).filter(([, activeJobId]) => activeJobId !== jobId)
+            )
+          : state.activePrintJobIdsByPrinter,
         orderPrintStates: deriveOrderPrintStates(printJobs, now),
       };
     });
@@ -338,7 +365,7 @@ export const usePrinterAutomationStore = create<PrinterAutomationState>((set, ge
   },
   clearPrintHistory: () => set({
     printJobs: [],
-    activePrintJobId: null,
+    activePrintJobIdsByPrinter: {},
     orderPrintStates: {},
   }),
   setPreOrderSkipNotice: (message) => set({ preOrderSkipNotice: message }),
@@ -365,6 +392,25 @@ export const usePrinterAutomationStore = create<PrinterAutomationState>((set, ge
 export function getPendingPrintJob(): PrintJob | null {
   const { printJobs } = usePrinterAutomationStore.getState();
   return printJobs.find((job) => job.status === 'queued') || null;
+}
+
+export function getReadyPendingPrintJobs(): PrintJob[] {
+  const { printJobs } = usePrinterAutomationStore.getState();
+  const printingTargets = new Set(
+    printJobs
+      .filter((job) => job.status === 'printing')
+      .map((job) => job.printer.target)
+  );
+  const readyJobsByPrinter = new Map<string, PrintJob>();
+
+  for (const job of printJobs) {
+    if (job.status !== 'queued') continue;
+    if (printingTargets.has(job.printer.target)) continue;
+    if (readyJobsByPrinter.has(job.printer.target)) continue;
+    readyJobsByPrinter.set(job.printer.target, job);
+  }
+
+  return Array.from(readyJobsByPrinter.values());
 }
 
 export function getOrderPrintState(orderId: string | null | undefined): OrderPrintState | null {

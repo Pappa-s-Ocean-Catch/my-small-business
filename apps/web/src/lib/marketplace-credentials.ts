@@ -1,0 +1,132 @@
+import { createCipheriv, createHash, randomBytes } from 'crypto';
+import { createServiceRoleClient } from '@my-small-business/supabase/server';
+
+export type MarketplaceProvider = 'uber_eats' | 'doordash';
+
+export type MarketplaceCredentialStatus = {
+  provider: MarketplaceProvider;
+  configured: boolean;
+  updatedAt: string | null;
+  configuredBy: string | null;
+};
+
+const MARKETPLACE_PROVIDERS: MarketplaceProvider[] = ['uber_eats', 'doordash'];
+
+function getMarketplaceSecret(): string {
+  const secret = process.env.MARKETPLACE_CONFIG_SECRET;
+  if (!secret) {
+    throw new Error('Missing MARKETPLACE_CONFIG_SECRET');
+  }
+  return secret;
+}
+
+export function parseMarketplaceProvider(value: string): MarketplaceProvider | null {
+  return MARKETPLACE_PROVIDERS.includes(value as MarketplaceProvider)
+    ? (value as MarketplaceProvider)
+    : null;
+}
+
+function getEncryptionKey() {
+  return createHash('sha256').update(getMarketplaceSecret()).digest();
+}
+
+function encryptCookies(rawCookies: string) {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', getEncryptionKey(), iv);
+  const encrypted = Buffer.concat([cipher.update(rawCookies, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+
+  return {
+    encryptedCookies: encrypted.toString('base64'),
+    encryptionIv: iv.toString('base64'),
+    encryptionTag: tag.toString('base64'),
+  };
+}
+
+export async function authenticateMarketplaceRequest(request: Request) {
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return { error: 'Missing or invalid authorization header', status: 401 as const };
+  }
+
+  const token = authHeader.split(' ')[1];
+  const supabase = await createServiceRoleClient();
+  const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+  if (userError || !user) {
+    return { error: 'Unauthorized - Invalid token', status: 401 as const };
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('id, role_slug')
+    .eq('id', user.id)
+    .single();
+
+  if (profileError || !profile) {
+    return { error: 'Profile lookup failed', status: 500 as const };
+  }
+
+  if (profile.role_slug !== 'admin' && profile.role_slug !== 'staff') {
+    return { error: 'Forbidden - Staff or admin access required', status: 403 as const };
+  }
+
+  return { supabase, profile } as const;
+}
+
+export async function getMarketplaceCredentialStatus(provider: MarketplaceProvider): Promise<MarketplaceCredentialStatus> {
+  const supabase = await createServiceRoleClient();
+  const { data, error } = await supabase
+    .from('marketplace_provider_credentials')
+    .select('provider, updated_at, configured_by')
+    .eq('provider', provider)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return {
+    provider,
+    configured: Boolean(data),
+    updatedAt: data?.updated_at ?? null,
+    configuredBy: data?.configured_by ?? null,
+  };
+}
+
+export async function saveMarketplaceCookies(input: {
+  provider: MarketplaceProvider;
+  cookies: string;
+  configuredBy: string;
+}) {
+  const payload = encryptCookies(input.cookies);
+  const supabase = await createServiceRoleClient();
+
+  const { error } = await supabase
+    .from('marketplace_provider_credentials')
+    .upsert({
+      provider: input.provider,
+      encrypted_cookies: payload.encryptedCookies,
+      encryption_iv: payload.encryptionIv,
+      encryption_tag: payload.encryptionTag,
+      configured_by: input.configuredBy,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'provider' });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return getMarketplaceCredentialStatus(input.provider);
+}
+
+export async function deleteMarketplaceCookies(provider: MarketplaceProvider) {
+  const supabase = await createServiceRoleClient();
+  const { error } = await supabase
+    .from('marketplace_provider_credentials')
+    .delete()
+    .eq('provider', provider);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}

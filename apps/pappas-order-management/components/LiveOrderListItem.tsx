@@ -54,6 +54,7 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
   printState = null,
 }) => {
   const isDeliveryOrder = order.order_type === 'delivery';
+  const isThirdPartyOrder = order.order_channel === 'third_party';
   const statusColor = STATUS_COLORS[order.order_status];
   const statusLabel = STATUS_LABELS[order.order_status];
   const paymentColor = PAYMENT_STATUS_COLORS[order.payment_status];
@@ -101,7 +102,8 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
     order.delivery_driver_name ? `Driver ${order.delivery_driver_name}` : null,
     order.delivery_driver_pin ? `PIN ${order.delivery_driver_pin}` : null,
   ].filter(Boolean).join(' • ');
-  const deliveryPartnerLabel = order.delivery_partner_name?.trim() || 'Delivery';
+  const deliveryPartnerLabel = order.delivery_partner_name?.trim() || (isThirdPartyOrder ? '3rd Party' : 'Delivery');
+  const externalOrderLabel = order.external_order_number?.trim() ? `External ID ${order.external_order_number.trim()}` : null;
   const deliveryPartnerTone = /door\s*dash/i.test(deliveryPartnerLabel)
     ? { backgroundColor: '#fff1f2', borderColor: '#fb7185', textColor: '#be123c' }
     : /uber/i.test(deliveryPartnerLabel)
@@ -219,7 +221,7 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
           </View>
 
           <View style={styles.verticalChipRow}>
-            {isDeliveryOrder ? (
+            {isDeliveryOrder || isThirdPartyOrder ? (
               <View
                 style={[
                   styles.partnerBadge,
@@ -251,6 +253,9 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
             <View>
               <Text style={styles.verticalMetaLabel}>Summary</Text>
               <Text style={styles.verticalMetaValue} numberOfLines={2}>{paymentSummary(order)}</Text>
+              {externalOrderLabel ? (
+                <Text style={styles.deliveryMetaValue} numberOfLines={1}>{externalOrderLabel}</Text>
+              ) : null}
               {order.order_type === 'delivery' ? (
                 <Text style={styles.deliveryMetaValue} numberOfLines={2}>
                   {deliveryMeta || 'Awaiting driver assignment'}
@@ -306,7 +311,7 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
                   </Text>
                 </View>
               ) : null}
-              {isDeliveryOrder ? (
+              {isDeliveryOrder || isThirdPartyOrder ? (
                 <View
                   style={[
                     styles.partnerBadge,
@@ -343,6 +348,11 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
                 {paymentSummary(order)}
               </Text>
             </View>
+            {externalOrderLabel ? (
+              <Text style={styles.deliverySummaryText} numberOfLines={1}>
+                {externalOrderLabel}
+              </Text>
+            ) : null}
             {order.order_type === 'delivery' ? (
               <View style={styles.deliveryStatusRow}>
                 <View style={[styles.deliveryStatusBadge, { backgroundColor: deliveryStatusColor }]}>

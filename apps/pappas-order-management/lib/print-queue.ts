@@ -3,7 +3,7 @@ import { escposPrintOrderImage, formatPrinterError } from '@/lib/escpos-printer'
 import type { SavedPrinter } from '@/lib/escpos-printer';
 import type { PrinterImageSource } from '@/lib/printer-image';
 import {
-  getPendingPrintJob,
+  getReadyPendingPrintJobs,
   usePrinterAutomationStore,
   type PrintJob,
   type PrintJobSource,
@@ -103,9 +103,9 @@ export async function waitForPrintJobs(jobIds: string[]): Promise<{ success: boo
   });
 }
 
-export async function processNextPendingPrintJob(): Promise<boolean> {
+export async function processPendingPrintJob(jobId: string): Promise<boolean> {
   const store = usePrinterAutomationStore.getState();
-  const job = getPendingPrintJob();
+  const job = store.printJobs.find((item) => item.id === jobId) || null;
   if (!job) {
     return false;
   }
@@ -163,5 +163,15 @@ export async function processNextPendingPrintJob(): Promise<boolean> {
     );
   }
 
+  return true;
+}
+
+export async function processReadyPendingPrintJobs(): Promise<boolean> {
+  const jobs = getReadyPendingPrintJobs();
+  if (jobs.length === 0) {
+    return false;
+  }
+
+  await Promise.all(jobs.map((job) => processPendingPrintJob(job.id)));
   return true;
 }

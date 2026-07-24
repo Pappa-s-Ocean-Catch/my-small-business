@@ -18,7 +18,7 @@ import {
 import { formatPrinterError, isSimulatorPrinter } from '@/lib/escpos-printer';
 import { captureReceiptForPrinter, captureReceiptPreview, type PrinterImageSource } from '@/lib/printer-image';
 import { buildSectionPrintJobs, hasAnySimulatorAssignment } from '@/lib/printer-routing';
-import { enqueuePreparedPrintJobs, processNextPendingPrintJob, waitForPrintJobs } from '@/lib/print-queue';
+import { enqueuePreparedPrintJobs, processReadyPendingPrintJobs, waitForPrintJobs } from '@/lib/print-queue';
 import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
 import { shouldPlayOrderSound } from '@/utils/orderUtils';
@@ -59,7 +59,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
   const showToast = usePrinterAutomationStore((state) => state.showToast);
   const addJournalEntry = usePrinterAutomationStore((state) => state.addJournalEntry);
   const printJobs = usePrinterAutomationStore((state) => state.printJobs);
-  const activePrintJobId = usePrinterAutomationStore((state) => state.activePrintJobId);
+  const activePrintJobIdsByPrinter = usePrinterAutomationStore((state) => state.activePrintJobIdsByPrinter);
   const pruneRuntimeState = usePrinterAutomationStore((state) => state.pruneRuntimeState);
   const setPreOrderSkipNotice = usePrinterAutomationStore((state) => state.setPreOrderSkipNotice);
   const autoPrintSimulator = usePrinterAutomationStore((state) => state.autoPrintSimulator);
@@ -479,12 +479,11 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
   }, []);
 
   useEffect(() => {
-    if (activePrintJobId) return;
     const pendingJobs = printJobs.filter((job) => job.status === 'queued');
     if (pendingJobs.length === 0) return;
 
-    void processNextPendingPrintJob();
-  }, [activePrintJobId, printJobs]);
+    void processReadyPendingPrintJobs();
+  }, [activePrintJobIdsByPrinter, printJobs]);
 
   useEffect(() => {
     const intervalId = setInterval(() => {

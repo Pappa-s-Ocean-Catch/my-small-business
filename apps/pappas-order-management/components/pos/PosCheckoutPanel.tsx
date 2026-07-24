@@ -8,11 +8,13 @@ import type { PosInstorePaymentChoice } from '../../app/pos.types';
 import { PosInstoreCheckoutForm } from './PosInstoreCheckoutForm';
 import { PosDeliveryCheckoutForm } from './PosDeliveryCheckoutForm';
 import { PosPickupCheckoutForm } from './PosPickupCheckoutForm';
+import { PosThirdPartyCheckoutForm } from './PosThirdPartyCheckoutForm';
 import type { DeliveryAddressDraft, DeliveryQuoteResult } from '../../lib/delivery';
 import type { Customer } from '../../lib/customers';
+import type { PosThirdPartySource } from '../../app/pos.types';
 
 export type CustomerLookupStatus = 'idle' | 'loading' | 'found' | 'new' | 'error';
-type CheckoutTab = 'pickup' | 'instore' | 'delivery';
+type CheckoutTab = 'pickup' | 'instore' | 'delivery' | 'third_party';
 
 type Props = {
   closeCheckout: () => void;
@@ -67,6 +69,19 @@ type Props = {
     address: DeliveryAddressDraft;
     quote: DeliveryQuoteResult;
   }) => Promise<void>;
+  thirdPartySource: PosThirdPartySource;
+  setThirdPartySource: (value: PosThirdPartySource) => void;
+  thirdPartyCustomerName: string;
+  setThirdPartyCustomerName: (value: string) => void;
+  thirdPartyExternalOrderId: string;
+  setThirdPartyExternalOrderId: (value: string) => void;
+  thirdPartyOrderAt: Date;
+  formatOrderTime: (date: Date) => string;
+  openThirdPartyOrderAtPicker: (mode: 'date' | 'time') => void;
+  showThirdPartyOrderAtPicker: boolean;
+  thirdPartyOrderAtPickerMode: 'date' | 'time';
+  handleThirdPartyOrderAtPickerChange: (event: DateTimePickerEvent, date?: Date) => void;
+  handleThirdPartyCheckout: () => Promise<void>;
 };
 
 export function PosCheckoutPanel({
@@ -119,6 +134,19 @@ export function PosCheckoutPanel({
   handleInstoreCheckout,
   handleSmartpayInstoreCheckout,
   handleDeliveryCheckout,
+  thirdPartySource,
+  setThirdPartySource,
+  thirdPartyCustomerName,
+  setThirdPartyCustomerName,
+  thirdPartyExternalOrderId,
+  setThirdPartyExternalOrderId,
+  thirdPartyOrderAt,
+  formatOrderTime,
+  openThirdPartyOrderAtPicker,
+  showThirdPartyOrderAtPicker,
+  thirdPartyOrderAtPickerMode,
+  handleThirdPartyOrderAtPickerChange,
+  handleThirdPartyCheckout,
 }: Props) {
   const [activeTab, setActiveTab] = useState<CheckoutTab>('pickup');
 
@@ -136,6 +164,7 @@ export function PosCheckoutPanel({
             { value: 'instore', label: 'INSTORE' },
             { value: 'pickup', label: 'PICKUP' },
             { value: 'delivery', label: 'DELIVERY' },
+            { value: 'third_party', label: '3RD PARTY' },
           ]}
         />
       </View>
@@ -260,6 +289,29 @@ export function PosCheckoutPanel({
           creatingOrder={creatingOrder}
           smartpayProcessing={smartpayProcessing}
           onSubmitDeliveryOrder={handleDeliveryCheckout}
+        />
+      )}
+
+      {activeTab === 'third_party' && (
+        <PosThirdPartyCheckoutForm
+          partyName={thirdPartySource}
+          onChangePartyName={setThirdPartySource}
+          customerName={thirdPartyCustomerName}
+          onChangeCustomerName={setThirdPartyCustomerName}
+          externalOrderId={thirdPartyExternalOrderId}
+          onChangeExternalOrderId={setThirdPartyExternalOrderId}
+          thirdPartyOrderAt={thirdPartyOrderAt}
+          formatOrderTime={formatOrderTime}
+          openOrderAtPicker={openThirdPartyOrderAtPicker}
+          showOrderAtPicker={showThirdPartyOrderAtPicker}
+          orderAtPickerMode={thirdPartyOrderAtPickerMode}
+          handleOrderAtPickerChange={handleThirdPartyOrderAtPickerChange}
+          cartItemsCount={cartItemsCount}
+          orderNoteText={orderNoteText}
+          setOrderNoteText={setOrderNoteText}
+          creatingOrder={creatingOrder}
+          smartpayProcessing={smartpayProcessing}
+          onSubmit={handleThirdPartyCheckout}
         />
       )}
     </View>

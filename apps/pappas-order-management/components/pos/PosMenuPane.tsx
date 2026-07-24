@@ -10,6 +10,7 @@ import type {
   LayoutCategoryButton,
   PosInstorePaymentChoice,
   PosPaymentChoice,
+  PosThirdPartySource,
   RemovableIngredient,
   SaleCategory,
   SaleProduct,
@@ -119,6 +120,19 @@ type Props = {
     address: DeliveryAddressDraft;
     quote: DeliveryQuoteResult;
   }) => Promise<void>;
+  thirdPartySource: PosThirdPartySource;
+  setThirdPartySource: (value: PosThirdPartySource) => void;
+  thirdPartyCustomerName: string;
+  setThirdPartyCustomerName: (value: string) => void;
+  thirdPartyExternalOrderId: string;
+  setThirdPartyExternalOrderId: (value: string) => void;
+  thirdPartyOrderAt: Date;
+  formatOrderTime: (date: Date) => string;
+  openThirdPartyOrderAtPicker: (mode: 'date' | 'time') => void;
+  showThirdPartyOrderAtPicker: boolean;
+  thirdPartyOrderAtPickerMode: 'date' | 'time';
+  handleThirdPartyOrderAtPickerChange: (event: DateTimePickerEvent, date?: Date) => void;
+  handleThirdPartyCheckout: () => Promise<void>;
   quickListVisible: boolean;
 };
 
@@ -214,6 +228,19 @@ export function PosMenuPane(props: Props) {
     handleInstoreCheckout,
     handleSmartpayInstoreCheckout,
     handleDeliveryCheckout,
+    thirdPartySource,
+    setThirdPartySource,
+    thirdPartyCustomerName,
+    setThirdPartyCustomerName,
+    thirdPartyExternalOrderId,
+    setThirdPartyExternalOrderId,
+    thirdPartyOrderAt,
+    formatOrderTime,
+    openThirdPartyOrderAtPicker,
+    showThirdPartyOrderAtPicker,
+    thirdPartyOrderAtPickerMode,
+    handleThirdPartyOrderAtPickerChange,
+    handleThirdPartyCheckout,
     quickListVisible,
   } = props;
 
@@ -597,6 +624,19 @@ export function PosMenuPane(props: Props) {
           handleInstoreCheckout={handleInstoreCheckout}
           handleSmartpayInstoreCheckout={handleSmartpayInstoreCheckout}
           handleDeliveryCheckout={handleDeliveryCheckout}
+          thirdPartySource={thirdPartySource}
+          setThirdPartySource={setThirdPartySource}
+          thirdPartyCustomerName={thirdPartyCustomerName}
+          setThirdPartyCustomerName={setThirdPartyCustomerName}
+          thirdPartyExternalOrderId={thirdPartyExternalOrderId}
+          setThirdPartyExternalOrderId={setThirdPartyExternalOrderId}
+          thirdPartyOrderAt={thirdPartyOrderAt}
+          formatOrderTime={formatOrderTime}
+          openThirdPartyOrderAtPicker={openThirdPartyOrderAtPicker}
+          showThirdPartyOrderAtPicker={showThirdPartyOrderAtPicker}
+          thirdPartyOrderAtPickerMode={thirdPartyOrderAtPickerMode}
+          handleThirdPartyOrderAtPickerChange={handleThirdPartyOrderAtPickerChange}
+          handleThirdPartyCheckout={handleThirdPartyCheckout}
         />
       )}
 

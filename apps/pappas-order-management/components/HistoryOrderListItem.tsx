@@ -27,6 +27,12 @@ export const HistoryOrderListItem: React.FC<HistoryOrderListItemProps> = ({
   const paymentLabel = PAYMENT_STATUS_LABELS[order.payment_status];
   const isPaid = order.payment_status === 'paid';
   const paymentMethodType = getPaymentMethodType(order);
+  const thirdPartyLabel = order.order_channel === 'third_party'
+    ? (order.delivery_partner_name?.trim() || '3rd Party')
+    : null;
+  const externalOrderLabel = order.external_order_number?.trim()
+    ? `ID ${order.external_order_number.trim()}`
+    : null;
 
   if (isLandscape) {
     // 1-line layout
@@ -70,6 +76,11 @@ export const HistoryOrderListItem: React.FC<HistoryOrderListItemProps> = ({
 
           <View style={styles.totalContainer}>
             <Text style={styles.orderTotal}>${order.total.toFixed(2)}</Text>
+            {thirdPartyLabel ? (
+              <Text style={styles.thirdPartyText} numberOfLines={1}>
+                {thirdPartyLabel}{externalOrderLabel ? ` • ${externalOrderLabel}` : ''}
+              </Text>
+            ) : null}
             {order.scheduled_pickup_at && (
               <View style={styles.preOrderBadge}>
                 <Text style={styles.preOrderBadgeText}>Pre-Order</Text>
@@ -114,6 +125,11 @@ export const HistoryOrderListItem: React.FC<HistoryOrderListItemProps> = ({
           </View>
           <View style={styles.totalGroup}>
             <Text style={styles.orderTotal}>${order.total.toFixed(2)}</Text>
+            {thirdPartyLabel ? (
+              <Text style={styles.thirdPartyText} numberOfLines={1}>
+                {thirdPartyLabel}{externalOrderLabel ? ` • ${externalOrderLabel}` : ''}
+              </Text>
+            ) : null}
             {order.scheduled_pickup_at && (
               <View style={[styles.preOrderBadge, { marginLeft: 8 }]}>
                 <Text style={styles.preOrderBadgeText}>Pre-Order</Text>
@@ -187,6 +203,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#2563eb',
+  },
+  thirdPartyText: {
+    marginTop: 4,
+    fontSize: 11,
+    color: '#0f766e',
+    fontWeight: '700',
+    textAlign: 'right',
   },
   timeContainer: {
     width: 80,

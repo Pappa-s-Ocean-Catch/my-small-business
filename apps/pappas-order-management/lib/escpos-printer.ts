@@ -170,14 +170,20 @@ export function mergeSavedPrinter(
   };
 }
 
-let printerQueue: Promise<void> = Promise.resolve();
+const printerQueues = new Map<string, Promise<void>>();
 
-function enqueuePrinterJob<T>(job: () => Promise<T>): Promise<T> {
+function getPrinterQueueKey(printer: SavedPrinter): string {
+  return printer.target;
+}
+
+function enqueuePrinterJob<T>(printer: SavedPrinter, job: () => Promise<T>): Promise<T> {
+  const queueKey = getPrinterQueueKey(printer);
+  const printerQueue = printerQueues.get(queueKey) || Promise.resolve();
   const queued = printerQueue.then(job, job);
-  printerQueue = queued.then(
+  printerQueues.set(queueKey, queued.then(
     () => undefined,
     () => undefined
-  );
+  ));
   return queued;
 }
 
@@ -562,7 +568,7 @@ export async function escposTestPrint(printer: SavedPrinter, copies: number): Pr
   assertPrinter(printer);
   const repeat = normalizeCopies(copies);
 
-  return enqueuePrinterJob(async () => {
+  return enqueuePrinterJob(printer, async () => {
     for (let i = 0; i < repeat; i++) {
       if (getPrinterDriver(printer) === 'rawTcp') {
         const bytes = buildRawTestPrintBytes();
@@ -600,7 +606,7 @@ export async function escposPrintKitchenReceipt(
     options?.onlyTicketIndex
   );
 
-  return enqueuePrinterJob(async () => {
+  return enqueuePrinterJob(printer, async () => {
     for (let i = 0; i < repeat; i++) {
       if (getPrinterDriver(printer) === 'rawTcp') {
         const bytes = buildRawKitchenReceiptBytes(order, printSource, options);
@@ -636,7 +642,7 @@ export async function escposPrintOrderImage(
   assertPrinter(printer);
   const repeat = normalizeCopies(copies);
 
-  return enqueuePrinterJob(async () => {
+  return enqueuePrinterJob(printer, async () => {
     const rawImageBytes = getPrinterDriver(printer) === 'rawTcp'
       ? await buildRawImagePrintBytes(imageSource, width)
       : null;

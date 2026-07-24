@@ -115,6 +115,7 @@ export const getOrderChannel = (order: Pick<Order, 'order_channel' | 'payment_me
     || order.order_channel === 'phone_pickup'
     || order.order_channel === 'phone_delivery'
     || order.order_channel === 'instore'
+    || order.order_channel === 'third_party'
   ) {
     return order.order_channel;
   }
@@ -134,6 +135,9 @@ export const getOrderChannelLabel = (order: Order): string => {
   const channel = getOrderChannel(order);
   if (channel === 'instore') {
     return 'Instore';
+  }
+  if (channel === 'third_party') {
+    return order.delivery_partner_name?.trim() || '3rd Party';
   }
 
   return channel === 'online' ? 'Online Pickup' : 'Phone Pickup';
@@ -295,6 +299,10 @@ export const buildKitchenReceiptCopies = <TItem extends { section?: string | nul
 
 export const paymentSummary = (order: Order): string => {
   const type = getOrderChannelLabel(order);
+  if (getOrderChannel(order) === 'third_party') {
+    const externalOrderNumber = order.external_order_number?.trim();
+    return externalOrderNumber ? `${type} • ID ${externalOrderNumber}` : `${type} • Paid`;
+  }
   const payment =
     order.payment_method === 'store'
       ? 'Pay at Counter'

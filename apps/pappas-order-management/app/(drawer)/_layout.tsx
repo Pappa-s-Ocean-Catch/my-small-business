@@ -73,6 +73,15 @@ export default function DrawerLayout() {
         }}
       />
       <Drawer.Screen
+        name="marketplace"
+        options={{
+          drawerLabel: 'Marketplace',
+          drawerIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="storefront-outline" color={color} size={size} />
+          ),
+        }}
+      />
+      <Drawer.Screen
         name="report"
         options={{
           drawerLabel: 'Report',

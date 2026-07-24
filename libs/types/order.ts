@@ -10,7 +10,7 @@ export interface DeliveryAddressInput {
   delivery_instructions?: string;
 }
 
-export type OrderChannel = 'online' | 'phone_pickup' | 'phone_delivery' | 'instore';
+export type OrderChannel = 'online' | 'phone_pickup' | 'phone_delivery' | 'instore' | 'third_party';
 
 // Note: items type is flexible to allow different implementations
 // In web app, it's CartItemData[], in mobile it might be different
@@ -136,6 +136,7 @@ export interface Order {
   delivery_quote_amount: number | null;
   delivery_quote_currency: string | null;
   delivery_partner_name: string | null;
+  external_order_number: string | null;
   delivery_quote_expires_at: string | null;
   delivery_eta_minutes: number | null;
   delivery_provider_id: string | null;
