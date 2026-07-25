@@ -11,36 +11,54 @@ type RouteContext = {
 };
 
 type UberActiveOrder = {
+  itemIssueTypes?: string[];
+  customizationIssueTypes?: string[];
   orderId?: string;
   workflowUuid?: string;
   workflowUUID?: string;
   orderUuid?: string;
   orderUUID?: string;
+  currencyCode?: string;
+  restaurant?: {
+    uuid?: string;
+    name?: string;
+    address?: string;
+    currencyCode?: string;
+    timezone?: string;
+    countryIso2?: string;
+  };
   salesTotal?: string;
   requestedAt?: string;
+  deliveryTimeLocal?: string;
+  estimatedReadyTimeLocal?: string;
   courierName?: string;
   fulfillmentType?: string;
   orderChannel?: string;
   eater?: {
     name?: string;
+    isEatsPassSubscriber?: boolean;
+    subscriptionPass?: string;
   };
   customer?: {
     name?: string;
   };
-  issueSummaryV2?: {
-    orderJobState?: string | null;
-    statusDescription?: string | null;
-  };
-  orderState?: string | null;
-  status?: string | null;
-  statusDescription?: string | null;
+  issueType?: string;
+  orderTag?: string;
+  orderCategory?: string;
 };
 
 type UberActiveResponse = {
   status?: string;
   data?: {
+    rows?: UberActiveOrder[];
     orders?: UberActiveOrder[];
     activeOrders?: UberActiveOrder[];
+    ordersCount?: number;
+    lastUpdatedAtUtc?: string;
+    paginationResult?: {
+      nextCursor?: string;
+      nextTable?: string;
+    };
     pagination?: {
       cursor?: string;
       nextCursor?: string;
@@ -121,7 +139,7 @@ async function fetchUberActiveOrders(cookieHeader: string, cursor?: string) {
     }
   })();
 
-  const rawOrders = payload?.data?.orders || payload?.data?.activeOrders || [];
+  const rawOrders = payload?.data?.rows || payload?.data?.orders || payload?.data?.activeOrders || [];
   if (!response.ok || payload?.status !== 'success') {
     throw new Error(payload?.message || responseText.slice(0, 200).trim() || `Uber Eats active orders request failed (${response.status})`);
   }
@@ -137,15 +155,15 @@ async function fetchUberActiveOrders(cookieHeader: string, cursor?: string) {
       courierName: order.courierName || '',
       fulfillmentType: order.fulfillmentType || '',
       orderChannel: order.orderChannel || '',
-      status: order.issueSummaryV2?.orderJobState || order.orderState || order.status || 'Unknown',
-      statusDescription: order.issueSummaryV2?.statusDescription || order.statusDescription || '',
+      status: order.orderTag || order.orderCategory || order.issueType || 'Active',
+      statusDescription: order.deliveryTimeLocal || order.estimatedReadyTimeLocal || '',
     }))
     .filter((order) => order.orderId && order.workflowUuid);
 
   return {
     provider: 'uber_eats' as MarketplaceProvider,
     orders,
-    nextCursor: payload?.data?.pagination?.cursor || payload?.data?.pagination?.nextCursor || null,
+    nextCursor: payload?.data?.paginationResult?.nextCursor || payload?.data?.pagination?.nextCursor || payload?.data?.pagination?.cursor || null,
   };
 }
 
