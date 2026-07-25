@@ -1,15 +1,17 @@
 import React, { useCallback, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Appbar, Button, Card, Modal, Portal, SegmentedButtons, Surface, Text, TextInput } from 'react-native-paper';
+import { Modal as NativeModal, RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Appbar, Button, Card, IconButton, Modal, Portal, SegmentedButtons, Surface, Text, TextInput } from 'react-native-paper';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { useRouter } from 'expo-router';
 
 import {
   deleteMarketplaceCookies,
+  getMarketplaceActiveOrders,
   getMarketplaceCredentialStatus,
   getMarketplaceHistory,
   getMarketplaceOrderDetail,
+  type MarketplaceActiveOrder,
   type MarketplaceOrderDetail,
   type MarketplaceHistoryOrder,
   saveMarketplaceCookies,
@@ -83,6 +85,8 @@ export default function MarketplaceScreen() {
   const [saving, setSaving] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [cookieInput, setCookieInput] = useState('');
+  const [activeLoading, setActiveLoading] = useState(false);
+  const [activeOrders, setActiveOrders] = useState<MarketplaceActiveOrder[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyOrders, setHistoryOrders] = useState<MarketplaceHistoryOrder[]>([]);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -129,6 +133,21 @@ export default function MarketplaceScreen() {
     }
   }, [credentialStatus.uber_eats.configured, listTab, providerTab]);
 
+  const loadActiveOrders = useCallback(async () => {
+    if (providerTab !== 'uber_eats' || listTab !== 'active' || !credentialStatus.uber_eats.configured) {
+      setActiveOrders([]);
+      return;
+    }
+
+    try {
+      setActiveLoading(true);
+      const result = await getMarketplaceActiveOrders('uber_eats');
+      setActiveOrders(result.orders);
+    } finally {
+      setActiveLoading(false);
+    }
+  }, [credentialStatus.uber_eats.configured, listTab, providerTab]);
+
   useFocusEffect(
     useCallback(() => {
       void loadStatuses();
@@ -141,9 +160,15 @@ export default function MarketplaceScreen() {
     }, [loadHistory])
   );
 
+  useFocusEffect(
+    useCallback(() => {
+      void loadActiveOrders();
+    }, [loadActiveOrders])
+  );
+
   const handleRefresh = () => {
     setRefreshing(true);
-    void Promise.all([loadStatuses(), loadHistory()]).finally(() => setRefreshing(false));
+    void Promise.all([loadStatuses(), loadHistory(), loadActiveOrders()]).finally(() => setRefreshing(false));
   };
 
   const handleSaveCookies = async () => {
@@ -156,9 +181,14 @@ export default function MarketplaceScreen() {
       setCredentialStatus((prev) => ({ ...prev, [providerTab]: status }));
       setCookieInput('');
       setShowSettingsModal(false);
-      if (providerTab === 'uber_eats' && listTab === 'history') {
-        const result = await getMarketplaceHistory('uber_eats');
-        setHistoryOrders(result.orders);
+      if (providerTab === 'uber_eats') {
+        if (listTab === 'history') {
+          const result = await getMarketplaceHistory('uber_eats');
+          setHistoryOrders(result.orders);
+        } else {
+          const result = await getMarketplaceActiveOrders('uber_eats');
+          setActiveOrders(result.orders);
+        }
       }
     } finally {
       setSaving(false);
@@ -181,6 +211,7 @@ export default function MarketplaceScreen() {
       setCookieInput('');
       setShowSettingsModal(false);
       if (providerTab === 'uber_eats') {
+        setActiveOrders([]);
         setHistoryOrders([]);
       }
     } finally {
@@ -277,8 +308,8 @@ export default function MarketplaceScreen() {
               <Button
                 mode="outlined"
                 icon="refresh"
-                onPress={() => void Promise.all([loadStatuses(), loadHistory()])}
-                loading={loading || historyLoading}
+                onPress={() => void Promise.all([loadStatuses(), loadHistory(), loadActiveOrders()])}
+                loading={loading || historyLoading || activeLoading}
               >
                 Refresh
               </Button>
@@ -304,7 +335,43 @@ export default function MarketplaceScreen() {
                 <Text style={styles.tableHeading}>Status</Text>
                 <Text style={styles.tableHeading}>Updated</Text>
               </View>
-              {isUberEats && listTab === 'history' && currentStatus.configured ? (
+              {isUberEats && currentStatus.configured && listTab === 'active' ? (
+                activeOrders.length > 0 ? (
+                  <View style={styles.historyList}>
+                    {activeOrders.map((order) => (
+                      <TouchableOpacity
+                        key={order.workflowUuid}
+                        style={styles.historyRow}
+                        onPress={() => void handleOpenOrderDetail(order.workflowUuid)}
+                      >
+                        <View style={[styles.historyCell, styles.flex2]}>
+                          <Text style={styles.historyPrimaryLink}>{order.orderId}</Text>
+                          <Text style={styles.historySecondary}>{order.salesTotal || 'No total available'}</Text>
+                        </View>
+                        <View style={styles.historyCell}>
+                          <Text style={styles.historyPrimary}>{order.customerName}</Text>
+                          <Text style={styles.historySecondary}>{order.orderChannel || 'Marketplace order'}</Text>
+                        </View>
+                        <View style={styles.historyCell}>
+                          <Text style={styles.historyPrimary}>{formatOrderState(order.status)}</Text>
+                          <Text style={styles.historySecondary}>{order.fulfillmentType || 'No fulfillment type'}</Text>
+                        </View>
+                        <View style={styles.historyCell}>
+                          <Text style={styles.historyPrimary}>{order.requestedAt || 'N/A'}</Text>
+                          <Text style={styles.historySecondary}>{order.statusDescription || order.courierName || 'In progress'}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : (
+                  <View style={styles.placeholderPanel}>
+                    <Text style={styles.placeholderTitle}>No Uber Eats active orders right now</Text>
+                    <Text style={styles.placeholderText}>
+                      Cookies are configured, but the latest active-order request returned no open Uber Eats orders.
+                    </Text>
+                  </View>
+                )
+              ) : isUberEats && listTab === 'history' && currentStatus.configured ? (
                 historyOrders.length > 0 ? (
                   <View style={styles.historyList}>
                     {historyOrders.map((order) => (
@@ -351,7 +418,7 @@ export default function MarketplaceScreen() {
                     {!isUberEats
                       ? 'DoorDash will reuse the same layout and settings pattern after Uber Eats is connected.'
                       : listTab === 'active'
-                        ? 'Active orders are the next step once you share the matching Uber Eats live-orders request.'
+                        ? 'Configure Uber Eats cookies first to load active orders.'
                         : currentStatus.configured
                           ? 'Loading history from Uber Eats.'
                           : 'Configure Uber Eats cookies first to load history orders.'}
@@ -364,104 +431,133 @@ export default function MarketplaceScreen() {
       </ScrollView>
 
       <Portal>
-        <Modal
+        <NativeModal
           visible={showDetailModal}
-          onDismiss={() => {
+          animationType="slide"
+          presentationStyle="fullScreen"
+          onRequestClose={() => {
             if (detailLoading) return;
             setShowDetailModal(false);
             setSelectedOrderDetail(null);
           }}
-          contentContainerStyle={styles.detailModalCard}
         >
-          <View style={styles.detailHeader}>
-            <View style={styles.detailHeaderCopy}>
-              <Text style={styles.modalTitle}>
-                {selectedOrderDetail?.orderId || 'Order detail'}
-              </Text>
-              <Text style={styles.modalSubtitle}>
-                {selectedOrderDetail
-                  ? `${selectedOrderDetail.customerName} • ${formatOrderState(selectedOrderDetail.orderJobState)}`
-                  : 'Loading Uber Eats order details'}
-              </Text>
-            </View>
-            <Button
-              mode="text"
-              onPress={() => {
-                setShowDetailModal(false);
-                setSelectedOrderDetail(null);
-              }}
-              disabled={detailLoading}
-            >
-              Close
-            </Button>
-          </View>
+          <View style={styles.detailScreen}>
+            <View style={styles.detailShell}>
+              <Surface style={styles.detailTopBar} elevation={1}>
+                <View style={styles.detailTopBarHeader}>
+                  <View style={styles.detailHeaderCopy}>
+                    <Text style={styles.detailHeaderTitle}>
+                      Order {selectedOrderDetail?.orderId || 'Detail'}
+                    </Text>
+                    <Text style={styles.detailHeaderMeta}>
+                      {selectedOrderDetail
+                        ? `${selectedOrderDetail.customerName} • ${formatOrderState(selectedOrderDetail.orderJobState)}`
+                        : 'Loading Uber Eats order details'}
+                    </Text>
+                  </View>
+                  <IconButton
+                    icon="close"
+                    size={24}
+                    onPress={() => {
+                      setShowDetailModal(false);
+                      setSelectedOrderDetail(null);
+                    }}
+                    disabled={detailLoading}
+                  />
+                </View>
+                {selectedOrderDetail ? (
+                  <View style={styles.detailHeaderBadges}>
+                    <View style={[styles.detailStatusBadge, styles.detailStatusBadgePrimary]}>
+                      <Text style={styles.detailStatusBadgeText}>{formatOrderState(selectedOrderDetail.orderJobState)}</Text>
+                    </View>
+                    <View style={[styles.detailStatusBadge, styles.detailStatusBadgeSecondary]}>
+                      <Text style={styles.detailStatusBadgeText}>{formatOrderState(selectedOrderDetail.fulfillmentType)}</Text>
+                    </View>
+                    <Text style={styles.detailHeaderTime}>{formatUnixSeconds(selectedOrderDetail.requestedAt)}</Text>
+                  </View>
+                ) : null}
+              </Surface>
 
-          {selectedOrderDetail ? (
-            <ScrollView style={styles.detailScroll} contentContainerStyle={styles.detailContent}>
-              <Card style={styles.detailSectionCard}>
-                <Card.Content style={styles.detailSectionContent}>
-                  <Text style={styles.detailSectionTitle}>Order</Text>
-                  <Text style={styles.detailMetaLine}>Status: {formatOrderState(selectedOrderDetail.orderJobState)}</Text>
-                  <Text style={styles.detailMetaLine}>Fulfillment: {formatOrderState(selectedOrderDetail.fulfillmentType)}</Text>
-                  <Text style={styles.detailMetaLine}>Requested: {formatUnixSeconds(selectedOrderDetail.requestedAt)}</Text>
-                  <Text style={styles.detailMetaLine}>Completed: {formatUnixMilliseconds(selectedOrderDetail.completedAtTimestamp)}</Text>
-                  <Text style={styles.detailMetaLine}>Net payout: {selectedOrderDetail.netPayout}</Text>
-                  <Text style={styles.detailMetaLine}>Marketplace fee: {selectedOrderDetail.marketplaceFeeRate ? `${selectedOrderDetail.marketplaceFeeRate}%` : 'N/A'}</Text>
-                </Card.Content>
-              </Card>
+              {selectedOrderDetail ? (
+                <ScrollView style={styles.detailScrollContent} contentContainerStyle={styles.detailScrollContainer}>
+                  <View style={styles.detailSummaryGrid}>
+                    <Card style={styles.detailInfoCard}>
+                      <Card.Title title="Customer" titleStyle={styles.detailCardTitle} />
+                      <Card.Content>
+                        <Text style={styles.detailCustomerName}>{selectedOrderDetail.customerName}</Text>
+                        {selectedOrderDetail.customerPhone ? <Text style={styles.detailContactText}>{selectedOrderDetail.customerPhone}</Text> : null}
+                        {selectedOrderDetail.customerAddress ? <Text style={styles.detailContactText}>{selectedOrderDetail.customerAddress}</Text> : null}
+                      </Card.Content>
+                    </Card>
 
-              <Card style={styles.detailSectionCard}>
-                <Card.Content style={styles.detailSectionContent}>
-                  <Text style={styles.detailSectionTitle}>Customer</Text>
-                  <Text style={styles.detailMetaLine}>{selectedOrderDetail.customerName}</Text>
-                  {selectedOrderDetail.customerPhone ? <Text style={styles.detailMetaLine}>{selectedOrderDetail.customerPhone}</Text> : null}
-                  {selectedOrderDetail.customerAddress ? <Text style={styles.detailMetaLine}>{selectedOrderDetail.customerAddress}</Text> : null}
-                </Card.Content>
-              </Card>
+                    <Card style={styles.detailInfoCard}>
+                      <Card.Title title="Order" titleStyle={styles.detailCardTitle} />
+                      <Card.Content>
+                        <View style={styles.detailTotalRow}>
+                          <Text style={styles.detailTotalLabel}>Requested</Text>
+                          <Text style={styles.detailTotalValue}>{formatUnixSeconds(selectedOrderDetail.requestedAt)}</Text>
+                        </View>
+                        <View style={styles.detailTotalRow}>
+                          <Text style={styles.detailTotalLabel}>Completed</Text>
+                          <Text style={styles.detailTotalValue}>{formatUnixMilliseconds(selectedOrderDetail.completedAtTimestamp)}</Text>
+                        </View>
+                        <View style={styles.detailTotalRow}>
+                          <Text style={styles.detailTotalLabel}>Net payout</Text>
+                          <Text style={styles.detailTotalValue}>{selectedOrderDetail.netPayout}</Text>
+                        </View>
+                        <View style={styles.detailTotalRow}>
+                          <Text style={styles.detailTotalLabel}>Marketplace fee</Text>
+                          <Text style={styles.detailTotalValue}>{selectedOrderDetail.marketplaceFeeRate ? `${selectedOrderDetail.marketplaceFeeRate}%` : 'N/A'}</Text>
+                        </View>
+                      </Card.Content>
+                    </Card>
+                  </View>
 
-              <Card style={styles.detailSectionCard}>
-                <Card.Content style={styles.detailSectionContent}>
-                  <Text style={styles.detailSectionTitle}>Items</Text>
-                  {selectedOrderDetail.items.map((item, index) => (
-                    <View key={`${item.name}-${index}`} style={styles.detailItemBlock}>
-                      <Text style={styles.detailItemTitle}>{item.quantity}x {item.name}</Text>
-                      <Text style={styles.detailItemPrice}>{item.price}</Text>
-                      {item.specialInstructions ? (
-                        <Text style={styles.detailItemNote}>Note: {item.specialInstructions}</Text>
-                      ) : null}
-                      {item.customizations.map((customization, customizationIndex) => (
-                        <View key={`${customization.name}-${customizationIndex}`} style={styles.detailCustomizationBlock}>
-                          <Text style={styles.detailCustomizationTitle}>{customization.name}</Text>
-                          {customization.options.map((option, optionIndex) => (
-                            <Text key={`${option.name}-${optionIndex}`} style={styles.detailCustomizationOption}>
-                              {option.quantity}x {option.name}{option.price ? ` (${option.price})` : ''}
-                            </Text>
+                  <Card style={styles.detailInfoCard}>
+                    <Card.Title title={`Items (${selectedOrderDetail.items.length})`} titleStyle={styles.detailCardTitle} />
+                    <Card.Content>
+                      {selectedOrderDetail.items.map((item, index) => (
+                        <View key={`${item.name}-${index}`} style={styles.detailItemRow}>
+                          <View style={styles.detailItemHeader}>
+                            <Text style={styles.detailItemName}>{item.quantity}x {item.name}</Text>
+                            <Text style={styles.detailItemPrice}>{item.price}</Text>
+                          </View>
+                          {item.specialInstructions ? <Text style={styles.detailItemNote}>Note: {item.specialInstructions}</Text> : null}
+                          {item.customizations.map((customization, customizationIndex) => (
+                            <View key={`${customization.name}-${customizationIndex}`} style={styles.detailAddonsList}>
+                              <Text style={styles.detailAddonGroup}>{customization.name}</Text>
+                              {customization.options.map((option, optionIndex) => (
+                                <Text key={`${option.name}-${optionIndex}`} style={styles.detailAddonText}>
+                                  {option.quantity > 1 ? `${option.quantity}x ` : '+ '}{option.name}{option.price ? ` (${option.price})` : ''}
+                                </Text>
+                              ))}
+                            </View>
                           ))}
                         </View>
                       ))}
-                    </View>
-                  ))}
-                </Card.Content>
-              </Card>
+                    </Card.Content>
+                  </Card>
 
-              <Card style={styles.detailSectionCard}>
-                <Card.Content style={styles.detailSectionContent}>
-                  <Text style={styles.detailSectionTitle}>Status timeline</Text>
-                  {selectedOrderDetail.orderStateChanges.map((event, index) => (
-                    <View key={`${event.orderState}-${event.changedAt}-${index}`} style={styles.timelineRow}>
-                      <Text style={styles.timelineState}>{formatOrderState(event.orderState)}</Text>
-                      <Text style={styles.timelineTime}>{formatUnixMilliseconds(event.changedAt)}</Text>
-                    </View>
-                  ))}
-                </Card.Content>
-              </Card>
-            </ScrollView>
-          ) : (
-            <View style={styles.placeholderPanel}>
-              <Text style={styles.placeholderText}>{detailLoading ? 'Loading order details...' : 'No order selected.'}</Text>
+                  <Card style={styles.detailInfoCard}>
+                    <Card.Title title="Status Timeline" titleStyle={styles.detailCardTitle} />
+                    <Card.Content>
+                      {selectedOrderDetail.orderStateChanges.map((event, index) => (
+                        <View key={`${event.orderState}-${event.changedAt}-${index}`} style={styles.timelineRow}>
+                          <Text style={styles.timelineState}>{formatOrderState(event.orderState)}</Text>
+                          <Text style={styles.timelineTime}>{formatUnixMilliseconds(event.changedAt)}</Text>
+                        </View>
+                      ))}
+                    </Card.Content>
+                  </Card>
+                </ScrollView>
+              ) : (
+                <View style={styles.placeholderPanel}>
+                  <Text style={styles.placeholderText}>{detailLoading ? 'Loading order details...' : 'No order selected.'}</Text>
+                </View>
+              )}
             </View>
-          )}
-        </Modal>
+          </View>
+        </NativeModal>
 
         <Modal
           visible={showSettingsModal}
@@ -705,81 +801,155 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     gap: 14,
   },
-  detailModalCard: {
-    marginHorizontal: 18,
-    marginVertical: 18,
-    padding: 18,
-    borderRadius: 22,
-    backgroundColor: '#f8fafc',
+  detailScreen: {
+    flex: 1,
+    backgroundColor: '#f3f6fb',
+  },
+  detailShell: {
     flex: 1,
   },
-  detailHeader: {
+  detailTopBar: {
+    backgroundColor: '#fff',
+    paddingTop: 14,
+  },
+  detailTopBarHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: 12,
     alignItems: 'flex-start',
-    marginBottom: 12,
+    paddingHorizontal: 16,
   },
   detailHeaderCopy: {
     flex: 1,
     gap: 4,
   },
-  detailScroll: {
+  detailHeaderTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  detailHeaderMeta: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  detailHeaderBadges: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    gap: 12,
+  },
+  detailStatusBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  detailStatusBadgePrimary: {
+    backgroundColor: '#2563eb',
+  },
+  detailStatusBadgeSecondary: {
+    backgroundColor: '#0f766e',
+  },
+  detailStatusBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  detailHeaderTime: {
+    fontSize: 13,
+    color: '#6b7280',
+  },
+  detailScrollContent: {
     flex: 1,
   },
-  detailContent: {
+  detailScrollContainer: {
+    padding: 16,
     gap: 12,
-    paddingBottom: 18,
+    paddingBottom: 24,
   },
-  detailSectionCard: {
-    borderRadius: 18,
+  detailSummaryGrid: {
+    gap: 12,
+  },
+  detailInfoCard: {
+    borderRadius: 12,
     backgroundColor: '#fff',
   },
-  detailSectionContent: {
-    gap: 8,
+  detailCardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
   },
-  detailSectionTitle: {
+  detailCustomerName: {
     fontSize: 16,
-    fontWeight: '800',
-    color: '#0f172a',
+    fontWeight: '700',
+    color: '#10b981',
+    marginBottom: 6,
   },
-  detailMetaLine: {
-    fontSize: 13,
-    color: '#334155',
-    lineHeight: 18,
+  detailContactText: {
+    fontSize: 14,
+    color: '#374151',
+    marginBottom: 4,
   },
-  detailItemBlock: {
-    gap: 4,
+  detailTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: 12,
+  },
+  detailTotalLabel: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  detailTotalValue: {
+    flex: 1,
+    textAlign: 'right',
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  detailItemRow: {
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
   },
-  detailItemTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#0f172a',
+  detailItemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  detailItemName: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111827',
   },
   detailItemPrice: {
-    fontSize: 13,
-    color: '#0f766e',
+    fontSize: 15,
     fontWeight: '700',
+    color: '#2563eb',
   },
   detailItemNote: {
-    fontSize: 12,
+    marginTop: 4,
+    fontSize: 13,
     color: '#64748b',
   },
-  detailCustomizationBlock: {
+  detailAddonsList: {
+    marginTop: 6,
     paddingLeft: 10,
-    gap: 2,
   },
-  detailCustomizationTitle: {
-    fontSize: 12,
+  detailAddonGroup: {
+    fontSize: 13,
     fontWeight: '700',
     color: '#334155',
+    marginBottom: 2,
   },
-  detailCustomizationOption: {
-    fontSize: 12,
+  detailAddonText: {
+    fontSize: 13,
     color: '#64748b',
+    marginBottom: 2,
   },
   timelineRow: {
     flexDirection: 'row',

@@ -32,6 +32,26 @@ export type MarketplaceHistoryResult = {
   nextCursor: string | null;
 };
 
+export type MarketplaceActiveOrder = {
+  orderId: string;
+  workflowUuid: string;
+  orderUuid: string;
+  customerName: string;
+  salesTotal: string;
+  requestedAt: string;
+  courierName: string;
+  fulfillmentType: string;
+  orderChannel: string;
+  status: string;
+  statusDescription: string;
+};
+
+export type MarketplaceActiveResult = {
+  provider: MarketplaceProvider;
+  orders: MarketplaceActiveOrder[];
+  nextCursor: string | null;
+};
+
 export type MarketplaceOrderDetailItemOption = {
   name: string;
   quantity: number;
@@ -150,6 +170,27 @@ export async function getMarketplaceHistory(provider: MarketplaceProvider, curso
   const payload = await response.json().catch(() => null) as { success?: boolean; data?: MarketplaceHistoryResult; error?: string } | null;
   if (!response.ok || !payload?.success || !payload.data) {
     throw new Error(payload?.error || 'Failed to load marketplace history');
+  }
+
+  return payload.data;
+}
+
+export async function getMarketplaceActiveOrders(provider: MarketplaceProvider, cursor?: string) {
+  const token = await getAccessToken();
+  const params = new URLSearchParams();
+  if (cursor) params.set('cursor', cursor);
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+
+  const response = await fetch(getApiUrl(`/api/marketplace/providers/${provider}/active${suffix}`), {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const payload = await response.json().catch(() => null) as { success?: boolean; data?: MarketplaceActiveResult; error?: string } | null;
+  if (!response.ok || !payload?.success || !payload.data) {
+    throw new Error(payload?.error || 'Failed to load marketplace active orders');
   }
 
   return payload.data;
