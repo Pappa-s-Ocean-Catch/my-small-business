@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { Modal as NativeModal, RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Appbar, Button, Card, IconButton, Modal, Portal, SegmentedButtons, Surface, Text, TextInput } from 'react-native-paper';
+import { Appbar, Button, Card, Checkbox, IconButton, Menu, Modal, Portal, SegmentedButtons, Surface, Text, TextInput } from 'react-native-paper';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { useRouter } from 'expo-router';
@@ -12,12 +12,14 @@ import {
   getMarketplaceHistory,
   getMarketplaceOrderDetail,
   type MarketplaceActiveOrder,
+  type MarketplaceHistoryDateRange,
   type MarketplaceOrderDetail,
   type MarketplaceHistoryOrder,
   saveMarketplaceCookies,
   type MarketplaceCredentialStatus,
   type MarketplaceProvider,
 } from '@/lib/marketplace';
+import { useMarketplacePosDraftStore } from '@/stores/marketplacePosDraftStore';
 
 type ProviderTab = 'uber_eats' | 'doordash';
 type MarketplaceListTab = 'active' | 'history';
@@ -36,6 +38,32 @@ const PROVIDER_TAB_OPTIONS = [
   { value: 'uber_eats', label: 'UBER EATS' },
   { value: 'doordash', label: 'DOORDASH' },
 ];
+
+const HISTORY_DATE_RANGE_OPTIONS: Array<{ value: MarketplaceHistoryDateRange; label: string }> = [
+  { value: 'TODAY', label: 'Today' },
+  { value: 'YESTERDAY', label: 'Yesterday' },
+  { value: 'THIS_WEEK', label: 'This week' },
+  { value: 'THIS_MONTH', label: 'This month' },
+  { value: 'LAST_7_DAYS', label: 'Last 7 days' },
+  { value: 'LAST_30_DAYS', label: 'Last 30 days' },
+  { value: 'LAST_12_WEEKS', label: 'Last 12 weeks' },
+];
+
+const HISTORY_STATUS_OPTIONS = [
+  'Potential deduction',
+  'Issue charged',
+  'Refunded by Uber',
+  'Dispute rejected',
+  'Dispute accepted',
+] as const;
+
+const HISTORY_STATUS_MATCHERS: Record<(typeof HISTORY_STATUS_OPTIONS)[number], string[]> = {
+  'Potential deduction': ['potential deduction', 'deduction', 'chargeback', 'possible chargeback'],
+  'Issue charged': ['issue charged', 'charged', 'merchant at fault'],
+  'Refunded by Uber': ['refunded by uber', 'uber refund', 'refund'],
+  'Dispute rejected': ['dispute rejected', 'rejected'],
+  'Dispute accepted': ['dispute accepted', 'accepted'],
+};
 
 function formatStatusDate(value: string | null) {
   if (!value) return 'Not configured';
@@ -89,9 +117,14 @@ export default function MarketplaceScreen() {
   const [activeOrders, setActiveOrders] = useState<MarketplaceActiveOrder[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyOrders, setHistoryOrders] = useState<MarketplaceHistoryOrder[]>([]);
+  const [historyDateRange, setHistoryDateRange] = useState<MarketplaceHistoryDateRange>('TODAY');
+  const [selectedHistoryStatuses, setSelectedHistoryStatuses] = useState<Array<(typeof HISTORY_STATUS_OPTIONS)[number]>>([]);
+  const [showHistoryDateMenu, setShowHistoryDateMenu] = useState(false);
+  const [showHistoryStatusMenu, setShowHistoryStatusMenu] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [selectedOrderDetail, setSelectedOrderDetail] = useState<MarketplaceOrderDetail | null>(null);
+  const setMarketplacePosDraft = useMarketplacePosDraftStore((state) => state.setDraft);
   const [credentialStatus, setCredentialStatus] = useState<Record<MarketplaceProvider, MarketplaceCredentialStatus>>({
     uber_eats: { provider: 'uber_eats', configured: false, updatedAt: null, configuredBy: null },
     doordash: { provider: 'doordash', configured: false, updatedAt: null, configuredBy: null },
@@ -126,12 +159,12 @@ export default function MarketplaceScreen() {
 
     try {
       setHistoryLoading(true);
-      const result = await getMarketplaceHistory('uber_eats');
+      const result = await getMarketplaceHistory('uber_eats', { dateRange: historyDateRange });
       setHistoryOrders(result.orders);
     } finally {
       setHistoryLoading(false);
     }
-  }, [credentialStatus.uber_eats.configured, listTab, providerTab]);
+  }, [credentialStatus.uber_eats.configured, historyDateRange, listTab, providerTab]);
 
   const loadActiveOrders = useCallback(async () => {
     if (providerTab !== 'uber_eats' || listTab !== 'active' || !credentialStatus.uber_eats.configured) {
@@ -183,7 +216,7 @@ export default function MarketplaceScreen() {
       setShowSettingsModal(false);
       if (providerTab === 'uber_eats') {
         if (listTab === 'history') {
-          const result = await getMarketplaceHistory('uber_eats');
+          const result = await getMarketplaceHistory('uber_eats', { dateRange: historyDateRange });
           setHistoryOrders(result.orders);
         } else {
           const result = await getMarketplaceActiveOrders('uber_eats');
@@ -233,6 +266,40 @@ export default function MarketplaceScreen() {
       setDetailLoading(false);
     }
   };
+
+  const handleAddToPos = () => {
+    if (!selectedOrderDetail) return;
+
+    setMarketplacePosDraft({
+      provider: 'uber_eats',
+      sourceName: 'Uber Eats',
+      orderDetail: selectedOrderDetail,
+    });
+    setShowDetailModal(false);
+    setSelectedOrderDetail(null);
+    router.push('/pos');
+  };
+
+  const toggleHistoryStatus = (status: (typeof HISTORY_STATUS_OPTIONS)[number]) => {
+    setSelectedHistoryStatuses((current) => (
+      current.includes(status)
+        ? current.filter((value) => value !== status)
+        : [...current, status]
+    ));
+  };
+
+  const filteredHistoryOrders = historyOrders.filter((order) => {
+    if (selectedHistoryStatuses.length === 0) return true;
+    const haystack = `${order.issueType} ${order.orderChannel} ${order.fulfillmentType}`.toLowerCase();
+    return selectedHistoryStatuses.some((status) => (
+      HISTORY_STATUS_MATCHERS[status].some((matcher) => haystack.includes(matcher))
+    ));
+  });
+
+  const selectedHistoryDateLabel = HISTORY_DATE_RANGE_OPTIONS.find((option) => option.value === historyDateRange)?.label || 'Today';
+  const selectedStatusLabel = selectedHistoryStatuses.length > 0
+    ? `${selectedHistoryStatuses.length} selected`
+    : 'All statuses';
 
   return (
     <View style={styles.container}>
@@ -327,6 +394,70 @@ export default function MarketplaceScreen() {
             />
           </View>
 
+          {isUberEats && listTab === 'history' ? (
+            <Card style={styles.filterCard}>
+              <Card.Content style={styles.filterCardContent}>
+                <View style={styles.filterToolbar}>
+                  <View style={styles.filterControl}>
+                    <Text style={styles.filterLabel}>Date</Text>
+                    <Menu
+                      visible={showHistoryDateMenu}
+                      onDismiss={() => setShowHistoryDateMenu(false)}
+                      anchor={(
+                        <Button mode="outlined" icon="calendar" onPress={() => setShowHistoryDateMenu(true)} style={styles.filterDropdownButton}>
+                          {selectedHistoryDateLabel}
+                        </Button>
+                      )}
+                    >
+                      {HISTORY_DATE_RANGE_OPTIONS.map((option) => (
+                        <Menu.Item
+                          key={option.value}
+                          onPress={() => {
+                            setHistoryDateRange(option.value);
+                            setShowHistoryDateMenu(false);
+                          }}
+                          title={option.label}
+                          leadingIcon={historyDateRange === option.value ? 'check' : undefined}
+                        />
+                      ))}
+                    </Menu>
+                  </View>
+
+                  <View style={styles.filterControl}>
+                    <Text style={styles.filterLabel}>Status</Text>
+                    <Menu
+                      visible={showHistoryStatusMenu}
+                      onDismiss={() => setShowHistoryStatusMenu(false)}
+                      anchor={(
+                        <Button mode="outlined" icon="filter-variant" onPress={() => setShowHistoryStatusMenu(true)} style={styles.filterDropdownButton}>
+                          {selectedStatusLabel}
+                        </Button>
+                      )}
+                    >
+                      {HISTORY_STATUS_OPTIONS.map((status) => (
+                        <TouchableOpacity key={status} onPress={() => toggleHistoryStatus(status)} style={styles.filterMenuRow}>
+                          <Checkbox
+                            status={selectedHistoryStatuses.includes(status) ? 'checked' : 'unchecked'}
+                            onPress={() => toggleHistoryStatus(status)}
+                          />
+                          <Text style={styles.filterMenuText}>{status}</Text>
+                        </TouchableOpacity>
+                      ))}
+                      <Menu.Item
+                        onPress={() => {
+                          setSelectedHistoryStatuses([]);
+                          setShowHistoryStatusMenu(false);
+                        }}
+                        title="Clear status filters"
+                        leadingIcon="close-circle-outline"
+                      />
+                    </Menu>
+                  </View>
+                </View>
+              </Card.Content>
+            </Card>
+          ) : null}
+
           <Card style={styles.tableCard}>
             <Card.Content>
               <View style={styles.tableColumns}>
@@ -372,9 +503,9 @@ export default function MarketplaceScreen() {
                   </View>
                 )
               ) : isUberEats && listTab === 'history' && currentStatus.configured ? (
-                historyOrders.length > 0 ? (
+                filteredHistoryOrders.length > 0 ? (
                   <View style={styles.historyList}>
-                    {historyOrders.map((order) => (
+                    {filteredHistoryOrders.map((order) => (
                       <TouchableOpacity
                         key={order.workflowUuid}
                         style={styles.historyRow}
@@ -403,9 +534,9 @@ export default function MarketplaceScreen() {
                   </View>
                 ) : (
                   <View style={styles.placeholderPanel}>
-                    <Text style={styles.placeholderTitle}>No Uber Eats history orders yet</Text>
+                    <Text style={styles.placeholderTitle}>No Uber Eats history orders found</Text>
                     <Text style={styles.placeholderText}>
-                      Cookies are configured, but the latest history request returned no rows for the recent default range.
+                      Cookies are configured, but the latest history request and selected filters returned no matching rows.
                     </Text>
                   </View>
                 )
@@ -474,6 +605,9 @@ export default function MarketplaceScreen() {
                       <Text style={styles.detailStatusBadgeText}>{formatOrderState(selectedOrderDetail.fulfillmentType)}</Text>
                     </View>
                     <Text style={styles.detailHeaderTime}>{formatUnixSeconds(selectedOrderDetail.requestedAt)}</Text>
+                    <Button mode="contained" icon="cart-plus" onPress={handleAddToPos} style={styles.detailHeaderAction}>
+                      Add To POS
+                    </Button>
                   </View>
                 ) : null}
               </Surface>
@@ -732,6 +866,42 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     backgroundColor: '#fff',
   },
+  filterCard: {
+    borderRadius: 18,
+    backgroundColor: '#fff',
+  },
+  filterCardContent: {
+    gap: 8,
+  },
+  filterLabel: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#334155',
+    textTransform: 'uppercase',
+  },
+  filterToolbar: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  filterControl: {
+    flex: 1,
+    gap: 6,
+  },
+  filterDropdownButton: {
+    justifyContent: 'flex-start',
+  },
+  filterMenuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    minWidth: 220,
+  },
+  filterMenuText: {
+    flex: 1,
+    color: '#0f172a',
+    fontSize: 14,
+  },
   tableColumns: {
     flexDirection: 'row',
     gap: 12,
@@ -859,6 +1029,9 @@ const styles = StyleSheet.create({
   detailHeaderTime: {
     fontSize: 13,
     color: '#6b7280',
+  },
+  detailHeaderAction: {
+    borderRadius: 999,
   },
   detailScrollContent: {
     flex: 1,

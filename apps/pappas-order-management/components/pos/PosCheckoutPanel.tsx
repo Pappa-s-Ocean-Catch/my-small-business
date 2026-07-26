@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { Button, SegmentedButtons } from 'react-native-paper';
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker';
@@ -15,6 +15,7 @@ import type { PosThirdPartySource } from '../../app/pos.types';
 
 export type CustomerLookupStatus = 'idle' | 'loading' | 'found' | 'new' | 'error';
 type CheckoutTab = 'pickup' | 'instore' | 'delivery' | 'third_party';
+export type PosCheckoutTab = CheckoutTab;
 
 type Props = {
   closeCheckout: () => void;
@@ -82,6 +83,7 @@ type Props = {
   thirdPartyOrderAtPickerMode: 'date' | 'time';
   handleThirdPartyOrderAtPickerChange: (event: DateTimePickerEvent, date?: Date) => void;
   handleThirdPartyCheckout: () => Promise<void>;
+  initialTab?: CheckoutTab;
 };
 
 export function PosCheckoutPanel({
@@ -147,8 +149,13 @@ export function PosCheckoutPanel({
   thirdPartyOrderAtPickerMode,
   handleThirdPartyOrderAtPickerChange,
   handleThirdPartyCheckout,
+  initialTab = 'pickup',
 }: Props) {
-  const [activeTab, setActiveTab] = useState<CheckoutTab>('pickup');
+  const [activeTab, setActiveTab] = useState<CheckoutTab>(initialTab);
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   return (
     <View style={styles.checkoutPane}>

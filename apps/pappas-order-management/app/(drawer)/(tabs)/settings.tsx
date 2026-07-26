@@ -4,7 +4,7 @@ import { Appbar, Button, Switch, Text, TextInput } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { DEFAULT_APP_SETTINGS, type PrinterSectionAssignment } from '@/lib/settings';
 import { playNewOrderSound, SOUND_OPTIONS, type SoundId } from '@/lib/sounds';
-import { KITCHEN_SECTION_OPTIONS } from '@/utils/orderUtils';
+import { PRINT_SECTION_OPTIONS } from '@/utils/orderUtils';
 import { usePrintersDiscovery } from 'react-native-esc-pos-printer';
 import type { DeviceInfo } from 'react-native-esc-pos-printer';
 import {
@@ -527,6 +527,24 @@ export default function SettingsScreen() {
         )));
     };
 
+    const updatePrinterAssignmentTemplate = (assignmentId: string, template: 'kitchen' | 'customer-copy') => {
+        setPrinterSectionAssignments((prev) => prev.map((assignment) => (
+            assignment.id === assignmentId ? { ...assignment, template } : assignment
+        )));
+    };
+
+    const updatePrinterAssignmentTimeWindow = (
+        assignmentId: string,
+        field: 'enabledFromTime' | 'enabledToTime',
+        value: string
+    ) => {
+        setPrinterSectionAssignments((prev) => prev.map((assignment) => (
+            assignment.id === assignmentId
+                ? { ...assignment, [field]: value }
+                : assignment
+        )));
+    };
+
     const addPrinterSectionAssignment = () => {
         setPrinterSectionAssignments((prev) => [
             ...prev,
@@ -561,9 +579,18 @@ export default function SettingsScreen() {
             return;
         }
 
+        const normalizeTimeInput = (value?: string | null) => {
+            const normalized = value?.trim() || '';
+            if (!normalized) return null;
+            return normalized;
+        };
+
         const normalizedAssignments = printerSectionAssignments.map((assignment) => ({
             ...assignment,
             sectionName: assignment.isDefault ? 'Default' : assignment.sectionName.trim(),
+            template: assignment.template === 'customer-copy' ? 'customer-copy' : 'kitchen',
+            enabledFromTime: normalizeTimeInput(assignment.enabledFromTime),
+            enabledToTime: normalizeTimeInput(assignment.enabledToTime),
         }));
         const nonDefaultAssignments = normalizedAssignments.filter((assignment) => !assignment.isDefault);
         const missingSectionName = nonDefaultAssignments.find((assignment) => !assignment.sectionName);
@@ -577,6 +604,24 @@ export default function SettingsScreen() {
         ));
         if (duplicateSection) {
             Alert.alert('Duplicate section', `Section "${duplicateSection.sectionName}" is listed more than once.`);
+            return;
+        }
+
+        const invalidTimeWindow = normalizedAssignments.find((assignment) => {
+            const values = [assignment.enabledFromTime, assignment.enabledToTime].filter(Boolean);
+            return values.some((value) => !/^\d{2}:\d{2}$/.test(value!));
+        });
+        if (invalidTimeWindow) {
+            Alert.alert('Invalid time window', 'Use 24-hour time in HH:MM format, for example 17:00 or 20:00.');
+            return;
+        }
+
+        const halfFilledTimeWindow = normalizedAssignments.find((assignment) => (
+            (!!assignment.enabledFromTime && !assignment.enabledToTime)
+            || (!assignment.enabledFromTime && !!assignment.enabledToTime)
+        ));
+        if (halfFilledTimeWindow) {
+            Alert.alert('Incomplete time window', 'Set both From and To times, or leave both blank to always print.');
             return;
         }
 
@@ -799,8 +844,11 @@ export default function SettingsScreen() {
                                 </Button>
                             )}
 
-                            <View style={styles.group}>
-                                <Text style={styles.label}>Add printer manually</Text>
+                            <View style={styles.panelCard}>
+                                <View style={styles.panelHeader}>
+                                    <Text style={styles.panelTitle}>Add printer manually</Text>
+                                    <Text style={styles.panelDescription}>Create a network or simulator printer entry without discovery.</Text>
+                                </View>
                                 <View style={styles.buttonGroup}>
                                     <Button
                                         mode={manualPrinterDriver === 'rawTcp' ? 'contained' : 'outlined'}
@@ -876,8 +924,11 @@ export default function SettingsScreen() {
                             </View>
 
                             {printers.length > 0 && (
-                                <View style={styles.group}>
-                                    <Text style={styles.label}>Discovered printers</Text>
+                                <View style={styles.panelCard}>
+                                    <View style={styles.panelHeader}>
+                                        <Text style={styles.panelTitle}>Discovered printers</Text>
+                                        <Text style={styles.panelDescription}>Printers found on the network that can be added or used to update saved devices.</Text>
+                                    </View>
                                     {discoveredPrinterMatches.map(({ printer: p, matchedSaved, isSelected, needsReplacement }) => (
                                         <View key={p.target} style={styles.printerCard}>
                                             <View style={styles.printerDetails}>
@@ -908,9 +959,11 @@ export default function SettingsScreen() {
                                 </View>
                             )}
 
-                            <View style={styles.group}>
-                                <Text style={styles.label}>Saved printers</Text>
-                                <Text style={styles.helper}>Each printer can be tested on its own. Set the default printer for fallback routing.</Text>
+                            <View style={styles.panelCard}>
+                                <View style={styles.panelHeader}>
+                                    <Text style={styles.panelTitle}>Saved printers</Text>
+                                    <Text style={styles.panelDescription}>Test individual printers here and choose the default fallback printer for routed jobs.</Text>
+                                </View>
                                 {printerSaved.length === 0 ? (
                                     <Text style={styles.helper}>No printers saved yet. Use discovery or add one manually above.</Text>
                                 ) : (
@@ -976,108 +1029,164 @@ export default function SettingsScreen() {
                                 )}
                             </View>
 
-                            <View style={styles.separator} />
-
-                            <Text style={styles.label}>Section printers</Text>
-                            <Text style={styles.helper}>Default printer is the fallback. `Combine` prints the full ticket. `Separate` prints only that section. Assign a simulator printer when you want virtual printing for that route.</Text>
-                            {printerSectionAssignments.map((assignment) => {
-                                const assignmentPrinter = printerSaved.find((printer) => printer.target === assignment.printerTarget) || null;
-                                return (
-                                    <View key={assignment.id} style={styles.assignmentCard}>
-                                        {assignment.isDefault ? (
-                                            <TextInput
-                                                mode="outlined"
-                                                label="Default section"
-                                                value="Default"
-                                                disabled
-                                                style={styles.input}
-                                            />
-                                        ) : (
-                                            <Button
-                                                mode="outlined"
-                                                style={styles.selectButton}
-                                                onPress={() => Alert.alert(
-                                                    'Select section',
-                                                    undefined,
-                                                    [
-                                                        ...KITCHEN_SECTION_OPTIONS.map((section) => ({
-                                                            text: section,
-                                                            onPress: () => updatePrinterAssignmentSection(assignment.id, section),
-                                                        })),
-                                                        { text: 'Cancel', style: 'cancel' as const },
-                                                    ]
+                            <View style={styles.panelCard}>
+                                <View style={styles.panelHeader}>
+                                    <Text style={styles.panelTitle}>Section printers</Text>
+                                    <Text style={styles.panelDescription}>Each rule is separated below. Default is the fallback. `Customer Copy` can be routed as its own receipt job.</Text>
+                                </View>
+                                {printerSectionAssignments.map((assignment, index) => {
+                                    const assignmentPrinter = printerSaved.find((printer) => printer.target === assignment.printerTarget) || null;
+                                    return (
+                                        <View key={assignment.id}>
+                                            <View style={styles.assignmentCard}>
+                                                <View style={styles.assignmentHeader}>
+                                                    <Text style={styles.assignmentTitle}>
+                                                        {assignment.isDefault ? 'Default route' : assignment.sectionName || `Section rule ${index + 1}`}
+                                                    </Text>
+                                                    <Text style={styles.assignmentSummary}>
+                                                        {assignmentPrinter?.deviceName || 'No printer selected'}
+                                                    </Text>
+                                                </View>
+                                                {assignment.isDefault ? (
+                                                    <TextInput
+                                                        mode="outlined"
+                                                        label="Default section"
+                                                        value="Default"
+                                                        disabled
+                                                        style={styles.input}
+                                                    />
+                                                ) : (
+                                                    <Button
+                                                        mode="outlined"
+                                                        style={styles.selectButton}
+                                                        onPress={() => Alert.alert(
+                                                            'Select section',
+                                                            undefined,
+                                                            [
+                                                                ...PRINT_SECTION_OPTIONS.map((section) => ({
+                                                                    text: section,
+                                                                    onPress: () => updatePrinterAssignmentSection(assignment.id, section),
+                                                                })),
+                                                                { text: 'Cancel', style: 'cancel' as const },
+                                                            ]
+                                                        )}
+                                                    >
+                                                        {assignment.sectionName || 'Select section'}
+                                                    </Button>
                                                 )}
-                                            >
-                                                {assignment.sectionName || 'Select section'}
-                                            </Button>
-                                        )}
-                                        <Button
-                                            mode="outlined"
-                                            style={styles.selectButton}
-                                            onPress={() => Alert.alert(
-                                                assignment.isDefault ? 'Choose default printer' : `Choose printer for ${assignment.sectionName || 'this section'}`,
-                                                undefined,
-                                                [
-                                                    ...printerSaved.map((printer) => ({
-                                                        text: printer.deviceName,
-                                                        onPress: () => updatePrinterAssignmentTarget(assignment.id, printer.target),
-                                                    })),
-                                                    { text: 'Clear', onPress: () => updatePrinterAssignmentTarget(assignment.id, null) },
-                                                    { text: 'Cancel', style: 'cancel' as const },
-                                                ]
-                                            )}
-                                        >
-                                            {assignmentPrinter?.deviceName || (assignment.isDefault ? 'Select default printer' : 'No printer (skip)')}
-                                        </Button>
-                                        <Text style={[styles.label, styles.assignmentSubLabel]}>Print mode</Text>
-                                        <View style={styles.buttonGroup}>
-                                            <Button
-                                                mode={(assignment.printMode || 'combine') === 'combine' ? 'contained' : 'outlined'}
-                                                onPress={() => updatePrinterAssignmentPrintMode(assignment.id, 'combine')}
-                                                style={styles.flexButton}
-                                            >
-                                                Combine
-                                            </Button>
-                                            <Button
-                                                mode={assignment.printMode === 'separate' ? 'contained' : 'outlined'}
-                                                onPress={() => updatePrinterAssignmentPrintMode(assignment.id, 'separate')}
-                                                style={styles.flexButton}
-                                            >
-                                                Separate
-                                            </Button>
+                                                <Button
+                                                    mode="outlined"
+                                                    style={styles.selectButton}
+                                                    onPress={() => Alert.alert(
+                                                        assignment.isDefault ? 'Choose default printer' : `Choose printer for ${assignment.sectionName || 'this section'}`,
+                                                        undefined,
+                                                        [
+                                                            ...printerSaved.map((printer) => ({
+                                                                text: printer.deviceName,
+                                                                onPress: () => updatePrinterAssignmentTarget(assignment.id, printer.target),
+                                                            })),
+                                                            { text: 'Clear', onPress: () => updatePrinterAssignmentTarget(assignment.id, null) },
+                                                            { text: 'Cancel', style: 'cancel' as const },
+                                                        ]
+                                                    )}
+                                                >
+                                                    {assignmentPrinter?.deviceName || (assignment.isDefault ? 'Select default printer' : 'No printer (skip)')}
+                                                </Button>
+                                                <View style={styles.assignmentDivider} />
+                                                <Text style={[styles.label, styles.assignmentSubLabel]}>Print mode</Text>
+                                                <View style={styles.buttonGroup}>
+                                                    <Button
+                                                        mode={(assignment.printMode || 'combine') === 'combine' ? 'contained' : 'outlined'}
+                                                        onPress={() => updatePrinterAssignmentPrintMode(assignment.id, 'combine')}
+                                                        style={styles.flexButton}
+                                                    >
+                                                        Combine
+                                                    </Button>
+                                                    <Button
+                                                        mode={assignment.printMode === 'separate' ? 'contained' : 'outlined'}
+                                                        onPress={() => updatePrinterAssignmentPrintMode(assignment.id, 'separate')}
+                                                        style={styles.flexButton}
+                                                    >
+                                                        Separate
+                                                    </Button>
+                                                </View>
+                                                <Text style={[styles.label, styles.assignmentSubLabel]}>Template</Text>
+                                                <View style={styles.buttonGroup}>
+                                                    <Button
+                                                        mode={(assignment.template || 'kitchen') === 'kitchen' ? 'contained' : 'outlined'}
+                                                        onPress={() => updatePrinterAssignmentTemplate(assignment.id, 'kitchen')}
+                                                        style={styles.flexButton}
+                                                    >
+                                                        Kitchen
+                                                    </Button>
+                                                    <Button
+                                                        mode={assignment.template === 'customer-copy' ? 'contained' : 'outlined'}
+                                                        onPress={() => updatePrinterAssignmentTemplate(assignment.id, 'customer-copy')}
+                                                        style={styles.flexButton}
+                                                    >
+                                                        Customer Copy
+                                                    </Button>
+                                                </View>
+                                                <Text style={[styles.label, styles.assignmentSubLabel]}>Enabled time window</Text>
+                                                <View style={styles.buttonGroup}>
+                                                    <TextInput
+                                                        mode="outlined"
+                                                        label="From"
+                                                        value={assignment.enabledFromTime || ''}
+                                                        onChangeText={(value) => updatePrinterAssignmentTimeWindow(assignment.id, 'enabledFromTime', value)}
+                                                        placeholder="17:00"
+                                                        style={[styles.input, styles.flexButton]}
+                                                    />
+                                                    <TextInput
+                                                        mode="outlined"
+                                                        label="To"
+                                                        value={assignment.enabledToTime || ''}
+                                                        onChangeText={(value) => updatePrinterAssignmentTimeWindow(assignment.id, 'enabledToTime', value)}
+                                                        placeholder="20:00"
+                                                        style={[styles.input, styles.flexButton]}
+                                                    />
+                                                </View>
+                                                <Text style={styles.helper}>Leave both blank to always print. Use 24-hour time like 17:00 to 20:00.</Text>
+                                                {!assignment.isDefault && (
+                                                    <Button mode="text" onPress={() => removePrinterSectionAssignment(assignment.id)}>
+                                                        Remove section rule
+                                                    </Button>
+                                                )}
+                                            </View>
+                                            {index < printerSectionAssignments.length - 1 ? <View style={styles.ruleDivider} /> : null}
                                         </View>
-                                        {!assignment.isDefault && (
-                                            <Button mode="text" onPress={() => removePrinterSectionAssignment(assignment.id)}>
-                                                Remove section rule
-                                            </Button>
-                                        )}
-                                    </View>
-                                );
-                            })}
-                            <Button mode="contained-tonal" onPress={addPrinterSectionAssignment} style={styles.previewButton}>
-                                Add section printer
-                            </Button>
-
-                            <View style={styles.switchRow}>
-                                <Text style={styles.label}>Auto print new orders</Text>
-                                <Switch value={printerAutoPrint} onValueChange={setPrinterAutoPrint} disabled={!hasPrinterCapability} />
+                                    );
+                                })}
+                                <Button mode="contained-tonal" onPress={addPrinterSectionAssignment} style={styles.previewButton}>
+                                    Add section printer
+                                </Button>
                             </View>
 
-                            <TextInput
-                                mode="outlined"
-                                label="Auto-print delay (seconds)"
-                                value={printerDelayPrintSecText}
-                                onChangeText={setPrinterDelayPrintSecText}
-                                keyboardType="number-pad"
-                                style={styles.input}
-                                disabled={!hasPrinterCapability || !printerAutoPrint}
-                            />
-                            <Text style={styles.helper}>Wait before printing a new order (0 to 120).</Text>
+                            <View style={styles.panelCard}>
+                                <View style={styles.panelHeader}>
+                                    <Text style={styles.panelTitle}>Print behavior</Text>
+                                    <Text style={styles.panelDescription}>Control auto print timing, paper width, image quality, and test output.</Text>
+                                </View>
+                                <View style={styles.switchRow}>
+                                    <Text style={styles.label}>Auto print new orders</Text>
+                                    <Switch value={printerAutoPrint} onValueChange={setPrinterAutoPrint} disabled={!hasPrinterCapability} />
+                                </View>
 
-                            <View style={styles.separator} />
+                                <TextInput
+                                    mode="outlined"
+                                    label="Auto-print delay (seconds)"
+                                    value={printerDelayPrintSecText}
+                                    onChangeText={setPrinterDelayPrintSecText}
+                                    keyboardType="number-pad"
+                                    style={styles.input}
+                                    disabled={!hasPrinterCapability || !printerAutoPrint}
+                                />
+                                <Text style={styles.helper}>Wait before printing a new order (0 to 120).</Text>
 
-                            <Text style={styles.label}>Paper & quality</Text>
-                            <View style={styles.buttonGroup}>
+                                <View style={styles.separator} />
+
+                                <Text style={styles.label}>Paper & quality</Text>
+                                <View style={styles.buttonGroup}>
                                 <Button
                                     mode={printerPaperWidth === '80mm' ? 'contained' : 'outlined'}
                                     onPress={() => setPrinterPaperWidth('80mm')}
@@ -1092,40 +1201,41 @@ export default function SettingsScreen() {
                                 >
                                     58mm
                                 </Button>
-                            </View>
-                            <Text style={styles.helper}>Choose your paper width. 80mm is standard.</Text>
+                                </View>
+                                <Text style={styles.helper}>Choose your paper width. 80mm is standard.</Text>
 
-                            <View style={[styles.switchRow, { marginTop: 12 }]}>
-                                <Text style={styles.label}>High quality capture (2x DPI)</Text>
-                                <Switch value={printerHighQuality} onValueChange={setPrinterHighQuality} />
-                            </View>
-                            <Text style={styles.helper}>
-                                Improves sharpness on higher-end thermal printers by capturing at 2x resolution.
-                            </Text>
+                                <View style={[styles.switchRow, { marginTop: 12 }]}>
+                                    <Text style={styles.label}>High quality capture (2x DPI)</Text>
+                                    <Switch value={printerHighQuality} onValueChange={setPrinterHighQuality} />
+                                </View>
+                                <Text style={styles.helper}>
+                                    Improves sharpness on higher-end thermal printers by capturing at 2x resolution.
+                                </Text>
 
-                            <Button
-                                mode="outlined"
-                                loading={testingPrinter && testingPrinterTarget === (defaultPrinterAssignment?.printerTarget || printerSelectedTarget)}
-                                disabled={testingPrinter}
-                                onPress={handleTestPrint}
-                                style={styles.previewButton}
-                            >
-                                Test default printer
-                            </Button>
-
-                            {JOURNAL_LOGS_ENABLED ? (
-                                <>
                                 <Button
                                     mode="outlined"
-                                    icon="text-box-search-outline"
-                                    onPress={() => setActiveDialog('journal')}
+                                    loading={testingPrinter && testingPrinterTarget === (defaultPrinterAssignment?.printerTarget || printerSelectedTarget)}
+                                    disabled={testingPrinter}
+                                    onPress={handleTestPrint}
                                     style={styles.previewButton}
                                 >
-                                    View journal
+                                    Test default printer
                                 </Button>
-                                <Text style={styles.helper}>{recentJournalLabel}</Text>
-                                </>
-                            ) : null}
+
+                                {JOURNAL_LOGS_ENABLED ? (
+                                    <>
+                                    <Button
+                                        mode="outlined"
+                                        icon="text-box-search-outline"
+                                        onPress={() => setActiveDialog('journal')}
+                                        style={styles.previewButton}
+                                    >
+                                        View journal
+                                    </Button>
+                                    <Text style={styles.helper}>{recentJournalLabel}</Text>
+                                    </>
+                                ) : null}
+                            </View>
                             </>
                         )}
 
@@ -1311,13 +1421,58 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: '#334155',
     },
+    panelCard: {
+        marginTop: 14,
+        padding: 14,
+        borderRadius: 16,
+        backgroundColor: '#fcfdff',
+        borderWidth: 1,
+        borderColor: '#dbe4f0',
+    },
+    panelHeader: {
+        marginBottom: 10,
+        gap: 4,
+    },
+    panelTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#0f172a',
+    },
+    panelDescription: {
+        fontSize: 12,
+        color: '#526175',
+        lineHeight: 18,
+    },
     assignmentCard: {
-        marginTop: 10,
-        padding: 12,
+        padding: 14,
         borderRadius: 12,
         backgroundColor: '#fff',
         borderWidth: 1,
-        borderColor: '#ececec',
+        borderColor: '#e2e8f0',
+    },
+    assignmentHeader: {
+        gap: 2,
+        marginBottom: 8,
+    },
+    assignmentTitle: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: '#0f172a',
+    },
+    assignmentSummary: {
+        fontSize: 12,
+        color: '#64748b',
+    },
+    assignmentDivider: {
+        height: 1,
+        backgroundColor: '#e8edf3',
+        marginTop: 12,
+        marginBottom: 2,
+    },
+    ruleDivider: {
+        height: 1,
+        backgroundColor: '#cfd8e3',
+        marginVertical: 12,
     },
     assignmentSwitchRow: {
         marginTop: 12,
@@ -1355,7 +1510,7 @@ const styles = StyleSheet.create({
     },
     separator: {
         height: 1,
-        backgroundColor: '#e5e5e5',
+        backgroundColor: '#dbe4f0',
         marginVertical: 16,
     },
     buttonGroup: {

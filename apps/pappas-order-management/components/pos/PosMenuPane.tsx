@@ -17,6 +17,7 @@ import type {
   TopSellerProduct,
 } from '../../app/pos.types';
 import { PosCheckoutPanel } from './PosCheckoutPanel';
+import type { PosCheckoutTab } from './PosCheckoutPanel';
 import type { DeliveryAddressDraft, DeliveryQuoteResult } from '../../lib/delivery';
 import type { Customer } from '../../lib/customers';
 
@@ -133,6 +134,7 @@ type Props = {
   thirdPartyOrderAtPickerMode: 'date' | 'time';
   handleThirdPartyOrderAtPickerChange: (event: DateTimePickerEvent, date?: Date) => void;
   handleThirdPartyCheckout: () => Promise<void>;
+  initialCheckoutTab?: PosCheckoutTab;
   quickListVisible: boolean;
 };
 
@@ -241,6 +243,7 @@ export function PosMenuPane(props: Props) {
     thirdPartyOrderAtPickerMode,
     handleThirdPartyOrderAtPickerChange,
     handleThirdPartyCheckout,
+    initialCheckoutTab,
     quickListVisible,
   } = props;
 
@@ -575,6 +578,7 @@ export function PosMenuPane(props: Props) {
 
       {menuLevel === 'checkout' && (
         <PosCheckoutPanel
+          initialTab={initialCheckoutTab}
           closeCheckout={backToItems}
           customerLookupStatus={customerLookupStatus}
           customerPhone={customerPhone}

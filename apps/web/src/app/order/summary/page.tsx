@@ -433,11 +433,13 @@ export default function OrderSummaryPage() {
       sessionStorage.setItem('orderType', 'delivery');
       sessionStorage.setItem('deliveryAddress', JSON.stringify(deliveryAddress));
       sessionStorage.setItem('deliveryQuote', JSON.stringify(deliveryQuote));
+      sessionStorage.removeItem('pickupOption');
       sessionStorage.removeItem('scheduledPickupAt');
     } else if (orderType === 'pickup') {
       sessionStorage.setItem('orderType', 'pickup');
       sessionStorage.removeItem('deliveryAddress');
       sessionStorage.removeItem('deliveryQuote');
+      sessionStorage.setItem('pickupOption', pickupOption);
       if (pickupOption === 'scheduled' && scheduledPickupAt) {
         sessionStorage.setItem('scheduledPickupAt', scheduledPickupAt);
       } else {

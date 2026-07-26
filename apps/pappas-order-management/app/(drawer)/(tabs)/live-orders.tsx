@@ -37,7 +37,9 @@ import { buildSectionPrintJobs, hasAnySimulatorAssignment } from '@/lib/printer-
 import { captureReceiptForPrinter, captureReceiptPreview, type PrinterImageSource } from '@/lib/printer-image';
 import { enqueuePreparedPrintJobs, waitForPrintJobs } from '@/lib/print-queue';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
+import { CustomerReceiptTemplate } from '@/components/CustomerReceiptTemplate';
 import { JournalLogsModal } from '@/components/PrintLogsModal';
+import { isScheduledPreOrder } from '@/utils/orderUtils';
 import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
 import { JOURNAL_LOGS_ENABLED } from '@/lib/journal-config';
 import {
@@ -74,6 +76,7 @@ export default function LiveOrdersScreen() {
   const [tempPrintSource, setTempPrintSource] = useState<string | null>(null);
   const [tempPrintTicketIndex, setTempPrintTicketIndex] = useState(0);
   const [tempPrintDuplicateBySections, setTempPrintDuplicateBySections] = useState(false);
+  const [tempPrintTemplate, setTempPrintTemplate] = useState<'kitchen' | 'customer-copy'>('kitchen');
   const [cashTenderOrder, setCashTenderOrder] = useState<Order | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
   const [headerExpanded, setHeaderExpanded] = useState(false);
@@ -253,6 +256,7 @@ export default function LiveOrdersScreen() {
       // Update the hidden template with this order
       setTempPrintingOrder(freshOrder);
       setTempPrintSource('live-orders:manual-list-print');
+      setTempPrintTemplate('kitchen');
       const targetDots = s.printerPaperWidth === '58mm' ? 384 : 576;
       const scale = s.printerHighQuality ? 2 : 1;
       if (selectedPrinter) {
@@ -335,6 +339,7 @@ export default function LiveOrdersScreen() {
             sectionName: null,
             printer: selectedPrinter,
             printMode: 'combine' as const,
+            template: 'kitchen' as const,
             duplicateBySections: false,
             label: `Manual -> ${selectedPrinter.deviceName}`,
           }]
@@ -345,6 +350,7 @@ export default function LiveOrdersScreen() {
         const jobStartedAt = Date.now();
         setTempPrintTicketIndex(job.onlyTicketIndex ?? 0);
         setTempPrintDuplicateBySections(job.duplicateBySections);
+        setTempPrintTemplate(job.template);
         if (index === 0) {
           await new Promise((resolve) => setTimeout(resolve, RECEIPT_RENDER_SETTLE_MS));
         } else {
@@ -469,6 +475,7 @@ export default function LiveOrdersScreen() {
       setTempPrintSource(null);
       setTempPrintTicketIndex(0);
       setTempPrintDuplicateBySections(false);
+      setTempPrintTemplate('kitchen');
     }
   };
 
@@ -526,7 +533,7 @@ export default function LiveOrdersScreen() {
     for (const order of orders) {
       if (order.payment_status !== 'paid') unpaid += 1;
       if (order.order_status === 'ready') ready += 1;
-      if (order.scheduled_pickup_at) scheduled += 1;
+      if (isScheduledPreOrder(order)) scheduled += 1;
       if (
         order.order_status === 'pending'
         || order.order_status === 'confirmed'
@@ -560,7 +567,7 @@ export default function LiveOrdersScreen() {
       case 'ready':
         return orders.filter((order) => order.order_status === 'ready');
       case 'scheduled':
-        return orders.filter((order) => Boolean(order.scheduled_pickup_at));
+        return orders.filter((order) => isScheduledPreOrder(order));
       default:
         return orders;
     }
@@ -1018,14 +1025,21 @@ export default function LiveOrdersScreen() {
       <View style={styles.hiddenReceiptContainer} pointerEvents="none">
          {tempPrintingOrder && (
            <View ref={globalReceiptRef} collapsable={false}>
-              <ReceiptTemplate
-                order={tempPrintingOrder}
-                width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
-                printSource={tempPrintSource || undefined}
-                showTicketCounter={hasAnySimulatorAssignment(appSettings)}
-                onlyTicketIndex={tempPrintTicketIndex}
-                duplicateBySections={tempPrintDuplicateBySections}
-              />
+              {tempPrintTemplate === 'customer-copy' ? (
+                <CustomerReceiptTemplate
+                  order={tempPrintingOrder}
+                  width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
+                />
+              ) : (
+                <ReceiptTemplate
+                  order={tempPrintingOrder}
+                  width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
+                  printSource={tempPrintSource || undefined}
+                  showTicketCounter={hasAnySimulatorAssignment(appSettings)}
+                  onlyTicketIndex={tempPrintTicketIndex}
+                  duplicateBySections={tempPrintDuplicateBySections}
+                />
+              )}
            </View>
          )}
       </View>

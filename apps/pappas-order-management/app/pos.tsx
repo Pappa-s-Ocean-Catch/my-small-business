@@ -19,7 +19,7 @@ import {
   fetchPreferredPosLayout,
   PosLayoutData,
 } from '../lib/pos-layouts';
-import { formatKitchenSectionValue, getOrderNotes, getOrderOptions } from '../utils/orderUtils';
+import { formatKitchenSectionValue, getOrderNotes, getOrderOptions, isScheduledPreOrder } from '../utils/orderUtils';
 import { formatSmartpayError, isSmartpayPaired, processSmartpayCardPayment } from '../lib/smartpay';
 import { applyRewardPointsToOrder, fetchRewardPointsSettings, type RewardPointsSettings } from '../lib/reward-points';
 import {
@@ -31,7 +31,9 @@ import {
 import { PosCartPane } from '../components/pos/PosCartPane';
 import { PosDialogs } from '../components/pos/PosDialogs';
 import { PosMenuPane } from '../components/pos/PosMenuPane';
+import type { PosCheckoutTab } from '../components/pos/PosCheckoutPanel';
 import { usePendingOnlinePaymentsStore } from '../stores/pendingOnlinePaymentsStore';
+import { useMarketplacePosDraftStore } from '../stores/marketplacePosDraftStore';
 import { styles } from '../components/pos/pos.styles';
 import type {
   AddonGroup,
@@ -50,6 +52,7 @@ import type {
   SaleProduct,
   TopSellerProduct,
 } from './pos.types';
+import type { MarketplaceOrderDetailItemOption } from '@/lib/marketplace';
 
 const newLocalId = () => `pos-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
@@ -172,6 +175,65 @@ const formatDeliveryAddress = (address: DeliveryAddressDraft) => (
     .filter((part) => Boolean(part && part.trim().length > 0))
     .join(', ')
 );
+
+const normalizeMarketplaceName = (value: string) => (
+  value
+    .toLowerCase()
+    .replace(/['’]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+);
+
+const MARKETPLACE_MATCH_THRESHOLD = 0.9;
+const MARKETPLACE_REMOVAL_PREFIXES = ['no ', 'without ', 'remove ', 'minus '];
+
+const levenshteinDistance = (left: string, right: string) => {
+  if (left === right) return 0;
+  if (!left.length) return right.length;
+  if (!right.length) return left.length;
+
+  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  const current = new Array(right.length + 1).fill(0);
+
+  for (let row = 1; row <= left.length; row += 1) {
+    current[0] = row;
+    for (let column = 1; column <= right.length; column += 1) {
+      const substitutionCost = left[row - 1] === right[column - 1] ? 0 : 1;
+      current[column] = Math.min(
+        current[column - 1] + 1,
+        previous[column] + 1,
+        previous[column - 1] + substitutionCost
+      );
+    }
+
+    for (let column = 0; column <= right.length; column += 1) {
+      previous[column] = current[column];
+    }
+  }
+
+  return previous[right.length];
+};
+
+const getNameSimilarity = (left: string, right: string) => {
+  const normalizedLeft = normalizeMarketplaceName(left);
+  const normalizedRight = normalizeMarketplaceName(right);
+  if (!normalizedLeft || !normalizedRight) return 0;
+  if (normalizedLeft === normalizedRight) return 1;
+
+  const distance = levenshteinDistance(normalizedLeft, normalizedRight);
+  const longestLength = Math.max(normalizedLeft.length, normalizedRight.length);
+  return longestLength > 0 ? 1 - distance / longestLength : 0;
+};
+
+const getMarketplaceRemovalCandidate = (value: string) => {
+  const normalized = normalizeMarketplaceName(value);
+  for (const prefix of MARKETPLACE_REMOVAL_PREFIXES) {
+    if (normalized.startsWith(prefix)) {
+      return normalized.slice(prefix.length).trim();
+    }
+  }
+  return null;
+};
 
 type PosDiscountConfig =
   | { kind: 'none' }
@@ -305,6 +367,7 @@ export default function PosScreen() {
   const [thirdPartyOrderAt, setThirdPartyOrderAt] = useState<Date>(new Date());
   const [showThirdPartyOrderAtPicker, setShowThirdPartyOrderAtPicker] = useState(false);
   const [thirdPartyOrderAtPickerMode, setThirdPartyOrderAtPickerMode] = useState<'date' | 'time'>('date');
+  const [initialCheckoutTab, setInitialCheckoutTab] = useState<PosCheckoutTab>('pickup');
   const [paymentChoice, setPaymentChoice] = useState<PosPaymentChoice>('no_pay');
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [posLayout, setPosLayout] = useState<PosLayoutData | null>(null);
@@ -320,6 +383,8 @@ export default function PosScreen() {
   const [freeItemDialogVisible, setFreeItemDialogVisible] = useState(false);
   const [eligibleFreeItemProducts, setEligibleFreeItemProducts] = useState<SaleProduct[]>([]);
   const upsertPendingOnlinePaymentSession = usePendingOnlinePaymentsStore((state) => state.upsertSession);
+  const marketplaceDraft = useMarketplacePosDraftStore((state) => state.draft);
+  const clearMarketplaceDraft = useMarketplacePosDraftStore((state) => state.clearDraft);
 
   const goHome = () => {
     router.replace('/(drawer)/(tabs)/live-orders');
@@ -643,7 +708,7 @@ export default function PosScreen() {
     }
   }, [menuLevel, topSellerRefreshKey]);
 
-  const loadSearchProducts = async () => {
+  const loadSearchProducts = useCallback(async () => {
     pruneCatalogCache();
     if (isCacheFresh(catalogCache.allProducts)) {
       setSearchProducts(catalogCache.allProducts.data);
@@ -664,22 +729,22 @@ export default function PosScreen() {
       return;
     }
 
-  const nextProducts = (data || []) as SaleProduct[];
-  catalogCache.allProducts = cacheEntry(nextProducts);
-  setSearchProducts(nextProducts);
-  void loadCustomizationAvailability(nextProducts.map((product) => product.id));
-};
+    const nextProducts = (data || []) as SaleProduct[];
+    catalogCache.allProducts = cacheEntry(nextProducts);
+    setSearchProducts(nextProducts);
+    void loadCustomizationAvailability(nextProducts.map((product) => product.id));
+  }, []);
 
   useEffect(() => {
     if (menuLevel === 'search') {
       void loadSearchProducts();
     }
-  }, [menuLevel]);
+  }, [loadSearchProducts, menuLevel]);
 
   useEffect(() => {
     if (!posLayout) return;
     void loadSearchProducts();
-  }, [posLayout]);
+  }, [loadSearchProducts, posLayout]);
 
   const searchResults = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -807,7 +872,7 @@ export default function PosScreen() {
               ? 'card'
               : 'no_pay'
       );
-      setIsPreOrder(Boolean(order.scheduled_pickup_at));
+      setIsPreOrder(isScheduledPreOrder(order, Date.now(), 0));
       if (order.scheduled_pickup_at) {
         const pickupAt = new Date(order.scheduled_pickup_at);
         if (Number.isFinite(pickupAt.getTime())) {
@@ -818,6 +883,168 @@ export default function PosScreen() {
 
     void loadOrder();
   }, [orderId, router]);
+
+  useEffect(() => {
+    if (orderId || !marketplaceDraft) return;
+
+    let cancelled = false;
+
+    const importMarketplaceDraft = async () => {
+      await loadSearchProducts();
+      const catalogProducts = catalogCache.allProducts?.data ?? [];
+
+      if (catalogProducts.length === 0) {
+        Alert.alert('Marketplace', 'Could not load the POS catalog to build this draft order.');
+        clearMarketplaceDraft();
+        return;
+      }
+
+      const nextCartItems: PosCartItem[] = [];
+      const unmatchedProducts: string[] = [];
+      const unmatchedOptions: string[] = [];
+
+      for (const item of marketplaceDraft.orderDetail.items) {
+        const productMatches = catalogProducts
+          .map((product) => ({
+            product,
+            score: getNameSimilarity(item.name, product.name),
+          }))
+          .sort((left, right) => right.score - left.score);
+        const bestProductMatch = productMatches[0] ?? null;
+        const matchedProduct = bestProductMatch && bestProductMatch.score >= MARKETPLACE_MATCH_THRESHOLD
+          ? bestProductMatch.product
+          : null;
+
+        if (!matchedProduct) {
+          unmatchedProducts.push(item.name);
+          continue;
+        }
+
+        const customizationData = await getMarketplaceProductCustomizations(matchedProduct.id);
+        const flattenedOptions = item.customizations.flatMap((customization) => customization.options);
+        const addons: OrderItemAddon[] = [];
+        const removedIngredients: string[] = [];
+
+        flattenedOptions.forEach((option: MarketplaceOrderDetailItemOption) => {
+          const removalCandidate = getMarketplaceRemovalCandidate(option.name);
+          if (removalCandidate) {
+            const ingredientMatches = customizationData.removableIngredients
+              .map((ingredient) => ({
+                ingredient,
+                score: getNameSimilarity(removalCandidate, ingredient.ingredient_name),
+              }))
+              .sort((left, right) => right.score - left.score);
+            const bestIngredientMatch = ingredientMatches[0] ?? null;
+
+            if (bestIngredientMatch && bestIngredientMatch.score >= MARKETPLACE_MATCH_THRESHOLD) {
+              removedIngredients.push(bestIngredientMatch.ingredient.ingredient_name);
+              return;
+            }
+          }
+
+          const optionMatches = customizationData.groups.flatMap((group) => (
+            group.items.map((groupItem) => ({
+              group,
+              addonItem: groupItem,
+              score: getNameSimilarity(option.name, groupItem.name),
+            }))
+          )).sort((left, right) => right.score - left.score);
+          const bestOptionMatch = optionMatches[0] ?? null;
+
+          if (!bestOptionMatch || bestOptionMatch.score < MARKETPLACE_MATCH_THRESHOLD) {
+            unmatchedOptions.push(`${item.name}: ${option.name}`);
+            return;
+          }
+
+          const { group, addonItem } = bestOptionMatch;
+
+          const quantity = Math.max(1, option.quantity || 1);
+          for (let index = 0; index < quantity; index += 1) {
+            addons.push({
+              id: `pos-addon-${addonItem.id}-${index}-${Date.now()}`,
+              order_item_id: '',
+              addon_group_id: group.id,
+              addon_group_name: group.name,
+              addon_item_id: addonItem.id,
+              addon_item_name: addonItem.name,
+              addon_item_price: addonItem.extra_price,
+              section: addonItem.section ?? null,
+              created_at: new Date().toISOString(),
+              is_required: group.is_required,
+              display_order: addonItem.sort_order ?? undefined,
+              display_group_order: group.display_order ?? undefined,
+            });
+          }
+        });
+
+        const noteParts = [item.specialInstructions?.trim() || ''];
+        const note = noteParts.filter(Boolean).join(' | ');
+        nextCartItems.push(buildCartItem(
+          matchedProduct,
+          Math.max(1, item.quantity || 1),
+          addons,
+          note,
+          Array.from(new Set(removedIngredients))
+        ));
+      }
+
+      if (cancelled) return;
+
+      if (nextCartItems.length === 0) {
+        Alert.alert('Marketplace', 'None of the Uber Eats items matched the POS catalog.');
+        clearMarketplaceDraft();
+        return;
+      }
+
+      const requestedAt = marketplaceDraft.orderDetail.requestedAt
+        ? new Date(marketplaceDraft.orderDetail.requestedAt * 1000)
+        : new Date();
+
+      setCartItems(nextCartItems);
+      setCustomerPhone('');
+      setCustomerName(marketplaceDraft.orderDetail.customerName || '');
+      setSelectedCustomer(null);
+      setCustomerLookupStatus('idle');
+      setCustomerLookupError(null);
+      setRewardPointsToUse(0);
+      setRewardPointsValue(0);
+      setQuickOrderNote(null);
+      setDiscountConfig(EMPTY_DISCOUNT);
+      setThirdPartySource(marketplaceDraft.sourceName);
+      setThirdPartyCustomerName(marketplaceDraft.orderDetail.customerName || '');
+      setThirdPartyExternalOrderId(marketplaceDraft.orderDetail.orderId);
+      setThirdPartyOrderAt(Number.isFinite(requestedAt.getTime()) ? requestedAt : new Date());
+      setInitialCheckoutTab('third_party');
+      setMenuLevel('checkout');
+      setOrderNoteText([
+        unmatchedProducts.length > 0 ? `Unmatched items: ${unmatchedProducts.join(', ')}` : '',
+        unmatchedOptions.length > 0 ? `Check modifiers: ${unmatchedOptions.join(', ')}` : '',
+      ].filter(Boolean).join('\n'));
+      clearMarketplaceDraft();
+
+      if (unmatchedProducts.length > 0 || unmatchedOptions.length > 0) {
+        Alert.alert(
+          'Review imported order',
+          [
+            unmatchedProducts.length > 0 ? `Items not added: ${unmatchedProducts.join(', ')}` : '',
+            unmatchedOptions.length > 0 ? `Modifiers to review: ${unmatchedOptions.join(', ')}` : '',
+          ].filter(Boolean).join('\n')
+        );
+      }
+    };
+
+    void importMarketplaceDraft();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    clearMarketplaceDraft,
+    getMarketplaceProductCustomizations,
+    loadSearchProducts,
+    marketplaceDraft,
+    orderId,
+  ]);
 
   useEffect(() => {
     const phone = customerPhone.trim();
@@ -911,6 +1138,12 @@ export default function PosScreen() {
     setCustomerLookupError(null);
     setCustomerLookupStatus('idle');
   }, []);
+
+  useEffect(() => {
+    if (menuLevel !== 'checkout' && initialCheckoutTab !== 'pickup') {
+      setInitialCheckoutTab('pickup');
+    }
+  }, [initialCheckoutTab, menuLevel]);
 
   const handleToggleRewardPoints = useCallback(() => {
     if (!rewardPointsSettings.enabled || !selectedCustomer) return;
@@ -1319,6 +1552,75 @@ export default function PosScreen() {
 
     return customizations;
   };
+
+  const getMarketplaceProductCustomizations = useCallback(async (
+    productId: string
+  ): Promise<{ groups: AddonGroup[]; removableIngredients: RemovableIngredient[] }> => {
+    const cachedCustomizations = getFreshCacheEntry(catalogCache.customizationByProduct, productId);
+    if (cachedCustomizations) {
+      return cachedCustomizations.data;
+    }
+
+    const [addonResult, ingredientResult] = await Promise.all([
+      supabase
+        .from('sale_product_addon_groups')
+        .select(`
+        addon_group_id,
+        display_order,
+        addon_groups (
+          id,
+          name,
+          is_required,
+          multiple_choice,
+          addon_items (
+            id,
+            addon_group_id,
+            name,
+            extra_price,
+            section,
+            sort_order,
+            is_active
+          )
+        )
+      `)
+        .eq('sale_product_id', productId)
+        .order('display_order', { ascending: true }),
+      supabase
+        .from('sale_product_ingredients')
+        .select('id, ingredient_name')
+        .eq('sale_product_id', productId)
+        .order('ingredient_name', { ascending: true }),
+    ]);
+
+    const groups: AddonGroup[] = ((addonResult.data || []) as any[]).map((row) => ({
+      id: row.addon_groups.id,
+      name: row.addon_groups.name,
+      is_required: Boolean(row.addon_groups.is_required),
+      multiple_choice: Boolean(row.addon_groups.multiple_choice),
+      display_order: row.display_order ?? null,
+      items: (row.addon_groups.addon_items || [])
+        .filter((item: any) => item.is_active !== false)
+        .map((item: any) => ({
+          id: item.id,
+          addon_group_id: item.addon_group_id,
+          name: item.name,
+          extra_price: Number(item.extra_price || 0),
+          section: item.section ?? null,
+          sort_order: item.sort_order ?? null,
+          is_active: item.is_active ?? true,
+        })),
+    }));
+
+    const removableIngredients: RemovableIngredient[] = ((ingredientResult.data || []) as any[]).map((row) => ({
+      id: row.id,
+      ingredient_name: row.ingredient_name,
+    }));
+
+    const customizations = { groups, removableIngredients };
+    catalogCache.customizationByProduct.set(productId, cacheEntry(customizations));
+    catalogCache.hasCustomizationByProduct.set(productId, cacheEntry(groups.length > 0 || removableIngredients.length > 0));
+    return customizations;
+  }, []);
 
   const openCategory = (categoryId: string) => {
     const layoutCategory = posLayout?.categories.find((category) => category.categoryId === categoryId) ?? null;
@@ -1968,7 +2270,7 @@ export default function PosScreen() {
         delivery_driver_pin: null,
         delivery_vehicle_info: null,
         delivery_instructions: null,
-        scheduled_pickup_at: thirdPartyOrderAt.toISOString(),
+        scheduled_pickup_at: null,
       } as any;
 
       const result = await savePosOrder(orderPayload, cartItems.map((item) => ({
@@ -2602,6 +2904,7 @@ export default function PosScreen() {
             thirdPartyExternalOrderId={thirdPartyExternalOrderId}
             setThirdPartyExternalOrderId={setThirdPartyExternalOrderId}
             handleThirdPartyCheckout={handleThirdPartyCheckout}
+            initialCheckoutTab={initialCheckoutTab}
             quickListVisible={quickListVisible}
           />
         </View>

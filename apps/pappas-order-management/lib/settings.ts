@@ -16,8 +16,23 @@ export type PrinterSectionAssignment = {
     sectionName: string;
     printerTarget: string | null;
     printMode?: 'combine' | 'separate';
+    template?: 'kitchen' | 'customer-copy';
+    enabledFromTime?: string | null;
+    enabledToTime?: string | null;
     isDefault?: boolean;
 };
+
+function normalizeTimeWindowValue(value: unknown): string | null {
+    if (typeof value !== 'string') return null;
+    const normalized = value.trim();
+    if (!/^\d{2}:\d{2}$/.test(normalized)) return null;
+    const [hoursText, minutesText] = normalized.split(':');
+    const hours = Number.parseInt(hoursText, 10);
+    const minutes = Number.parseInt(minutesText, 10);
+    if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return null;
+    if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
 
 function normalizePrinterSectionAssignment(value: unknown): PrinterSectionAssignment | null {
     const v = value as Partial<PrinterSectionAssignment> | null;
@@ -38,6 +53,9 @@ function normalizePrinterSectionAssignment(value: unknown): PrinterSectionAssign
         sectionName,
         printerTarget,
         printMode: v.printMode === 'separate' ? 'separate' : 'combine',
+        template: v.template === 'customer-copy' ? 'customer-copy' : 'kitchen',
+        enabledFromTime: normalizeTimeWindowValue(v.enabledFromTime),
+        enabledToTime: normalizeTimeWindowValue(v.enabledToTime),
         isDefault: !!v.isDefault || sectionName.toLowerCase() === 'default',
     };
 }
@@ -85,6 +103,9 @@ function normalizePrinterSectionAssignments(
             sectionName: 'Default',
             printerTarget: legacySimulatorEnabled && simulatorTarget ? simulatorTarget : legacySelectedTarget,
             printMode: 'combine',
+            template: 'kitchen',
+            enabledFromTime: null,
+            enabledToTime: null,
             isDefault: true,
         });
     }
@@ -164,6 +185,9 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
         sectionName: 'Default',
         printerTarget: null,
         printMode: 'combine',
+        template: 'kitchen',
+        enabledFromTime: null,
+        enabledToTime: null,
         isDefault: true,
     }],
 

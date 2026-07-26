@@ -1,5 +1,5 @@
 import type { Order } from '@my-small-business/types';
-import { buildKitchenReceiptCopies, DEFAULT_KITCHEN_SECTION } from '@/utils/orderUtils';
+import { buildKitchenReceiptCopies, CUSTOMER_COPY_SECTION, DEFAULT_KITCHEN_SECTION } from '@/utils/orderUtils';
 import { getPrinterDriver, isSimulatorPrinterTarget, type SavedPrinter } from './escpos-printer';
 import type { AppSettings, PrinterSectionAssignment } from './settings';
 
@@ -8,6 +8,31 @@ type OrderItem = NonNullable<Order['items']>[number];
 export type SectionPrintTicket = ReturnType<typeof buildKitchenReceiptCopies<OrderItem>>[number];
 
 const DEFAULT_ASSIGNMENT_NAME = 'default';
+
+function parseTimeMinutes(value?: string | null): number | null {
+  if (!value || !/^\d{2}:\d{2}$/.test(value)) return null;
+  const [hoursText, minutesText] = value.split(':');
+  const hours = Number.parseInt(hoursText, 10);
+  const minutes = Number.parseInt(minutesText, 10);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return null;
+  return (hours * 60) + minutes;
+}
+
+export function isAssignmentEnabledAtTime(
+  assignment: Pick<PrinterSectionAssignment, 'enabledFromTime' | 'enabledToTime'>,
+  now: Date = new Date()
+): boolean {
+  const fromMinutes = parseTimeMinutes(assignment.enabledFromTime);
+  const toMinutes = parseTimeMinutes(assignment.enabledToTime);
+  if (fromMinutes == null || toMinutes == null) return true;
+
+  const nowMinutes = (now.getHours() * 60) + now.getMinutes();
+  if (fromMinutes === toMinutes) return true;
+  if (fromMinutes < toMinutes) {
+    return nowMinutes >= fromMinutes && nowMinutes < toMinutes;
+  }
+  return nowMinutes >= fromMinutes || nowMinutes < toMinutes;
+}
 
 export function normalizeSectionAssignmentName(value?: string | null): string {
   const normalized = value?.trim().toLowerCase();
@@ -26,6 +51,9 @@ export function getDefaultPrinterAssignment(settings: Pick<AppSettings, 'printer
           sectionName: 'Default',
           printerTarget: settings.printerSelectedTarget,
           printMode: 'combine',
+          template: 'kitchen',
+          enabledFromTime: null,
+          enabledToTime: null,
           isDefault: true,
         }
       : null
@@ -48,7 +76,7 @@ export function shouldSkipPrintForSection(
 ): boolean {
   const assignment = getPrinterAssignmentForSection(settings, sectionName);
   if (!assignment) return false;
-  return !assignment.printerTarget;
+  return !assignment.printerTarget || !isAssignmentEnabledAtTime(assignment);
 }
 
 export function resolvePrinterForSection(
@@ -96,6 +124,7 @@ export type ResolvedSectionPrintJob = {
   sectionName: string | null;
   printer: SavedPrinter | null;
   printMode: 'combine' | 'separate';
+  template: 'kitchen' | 'customer-copy';
   duplicateBySections: boolean;
   onlyTicketIndex?: number;
   label: string;
@@ -108,6 +137,12 @@ export function buildSectionPrintJobs(
   const tickets = getSectionPrintTickets(order);
   const jobs: ResolvedSectionPrintJob[] = [];
   const seenCombinedKeys = new Set<string>();
+  const specialAssignments = settings.printerSectionAssignments.filter((assignment) => (
+    !isDefaultPrinterAssignment(assignment)
+    && normalizeSectionAssignmentName(assignment.sectionName) === normalizeSectionAssignmentName(CUSTOMER_COPY_SECTION)
+    && !!assignment.printerTarget
+    && isAssignmentEnabledAtTime(assignment)
+  ));
 
   tickets.forEach((ticket, index) => {
     const sectionName = ticket.sections[0]?.sectionName || null;
@@ -117,6 +152,7 @@ export function buildSectionPrintJobs(
 
     const assignment = getPrinterAssignmentForSection(settings, sectionName);
     const printMode = assignment?.printMode === 'separate' ? 'separate' : 'combine';
+    const template = assignment?.template === 'customer-copy' ? 'customer-copy' : 'kitchen';
     const printer = resolvePrinterForSection(settings, sectionName);
     const label = getSectionRoutingDebugLabel(settings, sectionName);
 
@@ -132,6 +168,7 @@ export function buildSectionPrintJobs(
         sectionName,
         printer,
         printMode,
+        template,
         duplicateBySections: false,
         label,
       });
@@ -144,9 +181,24 @@ export function buildSectionPrintJobs(
       sectionName,
       printer,
       printMode,
+      template,
       duplicateBySections: true,
       onlyTicketIndex: index,
       label,
+    });
+  });
+
+  specialAssignments.forEach((assignment) => {
+    const printer = resolvePrinterForSection(settings, assignment.sectionName);
+    jobs.push({
+      key: `${assignment.id}:customer-copy`,
+      assignmentId: assignment.id,
+      sectionName: assignment.sectionName,
+      printer,
+      printMode: 'combine',
+      template: assignment.template === 'customer-copy' ? 'customer-copy' : 'kitchen',
+      duplicateBySections: false,
+      label: getSectionRoutingDebugLabel(settings, assignment.sectionName),
     });
   });
 

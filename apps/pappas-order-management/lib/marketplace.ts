@@ -10,6 +10,16 @@ export type MarketplaceCredentialStatus = {
   configuredBy: string | null;
 };
 
+export type MarketplaceHistoryDateRange =
+  | 'TODAY'
+  | 'YESTERDAY'
+  | 'THIS_WEEK'
+  | 'THIS_MONTH'
+  | 'LAST_7_DAYS'
+  | 'LAST_30_DAYS'
+  | 'LAST_12_WEEKS'
+  | 'CUSTOM';
+
 export type MarketplaceHistoryOrder = {
   orderId: string;
   workflowUuid: string;
@@ -154,10 +164,14 @@ export async function deleteMarketplaceCookies(provider: MarketplaceProvider) {
   }
 }
 
-export async function getMarketplaceHistory(provider: MarketplaceProvider, cursor?: string) {
+export async function getMarketplaceHistory(
+  provider: MarketplaceProvider,
+  options?: { cursor?: string; dateRange?: MarketplaceHistoryDateRange }
+) {
   const token = await getAccessToken();
   const params = new URLSearchParams();
-  if (cursor) params.set('cursor', cursor);
+  if (options?.cursor) params.set('cursor', options.cursor);
+  if (options?.dateRange) params.set('dateRange', options.dateRange);
   const suffix = params.toString() ? `?${params.toString()}` : '';
 
   const response = await fetch(getApiUrl(`/api/marketplace/providers/${provider}/history${suffix}`), {

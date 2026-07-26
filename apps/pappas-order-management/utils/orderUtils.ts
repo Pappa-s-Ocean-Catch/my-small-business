@@ -4,6 +4,8 @@ import { STATUS_LABELS, PAYMENT_STATUS_LABELS } from './constants';
 import { getOrderPromotionSummary } from '../lib/promotion-summary';
 
 export const KITCHEN_SECTION_OPTIONS = ['Fried', 'Grilled', 'Till'] as const;
+export const PRINT_SECTION_OPTIONS = ['Fried', 'Grilled', 'Till', 'Customer Copy'] as const;
+export const CUSTOMER_COPY_SECTION = 'Customer Copy';
 
 export const groupAddons = (addons: OrderItemAddon[]) => {
   if (!addons || addons.length === 0) return [];
@@ -128,6 +130,32 @@ export const getOrderChannel = (order: Pick<Order, 'order_channel' | 'payment_me
 export const shouldPlayOrderSound = (
   order: Pick<Order, 'order_channel' | 'payment_method' | 'customer_name' | 'scheduled_pickup_at'>
 ) => getOrderChannel(order) === 'online' || Boolean(order.scheduled_pickup_at);
+
+export const PRE_ORDER_LEAD_MINUTES = 30;
+
+export const getScheduledPickupLeadMinutes = (scheduledPickupAt?: string | null, nowMs: number = Date.now()): number | null => {
+  if (!scheduledPickupAt) return null;
+  const pickupMs = new Date(scheduledPickupAt).getTime();
+  if (!Number.isFinite(pickupMs)) return null;
+  return (pickupMs - nowMs) / (1000 * 60);
+};
+
+export const isScheduledPreOrder = (
+  order: Pick<Order, 'scheduled_pickup_at' | 'order_status' | 'payment_status'>,
+  nowMs: number = Date.now(),
+  leadMinutes: number = PRE_ORDER_LEAD_MINUTES
+): boolean => {
+  if (
+    order.order_status === 'completed'
+    || order.order_status === 'cancelled'
+    || order.payment_status === 'refunded'
+  ) {
+    return false;
+  }
+
+  const lead = getScheduledPickupLeadMinutes(order.scheduled_pickup_at, nowMs);
+  return lead != null && lead > leadMinutes;
+};
 
 export const getOrderChannelLabel = (order: Order): string => {
   if (order.order_type === 'delivery') return 'Delivery';

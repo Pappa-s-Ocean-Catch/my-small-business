@@ -21,6 +21,7 @@ import { buildSectionPrintJobs, hasAnySimulatorAssignment } from '@/lib/printer-
 import { enqueuePreparedPrintJobs, processReadyPendingPrintJobs, waitForPrintJobs } from '@/lib/print-queue';
 import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
+import { CustomerReceiptTemplate } from '@/components/CustomerReceiptTemplate';
 import { shouldPlayOrderSound } from '@/utils/orderUtils';
 import { getPrintDeviceId } from '@/lib/print-device';
 import { getFriendlyOrderNumber } from '@/utils/orderNumber';
@@ -53,6 +54,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
   const [tempPrintSource, setTempPrintSource] = useState<string | null>(null);
   const [tempPrintTicketIndex, setTempPrintTicketIndex] = useState(0);
   const [tempPrintDuplicateBySections, setTempPrintDuplicateBySections] = useState(false);
+  const [tempPrintTemplate, setTempPrintTemplate] = useState<'kitchen' | 'customer-copy'>('kitchen');
 
   const autoPrintToast = usePrinterAutomationStore((state) => state.autoPrintToast);
   const dismissToast = usePrinterAutomationStore((state) => state.dismissToast);
@@ -206,6 +208,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
         const jobStartedAt = Date.now();
         setTempPrintTicketIndex(job.onlyTicketIndex ?? 0);
         setTempPrintDuplicateBySections(job.duplicateBySections);
+        setTempPrintTemplate(job.template);
         if (index === 0) {
           await new Promise((resolve) => setTimeout(resolve, RECEIPT_RENDER_SETTLE_MS));
         } else {
@@ -367,6 +370,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
       setTempPrintSource(null);
       setTempPrintTicketIndex(0);
       setTempPrintDuplicateBySections(false);
+      setTempPrintTemplate('kitchen');
       autoPrintingOrderIdsRef.current.delete(order.id);
     }
   }, [appSettings, logOrderEvent, notifyAutoPrintError, showAutoPrintSimulator, showToast, waitForReceiptRenderFrames, waitForReceiptTemplateRef]);
@@ -589,14 +593,21 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
       <View style={{ position: 'absolute', left: -9999, top: -9999, opacity: 0 }} pointerEvents="none">
         {tempPrintingOrder ? (
           <View ref={globalReceiptRef} collapsable={false}>
-            <ReceiptTemplate
-              order={tempPrintingOrder}
-              width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
-              printSource={tempPrintSource || undefined}
-              showTicketCounter={hasAnySimulatorAssignment(appSettings)}
-              onlyTicketIndex={tempPrintTicketIndex}
-              duplicateBySections={tempPrintDuplicateBySections}
-            />
+            {tempPrintTemplate === 'customer-copy' ? (
+              <CustomerReceiptTemplate
+                order={tempPrintingOrder}
+                width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
+              />
+            ) : (
+              <ReceiptTemplate
+                order={tempPrintingOrder}
+                width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
+                printSource={tempPrintSource || undefined}
+                showTicketCounter={hasAnySimulatorAssignment(appSettings)}
+                onlyTicketIndex={tempPrintTicketIndex}
+                duplicateBySections={tempPrintDuplicateBySections}
+              />
+            )}
           </View>
         ) : null}
       </View>

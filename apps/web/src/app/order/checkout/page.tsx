@@ -291,6 +291,7 @@ export default function CheckoutPage() {
   const [scheduledPickupAt, setScheduledPickupAt] = useState<string | null>(
     null,
   );
+  const [scheduledPickupSelected, setScheduledPickupSelected] = useState(false);
 
   // Reward points state
   const [userRewardPoints, setUserRewardPoints] = useState<{
@@ -576,6 +577,7 @@ export default function CheckoutPage() {
       | null;
     const storedDeliveryAddress = sessionStorage.getItem("deliveryAddress");
     const storedDeliveryQuote = sessionStorage.getItem("deliveryQuote");
+    const storedPickupOption = sessionStorage.getItem("pickupOption");
     const storedScheduledPickupAt = sessionStorage.getItem("scheduledPickupAt");
 
     if (storedOrderType) {
@@ -602,7 +604,20 @@ export default function CheckoutPage() {
     }
 
     if (storedScheduledPickupAt) {
-      setScheduledPickupAt(storedScheduledPickupAt);
+      const scheduledMs = new Date(storedScheduledPickupAt).getTime();
+      const isExplicitScheduledPickup =
+        storedOrderType === "pickup"
+        && storedPickupOption === "scheduled"
+        && Number.isFinite(scheduledMs)
+        && scheduledMs > Date.now();
+
+      setScheduledPickupSelected(isExplicitScheduledPickup);
+      setScheduledPickupAt(isExplicitScheduledPickup ? storedScheduledPickupAt : null);
+      if (!isExplicitScheduledPickup) {
+        sessionStorage.removeItem("scheduledPickupAt");
+      }
+    } else {
+      setScheduledPickupSelected(false);
     }
   }, []);
 
@@ -1579,7 +1594,7 @@ export default function CheckoutPage() {
       }
 
       // Add scheduled pickup time for pickup orders (optional when store open, set when pre-order or custom time)
-      if (orderType === "pickup" && scheduledPickupAt) {
+      if (orderType === "pickup" && scheduledPickupSelected && scheduledPickupAt) {
         orderInput.scheduled_pickup_at = scheduledPickupAt;
       }
 

@@ -35,6 +35,7 @@ import { useAppSettingsQuery } from '@/hooks/useAppSettingsQuery';
 import { PRE_ORDERS_QUERY_KEY, usePreOrdersQuery } from '@/hooks/useLiveOrdersQuery';
 import { captureReceiptForPrinter, captureReceiptPreview, type PrinterImageSource } from '@/lib/printer-image';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
+import { CustomerReceiptTemplate } from '@/components/CustomerReceiptTemplate';
 import { isSimulatorPrinter, type SavedPrinter } from '@/lib/escpos-printer';
 import { buildSectionPrintJobs, hasAnySimulatorAssignment } from '@/lib/printer-routing';
 import { getPrintDeviceId } from '@/lib/print-device';
@@ -60,6 +61,7 @@ export default function PreOrdersScreen() {
   const [tempPrintSource, setTempPrintSource] = useState<string | null>(null);
   const [tempPrintTicketIndex, setTempPrintTicketIndex] = useState(0);
   const [tempPrintDuplicateBySections, setTempPrintDuplicateBySections] = useState(false);
+  const [tempPrintTemplate, setTempPrintTemplate] = useState<'kitchen' | 'customer-copy'>('kitchen');
   const [isCapturing, setIsCapturing] = useState(false);
   const globalReceiptRef = useRef(null);
   const queryClient = useQueryClient();
@@ -175,6 +177,7 @@ export default function PreOrdersScreen() {
       // Update the hidden template with this order
       setTempPrintingOrder(freshOrder);
       setTempPrintSource('pre-orders:manual-list-print');
+      setTempPrintTemplate('kitchen');
       const targetDots = s.printerPaperWidth === '58mm' ? 384 : 576;
       const scale = s.printerHighQuality ? 2 : 1;
       if (selectedPrinter) {
@@ -239,6 +242,7 @@ export default function PreOrdersScreen() {
             sectionName: null,
             printer: selectedPrinter,
             printMode: 'combine' as const,
+            template: 'kitchen' as const,
             duplicateBySections: false,
             label: `Manual -> ${selectedPrinter.deviceName}`,
           }]
@@ -249,6 +253,7 @@ export default function PreOrdersScreen() {
         const job = jobs[index];
         setTempPrintTicketIndex(job.onlyTicketIndex ?? 0);
         setTempPrintDuplicateBySections(job.duplicateBySections);
+        setTempPrintTemplate(job.template);
         if (index === 0) {
           await new Promise(resolve => setTimeout(resolve, RECEIPT_RENDER_SETTLE_MS));
         } else {
@@ -344,6 +349,7 @@ export default function PreOrdersScreen() {
       setTempPrintSource(null);
       setTempPrintTicketIndex(0);
       setTempPrintDuplicateBySections(false);
+      setTempPrintTemplate('kitchen');
     }
   };
 
@@ -492,14 +498,21 @@ export default function PreOrdersScreen() {
       <View style={styles.hiddenReceiptContainer} pointerEvents="none">
          {tempPrintingOrder && (
            <View ref={globalReceiptRef} collapsable={false}>
-              <ReceiptTemplate
-                order={tempPrintingOrder}
-                width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
-                printSource={tempPrintSource || undefined}
-                showTicketCounter={hasAnySimulatorAssignment(appSettings)}
-                onlyTicketIndex={tempPrintTicketIndex}
-                duplicateBySections={tempPrintDuplicateBySections}
-              />
+              {tempPrintTemplate === 'customer-copy' ? (
+                <CustomerReceiptTemplate
+                  order={tempPrintingOrder}
+                  width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
+                />
+              ) : (
+                <ReceiptTemplate
+                  order={tempPrintingOrder}
+                  width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
+                  printSource={tempPrintSource || undefined}
+                  showTicketCounter={hasAnySimulatorAssignment(appSettings)}
+                  onlyTicketIndex={tempPrintTicketIndex}
+                  duplicateBySections={tempPrintDuplicateBySections}
+                />
+              )}
            </View>
          )}
       </View>
