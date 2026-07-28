@@ -197,12 +197,15 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     }
     
     // If onPrintImage is provided, capture the template first
-    if (onPrintImage && receiptRef.current) {
+    if (onPrintImage) {
       try {
         setIsCapturing(true);
         setCaptureTarget('kitchen');
         // Small delay to ensure the hidden view is rendered
         await new Promise(resolve => setTimeout(resolve, 300));
+        if (!receiptRef.current) {
+          throw new Error('Kitchen receipt preview is not ready yet.');
+        }
         
         const targetDots = appSettings.printerPaperWidth === '58mm' ? 384 : 576;
         const scale = appSettings.printerHighQuality ? 2 : 1;

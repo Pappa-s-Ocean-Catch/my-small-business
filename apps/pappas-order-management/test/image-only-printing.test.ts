@@ -20,3 +20,10 @@ test('order actions contain no system or text receipt fallbacks', () => {
   assert.doesNotMatch(orderActionsSource, /Print\.printAsync|generatePrintHTML|escposPrintKitchenReceipt/);
   assert.doesNotMatch(detailScreenSource, /Print\.printAsync|generatePrintHTML|escposPrintKitchenReceipt/);
 });
+
+test('kitchen receipt capture mounts its template before checking its ref', () => {
+  const modalSource = source('components/OrderDetailModal.tsx');
+
+  assert.doesNotMatch(modalSource, /if \(onPrintImage && receiptRef\.current\)/);
+  assert.match(modalSource, /setCaptureTarget\('kitchen'\);[\s\S]*if \(!receiptRef\.current\)/);
+});
