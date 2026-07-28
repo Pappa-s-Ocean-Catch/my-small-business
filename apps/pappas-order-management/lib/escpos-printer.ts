@@ -1,5 +1,3 @@
-import type { Order } from '@my-small-business/types';
-import { buildKitchenReceiptLines, type ReceiptLine } from './epson-epos';
 import { decodePngRgba } from './png';
 import type { PrinterImageSource } from './printer-image';
 
@@ -355,10 +353,6 @@ function concatBytes(parts: Array<number[] | Uint8Array>): Uint8Array {
   return output;
 }
 
-function encodeText(value: string): number[] {
-  return Array.from(value, (char) => char.charCodeAt(0) & 0xff);
-}
-
 function yieldToJsLoop(): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, 0);
@@ -386,56 +380,6 @@ function decodeBase64(base64: string): Uint8Array {
   }
 
   return output;
-}
-
-function encodeRawReceiptLine(line: ReceiptLine): Uint8Array {
-  const bytes: number[] = [];
-  const text = typeof line === 'string' ? line : line.text;
-  const align = typeof line === 'string' ? 0 : line.center ? 1 : 0;
-  const font = typeof line === 'string' ? 0 : line.medium ? 1 : 0;
-  const emphasized = typeof line === 'string' ? 0 : line.bold ? 1 : 0;
-  const size = typeof line === 'string'
-    ? 0x00
-    : (line.large || line.medium) ? 0x11 : 0x00;
-
-  bytes.push(0x1b, 0x61, align);
-  bytes.push(0x1b, 0x4d, font);
-  bytes.push(0x1b, 0x45, emphasized);
-  bytes.push(0x1d, 0x21, size);
-  bytes.push(...encodeText(text));
-  bytes.push(LF);
-  return Uint8Array.from(bytes);
-}
-
-function buildRawTestPrintBytes(): Uint8Array {
-  return concatBytes([
-    Uint8Array.from([ESC, 0x40]),
-    encodeRawReceiptLine({ text: 'TEST PRINT', bold: true, center: true }),
-    encodeRawReceiptLine(new Date().toLocaleString()),
-    encodeRawReceiptLine(''),
-    encodeRawReceiptLine({ text: 'OK', bold: true }),
-    Uint8Array.from([GS, 0x56, 0x00]),
-  ]);
-}
-
-function buildRawKitchenReceiptBytes(
-  order: Order,
-  printSource?: string,
-  options?: { duplicateBySections?: boolean; onlyTicketIndex?: number }
-): Uint8Array {
-  const lines = buildKitchenReceiptLines(
-    order,
-    printSource,
-    options?.duplicateBySections,
-    options?.onlyTicketIndex
-  );
-
-  const parts: Array<number[] | Uint8Array> = [Uint8Array.from([ESC, 0x40])];
-  for (const line of lines) {
-    parts.push(encodeRawReceiptLine(line));
-  }
-  parts.push(Uint8Array.from([LF, LF, LF, GS, 0x56, 0x00]));
-  return concatBytes(parts);
 }
 
 async function readImageBytes(imageUri: string): Promise<Uint8Array> {
@@ -564,75 +508,6 @@ async function buildRawImagePrintBytes(imageSource: PrinterImageSource | string,
   ]);
 }
 
-export async function escposTestPrint(printer: SavedPrinter, copies: number): Promise<void> {
-  assertPrinter(printer);
-  const repeat = normalizeCopies(copies);
-
-  return enqueuePrinterJob(printer, async () => {
-    for (let i = 0; i < repeat; i++) {
-      if (getPrinterDriver(printer) === 'rawTcp') {
-        const bytes = buildRawTestPrintBytes();
-        await withRawTcpPrinter(printer, async (socket) => {
-          await writeRawBytes(socket, bytes);
-        }, { timeoutMs: 10000 });
-      } else {
-        await withConnectedPrinter(
-          printer,
-          async (p) => {
-            await p.addText(`TEST PRINT\n${new Date().toLocaleString()}\n\nOK\n\n`);
-            await p.addCut();
-            await p.sendData();
-          },
-          { timeoutMs: 10000 }
-        );
-      }
-    }
-  });
-}
-
-export async function escposPrintKitchenReceipt(
-  order: Order,
-  printer: SavedPrinter,
-  copies: number,
-  printSource?: string,
-  options?: { duplicateBySections?: boolean; onlyTicketIndex?: number }
-): Promise<void> {
-  assertPrinter(printer);
-  const repeat = normalizeCopies(copies);
-  const lines = buildKitchenReceiptLines(
-    order,
-    printSource,
-    options?.duplicateBySections,
-    options?.onlyTicketIndex
-  );
-
-  return enqueuePrinterJob(printer, async () => {
-    for (let i = 0; i < repeat; i++) {
-      if (getPrinterDriver(printer) === 'rawTcp') {
-        const bytes = buildRawKitchenReceiptBytes(order, printSource, options);
-        await withRawTcpPrinter(printer, async (socket) => {
-          await writeRawBytes(socket, bytes);
-        }, { timeoutMs: 15000 });
-      } else {
-        await withConnectedPrinter(
-          printer,
-          async (p) => {
-            // Set default text size to 1x1 at start
-            await p.addTextSize({ width: 1, height: 1 });
-            
-            for (const line of lines) {
-              await printReceiptLine(p, line);
-            }
-            await p.addCut();
-            await p.sendData();
-          },
-          { timeoutMs: 15000 }
-        );
-      }
-    }
-  });
-}
-
 export async function escposPrintOrderImage(
   imageSource: PrinterImageSource | string, 
   printer: SavedPrinter, 
@@ -681,35 +556,4 @@ export async function escposPrintOrderImage(
       }
     }
   });
-}
-
-const ESC_M_FONT_A = new Uint8Array([0x1b, 0x4d, 0]);
-const ESC_M_FONT_B = new Uint8Array([0x1b, 0x4d, 1]);
-
-// Helper to print a single line with formatting
-async function printReceiptLine(p: EscPosPrinterInstance, line: ReceiptLine) {
-  const { PrinterConstants } = getEscPosModule();
-  // Reset formatting for each line
-  await p.addCommand(ESC_M_FONT_A);
-  await p.addTextStyle({ em: PrinterConstants.FALSE });
-  await p.addTextSize({ width: 1, height: 1 });
-
-  if (typeof line === 'string') {
-    await p.addText(line + '\n');
-    return;
-  }
-
-  // Large font = Font A, 2x2 (standard big)
-  if (line.large) {
-     await p.addTextSize({ width: 2, height: 2 });
-  } 
-  // Medium font = Font B, 2x2 (~1.5x of Font A normal)
-  else if (line.medium) {
-     await p.addCommand(ESC_M_FONT_B);
-     await p.addTextSize({ width: 2, height: 2 });
-  }
-
-  if (line.bold) await p.addTextStyle({ em: PrinterConstants.TRUE });
-  
-  await p.addText(line.text + '\n');
 }

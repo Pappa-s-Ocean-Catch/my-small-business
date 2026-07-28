@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { Appbar, Button, Switch, Text, TextInput } from 'react-native-paper';
 import { useRouter } from 'expo-router';
@@ -13,7 +13,6 @@ import {
     createSimulatorSavedPrinter,
     createManualSavedPrinter,
     buildTcpPrinterTarget,
-    escposTestPrint,
     getPrinterDriver,
     isSimulatorPrinter,
     isSamePhysicalPrinter,
@@ -72,10 +71,6 @@ export default function SettingsScreen() {
     const [editingManualPrinterTarget, setEditingManualPrinterTarget] = useState<string | null>(null);
 
     const [saving, setSaving] = useState(false);
-    const [testingPrinter, setTestingPrinter] = useState(false);
-    const [testingPrinterTarget, setTestingPrinterTarget] = useState<string | null>(null);
-    const printerTestRunIdRef = useRef(0);
-    const printerTestTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const { printers, isDiscovering, printerError, start, stop, pairBluetoothDevice } = usePrintersDiscovery();
 
@@ -173,15 +168,6 @@ export default function SettingsScreen() {
         return Number.isFinite(n) ? n : fallback;
     };
 
-    const clearPrinterTestingState = () => {
-        if (printerTestTimeoutRef.current) {
-            clearTimeout(printerTestTimeoutRef.current);
-            printerTestTimeoutRef.current = null;
-        }
-        setTestingPrinter(false);
-        setTestingPrinterTarget(null);
-    };
-
     const handleStartDiscovery = async () => {
         try {
             if (isDiscovering) {
@@ -205,27 +191,6 @@ export default function SettingsScreen() {
         }
     };
 
-    const beginPrinterTest = (target: string) => {
-        const runId = printerTestRunIdRef.current + 1;
-        printerTestRunIdRef.current = runId;
-        if (printerTestTimeoutRef.current) {
-            clearTimeout(printerTestTimeoutRef.current);
-        }
-        setTestingPrinter(true);
-        setTestingPrinterTarget(target);
-        printerTestTimeoutRef.current = setTimeout(() => {
-            if (printerTestRunIdRef.current !== runId) return;
-            clearPrinterTestingState();
-            Alert.alert('Printer test timeout', 'The test print took too long to finish. The printer may still have received the job.');
-        }, 15000);
-        return runId;
-    };
-
-    const finishPrinterTest = (runId: number) => {
-        if (printerTestRunIdRef.current !== runId) return;
-        clearPrinterTestingState();
-    };
-
     const handlePreview = async () => {
         const repeatCount = parseIntOr(repeatCountText, DEFAULT_APP_SETTINGS.soundRepeatCount);
         await playNewOrderSound({ soundId, repeatCount, delayMs: 2000 });
@@ -245,43 +210,6 @@ export default function SettingsScreen() {
             ]
         );
     };
-
-    const handleTestPrint = async () => {
-        const defaultTarget = defaultPrinterAssignment?.printerTarget || printerSelectedTarget;
-        const selected = printerSaved.find((p) => p.target === defaultTarget) || null;
-        if (!selected) {
-            Alert.alert('Printer not selected', 'Please choose a default printer first.');
-            return;
-        }
-
-        const runId = beginPrinterTest(selected.target);
-        try {
-            await escposTestPrint(selected, 1);
-            Alert.alert('Success', 'Test print sent.');
-        } catch (e) {
-            Alert.alert('Printer error', e instanceof Error ? e.message : 'Failed to test print');
-        } finally {
-            finishPrinterTest(runId);
-        }
-    };
-
-    const handleTestSpecificPrinter = async (printer: SavedPrinter) => {
-        const runId = beginPrinterTest(printer.target);
-        try {
-            await escposTestPrint(printer, 1);
-            Alert.alert('Success', `Test print sent to ${printer.deviceName}.`);
-        } catch (e) {
-            Alert.alert('Printer error', e instanceof Error ? e.message : 'Failed to test print');
-        } finally {
-            finishPrinterTest(runId);
-        }
-    };
-
-    useEffect(() => () => {
-        if (printerTestTimeoutRef.current) {
-            clearTimeout(printerTestTimeoutRef.current);
-        }
-    }, []);
 
     useEffect(() => {
         if (printerError && (printerError as any)?.message) {
@@ -962,14 +890,13 @@ export default function SettingsScreen() {
                             <View style={styles.panelCard}>
                                 <View style={styles.panelHeader}>
                                     <Text style={styles.panelTitle}>Saved printers</Text>
-                                    <Text style={styles.panelDescription}>Test individual printers here and choose the default fallback printer for routed jobs.</Text>
+                                    <Text style={styles.panelDescription}>Choose the default printer for routed image print jobs.</Text>
                                 </View>
                                 {printerSaved.length === 0 ? (
                                     <Text style={styles.helper}>No printers saved yet. Use discovery or add one manually above.</Text>
                                 ) : (
                                     printerSaved.map((p) => {
                                         const isSelected = p.target === printerSelectedTarget;
-                                        const isTestingThisPrinter = testingPrinter && testingPrinterTarget === p.target;
                                         return (
                                             <View key={p.target} style={[styles.printerCard, styles.savedPrinterCard, isSelected ? styles.selectedPrinterCard : null]}>
                                                 <View style={styles.printerDetails}>
@@ -997,24 +924,13 @@ export default function SettingsScreen() {
                                                             setPrinterSelectedTarget(p.target);
                                                             updatePrinterAssignmentTarget(defaultPrinterAssignmentId, p.target);
                                                         }}
-                                                        disabled={testingPrinter}
                                                     >
                                                         {isSelected ? 'Default' : 'Set default'}
-                                                    </Button>
-                                                    <Button
-                                                        mode="outlined"
-                                                        icon="printer-check"
-                                                        loading={isTestingThisPrinter}
-                                                        disabled={testingPrinter}
-                                                        onPress={() => void handleTestSpecificPrinter(p)}
-                                                    >
-                                                        Test
                                                     </Button>
                                                     {p.driver === 'rawTcp' || p.driver === 'simulator' ? (
                                                         <Button
                                                             mode="text"
                                                             onPress={() => startEditingManualPrinter(p)}
-                                                            disabled={testingPrinter}
                                                         >
                                                             Edit
                                                         </Button>
@@ -1211,16 +1127,6 @@ export default function SettingsScreen() {
                                 <Text style={styles.helper}>
                                     Improves sharpness on higher-end thermal printers by capturing at 2x resolution.
                                 </Text>
-
-                                <Button
-                                    mode="outlined"
-                                    loading={testingPrinter && testingPrinterTarget === (defaultPrinterAssignment?.printerTarget || printerSelectedTarget)}
-                                    disabled={testingPrinter}
-                                    onPress={handleTestPrint}
-                                    style={styles.previewButton}
-                                >
-                                    Test default printer
-                                </Button>
 
                                 {JOURNAL_LOGS_ENABLED ? (
                                     <>

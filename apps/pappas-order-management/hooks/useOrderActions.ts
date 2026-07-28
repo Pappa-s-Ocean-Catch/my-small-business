@@ -1,12 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Alert } from 'react-native';
-import * as Print from 'expo-print';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { updateOrderStatus, updatePaymentStatus, getOrder, notifyDeliveryReady } from '@/lib/orders';
-import { escposPrintKitchenReceipt, formatPrinterError, isSimulatorPrinter, type SavedPrinter } from '@/lib/escpos-printer';
+import { formatPrinterError, isSimulatorPrinter, type SavedPrinter } from '@/lib/escpos-printer';
 import type { PrinterImageSource } from '@/lib/printer-image';
 import { buildSectionPrintJobs, getSectionPrintTickets, getSectionRoutingDebugLabel, resolvePrinterForSection, shouldSkipPrintForSection } from '@/lib/printer-routing';
-import { generatePrintHTML } from '@/utils/orderUtils';
 import { loadAppSettings, type AppSettings } from '@/lib/settings';
 import { formatSmartpayError, isSmartpayPaired, processSmartpayCardPayment } from '@/lib/smartpay';
 import { enqueuePreparedPrintJobs, waitForPrintJobs } from '@/lib/print-queue';
@@ -253,65 +251,10 @@ export const useOrderActions = (
   };
 
   const handlePrint = async (order: Order, selectedPrinter?: SavedPrinter | null): Promise<boolean> => {
-    try {
-      const effectiveSettings = await getEffectiveSettings();
-
-      if (selectedPrinter) {
-        if (isSimulatorPrinter(selectedPrinter)) {
-          setSimulatorOrder(order);
-          setPrintImageUri(null);
-          setPrintImageUris([]);
-          setPrintImageLabels([selectedPrinter.deviceName]);
-          setShowSimulator(true);
-          return true;
-        }
-        if (effectiveSettings.printerEnabled) {
-          await escposPrintKitchenReceipt(order, selectedPrinter, 1, 'order-actions:manual-single-printer');
-          return true;
-        }
-        const html = generatePrintHTML(order);
-        await Print.printAsync({ html });
-        return true;
-      }
-
-      const jobs = buildSectionPrintJobs(effectiveSettings, order);
-      const simulatorJobs = jobs.filter((job) => !!job.printer && isSimulatorPrinter(job.printer));
-      const printerJobs = jobs.filter((job) => !!job.printer && !isSimulatorPrinter(job.printer));
-      if (simulatorJobs.length > 0) {
-        setSimulatorOrder(order);
-        setPrintImageUri(null); // No image URI for standard fallback print usually
-        setPrintImageUris([]);
-        setPrintImageLabels(simulatorJobs.map((job) => job.label));
-        setShowSimulator(true);
-        return true;
-      }
-
-      if (printerJobs.length === 0) {
-        return true;
-      }
-      if (effectiveSettings.printerEnabled) {
-        try {
-          for (const job of printerJobs) {
-            await escposPrintKitchenReceipt(order, job.printer!, 1, 'order-actions:manual-line-print', {
-              duplicateBySections: job.duplicateBySections,
-              onlyTicketIndex: job.onlyTicketIndex,
-            });
-          }
-          return true;
-        } catch (printerError) {
-          console.error('Print error:', printerError);
-          // Fallback handled in UI or system print
-          return false;
-        }
-      }
-
-      const html = generatePrintHTML(order);
-      await Print.printAsync({ html });
-      return true;
-    } catch (error) {
-      console.error('Print error:', error);
-      return false;
-    }
+    void order;
+    void selectedPrinter;
+    Alert.alert('Receipt image unavailable', 'Please wait for the receipt preview to finish preparing.');
+    return false;
   };
 
   const handlePrintImage = async (order: Order, image: PrinterImageSource, selectedPrinter?: SavedPrinter | null): Promise<boolean> => {
@@ -346,9 +289,8 @@ export const useOrderActions = (
           }
           return true;
         }
-        const html = generatePrintHTML(order);
-        await Print.printAsync({ html });
-        return true;
+        Alert.alert('Printer unavailable', 'Select and enable an image printer before printing.');
+        return false;
       }
       const tickets = getSectionPrintTickets(order);
       const jobs = buildSectionPrintJobs(effectiveSettings, order);
@@ -366,7 +308,8 @@ export const useOrderActions = (
 
       const firstPrinterJob = jobs.find((job) => !!job.printer && !isSimulatorPrinter(job.printer)) || null;
       if (!firstPrinterJob) {
-        return true;
+        Alert.alert('Printer unavailable', 'Select an image printer before printing.');
+        return false;
       }
 
       if (effectiveSettings.printerEnabled) {
@@ -395,10 +338,8 @@ export const useOrderActions = (
         }
       }
 
-      // Fallback to system print if image printing is not available or failed
-      const html = generatePrintHTML(order);
-      await Print.printAsync({ html });
-      return true;
+      Alert.alert('Printer unavailable', 'Select and enable an image printer before printing.');
+      return false;
     } catch (error) {
       console.error('Print image error:', error);
       Alert.alert('Error', 'Failed to print receipt image');

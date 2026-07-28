@@ -1,17 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import * as Print from 'expo-print';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { ActivityIndicator, Text } from 'react-native-paper';
 import { getOrder, refreshDeliveryStatus, updateOrderStatus, updatePaymentStatus } from '../lib/orders';
 import { DEFAULT_APP_SETTINGS, loadAppSettings } from '../lib/settings';
-import { escposPrintKitchenReceipt, formatPrinterError, isSimulatorPrinter, type SavedPrinter } from '../lib/escpos-printer';
+import { isSimulatorPrinter, type SavedPrinter } from '../lib/escpos-printer';
 import type { PrinterImageSource } from '../lib/printer-image';
-import { buildSectionPrintJobs, getSectionPrintTickets, resolvePrinterForSection, shouldSkipPrintForSection } from '../lib/printer-routing';
+import { getSectionPrintTickets, resolvePrinterForSection } from '../lib/printer-routing';
 import { formatSmartpayError, isSmartpayPaired, processSmartpayCardPayment } from '../lib/smartpay';
 import { OrderDetailModal } from '../components/OrderDetailModal';
-import { generatePrintHTML, getNextQuickAction } from '../utils/orderUtils';
+import { getNextQuickAction } from '../utils/orderUtils';
 import { enqueuePreparedPrintJobs, waitForPrintJobs } from '../lib/print-queue';
 
 const CLOSED_ORDER_STATUSES: OrderStatus[] = ['completed', 'cancelled'];
@@ -170,70 +169,10 @@ export default function OrderDetailScreen() {
   };
 
   const handlePrint = async (selectedOrder: Order, selectedPrinter?: SavedPrinter | null): Promise<boolean> => {
-    try {
-      const settings = await loadAppSettings();
-      if (selectedPrinter) {
-        if (isSimulatorPrinter(selectedPrinter)) {
-          setSimulatorOrder(selectedOrder);
-          setPrintImageUri(null);
-          setSimulatorImageLabels([selectedPrinter.deviceName]);
-          setShowSimulator(true);
-          return true;
-        }
-        if (settings.printerEnabled) {
-          await escposPrintKitchenReceipt(selectedOrder, selectedPrinter, 1, 'order-detail-screen:manual-single-printer');
-          return true;
-        }
-        await Print.printAsync({ html: generatePrintHTML(selectedOrder) });
-        return true;
-      }
-      const tickets = getSectionPrintTickets(selectedOrder);
-      const jobs = buildSectionPrintJobs(settings, selectedOrder);
-      const simulatorJobs = jobs.filter((job) => !!job.printer && isSimulatorPrinter(job.printer));
-      const printerJobs = jobs.filter((job) => !!job.printer && !isSimulatorPrinter(job.printer));
-      if (simulatorJobs.length > 0) {
-        setSimulatorOrder(selectedOrder);
-        setPrintImageUri(null);
-        setSimulatorImageLabels(simulatorJobs.map((job) => job.label));
-        setShowSimulator(true);
-        return true;
-      }
-
-      if (printerJobs.length === 0) {
-        return true;
-      }
-      if (settings.printerEnabled) {
-        try {
-          for (const job of printerJobs) {
-            await escposPrintKitchenReceipt(selectedOrder, job.printer!, 1, 'order-detail-screen:manual-line-print', {
-              duplicateBySections: job.duplicateBySections,
-              onlyTicketIndex: job.onlyTicketIndex,
-            });
-          }
-          return true;
-        } catch (printerError) {
-          Alert.alert(
-            'Printer error',
-            formatPrinterError(printerError),
-            [
-              { text: 'Cancel', style: 'cancel' },
-              {
-                text: 'System Print',
-                onPress: () => void Print.printAsync({ html: generatePrintHTML(selectedOrder) }),
-              },
-            ]
-          );
-          return false;
-        }
-      }
-
-      await Print.printAsync({ html: generatePrintHTML(selectedOrder) });
-      return true;
-    } catch (error) {
-      console.error('Print error:', error);
-      Alert.alert('Error', 'Failed to print order');
-      return false;
-    }
+    void selectedOrder;
+    void selectedPrinter;
+    Alert.alert('Receipt image unavailable', 'Please wait for the receipt preview to finish preparing.');
+    return false;
   };
 
   const handlePrintImage = async (selectedOrder: Order, image: PrinterImageSource, selectedPrinter?: SavedPrinter | null): Promise<boolean> => {
@@ -266,8 +205,8 @@ export default function OrderDetailScreen() {
           }
           return true;
         }
-        await Print.printAsync({ html: generatePrintHTML(selectedOrder) });
-        return true;
+        Alert.alert('Printer unavailable', 'Select and enable an image printer before printing.');
+        return false;
       }
       const selected = resolvePrinterForSection(settings, getSectionPrintTickets(selectedOrder)[0]?.sections[0]?.sectionName || null);
       if (selected && isSimulatorPrinter(selected)) {
@@ -298,8 +237,8 @@ export default function OrderDetailScreen() {
         return true;
       }
 
-      await Print.printAsync({ html: generatePrintHTML(selectedOrder) });
-      return true;
+      Alert.alert('Printer unavailable', 'Select and enable an image printer before printing.');
+      return false;
     } catch (error) {
       console.error('Print image error:', error);
       Alert.alert('Error', 'Failed to print receipt image');
