@@ -4,7 +4,7 @@
 
 **Goal:** Make all receipt printing image-based and automatically process a preorder when its pickup time enters the 30-minute Live Orders window.
 
-**Architecture:** A pure live-order eligibility helper will be shared by the Live Orders query and the printer automation provider. The provider will run an immediate and 60-second recurring scan of eligible orders, invalidate both relevant query caches, and use its existing claim-protected image-print workflow. Legacy text and HTML receipt transports will be removed, leaving image capture and the existing image queue as the only receipt path.
+**Architecture:** A pure live-order eligibility helper will be shared by the Live Orders query and the printer automation provider. The Live Orders query retains its 24-hour creation-time filter. The provider will run an immediate and 60-second recurring scan of scheduled pickup times from seven days ago through 30 minutes ahead, invalidate both relevant query caches, and use its existing claim-protected image-print workflow. Legacy text and HTML receipt transports will be removed, leaving image capture and the existing image queue as the only receipt path.
 
 **Tech Stack:** Expo/React Native, TypeScript, TanStack Query, Zustand, Node test runner.
 
@@ -12,6 +12,7 @@
 
 - Receipt output must use `ReceiptTemplate` or `CustomerReceiptTemplate` image capture and `escposPrintOrderImage` only.
 - The live window is `scheduled_pickup_at <= now + 30 minutes`; non-scheduled active orders are already live.
+- The preorder automation scan queries pickup times from `now - 7 days` through `now + 30 minutes`; it does not broaden the Live Orders screen's existing 24-hour creation filter.
 - Preserve the existing database kitchen-print claim as the multi-device exactly-once guard.
 - The recurring scan runs immediately when the provider mounts and every 60 seconds while mounted.
 - Do not alter printer routing, print-claim database schema, receipt layout, or simulator semantics.
@@ -104,7 +105,7 @@ git commit -m "feat: share preorder live-window eligibility"
 - Modify: `apps/pappas-order-management/providers/PrinterAutomationProvider.tsx:1-620`
 
 **Interfaces:**
-- Consumes `fetchLiveOrders` and `getAutoPrintableLiveOrders` from the shared live-order boundary.
+- Consumes `fetchScheduledOrdersInAutomationWindow` and `getAutoPrintableLiveOrders` from the shared live-order boundary.
 - Consumes the existing `fetchAndAnnounceOrder(orderId)` and `quickPrintAutoOrder(order)` image workflow.
 - Produces a mount-time plus 60-second provider timer that invalidates Live Orders and Pre-orders queries and calls `fetchAndAnnounceOrder` for newly eligible orders.
 
@@ -121,9 +122,9 @@ Expected: FAIL because the new boundary test is absent or the selector does not 
 - [ ] **Step 3: Implement the provider scan**
 
 ```ts
-const scanLiveOrdersForAutoPrint = useCallback(async () => {
+const scanScheduledOrdersForAutoPrint = useCallback(async () => {
   try {
-    const liveOrders = await fetchLiveOrders();
+    const liveOrders = await fetchScheduledOrdersInAutomationWindow();
     void queryClient.invalidateQueries({ queryKey: LIVE_ORDERS_QUERY_KEY });
     void queryClient.invalidateQueries({ queryKey: PRE_ORDERS_QUERY_KEY });
     for (const order of getAutoPrintableLiveOrders(liveOrders)) {
@@ -135,10 +136,10 @@ const scanLiveOrdersForAutoPrint = useCallback(async () => {
 }, [queryClient, scheduleOrderAnnouncement]);
 
 useEffect(() => {
-  void scanLiveOrdersForAutoPrint();
-  const intervalId = setInterval(() => void scanLiveOrdersForAutoPrint(), 60 * 1000);
+  void scanScheduledOrdersForAutoPrint();
+  const intervalId = setInterval(() => void scanScheduledOrdersForAutoPrint(), 60 * 1000);
   return () => clearInterval(intervalId);
-}, [scanLiveOrdersForAutoPrint]);
+}, [scanScheduledOrdersForAutoPrint]);
 ```
 
 Use the actual provider dependency ordering: define the callback after `scheduleOrderAnnouncement`, and preserve the existing realtime handling. The scan must not directly call any printer API; it must enter `fetchAndAnnounceOrder`/`quickPrintAutoOrder`, which captures receipt images and obtains the print claim.

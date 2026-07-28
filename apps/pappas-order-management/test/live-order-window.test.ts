@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Order } from '@my-small-business/types';
-import { getAutoPrintableLiveOrders, isLiveOrder } from '../lib/live-order-window';
+import {
+  getAutoPrintableLiveOrders,
+  getScheduledOrderAutomationRange,
+  isLiveOrder,
+} from '../lib/live-order-window';
 
 const nowMs = Date.parse('2026-07-28T10:00:00.000Z');
 
@@ -40,4 +44,11 @@ test('selects only pending or confirmed live orders for auto-print', () => {
     getAutoPrintableLiveOrders(orders, nowMs).map((order) => order.id),
     ['pending', 'confirmed'],
   );
+});
+
+test('uses a one-week scheduled pickup window for preorder automation', () => {
+  assert.deepEqual(getScheduledOrderAutomationRange(nowMs), {
+    from: '2026-07-21T10:00:00.000Z',
+    until: '2026-07-28T10:30:00.000Z',
+  });
 });

@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getAllOrders } from '@/lib/orders';
 import type { Order } from '@my-small-business/types';
 import { isScheduledPreOrder } from '@/utils/orderUtils';
-import { isLiveOrder } from '@/lib/live-order-window';
+import { getScheduledOrderAutomationRange, isLiveOrder } from '@/lib/live-order-window';
 
 export const LIVE_ORDERS_QUERY_KEY = ['live-orders'] as const;
 export const PRE_ORDER_COUNT_QUERY_KEY = ['live-orders', 'pre-order-count'] as const;
@@ -41,6 +41,20 @@ export async function fetchLiveOrders(): Promise<Order[]> {
   }
 
   return sortLiveOrders((result.data || []).filter(isLiveOrder));
+}
+
+export async function fetchScheduledOrdersInAutomationWindow(nowMs: number = Date.now()): Promise<Order[]> {
+  const range = getScheduledOrderAutomationRange(nowMs);
+  const result = await getAllOrders({
+    scheduled_pickup_since: range.from,
+    scheduled_pickup_until: range.until,
+  });
+
+  if (result.error) {
+    throw new Error(result.error);
+  }
+
+  return sortLiveOrders((result.data || []).filter((order) => isLiveOrder(order, nowMs)));
 }
 
 export async function fetchPreOrderCount(): Promise<number> {

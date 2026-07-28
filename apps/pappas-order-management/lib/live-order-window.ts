@@ -2,6 +2,7 @@ import type { Order } from '@my-small-business/types';
 import { getScheduledPickupLeadMinutes, PRE_ORDER_LEAD_MINUTES } from '../utils/orderUtils';
 
 type LiveOrderCandidate = Pick<Order, 'scheduled_pickup_at' | 'order_status' | 'payment_status'>;
+const PREORDER_AUTOMATION_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 
 function isClosedOrRefunded(order: LiveOrderCandidate): boolean {
   return order.order_status === 'completed'
@@ -22,4 +23,11 @@ export function getAutoPrintableLiveOrders(orders: Order[], nowMs: number = Date
     && (order.order_status === 'pending' || order.order_status === 'confirmed')
     && order.payment_status !== 'refunded'
   ));
+}
+
+export function getScheduledOrderAutomationRange(nowMs: number = Date.now()): { from: string; until: string } {
+  return {
+    from: new Date(nowMs - PREORDER_AUTOMATION_LOOKBACK_MS).toISOString(),
+    until: new Date(nowMs + PRE_ORDER_LEAD_MINUTES * 60 * 1000).toISOString(),
+  };
 }

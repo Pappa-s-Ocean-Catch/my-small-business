@@ -147,6 +147,8 @@ export async function getAllOrders(filters?: {
   date?: string;
   since?: string;
   until?: string;
+  scheduled_pickup_since?: string;
+  scheduled_pickup_until?: string;
 }): Promise<{ data: Order[] | null; error: string | null }> {
   try {
     let query = supabase
@@ -164,6 +166,14 @@ export async function getAllOrders(filters?: {
 
     if (filters?.payment_status && filters.payment_status !== 'all') {
       query = query.eq('payment_status', filters.payment_status);
+    }
+
+    if (filters?.scheduled_pickup_since) {
+      query = query.gte('scheduled_pickup_at', filters.scheduled_pickup_since);
+    }
+
+    if (filters?.scheduled_pickup_until) {
+      query = query.lte('scheduled_pickup_at', filters.scheduled_pickup_until);
     }
 
     if (filters?.since && filters?.until) {

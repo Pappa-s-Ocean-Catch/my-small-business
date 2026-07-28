@@ -13,7 +13,7 @@ Use captured receipt images for every order receipt print, and automatically pri
 
 ## Architecture
 
-`useLiveOrdersQuery` owns the shared live-window predicate. It is used by `fetchLiveOrders` and exported for the automation provider. The provider performs an immediate check on mount and then repeats every 60 seconds. It fetches live orders, invalidates the Live Orders and Pre-orders queries, and runs each pending or confirmed order through the existing claim-protected image auto-print workflow.
+`useLiveOrdersQuery` owns the shared live-window predicate. It is used by `fetchLiveOrders` and exported for the automation provider. The Live Orders screen retains its existing 24-hour creation-time query. Separately, the provider performs an immediate check on mount and then repeats every 60 seconds, querying only scheduled orders with pickup times from seven days ago through 30 minutes ahead. It invalidates the Live Orders and Pre-orders queries, and runs each pending or confirmed eligible order through the existing claim-protected image auto-print workflow.
 
 The print pipeline remains:
 
@@ -25,7 +25,8 @@ The print pipeline remains:
 ## Behavior
 
 - A preorder with a pickup time more than 30 minutes away stays in Pre-orders and is not printed.
-- At the first automation tick where it enters the 30-minute window, it appears in Live Orders, is removed from the Pre-orders list by the shared filter, and is eligible for automatic image printing.
+- At the first automation tick where it enters the 30-minute window, it appears in Live Orders when it is within that screen's existing 24-hour creation window, is removed from the Pre-orders list by the shared filter, and is eligible for automatic image printing.
+- The automation scan considers scheduled pickup times from seven days in the past through 30 minutes in the future, so long-lead preorders are found without broadening the Live Orders history query indefinitely.
 - The existing database print claim remains the authority for exactly-once printing across POS devices and app restarts.
 - If auto-print is disabled or no image-print capability is configured, the order is not printed; it can be retried when configuration changes or a later relevant event occurs.
 - Manual printing always captures and prints an image. It no longer falls back to text receipt commands or the device system-print dialog.

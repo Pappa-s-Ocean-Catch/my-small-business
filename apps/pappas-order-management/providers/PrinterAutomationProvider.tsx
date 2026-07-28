@@ -5,7 +5,12 @@ import { Audio } from 'expo-av';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Order } from '@my-small-business/types';
 import { useAppSettingsQuery } from '@/hooks/useAppSettingsQuery';
-import { LIVE_ORDERS_QUERY_KEY, PRE_ORDER_COUNT_QUERY_KEY, PRE_ORDERS_QUERY_KEY } from '@/hooks/useLiveOrdersQuery';
+import {
+  fetchScheduledOrdersInAutomationWindow,
+  LIVE_ORDERS_QUERY_KEY,
+  PRE_ORDER_COUNT_QUERY_KEY,
+  PRE_ORDERS_QUERY_KEY,
+} from '@/hooks/useLiveOrdersQuery';
 import { supabase } from '@/lib/supabase';
 import { DEFAULT_APP_SETTINGS, loadAppSettings } from '@/lib/settings';
 import {
@@ -24,6 +29,7 @@ import { ReceiptTemplate } from '@/components/ReceiptTemplate';
 import { CustomerReceiptTemplate } from '@/components/CustomerReceiptTemplate';
 import { shouldPlayOrderSound } from '@/utils/orderUtils';
 import { getPrintDeviceId } from '@/lib/print-device';
+import { getAutoPrintableLiveOrders } from '@/lib/live-order-window';
 import { getFriendlyOrderNumber } from '@/utils/orderNumber';
 import { playNewOrderSound } from '@/lib/sounds';
 import { usePrinterAutomationStore, type JournalLevel } from '@/stores/printerAutomationStore';
@@ -472,6 +478,21 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
     });
   }, [fetchAndAnnounceOrder, getPrintDelayMs, logOrderEvent]);
 
+  const scanScheduledOrdersForAutoPrint = useCallback(async () => {
+    try {
+      const scheduledOrders = await fetchScheduledOrdersInAutomationWindow();
+      void queryClient.invalidateQueries({ queryKey: LIVE_ORDERS_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: PRE_ORDER_COUNT_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: PRE_ORDERS_QUERY_KEY });
+
+      for (const order of getAutoPrintableLiveOrders(scheduledOrders)) {
+        scheduleOrderAnnouncement(order);
+      }
+    } catch (error) {
+      console.error('Failed to scan scheduled orders entering the live window:', error);
+    }
+  }, [queryClient, scheduleOrderAnnouncement]);
+
   useEffect(() => {
     void Audio.setAudioModeAsync({
       allowsRecordingIOS: false,
@@ -481,6 +502,15 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
       playThroughEarpieceAndroid: false,
     });
   }, []);
+
+  useEffect(() => {
+    void scanScheduledOrdersForAutoPrint();
+    const intervalId = setInterval(() => {
+      void scanScheduledOrdersForAutoPrint();
+    }, 60 * 1000);
+
+    return () => clearInterval(intervalId);
+  }, [scanScheduledOrdersForAutoPrint]);
 
   useEffect(() => {
     const pendingJobs = printJobs.filter((job) => job.status === 'queued');
