@@ -1,22 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { getAllOrders } from '@/lib/orders';
 import type { Order } from '@my-small-business/types';
-import { getScheduledPickupLeadMinutes, isScheduledPreOrder, PRE_ORDER_LEAD_MINUTES } from '@/utils/orderUtils';
+import { isScheduledPreOrder } from '@/utils/orderUtils';
+import { isLiveOrder } from '@/lib/live-order-window';
 
 export const LIVE_ORDERS_QUERY_KEY = ['live-orders'] as const;
 export const PRE_ORDER_COUNT_QUERY_KEY = ['live-orders', 'pre-order-count'] as const;
 export const PRE_ORDERS_QUERY_KEY = ['pre-orders'] as const;
-
-function isLiveOrder(order: Order): boolean {
-  const isNotFinished =
-    order.order_status !== 'completed'
-    && order.order_status !== 'cancelled'
-    && order.payment_status !== 'refunded';
-
-  if (!isNotFinished) return false;
-  const diffMinutes = getScheduledPickupLeadMinutes(order.scheduled_pickup_at);
-  return diffMinutes == null || diffMinutes <= PRE_ORDER_LEAD_MINUTES;
-}
 
 function sortLiveOrders(orders: Order[]): Order[] {
   return [...orders].sort((a, b) => {

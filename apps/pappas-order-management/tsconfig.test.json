@@ -16,6 +16,7 @@
     "utils/orderUtils.ts",
     "utils/orderNumber.ts",
     "utils/constants.ts",
+    "lib/live-order-window.ts",
     "lib/promotion-summary.ts",
     "types/**/*.ts",
     "../../libs/types/**/*.ts"
