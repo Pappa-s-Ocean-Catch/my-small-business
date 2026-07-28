@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import type { Order } from '@my-small-business/types';
 import { ReceiptQrCode } from './ReceiptQrCode';
 import { getReceiptOrderClaimUrl, getReceiptQrLandingUrl, getReceiptStoreAddressLines, getReceiptStoreName, getReceiptStorePhone, getReceiptWebsiteUrl } from '../lib/receipt-config';
-import { getOrderChannelReceiptLabel, getOrderLineItemCount, getOrderNotes, groupAddons } from '../utils/orderUtils';
+import { getOrderChannelReceiptLabel, getOrderDisplaySubtotal, getOrderDisplayTotal, getOrderItemDisplaySubtotal, getOrderLineItemCount, getOrderNotes, groupAddons } from '../utils/orderUtils';
 import { getOrderPromotionSummary, isFreePromotionOrderItem } from '../lib/promotion-summary';
 
 type Props = {
@@ -28,12 +28,14 @@ export function CustomerReceiptTemplate({ order, width = 576 }: Props) {
   const rewardPointsBalance = Number((order as Order & { reward_points_balance?: number | null }).reward_points_balance ?? 0);
   const promotionSummary = getOrderPromotionSummary(order);
   const promotionLabel = promotionSummary?.label || 'Promotion Discount';
+  const displaySubtotal = getOrderDisplaySubtotal(order);
+  const displayTotal = getOrderDisplayTotal(order);
   const isNarrow = width <= 384;
   const qrSize = claimQrUrl
     ? (isNarrow ? 146 : 166)
     : (isNarrow ? 128 : 144);
-  const gstAmount = order.tax > 0 ? order.tax : Number((order.total / 11).toFixed(2));
-  const subtotalExGst = Number((order.total - gstAmount).toFixed(2));
+  const gstAmount = order.tax > 0 ? order.tax : Number((displayTotal / 11).toFixed(2));
+  const subtotalExGst = Number((displayTotal - gstAmount).toFixed(2));
   const orderDate = new Date(order.created_at);
   const shortOrderNumber = `P${order.order_number?.split('-').pop()?.replace(/\D+/g, '') || order.id.slice(0, 6).toUpperCase()}`;
   const paymentLabel = order.payment_status?.toUpperCase() === 'PAID' ? 'Paid' : 'Payment Pending';
@@ -90,6 +92,7 @@ export function CustomerReceiptTemplate({ order, width = 576 }: Props) {
 
       {(order.items || []).map((item, index) => {
         const isFreeItem = isFreePromotionOrderItem(order, item.product_name);
+        const displaySubtotal = getOrderItemDisplaySubtotal(item);
 
         return (
         <View key={`${item.product_id || item.product_name}-${index}`} style={styles.itemCard}>
@@ -102,10 +105,10 @@ export function CustomerReceiptTemplate({ order, width = 576 }: Props) {
               {isFreeItem ? (
                 <>
                   <Text style={styles.itemPriceFree}>FREE</Text>
-                  <Text style={styles.itemPriceOriginal}>${formatMoney(item.subtotal)}</Text>
+                  <Text style={styles.itemPriceOriginal}>${formatMoney(displaySubtotal)}</Text>
                 </>
               ) : (
-                <Text style={styles.itemPrice}>${formatMoney(item.subtotal)}</Text>
+                <Text style={styles.itemPrice}>${formatMoney(displaySubtotal)}</Text>
               )}
             </View>
           </View>
@@ -188,7 +191,7 @@ export function CustomerReceiptTemplate({ order, width = 576 }: Props) {
 
         <View style={[styles.totalRow, styles.totalRowFinal]}>
           <Text style={styles.grandTotalLabel}>TOTAL</Text>
-          <Text style={styles.grandTotalValue}>${formatMoney(order.total)}</Text>
+          <Text style={styles.grandTotalValue}>${formatMoney(displayTotal)}</Text>
         </View>
         <Text style={styles.paymentStatus}>{paymentLabel}</Text>
       </View>

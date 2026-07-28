@@ -8,6 +8,7 @@ export type MarketplaceCredentialStatus = {
   configured: boolean;
   updatedAt: string | null;
   configuredBy: string | null;
+  providerConfig: Record<string, string | number | boolean | null>;
 };
 
 export type MarketplaceHistoryDateRange =
@@ -62,6 +63,11 @@ export type MarketplaceActiveResult = {
   nextCursor: string | null;
 };
 
+export type MarketplaceCredentialSavePayload = {
+  cookies: string;
+  providerConfig?: Record<string, string | number | boolean | null>;
+};
+
 export type MarketplaceOrderDetailItemOption = {
   name: string;
   quantity: number;
@@ -87,6 +93,8 @@ export type MarketplaceOrderStateChange = {
 };
 
 export type MarketplaceOrderDetail = {
+  provider: MarketplaceProvider;
+  sourceName: string;
   orderId: string;
   orderUUID: string;
   requestedAt: number;
@@ -106,6 +114,8 @@ export type MarketplaceOrderDetail = {
   orderStateChanges: MarketplaceOrderStateChange[];
   items: MarketplaceOrderDetailItem[];
 };
+
+export type MarketplaceOrderDetailMode = 'history' | 'live';
 
 async function getAccessToken() {
   const { data: { session }, error } = await supabase.auth.getSession();
@@ -142,10 +152,10 @@ export async function getMarketplaceCredentialStatus(provider: MarketplaceProvid
   return fetchMarketplaceCredentials<MarketplaceCredentialStatus>(provider, { method: 'GET' });
 }
 
-export async function saveMarketplaceCookies(provider: MarketplaceProvider, cookies: string) {
+export async function saveMarketplaceCookies(provider: MarketplaceProvider, payload: MarketplaceCredentialSavePayload) {
   return fetchMarketplaceCredentials<MarketplaceCredentialStatus>(provider, {
     method: 'POST',
-    body: JSON.stringify({ cookies }),
+    body: JSON.stringify(payload),
   });
 }
 
@@ -166,12 +176,14 @@ export async function deleteMarketplaceCookies(provider: MarketplaceProvider) {
 
 export async function getMarketplaceHistory(
   provider: MarketplaceProvider,
-  options?: { cursor?: string; dateRange?: MarketplaceHistoryDateRange }
+  options?: { cursor?: string; dateRange?: MarketplaceHistoryDateRange; statuses?: string[]; mode?: 'history' | 'scheduled' }
 ) {
   const token = await getAccessToken();
   const params = new URLSearchParams();
   if (options?.cursor) params.set('cursor', options.cursor);
   if (options?.dateRange) params.set('dateRange', options.dateRange);
+  if (options?.statuses?.length) params.set('statuses', options.statuses.join(','));
+  if (options?.mode) params.set('mode', options.mode);
   const suffix = params.toString() ? `?${params.toString()}` : '';
 
   const response = await fetch(getApiUrl(`/api/marketplace/providers/${provider}/history${suffix}`), {
@@ -210,9 +222,17 @@ export async function getMarketplaceActiveOrders(provider: MarketplaceProvider, 
   return payload.data;
 }
 
-export async function getMarketplaceOrderDetail(provider: MarketplaceProvider, workflowUuid: string) {
+export async function getMarketplaceOrderDetail(
+  provider: MarketplaceProvider,
+  workflowUuid: string,
+  options?: { mode?: MarketplaceOrderDetailMode }
+) {
   const token = await getAccessToken();
-  const response = await fetch(getApiUrl(`/api/marketplace/providers/${provider}/orders/${workflowUuid}`), {
+  const params = new URLSearchParams();
+  if (options?.mode) params.set('mode', options.mode);
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+
+  const response = await fetch(getApiUrl(`/api/marketplace/providers/${provider}/orders/${workflowUuid}${suffix}`), {
     method: 'GET',
     headers: {
       Authorization: `Bearer ${token}`,

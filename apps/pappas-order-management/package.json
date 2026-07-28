@@ -21,7 +21,8 @@
     "android:tablet": "expo start --android --device",
     "build:android:apk": "expo prebuild --platform android && cd android && ./gradlew assembleRelease",
     "build:release:android": "dotenv -e release.env -- sh -c 'expo prebuild --platform android && cd android && ./gradlew assembleRelease'",
-    "build:release:ios": "dotenv -e release.env -- expo run:ios --configuration Release"
+    "build:release:ios": "dotenv -e release.env -- expo run:ios --configuration Release",
+    "test:unit": "tsc -p tsconfig.test.json && node --test dist-test/apps/pappas-order-management/test/**/*.test.js"
   },
   "dependencies": {
     "@expo/metro-runtime": "^6.1.2",

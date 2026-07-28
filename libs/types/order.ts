@@ -60,6 +60,7 @@ export interface OrderItem {
   product_description: string | null;
   product_image_url: string | null;
   base_price: number;
+  override_price: number | null;
   quantity: number;
   subtotal: number;
   section?: string | null;

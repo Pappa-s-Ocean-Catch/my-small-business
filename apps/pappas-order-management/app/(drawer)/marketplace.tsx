@@ -1,9 +1,10 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Modal as NativeModal, RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Appbar, Button, Card, Checkbox, IconButton, Menu, Modal, Portal, SegmentedButtons, Surface, Text, TextInput } from 'react-native-paper';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { useRouter } from 'expo-router';
+import { supabase } from '@/lib/supabase';
 
 import {
   deleteMarketplaceCookies,
@@ -20,9 +21,22 @@ import {
   type MarketplaceProvider,
 } from '@/lib/marketplace';
 import { useMarketplacePosDraftStore } from '@/stores/marketplacePosDraftStore';
+import type { AddonItem, RemovableIngredient, SaleProduct } from '@/app/pos.types';
 
 type ProviderTab = 'uber_eats' | 'doordash';
-type MarketplaceListTab = 'active' | 'history';
+type MarketplaceListTab = 'active' | 'scheduled' | 'history';
+type MappingEntityType = 'product' | 'addon' | 'ingredient';
+
+type MarketplaceUnmatchedName = {
+  id: string;
+  provider: MarketplaceProvider;
+  entity_type: MappingEntityType;
+  external_name: string;
+  normalized_external_name: string;
+  parent_external_name: string;
+  occurrences: number;
+  last_seen_at: string;
+};
 
 const PROVIDER_LABELS: Record<ProviderTab, string> = {
   uber_eats: 'Uber Eats',
@@ -31,6 +45,7 @@ const PROVIDER_LABELS: Record<ProviderTab, string> = {
 
 const LIST_TAB_OPTIONS = [
   { value: 'active', label: 'Active' },
+  { value: 'scheduled', label: 'Scheduled' },
   { value: 'history', label: 'History' },
 ];
 
@@ -49,7 +64,7 @@ const HISTORY_DATE_RANGE_OPTIONS: Array<{ value: MarketplaceHistoryDateRange; la
   { value: 'LAST_12_WEEKS', label: 'Last 12 weeks' },
 ];
 
-const HISTORY_STATUS_OPTIONS = [
+const UBER_HISTORY_STATUS_OPTIONS = [
   'Potential deduction',
   'Issue charged',
   'Refunded by Uber',
@@ -57,7 +72,7 @@ const HISTORY_STATUS_OPTIONS = [
   'Dispute accepted',
 ] as const;
 
-const HISTORY_STATUS_MATCHERS: Record<(typeof HISTORY_STATUS_OPTIONS)[number], string[]> = {
+const HISTORY_STATUS_MATCHERS: Record<(typeof UBER_HISTORY_STATUS_OPTIONS)[number], string[]> = {
   'Potential deduction': ['potential deduction', 'deduction', 'chargeback', 'possible chargeback'],
   'Issue charged': ['issue charged', 'charged', 'merchant at fault'],
   'Refunded by Uber': ['refunded by uber', 'uber refund', 'refund'],
@@ -79,6 +94,7 @@ function formatStatusDate(value: string | null) {
 function formatUnixSeconds(value?: number | null) {
   if (!value) return 'N/A';
   return new Date(value * 1000).toLocaleString('en-AU', {
+    timeZone: 'Australia/Melbourne',
     day: 'numeric',
     month: 'short',
     year: 'numeric',
@@ -90,6 +106,7 @@ function formatUnixSeconds(value?: number | null) {
 function formatUnixMilliseconds(value?: number | null) {
   if (!value) return 'N/A';
   return new Date(value).toLocaleString('en-AU', {
+    timeZone: 'Australia/Melbourne',
     day: 'numeric',
     month: 'short',
     year: 'numeric',
@@ -113,12 +130,25 @@ export default function MarketplaceScreen() {
   const [saving, setSaving] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [cookieInput, setCookieInput] = useState('');
+  const [businessIdInput, setBusinessIdInput] = useState('');
+  const [storeIdInput, setStoreIdInput] = useState('');
+  const [ddAttKeyInput, setDdAttKeyInput] = useState('');
   const [activeLoading, setActiveLoading] = useState(false);
   const [activeOrders, setActiveOrders] = useState<MarketplaceActiveOrder[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyOrders, setHistoryOrders] = useState<MarketplaceHistoryOrder[]>([]);
+  const [scheduledLoading, setScheduledLoading] = useState(false);
+  const [scheduledOrders, setScheduledOrders] = useState<MarketplaceHistoryOrder[]>([]);
+  const [mappingLoading, setMappingLoading] = useState(false);
+  const [savingMappingId, setSavingMappingId] = useState<string | null>(null);
+  const [showMappingsModal, setShowMappingsModal] = useState(false);
+  const [unmatchedNames, setUnmatchedNames] = useState<MarketplaceUnmatchedName[]>([]);
+  const [products, setProducts] = useState<SaleProduct[]>([]);
+  const [addonItems, setAddonItems] = useState<AddonItem[]>([]);
+  const [ingredients, setIngredients] = useState<RemovableIngredient[]>([]);
+  const [selectedMappings, setSelectedMappings] = useState<Record<string, string>>({});
   const [historyDateRange, setHistoryDateRange] = useState<MarketplaceHistoryDateRange>('TODAY');
-  const [selectedHistoryStatuses, setSelectedHistoryStatuses] = useState<Array<(typeof HISTORY_STATUS_OPTIONS)[number]>>([]);
+  const [selectedHistoryStatuses, setSelectedHistoryStatuses] = useState<string[]>([]);
   const [showHistoryDateMenu, setShowHistoryDateMenu] = useState(false);
   const [showHistoryStatusMenu, setShowHistoryStatusMenu] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -126,8 +156,8 @@ export default function MarketplaceScreen() {
   const [selectedOrderDetail, setSelectedOrderDetail] = useState<MarketplaceOrderDetail | null>(null);
   const setMarketplacePosDraft = useMarketplacePosDraftStore((state) => state.setDraft);
   const [credentialStatus, setCredentialStatus] = useState<Record<MarketplaceProvider, MarketplaceCredentialStatus>>({
-    uber_eats: { provider: 'uber_eats', configured: false, updatedAt: null, configuredBy: null },
-    doordash: { provider: 'doordash', configured: false, updatedAt: null, configuredBy: null },
+    uber_eats: { provider: 'uber_eats', configured: false, updatedAt: null, configuredBy: null, providerConfig: {} },
+    doordash: { provider: 'doordash', configured: false, updatedAt: null, configuredBy: null, providerConfig: {} },
   });
 
   const loadStatuses = useCallback(async () => {
@@ -150,36 +180,116 @@ export default function MarketplaceScreen() {
   const currentStatus = credentialStatus[providerTab];
   const providerLabel = PROVIDER_LABELS[providerTab];
   const isUberEats = providerTab === 'uber_eats';
+  const isDoorDash = providerTab === 'doordash';
+
+  useEffect(() => {
+    if (!showSettingsModal) return;
+    setCookieInput('');
+    setBusinessIdInput(String(currentStatus.providerConfig.businessId ?? ''));
+    setStoreIdInput(String(currentStatus.providerConfig.storeId ?? ''));
+    setDdAttKeyInput(String(currentStatus.providerConfig.ddAttKey ?? ''));
+  }, [currentStatus.providerConfig.businessId, currentStatus.providerConfig.ddAttKey, currentStatus.providerConfig.storeId, providerTab, showSettingsModal]);
 
   const loadHistory = useCallback(async () => {
-    if (providerTab !== 'uber_eats' || listTab !== 'history' || !credentialStatus.uber_eats.configured) {
+    if (listTab !== 'history' || !credentialStatus[providerTab].configured) {
       setHistoryOrders([]);
       return;
     }
 
     try {
       setHistoryLoading(true);
-      const result = await getMarketplaceHistory('uber_eats', { dateRange: historyDateRange });
+      const result = await getMarketplaceHistory(providerTab, {
+        dateRange: historyDateRange,
+        statuses: providerTab === 'doordash' ? selectedHistoryStatuses : undefined,
+        mode: 'history',
+      });
       setHistoryOrders(result.orders);
     } finally {
       setHistoryLoading(false);
     }
-  }, [credentialStatus.uber_eats.configured, historyDateRange, listTab, providerTab]);
+  }, [credentialStatus, historyDateRange, listTab, providerTab, selectedHistoryStatuses]);
+
+  const loadScheduledOrders = useCallback(async () => {
+    if (listTab !== 'scheduled' || !credentialStatus[providerTab].configured) {
+      setScheduledOrders([]);
+      return;
+    }
+
+    try {
+      setScheduledLoading(true);
+      const result = await getMarketplaceHistory(providerTab, {
+        dateRange: historyDateRange,
+        mode: 'scheduled',
+      });
+      setScheduledOrders(result.orders);
+    } finally {
+      setScheduledLoading(false);
+    }
+  }, [credentialStatus, historyDateRange, listTab, providerTab]);
 
   const loadActiveOrders = useCallback(async () => {
-    if (providerTab !== 'uber_eats' || listTab !== 'active' || !credentialStatus.uber_eats.configured) {
+    if (listTab !== 'active' || !credentialStatus[providerTab].configured) {
       setActiveOrders([]);
       return;
     }
 
     try {
       setActiveLoading(true);
-      const result = await getMarketplaceActiveOrders('uber_eats');
+      const result = await getMarketplaceActiveOrders(providerTab);
       setActiveOrders(result.orders);
     } finally {
       setActiveLoading(false);
     }
-  }, [credentialStatus.uber_eats.configured, listTab, providerTab]);
+  }, [credentialStatus, listTab, providerTab]);
+
+  const loadMappings = useCallback(async () => {
+    try {
+      setMappingLoading(true);
+      const [unmatchedResult, productsResult, addonsResult, ingredientsResult] = await Promise.all([
+        supabase
+          .from('marketplace_unmatched_names')
+          .select('id, provider, entity_type, external_name, normalized_external_name, parent_external_name, occurrences, last_seen_at')
+          .eq('provider', providerTab)
+          .order('occurrences', { ascending: false })
+          .order('last_seen_at', { ascending: false })
+          .limit(50),
+        supabase
+          .from('sale_products')
+          .select('id, name, description, section, search_term, sale_price, image_url, sale_category_id, sub_category_id, sort_order, is_active')
+          .eq('is_active', true)
+          .order('name', { ascending: true }),
+        supabase
+          .from('addon_items')
+          .select('id, addon_group_id, name, extra_price, section, sort_order, is_active')
+          .eq('is_active', true)
+          .order('name', { ascending: true }),
+        supabase
+          .from('sale_product_ingredients')
+          .select('id, products!product_id(name)')
+          .order('id', { ascending: true }),
+      ]);
+
+      setUnmatchedNames((unmatchedResult.data || []) as MarketplaceUnmatchedName[]);
+      setProducts((productsResult.data || []) as SaleProduct[]);
+      setAddonItems((addonsResult.data || []) as AddonItem[]);
+      const mappedIngredients = ((ingredientsResult.data || []) as Array<{
+        id: string;
+        products: { name?: string } | { name?: string }[] | null;
+      }>).map((row) => {
+        const productRef = Array.isArray(row.products) ? row.products[0] : row.products;
+        return {
+          id: row.id,
+          ingredient_name: productRef?.name?.trim() || 'Unknown ingredient',
+        };
+      });
+
+      setIngredients(mappedIngredients.filter((item, index, list) => (
+        list.findIndex((entry) => entry.ingredient_name === item.ingredient_name) === index
+      )));
+    } finally {
+      setMappingLoading(false);
+    }
+  }, [providerTab]);
 
   useFocusEffect(
     useCallback(() => {
@@ -199,9 +309,21 @@ export default function MarketplaceScreen() {
     }, [loadActiveOrders])
   );
 
+  useFocusEffect(
+    useCallback(() => {
+      void loadScheduledOrders();
+    }, [loadScheduledOrders])
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadMappings();
+    }, [loadMappings])
+  );
+
   const handleRefresh = () => {
     setRefreshing(true);
-    void Promise.all([loadStatuses(), loadHistory(), loadActiveOrders()]).finally(() => setRefreshing(false));
+    void Promise.all([loadStatuses(), loadHistory(), loadActiveOrders(), loadScheduledOrders(), loadMappings()]).finally(() => setRefreshing(false));
   };
 
   const handleSaveCookies = async () => {
@@ -210,18 +332,39 @@ export default function MarketplaceScreen() {
 
     try {
       setSaving(true);
-      const status = await saveMarketplaceCookies(providerTab, nextCookies);
+      const providerConfig = providerTab === 'doordash'
+        ? {
+            businessId: businessIdInput.trim(),
+            storeId: storeIdInput.trim(),
+            ddAttKey: ddAttKeyInput.trim(),
+          }
+        : {};
+      const status = await saveMarketplaceCookies(providerTab, {
+        cookies: nextCookies,
+        providerConfig,
+      });
       setCredentialStatus((prev) => ({ ...prev, [providerTab]: status }));
       setCookieInput('');
+      setBusinessIdInput('');
+      setStoreIdInput('');
+      setDdAttKeyInput('');
       setShowSettingsModal(false);
-      if (providerTab === 'uber_eats') {
-        if (listTab === 'history') {
-          const result = await getMarketplaceHistory('uber_eats', { dateRange: historyDateRange });
-          setHistoryOrders(result.orders);
-        } else {
-          const result = await getMarketplaceActiveOrders('uber_eats');
-          setActiveOrders(result.orders);
-        }
+      if (listTab === 'history') {
+        const result = await getMarketplaceHistory(providerTab, {
+          dateRange: historyDateRange,
+          statuses: providerTab === 'doordash' ? selectedHistoryStatuses : undefined,
+          mode: 'history',
+        });
+        setHistoryOrders(result.orders);
+      } else if (listTab === 'scheduled') {
+        const result = await getMarketplaceHistory(providerTab, {
+          dateRange: historyDateRange,
+          mode: 'scheduled',
+        });
+        setScheduledOrders(result.orders);
+      } else {
+        const result = await getMarketplaceActiveOrders(providerTab);
+        setActiveOrders(result.orders);
       }
     } finally {
       setSaving(false);
@@ -234,30 +377,31 @@ export default function MarketplaceScreen() {
       await deleteMarketplaceCookies(providerTab);
       setCredentialStatus((prev) => ({
         ...prev,
-        [providerTab]: {
-          provider: providerTab,
-          configured: false,
-          updatedAt: null,
-          configuredBy: null,
-        },
+        [providerTab]: { provider: providerTab, configured: false, updatedAt: null, configuredBy: null, providerConfig: {} },
       }));
       setCookieInput('');
+      setBusinessIdInput('');
+      setStoreIdInput('');
+      setDdAttKeyInput('');
       setShowSettingsModal(false);
-      if (providerTab === 'uber_eats') {
-        setActiveOrders([]);
-        setHistoryOrders([]);
-      }
+      setActiveOrders([]);
+      setHistoryOrders([]);
+      setScheduledOrders([]);
     } finally {
       setSaving(false);
     }
   };
 
-  const handleOpenOrderDetail = async (workflowUuid: string) => {
+  const handleOpenOrderDetail = async (
+    provider: MarketplaceProvider,
+    workflowUuid: string,
+    mode: 'history' | 'live' = 'history'
+  ) => {
     try {
       setDetailLoading(true);
       setSelectedOrderDetail(null);
       setShowDetailModal(true);
-      const detail = await getMarketplaceOrderDetail('uber_eats', workflowUuid);
+      const detail = await getMarketplaceOrderDetail(provider, workflowUuid, { mode });
       setSelectedOrderDetail(detail);
     } catch (error) {
       setShowDetailModal(false);
@@ -271,8 +415,8 @@ export default function MarketplaceScreen() {
     if (!selectedOrderDetail) return;
 
     setMarketplacePosDraft({
-      provider: 'uber_eats',
-      sourceName: 'Uber Eats',
+      provider: selectedOrderDetail.provider,
+      sourceName: selectedOrderDetail.sourceName as 'Uber Eats' | 'DoorDash',
       orderDetail: selectedOrderDetail,
     });
     setShowDetailModal(false);
@@ -280,7 +424,7 @@ export default function MarketplaceScreen() {
     router.push('/pos');
   };
 
-  const toggleHistoryStatus = (status: (typeof HISTORY_STATUS_OPTIONS)[number]) => {
+  const toggleHistoryStatus = (status: string) => {
     setSelectedHistoryStatuses((current) => (
       current.includes(status)
         ? current.filter((value) => value !== status)
@@ -288,11 +432,20 @@ export default function MarketplaceScreen() {
     ));
   };
 
+  const doordashStatusOptions = useMemo(() => (
+    Array.from(new Set(historyOrders.map((order) => order.issueType).filter(Boolean))).sort((a, b) => a.localeCompare(b))
+  ), [historyOrders]);
+
+  const historyStatusOptions = isUberEats ? [...UBER_HISTORY_STATUS_OPTIONS] : doordashStatusOptions;
+
   const filteredHistoryOrders = historyOrders.filter((order) => {
     if (selectedHistoryStatuses.length === 0) return true;
+    if (!isUberEats) {
+      return selectedHistoryStatuses.includes(order.issueType);
+    }
     const haystack = `${order.issueType} ${order.orderChannel} ${order.fulfillmentType}`.toLowerCase();
     return selectedHistoryStatuses.some((status) => (
-      HISTORY_STATUS_MATCHERS[status].some((matcher) => haystack.includes(matcher))
+      HISTORY_STATUS_MATCHERS[status as (typeof UBER_HISTORY_STATUS_OPTIONS)[number]]?.some((matcher) => haystack.includes(matcher))
     ));
   });
 
@@ -300,6 +453,62 @@ export default function MarketplaceScreen() {
   const selectedStatusLabel = selectedHistoryStatuses.length > 0
     ? `${selectedHistoryStatuses.length} selected`
     : 'All statuses';
+
+  const saveMapping = async (entry: MarketplaceUnmatchedName) => {
+    const internalName = selectedMappings[entry.id]?.trim();
+    if (!internalName) return;
+
+    try {
+      setSavingMappingId(entry.id);
+      const { error } = await supabase
+        .from('marketplace_name_mappings')
+        .upsert({
+          provider: entry.provider,
+          entity_type: entry.entity_type,
+          external_name: entry.external_name,
+          normalized_external_name: entry.normalized_external_name,
+          internal_name: internalName,
+          is_active: true,
+        }, { onConflict: 'provider,entity_type,normalized_external_name' });
+
+      if (error) throw error;
+
+      const { error: cleanupError } = await supabase
+        .from('marketplace_unmatched_names')
+        .delete()
+        .eq('id', entry.id);
+
+      if (cleanupError) {
+        throw cleanupError;
+      }
+
+      setUnmatchedNames((current) => current.filter((item) => item.id !== entry.id));
+      setSelectedMappings((current) => {
+        const next = { ...current };
+        delete next[entry.id];
+        return next;
+      });
+    } catch (error) {
+      console.error('Failed to save marketplace mapping', error);
+    } finally {
+      setSavingMappingId(null);
+    }
+  };
+
+  const getMappingOptions = (entityType: MappingEntityType) => {
+    if (entityType === 'product') {
+      return products.map((item) => item.name);
+    }
+    if (entityType === 'addon') {
+      return addonItems.map((item) => item.name);
+    }
+    return ingredients.map((item) => item.ingredient_name);
+  };
+
+  const openMappingsModal = async () => {
+    setShowMappingsModal(true);
+    await loadMappings();
+  };
 
   return (
     <View style={styles.container}>
@@ -314,25 +523,68 @@ export default function MarketplaceScreen() {
         contentContainerStyle={styles.contentContainer}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
       >
-        <Surface style={styles.heroCard} elevation={1}>
-          <View style={styles.heroHeader}>
-            <View style={styles.heroCopy}>
-              <Text style={styles.heroEyebrow}>Marketplace Sync</Text>
-              <Text style={styles.heroTitle}>Uber Eats first, DoorDash next</Text>
-              <Text style={styles.heroText}>
-                Save marketplace cookies once, sync them securely across POS devices, and prepare the UI for automated active/history order sync.
-              </Text>
+        <Card style={styles.utilityCard}>
+          <Card.Content style={styles.utilityContent}>
+            <View style={styles.utilityHeader}>
+              <View style={styles.utilityTitleWrap}>
+                <Text style={styles.utilityTitle}>Marketplace</Text>
+                <Text style={styles.utilitySubtitle}>Sync settings, mappings, and marketplace orders.</Text>
+              </View>
             </View>
-            <Button
-              mode="contained"
-              icon="cog-outline"
-              onPress={() => setShowSettingsModal(true)}
-              disabled={!isUberEats}
-            >
-              Settings
-            </Button>
-          </View>
-        </Surface>
+
+            <View style={styles.providerConfigRow}>
+              {(['uber_eats', 'doordash'] as ProviderTab[]).map((provider) => {
+                const status = credentialStatus[provider];
+                const isActiveProvider = providerTab === provider;
+                const label = PROVIDER_LABELS[provider];
+
+                return (
+                  <TouchableOpacity
+                    key={provider}
+                    style={[
+                      styles.providerConfigButton,
+                      isActiveProvider ? styles.providerConfigButtonActive : null,
+                      status.configured ? styles.providerConfigButtonReady : styles.providerConfigButtonPending,
+                    ]}
+                    onPress={() => {
+                      setProviderTab(provider);
+                      setShowSettingsModal(true);
+                    }}
+                  >
+                    <View style={styles.providerConfigButtonHeader}>
+                      <Text style={[styles.providerConfigButtonTitle, isActiveProvider ? styles.providerConfigButtonTitleActive : null]}>
+                        {label}
+                      </Text>
+                      <IconButton
+                        icon={status.configured ? 'check-circle' : 'circle-outline'}
+                        size={18}
+                        iconColor={status.configured ? '#15803d' : '#a16207'}
+                        style={styles.providerConfigIcon}
+                      />
+                    </View>
+                    <Text style={styles.providerConfigButtonMeta}>
+                      {status.configured ? `Configured • ${formatStatusDate(status.updatedAt)}` : 'Tap to configure'}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View style={styles.utilityMetaRow}>
+              <View style={styles.mappingCompactCopy}>
+                <Text style={styles.mappingCompactTitle}>Name Mapping</Text>
+                <Text style={styles.mappingCompactMeta}>
+                  {unmatchedNames.length > 0
+                    ? `${unmatchedNames.length} unmatched names ready to review`
+                    : 'Keep product, add-on, and ingredient names aligned for imports.'}
+                </Text>
+              </View>
+              <Button mode="text" icon="tune-variant" onPress={() => void openMappingsModal()} compact>
+                Open Mapping
+              </Button>
+            </View>
+          </Card.Content>
+        </Card>
 
         <SegmentedButtons
           value={providerTab}
@@ -340,53 +592,23 @@ export default function MarketplaceScreen() {
           buttons={PROVIDER_TAB_OPTIONS}
         />
 
-        <Card style={styles.statusCard}>
-          <Card.Content style={styles.statusContent}>
-            <View style={styles.statusHeader}>
+        <View style={styles.tableSection}>
+          <View style={styles.tableHeader}>
+            <View style={styles.tableHeaderTopRow}>
               <View>
-                <Text style={styles.sectionTitle}>{providerLabel}</Text>
-                <Text style={styles.sectionSubtitle}>
-                  {isUberEats
-                    ? 'Configure cookies now. Active and history sync tables will plug into this page next.'
-                    : 'DoorDash UI is reserved now so we can match the same flow later.'}
-                </Text>
+                <Text style={styles.sectionTitle}>Orders</Text>
+                <Text style={styles.sectionSubtitleCompact}>Active now, scheduled next, and completed history by provider.</Text>
               </View>
-              <View style={[styles.statusBadge, currentStatus.configured ? styles.statusBadgeReady : styles.statusBadgePending]}>
-                <Text style={[styles.statusBadgeText, currentStatus.configured ? styles.statusBadgeTextReady : styles.statusBadgeTextPending]}>
-                  {currentStatus.configured ? 'Configured' : 'Not configured'}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.statusMetaRow}>
-              <Text style={styles.statusMetaLabel}>Last updated</Text>
-              <Text style={styles.statusMetaValue}>{formatStatusDate(currentStatus.updatedAt)}</Text>
-            </View>
-
-            <View style={styles.statusActionRow}>
-              <Button
-                mode="contained-tonal"
-                icon="cog-outline"
-                onPress={() => setShowSettingsModal(true)}
-                disabled={!isUberEats}
-              >
-                Configure cookies
-              </Button>
               <Button
                 mode="outlined"
                 icon="refresh"
-                onPress={() => void Promise.all([loadStatuses(), loadHistory(), loadActiveOrders()])}
-                loading={loading || historyLoading || activeLoading}
+                onPress={() => void Promise.all([loadStatuses(), loadHistory(), loadActiveOrders(), loadScheduledOrders()])}
+                loading={loading || historyLoading || activeLoading || scheduledLoading}
+                compact
               >
                 Refresh
               </Button>
             </View>
-          </Card.Content>
-        </Card>
-
-        <View style={styles.tableSection}>
-          <View style={styles.tableHeader}>
-            <Text style={styles.sectionTitle}>Orders</Text>
             <SegmentedButtons
               value={listTab}
               onValueChange={(value) => setListTab(value as MarketplaceListTab)}
@@ -394,7 +616,7 @@ export default function MarketplaceScreen() {
             />
           </View>
 
-          {isUberEats && listTab === 'history' ? (
+          {listTab === 'history' ? (
             <Card style={styles.filterCard}>
               <Card.Content style={styles.filterCardContent}>
                 <View style={styles.filterToolbar}>
@@ -434,7 +656,7 @@ export default function MarketplaceScreen() {
                         </Button>
                       )}
                     >
-                      {HISTORY_STATUS_OPTIONS.map((status) => (
+                      {historyStatusOptions.map((status) => (
                         <TouchableOpacity key={status} onPress={() => toggleHistoryStatus(status)} style={styles.filterMenuRow}>
                           <Checkbox
                             status={selectedHistoryStatuses.includes(status) ? 'checked' : 'unchecked'}
@@ -460,20 +682,21 @@ export default function MarketplaceScreen() {
 
           <Card style={styles.tableCard}>
             <Card.Content>
+              <>
               <View style={styles.tableColumns}>
                 <Text style={[styles.tableHeading, styles.flex2]}>Order</Text>
                 <Text style={styles.tableHeading}>Customer</Text>
                 <Text style={styles.tableHeading}>Status</Text>
                 <Text style={styles.tableHeading}>Updated</Text>
               </View>
-              {isUberEats && currentStatus.configured && listTab === 'active' ? (
+              {currentStatus.configured && listTab === 'active' ? (
                 activeOrders.length > 0 ? (
                   <View style={styles.historyList}>
                     {activeOrders.map((order) => (
                       <TouchableOpacity
                         key={order.workflowUuid}
                         style={styles.historyRow}
-                        onPress={() => void handleOpenOrderDetail(order.workflowUuid)}
+                        onPress={() => void handleOpenOrderDetail(providerTab, order.workflowUuid, isUberEats ? 'live' : 'history')}
                       >
                         <View style={[styles.historyCell, styles.flex2]}>
                           <Text style={styles.historyPrimaryLink}>{order.orderId}</Text>
@@ -481,7 +704,7 @@ export default function MarketplaceScreen() {
                         </View>
                         <View style={styles.historyCell}>
                           <Text style={styles.historyPrimary}>{order.customerName}</Text>
-                          <Text style={styles.historySecondary}>{order.orderChannel || 'Marketplace order'}</Text>
+                          <Text style={styles.historySecondary}>{order.orderChannel || providerLabel}</Text>
                         </View>
                         <View style={styles.historyCell}>
                           <Text style={styles.historyPrimary}>{formatOrderState(order.status)}</Text>
@@ -496,33 +719,82 @@ export default function MarketplaceScreen() {
                   </View>
                 ) : (
                   <View style={styles.placeholderPanel}>
-                    <Text style={styles.placeholderTitle}>No Uber Eats active orders right now</Text>
+                    <Text style={styles.placeholderTitle}>No {providerLabel} active orders right now</Text>
                     <Text style={styles.placeholderText}>
-                      Cookies are configured, but the latest active-order request returned no open Uber Eats orders.
+                      Settings are configured, but the latest active-order request returned no open {providerLabel} orders.
                     </Text>
                   </View>
                 )
-              ) : isUberEats && listTab === 'history' && currentStatus.configured ? (
+              ) : listTab === 'scheduled' && currentStatus.configured ? (
+                scheduledOrders.length > 0 ? (
+                  <View style={styles.historyList}>
+                    {scheduledOrders.map((order) => (
+                      <TouchableOpacity
+                        key={order.workflowUuid}
+                        style={styles.historyRow}
+                        onPress={() => void handleOpenOrderDetail(providerTab, order.workflowUuid, 'history')}
+                      >
+                        <View style={[styles.historyCell, styles.flex2]}>
+                          <Text style={styles.historyPrimaryLink}>{order.orderId}</Text>
+                          <Text style={styles.historySecondary}>
+                            {order.netPayout ? `${order.salesTotal} net ${order.netPayout}` : order.salesTotal}
+                          </Text>
+                        </View>
+                        <View style={styles.historyCell}>
+                          <Text style={styles.historyPrimary}>{order.customerName}</Text>
+                          <Text style={styles.historySecondary}>{order.orderChannel || providerLabel}</Text>
+                        </View>
+                        <View style={styles.historyCell}>
+                          <Text style={styles.historyPrimary}>{formatOrderState(order.fulfillmentType).replace('FULFILLMENT TYPE ', '')}</Text>
+                          <Text style={styles.historySecondary}>{order.courierName || 'No courier yet'}</Text>
+                        </View>
+                        <View style={styles.historyCell}>
+                          <Text style={styles.historyPrimary}>{order.requestedAt}</Text>
+                          <Text style={styles.historySecondary}>{order.issueType || 'Scheduled'}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : (
+                  <View style={styles.placeholderPanelCompact}>
+                    <Text style={styles.placeholderTitle}>No {providerLabel} scheduled orders found</Text>
+                    <Text style={styles.placeholderText}>
+                      Settings are configured, but the latest scheduled-order request returned no future {providerLabel} orders.
+                    </Text>
+                  </View>
+                )
+              ) : listTab === 'scheduled' ? (
+                <View style={styles.placeholderPanelCompact}>
+                  <Text style={styles.placeholderTitle}>Scheduled orders coming next</Text>
+                  <Text style={styles.placeholderText}>
+                    Configure {providerLabel} settings first to load scheduled orders.
+                  </Text>
+                </View>
+              ) : listTab === 'history' && currentStatus.configured ? (
                 filteredHistoryOrders.length > 0 ? (
                   <View style={styles.historyList}>
                     {filteredHistoryOrders.map((order) => (
                       <TouchableOpacity
                         key={order.workflowUuid}
                         style={styles.historyRow}
-                        onPress={() => void handleOpenOrderDetail(order.workflowUuid)}
+                        onPress={() => void handleOpenOrderDetail(providerTab, order.workflowUuid, 'history')}
                       >
                         <View style={[styles.historyCell, styles.flex2]}>
                           <Text style={styles.historyPrimaryLink}>{order.orderId}</Text>
-                          <Text style={styles.historySecondary}>{order.salesTotal} net {order.netPayout}</Text>
+                          <Text style={styles.historySecondary}>
+                            {order.netPayout ? `${order.salesTotal} net ${order.netPayout}` : order.salesTotal}
+                          </Text>
                         </View>
                         <View style={styles.historyCell}>
                           <Text style={styles.historyPrimary}>{order.customerName}</Text>
                           <Text style={styles.historySecondary}>
-                            {order.subscriptionPass || (order.isSubscriber ? 'Subscriber' : 'Standard')}
+                            {isUberEats
+                              ? (order.subscriptionPass || (order.isSubscriber ? 'Subscriber' : 'Standard'))
+                              : order.orderChannel || providerLabel}
                           </Text>
                         </View>
                         <View style={styles.historyCell}>
-                          <Text style={styles.historyPrimary}>{order.fulfillmentType.replace('FULFILLMENT_TYPE_', '')}</Text>
+                          <Text style={styles.historyPrimary}>{formatOrderState(order.fulfillmentType).replace('FULFILLMENT TYPE ', '')}</Text>
                           <Text style={styles.historySecondary}>{order.courierName || 'No courier'}</Text>
                         </View>
                         <View style={styles.historyCell}>
@@ -534,34 +806,140 @@ export default function MarketplaceScreen() {
                   </View>
                 ) : (
                   <View style={styles.placeholderPanel}>
-                    <Text style={styles.placeholderTitle}>No Uber Eats history orders found</Text>
+                    <Text style={styles.placeholderTitle}>No {providerLabel} history orders found</Text>
                     <Text style={styles.placeholderText}>
-                      Cookies are configured, but the latest history request and selected filters returned no matching rows.
+                      Settings are configured, but the latest history request and selected filters returned no matching rows.
                     </Text>
                   </View>
                 )
               ) : (
                 <View style={styles.placeholderPanel}>
                   <Text style={styles.placeholderTitle}>
-                    {providerLabel} {listTab === 'active' ? 'active orders' : 'history orders'}
+                    {providerLabel} {listTab === 'active' ? 'active orders' : listTab === 'scheduled' ? 'scheduled orders' : 'history orders'}
                   </Text>
                   <Text style={styles.placeholderText}>
-                    {!isUberEats
-                      ? 'DoorDash will reuse the same layout and settings pattern after Uber Eats is connected.'
-                      : listTab === 'active'
-                        ? 'Configure Uber Eats cookies first to load active orders.'
-                        : currentStatus.configured
-                          ? 'Loading history from Uber Eats.'
-                          : 'Configure Uber Eats cookies first to load history orders.'}
+                    {listTab === 'active'
+                      ? `Configure ${providerLabel} settings first to load active orders.`
+                      : listTab === 'scheduled'
+                        ? `Scheduled ${providerLabel} orders will appear here after backend integration.`
+                      : currentStatus.configured
+                        ? `Loading history from ${providerLabel}.`
+                        : `Configure ${providerLabel} settings first to load history orders.`}
                   </Text>
                 </View>
               )}
+              </>
             </Card.Content>
           </Card>
         </View>
       </ScrollView>
 
       <Portal>
+        <NativeModal
+          visible={showMappingsModal}
+          animationType="slide"
+          presentationStyle="fullScreen"
+          onRequestClose={() => {
+            if (savingMappingId) return;
+            setShowMappingsModal(false);
+          }}
+        >
+          <View style={styles.detailScreen}>
+            <View style={styles.detailShell}>
+              <Surface style={styles.detailTopBar} elevation={1}>
+                <View style={styles.detailTopBarHeader}>
+                  <View style={styles.detailHeaderCopy}>
+                    <Text style={styles.detailHeaderTitle}>Marketplace Mapping</Text>
+                    <Text style={styles.detailHeaderMeta}>
+                      Match unmatched marketplace names to POS products, add-ons, and ingredients.
+                    </Text>
+                  </View>
+                  <IconButton
+                    icon="close"
+                    size={24}
+                    onPress={() => setShowMappingsModal(false)}
+                    disabled={Boolean(savingMappingId)}
+                  />
+                </View>
+              </Surface>
+
+              <ScrollView style={styles.detailScrollContent} contentContainerStyle={styles.detailScrollContainer}>
+                {unmatchedNames.length > 0 ? (
+                  <View style={styles.mappingList}>
+                    {unmatchedNames.map((entry) => {
+                      const options = getMappingOptions(entry.entity_type);
+                      const selectedValue = selectedMappings[entry.id] || '';
+                      const matches = options
+                        .filter((option) => option.toLowerCase().includes(entry.external_name.toLowerCase()) || entry.external_name.toLowerCase().includes(option.toLowerCase()))
+                        .slice(0, 12);
+
+                      return (
+                        <Card key={entry.id} style={styles.mappingCard}>
+                          <Card.Content style={styles.mappingCardContent}>
+                            <View style={styles.mappingHeader}>
+                              <View style={styles.mappingCopy}>
+                                <Text style={styles.mappingTitle}>{entry.external_name}</Text>
+                                <Text style={styles.mappingMeta}>
+                                  {entry.entity_type.toUpperCase()} • Seen {entry.occurrences} times
+                                  {entry.parent_external_name ? ` • ${entry.parent_external_name}` : ''}
+                                </Text>
+                              </View>
+                            </View>
+
+                            <TextInput
+                              mode="outlined"
+                              label="Internal POS name"
+                              value={selectedValue}
+                              onChangeText={(value) => setSelectedMappings((current) => ({ ...current, [entry.id]: value }))}
+                              style={styles.checkoutInput}
+                            />
+
+                            {matches.length > 0 ? (
+                              <View style={styles.mappingSuggestions}>
+                                {matches.map((option) => (
+                                  <Button
+                                    key={`${entry.id}-${option}`}
+                                    mode={selectedValue === option ? 'contained-tonal' : 'outlined'}
+                                    compact
+                                    onPress={() => setSelectedMappings((current) => ({ ...current, [entry.id]: option }))}
+                                    style={styles.mappingSuggestionChip}
+                                  >
+                                    {option}
+                                  </Button>
+                                ))}
+                              </View>
+                            ) : null}
+
+                            <View style={styles.mappingActions}>
+                              <Button
+                                mode="contained"
+                                onPress={() => void saveMapping(entry)}
+                                loading={savingMappingId === entry.id}
+                                disabled={!selectedValue.trim() || savingMappingId === entry.id}
+                              >
+                                Save mapping
+                              </Button>
+                            </View>
+                          </Card.Content>
+                        </Card>
+                      );
+                    })}
+                  </View>
+                ) : (
+                  <View style={styles.placeholderPanel}>
+                    <Text style={styles.placeholderTitle}>
+                      {mappingLoading ? 'Loading unmatched marketplace names...' : 'No unmatched names right now'}
+                    </Text>
+                    <Text style={styles.placeholderText}>
+                      New product, add-on, and ingredient mismatches from Marketplace imports will appear here so staff can map them to POS names.
+                    </Text>
+                  </View>
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        </NativeModal>
+
         <NativeModal
           visible={showDetailModal}
           animationType="slide"
@@ -583,7 +961,7 @@ export default function MarketplaceScreen() {
                     <Text style={styles.detailHeaderMeta}>
                       {selectedOrderDetail
                         ? `${selectedOrderDetail.customerName} • ${formatOrderState(selectedOrderDetail.orderJobState)}`
-                        : 'Loading Uber Eats order details'}
+                        : 'Loading marketplace order details'}
                     </Text>
                   </View>
                   <IconButton
@@ -604,7 +982,7 @@ export default function MarketplaceScreen() {
                     <View style={[styles.detailStatusBadge, styles.detailStatusBadgeSecondary]}>
                       <Text style={styles.detailStatusBadgeText}>{formatOrderState(selectedOrderDetail.fulfillmentType)}</Text>
                     </View>
-                    <Text style={styles.detailHeaderTime}>{formatUnixSeconds(selectedOrderDetail.requestedAt)}</Text>
+                    <Text style={styles.detailHeaderTime}>{formatUnixMilliseconds(selectedOrderDetail.requestedAt)}</Text>
                     <Button mode="contained" icon="cart-plus" onPress={handleAddToPos} style={styles.detailHeaderAction}>
                       Add To POS
                     </Button>
@@ -629,7 +1007,7 @@ export default function MarketplaceScreen() {
                       <Card.Content>
                         <View style={styles.detailTotalRow}>
                           <Text style={styles.detailTotalLabel}>Requested</Text>
-                          <Text style={styles.detailTotalValue}>{formatUnixSeconds(selectedOrderDetail.requestedAt)}</Text>
+                          <Text style={styles.detailTotalValue}>{formatUnixMilliseconds(selectedOrderDetail.requestedAt)}</Text>
                         </View>
                         <View style={styles.detailTotalRow}>
                           <Text style={styles.detailTotalLabel}>Completed</Text>
@@ -699,6 +1077,9 @@ export default function MarketplaceScreen() {
             if (saving) return;
             setShowSettingsModal(false);
             setCookieInput('');
+            setBusinessIdInput('');
+            setStoreIdInput('');
+            setDdAttKeyInput('');
           }}
           contentContainerStyle={styles.modalCard}
         >
@@ -706,6 +1087,39 @@ export default function MarketplaceScreen() {
           <Text style={styles.modalSubtitle}>
             Paste the full cookie string from your browser session. We encrypt it on the server before saving it to the database for cross-device sync.
           </Text>
+
+          {isDoorDash ? (
+            <>
+              <View style={styles.doordashConfigRow}>
+                <TextInput
+                  mode="outlined"
+                  label="Business ID"
+                  value={businessIdInput}
+                  onChangeText={setBusinessIdInput}
+                  keyboardType="numeric"
+                  style={styles.doordashConfigInput}
+                  disabled={saving}
+                />
+                <TextInput
+                  mode="outlined"
+                  label="Store ID"
+                  value={storeIdInput}
+                  onChangeText={setStoreIdInput}
+                  keyboardType="numeric"
+                  style={styles.doordashConfigInput}
+                  disabled={saving}
+                />
+              </View>
+              <TextInput
+                mode="outlined"
+                label="DD ATT Key"
+                value={ddAttKeyInput}
+                onChangeText={setDdAttKeyInput}
+                style={styles.cookieInput}
+                disabled={saving}
+              />
+            </>
+          ) : null}
 
           <TextInput
             mode="outlined"
@@ -715,7 +1129,7 @@ export default function MarketplaceScreen() {
             multiline
             numberOfLines={8}
             style={styles.cookieInput}
-            disabled={!isUberEats || saving}
+            disabled={saving}
           />
 
           <Text style={styles.modalHint}>
@@ -726,10 +1140,15 @@ export default function MarketplaceScreen() {
             <Button mode="text" onPress={() => setShowSettingsModal(false)} disabled={saving}>
               Close
             </Button>
-            <Button mode="outlined" onPress={() => void handleClearCookies()} disabled={!currentStatus.configured || saving || !isUberEats}>
+            <Button mode="outlined" onPress={() => void handleClearCookies()} disabled={!currentStatus.configured || saving}>
               Clear
             </Button>
-            <Button mode="contained" onPress={() => void handleSaveCookies()} loading={saving} disabled={!cookieInput.trim() || !isUberEats}>
+            <Button
+              mode="contained"
+              onPress={() => void handleSaveCookies()}
+              loading={saving}
+              disabled={!cookieInput.trim() || (isDoorDash && (!businessIdInput.trim() || !storeIdInput.trim()))}
+            >
               Save
             </Button>
           </View>
@@ -756,110 +1175,129 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 16,
-    gap: 16,
+    gap: 12,
   },
-  heroCard: {
-    borderRadius: 20,
-    backgroundColor: '#0f172a',
-    padding: 20,
-  },
-  heroHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 16,
-    alignItems: 'flex-start',
-  },
-  heroCopy: {
-    flex: 1,
-    gap: 6,
-  },
-  heroEyebrow: {
-    color: '#93c5fd',
-    fontSize: 12,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  heroTitle: {
-    color: '#fff',
-    fontSize: 22,
-    fontWeight: '800',
-  },
-  heroText: {
-    color: '#cbd5e1',
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  statusCard: {
+  utilityCard: {
     borderRadius: 18,
     backgroundColor: '#fff',
   },
-  statusContent: {
-    gap: 14,
+  utilityContent: {
+    gap: 12,
   },
-  statusHeader: {
+  utilityHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: 12,
+    alignItems: 'center',
+  },
+  utilityTitleWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  utilityTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  utilitySubtitle: {
+    color: '#64748b',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  providerConfigRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  providerConfigButton: {
+    flex: 1,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 4,
+  },
+  providerConfigButtonActive: {
+    borderColor: '#2563eb',
+    shadowColor: '#2563eb',
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 1,
+  },
+  providerConfigButtonReady: {
+    backgroundColor: '#f0fdf4',
+    borderColor: '#bbf7d0',
+  },
+  providerConfigButtonPending: {
+    backgroundColor: '#fffbeb',
+    borderColor: '#fde68a',
+  },
+  providerConfigButtonHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  providerConfigButtonTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  providerConfigButtonTitleActive: {
+    color: '#1d4ed8',
+  },
+  providerConfigButtonMeta: {
+    fontSize: 12,
+    color: '#64748b',
+    lineHeight: 16,
+  },
+  providerConfigIcon: {
+    margin: 0,
+  },
+  utilityMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+    paddingTop: 12,
+  },
+  mappingCompactCopy: {
+    flex: 1,
+    gap: 3,
+  },
+  mappingCompactTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  mappingCompactMeta: {
+    fontSize: 12,
+    color: '#64748b',
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
     color: '#0f172a',
   },
-  sectionSubtitle: {
+  sectionSubtitleCompact: {
     marginTop: 4,
     color: '#64748b',
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 17,
     maxWidth: 520,
   },
-  statusBadge: {
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    alignSelf: 'flex-start',
-  },
-  statusBadgeReady: {
-    backgroundColor: '#dcfce7',
-  },
-  statusBadgePending: {
-    backgroundColor: '#fef3c7',
-  },
-  statusBadgeText: {
-    fontSize: 12,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-  },
-  statusBadgeTextReady: {
-    color: '#166534',
-  },
-  statusBadgeTextPending: {
-    color: '#92400e',
-  },
-  statusMetaRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-    alignItems: 'center',
-  },
-  statusMetaLabel: {
-    fontSize: 13,
-    color: '#475569',
-    fontWeight: '700',
-  },
-  statusMetaValue: {
-    fontSize: 13,
-    color: '#0f172a',
-  },
-  statusActionRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
   tableSection: {
-    gap: 12,
+    gap: 10,
   },
   tableHeader: {
+    gap: 8,
+  },
+  tableHeaderTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     gap: 12,
   },
   tableCard: {
@@ -871,7 +1309,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   filterCardContent: {
-    gap: 8,
+    gap: 6,
   },
   filterLabel: {
     fontSize: 13,
@@ -905,7 +1343,7 @@ const styles = StyleSheet.create({
   tableColumns: {
     flexDirection: 'row',
     gap: 12,
-    paddingBottom: 12,
+    paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
   },
@@ -923,9 +1361,13 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
     gap: 8,
   },
+  placeholderPanelCompact: {
+    paddingVertical: 18,
+    gap: 8,
+  },
   historyList: {
     gap: 10,
-    paddingTop: 12,
+    paddingTop: 10,
   },
   historyRow: {
     flexDirection: 'row',
@@ -952,6 +1394,46 @@ const styles = StyleSheet.create({
   historySecondary: {
     fontSize: 12,
     color: '#64748b',
+  },
+  mappingList: {
+    gap: 12,
+  },
+  mappingCard: {
+    borderRadius: 16,
+    backgroundColor: '#f8fafc',
+  },
+  mappingCardContent: {
+    gap: 12,
+  },
+  mappingHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  mappingCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  mappingTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  mappingMeta: {
+    fontSize: 12,
+    color: '#64748b',
+  },
+  mappingSuggestions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  mappingSuggestionChip: {
+    borderRadius: 999,
+  },
+  mappingActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
   },
   placeholderTitle: {
     fontSize: 16,
@@ -1151,6 +1633,14 @@ const styles = StyleSheet.create({
     color: '#64748b',
     fontSize: 14,
     lineHeight: 20,
+  },
+  doordashConfigRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  doordashConfigInput: {
+    flex: 1,
+    backgroundColor: '#fff',
   },
   cookieInput: {
     backgroundColor: '#fff',

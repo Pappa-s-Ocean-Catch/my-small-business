@@ -64,6 +64,14 @@ const addonTotal = (addons: OrderItemAddon[]) => (
   addons.reduce((sum, addon) => sum + (addon.addon_item_price || 0), 0)
 );
 
+const parseMarketplaceMoney = (value?: string | null): number | null => {
+  if (!value) return null;
+  const normalized = value.replace(/[^0-9.-]/g, '');
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 const cartItemHasCustomizations = (item: Pick<OrderItem, 'addons' | 'removed_ingredients' | 'comment'>) => (
   (item.addons || []).length > 0
   || (item.removed_ingredients || []).length > 0
@@ -187,6 +195,16 @@ const normalizeMarketplaceName = (value: string) => (
 const MARKETPLACE_MATCH_THRESHOLD = 0.9;
 const MARKETPLACE_REMOVAL_PREFIXES = ['no ', 'without ', 'remove ', 'minus '];
 
+type MarketplaceMappingEntityType = 'product' | 'addon' | 'ingredient';
+type MarketplaceMappingRecord = {
+  provider: 'uber_eats' | 'doordash';
+  entity_type: MarketplaceMappingEntityType;
+  external_name: string;
+  normalized_external_name: string;
+  internal_name: string;
+  is_active: boolean;
+};
+
 const levenshteinDistance = (left: string, right: string) => {
   if (left === right) return 0;
   if (!left.length) return right.length;
@@ -220,9 +238,25 @@ const getNameSimilarity = (left: string, right: string) => {
   if (!normalizedLeft || !normalizedRight) return 0;
   if (normalizedLeft === normalizedRight) return 1;
 
-  const distance = levenshteinDistance(normalizedLeft, normalizedRight);
-  const longestLength = Math.max(normalizedLeft.length, normalizedRight.length);
-  return longestLength > 0 ? 1 - distance / longestLength : 0;
+  const directDistance = levenshteinDistance(normalizedLeft, normalizedRight);
+  const directLongestLength = Math.max(normalizedLeft.length, normalizedRight.length);
+  const directScore = directLongestLength > 0 ? 1 - directDistance / directLongestLength : 0;
+
+  const leftTokens = normalizedLeft.split(' ').filter(Boolean);
+  const rightTokens = normalizedRight.split(' ').filter(Boolean);
+  const leftTokenSet = new Set(leftTokens);
+  const rightTokenSet = new Set(rightTokens);
+  const sharedTokenCount = Array.from(leftTokenSet).filter((token) => rightTokenSet.has(token)).length;
+  const uniqueTokenCount = new Set([...leftTokenSet, ...rightTokenSet]).size;
+  const tokenSetScore = uniqueTokenCount > 0 ? sharedTokenCount / uniqueTokenCount : 0;
+
+  const sortedLeft = [...leftTokens].sort().join(' ');
+  const sortedRight = [...rightTokens].sort().join(' ');
+  const sortedDistance = levenshteinDistance(sortedLeft, sortedRight);
+  const sortedLongestLength = Math.max(sortedLeft.length, sortedRight.length);
+  const sortedScore = sortedLongestLength > 0 ? 1 - sortedDistance / sortedLongestLength : 0;
+
+  return Math.max(directScore, tokenSetScore, sortedScore);
 };
 
 const getMarketplaceRemovalCandidate = (value: string) => {
@@ -233,6 +267,17 @@ const getMarketplaceRemovalCandidate = (value: string) => {
     }
   }
   return null;
+};
+
+const findBestInternalNameMatch = <T extends { name: string }>(candidates: T[], targetName: string) => {
+  const ranked = candidates
+    .map((candidate) => ({
+      candidate,
+      score: getNameSimilarity(candidate.name, targetName),
+    }))
+    .sort((left, right) => right.score - left.score);
+
+  return ranked[0] ?? null;
 };
 
 type PosDiscountConfig =
@@ -848,6 +893,7 @@ export default function PosScreen() {
       const items = (order.order_items || []).map((item: any) => ({
         ...item,
         base_price: Number(item.base_price || 0),
+        override_price: item.override_price == null ? null : Number(item.override_price),
         quantity: Number(item.quantity || 1),
         subtotal: Number(item.subtotal || 0),
         removed_ingredients: item.removed_ingredients || [],
@@ -892,6 +938,8 @@ export default function PosScreen() {
     const importMarketplaceDraft = async () => {
       await loadSearchProducts();
       const catalogProducts = catalogCache.allProducts?.data ?? [];
+      const provider = marketplaceDraft.provider;
+      const marketplaceMappings = await loadMarketplaceMappings(provider);
 
       if (catalogProducts.length === 0) {
         Alert.alert('Marketplace', 'Could not load the POS catalog to build this draft order.');
@@ -904,19 +952,38 @@ export default function PosScreen() {
       const unmatchedOptions: string[] = [];
 
       for (const item of marketplaceDraft.orderDetail.items) {
-        const productMatches = catalogProducts
-          .map((product) => ({
-            product,
-            score: getNameSimilarity(item.name, product.name),
-          }))
-          .sort((left, right) => right.score - left.score);
-        const bestProductMatch = productMatches[0] ?? null;
-        const matchedProduct = bestProductMatch && bestProductMatch.score >= MARKETPLACE_MATCH_THRESHOLD
-          ? bestProductMatch.product
-          : null;
+        const productAlias = marketplaceMappings.find((mapping) => (
+          mapping.entity_type === 'product'
+          && mapping.normalized_external_name === normalizeMarketplaceName(item.name)
+        ));
+
+        let matchedProduct: SaleProduct | null = null;
+        if (productAlias) {
+          const aliasMatch = findBestInternalNameMatch(
+            catalogProducts.map((product) => ({ ...product, name: product.name })),
+            productAlias.internal_name
+          );
+          matchedProduct = aliasMatch?.candidate ?? null;
+        } else {
+          const productMatches = catalogProducts
+            .map((product) => ({
+              product,
+              score: getNameSimilarity(item.name, product.name),
+            }))
+            .sort((left, right) => right.score - left.score);
+          const bestProductMatch = productMatches[0] ?? null;
+          matchedProduct = bestProductMatch && bestProductMatch.score >= MARKETPLACE_MATCH_THRESHOLD
+            ? bestProductMatch.product
+            : null;
+        }
 
         if (!matchedProduct) {
           unmatchedProducts.push(item.name);
+          void recordUnmatchedMarketplaceName({
+            provider,
+            entityType: 'product',
+            externalName: item.name,
+          });
           continue;
         }
 
@@ -928,19 +995,46 @@ export default function PosScreen() {
         flattenedOptions.forEach((option: MarketplaceOrderDetailItemOption) => {
           const removalCandidate = getMarketplaceRemovalCandidate(option.name);
           if (removalCandidate) {
-            const ingredientMatches = customizationData.removableIngredients
-              .map((ingredient) => ({
-                ingredient,
-                score: getNameSimilarity(removalCandidate, ingredient.ingredient_name),
-              }))
-              .sort((left, right) => right.score - left.score);
-            const bestIngredientMatch = ingredientMatches[0] ?? null;
+            const ingredientAlias = marketplaceMappings.find((mapping) => (
+              mapping.entity_type === 'ingredient'
+              && mapping.normalized_external_name === normalizeMarketplaceName(removalCandidate)
+            ));
 
-            if (bestIngredientMatch && bestIngredientMatch.score >= MARKETPLACE_MATCH_THRESHOLD) {
-              removedIngredients.push(bestIngredientMatch.ingredient.ingredient_name);
+            const bestIngredientMatch = ingredientAlias
+              ? findBestInternalNameMatch(
+                customizationData.removableIngredients.map((ingredient) => ({ name: ingredient.ingredient_name, ingredient })),
+                ingredientAlias.internal_name
+              )
+              : customizationData.removableIngredients
+                .map((ingredient) => ({
+                  ingredient,
+                  score: getNameSimilarity(removalCandidate, ingredient.ingredient_name),
+                }))
+                .sort((left, right) => right.score - left.score)[0] ?? null;
+
+            const matchedIngredientName = ingredientAlias
+              ? bestIngredientMatch?.candidate.name
+              : bestIngredientMatch && 'ingredient' in bestIngredientMatch && bestIngredientMatch.score >= MARKETPLACE_MATCH_THRESHOLD
+                ? bestIngredientMatch.ingredient.ingredient_name
+                : null;
+
+            if (matchedIngredientName) {
+              removedIngredients.push(matchedIngredientName);
               return;
             }
+
+            void recordUnmatchedMarketplaceName({
+              provider,
+              entityType: 'ingredient',
+              externalName: removalCandidate,
+              parentExternalName: item.name,
+            });
           }
+
+          const addonAlias = marketplaceMappings.find((mapping) => (
+            mapping.entity_type === 'addon'
+            && mapping.normalized_external_name === normalizeMarketplaceName(option.name)
+          ));
 
           const optionMatches = customizationData.groups.flatMap((group) => (
             group.items.map((groupItem) => ({
@@ -949,10 +1043,18 @@ export default function PosScreen() {
               score: getNameSimilarity(option.name, groupItem.name),
             }))
           )).sort((left, right) => right.score - left.score);
-          const bestOptionMatch = optionMatches[0] ?? null;
+          const bestOptionMatch = addonAlias
+            ? optionMatches.find((match) => normalizeMarketplaceName(match.addonItem.name) === normalizeMarketplaceName(addonAlias.internal_name)) ?? null
+            : optionMatches[0] ?? null;
 
-          if (!bestOptionMatch || bestOptionMatch.score < MARKETPLACE_MATCH_THRESHOLD) {
+          if (!bestOptionMatch || (!addonAlias && bestOptionMatch.score < MARKETPLACE_MATCH_THRESHOLD)) {
             unmatchedOptions.push(`${item.name}: ${option.name}`);
+            void recordUnmatchedMarketplaceName({
+              provider,
+              entityType: 'addon',
+              externalName: option.name,
+              parentExternalName: item.name,
+            });
             return;
           }
 
@@ -984,20 +1086,21 @@ export default function PosScreen() {
           Math.max(1, item.quantity || 1),
           addons,
           note,
-          Array.from(new Set(removedIngredients))
+          Array.from(new Set(removedIngredients)),
+          parseMarketplaceMoney(item.price)
         ));
       }
 
       if (cancelled) return;
 
       if (nextCartItems.length === 0) {
-        Alert.alert('Marketplace', 'None of the Uber Eats items matched the POS catalog.');
+        Alert.alert('Marketplace', `None of the ${marketplaceDraft.sourceName} items matched the POS catalog.`);
         clearMarketplaceDraft();
         return;
       }
 
       const requestedAt = marketplaceDraft.orderDetail.requestedAt
-        ? new Date(marketplaceDraft.orderDetail.requestedAt * 1000)
+        ? new Date(marketplaceDraft.orderDetail.requestedAt)
         : new Date();
 
       setCartItems(nextCartItems);
@@ -1010,7 +1113,7 @@ export default function PosScreen() {
       setRewardPointsValue(0);
       setQuickOrderNote(null);
       setDiscountConfig(EMPTY_DISCOUNT);
-      setThirdPartySource(marketplaceDraft.sourceName);
+      setThirdPartySource(marketplaceDraft.orderDetail.sourceName as PosThirdPartySource);
       setThirdPartyCustomerName(marketplaceDraft.orderDetail.customerName || '');
       setThirdPartyExternalOrderId(marketplaceDraft.orderDetail.orderId);
       setThirdPartyOrderAt(Number.isFinite(requestedAt.getTime()) ? requestedAt : new Date());
@@ -1042,8 +1145,10 @@ export default function PosScreen() {
     clearMarketplaceDraft,
     getMarketplaceProductCustomizations,
     loadSearchProducts,
+    loadMarketplaceMappings,
     marketplaceDraft,
     orderId,
+    recordUnmatchedMarketplaceName,
   ]);
 
   useEffect(() => {
@@ -1622,6 +1727,78 @@ export default function PosScreen() {
     return customizations;
   }, []);
 
+  const loadMarketplaceMappings = useCallback(async (provider: 'uber_eats' | 'doordash') => {
+    const { data, error } = await supabase
+      .from('marketplace_name_mappings')
+      .select('provider, entity_type, external_name, normalized_external_name, internal_name, is_active')
+      .eq('provider', provider)
+      .eq('is_active', true);
+
+    if (error) {
+      console.warn('Marketplace mappings load failed', error);
+      return [] as MarketplaceMappingRecord[];
+    }
+
+    return (data || []) as MarketplaceMappingRecord[];
+  }, []);
+
+  const recordUnmatchedMarketplaceName = useCallback(async (input: {
+    provider: 'uber_eats' | 'doordash';
+    entityType: MarketplaceMappingEntityType;
+    externalName: string;
+    parentExternalName?: string;
+  }) => {
+    const normalizedExternalName = normalizeMarketplaceName(input.externalName);
+    const parentExternalName = input.parentExternalName || '';
+    if (!normalizedExternalName) return;
+
+    const { data: existing, error: existingError } = await supabase
+      .from('marketplace_unmatched_names')
+      .select('id, occurrences')
+      .eq('provider', input.provider)
+      .eq('entity_type', input.entityType)
+      .eq('normalized_external_name', normalizedExternalName)
+      .eq('parent_external_name', parentExternalName)
+      .maybeSingle();
+
+    if (existingError) {
+      console.warn('Marketplace unmatched lookup failed', existingError);
+      return;
+    }
+
+    if (existing?.id) {
+      const { error: updateError } = await supabase
+        .from('marketplace_unmatched_names')
+        .update({
+          occurrences: Number(existing.occurrences || 0) + 1,
+          last_seen_at: new Date().toISOString(),
+        })
+        .eq('id', existing.id);
+
+      if (updateError) {
+        console.warn('Marketplace unmatched update failed', updateError);
+      }
+      return;
+    }
+
+    const { error: insertError } = await supabase
+      .from('marketplace_unmatched_names')
+      .insert({
+        provider: input.provider,
+        entity_type: input.entityType,
+        external_name: input.externalName,
+        normalized_external_name: normalizedExternalName,
+        parent_external_name: parentExternalName,
+        occurrences: 1,
+        first_seen_at: new Date().toISOString(),
+        last_seen_at: new Date().toISOString(),
+      });
+
+    if (insertError) {
+      console.warn('Marketplace unmatched insert failed', insertError);
+    }
+  }, []);
+
   const openCategory = (categoryId: string) => {
     const layoutCategory = posLayout?.categories.find((category) => category.categoryId === categoryId) ?? null;
     const sourceCategoryIds = layoutCategory?.sourceCategoryIds?.length
@@ -1705,7 +1882,8 @@ export default function PosScreen() {
     quantity: number,
     addons: OrderItemAddon[],
     comment: string,
-    removedIngredients: string[]
+    removedIngredients: string[],
+    overridePrice: number | null = null
   ): PosCartItem => ({
     id: newLocalId(),
     order_id: '',
@@ -1714,8 +1892,9 @@ export default function PosScreen() {
     product_description: product.description,
     product_image_url: product.image_url,
     base_price: product.sale_price,
+    override_price: overridePrice,
     quantity,
-    subtotal: (product.sale_price + addonTotal(addons)) * quantity,
+    subtotal: overridePrice ?? (product.sale_price + addonTotal(addons)) * quantity,
     section: formatKitchenSectionValue(product.section, addons, getProductGroupSection(product)),
     removed_ingredients: removedIngredients,
     comment: comment.trim() || null,
@@ -1830,7 +2009,7 @@ export default function PosScreen() {
     if (existing) {
       setCartItems((prev) => prev.map((item) => (
         item.id === existing.id
-          ? { ...item, quantity: item.quantity + quantity, subtotal: item.subtotal + lineSubtotal }
+          ? { ...item, quantity: item.quantity + quantity, override_price: null, subtotal: item.subtotal + lineSubtotal }
           : item
       )));
       return;
@@ -1853,6 +2032,7 @@ export default function PosScreen() {
         addons,
         section: formatKitchenSectionValue(selectedProduct.section, addons, getProductGroupSection(selectedProduct)),
         removed_ingredients: removedIngredients,
+        override_price: null,
         subtotal: (selectedProduct.sale_price + addonTotal(addons)) * item.quantity,
       };
     }));
@@ -1987,6 +2167,7 @@ export default function PosScreen() {
         return {
           ...item,
           quantity: nextQuantity,
+          override_price: null,
           subtotal: (item.base_price + addonTotal(item.addons || [])) * nextQuantity,
         };
       })

@@ -212,6 +212,51 @@ export const getOrderNotes = (order: Pick<Order, 'special_instructions'>): strin
 
 export const getOrderLineItemCount = (order: Pick<Order, 'items'>): number => order.items?.length || 0;
 
+export const getOrderItemDisplaySubtotal = (
+  item: Pick<NonNullable<Order['items']>[number], 'override_price' | 'subtotal'>
+): number => (
+  item.override_price != null ? Number(item.override_price) : Number(item.subtotal || 0)
+);
+
+export const getOrderDisplaySubtotal = (
+  order: Pick<Order, 'subtotal' | 'items'>
+): number => {
+  const items = order.items || [];
+  const hasOverridePrice = items.some((item) => item.override_price != null);
+  if (!hasOverridePrice) return Number(order.subtotal || 0);
+  return items.reduce((sum, item) => sum + getOrderItemDisplaySubtotal(item), 0);
+};
+
+export const getOrderDisplayTotal = (
+  order: Pick<
+    Order,
+    | 'subtotal'
+    | 'tax'
+    | 'delivery_fee'
+    | 'service_fee'
+    | 'promotion_discount'
+    | 'coupon_discount'
+    | 'reward_points_value'
+    | 'total'
+    | 'items'
+  >
+): number => {
+  const items = order.items || [];
+  const hasOverridePrice = items.some((item) => item.override_price != null);
+  if (!hasOverridePrice) return Number(order.total || 0);
+
+  return Math.max(
+    0,
+    getOrderDisplaySubtotal(order)
+      + Number(order.tax || 0)
+      + Number(order.delivery_fee || 0)
+      + Number(order.service_fee || 0)
+      - Number(order.promotion_discount || 0)
+      - Number(order.coupon_discount || 0)
+      - Number(order.reward_points_value || 0)
+  );
+};
+
 export const DEFAULT_KITCHEN_SECTION = 'Fried';
 
 export const normalizeKitchenSection = (value?: string | null): string | null => {
@@ -367,8 +412,11 @@ export const generatePrintHTML = (order: Order): string => {
   const ticketOrderNumber = getFriendlyOrderNumber(order.order_number);
   const rewardPointsUsed = order.reward_points_used ?? 0;
   const rewardPointsValue = order.reward_points_value ?? 0;
+  const displaySubtotal = getOrderDisplaySubtotal(order);
+  const displayTotal = getOrderDisplayTotal(order);
   const itemsHTML = order.items?.map(item => {
     const grouped = groupAddons(item.addons || []);
+    const itemDisplaySubtotal = getOrderItemDisplaySubtotal(item);
     const addonsHTML = grouped.map(addon =>
       `<li>${addon.quantity > 1 ? `${addon.quantity}x ` : '+ '}${addon.name} (${addon.group}) - $${addon.price.toFixed(2)}</li>`
     ).join('') || '';
@@ -380,7 +428,7 @@ export const generatePrintHTML = (order: Order): string => {
     return `
       <tr>
         <td>${item.quantity}x ${item.product_name}</td>
-        <td>$${item.subtotal.toFixed(2)}</td>
+        <td>$${itemDisplaySubtotal.toFixed(2)}</td>
       </tr>
       ${item.comment?.trim() ? `<tr><td colspan="2"><strong style="font-style: italic;">NOTE: ${item.comment}</strong></td></tr>` : ''}
       ${removedHTML ? `<tr><td colspan="2">${removedHTML}</td></tr>` : ''}
@@ -472,14 +520,14 @@ export const generatePrintHTML = (order: Order): string => {
         </table>
         <div class="total">
           <p>Total items: ${lineItemCount}</p>
-          <p>Subtotal: $${order.subtotal.toFixed(2)}</p>
+          <p>Subtotal: $${displaySubtotal.toFixed(2)}</p>
           ${order.tax > 0 ? `<p>Tax: $${order.tax.toFixed(2)}</p>` : ''}
           ${order.delivery_fee > 0 ? `<p>Delivery Fee: $${order.delivery_fee.toFixed(2)}</p>` : ''}
           ${order.promotion_discount > 0 ? `<p style="color: #16a34a;">${getOrderPromotionSummary(order)?.label || 'Promotion Discount'}: -$${order.promotion_discount.toFixed(2)}</p>` : ''}
           ${order.coupon_discount > 0 ? `<p style="color: #16a34a;">Coupon (${order.coupon_code}): -$${order.coupon_discount.toFixed(2)}</p>` : ''}
           ${rewardPointsUsed > 0 && rewardPointsValue > 0 ? `<p style="color: #16a34a;">Points Applied (${rewardPointsUsed.toLocaleString()} pts): -$${rewardPointsValue.toFixed(2)}</p>` : ''}
           ${order.service_fee > 0 ? `<p>Service Fee: $${order.service_fee.toFixed(2)}</p>` : ''}
-          <p>Total: $${order.total.toFixed(2)}</p>
+          <p>Total: $${displayTotal.toFixed(2)}</p>
         </div>
         <p class="order-number-bottom">ORDER #${ticketOrderNumber}</p>
       </body>

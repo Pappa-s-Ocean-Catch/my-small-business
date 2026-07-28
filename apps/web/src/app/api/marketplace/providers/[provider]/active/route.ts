@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import {
   authenticateMarketplaceRequest,
   getMarketplaceCookies,
+  getMarketplaceCredentialBundle,
   parseMarketplaceProvider,
   type MarketplaceProvider,
 } from '@/lib/marketplace-credentials';
@@ -11,22 +12,11 @@ type RouteContext = {
 };
 
 type UberActiveOrder = {
-  itemIssueTypes?: string[];
-  customizationIssueTypes?: string[];
   orderId?: string;
   workflowUuid?: string;
   workflowUUID?: string;
   orderUuid?: string;
   orderUUID?: string;
-  currencyCode?: string;
-  restaurant?: {
-    uuid?: string;
-    name?: string;
-    address?: string;
-    currencyCode?: string;
-    timezone?: string;
-    countryIso2?: string;
-  };
   salesTotal?: string;
   requestedAt?: string;
   deliveryTimeLocal?: string;
@@ -36,8 +26,6 @@ type UberActiveOrder = {
   orderChannel?: string;
   eater?: {
     name?: string;
-    isEatsPassSubscriber?: boolean;
-    subscriptionPass?: string;
   };
   customer?: {
     name?: string;
@@ -53,11 +41,8 @@ type UberActiveResponse = {
     rows?: UberActiveOrder[];
     orders?: UberActiveOrder[];
     activeOrders?: UberActiveOrder[];
-    ordersCount?: number;
-    lastUpdatedAtUtc?: string;
     paginationResult?: {
       nextCursor?: string;
-      nextTable?: string;
     };
     pagination?: {
       cursor?: string;
@@ -65,6 +50,31 @@ type UberActiveResponse = {
     };
   };
   message?: string;
+};
+
+type DoorDashActiveOrder = {
+  orderId?: string;
+  deliveryUuid?: string;
+  pickupTime?: string;
+  deliveryTime?: string;
+  orderValue?: {
+    displayString?: string;
+  };
+  consumer?: {
+    informalName?: string;
+    formalNameAbbreviated?: string;
+  };
+  dasher?: {
+    informalName?: string;
+    formalNameAbbreviated?: string;
+  };
+  orderStatusDisplay?: string;
+  orderSubStatus?: {
+    display?: string;
+  };
+  fulfillmentDetails?: {
+    fulfillmentType?: string;
+  };
 };
 
 function extractSelectedRestaurantUuid(cookieHeader: string) {
@@ -144,26 +154,100 @@ async function fetchUberActiveOrders(cookieHeader: string, cursor?: string) {
     throw new Error(payload?.message || responseText.slice(0, 200).trim() || `Uber Eats active orders request failed (${response.status})`);
   }
 
-  const orders = rawOrders
-    .map((order) => ({
-      orderId: order.orderId || '',
-      workflowUuid: order.workflowUuid || order.workflowUUID || '',
-      orderUuid: order.orderUuid || order.orderUUID || '',
-      customerName: order.eater?.name || order.customer?.name || 'Customer',
-      salesTotal: order.salesTotal || '',
-      requestedAt: order.requestedAt || '',
-      courierName: order.courierName || '',
-      fulfillmentType: order.fulfillmentType || '',
-      orderChannel: order.orderChannel || '',
-      status: order.orderTag || order.orderCategory || order.issueType || 'Active',
-      statusDescription: order.deliveryTimeLocal || order.estimatedReadyTimeLocal || '',
-    }))
-    .filter((order) => order.orderId && order.workflowUuid);
-
   return {
     provider: 'uber_eats' as MarketplaceProvider,
-    orders,
+    orders: rawOrders
+      .map((order) => ({
+        orderId: order.orderId || '',
+        workflowUuid: order.workflowUuid || order.workflowUUID || '',
+        orderUuid: order.orderUuid || order.orderUUID || '',
+        customerName: order.eater?.name || order.customer?.name || 'Customer',
+        salesTotal: order.salesTotal || '',
+        requestedAt: order.requestedAt || '',
+        courierName: order.courierName || '',
+        fulfillmentType: order.fulfillmentType || '',
+        orderChannel: order.orderChannel || '',
+        status: order.orderTag || order.orderCategory || order.issueType || 'Active',
+        statusDescription: order.deliveryTimeLocal || order.estimatedReadyTimeLocal || '',
+      }))
+      .filter((order) => order.orderId && order.workflowUuid),
     nextCursor: payload?.data?.paginationResult?.nextCursor || payload?.data?.pagination?.nextCursor || payload?.data?.pagination?.cursor || null,
+  };
+}
+
+function buildDoorDashActivePayload(providerConfig: Record<string, string | number | boolean | null>) {
+  const businessId = Number(providerConfig.businessId);
+  const storeId = Number(providerConfig.storeId);
+  if (!businessId || !storeId) {
+    throw new Error('DoorDash settings require both businessId and storeId');
+  }
+
+  return {
+    businessIds: [businessId],
+    organizations: [],
+    storeIds: [storeId],
+    type: 'active',
+    statuses: [],
+    subStatuses: [],
+    limit: 20,
+  };
+}
+
+async function fetchDoorDashActiveOrders(
+  cookieHeader: string,
+  providerConfig: Record<string, string | number | boolean | null>
+) {
+  const response = await fetch('https://merchant-portal.doordash.com/merchant-analytics-service/api/v1/get_orders', {
+    method: 'POST',
+    headers: {
+      accept: '*/*',
+      'accept-language': 'en-GB',
+      'content-type': 'application/json',
+      origin: 'https://www.doordash.com',
+      priority: 'u=1, i',
+      referer: 'https://www.doordash.com/',
+      'sec-ch-ua': '"Not;A=Brand";v="8", "Chromium";v="150", "Google Chrome";v="150"',
+      'sec-ch-ua-mobile': '?0',
+      'sec-ch-ua-platform': '"macOS"',
+      'sec-fetch-dest': 'empty',
+      'sec-fetch-mode': 'cors',
+      'sec-fetch-site': 'same-site',
+      'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36',
+      Cookie: cookieHeader,
+    },
+    body: JSON.stringify(buildDoorDashActivePayload(providerConfig)),
+    cache: 'no-store',
+  });
+
+  const responseText = await response.text();
+  const payload = (() => {
+    try {
+      return JSON.parse(responseText) as { orders?: DoorDashActiveOrder[]; message?: string };
+    } catch {
+      return null;
+    }
+  })();
+
+  if (!response.ok || !payload?.orders) {
+    throw new Error(payload?.message || responseText.slice(0, 200).trim() || `DoorDash active orders request failed (${response.status})`);
+  }
+
+  return {
+    provider: 'doordash' as MarketplaceProvider,
+    orders: payload.orders.map((order) => ({
+      orderId: order.orderId || '',
+      workflowUuid: order.deliveryUuid || '',
+      orderUuid: order.deliveryUuid || '',
+      customerName: order.consumer?.informalName || order.consumer?.formalNameAbbreviated || 'Customer',
+      salesTotal: order.orderValue?.displayString || '',
+      requestedAt: order.pickupTime || order.deliveryTime || '',
+      courierName: order.dasher?.informalName || order.dasher?.formalNameAbbreviated || '',
+      fulfillmentType: order.fulfillmentDetails?.fulfillmentType || '',
+      orderChannel: 'DoorDash',
+      status: order.orderStatusDisplay || 'Active',
+      statusDescription: order.orderSubStatus?.display || '',
+    })).filter((order) => order.orderId && order.workflowUuid),
+    nextCursor: null,
   };
 }
 
@@ -180,14 +264,17 @@ export async function GET(request: Request, context: RouteContext) {
       return NextResponse.json({ success: false, error: 'Unsupported marketplace provider' }, { status: 400 });
     }
 
-    if (provider !== 'uber_eats') {
-      return NextResponse.json({ success: false, error: 'Active order sync is not implemented for this provider yet' }, { status: 400 });
-    }
-
     const url = new URL(request.url);
     const cursor = url.searchParams.get('cursor')?.trim() || undefined;
-    const cookieHeader = await getMarketplaceCookies(provider);
-    const result = await fetchUberActiveOrders(cookieHeader, cursor);
+
+    if (provider === 'uber_eats') {
+      const cookieHeader = await getMarketplaceCookies(provider);
+      const result = await fetchUberActiveOrders(cookieHeader, cursor);
+      return NextResponse.json({ success: true, data: result });
+    }
+
+    const { cookies, providerConfig } = await getMarketplaceCredentialBundle(provider);
+    const result = await fetchDoorDashActiveOrders(cookies, providerConfig);
     return NextResponse.json({ success: true, data: result });
   } catch (error) {
     return NextResponse.json(

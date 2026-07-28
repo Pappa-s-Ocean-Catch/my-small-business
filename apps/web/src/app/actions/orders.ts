@@ -378,6 +378,7 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
       product_description: item.product_description || null,
       product_image_url: item.product_image_url || null,
       base_price: item.base_price,
+      override_price: item.override_price ?? null,
       quantity: item.quantity,
       subtotal: item.subtotal,
       section: item.section ?? null,
@@ -589,6 +590,7 @@ export async function getOrderByNumber(orderNumber: string): Promise<{ data: Ord
         itemsWithAddons.push({
           ...item,
           base_price: Number(item.base_price),
+          override_price: item.override_price == null ? null : Number(item.override_price),
           quantity: item.quantity,
           subtotal: Number(item.subtotal),
           removed_ingredients: (item.removed_ingredients as string[] | null) || [],
@@ -780,6 +782,7 @@ export async function getOrder(orderId: string): Promise<{ data: Order | null; e
         itemsWithAddons.push({
           ...item,
           base_price: Number(item.base_price),
+          override_price: item.override_price == null ? null : Number(item.override_price),
           quantity: item.quantity,
           subtotal: Number(item.subtotal),
           removed_ingredients: (item.removed_ingredients as string[] | null) || [],
@@ -1008,6 +1011,7 @@ export async function getAllOrders(filters?: {
           items: items?.map(item => ({
             ...item,
             base_price: Number(item.base_price),
+            override_price: item.override_price == null ? null : Number(item.override_price),
             quantity: item.quantity,
             subtotal: Number(item.subtotal),
             removed_ingredients: (item.removed_ingredients as string[] | null) || []
@@ -1170,6 +1174,7 @@ export async function getCustomerOrders(): Promise<{ data: Order[] | null; error
       const mappedItem: OrderItem = {
         ...item,
         base_price: Number(item.base_price),
+        override_price: item.override_price == null ? null : Number(item.override_price),
         quantity: item.quantity,
         subtotal: Number(item.subtotal),
         removed_ingredients: (item.removed_ingredients as string[] | null) || [],

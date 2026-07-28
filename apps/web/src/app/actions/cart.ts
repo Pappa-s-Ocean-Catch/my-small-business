@@ -17,6 +17,7 @@ export interface CartItemData {
   product_description: string | null;
   product_image_url: string | null;
   base_price: number;
+  override_price?: number | null;
   quantity: number;
   subtotal: number;
   section?: string | null;
@@ -97,6 +98,7 @@ export async function getOrCreateCart(sessionId: string): Promise<{ data: CartDa
           product_description: item.product_description,
           product_image_url: item.product_image_url,
           base_price: Number(item.base_price),
+          override_price: item.override_price == null ? null : Number(item.override_price),
           quantity: item.quantity,
           subtotal: Number(item.subtotal),
           section: item.section ?? null,

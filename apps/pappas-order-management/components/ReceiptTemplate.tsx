@@ -4,6 +4,9 @@ import type { Order } from '@my-small-business/types';
 import {
   buildKitchenReceiptCopies,
   getOrderChannelReceiptLabel,
+  getOrderDisplaySubtotal,
+  getOrderDisplayTotal,
+  getOrderItemDisplaySubtotal,
   getOrderLineItemCount,
   getOrderNotes,
   getOrderOptions,
@@ -35,6 +38,8 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
   const rewardPointsBalance = Number((order as Order & { reward_points_balance?: number | null }).reward_points_balance ?? 0);
   const promotionSummary = getOrderPromotionSummary(order);
   const promotionLabel = promotionSummary?.label || 'Promotion Discount';
+  const displaySubtotal = getOrderDisplaySubtotal(order);
+  const displayTotal = getOrderDisplayTotal(order);
 
   const rewardPointsUsed = order.reward_points_used ?? 0;
   const rewardPointsValue = order.reward_points_value ?? 0;
@@ -143,39 +148,42 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
                   <View style={styles.itemSectionLine} />
                 </View>
               )}
-              {section.items.map((item, idx) => (
-                <View key={`${ticketIdx}-${sectionIdx}-${idx}`} style={styles.itemContainer}>
-                  <View style={styles.itemLineRow}>
-                    <Text style={styles.itemNameLine} numberOfLines={3}>
-                      {item.quantity}x {item.product_name}
-                    </Text>
-                    {isFreePromotionOrderItem(order, item.product_name) ? (
-                      <View style={styles.itemPriceGroup}>
-                        <Text style={styles.itemLinePriceFree}>FREE</Text>
-                        <Text style={styles.itemLinePriceOriginal}>${formatMoney(item.subtotal)}</Text>
-                      </View>
-                    ) : (
-                      <Text style={styles.itemLinePrice}>${formatMoney(item.subtotal)}</Text>
+              {section.items.map((item, idx) => {
+                const displaySubtotal = getOrderItemDisplaySubtotal(item);
+                return (
+                  <View key={`${ticketIdx}-${sectionIdx}-${idx}`} style={styles.itemContainer}>
+                    <View style={styles.itemLineRow}>
+                      <Text style={styles.itemNameLine} numberOfLines={3}>
+                        {item.quantity}x {item.product_name}
+                      </Text>
+                      {isFreePromotionOrderItem(order, item.product_name) ? (
+                        <View style={styles.itemPriceGroup}>
+                          <Text style={styles.itemLinePriceFree}>FREE</Text>
+                          <Text style={styles.itemLinePriceOriginal}>${formatMoney(displaySubtotal)}</Text>
+                        </View>
+                      ) : (
+                        <Text style={styles.itemLinePrice}>${formatMoney(displaySubtotal)}</Text>
+                      )}
+                    </View>
+                    {item.removed_ingredients?.map((ing, rIdx) => (
+                      <Text key={`rm-${ticketIdx}-${sectionIdx}-${rIdx}`} style={styles.removedText}>
+                        No {ing}
+                      </Text>
+                    ))}
+                    {groupAddons(item.addons || []).map((addon, aIdx) => (
+                      <Text key={`ad-${ticketIdx}-${sectionIdx}-${aIdx}`} style={styles.addonText}>
+                        {addon.quantity > 1 ? `${addon.quantity}x ` : '+ '}{addon.name} {addon.price ? `($${formatMoney(addon.price)})` : ''}
+                      </Text>
+                    ))}
+                    {item.comment?.trim() && (
+                      <Text style={styles.itemNote}>
+                        Notes: {item.comment}
+                      </Text>
                     )}
+                    {idx < section.items.length - 1 && <View style={styles.itemDivider} />}
                   </View>
-                  {item.removed_ingredients?.map((ing, rIdx) => (
-                    <Text key={`rm-${ticketIdx}-${sectionIdx}-${rIdx}`} style={styles.removedText}>
-                      No {ing}
-                    </Text>
-                  ))}
-                  {groupAddons(item.addons || []).map((addon, aIdx) => (
-                    <Text key={`ad-${ticketIdx}-${sectionIdx}-${aIdx}`} style={styles.addonText}>
-                      {addon.quantity > 1 ? `${addon.quantity}x ` : '+ '}{addon.name} {addon.price ? `($${formatMoney(addon.price)})` : ''}
-                    </Text>
-                  ))}
-                  {item.comment?.trim() && (
-                    <Text style={styles.itemNote}>
-                      Notes: {item.comment}
-                    </Text>
-                  )}
-                  {idx < section.items.length - 1 && <View style={styles.itemDivider} />}
-                </View>
-              ))}
+                )
+              })}
             </View>
           ))}
 
@@ -188,7 +196,7 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
             </View>
             <View style={styles.totalRow}>
               <Text style={styles.normalText}>Subtotal:</Text>
-              <Text style={styles.normalText}>${formatMoney(order.subtotal)}</Text>
+              <Text style={styles.normalText}>${formatMoney(displaySubtotal)}</Text>
             </View>
             {order.tax > 0 && (
               <View style={styles.totalRow}>
@@ -237,7 +245,7 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
             <View style={[styles.totalRow, { marginTop: 8 }]}>
               <Text style={styles.largeTotalText}>TOTAL:</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={styles.largeTotalText}>${formatMoney(order.total)}</Text>
+                <Text style={styles.largeTotalText}>${formatMoney(displayTotal)}</Text>
                 <Text style={styles.statusBadge}>
                   {order.payment_status?.toUpperCase() === 'PAID' ? 'PAID' : 'UNPAID'}
                 </Text>
@@ -252,9 +260,6 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
           </View>
           <View style={styles.footerContainer}>
             <Text style={styles.footerText}>Thanks for your order!</Text>
-            {!!printSource && (
-              <Text style={styles.printSourceText}>Print source: {printSource}</Text>
-            )}
           </View>
         </View>
       ))}

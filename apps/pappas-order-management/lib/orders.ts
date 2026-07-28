@@ -90,6 +90,7 @@ function mapEmbeddedOrder(row: OrderWithEmbeddedItemsRow): Order {
     (row.order_items || []).map((item) => ({
       ...item,
       base_price: Number(item.base_price),
+      override_price: item.override_price == null ? null : Number(item.override_price),
       subtotal: Number(item.subtotal),
       removed_ingredients: (item.removed_ingredients as string[] | null) || [],
       addons: (item.order_item_addons || undefined) ?? undefined,
@@ -569,6 +570,7 @@ export async function savePosOrder(
         .from('order_items')
         .insert({
           ...itemData,
+          override_price: itemData.override_price ?? null,
           order_id: orderId,
         })
         .select()
@@ -677,6 +679,7 @@ export async function updatePosOrder(
         .from('order_items')
         .insert({
           ...itemData,
+          override_price: itemData.override_price ?? null,
           order_id: orderId,
         })
         .select()

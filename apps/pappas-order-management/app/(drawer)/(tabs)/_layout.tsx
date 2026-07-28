@@ -29,7 +29,7 @@ export default function TabsLayout() {
         ),
         headerRight: () => (
           <React.Fragment>
-            <Appbar.Action icon="cash-register" onPress={() => router.push('/pos')} iconColor="#fff" />
+            <Appbar.Action icon="storefront-outline" onPress={() => router.push('/marketplace')} iconColor="#fff" />
             <Appbar.Action icon="account-circle" onPress={handleOpenDrawer} iconColor="#fff" />
           </React.Fragment>
         ),

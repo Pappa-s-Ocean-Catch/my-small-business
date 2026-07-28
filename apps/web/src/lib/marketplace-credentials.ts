@@ -8,6 +8,7 @@ export type MarketplaceCredentialStatus = {
   configured: boolean;
   updatedAt: string | null;
   configuredBy: string | null;
+  providerConfig: Record<string, string | number | boolean | null>;
 };
 
 const MARKETPLACE_PROVIDERS: MarketplaceProvider[] = ['uber_eats', 'doordash'];
@@ -106,7 +107,7 @@ export async function getMarketplaceCredentialStatus(provider: MarketplaceProvid
   const supabase = await createServiceRoleClient();
   const { data, error } = await supabase
     .from('marketplace_provider_credentials')
-    .select('provider, updated_at, configured_by')
+    .select('provider, updated_at, configured_by, provider_config')
     .eq('provider', provider)
     .maybeSingle();
 
@@ -119,6 +120,7 @@ export async function getMarketplaceCredentialStatus(provider: MarketplaceProvid
     configured: Boolean(data),
     updatedAt: data?.updated_at ?? null,
     configuredBy: data?.configured_by ?? null,
+    providerConfig: (data?.provider_config as Record<string, string | number | boolean | null> | null) ?? {},
   };
 }
 
@@ -126,6 +128,7 @@ export async function saveMarketplaceCookies(input: {
   provider: MarketplaceProvider;
   cookies: string;
   configuredBy: string;
+  providerConfig?: Record<string, string | number | boolean | null>;
 }) {
   const normalizedCookies = normalizeCookieHeaderValue(input.cookies);
   if (!normalizedCookies) {
@@ -142,6 +145,7 @@ export async function saveMarketplaceCookies(input: {
       encrypted_cookies: payload.encryptedCookies,
       encryption_iv: payload.encryptionIv,
       encryption_tag: payload.encryptionTag,
+      provider_config: input.providerConfig ?? {},
       configured_by: input.configuredBy,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'provider' });
@@ -169,7 +173,7 @@ export async function getMarketplaceCookies(provider: MarketplaceProvider) {
   const supabase = await createServiceRoleClient();
   const { data, error } = await supabase
     .from('marketplace_provider_credentials')
-    .select('encrypted_cookies, encryption_iv, encryption_tag')
+    .select('encrypted_cookies, encryption_iv, encryption_tag, provider_config')
     .eq('provider', provider)
     .maybeSingle();
 
@@ -186,4 +190,30 @@ export async function getMarketplaceCookies(provider: MarketplaceProvider) {
     encryptionIv: data.encryption_iv,
     encryptionTag: data.encryption_tag,
   });
+}
+
+export async function getMarketplaceCredentialBundle(provider: MarketplaceProvider) {
+  const supabase = await createServiceRoleClient();
+  const { data, error } = await supabase
+    .from('marketplace_provider_credentials')
+    .select('encrypted_cookies, encryption_iv, encryption_tag, provider_config')
+    .eq('provider', provider)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new Error(`No saved credentials for provider ${provider}`);
+  }
+
+  return {
+    cookies: decryptCookies({
+      encryptedCookies: data.encrypted_cookies,
+      encryptionIv: data.encryption_iv,
+      encryptionTag: data.encryption_tag,
+    }),
+    providerConfig: (data.provider_config as Record<string, string | number | boolean | null> | null) ?? {},
+  };
 }

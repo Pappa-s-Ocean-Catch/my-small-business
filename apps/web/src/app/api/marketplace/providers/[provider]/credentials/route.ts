@@ -47,7 +47,10 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ success: false, error: 'Unsupported marketplace provider' }, { status: 400 });
     }
 
-    const body = await request.json().catch(() => null) as { cookies?: string } | null;
+    const body = await request.json().catch(() => null) as {
+      cookies?: string;
+      providerConfig?: Record<string, string | number | boolean | null>;
+    } | null;
     const cookies = body?.cookies?.trim();
     if (!cookies) {
       return NextResponse.json({ success: false, error: 'cookies is required' }, { status: 400 });
@@ -56,6 +59,7 @@ export async function POST(request: Request, context: RouteContext) {
     const status = await saveMarketplaceCookies({
       provider,
       cookies,
+      providerConfig: body?.providerConfig ?? {},
       configuredBy: auth.profile.id,
     });
 

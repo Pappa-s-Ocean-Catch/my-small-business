@@ -61,6 +61,10 @@ export function PosCartPane({
   smartpayPaired,
   handleSmartpayInstoreCheckout,
 }: Props) {
+  const getPosCalculatedSubtotal = (item: PosCartItem) => (
+    (item.base_price + (item.addons || []).reduce((sum, addon) => sum + (addon.addon_item_price || 0), 0)) * item.quantity
+  );
+
   return (
     <View style={[styles.cartPane, isCompactLayout ? styles.cartPaneCompact : null]}>
       <View style={styles.cartHeader}>
@@ -118,6 +122,8 @@ export function PosCartPane({
         ListEmptyComponent={<Text style={styles.emptyCart}>No items yet</Text>}
         renderItem={({ item }) => {
           const showCartActions = item.id === activeCartItemId;
+          const hasMarketplaceOverride = item.override_price != null;
+          const posCalculatedSubtotal = getPosCalculatedSubtotal(item);
           return (
             <View style={styles.cartRow}>
               <View style={styles.cartItemHeader}>
@@ -136,9 +142,16 @@ export function PosCartPane({
                       <Text style={styles.cartQuantity}>{item.quantity}</Text>
                       <IconButton icon="plus" size={16} onPress={() => updateQuantity(item.id, 1)} style={styles.stepperButton} />
                     </View>
-                    <Text style={styles.cartItemPrice}>
-                      {isFreePromotionItem(item) ? 'FREE' : `$${item.subtotal.toFixed(2)}`}
-                    </Text>
+                    <View style={styles.cartItemPriceBlock}>
+                      <Text style={styles.cartItemPrice}>
+                        {isFreePromotionItem(item) ? 'FREE' : `$${item.subtotal.toFixed(2)}`}
+                      </Text>
+                      {hasMarketplaceOverride ? (
+                        <Text style={styles.cartItemSecondaryPrice}>
+                          POS ${posCalculatedSubtotal.toFixed(2)}
+                        </Text>
+                      ) : null}
+                    </View>
                   </View>
                   <View style={styles.cartItemDetails}>
                     {item.addons?.map((addon) => (

@@ -208,18 +208,18 @@ export function buildKitchenReceiptLines(
   const sectionTickets = buildKitchenReceiptCopies(order.items || []);
   const tickets = duplicateBySections
     ? (
-        onlyTicketIndex == null
-          ? sectionTickets
-          : sectionTickets[onlyTicketIndex]
-            ? [sectionTickets[onlyTicketIndex]]
-            : sectionTickets
-      )
+      onlyTicketIndex == null
+        ? sectionTickets
+        : sectionTickets[onlyTicketIndex]
+          ? [sectionTickets[onlyTicketIndex]]
+          : sectionTickets
+    )
     : [{
-        key: 'combined',
-        copyNumber: 1,
-        totalCopies: 1,
-        sections: groupedSections,
-      }];
+      key: 'combined',
+      copyNumber: 1,
+      totalCopies: 1,
+      sections: groupedSections,
+    }];
 
   tickets.forEach((ticket, ticketIndex) => {
     if (ticketIndex > 0) {
@@ -298,11 +298,6 @@ export function buildKitchenReceiptLines(
       large: true,
       center: true,
     });
-
-    if (printSource) {
-      lines.push('');
-      lines.push({ text: `Print source: ${printSource}`, center: true });
-    }
   });
 
   return lines;

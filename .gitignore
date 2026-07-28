@@ -39,3 +39,7 @@ tsconfig.tsbuildinfo
 
 .claude
 .posthog
+
+**/dist-test/**
+
+libs/*.js

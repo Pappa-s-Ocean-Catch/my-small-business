@@ -1,0 +1,23 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "node16",
+    "moduleResolution": "node16",
+    "target": "es2020",
+    "outDir": "./dist-test",
+    "rootDir": "../..",
+    "noEmit": false,
+    "types": ["node"],
+    "jsx": "react-jsx",
+    "skipLibCheck": true
+  },
+  "include": [
+    "test/**/*.test.ts",
+    "utils/orderUtils.ts",
+    "utils/orderNumber.ts",
+    "utils/constants.ts",
+    "lib/promotion-summary.ts",
+    "types/**/*.ts",
+    "../../libs/types/**/*.ts"
+  ]
+}
