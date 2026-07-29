@@ -33,9 +33,11 @@ type UberHistoricOrder = {
   restaurantNetPayout?: string;
   netPayoutAmount?: string;
   requestedAt: string;
+  deliveryTimeLocal?: string;
   courierName: string;
   fulfillmentType: string;
   issueType: string;
+  orderStatus?: string;
   orderChannel: string;
   eater?: {
     name?: string;
