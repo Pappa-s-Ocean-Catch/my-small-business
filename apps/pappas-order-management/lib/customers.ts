@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { getApiUrl } from '../utils/orderUtils';
+import { customerFromSummary } from '../utils/customer-profile';
 
 export interface Customer {
   id: string;
@@ -125,8 +126,11 @@ export async function findCustomerByPhone(phone: string): Promise<{ data: Custom
       .limit(1);
 
     if (summaryResult.error) return { data: null, error: summaryResult.error.message };
-    if (summaryResult.data?.[0]) {
-      return { data: summaryResult.data[0] as Customer, error: null };
+    const summaryCustomer = summaryResult.data?.[0]
+      ? customerFromSummary(summaryResult.data[0])
+      : null;
+    if (summaryCustomer) {
+      return { data: summaryCustomer, error: null };
     }
 
     const { data, error } = await supabase
@@ -167,8 +171,11 @@ export async function findCustomerByEmail(email: string): Promise<{ data: Custom
       .limit(1);
 
     if (summaryResult.error) return { data: null, error: summaryResult.error.message };
-    if (summaryResult.data?.[0]) {
-      return { data: summaryResult.data[0] as Customer, error: null };
+    const summaryCustomer = summaryResult.data?.[0]
+      ? customerFromSummary(summaryResult.data[0])
+      : null;
+    if (summaryCustomer) {
+      return { data: summaryCustomer, error: null };
     }
 
     const { data, error } = await supabase

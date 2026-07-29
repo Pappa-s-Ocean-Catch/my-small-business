@@ -27,6 +27,8 @@ import { useRouter } from 'expo-router';
 import { getOrder } from '../lib/orders';
 import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
 import { getOrderPromotionSummary, isFreePromotionOrderItem } from '@/lib/promotion-summary';
+import { PayByLinkModal } from './PayByLinkModal';
+import { canPayByLink } from '../utils/pay-by-link';
 
 interface OrderDetailModalProps {
   visible: boolean;
@@ -91,6 +93,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const [isCapturing, setIsCapturing] = React.useState(false);
   const [captureTarget, setCaptureTarget] = React.useState<'kitchen' | 'customer' | null>(null);
   const [printPreviewOrder, setPrintPreviewOrder] = React.useState<Order | null>(null);
+  const [showPayByLink, setShowPayByLink] = React.useState(false);
   const receiptRef = React.useRef(null);
   const customerReceiptRef = React.useRef(null);
   const orderPrintState = usePrinterAutomationStore((state) => (
@@ -623,6 +626,11 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 SmartPay
               </PaperButton>
             )}
+            {canPayByLink(order) && (
+              <PaperButton mode="outlined" icon="qrcode-scan" onPress={() => setShowPayByLink(true)} style={styles.actionButton} compact={!isWide}>
+                Pay by Link
+              </PaperButton>
+            )}
           </View>
           {renderActionButton()}
         </Surface>
@@ -658,6 +666,12 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
           imageLabels={simulatorImageLabels || undefined}
           useModal={false}
           onClose={() => setShowSimulator?.(false)}
+        />
+        <PayByLinkModal
+          visible={showPayByLink}
+          order={order}
+          onDismiss={() => setShowPayByLink(false)}
+          onOrderRefresh={(updatedOrder) => onOrderRefresh?.(updatedOrder)}
         />
         {smartpayProcessing && (
           <View style={styles.smartpayOverlay} pointerEvents="auto">

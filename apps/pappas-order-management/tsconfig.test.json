@@ -16,8 +16,12 @@
     "utils/orderUtils.ts",
     "utils/orderNumber.ts",
     "utils/constants.ts",
+    "utils/pay-by-link.ts",
+    "utils/customer-profile.ts",
     "lib/live-order-window.ts",
     "lib/promotion-summary.ts",
+    "test/pay-by-link.test.ts",
+    "test/customer-profile.test.ts",
     "types/**/*.ts",
     "../../libs/types/**/*.ts"
   ]
