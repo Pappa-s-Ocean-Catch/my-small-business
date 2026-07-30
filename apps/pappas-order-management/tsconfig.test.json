@@ -19,6 +19,7 @@
     "utils/pay-by-link.ts",
     "utils/customer-profile.ts",
     "lib/live-order-window.ts",
+    "lib/marketing-contact-filter.ts",
     "lib/marketplace-order-summary.ts",
     "lib/promotion-summary.ts",
     "test/pay-by-link.test.ts",

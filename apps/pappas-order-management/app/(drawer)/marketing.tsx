@@ -5,6 +5,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { Customer, getRecentCustomers, searchCustomers } from '@/lib/customers';
 import { generateMarketingCampaign, generateMarketingImage, sendMarketingCampaign, type MarketingChannel } from '@/lib/marketing';
+import { matchesContactFilter, type ContactFilters } from '@/lib/marketing-contact-filter';
 
 type MarketingCustomer = Customer & {
   profileId?: string;
@@ -135,6 +136,7 @@ export default function MarketingScreen() {
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [allCustomers, setAllCustomers] = useState<MarketingCustomer[]>([]);
   const [selectedCustomers, setSelectedCustomers] = useState<Map<string, MarketingCustomer>>(new Map());
+  const [contactFilters, setContactFilters] = useState<ContactFilters>({ email: false, phone: false });
   const [sortOption, setSortOption] = useState<SortOption>('last-order');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [page, setPage] = useState(0);
@@ -205,9 +207,14 @@ export default function MarketingScreen() {
 
   const selectedIds = useMemo(() => new Set(selectedCustomers.keys()), [selectedCustomers]);
 
+  const filteredCustomerRows = useMemo(
+    () => customerListRows.filter(({ customer }) => matchesContactFilter(customer, contactFilters)),
+    [customerListRows, contactFilters]
+  );
+
   const sortedCustomerRows = useMemo(
-    () => sortCustomerRows(customerListRows, sortOption, sortDirection),
-    [customerListRows, sortOption, sortDirection]
+    () => sortCustomerRows(filteredCustomerRows, sortOption, sortDirection),
+    [filteredCustomerRows, sortOption, sortDirection]
   );
 
   const selectedCustomerRows = useMemo(() => {
@@ -450,6 +457,22 @@ export default function MarketingScreen() {
             style={styles.searchbar}
           />
 
+          <View style={styles.contactFilterRow}>
+            <Text style={styles.contactFilterLabel}>Show customers with</Text>
+            <Checkbox.Item
+              label="Email"
+              status={contactFilters.email ? 'checked' : 'unchecked'}
+              onPress={() => setContactFilters((current) => ({ ...current, email: !current.email }))}
+              style={styles.contactFilterItem}
+            />
+            <Checkbox.Item
+              label="Phone"
+              status={contactFilters.phone ? 'checked' : 'unchecked'}
+              onPress={() => setContactFilters((current) => ({ ...current, phone: !current.phone }))}
+              style={styles.contactFilterItem}
+            />
+          </View>
+
           <SegmentedButtons
             value={sortOption}
             onValueChange={(value) => setSortOption(value as SortOption)}
@@ -606,6 +629,21 @@ const styles = StyleSheet.create({
   },
   searchbar: {
     marginBottom: 12,
+  },
+  contactFilterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 4,
+    marginBottom: 12,
+  },
+  contactFilterLabel: {
+    color: '#334155',
+    fontWeight: '600',
+  },
+  contactFilterItem: {
+    width: 118,
+    paddingVertical: 0,
   },
   segmented: {
     marginBottom: 12,

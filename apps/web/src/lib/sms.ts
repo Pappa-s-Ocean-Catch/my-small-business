@@ -9,6 +9,26 @@ function normalizePhone(phone: string): string {
   return digits;
 }
 
+function maskPhone(phone: string): string {
+  return phone.length > 4 ? `${phone.slice(0, 2)}${'*'.repeat(Math.max(phone.length - 6, 0))}${phone.slice(-4)}` : '****';
+}
+
+type MobileMessageResult = {
+  status?: string;
+  to?: string;
+  error?: string;
+  message_id?: string;
+  custom_ref?: string;
+  cost?: number;
+  encoding?: string;
+};
+
+type MobileMessageResponse = {
+  status?: string;
+  error?: string;
+  results?: MobileMessageResult[];
+};
+
 export async function sendSmsMessage(params: {
   phone: string;
   message: string;
@@ -29,6 +49,15 @@ export async function sendSmsMessage(params: {
   }
 
   const authHeader = `Basic ${Buffer.from(smsApiKey).toString('base64')}`;
+  const normalizedPhone = normalizePhone(params.phone);
+  const customRef = params.customRef || 'general-sms';
+
+  console.info('[sms] provider request', {
+    customRef,
+    to: maskPhone(normalizedPhone),
+    sender,
+    messageLength: params.message.length,
+  });
 
   const mobileMessageRes = await fetch('https://api.mobilemessage.com.au/v1/messages', {
     method: 'POST',
@@ -39,26 +68,47 @@ export async function sendSmsMessage(params: {
     body: JSON.stringify({
       messages: [
         {
-          to: normalizePhone(params.phone),
+          to: normalizedPhone,
           message: params.message,
           sender,
-          custom_ref: params.customRef || 'general-sms',
+          custom_ref: customRef,
         },
       ],
     }),
   });
 
-  const mobileMessageJson = (await mobileMessageRes.json()) as {
-    error?: string;
-    results?: Array<{ status?: string; to?: string }>;
-  };
+  let mobileMessageJson: MobileMessageResponse;
+  try {
+    mobileMessageJson = (await mobileMessageRes.json()) as MobileMessageResponse;
+  } catch {
+    throw new Error(`Mobile Message API returned HTTP ${mobileMessageRes.status} with a non-JSON response.`);
+  }
+
+  const result = mobileMessageJson.results?.[0];
+  console.info('[sms] provider response', {
+    customRef,
+    httpStatus: mobileMessageRes.status,
+    responseStatus: mobileMessageJson.status,
+    resultStatus: result?.status,
+    messageId: result?.message_id,
+    to: maskPhone(result?.to || normalizedPhone),
+    error: result?.error || mobileMessageJson.error,
+    encoding: result?.encoding,
+    cost: result?.cost,
+  });
 
   if (!mobileMessageRes.ok) {
     throw new Error(mobileMessageJson.error || 'Failed to send SMS via Mobile Message API.');
   }
 
+  if (!result || result.status !== 'success') {
+    throw new Error(result?.error || mobileMessageJson.error || 'Mobile Message did not accept the SMS.');
+  }
+
   return {
     provider: 'mobilemessage',
-    result: mobileMessageJson.results?.[0]?.status ?? 'queued',
+    result: result.status,
+    messageId: result.message_id,
+    customRef,
   };
 }
