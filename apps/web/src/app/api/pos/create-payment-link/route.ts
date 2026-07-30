@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createServiceRoleClient } from '@my-small-business/supabase/server';
 import { sendSmsMessage } from '@/lib/sms';
+import { createPaymentLinkAlias } from '@/lib/payment-link-alias';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const stripe = stripeSecretKey ? new Stripe(stripeSecretKey) : null;
@@ -73,13 +74,14 @@ export async function POST(request: Request) {
     }).eq('id', order.id);
     if (updateError) throw new Error(updateError.message);
 
+    const alias = await createPaymentLinkAlias(order.id, session.url);
     await sendSmsMessage({
       phone: order.customer_phone,
-      message: `Hi ${order.customer_name || 'there'}, please pay your Pappas order ($${Number(order.total).toFixed(2)}): ${session.url}`,
+      message: `Hi ${order.customer_name || 'there'}, please pay your Pappas order ($${Number(order.total).toFixed(2)}): ${alias.paymentUrl}`,
       customRef: `pos-pay-by-link-${order.id}`,
     });
 
-    return NextResponse.json({ success: true, sessionId: session.id, paymentUrl: session.url });
+    return NextResponse.json({ success: true, sessionId: session.id, paymentUrl: alias.paymentUrl });
   } catch (error) {
     console.error('[POS Pay by Link] Failed:', error);
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to create payment link' }, { status: 500 });

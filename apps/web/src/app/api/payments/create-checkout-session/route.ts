@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { getPostHogClient } from '@/lib/posthog-server';
 import { calculateServiceFee } from '@/lib/payment-fees';
+import { createPaymentLinkAlias } from '@/lib/payment-link-alias';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 
@@ -206,9 +207,11 @@ export async function POST(request: Request) {
       },
     });
 
+    const paymentLinkAlias = session.url ? await createPaymentLinkAlias(body.orderId, session.url) : null;
     return NextResponse.json({
       sessionId: session.id,
       url: session.url,
+      shortUrl: paymentLinkAlias?.paymentUrl ?? session.url,
       serviceFee,
       isTestPhoneCheckout: isTestPhoneMatch,
     });

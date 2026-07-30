@@ -351,7 +351,7 @@ export function PendingOnlinePaymentsOverlay() {
         orderNumber: activeSession.orderNumber,
         customerName: activeSession.customerName,
         customerPhone: activeSession.customerPhone,
-        paymentUrl: checkoutSession.url,
+        paymentUrl: checkoutSession.shortUrl || checkoutSession.url,
         deliveryAddress: formatDeliveryAddress(selectedAddress),
         deliveryEtaMinutes: nextQuote.estimated_duration_minutes,
         totalAmount: finalTotalAmount,

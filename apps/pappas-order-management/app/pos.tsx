@@ -2836,7 +2836,7 @@ export default function PosScreen() {
         orderNumber: saveResult.data.order_number,
         customerName: name,
         customerPhone: phone,
-        paymentUrl: checkoutSession.url,
+        paymentUrl: checkoutSession.shortUrl || checkoutSession.url,
         deliveryAddress: formatDeliveryAddress(input.address),
         deliveryEtaMinutes: input.quote.estimated_duration_minutes,
         serviceFee: checkoutSession.serviceFee,
