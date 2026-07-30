@@ -24,6 +24,13 @@ type MarketplaceOrderDetailsResponse = {
   courierName: string | null;
   courierPhone: string | null;
   restaurantName: string;
+  subtotal: string | null;
+  subtotalAmount: number | null;
+  discountLabel: string | null;
+  discount: string | null;
+  discountAmount: number;
+  total: string | null;
+  totalAmount: number | null;
   netPayout: string;
   marketplaceFeeRate: string | null;
   fulfillmentType: string;
@@ -236,6 +243,13 @@ type DoorDashDetailResponse = {
     preTaxTotal?: DoorDashPrice | null;
     subtotal?: DoorDashPrice | null;
     orderTotal?: DoorDashPrice | null;
+    discountDetails?: Array<{
+      value?: DoorDashPrice | null;
+      type?: string;
+    }>;
+    promoRedemptionDetails?: Array<{
+      promotionTitle?: string | null;
+    }>;
     storeName?: string | null;
     deliveryAddress?: {
       printableAddress?: string | null;
@@ -371,6 +385,7 @@ function normalizeUberOrderDetails(details: UberNormalizedOrderDetails): Marketp
     if (!value) return 0;
     return value < 1_000_000_000_000 ? value * 1000 : value;
   };
+  const summary = buildUberSummary(details);
 
   return {
     provider: 'uber_eats',
@@ -385,6 +400,13 @@ function normalizeUberOrderDetails(details: UberNormalizedOrderDetails): Marketp
     courierName: details.courier?.name ?? null,
     courierPhone: details.courier?.phone ?? null,
     restaurantName: details.restaurant?.name || 'Restaurant',
+    subtotal: summary.subtotal,
+    subtotalAmount: summary.subtotalAmount,
+    discountLabel: summary.discountLabel,
+    discount: summary.discount,
+    discountAmount: summary.discountAmount,
+    total: summary.total,
+    totalAmount: summary.totalAmount,
     netPayout: details.netPayout,
     marketplaceFeeRate: details.marketplaceFeeRate ?? null,
     fulfillmentType: details.fulfillmentType,
@@ -427,6 +449,88 @@ function formatDoorDashPrice(price?: DoorDashPrice | null) {
   return price.displayString || (typeof price.unitAmount === 'number' ? `A$${(price.unitAmount / 100).toFixed(2)}` : '');
 }
 
+function parseMarketplaceAmount(value?: string | null) {
+  if (!value) return null;
+  const normalized = value.replace(/[^0-9.-]/g, '');
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? Math.round(parsed * 100) / 100 : null;
+}
+
+function parseDoorDashAmount(price?: DoorDashPrice | null) {
+  if (!price) return null;
+  if (typeof price.unitAmount === 'number') {
+    return Math.round((price.unitAmount / 100) * 100) / 100;
+  }
+  return parseMarketplaceAmount(price.displayString);
+}
+
+function formatMarketplaceAmount(amount: number | null) {
+  if (amount == null || !Number.isFinite(amount)) return null;
+  return `A$${amount.toFixed(2)}`;
+}
+
+function isUberDiscountCheckoutEntry(entry: { key: string; label: string; amount: string }) {
+  const amount = parseMarketplaceAmount(entry.amount);
+  if (amount == null || amount >= 0) return false;
+
+  const key = entry.key.toLowerCase();
+  const label = entry.label.toLowerCase();
+  if (key.includes('fee') || label.includes('fee')) return false;
+
+  return (
+    key.includes('promo')
+    || key.includes('discount')
+    || key.includes('merchantfunded')
+    || label.includes('promo')
+    || label.includes('discount')
+  );
+}
+
+function buildUberSummary(details: UberNormalizedOrderDetails) {
+  const checkoutInfo = details.checkoutInfo || [];
+  const subtotalEntry = checkoutInfo.find((entry) => entry.key.toLowerCase().includes('subtotal')) || null;
+  const subtotalAmount = subtotalEntry ? parseMarketplaceAmount(subtotalEntry.amount) : null;
+  const discountEntries = checkoutInfo.filter(isUberDiscountCheckoutEntry);
+  const discountAmount = Math.round(
+    discountEntries.reduce((sum, entry) => sum + Math.abs(parseMarketplaceAmount(entry.amount) || 0), 0) * 100
+  ) / 100;
+  const totalAmount = subtotalAmount != null
+    ? Math.max(0, Math.round((subtotalAmount - discountAmount) * 100) / 100)
+    : null;
+
+  return {
+    subtotal: subtotalEntry?.amount ?? null,
+    subtotalAmount,
+    discountLabel: discountEntries[0]?.key || null,
+    discount: discountAmount > 0 ? formatMarketplaceAmount(discountAmount) : null,
+    discountAmount,
+    total: totalAmount != null ? formatMarketplaceAmount(totalAmount) : null,
+    totalAmount,
+  };
+}
+
+function buildDoorDashSummary(payload: DoorDashDetailResponse['data'], items: Array<{ price: string }>) {
+  const itemTotal = Math.round(
+    items.reduce((sum, item) => sum + (parseMarketplaceAmount(item.price) || 0), 0) * 100
+  ) / 100;
+  const subtotalAmount = parseDoorDashAmount(payload?.preTaxTotal) ?? (itemTotal > 0 ? itemTotal : null);
+  const discountAmount = Math.round(
+    ((payload?.discountDetails || []).reduce((sum, entry) => sum + Math.abs(parseDoorDashAmount(entry.value) || 0), 0)) * 100
+  ) / 100;
+  const totalAmount = parseDoorDashAmount(payload?.orderTotal) ?? subtotalAmount;
+
+  return {
+    subtotal: subtotalAmount != null ? formatMarketplaceAmount(subtotalAmount) : null,
+    subtotalAmount,
+    discountLabel: payload?.promoRedemptionDetails?.[0]?.promotionTitle || (discountAmount > 0 ? 'Marketplace promo' : null),
+    discount: discountAmount > 0 ? formatMarketplaceAmount(discountAmount) : null,
+    discountAmount,
+    total: totalAmount != null ? formatMarketplaceAmount(totalAmount) : null,
+    totalAmount,
+  };
+}
+
 function normalizeDoorDashOrderDetails(payload: DoorDashDetailResponse['data']): MarketplaceOrderDetailsResponse {
   const items = (payload?.orders || []).flatMap((order) => (
     (order.orderItems || []).map((item) => ({
@@ -452,6 +556,7 @@ function normalizeDoorDashOrderDetails(payload: DoorDashDetailResponse['data']):
       }),
     }))
   ));
+  const summary = buildDoorDashSummary(payload, items);
 
   const orderStateChanges = [
     payload?.estimatedPickupTime ? { changedAt: parseDateToMilliseconds(payload.estimatedPickupTime) || 0, orderState: 'ESTIMATED_PICKUP' } : null,
@@ -474,6 +579,13 @@ function normalizeDoorDashOrderDetails(payload: DoorDashDetailResponse['data']):
     courierName: payload?.dasher?.informalName || payload?.dasher?.formalNameAbbreviated || null,
     courierPhone: null,
     restaurantName: payload?.storeName || 'Restaurant',
+    subtotal: summary.subtotal,
+    subtotalAmount: summary.subtotalAmount,
+    discountLabel: summary.discountLabel,
+    discount: summary.discount,
+    discountAmount: summary.discountAmount,
+    total: summary.total,
+    totalAmount: summary.totalAmount,
     netPayout: formatDoorDashPrice(payload?.orderTotal || payload?.subtotal || payload?.preTaxTotal),
     marketplaceFeeRate: null,
     fulfillmentType: payload?.fulfillmentType || 'DOORDASH',

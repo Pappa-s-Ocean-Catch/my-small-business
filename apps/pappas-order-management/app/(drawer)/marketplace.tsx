@@ -1014,9 +1014,30 @@ export default function MarketplaceScreen() {
                           <Text style={styles.detailTotalValue}>{formatUnixMilliseconds(selectedOrderDetail.completedAtTimestamp)}</Text>
                         </View>
                         <View style={styles.detailTotalRow}>
+                          <Text style={styles.detailTotalLabel}>Subtotal</Text>
+                          <Text style={styles.detailTotalValue}>{selectedOrderDetail.subtotal || 'N/A'}</Text>
+                        </View>
+                        <View style={styles.detailTotalRow}>
+                          <Text style={styles.detailTotalLabel}>Discount</Text>
+                          <Text style={styles.detailTotalValue}>
+                            {selectedOrderDetail.discount
+                              ? `-${selectedOrderDetail.discount}`
+                              : 'N/A'}
+                          </Text>
+                        </View>
+                        <View style={styles.detailTotalRow}>
+                          <Text style={styles.detailTotalLabel}>Order total</Text>
+                          <Text style={styles.detailTotalValue}>{selectedOrderDetail.total || 'N/A'}</Text>
+                        </View>
+                        <View style={styles.detailTotalRow}>
                           <Text style={styles.detailTotalLabel}>Net payout</Text>
                           <Text style={styles.detailTotalValue}>{selectedOrderDetail.netPayout}</Text>
                         </View>
+                        {selectedOrderDetail.discountLabel ? (
+                          <Text style={styles.detailHelperText}>
+                            Discount source: {selectedOrderDetail.discountLabel}
+                          </Text>
+                        ) : null}
                         <View style={styles.detailTotalRow}>
                           <Text style={styles.detailTotalLabel}>Marketplace fee</Text>
                           <Text style={styles.detailTotalValue}>{selectedOrderDetail.marketplaceFeeRate ? `${selectedOrderDetail.marketplaceFeeRate}%` : 'N/A'}</Text>
@@ -1563,6 +1584,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#111827',
+  },
+  detailHelperText: {
+    marginTop: -2,
+    marginBottom: 8,
+    color: '#6b7280',
+    fontSize: 12,
+    fontWeight: '600',
   },
   detailItemRow: {
     paddingVertical: 10,

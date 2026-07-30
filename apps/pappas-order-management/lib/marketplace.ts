@@ -105,6 +105,13 @@ export type MarketplaceOrderDetail = {
   courierName: string | null;
   courierPhone: string | null;
   restaurantName: string;
+  subtotal: string | null;
+  subtotalAmount: number | null;
+  discountLabel: string | null;
+  discount: string | null;
+  discountAmount: number;
+  total: string | null;
+  totalAmount: number | null;
   netPayout: string;
   marketplaceFeeRate: string | null;
   fulfillmentType: string;

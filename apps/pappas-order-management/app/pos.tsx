@@ -28,6 +28,7 @@ import {
   isPromotionActiveNow,
   type PosPromotion,
 } from '../lib/pos-promotions';
+import { getMarketplaceImportDiscountAmount } from '../lib/marketplace-order-summary';
 import { PosCartPane } from '../components/pos/PosCartPane';
 import { PosDialogs } from '../components/pos/PosDialogs';
 import { PosMenuPane } from '../components/pos/PosMenuPane';
@@ -1112,7 +1113,8 @@ export default function PosScreen() {
       setRewardPointsToUse(0);
       setRewardPointsValue(0);
       setQuickOrderNote(null);
-      setDiscountConfig(EMPTY_DISCOUNT);
+      const importDiscountAmount = getMarketplaceImportDiscountAmount(marketplaceDraft.orderDetail);
+      setDiscountConfig(importDiscountAmount > 0 ? { kind: 'fixed', amount: importDiscountAmount } : EMPTY_DISCOUNT);
       setThirdPartySource(marketplaceDraft.orderDetail.sourceName as PosThirdPartySource);
       setThirdPartyCustomerName(marketplaceDraft.orderDetail.customerName || '');
       setThirdPartyExternalOrderId(marketplaceDraft.orderDetail.orderId);
