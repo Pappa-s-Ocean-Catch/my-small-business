@@ -3,6 +3,7 @@
 import { createServiceRoleClient, createServerSupabaseClient } from '@my-small-business/supabase/server';
 import { CartItemData } from './cart';
 import { getPostHogClient } from '@/lib/posthog-server';
+import { groupOrderItemsByOrderId } from '@/lib/order-items';
 import { buildDefaultStoreHours, isPickupTimeWithinHours, isStoreOpenNow } from '@/lib/store-hours';
 import type {
   Order,
@@ -984,41 +985,39 @@ export async function getAllOrders(filters?: {
       return { data: null, error: ordersError.message };
     }
 
-    // Fetch items for each order
-    const ordersWithItems: Order[] = [];
-    if (orders) {
-      for (const order of orders) {
-        const { data: items, error: itemsError } = await supabase
-          .from('order_items')
-          .select('*')
-          .eq('order_id', order.id)
-          .order('created_at', { ascending: true });
+    const orderIds = (orders ?? []).map((order) => order.id);
+    const { data: items, error: itemsError } = orderIds.length > 0
+      ? await supabase
+        .from('order_items')
+        .select('*')
+        .in('order_id', orderIds)
+        .order('created_at', { ascending: true })
+      : { data: [], error: null };
 
-        if (itemsError) {
-          console.error('Error fetching order items:', itemsError);
-        }
-
-        ordersWithItems.push({
-          ...order,
-          subtotal: Number(order.subtotal),
-          tax: Number(order.tax),
-          delivery_fee: Number(order.delivery_fee),
-          service_fee: Number(order.service_fee),
-          promotion_discount: Number(order.promotion_discount ?? 0),
-          coupon_discount: Number(order.coupon_discount ?? 0),
-          coupon_code: order.coupon_code || null,
-          total: Number(order.total),
-          items: items?.map(item => ({
-            ...item,
-            base_price: Number(item.base_price),
-            override_price: item.override_price == null ? null : Number(item.override_price),
-            quantity: item.quantity,
-            subtotal: Number(item.subtotal),
-            removed_ingredients: (item.removed_ingredients as string[] | null) || []
-          })) || []
-        });
-      }
+    if (itemsError) {
+      console.error('Error fetching order items:', itemsError);
     }
+
+    const itemsByOrderId = groupOrderItemsByOrderId(items ?? []);
+    const ordersWithItems: Order[] = (orders ?? []).map((order) => ({
+      ...order,
+      subtotal: Number(order.subtotal),
+      tax: Number(order.tax),
+      delivery_fee: Number(order.delivery_fee),
+      service_fee: Number(order.service_fee),
+      promotion_discount: Number(order.promotion_discount ?? 0),
+      coupon_discount: Number(order.coupon_discount ?? 0),
+      coupon_code: order.coupon_code || null,
+      total: Number(order.total),
+      items: (itemsByOrderId.get(order.id) ?? []).map((item) => ({
+        ...item,
+        base_price: Number(item.base_price),
+        override_price: item.override_price == null ? null : Number(item.override_price),
+        quantity: item.quantity,
+        subtotal: Number(item.subtotal),
+        removed_ingredients: (item.removed_ingredients as string[] | null) || [],
+      })),
+    }));
 
     return { data: ordersWithItems, error: null };
   } catch (error) {
