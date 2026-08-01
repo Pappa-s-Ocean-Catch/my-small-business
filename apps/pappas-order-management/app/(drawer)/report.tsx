@@ -18,6 +18,11 @@ import { Appbar, Button, Surface, Text } from 'react-native-paper';
 import { LineChart, type lineDataItem } from 'react-native-gifted-charts';
 import type { Order } from '@my-small-business/types';
 import { getAllOrders } from '@/lib/orders';
+import {
+  buildChannelFinancialBreakdown,
+  getOrderGrossSales,
+  isMarketplaceSalesOrder,
+} from '@/lib/marketplace-pos-import';
 import { formatDateToLocalISO, getOrderChannelLabel, getPaymentMethodType, getTodayDateString } from '@/utils/orderUtils';
 
 type CompareMode = 'lastWeek' | 'lastMonth' | 'lastYear' | 'custom';
@@ -156,9 +161,7 @@ const formatRangeLabel = (start: string, end: string) => (
   `${formatDisplayDate(start)} - ${formatDisplayDate(end)}`
 );
 
-const getPaidSalesOrders = (orders: Order[]) => (
-  orders.filter((order) => order.payment_status === 'paid' && order.order_status !== 'cancelled')
-);
+const getPaidSalesOrders = (orders: Order[]) => orders.filter(isMarketplaceSalesOrder);
 
 const getRangeForReport = (reportType: ReportType, dateString: string): DateRange => {
   if (reportType === 'weekly') {
@@ -212,7 +215,7 @@ const buildDailyBuckets = (orders: Order[]): ChartBucket[] => {
     if (hour < REPORT_START_HOUR || hour > REPORT_END_HOUR) return;
     const index = (hour - REPORT_START_HOUR) * 2 + (created.getMinutes() >= 30 ? 1 : 0);
     if (!buckets[index]) return;
-    buckets[index].total += Number(order.total) || 0;
+    buckets[index].total += Number(getOrderGrossSales(order)) || 0;
   });
 
   return buckets;
@@ -232,7 +235,7 @@ const buildRangeBuckets = (orders: Order[], range: DateRange, formatter: (dateSt
   getPaidSalesOrders(orders).forEach((order) => {
     const dayKey = formatDateToLocalISO(new Date(order.created_at));
     if (!totals.has(dayKey)) return;
-    totals.set(dayKey, (totals.get(dayKey) || 0) + (Number(order.total) || 0));
+    totals.set(dayKey, (totals.get(dayKey) || 0) + (Number(getOrderGrossSales(order)) || 0));
   });
 
   return buckets.map((bucket, index) => {
@@ -247,7 +250,7 @@ const buildBreakdown = (orders: Order[], groupBy: (order: Order) => string): Bre
     const label = groupBy(order);
     const current = map.get(label) || { label, orders: 0, total: 0 };
     current.orders += 1;
-    current.total += Number(order.total) || 0;
+    current.total += Number(getOrderGrossSales(order)) || 0;
     map.set(label, current);
   });
   return Array.from(map.values()).sort((a, b) => b.total - a.total);
@@ -430,8 +433,14 @@ export default function ReportScreen() {
 
   const currentSalesOrders = useMemo(() => getPaidSalesOrders(currentOrders), [currentOrders]);
   const compareSalesOrders = useMemo(() => getPaidSalesOrders(compareOrders), [compareOrders]);
-  const currentTotal = currentSalesOrders.reduce((sum, order) => sum + (Number(order.total) || 0), 0);
-  const compareTotal = compareSalesOrders.reduce((sum, order) => sum + (Number(order.total) || 0), 0);
+  const currentTotal = currentSalesOrders.reduce(
+    (sum, order) => sum + (Number(getOrderGrossSales(order)) || 0),
+    0
+  );
+  const compareTotal = compareSalesOrders.reduce(
+    (sum, order) => sum + (Number(getOrderGrossSales(order)) || 0),
+    0
+  );
   const currentDiscountTotal = getDiscountTotal(currentOrders);
   const compareDiscountTotal = getDiscountTotal(compareOrders);
   const difference = currentTotal - compareTotal;
@@ -469,6 +478,11 @@ export default function ReportScreen() {
     [currentOrders]
   );
 
+  const channelFinancials = useMemo(
+    () => buildChannelFinancialBreakdown(currentOrders),
+    [currentOrders]
+  );
+
   const dailyBreakdown = useMemo(
     () => (
       selectedReport === 'daily'
@@ -484,10 +498,10 @@ export default function ReportScreen() {
   }, [compareMode, selectedReport]);
 
   const chartTitle = selectedReport === 'daily'
-    ? '30 minute sales'
+    ? '30 minute gross sales'
     : selectedReport === 'weekly'
-      ? 'Sales by day'
-      : 'Monthly daily sales';
+      ? 'Gross sales by day'
+      : 'Monthly daily gross sales';
 
   const chartSubtitle = selectedReport === 'daily'
     ? `Current date compared with ${formatDisplayDate(compareRange.start)}`
@@ -668,7 +682,7 @@ export default function ReportScreen() {
           <>
             <View style={styles.statGrid}>
               <View style={[styles.statBox, styles.statBoxSales]}>
-                <Text style={styles.statLabel}>Total sales</Text>
+                <Text style={styles.statLabel}>Gross sales</Text>
                 <Text style={styles.statValue}>{money(currentTotal)}</Text>
               </View>
               <View style={[styles.statBox, styles.statBoxOrders]}>
@@ -718,9 +732,36 @@ export default function ReportScreen() {
               />
             </Surface>
 
-            {selectedReport !== 'daily' && renderBreakdown('Sales by date', dailyBreakdown, 'No paid sales for this period.')}
+            {selectedReport !== 'daily' && renderBreakdown('Gross sales by date', dailyBreakdown, 'No paid sales for this period.')}
             {renderBreakdown('Payment method', paymentBreakdown, 'No paid sales for this period.')}
             {renderBreakdown('Channel', channelBreakdown, 'No paid sales for this period.')}
+
+            <Surface style={styles.panel} elevation={1}>
+              <Text style={styles.panelTitle}>Channel financials</Text>
+              <Text style={styles.panelSubtitle}>
+                Gross sales, marketplace payout, commission, and net sales by channel.
+              </Text>
+              {channelFinancials.map((row) => (
+                <View key={row.label} style={styles.channelFinancialRow}>
+                  <View style={styles.channelFinancialHeading}>
+                    <Text style={styles.breakdownLabel}>{row.label}</Text>
+                    <Text style={styles.breakdownMeta}>{row.orders} orders</Text>
+                  </View>
+                  <View style={styles.channelFinancialMetrics}>
+                    <Text style={styles.channelFinancialMetric}>Gross sales {money(row.grossSales)}</Text>
+                    <Text style={styles.channelFinancialMetric}>
+                      Gross payout {row.grossPayout == null ? 'N/A' : money(row.grossPayout)}
+                    </Text>
+                    <Text style={styles.channelFinancialMetric}>
+                      Commission {row.commission == null ? 'N/A' : money(row.commission)}
+                    </Text>
+                    <Text style={styles.channelFinancialMetric}>
+                      Net sales {row.netSales == null ? 'N/A' : money(row.netSales)}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </Surface>
           </>
         )}
       </ScrollView>
@@ -926,6 +967,29 @@ const styles = StyleSheet.create({
   breakdownLabel: { color: '#111827', fontWeight: '800' },
   breakdownMeta: { color: '#64748b', marginTop: 2 },
   breakdownValue: { color: '#111827', fontWeight: '800', fontSize: 16 },
+  channelFinancialRow: {
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e5e7eb',
+    gap: 10,
+  },
+  channelFinancialHeading: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  channelFinancialMetrics: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  channelFinancialMetric: {
+    flexBasis: 150,
+    flexGrow: 1,
+    color: '#334155',
+    fontWeight: '700',
+  },
   emptyText: { color: '#64748b' },
   dateModalBackdrop: {
     flex: 1,
