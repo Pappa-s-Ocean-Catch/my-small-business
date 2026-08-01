@@ -8,6 +8,7 @@ export const STATUS_COLORS: Record<OrderStatus, string> = {
   ready: '#10b981',
   completed: '#6b7280',
   cancelled: '#ef4444',
+  refunded: '#6b7280',
 };
 
 export const STATUS_LABELS: Record<OrderStatus, string> = {
@@ -18,6 +19,7 @@ export const STATUS_LABELS: Record<OrderStatus, string> = {
   ready: 'Ready',
   completed: 'Completed',
   cancelled: 'Cancelled',
+  refunded: 'Refunded',
 };
 
 export const PAYMENT_STATUS_COLORS: Record<PaymentStatus, string> = {
