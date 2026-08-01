@@ -49,7 +49,7 @@ Reports include non-cancelled, non-refunded paid orders and show a channel finan
 
 For each channel, report order count, gross sales, gross payout, commission, and net sales:
 
-- Store gross sales is the POS order total; gross payout is not applicable; net sales is `gross sales × 0.91`.
+- Store gross sales is the POS order total; gross payout is not applicable; net sales is `gross sales × 0.90`.
 - Uber Eats and DoorDash gross sales is the stored marketplace gross-sales snapshot; gross payout is the stored marketplace payout snapshot; commission is gross sales minus gross payout; net sales is `gross payout × 0.90`.
 
 The headline/series sales total and existing trend charts remain gross-sales based. The new table supplies gross payout, commission, and net-sales visibility without changing the meaning of existing gross sales figures.
