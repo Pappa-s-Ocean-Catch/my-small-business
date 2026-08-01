@@ -50,6 +50,7 @@ export type AddonGroup = {
 export type RemovableIngredient = {
   id: string;
   ingredient_name: string;
+  customer_can_remove: boolean;
 };
 
 export type PosCartItem = OrderItem & {

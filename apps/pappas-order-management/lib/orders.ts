@@ -3,6 +3,7 @@ import type { Order, OrderItem, OrderItemAddon, OrderStatus, PaymentStatus } fro
 import { getOrderNotes, getOrderOptions } from '../utils/orderUtils';
 import type { DeliveryAddressDraft, DeliveryQuoteResult } from './delivery';
 import { ensureRewardPointsForOrder } from './reward-points';
+import { isMarketplaceImportDuplicateError } from './marketplace-pos-import';
 
 type OrderRow = Omit<Order, 'items'> & {
   items?: never;
@@ -571,7 +572,12 @@ export async function savePosOrder(
       .select()
       .single();
 
-    if (orderError) throw new Error(orderError.message);
+    if (orderError) {
+      if (isMarketplaceImportDuplicateError(orderError)) {
+        throw new Error('This marketplace order has already been added to POS.');
+      }
+      throw new Error(orderError.message);
+    }
     const orderId = orderData.id;
 
     for (const item of items) {

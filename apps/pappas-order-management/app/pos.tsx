@@ -29,6 +29,10 @@ import {
   type PosPromotion,
 } from '../lib/pos-promotions';
 import { getMarketplaceImportDiscountAmount } from '../lib/marketplace-order-summary';
+import {
+  findRemovableIngredientName,
+  getMarketplaceOrderStatus,
+} from '../lib/marketplace-pos-import';
 import { PosCartPane } from '../components/pos/PosCartPane';
 import { PosDialogs } from '../components/pos/PosDialogs';
 import { PosMenuPane } from '../components/pos/PosMenuPane';
@@ -204,6 +208,14 @@ type MarketplaceMappingRecord = {
   normalized_external_name: string;
   internal_name: string;
   is_active: boolean;
+};
+
+type MarketplaceImportMetadata = {
+  source: PosThirdPartySource;
+  externalOrderNumber: string;
+  orderStatus: ReturnType<typeof getMarketplaceOrderStatus>;
+  grossSales: number | null;
+  grossPayout: number | null;
 };
 
 const levenshteinDistance = (left: string, right: string) => {
@@ -411,6 +423,7 @@ export default function PosScreen() {
   const [thirdPartyCustomerName, setThirdPartyCustomerName] = useState('');
   const [thirdPartyExternalOrderId, setThirdPartyExternalOrderId] = useState('');
   const [thirdPartyOrderAt, setThirdPartyOrderAt] = useState<Date>(new Date());
+  const [marketplaceImportMetadata, setMarketplaceImportMetadata] = useState<MarketplaceImportMetadata | null>(null);
   const [showThirdPartyOrderAtPicker, setShowThirdPartyOrderAtPicker] = useState(false);
   const [thirdPartyOrderAtPickerMode, setThirdPartyOrderAtPickerMode] = useState<'date' | 'time'>('date');
   const [initialCheckoutTab, setInitialCheckoutTab] = useState<PosCheckoutTab>('pickup');
@@ -483,6 +496,12 @@ export default function PosScreen() {
     const sweepTimer = setInterval(pruneCatalogCache, POS_CACHE_SWEEP_INTERVAL_MS);
     return () => clearInterval(sweepTimer);
   }, []);
+
+  useEffect(() => {
+    if (cartItems.length === 0) {
+      setMarketplaceImportMetadata(null);
+    }
+  }, [cartItems.length]);
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -1001,23 +1020,14 @@ export default function PosScreen() {
               && mapping.normalized_external_name === normalizeMarketplaceName(removalCandidate)
             ));
 
-            const bestIngredientMatch = ingredientAlias
-              ? findBestInternalNameMatch(
-                customizationData.removableIngredients.map((ingredient) => ({ name: ingredient.ingredient_name, ingredient })),
-                ingredientAlias.internal_name
-              )
-              : customizationData.removableIngredients
-                .map((ingredient) => ({
-                  ingredient,
-                  score: getNameSimilarity(removalCandidate, ingredient.ingredient_name),
-                }))
-                .sort((left, right) => right.score - left.score)[0] ?? null;
-
-            const matchedIngredientName = ingredientAlias
-              ? bestIngredientMatch?.candidate.name
-              : bestIngredientMatch && 'ingredient' in bestIngredientMatch && bestIngredientMatch.score >= MARKETPLACE_MATCH_THRESHOLD
-                ? bestIngredientMatch.ingredient.ingredient_name
-                : null;
+            const removalOptionName = `No ${ingredientAlias?.internal_name ?? removalCandidate}`;
+            const matchedIngredientName = findRemovableIngredientName(
+              removalOptionName,
+              customizationData.removableIngredients.map((ingredient) => ({
+                name: ingredient.ingredient_name,
+                customerCanRemove: ingredient.customer_can_remove,
+              }))
+            );
 
             if (matchedIngredientName) {
               removedIngredients.push(matchedIngredientName);
@@ -1030,6 +1040,7 @@ export default function PosScreen() {
               externalName: removalCandidate,
               parentExternalName: item.name,
             });
+            return;
           }
 
           const addonAlias = marketplaceMappings.find((mapping) => (
@@ -1119,6 +1130,16 @@ export default function PosScreen() {
       setThirdPartyCustomerName(marketplaceDraft.orderDetail.customerName || '');
       setThirdPartyExternalOrderId(marketplaceDraft.orderDetail.orderId);
       setThirdPartyOrderAt(Number.isFinite(requestedAt.getTime()) ? requestedAt : new Date());
+      setMarketplaceImportMetadata({
+        source: marketplaceDraft.orderDetail.sourceName as PosThirdPartySource,
+        externalOrderNumber: marketplaceDraft.orderDetail.orderId.trim(),
+        orderStatus: getMarketplaceOrderStatus(
+          marketplaceDraft.orderDetail.orderJobState,
+          marketplaceDraft.orderDetail.statusDescription
+        ),
+        grossSales: marketplaceDraft.orderDetail.totalAmount,
+        grossPayout: parseMarketplaceMoney(marketplaceDraft.orderDetail.netPayout),
+      });
       setInitialCheckoutTab('third_party');
       setMenuLevel('checkout');
       setOrderNoteText([
@@ -1604,7 +1625,7 @@ export default function PosScreen() {
         .order('display_order', { ascending: true }),
       supabase
         .from('sale_product_ingredients')
-        .select('id, products!product_id(name)')
+        .select('id, customer_can_remove, products!product_id(name)')
         .eq('sale_product_id', productId)
         .eq('customer_can_remove', true),
     ]);
@@ -1640,12 +1661,14 @@ export default function PosScreen() {
 
     const removableIngredients = ((ingredientResult.data || []) as Array<{
       id: string;
+      customer_can_remove: boolean;
       products: { name?: string } | { name?: string }[] | null;
     }>).map((row) => {
       const productRef = Array.isArray(row.products) ? row.products[0] : row.products;
       return {
         id: row.id,
         ingredient_name: productRef?.name?.trim() || 'Unknown ingredient',
+        customer_can_remove: row.customer_can_remove,
       };
     });
 
@@ -1694,9 +1717,10 @@ export default function PosScreen() {
         .order('display_order', { ascending: true }),
       supabase
         .from('sale_product_ingredients')
-        .select('id, ingredient_name')
+        .select('id, customer_can_remove, products!product_id(name)')
         .eq('sale_product_id', productId)
-        .order('ingredient_name', { ascending: true }),
+        .eq('customer_can_remove', true)
+        .order('id', { ascending: true }),
     ]);
 
     const groups: AddonGroup[] = ((addonResult.data || []) as any[]).map((row) => ({
@@ -1718,10 +1742,18 @@ export default function PosScreen() {
         })),
     }));
 
-    const removableIngredients: RemovableIngredient[] = ((ingredientResult.data || []) as any[]).map((row) => ({
-      id: row.id,
-      ingredient_name: row.ingredient_name,
-    }));
+    const removableIngredients: RemovableIngredient[] = ((ingredientResult.data || []) as Array<{
+      id: string;
+      customer_can_remove: boolean;
+      products: { name?: string } | { name?: string }[] | null;
+    }>).map((row) => {
+      const productRef = Array.isArray(row.products) ? row.products[0] : row.products;
+      return {
+        id: row.id,
+        ingredient_name: productRef?.name?.trim() || 'Unknown ingredient',
+        customer_can_remove: row.customer_can_remove,
+      };
+    });
 
     const customizations = { groups, removableIngredients };
     catalogCache.customizationByProduct.set(productId, cacheEntry(customizations));
@@ -2111,6 +2143,7 @@ export default function PosScreen() {
             setDiscountConfig(EMPTY_DISCOUNT);
             setRewardPointsToUse(0);
             setRewardPointsValue(0);
+            setMarketplaceImportMetadata(null);
             backToGroups();
           },
         },
@@ -2125,6 +2158,7 @@ export default function PosScreen() {
     setSelectedCustomer(null);
     setRewardPointsToUse(0);
     setRewardPointsValue(0);
+    setMarketplaceImportMetadata(null);
     setCustomerLookupStatus('idle');
     setCustomerLookupError(null);
     setSelectedFreeItemId(null);
@@ -2147,6 +2181,18 @@ export default function PosScreen() {
     setProducts([]);
     setCustomizableProductIds(new Set());
   }, []);
+
+  const handleThirdPartySourceChange = (value: PosThirdPartySource) => {
+    if (value === thirdPartySource) return;
+    setThirdPartySource(value);
+    setMarketplaceImportMetadata(null);
+  };
+
+  const handleThirdPartyExternalOrderIdChange = (value: string) => {
+    if (value === thirdPartyExternalOrderId) return;
+    setThirdPartyExternalOrderId(value);
+    setMarketplaceImportMetadata(null);
+  };
 
   const updateQuantity = (id: string, delta: number) => {
     const currentItem = cartItems.find((item) => item.id === id);
@@ -2627,6 +2673,11 @@ export default function PosScreen() {
     setCreatingOrder(true);
 
     try {
+      const importedMarketplaceOrder = marketplaceImportMetadata
+        && marketplaceImportMetadata.source === thirdPartySource
+        && marketplaceImportMetadata.externalOrderNumber === externalOrderNumber
+        ? marketplaceImportMetadata
+        : null;
       const orderPayload = {
         user_id: null,
         customer_email: '',
@@ -2637,7 +2688,7 @@ export default function PosScreen() {
         payment_method_detail: thirdPartySource,
         order_type: 'pickup',
         payment_status: 'paid',
-        order_status: 'confirmed',
+        order_status: importedMarketplaceOrder?.orderStatus ?? 'confirmed',
         subtotal: totals.subtotal,
         tax: totals.tax,
         delivery_fee: 0,
@@ -2647,6 +2698,8 @@ export default function PosScreen() {
         coupon_code: null,
         coupon_discount: 0,
         total: totals.total,
+        marketplace_gross_sales: importedMarketplaceOrder?.grossSales ?? (importedMarketplaceOrder ? totals.total : null),
+        marketplace_gross_payout: importedMarketplaceOrder?.grossPayout ?? null,
         reward_points_used: null,
         reward_points_value: null,
         order_options: orderOptions,
@@ -2690,6 +2743,7 @@ export default function PosScreen() {
 
       setThirdPartyExternalOrderId('');
       setThirdPartyCustomerName('');
+      setMarketplaceImportMetadata(null);
       invalidateTopSellers();
       router.back();
     } finally {
@@ -3081,11 +3135,11 @@ export default function PosScreen() {
             handleSmartpayInstoreCheckout={handleSmartpayInstoreCheckout}
             handleDeliveryCheckout={handleDeliveryCheckout}
             thirdPartySource={thirdPartySource}
-            setThirdPartySource={setThirdPartySource}
+            setThirdPartySource={handleThirdPartySourceChange}
             thirdPartyCustomerName={thirdPartyCustomerName}
             setThirdPartyCustomerName={setThirdPartyCustomerName}
             thirdPartyExternalOrderId={thirdPartyExternalOrderId}
-            setThirdPartyExternalOrderId={setThirdPartyExternalOrderId}
+            setThirdPartyExternalOrderId={handleThirdPartyExternalOrderIdChange}
             handleThirdPartyCheckout={handleThirdPartyCheckout}
             initialCheckoutTab={initialCheckoutTab}
             quickListVisible={quickListVisible}

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Modal as NativeModal, RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Alert, Modal as NativeModal, RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Appbar, Button, Card, Checkbox, IconButton, Menu, Modal, Portal, SegmentedButtons, Surface, Text, TextInput } from 'react-native-paper';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
@@ -265,7 +265,8 @@ export default function MarketplaceScreen() {
           .order('name', { ascending: true }),
         supabase
           .from('sale_product_ingredients')
-          .select('id, products!product_id(name)')
+          .select('id, customer_can_remove, products!product_id(name)')
+          .eq('customer_can_remove', true)
           .order('id', { ascending: true }),
       ]);
 
@@ -274,12 +275,14 @@ export default function MarketplaceScreen() {
       setAddonItems((addonsResult.data || []) as AddonItem[]);
       const mappedIngredients = ((ingredientsResult.data || []) as Array<{
         id: string;
+        customer_can_remove: boolean;
         products: { name?: string } | { name?: string }[] | null;
       }>).map((row) => {
         const productRef = Array.isArray(row.products) ? row.products[0] : row.products;
         return {
           id: row.id,
           ingredient_name: productRef?.name?.trim() || 'Unknown ingredient',
+          customer_can_remove: row.customer_can_remove,
         };
       });
 
@@ -411,17 +414,52 @@ export default function MarketplaceScreen() {
     }
   };
 
-  const handleAddToPos = () => {
+  const handleAddToPos = async () => {
     if (!selectedOrderDetail) return;
 
-    setMarketplacePosDraft({
-      provider: selectedOrderDetail.provider,
-      sourceName: selectedOrderDetail.sourceName as 'Uber Eats' | 'DoorDash',
-      orderDetail: selectedOrderDetail,
-    });
-    setShowDetailModal(false);
-    setSelectedOrderDetail(null);
-    router.push('/pos');
+    const marketplaceOrder = selectedOrderDetail;
+    const externalOrderNumber = marketplaceOrder.orderId.trim();
+    const sourceName = marketplaceOrder.sourceName.trim();
+    if (!externalOrderNumber || !sourceName) {
+      Alert.alert('Marketplace', 'This marketplace order is missing its source or external order ID.');
+      return;
+    }
+
+    try {
+      setDetailLoading(true);
+      const { data: existingOrders, error } = await supabase
+        .from('orders')
+        .select('id')
+        .eq('order_channel', 'third_party')
+        .ilike('delivery_partner_name', sourceName)
+        .eq('external_order_number', externalOrderNumber)
+        .limit(1);
+
+      if (error) {
+        Alert.alert('Marketplace', `Could not verify whether this order is already in POS: ${error.message}`);
+        return;
+      }
+      if ((existingOrders || []).length > 0) {
+        Alert.alert('Marketplace', 'This marketplace order has already been added to POS.');
+        return;
+      }
+
+      setMarketplacePosDraft({
+        provider: marketplaceOrder.provider,
+        sourceName: marketplaceOrder.sourceName as 'Uber Eats' | 'DoorDash',
+        orderDetail: marketplaceOrder,
+      });
+      setShowDetailModal(false);
+      setSelectedOrderDetail(null);
+      router.push('/pos');
+    } catch (error) {
+      Alert.alert(
+        'Marketplace',
+        `Could not verify whether this order is already in POS: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    } finally {
+      setDetailLoading(false);
+    }
   };
 
   const toggleHistoryStatus = (status: string) => {
@@ -983,7 +1021,7 @@ export default function MarketplaceScreen() {
                       <Text style={styles.detailStatusBadgeText}>{formatOrderState(selectedOrderDetail.fulfillmentType)}</Text>
                     </View>
                     <Text style={styles.detailHeaderTime}>{formatUnixMilliseconds(selectedOrderDetail.requestedAt)}</Text>
-                    <Button mode="contained" icon="cart-plus" onPress={handleAddToPos} style={styles.detailHeaderAction}>
+                    <Button mode="contained" icon="cart-plus" onPress={() => void handleAddToPos()} disabled={detailLoading} style={styles.detailHeaderAction}>
                       Add To POS
                     </Button>
                   </View>
