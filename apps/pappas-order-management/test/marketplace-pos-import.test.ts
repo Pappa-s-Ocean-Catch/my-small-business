@@ -4,6 +4,8 @@ import {
   buildChannelFinancialBreakdown,
   findRemovableIngredientName,
   getMarketplaceOrderStatus,
+  getOrderGrossSales,
+  isMarketplaceSalesOrder,
   isMarketplaceImportDuplicateError,
   normalizeMarketplaceName,
 } from '../lib/marketplace-pos-import';
@@ -126,4 +128,32 @@ test('excludes unpaid, cancelled, and refunded orders from channel finance', () 
 
   assert.equal(rows.reduce((count, row) => count + row.orders, 0), 0);
   assert.deepEqual(rows.map((row) => row.grossSales), [0, 0, 0]);
+});
+
+test('normalizes mixed-case sales fields before classifying marketplace finance', () => {
+  const mixedCaseMarketplaceOrder = {
+    ...uberOrder,
+    order_channel: 'THIRD_PARTY',
+    payment_status: 'PAID',
+    order_status: 'COMPLETED',
+    total: 75,
+  };
+  const rows = buildChannelFinancialBreakdown([
+    { ...uberOrder, order_channel: 'THIRD_PARTY' },
+    { ...uberOrder, order_channel: 'THIRD_PARTY', order_status: 'CANCELLED' },
+    { ...uberOrder, order_status: 'REFUNDED' },
+    mixedCaseMarketplaceOrder,
+  ]);
+
+  assert.equal(isMarketplaceSalesOrder(mixedCaseMarketplaceOrder), true);
+  assert.equal(isMarketplaceSalesOrder({ ...mixedCaseMarketplaceOrder, order_status: 'CANCELLED' }), false);
+  assert.equal(getOrderGrossSales(mixedCaseMarketplaceOrder), 100);
+  assert.deepEqual(
+    rows.map((row) => [row.label, row.orders, row.grossSales]),
+    [
+      ['Store', 0, 0],
+      ['Uber Eats', 2, 200],
+      ['DoorDash', 0, 0],
+    ]
+  );
 });

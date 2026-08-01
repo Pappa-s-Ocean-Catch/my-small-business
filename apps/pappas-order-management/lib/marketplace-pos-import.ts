@@ -80,15 +80,18 @@ export function isMarketplaceImportDuplicateError(error: unknown): boolean {
 }
 
 export function isMarketplaceSalesOrder(order: MarketplaceReportOrder): boolean {
+  const paymentStatus = normalizeMarketplaceName(order.payment_status);
+  const orderStatus = normalizeMarketplaceName(order.order_status);
+
   return (
-    order.payment_status === 'paid' &&
-    order.order_status !== 'cancelled' &&
-    order.order_status !== 'refunded'
+    paymentStatus === 'paid' &&
+    orderStatus !== 'cancelled' &&
+    orderStatus !== 'refunded'
   );
 }
 
 export function getOrderGrossSales(order: MarketplaceReportOrder): number {
-  if (order.order_channel === 'third_party') {
+  if (normalizeMarketplaceName(order.order_channel) === 'third party') {
     return order.marketplace_gross_sales ?? order.total;
   }
 
@@ -107,7 +110,7 @@ function createChannel(label: ChannelFinancialBreakdown['label']): ChannelFinanc
 }
 
 function getMarketplaceChannel(order: MarketplaceReportOrder): ChannelFinancialBreakdown['label'] | null {
-  if (order.order_channel !== 'third_party') return 'Store';
+  if (normalizeMarketplaceName(order.order_channel) !== 'third party') return 'Store';
 
   const partner = normalizeMarketplaceName(order.delivery_partner_name ?? '');
   if (partner === 'uber eats') return 'Uber Eats';
