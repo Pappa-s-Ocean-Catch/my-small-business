@@ -110,7 +110,7 @@ export interface Order {
   payment_method_detail: string | null;
   order_type: 'pickup' | 'delivery';
   payment_status: 'pending' | 'paid' | 'failed' | 'refunded';
-  order_status: 'pending' | 'pending_online_payment' | 'confirmed' | 'preparing' | 'ready' | 'completed' | 'cancelled';
+  order_status: 'pending' | 'pending_online_payment' | 'confirmed' | 'preparing' | 'ready' | 'completed' | 'cancelled' | 'refunded';
   subtotal: number;
   tax: number;
   delivery_fee: number;
@@ -120,6 +120,8 @@ export interface Order {
   coupon_code: string | null;
   coupon_discount: number;
   total: number;
+  marketplace_gross_sales: number | null;
+  marketplace_gross_payout: number | null;
   reward_points_used: number | null;
   reward_points_value: number | null;
   order_options: string | null;
