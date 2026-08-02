@@ -114,6 +114,8 @@ function normalizePrinterSectionAssignments(
 }
 
 export type AppSettings = {
+    /** Optional label displayed on printed diagnostic information for this device. */
+    registerName: string;
     refreshIntervalSec: number;
     soundEnabled: boolean;
     soundId: SoundId;
@@ -132,6 +134,8 @@ export type AppSettings = {
 
     printerPaperWidth: '58mm' | '80mm';
     printerHighQuality: boolean;
+    /** Include device-local diagnostic information on kitchen tickets when enabled. */
+    printerDebugFooter: boolean;
 };
 
 const STORAGE_KEY = 'pappas-order-management.settings.v1';
@@ -169,6 +173,7 @@ export function subscribeAppSettings(listener: (settings: AppSettings) => void) 
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
+    registerName: '',
     refreshIntervalSec: 30,
     soundEnabled: true,
     soundId: 'so-proud-notification',
@@ -194,6 +199,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     printerDelayPrintSec: 3,
     printerPaperWidth: '80mm',
     printerHighQuality: true,
+    printerDebugFooter: false,
 };
 
 function clampInt(value: number, min: number, max: number) {
@@ -209,6 +215,10 @@ export async function loadAppSettings(): Promise<AppSettings> {
             return DEFAULT_APP_SETTINGS;
         }
         const parsed = JSON.parse(raw) as Partial<AppSettings> | null;
+
+        const registerName = typeof parsed?.registerName === 'string'
+            ? parsed.registerName.trim()
+            : DEFAULT_APP_SETTINGS.registerName;
 
         const refreshIntervalSec = clampInt(
             typeof parsed?.refreshIntervalSec === 'number' ? parsed.refreshIntervalSec : DEFAULT_APP_SETTINGS.refreshIntervalSec,
@@ -277,6 +287,7 @@ export async function loadAppSettings(): Promise<AppSettings> {
         );
 
         const result: AppSettings = {
+            registerName,
             refreshIntervalSec,
             soundEnabled,
             soundId,
@@ -295,6 +306,9 @@ export async function loadAppSettings(): Promise<AppSettings> {
             printerHighQuality: typeof (parsed as any)?.printerHighQuality === 'boolean'
                 ? (parsed as any).printerHighQuality
                 : DEFAULT_APP_SETTINGS.printerHighQuality,
+            printerDebugFooter: typeof (parsed as any)?.printerDebugFooter === 'boolean'
+                ? (parsed as any).printerDebugFooter
+                : DEFAULT_APP_SETTINGS.printerDebugFooter,
         };
         cachedSettings = result;
         return result;
@@ -306,6 +320,7 @@ export async function loadAppSettings(): Promise<AppSettings> {
 
 export async function saveAppSettings(settings: AppSettings): Promise<void> {
     const normalized: AppSettings = {
+        registerName: typeof settings.registerName === 'string' ? settings.registerName.trim() : '',
         refreshIntervalSec: clampInt(settings.refreshIntervalSec, 5, 600),
         soundEnabled: !!settings.soundEnabled,
         soundId: settings.soundId,
@@ -327,6 +342,7 @@ export async function saveAppSettings(settings: AppSettings): Promise<void> {
         printerDelayPrintSec: clampInt(settings.printerDelayPrintSec, 0, 120),
         printerPaperWidth: settings.printerPaperWidth === '58mm' ? '58mm' : '80mm',
         printerHighQuality: !!settings.printerHighQuality,
+        printerDebugFooter: !!settings.printerDebugFooter,
     };
 
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));

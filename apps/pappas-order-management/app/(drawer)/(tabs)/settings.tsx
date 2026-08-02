@@ -29,13 +29,14 @@ import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
 import { JOURNAL_LOGS_ENABLED } from '@/lib/journal-config';
 
-type SettingsDialogKey = 'refresh' | 'sound' | 'printer' | 'liveOrders' | 'journal' | null;
+type SettingsDialogKey = 'refresh' | 'sound' | 'printer' | 'liveOrders' | 'printDiagnostics' | 'journal' | null;
 
 const SETTINGS_MODAL_TITLES: Record<Exclude<SettingsDialogKey, null>, string> = {
     refresh: 'Refresh interval',
     sound: 'Order sound',
     printer: 'Kitchen printer',
     liveOrders: 'Live order cards',
+    printDiagnostics: 'Print diagnostics',
     journal: 'Journal',
 };
 
@@ -51,6 +52,8 @@ export default function SettingsScreen() {
     const [soundId, setSoundId] = useState<SoundId>(DEFAULT_APP_SETTINGS.soundId);
     const [repeatCountText, setRepeatCountText] = useState(String(DEFAULT_APP_SETTINGS.soundRepeatCount));
     const [liveOrderCardLayout, setLiveOrderCardLayout] = useState<'horizontal' | 'vertical'>(DEFAULT_APP_SETTINGS.liveOrderCardLayout);
+    const [registerName, setRegisterName] = useState(DEFAULT_APP_SETTINGS.registerName);
+    const [printerDebugFooter, setPrinterDebugFooter] = useState(DEFAULT_APP_SETTINGS.printerDebugFooter);
 
     const [printerEnabled, setPrinterEnabled] = useState<boolean>(DEFAULT_APP_SETTINGS.printerEnabled);
     const [printerAutoPrint, setPrinterAutoPrint] = useState<boolean>(DEFAULT_APP_SETTINGS.printerAutoPrint);
@@ -80,6 +83,8 @@ export default function SettingsScreen() {
         setSoundId(currentSettings.soundId);
         setRepeatCountText(String(currentSettings.soundRepeatCount));
         setLiveOrderCardLayout(currentSettings.liveOrderCardLayout);
+        setRegisterName(currentSettings.registerName);
+        setPrinterDebugFooter(currentSettings.printerDebugFooter);
 
         setPrinterEnabled(currentSettings.printerEnabled);
         setPrinterAutoPrint(currentSettings.printerAutoPrint);
@@ -557,6 +562,7 @@ export default function SettingsScreen() {
             setSaving(true);
             await saveSettings({
                 refreshIntervalSec,
+                registerName,
                 soundEnabled,
                 soundId,
                 soundRepeatCount,
@@ -569,6 +575,7 @@ export default function SettingsScreen() {
                 printerDelayPrintSec,
                 printerPaperWidth,
                 printerHighQuality,
+                printerDebugFooter,
             });
             Alert.alert('Saved', 'Settings updated.');
         } catch (e) {
@@ -642,6 +649,12 @@ export default function SettingsScreen() {
                     description={printerSummary}
                     icon="printer"
                     onPress={() => setActiveDialog('printer')}
+                />
+                <SettingsActionTile
+                    title="Print diagnostics"
+                    description={printerDebugFooter ? 'Diagnostic footer enabled' : 'Diagnostic footer disabled'}
+                    icon="text-box-search-outline"
+                    onPress={() => setActiveDialog('printDiagnostics')}
                 />
             </SettingsSectionCard>
 
@@ -747,6 +760,26 @@ export default function SettingsScreen() {
                             </Button>
                         </View>
                         <Text style={styles.helper}>Vertical uses compact queue cards with horizontal scrolling. Horizontal keeps the full-width row list.</Text>
+                            </>
+                        )}
+
+                        {activeDialog === 'printDiagnostics' && (
+                            <>
+                                <TextInput
+                                    mode="outlined"
+                                    label="Register name"
+                                    value={registerName}
+                                    onChangeText={setRegisterName}
+                                    autoCapitalize="words"
+                                    style={styles.input}
+                                />
+                                <Text style={styles.helper}>Optional name used to identify this POS register in diagnostic output.</Text>
+
+                                <View style={[styles.switchRow, { marginTop: 16 }]}>
+                                    <Text style={styles.label}>Print diagnostic footer</Text>
+                                    <Switch value={printerDebugFooter} onValueChange={setPrinterDebugFooter} />
+                                </View>
+                                <Text style={styles.helper}>Adds diagnostic details to kitchen tickets. Leave off during normal service.</Text>
                             </>
                         )}
 
