@@ -2,9 +2,10 @@ import { useQuery } from '@tanstack/react-query';
 import { getAllOrders } from '@/lib/orders';
 import type { Order } from '@my-small-business/types';
 import { isScheduledPreOrder } from '@/utils/orderUtils';
-import { getScheduledOrderAutomationRange, isLiveOrder } from '@/lib/live-order-window';
+import { getScheduledOrderAutomationRange, isLiveOrder, isOnTheWayOrder } from '@/lib/live-order-window';
 
 export const LIVE_ORDERS_QUERY_KEY = ['live-orders'] as const;
+export const ON_THE_WAY_ORDERS_QUERY_KEY = ['on-the-way-orders'] as const;
 export const PRE_ORDER_COUNT_QUERY_KEY = ['live-orders', 'pre-order-count'] as const;
 export const PRE_ORDERS_QUERY_KEY = ['pre-orders'] as const;
 
@@ -43,6 +44,16 @@ export async function fetchLiveOrders(): Promise<Order[]> {
   return sortLiveOrders((result.data || []).filter(isLiveOrder));
 }
 
+export async function fetchOnTheWayOrders(): Promise<Order[]> {
+  const result = await getAllOrders({ status: 'on_the_way' });
+
+  if (result.error) {
+    throw new Error(result.error);
+  }
+
+  return sortLiveOrders((result.data || []).filter(isOnTheWayOrder));
+}
+
 export async function fetchScheduledOrdersInAutomationWindow(nowMs: number = Date.now()): Promise<Order[]> {
   const range = getScheduledOrderAutomationRange(nowMs);
   const result = await getAllOrders({
@@ -79,6 +90,13 @@ export function useLiveOrdersQuery() {
   return useQuery({
     queryKey: LIVE_ORDERS_QUERY_KEY,
     queryFn: fetchLiveOrders,
+  });
+}
+
+export function useOnTheWayOrdersQuery() {
+  return useQuery({
+    queryKey: ON_THE_WAY_ORDERS_QUERY_KEY,
+    queryFn: fetchOnTheWayOrders,
   });
 }
 

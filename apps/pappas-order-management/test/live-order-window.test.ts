@@ -5,6 +5,7 @@ import {
   getAutoPrintableLiveOrders,
   getScheduledOrderAutomationRange,
   isLiveOrder,
+  isOnTheWayOrder,
 } from '../lib/live-order-window';
 
 const nowMs = Date.parse('2026-07-28T10:00:00.000Z');
@@ -51,4 +52,17 @@ test('uses a one-week scheduled pickup window for preorder automation', () => {
     from: '2026-07-21T10:00:00.000Z',
     until: '2026-07-28T10:30:00.000Z',
   });
+});
+
+test('selects only active on-the-way orders for delivery while excluding them from Live Orders', () => {
+  const onTheWay = makeOrder({ id: 'on-the-way', order_status: 'on_the_way' });
+  const terminalOrders = [
+    makeOrder({ id: 'completed', order_status: 'completed' }),
+    makeOrder({ id: 'cancelled', order_status: 'cancelled' }),
+    makeOrder({ id: 'refunded', order_status: 'refunded', payment_status: 'refunded' }),
+  ];
+
+  assert.equal(isOnTheWayOrder(onTheWay), true);
+  assert.equal(isLiveOrder(onTheWay, nowMs), false);
+  assert.deepEqual(terminalOrders.filter(isOnTheWayOrder), []);
 });

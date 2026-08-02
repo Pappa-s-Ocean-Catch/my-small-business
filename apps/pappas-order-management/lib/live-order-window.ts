@@ -4,6 +4,10 @@ import { getScheduledPickupLeadMinutes, PRE_ORDER_LEAD_MINUTES } from '../utils/
 type LiveOrderCandidate = Pick<Order, 'scheduled_pickup_at' | 'order_status' | 'payment_status'>;
 const PREORDER_AUTOMATION_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 
+export function isOnTheWayOrder(order: LiveOrderCandidate): boolean {
+  return order.order_status === 'on_the_way' && order.payment_status !== 'refunded';
+}
+
 function isClosedOrRefunded(order: LiveOrderCandidate): boolean {
   return order.order_status === 'completed'
     || order.order_status === 'cancelled'
@@ -11,7 +15,7 @@ function isClosedOrRefunded(order: LiveOrderCandidate): boolean {
 }
 
 export function isLiveOrder(order: LiveOrderCandidate, nowMs: number = Date.now()): boolean {
-  if (isClosedOrRefunded(order)) return false;
+  if (isClosedOrRefunded(order) || isOnTheWayOrder(order)) return false;
 
   const leadMinutes = getScheduledPickupLeadMinutes(order.scheduled_pickup_at, nowMs);
   return leadMinutes == null || leadMinutes <= PRE_ORDER_LEAD_MINUTES;
