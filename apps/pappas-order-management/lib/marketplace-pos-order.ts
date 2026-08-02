@@ -68,6 +68,33 @@ type MarketplaceCategorySection = {
 
 type MarketplaceStatusUpdate = Pick<Order, 'order_status'>;
 
+const TERMINAL_MARKETPLACE_ORDER_STATUSES: OrderStatus[] = [
+  'completed',
+  'cancelled',
+  'refunded',
+];
+
+const LOCAL_KITCHEN_ORDER_STATUSES: OrderStatus[] = ['preparing', 'ready'];
+
+const NON_ADVANCING_UPSTREAM_ORDER_STATUSES: OrderStatus[] = [
+  'confirmed',
+  'preparing',
+  'ready',
+];
+
+export function shouldReconcileMarketplaceOrderStatus(
+  localStatus: OrderStatus,
+  upstreamStatus: OrderStatus
+): boolean {
+  if (TERMINAL_MARKETPLACE_ORDER_STATUSES.includes(localStatus)) return false;
+  if (localStatus === upstreamStatus) return false;
+
+  return !(
+    LOCAL_KITCHEN_ORDER_STATUSES.includes(localStatus)
+    && NON_ADVANCING_UPSTREAM_ORDER_STATUSES.includes(upstreamStatus)
+  );
+}
+
 type MarketplaceOrderPayload = Omit<
   Order,
   | 'id'
@@ -457,12 +484,16 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
     order: Order,
     detail: MarketplaceOrderDetail
   ): Promise<{ order: Order | null; error: string | null }> => {
+    const orderStatus = getMarketplaceOrderStatus(
+      detail.orderJobState,
+      detail.statusDescription,
+      detail.orderStateChanges
+    );
+    if (!shouldReconcileMarketplaceOrderStatus(order.order_status, orderStatus)) {
+      return { order, error: null };
+    }
     const update: MarketplaceStatusUpdate = {
-      order_status: getMarketplaceOrderStatus(
-        detail.orderJobState,
-        detail.statusDescription,
-        detail.orderStateChanges
-      ),
+      order_status: orderStatus,
     };
     const result = await dependencies.updateMarketplaceOrder(order.id, update);
     return { order: result.data, error: result.error };

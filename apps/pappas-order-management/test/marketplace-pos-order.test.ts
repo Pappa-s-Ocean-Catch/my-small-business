@@ -52,6 +52,49 @@ const existingOrder = {
   items: [{ id: 'staff-item' }],
 } as unknown as Order;
 
+type MarketplaceUpdateCall = {
+  orderId: string;
+  update: Record<string, unknown>;
+};
+
+function createExistingOrderService(
+  existing: Order,
+  updateCalls: MarketplaceUpdateCall[]
+) {
+  return createMarketplacePosOrderService({
+    findMarketplaceOrder: async (provider, externalOrderId) => {
+      assert.equal(provider, 'uber_eats');
+      assert.equal(externalOrderId, 'UE-123');
+      return { data: existing, error: null };
+    },
+    savePosOrder: async () => {
+      throw new Error('existing imports must not be recreated');
+    },
+    updateMarketplaceOrder: async (orderId, update) => {
+      const payload = update as unknown as Record<string, unknown>;
+      updateCalls.push({ orderId, update: payload });
+      return {
+        data: { ...existing, order_status: update.order_status },
+        error: null,
+      };
+    },
+    loadCatalog: async () => {
+      throw new Error('existing imports must not rebuild items');
+    },
+    loadMappings: async () => {
+      throw new Error('existing imports must not reload mappings');
+    },
+    loadProductCustomizations: async () => {
+      throw new Error('existing imports must not reload customizations');
+    },
+    recordUnmatchedName: async () => {
+      throw new Error('existing imports must not write unmatched names');
+    },
+    createLocalId: () => 'unused',
+    now: () => new Date('2026-08-02T00:00:00.000Z'),
+  });
+}
+
 test('matches a stored marketplace ID using its trimmed identity', () => {
   assert.equal(findMarketplaceOrderIdByExternalId([
     { id: 'other', external_order_number: 'UE-456' },
@@ -236,40 +279,8 @@ test('does not automatically create a partially matched marketplace order', asyn
 });
 
 test('updates only order_status when the provider and trimmed ID already exist', async () => {
-  const updateCalls: Array<{ orderId: string; update: Record<string, unknown> }> = [];
-
-  const service = createMarketplacePosOrderService({
-    findMarketplaceOrder: async (provider, externalOrderId) => {
-      assert.equal(provider, 'uber_eats');
-      assert.equal(externalOrderId, 'UE-123');
-      return { data: existingOrder, error: null };
-    },
-    savePosOrder: async () => {
-      throw new Error('existing imports must not be recreated');
-    },
-    updateMarketplaceOrder: async (orderId, update) => {
-      const payload = update as unknown as Record<string, unknown>;
-      updateCalls.push({ orderId, update: payload });
-      return {
-        data: { ...existingOrder, order_status: update.order_status },
-        error: null,
-      };
-    },
-    loadCatalog: async () => {
-      throw new Error('existing imports must not rebuild items');
-    },
-    loadMappings: async () => {
-      throw new Error('existing imports must not reload mappings');
-    },
-    loadProductCustomizations: async () => {
-      throw new Error('existing imports must not reload customizations');
-    },
-    recordUnmatchedName: async () => {
-      throw new Error('existing imports must not write unmatched names');
-    },
-    createLocalId: () => 'unused',
-    now: () => new Date('2026-08-02T00:00:00.000Z'),
-  });
+  const updateCalls: MarketplaceUpdateCall[] = [];
+  const service = createExistingOrderService(existingOrder, updateCalls);
 
   const result = await service.importMarketplaceOrder({
     ...detail,
@@ -299,5 +310,78 @@ test('updates only order_status when the provider and trimmed ID already exist',
     'special_instructions',
   ]) {
     assert.equal(forbiddenField in updateCalls[0].update, false, forbiddenField);
+  }
+});
+
+test('keeps local preparing or ready status when upstream has not advanced it', async () => {
+  const upstreamStates = [
+    { orderJobState: 'CONFIRMED', statusDescription: 'Confirmed' },
+    { orderJobState: 'PREPARING', statusDescription: 'Preparing' },
+    { orderJobState: 'READY_FOR_PICKUP', statusDescription: 'Ready for pickup' },
+  ];
+
+  for (const localStatus of ['preparing', 'ready'] as const) {
+    for (const upstream of upstreamStates) {
+      const localOrder = { ...existingOrder, order_status: localStatus } as Order;
+      const updateCalls: MarketplaceUpdateCall[] = [];
+      const service = createExistingOrderService(localOrder, updateCalls);
+
+      const result = await service.syncMarketplaceOrderStatus(
+        'uber_eats',
+        ' UE-123 ',
+        { ...detail, ...upstream }
+      );
+
+      assert.equal(result.order, localOrder, `${localStatus} / ${upstream.orderJobState}`);
+      assert.deepEqual(updateCalls, [], `${localStatus} / ${upstream.orderJobState}`);
+    }
+  }
+});
+
+test('applies upstream delivery and terminal status changes to a local preparing order', async () => {
+  const upstreamStates = [
+    { orderJobState: 'PICKED_UP', statusDescription: 'Driver is on the way', status: 'on_the_way' },
+    { orderJobState: 'COMPLETED', statusDescription: 'Completed', status: 'completed' },
+    { orderJobState: 'CANCELLED', statusDescription: 'Cancelled', status: 'cancelled' },
+    { orderJobState: 'REFUNDED', statusDescription: 'Refunded', status: 'refunded' },
+  ] as const;
+
+  for (const upstream of upstreamStates) {
+    const localOrder = { ...existingOrder, order_status: 'preparing' } as Order;
+    const updateCalls: MarketplaceUpdateCall[] = [];
+    const service = createExistingOrderService(localOrder, updateCalls);
+
+    const result = await service.syncMarketplaceOrderStatus(
+      'uber_eats',
+      'UE-123',
+      { ...detail, ...upstream }
+    );
+
+    assert.equal(result.order?.order_status, upstream.status, upstream.orderJobState);
+    assert.deepEqual(updateCalls, [{
+      orderId: 'pos-existing',
+      update: { order_status: upstream.status },
+    }], upstream.orderJobState);
+  }
+});
+
+test('does not reopen terminal local marketplace orders', async () => {
+  for (const localStatus of ['completed', 'cancelled', 'refunded'] as const) {
+    const localOrder = { ...existingOrder, order_status: localStatus } as Order;
+    const updateCalls: MarketplaceUpdateCall[] = [];
+    const service = createExistingOrderService(localOrder, updateCalls);
+
+    const result = await service.syncMarketplaceOrderStatus(
+      'uber_eats',
+      'UE-123',
+      {
+        ...detail,
+        orderJobState: 'PICKED_UP',
+        statusDescription: 'Driver is on the way',
+      }
+    );
+
+    assert.equal(result.order, localOrder, localStatus);
+    assert.deepEqual(updateCalls, [], localStatus);
   }
 });
