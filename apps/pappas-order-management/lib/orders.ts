@@ -17,6 +17,14 @@ type OrderWithEmbeddedItemsRow = OrderRow & {
   order_items?: Array<(OrderItem & { order_item_addons?: OrderItemAddon[] | null })> | null;
 };
 
+export type OpenMarketplaceOrderForHistory = {
+  id: string;
+  provider: MarketplaceProvider;
+  externalOrderId: string;
+  workflowUuid: string;
+  orderStatus: OrderStatus;
+};
+
 function generateReceiptClaimToken(): string {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   const tokenLength = 8;
@@ -295,6 +303,54 @@ export async function findMarketplaceOrder(
     return {
       data: null,
       error: error instanceof Error ? error.message : 'Failed to find marketplace order',
+    };
+  }
+}
+
+export async function getOpenMarketplaceOrdersForHistory(): Promise<{
+  data: OpenMarketplaceOrderForHistory[] | null;
+  error: string | null;
+}> {
+  try {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('id, delivery_partner_name, external_order_number, marketplace_workflow_uuid, order_status')
+      .eq('order_channel', 'third_party')
+      .in('delivery_partner_name', ['Uber Eats', 'DoorDash'])
+      .not('external_order_number', 'is', null)
+      .not('marketplace_workflow_uuid', 'is', null)
+      .neq('marketplace_workflow_uuid', '')
+      .neq('order_status', 'completed')
+      .neq('order_status', 'cancelled')
+      .neq('order_status', 'refunded');
+
+    if (error) return { data: null, error: error.message };
+
+    const orders = (data || []).flatMap((row) => {
+      const provider = row.delivery_partner_name === 'Uber Eats'
+        ? 'uber_eats'
+        : row.delivery_partner_name === 'DoorDash'
+          ? 'doordash'
+          : null;
+      const externalOrderId = row.external_order_number?.trim();
+      const workflowUuid = row.marketplace_workflow_uuid?.trim();
+
+      return provider && externalOrderId && workflowUuid
+        ? [{
+          id: row.id,
+          provider,
+          externalOrderId,
+          workflowUuid,
+          orderStatus: row.order_status as OrderStatus,
+        }]
+        : [];
+    });
+
+    return { data: orders, error: null };
+  } catch (error) {
+    return {
+      data: null,
+      error: error instanceof Error ? error.message : 'Failed to fetch open marketplace orders',
     };
   }
 }

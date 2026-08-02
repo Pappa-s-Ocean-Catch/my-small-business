@@ -122,6 +122,7 @@ export interface Order {
   total: number;
   marketplace_gross_sales: number | null;
   marketplace_gross_payout: number | null;
+  marketplace_workflow_uuid: string | null;
   reward_points_used: number | null;
   reward_points_value: number | null;
   order_options: string | null;

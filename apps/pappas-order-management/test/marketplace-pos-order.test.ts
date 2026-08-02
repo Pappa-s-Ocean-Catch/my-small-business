@@ -15,6 +15,7 @@ const detail: MarketplaceOrderDetailInput = {
   provider: 'uber_eats',
   sourceName: 'Uber Eats',
   orderId: '  UE-123  ',
+  orderUUID: 'workflow-ue-123',
   requestedAt: 1_754_000_000_000,
   customerName: 'Alex Customer',
   subtotalAmount: 25,
@@ -46,6 +47,7 @@ const existingOrder = {
   total: 99,
   marketplace_gross_sales: 25,
   marketplace_gross_payout: 18.5,
+  marketplace_workflow_uuid: 'existing-workflow-uuid',
   special_instructions: 'Staff note — preserve this',
   items: [{ id: 'staff-item' }],
 } as unknown as Order;
@@ -132,6 +134,7 @@ test('imports a new marketplace detail through savePosOrder exactly once', async
   assert.equal(saveCalls[0].orderPayload.marketplace_gross_sales, 25);
   assert.equal(saveCalls[0].orderPayload.marketplace_gross_payout, 18.5);
   assert.equal(saveCalls[0].orderPayload.external_order_number, 'UE-123');
+  assert.equal(saveCalls[0].orderPayload.marketplace_workflow_uuid, 'workflow-ue-123');
   assert.deepEqual(saveCalls[0].items[0].removed_ingredients, ['Tomato']);
   assert.equal((saveCalls[0].items[0].addons as unknown[]).length, 1);
 });
@@ -277,6 +280,7 @@ test('updates only order_status when the provider and trimmed ID already exist',
   assert.equal(result.created, false);
   assert.equal(result.error, null);
   assert.equal(result.order?.order_status, 'on_the_way');
+  assert.equal(result.order?.marketplace_workflow_uuid, 'existing-workflow-uuid');
   assert.deepEqual(updateCalls, [{
     orderId: 'pos-existing',
     update: { order_status: 'on_the_way' },
@@ -288,6 +292,7 @@ test('updates only order_status when the provider and trimmed ID already exist',
     'total',
     'marketplace_gross_sales',
     'marketplace_gross_payout',
+    'marketplace_workflow_uuid',
     'customer_name',
     'customer_phone',
     'order_options',
