@@ -23,7 +23,7 @@ import {
   getOrderGrossSales,
   isMarketplaceSalesOrder,
 } from '@/lib/marketplace-pos-import';
-import { formatDateToLocalISO, getOrderChannelLabel, getPaymentMethodType, getTodayDateString } from '@/utils/orderUtils';
+import { formatDateToLocalISO, getOrderChannelLabel, getPaymentStatLabel, getTodayDateString } from '@/utils/orderUtils';
 
 type CompareMode = 'lastWeek' | 'lastMonth' | 'lastYear' | 'custom';
 type ReportType = 'daily' | 'weekly' | 'monthly';
@@ -465,11 +465,7 @@ export default function ReportScreen() {
   }, [compareOrders, compareRange, selectedReport]);
 
   const paymentBreakdown = useMemo(
-    () => buildBreakdown(currentOrders, (order) => {
-      const type = getPaymentMethodType(order);
-      if (type === 'card') return 'Card';
-      return 'Cash';
-    }),
+    () => buildBreakdown(currentOrders, getPaymentStatLabel),
     [currentOrders]
   );
 

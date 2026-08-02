@@ -1,0 +1,41 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import type { Order } from '@my-small-business/types';
+import { getPaymentStatType } from '../utils/orderUtils';
+
+function makeOrder(overrides: Partial<Order> = {}): Order {
+  return {
+    id: 'order-1',
+    order_number: 'ORD-001',
+    order_channel: 'instore',
+    payment_method: 'store',
+    payment_method_detail: 'cash',
+    ...overrides,
+  } as Order;
+}
+
+test('classifies marketplace orders before their cash-like payment fields', () => {
+  assert.equal(
+    getPaymentStatType(makeOrder({
+      order_channel: 'third_party',
+      delivery_partner_name: 'Uber Eats',
+      payment_method: 'store',
+      payment_method_detail: 'cash',
+    })),
+    'marketplace'
+  );
+  assert.equal(
+    getPaymentStatType(makeOrder({
+      order_channel: 'third_party',
+      delivery_partner_name: 'DoorDash',
+      payment_method: 'store',
+      payment_method_detail: null,
+    })),
+    'marketplace'
+  );
+});
+
+test('retains direct card and cash classifications', () => {
+  assert.equal(getPaymentStatType(makeOrder({ payment_method: 'online' })), 'card');
+  assert.equal(getPaymentStatType(makeOrder()), 'cash');
+});

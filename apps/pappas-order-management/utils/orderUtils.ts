@@ -405,7 +405,10 @@ export const getNextQuickAction = (
   }
 };
 
-export const getPaymentMethodType = (order: Order): 'card' | 'cash' => {
+export type PaymentMethodType = 'card' | 'cash';
+export type PaymentStatType = PaymentMethodType | 'marketplace';
+
+export const getPaymentMethodType = (order: Order): PaymentMethodType => {
   const method = (order.payment_method || '').toLowerCase();
   const detail = (order.payment_method_detail || '').toLowerCase();
   const paymentText = `${method} ${detail}`;
@@ -425,4 +428,15 @@ export const getPaymentMethodType = (order: Order): 'card' | 'cash' => {
   }
 
   return 'cash';
+};
+
+export const getPaymentStatType = (order: Order): PaymentStatType => {
+  if (order.order_channel?.toLowerCase() === 'third_party') return 'marketplace';
+  return getPaymentMethodType(order);
+};
+
+export const getPaymentStatLabel = (order: Order): 'Card' | 'Cash' | 'Marketplace' => {
+  const type = getPaymentStatType(order);
+  if (type === 'marketplace') return 'Marketplace';
+  return type === 'card' ? 'Card' : 'Cash';
 };

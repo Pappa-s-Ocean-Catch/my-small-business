@@ -30,7 +30,7 @@ import type { Order } from '@my-small-business/types';
 import { DEFAULT_APP_SETTINGS } from '@/lib/settings';
 import { useAppSettingsQuery } from '@/hooks/useAppSettingsQuery';
 import { useOrderActions } from '@/hooks/useOrderActions';
-import { getTodayDateString, formatDateToLocalISO, getPaymentMethodType } from '@/utils/orderUtils';
+import { getTodayDateString, formatDateToLocalISO, getPaymentStatType } from '@/utils/orderUtils';
 
 export default function HistoryScreen() {
   const { width, height } = useWindowDimensions();
@@ -50,7 +50,7 @@ export default function HistoryScreen() {
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [customerInfo, setCustomerInfo] = useState<{ email?: string; phone?: string }>({});
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [paymentMethodFilter, setPaymentMethodFilter] = useState<'all' | 'card' | 'cash'>('all');
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState<'all' | 'card' | 'cash' | 'marketplace'>('all');
   const [orderMethodFilter, setOrderMethodFilter] = useState<string>('all');
   const { data: appSettings = DEFAULT_APP_SETTINGS } = useAppSettingsQuery();
 
@@ -103,19 +103,22 @@ export default function HistoryScreen() {
     let totalSales = 0;
     let totalCard = 0;
     let totalCash = 0;
+    let totalMarketplace = 0;
     orders.forEach((order) => {
       if (order.payment_status === 'paid') {
         totalOrders++;
         totalSales += order.total;
-        const methodType = getPaymentMethodType(order);
-        if (methodType === 'card') {
+        const paymentType = getPaymentStatType(order);
+        if (paymentType === 'card') {
           totalCard += order.total;
+        } else if (paymentType === 'marketplace') {
+          totalMarketplace += order.total;
         } else {
           totalCash += order.total;
         }
       }
     });
-    return { totalOrders, totalSales, totalCard, totalCash };
+    return { totalOrders, totalSales, totalCard, totalCash, totalMarketplace };
   }, [orders]);
 
   const filteredOrders = useMemo(() => {
@@ -123,7 +126,7 @@ export default function HistoryScreen() {
     
     // Payment method filter (Card/Cash) from top-level toggles
     if (paymentMethodFilter !== 'all') {
-      result = result.filter((order) => getPaymentMethodType(order) === paymentMethodFilter);
+      result = result.filter((order) => getPaymentStatType(order) === paymentMethodFilter);
     }
     
     // Order source filter (Online/Store) from modal
@@ -259,6 +262,24 @@ export default function HistoryScreen() {
                   <Text style={[styles.statLabel, { marginBottom: 0 }]}>Cash</Text>
                 </View>
                 <Text style={styles.statValue}>${quickStats.totalCash.toFixed(2)}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.statBox,
+                  paymentMethodFilter === 'marketplace' && styles.statBoxActive
+                ]}
+                onPress={() => setPaymentMethodFilter(paymentMethodFilter === 'marketplace' ? 'all' : 'marketplace')}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                  <MaterialCommunityIcons
+                    name="shopping-outline"
+                    size={14}
+                    color={paymentMethodFilter === 'marketplace' ? '#2563eb' : '#6b7280'}
+                  />
+                  <Text style={[styles.statLabel, { marginBottom: 0 }]}>Marketplace</Text>
+                </View>
+                <Text style={styles.statValue}>${quickStats.totalMarketplace.toFixed(2)}</Text>
               </TouchableOpacity>
             </View>
           </View>
