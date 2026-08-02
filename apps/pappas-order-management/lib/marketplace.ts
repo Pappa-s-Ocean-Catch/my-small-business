@@ -1,6 +1,11 @@
 import { supabase } from './supabase';
 import { getApiUrl } from '@/utils/orderUtils';
 
+export {
+  MARKETPLACE_SYNC_INTERVAL_MS,
+  createMarketplaceSyncCoordinator,
+} from './marketplace-sync';
+
 export type MarketplaceProvider = 'uber_eats' | 'doordash';
 
 export type MarketplaceCredentialStatus = {

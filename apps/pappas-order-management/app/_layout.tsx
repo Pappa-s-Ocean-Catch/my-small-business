@@ -1,7 +1,7 @@
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-gesture-handler';
 import { Stack, useRouter, useSegments } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { MD3LightTheme, PaperProvider } from 'react-native-paper';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -14,10 +14,12 @@ import { StatusBar } from 'expo-status-bar';
 import { appQueryClient } from '@/lib/query-client';
 import { PrinterAutomationProvider } from '@/providers/PrinterAutomationProvider';
 import { AppSettingsProvider } from '@/providers/AppSettingsProvider';
+import { MarketplaceSyncProvider } from '@/providers/MarketplaceSyncProvider';
 
 export default function RootLayout() {
   const router = useRouter();
   const segments = useSegments();
+  const [marketplaceSyncEnabled, setMarketplaceSyncEnabled] = useState(false);
   useKeepAwake();
 
   useEffect(() => {
@@ -27,6 +29,7 @@ export default function RootLayout() {
       const currentSegment = segments[0];
 
       if (!session) {
+        setMarketplaceSyncEnabled(false);
         if (currentSegment !== 'login') {
           router.replace('/login');
         }
@@ -35,6 +38,7 @@ export default function RootLayout() {
 
       const userId = session.user?.id;
       if (!userId) {
+        setMarketplaceSyncEnabled(false);
         await supabase.auth.signOut();
         if (currentSegment !== 'login') {
           router.replace('/login');
@@ -47,6 +51,7 @@ export default function RootLayout() {
         if (cancelled) return;
 
         if (!canAccess) {
+          setMarketplaceSyncEnabled(false);
           await supabase.auth.signOut();
           if (currentSegment !== 'login') {
             router.replace('/login');
@@ -54,12 +59,15 @@ export default function RootLayout() {
           return;
         }
       } catch {
+        setMarketplaceSyncEnabled(false);
         await supabase.auth.signOut();
         if (currentSegment !== 'login') {
           router.replace('/login');
         }
         return;
       }
+
+      setMarketplaceSyncEnabled(true);
 
       if (currentSegment === 'login' || !currentSegment) {
         router.replace('/(drawer)/(tabs)/live-orders');
@@ -89,24 +97,26 @@ export default function RootLayout() {
       <QueryClientProvider client={appQueryClient}>
         <PaperProvider theme={MD3LightTheme}>
           <AppSettingsProvider>
-            <PrinterAutomationProvider>
-              <Stack screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="login" />
-                <Stack.Screen name="(drawer)" />
-                <Stack.Screen
-                  name="order-detail"
-                  options={{
-                    presentation: 'fullScreenModal',
-                    animation: 'slide_from_bottom',
-                  }}
-                />
-                <Stack.Screen name="pos-layout-settings" />
-                <Stack.Screen name="POS-intergation" />
-              </Stack>
-              <StatusBar hidden />
-              <OfflineAttentionOverlay appName="Pappas Order" />
-              <PendingOnlinePaymentsOverlay />
-            </PrinterAutomationProvider>
+            <MarketplaceSyncProvider enabled={marketplaceSyncEnabled}>
+              <PrinterAutomationProvider>
+                <Stack screenOptions={{ headerShown: false }}>
+                  <Stack.Screen name="login" />
+                  <Stack.Screen name="(drawer)" />
+                  <Stack.Screen
+                    name="order-detail"
+                    options={{
+                      presentation: 'fullScreenModal',
+                      animation: 'slide_from_bottom',
+                    }}
+                  />
+                  <Stack.Screen name="pos-layout-settings" />
+                  <Stack.Screen name="POS-intergation" />
+                </Stack>
+                <StatusBar hidden />
+                <OfflineAttentionOverlay appName="Pappas Order" />
+                <PendingOnlinePaymentsOverlay />
+              </PrinterAutomationProvider>
+            </MarketplaceSyncProvider>
           </AppSettingsProvider>
         </PaperProvider>
       </QueryClientProvider>
