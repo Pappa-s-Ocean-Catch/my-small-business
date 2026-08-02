@@ -70,4 +70,38 @@ Result: exit 2 before evaluating the scoped changes because the current dependen
 
 ## Concern
 
-The unit harness cannot execute `lib/settings.ts` directly because it depends on React Native device storage. The added test is a focused source contract, matching the existing suite’s source-contract approach. A full application type-check is currently blocked by the missing `minimatch` type definition described above.
+The unit harness cannot execute `lib/settings.ts` directly because it depends on React Native device storage. Runtime coverage therefore exercises the extracted dependency-free normalizer that the storage adapter invokes for both load and save. A full application type-check is currently blocked by the missing `minimatch` type definition described above.
+
+## Fix round 1: Runtime diagnostic-settings coverage
+
+### Change
+
+Replaced the source-text contracts with runtime tests for a new, dependency-free `normalizeDiagnosticSettings` helper. `loadAppSettings` and `saveAppSettings` now both call this helper at their storage boundary, so the executed tests cover the normalization used for persisted values and serialization input:
+
+- missing/malformed persisted `registerName` and `printerDebugFooter` values default to `''` and `false`;
+- valid register names are trimmed;
+- a valid `true` footer preference is retained.
+
+No printing templates, providers, routing, or print pathways were changed.
+
+### TDD evidence
+
+RED: after changing the test to import the runtime helper but before adding it, `pnpm --filter pappas-order-management test:unit` failed with `TS2307: Cannot find module '../lib/settings-diagnostics'`.
+
+GREEN focused command:
+
+```text
+pnpm exec tsc -p tsconfig.test.json && node --test dist-test/apps/pappas-order-management/test/print-debug-settings.test.js
+```
+
+Output: 2 tests passed, 0 failed.
+
+GREEN full command:
+
+```text
+pnpm --filter pappas-order-management test:unit
+```
+
+Output: 41 tests passed, 0 failed.
+
+`git diff --check` completed with exit 0.

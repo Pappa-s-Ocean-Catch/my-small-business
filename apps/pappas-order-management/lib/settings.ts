@@ -5,6 +5,7 @@ import {
     isSimulatorPrinterTarget,
     type SavedPrinter,
 } from './escpos-printer';
+import { normalizeDiagnosticSettings } from './settings-diagnostics';
 
 function isSavedPrinter(value: unknown): value is SavedPrinter {
     const v = value as any;
@@ -216,9 +217,7 @@ export async function loadAppSettings(): Promise<AppSettings> {
         }
         const parsed = JSON.parse(raw) as Partial<AppSettings> | null;
 
-        const registerName = typeof parsed?.registerName === 'string'
-            ? parsed.registerName.trim()
-            : DEFAULT_APP_SETTINGS.registerName;
+        const diagnosticSettings = normalizeDiagnosticSettings(parsed);
 
         const refreshIntervalSec = clampInt(
             typeof parsed?.refreshIntervalSec === 'number' ? parsed.refreshIntervalSec : DEFAULT_APP_SETTINGS.refreshIntervalSec,
@@ -287,7 +286,7 @@ export async function loadAppSettings(): Promise<AppSettings> {
         );
 
         const result: AppSettings = {
-            registerName,
+            registerName: diagnosticSettings.registerName,
             refreshIntervalSec,
             soundEnabled,
             soundId,
@@ -306,9 +305,7 @@ export async function loadAppSettings(): Promise<AppSettings> {
             printerHighQuality: typeof (parsed as any)?.printerHighQuality === 'boolean'
                 ? (parsed as any).printerHighQuality
                 : DEFAULT_APP_SETTINGS.printerHighQuality,
-            printerDebugFooter: typeof (parsed as any)?.printerDebugFooter === 'boolean'
-                ? (parsed as any).printerDebugFooter
-                : DEFAULT_APP_SETTINGS.printerDebugFooter,
+            printerDebugFooter: diagnosticSettings.printerDebugFooter,
         };
         cachedSettings = result;
         return result;
@@ -319,8 +316,9 @@ export async function loadAppSettings(): Promise<AppSettings> {
 }
 
 export async function saveAppSettings(settings: AppSettings): Promise<void> {
+    const diagnosticSettings = normalizeDiagnosticSettings(settings);
     const normalized: AppSettings = {
-        registerName: typeof settings.registerName === 'string' ? settings.registerName.trim() : '',
+        registerName: diagnosticSettings.registerName,
         refreshIntervalSec: clampInt(settings.refreshIntervalSec, 5, 600),
         soundEnabled: !!settings.soundEnabled,
         soundId: settings.soundId,
@@ -342,7 +340,7 @@ export async function saveAppSettings(settings: AppSettings): Promise<void> {
         printerDelayPrintSec: clampInt(settings.printerDelayPrintSec, 0, 120),
         printerPaperWidth: settings.printerPaperWidth === '58mm' ? '58mm' : '80mm',
         printerHighQuality: !!settings.printerHighQuality,
-        printerDebugFooter: !!settings.printerDebugFooter,
+        printerDebugFooter: diagnosticSettings.printerDebugFooter,
     };
 
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
