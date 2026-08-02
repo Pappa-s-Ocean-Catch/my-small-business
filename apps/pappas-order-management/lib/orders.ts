@@ -4,6 +4,10 @@ import { getOrderNotes, getOrderOptions } from '../utils/orderUtils';
 import type { DeliveryAddressDraft, DeliveryQuoteResult } from './delivery';
 import { ensureRewardPointsForOrder } from './reward-points';
 import { isMarketplaceImportDuplicateError } from './marketplace-pos-import';
+import {
+  findMarketplaceOrderIdByExternalId,
+  type MarketplaceProvider,
+} from './marketplace-pos-order';
 
 type OrderRow = Omit<Order, 'items'> & {
   items?: never;
@@ -241,6 +245,82 @@ export async function getOrder(orderId: string): Promise<{ data: Order | null; e
     return {
       data: null,
       error: error instanceof Error ? error.message : 'Failed to fetch order',
+    };
+  }
+}
+
+export async function findMarketplaceOrder(
+  provider: MarketplaceProvider,
+  externalOrderId: string
+): Promise<{ data: Order | null; error: string | null }> {
+  const normalizedExternalOrderId = externalOrderId.trim();
+  if (!normalizedExternalOrderId) {
+    return { data: null, error: 'Marketplace order ID is required.' };
+  }
+
+  const providerName = provider === 'uber_eats' ? 'Uber Eats' : 'DoorDash';
+  try {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*, order_items(*, order_item_addons(*))')
+      .eq('order_channel', 'third_party')
+      .ilike('delivery_partner_name', providerName)
+      .eq('external_order_number', normalizedExternalOrderId)
+      .maybeSingle();
+
+    if (error) return { data: null, error: error.message };
+    if (data) {
+      return {
+        data: mapEmbeddedOrder(data as unknown as OrderWithEmbeddedItemsRow),
+        error: null,
+      };
+    }
+
+    // Older rows may predate canonical trimming. The database uniqueness index
+    // identifies them with btrim(external_order_number), so mirror that identity
+    // on an exact-query miss before deciding this is a new order.
+    const { data: candidates, error: candidateError } = await supabase
+      .from('orders')
+      .select('id, external_order_number')
+      .eq('order_channel', 'third_party')
+      .ilike('delivery_partner_name', providerName);
+
+    if (candidateError) return { data: null, error: candidateError.message };
+    const matchingOrderId = findMarketplaceOrderIdByExternalId(
+      (candidates || []) as Array<{ id: string; external_order_number: string | null }>,
+      normalizedExternalOrderId
+    );
+    return matchingOrderId ? getOrder(matchingOrderId) : { data: null, error: null };
+  } catch (error) {
+    return {
+      data: null,
+      error: error instanceof Error ? error.message : 'Failed to find marketplace order',
+    };
+  }
+}
+
+export async function updateMarketplaceOrderStatus(
+  orderId: string,
+  status: OrderStatus
+): Promise<{ data: Order | null; error: string | null }> {
+  try {
+    const { data, error } = await supabase
+      .from('orders')
+      .update({ order_status: status })
+      .eq('id', orderId)
+      .select('*, order_items(*, order_item_addons(*))')
+      .single();
+
+    if (error) return { data: null, error: error.message };
+    if (!data) return { data: null, error: 'Marketplace order not found' };
+    return {
+      data: mapEmbeddedOrder(data as unknown as OrderWithEmbeddedItemsRow),
+      error: null,
+    };
+  } catch (error) {
+    return {
+      data: null,
+      error: error instanceof Error ? error.message : 'Failed to update marketplace order status',
     };
   }
 }

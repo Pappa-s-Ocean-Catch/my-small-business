@@ -22,6 +22,7 @@
     "lib/marketing-contact-filter.ts",
     "lib/marketplace-order-summary.ts",
     "lib/marketplace-pos-import.ts",
+    "lib/marketplace-pos-order.ts",
     "lib/promotion-summary.ts",
     "test/pay-by-link.test.ts",
     "test/customer-profile.test.ts",

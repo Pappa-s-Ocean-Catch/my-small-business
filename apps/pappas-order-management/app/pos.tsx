@@ -28,11 +28,10 @@ import {
   isPromotionActiveNow,
   type PosPromotion,
 } from '../lib/pos-promotions';
-import { getMarketplaceImportDiscountAmount } from '../lib/marketplace-order-summary';
 import {
-  findRemovableIngredientName,
-  getMarketplaceOrderStatus,
-} from '../lib/marketplace-pos-import';
+  buildMarketplacePosOrderDraft,
+  type MarketplaceImportMetadata,
+} from '../lib/marketplace-pos-order';
 import { PosCartPane } from '../components/pos/PosCartPane';
 import { PosDialogs } from '../components/pos/PosDialogs';
 import { PosMenuPane } from '../components/pos/PosMenuPane';
@@ -57,7 +56,6 @@ import type {
   SaleProduct,
   TopSellerProduct,
 } from './pos.types';
-import type { MarketplaceOrderDetailItemOption } from '@/lib/marketplace';
 
 const newLocalId = () => `pos-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
@@ -68,14 +66,6 @@ const addonSelectionKey = (addons: OrderItemAddon[]) => (
 const addonTotal = (addons: OrderItemAddon[]) => (
   addons.reduce((sum, addon) => sum + (addon.addon_item_price || 0), 0)
 );
-
-const parseMarketplaceMoney = (value?: string | null): number | null => {
-  if (!value) return null;
-  const normalized = value.replace(/[^0-9.-]/g, '');
-  if (!normalized) return null;
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : null;
-};
 
 const cartItemHasCustomizations = (item: Pick<OrderItem, 'addons' | 'removed_ingredients' | 'comment'>) => (
   (item.addons || []).length > 0
@@ -188,110 +178,6 @@ const formatDeliveryAddress = (address: DeliveryAddressDraft) => (
     .filter((part) => Boolean(part && part.trim().length > 0))
     .join(', ')
 );
-
-const normalizeMarketplaceName = (value: string) => (
-  value
-    .toLowerCase()
-    .replace(/['’]/g, '')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim()
-);
-
-const MARKETPLACE_MATCH_THRESHOLD = 0.9;
-const MARKETPLACE_REMOVAL_PREFIXES = ['no ', 'without ', 'remove ', 'minus '];
-
-type MarketplaceMappingEntityType = 'product' | 'addon' | 'ingredient';
-type MarketplaceMappingRecord = {
-  provider: 'uber_eats' | 'doordash';
-  entity_type: MarketplaceMappingEntityType;
-  external_name: string;
-  normalized_external_name: string;
-  internal_name: string;
-  is_active: boolean;
-};
-
-type MarketplaceImportMetadata = {
-  source: PosThirdPartySource;
-  externalOrderNumber: string;
-  orderStatus: ReturnType<typeof getMarketplaceOrderStatus>;
-  grossSales: number | null;
-  grossPayout: number | null;
-};
-
-const levenshteinDistance = (left: string, right: string) => {
-  if (left === right) return 0;
-  if (!left.length) return right.length;
-  if (!right.length) return left.length;
-
-  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
-  const current = new Array(right.length + 1).fill(0);
-
-  for (let row = 1; row <= left.length; row += 1) {
-    current[0] = row;
-    for (let column = 1; column <= right.length; column += 1) {
-      const substitutionCost = left[row - 1] === right[column - 1] ? 0 : 1;
-      current[column] = Math.min(
-        current[column - 1] + 1,
-        previous[column] + 1,
-        previous[column - 1] + substitutionCost
-      );
-    }
-
-    for (let column = 0; column <= right.length; column += 1) {
-      previous[column] = current[column];
-    }
-  }
-
-  return previous[right.length];
-};
-
-const getNameSimilarity = (left: string, right: string) => {
-  const normalizedLeft = normalizeMarketplaceName(left);
-  const normalizedRight = normalizeMarketplaceName(right);
-  if (!normalizedLeft || !normalizedRight) return 0;
-  if (normalizedLeft === normalizedRight) return 1;
-
-  const directDistance = levenshteinDistance(normalizedLeft, normalizedRight);
-  const directLongestLength = Math.max(normalizedLeft.length, normalizedRight.length);
-  const directScore = directLongestLength > 0 ? 1 - directDistance / directLongestLength : 0;
-
-  const leftTokens = normalizedLeft.split(' ').filter(Boolean);
-  const rightTokens = normalizedRight.split(' ').filter(Boolean);
-  const leftTokenSet = new Set(leftTokens);
-  const rightTokenSet = new Set(rightTokens);
-  const sharedTokenCount = Array.from(leftTokenSet).filter((token) => rightTokenSet.has(token)).length;
-  const uniqueTokenCount = new Set([...leftTokenSet, ...rightTokenSet]).size;
-  const tokenSetScore = uniqueTokenCount > 0 ? sharedTokenCount / uniqueTokenCount : 0;
-
-  const sortedLeft = [...leftTokens].sort().join(' ');
-  const sortedRight = [...rightTokens].sort().join(' ');
-  const sortedDistance = levenshteinDistance(sortedLeft, sortedRight);
-  const sortedLongestLength = Math.max(sortedLeft.length, sortedRight.length);
-  const sortedScore = sortedLongestLength > 0 ? 1 - sortedDistance / sortedLongestLength : 0;
-
-  return Math.max(directScore, tokenSetScore, sortedScore);
-};
-
-const getMarketplaceRemovalCandidate = (value: string) => {
-  const normalized = normalizeMarketplaceName(value);
-  for (const prefix of MARKETPLACE_REMOVAL_PREFIXES) {
-    if (normalized.startsWith(prefix)) {
-      return normalized.slice(prefix.length).trim();
-    }
-  }
-  return null;
-};
-
-const findBestInternalNameMatch = <T extends { name: string }>(candidates: T[], targetName: string) => {
-  const ranked = candidates
-    .map((candidate) => ({
-      candidate,
-      score: getNameSimilarity(candidate.name, targetName),
-    }))
-    .sort((left, right) => right.score - left.score);
-
-  return ranked[0] ?? null;
-};
 
 type PosDiscountConfig =
   | { kind: 'none' }
@@ -956,206 +842,67 @@ export default function PosScreen() {
     let cancelled = false;
 
     const importMarketplaceDraft = async () => {
-      await loadSearchProducts();
-      const catalogProducts = catalogCache.allProducts?.data ?? [];
-      const provider = marketplaceDraft.provider;
-      const marketplaceMappings = await loadMarketplaceMappings(provider);
+      try {
+        const draft = await buildMarketplacePosOrderDraft(marketplaceDraft.orderDetail);
+        if (cancelled) return;
 
-      if (catalogProducts.length === 0) {
-        Alert.alert('Marketplace', 'Could not load the POS catalog to build this draft order.');
-        clearMarketplaceDraft();
-        return;
-      }
-
-      const nextCartItems: PosCartItem[] = [];
-      const unmatchedProducts: string[] = [];
-      const unmatchedOptions: string[] = [];
-
-      for (const item of marketplaceDraft.orderDetail.items) {
-        const productAlias = marketplaceMappings.find((mapping) => (
-          mapping.entity_type === 'product'
-          && mapping.normalized_external_name === normalizeMarketplaceName(item.name)
-        ));
-
-        let matchedProduct: SaleProduct | null = null;
-        if (productAlias) {
-          const aliasMatch = findBestInternalNameMatch(
-            catalogProducts.map((product) => ({ ...product, name: product.name })),
-            productAlias.internal_name
-          );
-          matchedProduct = aliasMatch?.candidate ?? null;
-        } else {
-          const productMatches = catalogProducts
-            .map((product) => ({
-              product,
-              score: getNameSimilarity(item.name, product.name),
-            }))
-            .sort((left, right) => right.score - left.score);
-          const bestProductMatch = productMatches[0] ?? null;
-          matchedProduct = bestProductMatch && bestProductMatch.score >= MARKETPLACE_MATCH_THRESHOLD
-            ? bestProductMatch.product
-            : null;
+        if (draft.cartItems.length === 0) {
+          Alert.alert('Marketplace', `None of the ${draft.metadata.source} items matched the POS catalog.`);
+          clearMarketplaceDraft();
+          return;
         }
 
-        if (!matchedProduct) {
-          unmatchedProducts.push(item.name);
-          void recordUnmatchedMarketplaceName({
-            provider,
-            entityType: 'product',
-            externalName: item.name,
-          });
-          continue;
-        }
-
-        const customizationData = await getMarketplaceProductCustomizations(matchedProduct.id);
-        const flattenedOptions = item.customizations.flatMap((customization) => customization.options);
-        const addons: OrderItemAddon[] = [];
-        const removedIngredients: string[] = [];
-
-        flattenedOptions.forEach((option: MarketplaceOrderDetailItemOption) => {
-          const removalCandidate = getMarketplaceRemovalCandidate(option.name);
-          if (removalCandidate) {
-            const ingredientAlias = marketplaceMappings.find((mapping) => (
-              mapping.entity_type === 'ingredient'
-              && mapping.normalized_external_name === normalizeMarketplaceName(removalCandidate)
-            ));
-
-            const removalOptionName = `No ${ingredientAlias?.internal_name ?? removalCandidate}`;
-            const matchedIngredientName = findRemovableIngredientName(
-              removalOptionName,
-              customizationData.removableIngredients.map((ingredient) => ({
-                name: ingredient.ingredient_name,
-                customerCanRemove: ingredient.customer_can_remove,
-              }))
-            );
-
-            if (matchedIngredientName) {
-              removedIngredients.push(matchedIngredientName);
-              return;
-            }
-
-            void recordUnmatchedMarketplaceName({
-              provider,
-              entityType: 'ingredient',
-              externalName: removalCandidate,
-              parentExternalName: item.name,
-            });
-            return;
-          }
-
-          const addonAlias = marketplaceMappings.find((mapping) => (
-            mapping.entity_type === 'addon'
-            && mapping.normalized_external_name === normalizeMarketplaceName(option.name)
-          ));
-
-          const optionMatches = customizationData.groups.flatMap((group) => (
-            group.items.map((groupItem) => ({
-              group,
-              addonItem: groupItem,
-              score: getNameSimilarity(option.name, groupItem.name),
-            }))
-          )).sort((left, right) => right.score - left.score);
-          const bestOptionMatch = addonAlias
-            ? optionMatches.find((match) => normalizeMarketplaceName(match.addonItem.name) === normalizeMarketplaceName(addonAlias.internal_name)) ?? null
-            : optionMatches[0] ?? null;
-
-          if (!bestOptionMatch || (!addonAlias && bestOptionMatch.score < MARKETPLACE_MATCH_THRESHOLD)) {
-            unmatchedOptions.push(`${item.name}: ${option.name}`);
-            void recordUnmatchedMarketplaceName({
-              provider,
-              entityType: 'addon',
-              externalName: option.name,
-              parentExternalName: item.name,
-            });
-            return;
-          }
-
-          const { group, addonItem } = bestOptionMatch;
-
-          const quantity = Math.max(1, option.quantity || 1);
-          for (let index = 0; index < quantity; index += 1) {
-            addons.push({
-              id: `pos-addon-${addonItem.id}-${index}-${Date.now()}`,
-              order_item_id: '',
-              addon_group_id: group.id,
-              addon_group_name: group.name,
-              addon_item_id: addonItem.id,
-              addon_item_name: addonItem.name,
-              addon_item_price: addonItem.extra_price,
-              section: addonItem.section ?? null,
-              created_at: new Date().toISOString(),
-              is_required: group.is_required,
-              display_order: addonItem.sort_order ?? undefined,
-              display_group_order: group.display_order ?? undefined,
-            });
-          }
-        });
-
-        const noteParts = [item.specialInstructions?.trim() || ''];
-        const note = noteParts.filter(Boolean).join(' | ');
-        nextCartItems.push(buildCartItem(
-          matchedProduct,
-          Math.max(1, item.quantity || 1),
-          addons,
-          note,
-          Array.from(new Set(removedIngredients)),
-          parseMarketplaceMoney(item.price)
-        ));
-      }
-
-      if (cancelled) return;
-
-      if (nextCartItems.length === 0) {
-        Alert.alert('Marketplace', `None of the ${marketplaceDraft.sourceName} items matched the POS catalog.`);
-        clearMarketplaceDraft();
-        return;
-      }
-
-      const requestedAt = marketplaceDraft.orderDetail.requestedAt
-        ? new Date(marketplaceDraft.orderDetail.requestedAt)
-        : new Date();
-
-      setCartItems(nextCartItems);
-      setCustomerPhone('');
-      setCustomerName(marketplaceDraft.orderDetail.customerName || '');
-      setSelectedCustomer(null);
-      setCustomerLookupStatus('idle');
-      setCustomerLookupError(null);
-      setRewardPointsToUse(0);
-      setRewardPointsValue(0);
-      setQuickOrderNote(null);
-      const importDiscountAmount = getMarketplaceImportDiscountAmount(marketplaceDraft.orderDetail);
-      setDiscountConfig(importDiscountAmount > 0 ? { kind: 'fixed', amount: importDiscountAmount } : EMPTY_DISCOUNT);
-      setThirdPartySource(marketplaceDraft.orderDetail.sourceName as PosThirdPartySource);
-      setThirdPartyCustomerName(marketplaceDraft.orderDetail.customerName || '');
-      setThirdPartyExternalOrderId(marketplaceDraft.orderDetail.orderId);
-      setThirdPartyOrderAt(Number.isFinite(requestedAt.getTime()) ? requestedAt : new Date());
-      setMarketplaceImportMetadata({
-        source: marketplaceDraft.orderDetail.sourceName as PosThirdPartySource,
-        externalOrderNumber: marketplaceDraft.orderDetail.orderId.trim(),
-        orderStatus: getMarketplaceOrderStatus(
-          marketplaceDraft.orderDetail.orderJobState,
-          marketplaceDraft.orderDetail.statusDescription
-        ),
-        grossSales: marketplaceDraft.orderDetail.totalAmount,
-        grossPayout: parseMarketplaceMoney(marketplaceDraft.orderDetail.netPayout),
-      });
-      setInitialCheckoutTab('third_party');
-      setMenuLevel('checkout');
-      setOrderNoteText([
-        unmatchedProducts.length > 0 ? `Unmatched items: ${unmatchedProducts.join(', ')}` : '',
-        unmatchedOptions.length > 0 ? `Check modifiers: ${unmatchedOptions.join(', ')}` : '',
-      ].filter(Boolean).join('\n'));
-      clearMarketplaceDraft();
-
-      if (unmatchedProducts.length > 0 || unmatchedOptions.length > 0) {
-        Alert.alert(
-          'Review imported order',
-          [
-            unmatchedProducts.length > 0 ? `Items not added: ${unmatchedProducts.join(', ')}` : '',
-            unmatchedOptions.length > 0 ? `Modifiers to review: ${unmatchedOptions.join(', ')}` : '',
-          ].filter(Boolean).join('\n')
+        setCartItems(draft.cartItems);
+        setCustomerPhone('');
+        setCustomerName(draft.customerName);
+        setSelectedCustomer(null);
+        setCustomerLookupStatus('idle');
+        setCustomerLookupError(null);
+        setRewardPointsToUse(0);
+        setRewardPointsValue(0);
+        setQuickOrderNote(null);
+        setDiscountConfig(
+          draft.discountAmount > 0
+            ? { kind: 'fixed', amount: draft.discountAmount }
+            : EMPTY_DISCOUNT
         );
+        setThirdPartySource(draft.metadata.source);
+        setThirdPartyCustomerName(draft.customerName);
+        setThirdPartyExternalOrderId(draft.metadata.externalOrderNumber);
+        setThirdPartyOrderAt(draft.requestedAt);
+        setMarketplaceImportMetadata(draft.metadata);
+        setInitialCheckoutTab('third_party');
+        setMenuLevel('checkout');
+        setOrderNoteText([
+          draft.unmatchedProducts.length > 0
+            ? `Unmatched items: ${draft.unmatchedProducts.join(', ')}`
+            : '',
+          draft.unmatchedOptions.length > 0
+            ? `Check modifiers: ${draft.unmatchedOptions.join(', ')}`
+            : '',
+        ].filter(Boolean).join('\n'));
+        clearMarketplaceDraft();
+
+        if (draft.unmatchedProducts.length > 0 || draft.unmatchedOptions.length > 0) {
+          Alert.alert(
+            'Review imported order',
+            [
+              draft.unmatchedProducts.length > 0
+                ? `Items not added: ${draft.unmatchedProducts.join(', ')}`
+                : '',
+              draft.unmatchedOptions.length > 0
+                ? `Modifiers to review: ${draft.unmatchedOptions.join(', ')}`
+                : '',
+            ].filter(Boolean).join('\n')
+          );
+        }
+      } catch (error) {
+        if (cancelled) return;
+        Alert.alert(
+          'Marketplace',
+          error instanceof Error ? error.message : 'Could not build this marketplace order.'
+        );
+        clearMarketplaceDraft();
       }
     };
 
@@ -1166,12 +913,8 @@ export default function PosScreen() {
     };
   }, [
     clearMarketplaceDraft,
-    getMarketplaceProductCustomizations,
-    loadSearchProducts,
-    loadMarketplaceMappings,
     marketplaceDraft,
     orderId,
-    recordUnmatchedMarketplaceName,
   ]);
 
   useEffect(() => {
@@ -1682,156 +1425,6 @@ export default function PosScreen() {
 
     return customizations;
   };
-
-  const getMarketplaceProductCustomizations = useCallback(async (
-    productId: string
-  ): Promise<{ groups: AddonGroup[]; removableIngredients: RemovableIngredient[] }> => {
-    const cachedCustomizations = getFreshCacheEntry(catalogCache.customizationByProduct, productId);
-    if (cachedCustomizations) {
-      return cachedCustomizations.data;
-    }
-
-    const [addonResult, ingredientResult] = await Promise.all([
-      supabase
-        .from('sale_product_addon_groups')
-        .select(`
-        addon_group_id,
-        display_order,
-        addon_groups (
-          id,
-          name,
-          is_required,
-          multiple_choice,
-          addon_items (
-            id,
-            addon_group_id,
-            name,
-            extra_price,
-            section,
-            sort_order,
-            is_active
-          )
-        )
-      `)
-        .eq('sale_product_id', productId)
-        .order('display_order', { ascending: true }),
-      supabase
-        .from('sale_product_ingredients')
-        .select('id, customer_can_remove, products!product_id(name)')
-        .eq('sale_product_id', productId)
-        .eq('customer_can_remove', true)
-        .order('id', { ascending: true }),
-    ]);
-
-    const groups: AddonGroup[] = ((addonResult.data || []) as any[]).map((row) => ({
-      id: row.addon_groups.id,
-      name: row.addon_groups.name,
-      is_required: Boolean(row.addon_groups.is_required),
-      multiple_choice: Boolean(row.addon_groups.multiple_choice),
-      display_order: row.display_order ?? null,
-      items: (row.addon_groups.addon_items || [])
-        .filter((item: any) => item.is_active !== false)
-        .map((item: any) => ({
-          id: item.id,
-          addon_group_id: item.addon_group_id,
-          name: item.name,
-          extra_price: Number(item.extra_price || 0),
-          section: item.section ?? null,
-          sort_order: item.sort_order ?? null,
-          is_active: item.is_active ?? true,
-        })),
-    }));
-
-    const removableIngredients: RemovableIngredient[] = ((ingredientResult.data || []) as Array<{
-      id: string;
-      customer_can_remove: boolean;
-      products: { name?: string } | { name?: string }[] | null;
-    }>).map((row) => {
-      const productRef = Array.isArray(row.products) ? row.products[0] : row.products;
-      return {
-        id: row.id,
-        ingredient_name: productRef?.name?.trim() || 'Unknown ingredient',
-        customer_can_remove: row.customer_can_remove,
-      };
-    });
-
-    const customizations = { groups, removableIngredients };
-    catalogCache.customizationByProduct.set(productId, cacheEntry(customizations));
-    catalogCache.hasCustomizationByProduct.set(productId, cacheEntry(groups.length > 0 || removableIngredients.length > 0));
-    return customizations;
-  }, []);
-
-  const loadMarketplaceMappings = useCallback(async (provider: 'uber_eats' | 'doordash') => {
-    const { data, error } = await supabase
-      .from('marketplace_name_mappings')
-      .select('provider, entity_type, external_name, normalized_external_name, internal_name, is_active')
-      .eq('provider', provider)
-      .eq('is_active', true);
-
-    if (error) {
-      console.warn('Marketplace mappings load failed', error);
-      return [] as MarketplaceMappingRecord[];
-    }
-
-    return (data || []) as MarketplaceMappingRecord[];
-  }, []);
-
-  const recordUnmatchedMarketplaceName = useCallback(async (input: {
-    provider: 'uber_eats' | 'doordash';
-    entityType: MarketplaceMappingEntityType;
-    externalName: string;
-    parentExternalName?: string;
-  }) => {
-    const normalizedExternalName = normalizeMarketplaceName(input.externalName);
-    const parentExternalName = input.parentExternalName || '';
-    if (!normalizedExternalName) return;
-
-    const { data: existing, error: existingError } = await supabase
-      .from('marketplace_unmatched_names')
-      .select('id, occurrences')
-      .eq('provider', input.provider)
-      .eq('entity_type', input.entityType)
-      .eq('normalized_external_name', normalizedExternalName)
-      .eq('parent_external_name', parentExternalName)
-      .maybeSingle();
-
-    if (existingError) {
-      console.warn('Marketplace unmatched lookup failed', existingError);
-      return;
-    }
-
-    if (existing?.id) {
-      const { error: updateError } = await supabase
-        .from('marketplace_unmatched_names')
-        .update({
-          occurrences: Number(existing.occurrences || 0) + 1,
-          last_seen_at: new Date().toISOString(),
-        })
-        .eq('id', existing.id);
-
-      if (updateError) {
-        console.warn('Marketplace unmatched update failed', updateError);
-      }
-      return;
-    }
-
-    const { error: insertError } = await supabase
-      .from('marketplace_unmatched_names')
-      .insert({
-        provider: input.provider,
-        entity_type: input.entityType,
-        external_name: input.externalName,
-        normalized_external_name: normalizedExternalName,
-        parent_external_name: parentExternalName,
-        occurrences: 1,
-        first_seen_at: new Date().toISOString(),
-        last_seen_at: new Date().toISOString(),
-      });
-
-    if (insertError) {
-      console.warn('Marketplace unmatched insert failed', insertError);
-    }
-  }, []);
 
   const openCategory = (categoryId: string) => {
     const layoutCategory = posLayout?.categories.find((category) => category.categoryId === categoryId) ?? null;
