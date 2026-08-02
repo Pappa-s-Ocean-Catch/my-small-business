@@ -516,10 +516,16 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
       }
 
       if (draft.unmatchedProducts.length > 0 || draft.unmatchedOptions.length > 0) {
+        const unmatchedProducts = draft.unmatchedProducts.length > 0
+          ? draft.unmatchedProducts.join(', ')
+          : 'none';
+        const unmatchedOptions = draft.unmatchedOptions.length > 0
+          ? draft.unmatchedOptions.join(', ')
+          : 'none';
         return {
           order: null,
           created: false,
-          error: 'Marketplace order needs manual review before import.',
+          error: `Marketplace order needs manual review before import. Unmatched products: ${unmatchedProducts}. Unmatched options: ${unmatchedOptions}.`,
         };
       }
 

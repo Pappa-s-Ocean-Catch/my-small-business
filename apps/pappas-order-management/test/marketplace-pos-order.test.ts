@@ -225,7 +225,10 @@ test('does not automatically create a partially matched marketplace order', asyn
   const result = await service.importMarketplaceOrder(detail);
 
   assert.equal(result.created, false);
-  assert.match(result.error || '', /manual review/i);
+  assert.equal(
+    result.error,
+    'Marketplace order needs manual review before import. Unmatched products: none. Unmatched options: Classic Burger: Extra Cheese.'
+  );
   assert.equal(saveCalls, 0);
 });
 
