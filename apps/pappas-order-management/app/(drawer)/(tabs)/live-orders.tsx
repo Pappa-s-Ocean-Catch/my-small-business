@@ -42,6 +42,12 @@ import { JournalLogsModal } from '@/components/PrintLogsModal';
 import { isScheduledPreOrder } from '@/utils/orderUtils';
 import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
 import { JOURNAL_LOGS_ENABLED } from '@/lib/journal-config';
+import { getPrintDeviceId } from '@/lib/print-device';
+import {
+  buildKitchenPrintDebugContext,
+  createPrintDebugSessionId,
+  type KitchenPrintDebugContext,
+} from '@/lib/print-debug-footer';
 import {
   LIVE_ORDERS_QUERY_KEY,
   useLiveOrdersQuery,
@@ -77,6 +83,7 @@ export default function LiveOrdersScreen() {
   const [tempPrintTicketIndex, setTempPrintTicketIndex] = useState(0);
   const [tempPrintDuplicateBySections, setTempPrintDuplicateBySections] = useState(false);
   const [tempPrintTemplate, setTempPrintTemplate] = useState<'kitchen' | 'customer-copy'>('kitchen');
+  const [tempPrintDebugContext, setTempPrintDebugContext] = useState<KitchenPrintDebugContext | null>(null);
   const [cashTenderOrder, setCashTenderOrder] = useState<Order | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
   const [headerExpanded, setHeaderExpanded] = useState(false);
@@ -84,6 +91,7 @@ export default function LiveOrdersScreen() {
   const [refreshingDeliveryIds, setRefreshingDeliveryIds] = useState<string[]>([]);
   const globalReceiptRef = useRef(null);
   const lastDeliverySyncAtRef = useRef(0);
+  const printDeviceIdRef = useRef<string | null>(null);
 
   const queryClient = useQueryClient();
   const countdownIntervalRef = useRef<TimeoutHandle | null>(null);
@@ -235,6 +243,10 @@ export default function LiveOrdersScreen() {
 
       const s = await loadAppSettings().catch(() => appSettingsRef.current);
       appSettingsRef.current = s;
+      if (!printDeviceIdRef.current) {
+        printDeviceIdRef.current = await getPrintDeviceId().catch(() => 'unknown');
+      }
+      const printSessionId = createPrintDebugSessionId();
       const printSettingsDetails = [
         `simulator=${String(hasAnySimulatorAssignment(s))}`,
         `printerEnabled=${String(s.printerEnabled)}`,
@@ -262,6 +274,24 @@ export default function LiveOrdersScreen() {
       if (selectedPrinter) {
         setTempPrintTicketIndex(0);
         setTempPrintDuplicateBySections(false);
+        setTempPrintDebugContext(buildKitchenPrintDebugContext({
+          enabled: s.printerDebugFooter,
+          registerName: s.registerName,
+          deviceId: printDeviceIdRef.current,
+          sessionId: printSessionId,
+          trigger: 'manual',
+          routeLabel: `Manual -> ${selectedPrinter.deviceName}`,
+          sectionName: 'All',
+          printerName: selectedPrinter.deviceName,
+          printerTarget: selectedPrinter.target,
+          printMode: 'combine',
+          copies: 1,
+          autoPrintEnabled: s.printerAutoPrint,
+          autoPrintDelaySeconds: s.printerDelayPrintSec,
+          paperWidth: s.printerPaperWidth,
+          highQuality: s.printerHighQuality,
+          capturedAt: new Date().toISOString(),
+        }));
         const prepStartedAt = Date.now();
         await new Promise((resolve) => setTimeout(resolve, RECEIPT_RENDER_SETTLE_MS));
         logOrderEvent('info', 'print', 'Prepared receipt template for direct printer', {
@@ -332,18 +362,7 @@ export default function LiveOrdersScreen() {
         return;
       }
 
-      const jobs = selectedPrinter
-        ? [{
-            key: `manual:${selectedPrinter.target}`,
-            assignmentId: 'manual-selected-printer',
-            sectionName: null,
-            printer: selectedPrinter,
-            printMode: 'combine' as const,
-            template: 'kitchen' as const,
-            duplicateBySections: false,
-            label: `Manual -> ${selectedPrinter.deviceName}`,
-          }]
-        : buildSectionPrintJobs(s, freshOrder);
+      const jobs = buildSectionPrintJobs(s, freshOrder);
       const capturedJobs: Array<{ image: PrinterImageSource; previewUri: string | null; label: string; printer: NonNullable<ReturnType<typeof buildSectionPrintJobs>[number]['printer']> | null }> = [];
       for (let index = 0; index < jobs.length; index += 1) {
         const job = jobs[index];
@@ -351,6 +370,24 @@ export default function LiveOrdersScreen() {
         setTempPrintTicketIndex(job.onlyTicketIndex ?? 0);
         setTempPrintDuplicateBySections(job.duplicateBySections);
         setTempPrintTemplate(job.template);
+        setTempPrintDebugContext(buildKitchenPrintDebugContext({
+          enabled: s.printerDebugFooter,
+          registerName: s.registerName,
+          deviceId: printDeviceIdRef.current,
+          sessionId: printSessionId,
+          trigger: 'manual',
+          routeLabel: job.label,
+          sectionName: job.sectionName,
+          printerName: job.printer?.deviceName,
+          printerTarget: job.printer?.target,
+          printMode: job.printMode,
+          copies: 1,
+          autoPrintEnabled: s.printerAutoPrint,
+          autoPrintDelaySeconds: s.printerDelayPrintSec,
+          paperWidth: s.printerPaperWidth,
+          highQuality: s.printerHighQuality,
+          capturedAt: new Date().toISOString(),
+        }));
         if (index === 0) {
           await new Promise((resolve) => setTimeout(resolve, RECEIPT_RENDER_SETTLE_MS));
         } else {
@@ -476,6 +513,7 @@ export default function LiveOrdersScreen() {
       setTempPrintTicketIndex(0);
       setTempPrintDuplicateBySections(false);
       setTempPrintTemplate('kitchen');
+      setTempPrintDebugContext(null);
     }
   };
 
@@ -1038,6 +1076,7 @@ export default function LiveOrdersScreen() {
                   showTicketCounter={hasAnySimulatorAssignment(appSettings)}
                   onlyTicketIndex={tempPrintTicketIndex}
                   duplicateBySections={tempPrintDuplicateBySections}
+                  printDebugContext={tempPrintDebugContext}
                 />
               )}
            </View>

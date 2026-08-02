@@ -14,6 +14,10 @@ import {
 } from '../utils/orderUtils';
 import { getDeliveryStatusLabel } from '../utils/constants';
 import { getOrderPromotionSummary, isFreePromotionOrderItem } from '../lib/promotion-summary';
+import {
+  getKitchenPrintDebugFooterLines,
+  type KitchenPrintDebugContext,
+} from '../lib/print-debug-footer';
 
 interface ReceiptTemplateProps {
   order: Order;
@@ -22,6 +26,7 @@ interface ReceiptTemplateProps {
   showTicketCounter?: boolean;
   onlyTicketIndex?: number;
   duplicateBySections?: boolean;
+  printDebugContext?: KitchenPrintDebugContext | null;
 }
 
 export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
@@ -31,6 +36,7 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
   showTicketCounter = false,
   onlyTicketIndex,
   duplicateBySections = false,
+  printDebugContext,
 }) => {
   const formatMoney = (amount: number) => {
     return (amount || 0).toFixed(2);
@@ -76,6 +82,7 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
           : allTickets
     )
     : [combinedTicket];
+  const printDebugLines = getKitchenPrintDebugFooterLines(printDebugContext);
 
   return (
     <View>
@@ -261,6 +268,13 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
           <View style={styles.footerContainer}>
             <Text style={styles.footerText}>Thanks for your order!</Text>
           </View>
+          {printDebugLines.length > 0 && (
+            <View style={styles.printDebugContainer}>
+              {printDebugLines.map((line, index) => (
+                <Text key={`print-debug-${index}`} style={styles.printDebugText}>{line}</Text>
+              ))}
+            </View>
+          )}
         </View>
       ))}
     </View>
@@ -484,5 +498,17 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 14,
     color: '#444',
+  },
+  printDebugContainer: {
+    marginTop: 8,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#777',
+    borderStyle: 'dashed',
+  },
+  printDebugText: {
+    fontSize: 14,
+    lineHeight: 18,
+    color: '#333',
   },
 });

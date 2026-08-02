@@ -25,6 +25,7 @@
     "lib/marketplace-pos-order.ts",
     "lib/marketplace-sync.ts",
     "lib/promotion-summary.ts",
+    "lib/print-debug-footer.ts",
     "test/pay-by-link.test.ts",
     "test/customer-profile.test.ts",
     "types/**/*.ts",

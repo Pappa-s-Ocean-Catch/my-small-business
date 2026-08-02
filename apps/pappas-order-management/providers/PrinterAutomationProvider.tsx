@@ -33,6 +33,11 @@ import { getAutoPrintableLiveOrders } from '@/lib/live-order-window';
 import { getFriendlyOrderNumber } from '@/utils/orderNumber';
 import { playNewOrderSound } from '@/lib/sounds';
 import { usePrinterAutomationStore, type JournalLevel } from '@/stores/printerAutomationStore';
+import {
+  buildKitchenPrintDebugContext,
+  createPrintDebugSessionId,
+  type KitchenPrintDebugContext,
+} from '@/lib/print-debug-footer';
 
 type TimeoutHandle = ReturnType<typeof setTimeout>;
 type JournalOrderRef = { id: string; order_number?: string | null };
@@ -61,6 +66,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
   const [tempPrintTicketIndex, setTempPrintTicketIndex] = useState(0);
   const [tempPrintDuplicateBySections, setTempPrintDuplicateBySections] = useState(false);
   const [tempPrintTemplate, setTempPrintTemplate] = useState<'kitchen' | 'customer-copy'>('kitchen');
+  const [tempPrintDebugContext, setTempPrintDebugContext] = useState<KitchenPrintDebugContext | null>(null);
 
   const autoPrintToast = usePrinterAutomationStore((state) => state.autoPrintToast);
   const dismissToast = usePrinterAutomationStore((state) => state.dismissToast);
@@ -203,6 +209,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
       const targetDots = effectiveSettings.printerPaperWidth === '58mm' ? 384 : 576;
       const scale = effectiveSettings.printerHighQuality ? 2 : 1;
       const jobs = buildSectionPrintJobs(effectiveSettings, freshOrder);
+      const printSessionId = createPrintDebugSessionId();
       logOrderEvent('info', 'print', 'Auto-print queue acquired', {
         order: freshOrder,
         details: `jobs=${jobs.length}`,
@@ -215,6 +222,24 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
         setTempPrintTicketIndex(job.onlyTicketIndex ?? 0);
         setTempPrintDuplicateBySections(job.duplicateBySections);
         setTempPrintTemplate(job.template);
+        setTempPrintDebugContext(buildKitchenPrintDebugContext({
+          enabled: effectiveSettings.printerDebugFooter,
+          registerName: effectiveSettings.registerName,
+          deviceId: claimedDeviceId,
+          sessionId: printSessionId,
+          trigger: 'auto',
+          routeLabel: job.label,
+          sectionName: job.sectionName,
+          printerName: job.printer?.deviceName,
+          printerTarget: job.printer?.target,
+          printMode: job.printMode,
+          copies: 1,
+          autoPrintEnabled: effectiveSettings.printerAutoPrint,
+          autoPrintDelaySeconds: effectiveSettings.printerDelayPrintSec,
+          paperWidth: effectiveSettings.printerPaperWidth,
+          highQuality: effectiveSettings.printerHighQuality,
+          capturedAt: new Date().toISOString(),
+        }));
         if (index === 0) {
           await new Promise((resolve) => setTimeout(resolve, RECEIPT_RENDER_SETTLE_MS));
         } else {
@@ -377,6 +402,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
       setTempPrintTicketIndex(0);
       setTempPrintDuplicateBySections(false);
       setTempPrintTemplate('kitchen');
+      setTempPrintDebugContext(null);
       autoPrintingOrderIdsRef.current.delete(order.id);
     }
   }, [appSettings, logOrderEvent, notifyAutoPrintError, showAutoPrintSimulator, showToast, waitForReceiptRenderFrames, waitForReceiptTemplateRef]);
@@ -636,6 +662,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
                 showTicketCounter={hasAnySimulatorAssignment(appSettings)}
                 onlyTicketIndex={tempPrintTicketIndex}
                 duplicateBySections={tempPrintDuplicateBySections}
+                printDebugContext={tempPrintDebugContext}
               />
             )}
           </View>

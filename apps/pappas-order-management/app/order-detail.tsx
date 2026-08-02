@@ -325,6 +325,7 @@ export default function OrderDetailScreen() {
       simulatorImageLabels={simulatorImageLabels}
       renderInModal={false}
       forceFullScreen
+      routedKitchenPrintStrategy="first-ticket-section"
     />
   );
 }

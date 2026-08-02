@@ -5,10 +5,15 @@ import { Button as PaperButton, IconButton, Surface, Card, Divider } from 'react
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { ReceiptTemplate } from './ReceiptTemplate';
 import { PrintSimulatorModal } from './PrintSimulatorModal';
-import { hasAnySimulatorAssignment } from '@/lib/printer-routing';
+import {
+  buildSectionPrintJobs,
+  getSectionPrintTickets,
+  hasAnySimulatorAssignment,
+  resolvePrinterForSection,
+} from '@/lib/printer-routing';
 import { CustomerReceiptTemplate } from './CustomerReceiptTemplate';
 import { captureReceiptPreviewAndRaw, type PrinterImageSource } from '@/lib/printer-image';
-import type { SavedPrinter } from '@/lib/escpos-printer';
+import { isSimulatorPrinter, type SavedPrinter } from '@/lib/escpos-printer';
 import { ManualPrintButton } from '@/components/printer/ManualPrintButton';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { getFriendlyOrderNumber } from '../utils/orderNumber';
@@ -22,7 +27,13 @@ import {
 } from '../utils/constants';
 import { paymentSummary, getNextQuickAction, groupAddons, getOrderLineItemCount, getOrderNotes, getOrderOptions } from '../utils/orderUtils';
 import type { AppSettings } from '../lib/settings';
-import { DEFAULT_APP_SETTINGS } from '../lib/settings';
+import { DEFAULT_APP_SETTINGS, loadAppSettings } from '../lib/settings';
+import { getPrintDeviceId } from '@/lib/print-device';
+import {
+  buildKitchenPrintDebugContext,
+  createPrintDebugSessionId,
+  type KitchenPrintDebugContext,
+} from '@/lib/print-debug-footer';
 import { useRouter } from 'expo-router';
 import { getOrder } from '../lib/orders';
 import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
@@ -57,6 +68,7 @@ interface OrderDetailModalProps {
   availablePrinters?: SavedPrinter[];
   renderInModal?: boolean;
   forceFullScreen?: boolean;
+  routedKitchenPrintStrategy?: 'prefer-simulator' | 'first-ticket-section';
 }
 
 export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
@@ -85,6 +97,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   availablePrinters = [],
   renderInModal = true,
   forceFullScreen = false,
+  routedKitchenPrintStrategy = 'prefer-simulator',
 }) => {
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -92,6 +105,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const isWide = width >= 920;
   const [isCapturing, setIsCapturing] = React.useState(false);
   const [captureTarget, setCaptureTarget] = React.useState<'kitchen' | 'customer' | null>(null);
+  const [printDebugContext, setPrintDebugContext] = React.useState<KitchenPrintDebugContext | null>(null);
   const [printPreviewOrder, setPrintPreviewOrder] = React.useState<Order | null>(null);
   const [showPayByLink, setShowPayByLink] = React.useState(false);
   const receiptRef = React.useRef(null);
@@ -198,10 +212,47 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     } else if (latestOrderResult.error) {
       console.warn('[OrderDetailModal] Failed to refresh order before printing:', latestOrderResult.error);
     }
-    
+
     // If onPrintImage is provided, capture the template first
     if (onPrintImage) {
       try {
+        const effectiveSettings = await loadAppSettings().catch(() => appSettings);
+        const deviceId = await getPrintDeviceId().catch(() => 'unknown');
+        const routedJobs = buildSectionPrintJobs(effectiveSettings, printOrder);
+        const routedJob = printer
+          ? null
+          : routedKitchenPrintStrategy === 'first-ticket-section'
+            ? (() => {
+                const sectionName = getSectionPrintTickets(printOrder)[0]?.sections[0]?.sectionName || null;
+                const resolvedPrinter = resolvePrinterForSection(effectiveSettings, sectionName);
+                return resolvedPrinter ? {
+                  label: `${sectionName || 'Default'} -> ${resolvedPrinter.deviceName}`,
+                  sectionName,
+                  printer: resolvedPrinter,
+                } : null;
+              })()
+            : routedJobs.find((job) => !!job.printer && isSimulatorPrinter(job.printer))
+              || routedJobs.find((job) => !!job.printer && !isSimulatorPrinter(job.printer))
+              || null;
+        const resolvedPrintPrinter = printer || routedJob?.printer || null;
+        setPrintDebugContext(buildKitchenPrintDebugContext({
+          enabled: effectiveSettings.printerDebugFooter,
+          registerName: effectiveSettings.registerName,
+          deviceId,
+          sessionId: createPrintDebugSessionId(),
+          trigger: 'reprint',
+          routeLabel: printer ? `Manual -> ${printer.deviceName}` : routedJob?.label || 'No resolved route',
+          sectionName: routedJob?.sectionName || 'All',
+          printerName: resolvedPrintPrinter?.deviceName,
+          printerTarget: resolvedPrintPrinter?.target,
+          printMode: 'combine',
+          copies: 1,
+          autoPrintEnabled: effectiveSettings.printerAutoPrint,
+          autoPrintDelaySeconds: effectiveSettings.printerDelayPrintSec,
+          paperWidth: appSettings.printerPaperWidth,
+          highQuality: appSettings.printerHighQuality,
+          capturedAt: new Date().toISOString(),
+        }));
         setIsCapturing(true);
         setCaptureTarget('kitchen');
         // Small delay to ensure the hidden view is rendered
@@ -214,7 +265,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
         const scale = appSettings.printerHighQuality ? 2 : 1;
         
         const image = await captureReceiptPreviewAndRaw(receiptRef.current, targetDots * scale);
-        success = await onPrintImage(printOrder, image, printer);
+        success = await onPrintImage(printOrder, image, resolvedPrintPrinter);
       } catch (error) {
         console.error('Manual receipt print failed:', error);
         Alert.alert(
@@ -225,6 +276,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       } finally {
         setIsCapturing(false);
         setCaptureTarget(null);
+        setPrintDebugContext(null);
       }
     } else {
       success = await onPrint(printOrder, printer);
@@ -645,6 +697,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                   width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
                   printSource="order-detail-modal:capture"
                   showTicketCounter={hasAnySimulatorAssignment(appSettings)}
+                  printDebugContext={printDebugContext}
                 />
               </View>
             ) : null}
