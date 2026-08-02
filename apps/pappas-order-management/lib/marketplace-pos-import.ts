@@ -22,6 +22,23 @@ type ChannelFinancialBreakdown = {
   netSales: number | null;
 };
 
+type MarketplaceTimelineEvent = {
+  changedAt?: number;
+  orderState?: string | null;
+  state?: string | null;
+  status?: string | null;
+  description?: string | null;
+};
+
+type MarketplaceOrderStatus =
+  | 'confirmed'
+  | 'preparing'
+  | 'ready'
+  | 'on_the_way'
+  | 'completed'
+  | 'cancelled'
+  | 'refunded';
+
 function roundCurrency(value: number): number {
   return Math.round(value * 100) / 100;
 }
@@ -55,15 +72,34 @@ export function findRemovableIngredientName(
 
 export function getMarketplaceOrderStatus(
   marketplaceState: string | null | undefined,
-  statusDescription: string | null | undefined
-): 'confirmed' | 'preparing' | 'ready' | 'completed' | 'cancelled' | 'refunded' {
-  const status = normalizeMarketplaceName(`${marketplaceState ?? ''} ${statusDescription ?? ''}`);
+  statusDescription: string | null | undefined,
+  timeline: MarketplaceTimelineEvent[] = []
+): MarketplaceOrderStatus {
+  const statuses = [
+    marketplaceState,
+    statusDescription,
+    ...timeline.flatMap((event) => [
+      event.orderState,
+      event.state,
+      event.status,
+      event.description,
+    ]),
+  ].map((value) => normalizeMarketplaceName(value ?? ''));
+  const hasStatus = (value: string) => statuses.some((status) => status.includes(value));
 
-  if (status.includes('refund')) return 'refunded';
-  if (status.includes('cancel')) return 'cancelled';
-  if (status.includes('complete') || status.includes('deliver')) return 'completed';
-  if (status.includes('ready')) return 'ready';
-  if (status.includes('prepar')) return 'preparing';
+  if (hasStatus('refund')) return 'refunded';
+  if (hasStatus('cancel')) return 'cancelled';
+  if (hasStatus('complete') || hasStatus('delivered')) return 'completed';
+  if (
+    hasStatus('picked up') ||
+    hasStatus('en route') ||
+    hasStatus('on the way') ||
+    hasStatus('out for delivery')
+  ) {
+    return 'on_the_way';
+  }
+  if (hasStatus('ready')) return 'ready';
+  if (hasStatus('prepar')) return 'preparing';
 
   return 'confirmed';
 }

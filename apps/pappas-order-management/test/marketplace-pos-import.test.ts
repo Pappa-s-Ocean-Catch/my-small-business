@@ -80,6 +80,31 @@ test('uses a marketplace status description when the state is otherwise unknown'
   assert.equal(getMarketplaceOrderStatus('IN_PROGRESS', null), 'confirmed');
 });
 
+test('maps marketplace delivery progress from state, description, and timeline', () => {
+  assert.equal(getMarketplaceOrderStatus('PICKED_UP', null), 'on_the_way');
+  assert.equal(getMarketplaceOrderStatus('EN_ROUTE', null), 'on_the_way');
+  assert.equal(getMarketplaceOrderStatus(null, 'Driver is on the way'), 'on_the_way');
+  assert.equal(getMarketplaceOrderStatus(null, 'Driver is out for delivery'), 'on_the_way');
+  assert.equal(
+    getMarketplaceOrderStatus(null, null, [{ changedAt: 1, orderState: 'PICKED_UP' }]),
+    'on_the_way'
+  );
+  assert.equal(
+    getMarketplaceOrderStatus(null, null, [{ changedAt: 1, orderState: 'DELIVERED' }]),
+    'completed'
+  );
+});
+
+test('gives terminal marketplace statuses precedence over delivery progress', () => {
+  assert.equal(
+    getMarketplaceOrderStatus('PICKED_UP', null, [{ changedAt: 2, orderState: 'CANCELLED' }]),
+    'cancelled'
+  );
+  assert.equal(
+    getMarketplaceOrderStatus('DELIVERED', 'Refunded after delivery'), 'refunded'
+  );
+});
+
 test('recognizes the marketplace duplicate database error', () => {
   assert.equal(
     isMarketplaceImportDuplicateError({ code: '23505', message: 'orders_unique_marketplace_import' }),
