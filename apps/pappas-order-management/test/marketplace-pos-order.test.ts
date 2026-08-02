@@ -182,6 +182,129 @@ test('imports a new marketplace detail through savePosOrder exactly once', async
   assert.equal((saveCalls[0].items[0].addons as unknown[]).length, 1);
 });
 
+test('imports No Salt as an exact POS add-on before treating it as an ingredient removal', async () => {
+  const savedOrder = { ...existingOrder, id: 'pos-no-salt', order_status: 'ready' } as Order;
+  const saveCalls: Array<{ items: Array<Record<string, unknown>> }> = [];
+  const service = createMarketplacePosOrderService({
+    findMarketplaceOrder: async () => ({ data: null, error: null }),
+    savePosOrder: async (_orderPayload, items) => {
+      saveCalls.push({ items: items as unknown as Array<Record<string, unknown>> });
+      return { data: savedOrder, error: null };
+    },
+    updateMarketplaceOrder: async () => {
+      throw new Error('a new order must not enter the update path');
+    },
+    loadCatalog: async () => ({
+      products: [{
+        id: 'burger', name: 'Classic Burger', description: 'Beef burger', section: 'Grilled',
+        search_term: null, sale_price: 20, image_url: null, sale_category_id: 'mains',
+        sub_category_id: null, sort_order: 1, is_active: true,
+      }],
+      categories: [{ id: 'mains', section: 'Grilled' }],
+    }),
+    loadMappings: async () => [],
+    loadProductCustomizations: async () => ({
+      groups: [{
+        id: 'extras', name: 'Extras', is_required: false, multiple_choice: true, display_order: 1,
+        items: [{
+          id: 'no-salt', addon_group_id: 'extras', name: 'No Salt', extra_price: 0,
+          section: null, sort_order: 1, is_active: true,
+        }],
+      }],
+      removableIngredients: [
+        { id: 'salt', ingredient_name: 'Salt', customer_can_remove: true },
+        { id: 'tomato', ingredient_name: 'Tomato', customer_can_remove: true },
+      ],
+    }),
+    recordUnmatchedName: async () => undefined,
+    createLocalId: () => 'local-item',
+    now: () => new Date('2026-08-02T00:00:00.000Z'),
+  });
+
+  const result = await service.importMarketplaceOrder({
+    ...detail,
+    items: [{
+      ...detail.items[0],
+      customizations: [{
+        name: 'Choices',
+        options: [
+          { name: 'No   Salt', quantity: 1, price: null },
+          { name: 'No Tomato', quantity: 1, price: null },
+        ],
+      }],
+    }],
+  });
+
+  assert.equal(result.created, true);
+  assert.equal(result.error, null);
+  assert.equal(saveCalls.length, 1);
+  assert.deepEqual(saveCalls[0].items[0].removed_ingredients, ['Tomato']);
+  const addons = saveCalls[0].items[0].addons as Array<Record<string, unknown>>;
+  assert.equal(addons.length, 1);
+  assert.equal(addons[0].addon_item_id, 'no-salt');
+  assert.equal(addons[0].addon_item_name, 'No Salt');
+});
+
+test('uses an explicit No Salt add-on mapping before removal processing', async () => {
+  const savedOrder = { ...existingOrder, id: 'pos-mapped-no-salt', order_status: 'ready' } as Order;
+  const saveCalls: Array<{ items: Array<Record<string, unknown>> }> = [];
+  const service = createMarketplacePosOrderService({
+    findMarketplaceOrder: async () => ({ data: null, error: null }),
+    savePosOrder: async (_orderPayload, items) => {
+      saveCalls.push({ items: items as unknown as Array<Record<string, unknown>> });
+      return { data: savedOrder, error: null };
+    },
+    updateMarketplaceOrder: async () => {
+      throw new Error('a new order must not enter the update path');
+    },
+    loadCatalog: async () => ({
+      products: [{
+        id: 'burger', name: 'Classic Burger', description: 'Beef burger', section: 'Grilled',
+        search_term: null, sale_price: 20, image_url: null, sale_category_id: 'mains',
+        sub_category_id: null, sort_order: 1, is_active: true,
+      }],
+      categories: [{ id: 'mains', section: 'Grilled' }],
+    }),
+    loadMappings: async () => [{
+      provider: 'uber_eats', entity_type: 'addon', external_name: 'No Salt',
+      normalized_external_name: 'no salt', internal_name: 'No Salt Light', is_active: true,
+    }],
+    loadProductCustomizations: async () => ({
+      groups: [{
+        id: 'extras', name: 'Extras', is_required: false, multiple_choice: true, display_order: 1,
+        items: [{
+          id: 'no-salt-light', addon_group_id: 'extras', name: 'No Salt Light', extra_price: 0,
+          section: null, sort_order: 1, is_active: true,
+        }],
+      }],
+      removableIngredients: [{ id: 'salt', ingredient_name: 'Salt', customer_can_remove: true }],
+    }),
+    recordUnmatchedName: async () => undefined,
+    createLocalId: () => 'local-item',
+    now: () => new Date('2026-08-02T00:00:00.000Z'),
+  });
+
+  const result = await service.importMarketplaceOrder({
+    ...detail,
+    items: [{
+      ...detail.items[0],
+      customizations: [{
+        name: 'Choices',
+        options: [{ name: 'No Salt', quantity: 1, price: null }],
+      }],
+    }],
+  });
+
+  assert.equal(result.created, true);
+  assert.equal(result.error, null);
+  assert.equal(saveCalls.length, 1);
+  assert.deepEqual(saveCalls[0].items[0].removed_ingredients, []);
+  const addons = saveCalls[0].items[0].addons as Array<Record<string, unknown>>;
+  assert.equal(addons.length, 1);
+  assert.equal(addons[0].addon_item_id, 'no-salt-light');
+  assert.equal(addons[0].addon_item_name, 'No Salt Light');
+});
+
 test('does not create an order when required customization data fails to load', async () => {
   let saveCalls = 0;
   const service = createMarketplacePosOrderService({

@@ -355,7 +355,28 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
       const removedIngredients: string[] = [];
 
       flattenedOptions.forEach((option) => {
-        const removalCandidate = getMarketplaceRemovalCandidate(option.name);
+        const addonAlias = marketplaceMappings.find((mapping) => (
+          mapping.entity_type === 'addon'
+          && mapping.normalized_external_name === normalizeMarketplaceName(option.name)
+        ));
+        const optionMatches = customizationData.groups.flatMap((group) => (
+          group.items.map((groupItem) => ({
+            group,
+            addonItem: groupItem,
+            score: getNameSimilarity(option.name, groupItem.name),
+          }))
+        )).sort((left, right) => right.score - left.score);
+        const exactOptionMatch = addonAlias?.is_active
+          ? optionMatches.find((match) => (
+            normalizeMarketplaceName(match.addonItem.name)
+            === normalizeMarketplaceName(addonAlias.internal_name)
+          )) ?? null
+          : optionMatches.find((match) => (
+            normalizeMarketplaceName(match.addonItem.name)
+            === normalizeMarketplaceName(option.name)
+          )) ?? null;
+
+        const removalCandidate = exactOptionMatch ? null : getMarketplaceRemovalCandidate(option.name);
         if (removalCandidate) {
           const ingredientAlias = marketplaceMappings.find((mapping) => (
             mapping.entity_type === 'ingredient'
@@ -382,23 +403,12 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
           return;
         }
 
-        const addonAlias = marketplaceMappings.find((mapping) => (
-          mapping.entity_type === 'addon'
-          && mapping.normalized_external_name === normalizeMarketplaceName(option.name)
-        ));
-        const optionMatches = customizationData.groups.flatMap((group) => (
-          group.items.map((groupItem) => ({
-            group,
-            addonItem: groupItem,
-            score: getNameSimilarity(option.name, groupItem.name),
-          }))
-        )).sort((left, right) => right.score - left.score);
-        const bestOptionMatch = addonAlias
+        const bestOptionMatch = exactOptionMatch ?? (addonAlias
           ? optionMatches.find((match) => (
             normalizeMarketplaceName(match.addonItem.name)
             === normalizeMarketplaceName(addonAlias.internal_name)
           )) ?? null
-          : optionMatches[0] ?? null;
+          : optionMatches[0] ?? null);
 
         if (!bestOptionMatch || (!addonAlias && bestOptionMatch.score < MARKETPLACE_MATCH_THRESHOLD)) {
           unmatchedOptions.push(`${item.name}: ${option.name}`);
