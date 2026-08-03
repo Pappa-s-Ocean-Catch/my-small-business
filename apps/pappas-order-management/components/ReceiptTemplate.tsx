@@ -1,9 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, Image, StyleSheet } from 'react-native';
 import type { Order } from '@my-small-business/types';
 import {
   buildKitchenReceiptCopies,
-  getOrderChannelReceiptLabel,
+  getReceiptHeader,
   getOrderDisplaySubtotal,
   getOrderDisplayTotal,
   getOrderItemDisplaySubtotal,
@@ -46,6 +46,12 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
   const promotionLabel = promotionSummary?.label || 'Promotion Discount';
   const displaySubtotal = getOrderDisplaySubtotal(order);
   const displayTotal = getOrderDisplayTotal(order);
+  const receiptHeader = getReceiptHeader(order);
+  const marketplaceLogo = receiptHeader.logo === 'uber_eats'
+    ? require('../assets/ubereats-logo.png')
+    : receiptHeader.logo === 'doordash'
+      ? require('../assets/doordash-logo.png')
+      : null;
 
   const rewardPointsUsed = order.reward_points_used ?? 0;
   const rewardPointsValue = order.reward_points_value ?? 0;
@@ -91,6 +97,13 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
           key={ticket.key}
           style={[styles.container, { width }, ticketIdx > 0 ? styles.ticketSpacing : null]}
         >
+          <View style={styles.receiptHeader}>
+            {marketplaceLogo && (
+              <Image source={marketplaceLogo} style={styles.marketplaceLogo} resizeMode="contain" />
+            )}
+            <Text style={styles.receiptHeaderLabel}>{receiptHeader.label}</Text>
+          </View>
+
           {showTicketCounter && tickets.length > 1 && (
             <View style={styles.ticketCounterRow}>
               <Text style={styles.ticketCounterText}>{ticket.copyNumber}/{ticket.totalCopies}</Text>
@@ -105,31 +118,31 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
           )}
 
           <Text style={styles.headerText}>{createdDate}</Text>
-          <Text style={styles.headerText}>
-            {getOrderChannelReceiptLabel(order)} • {order.payment_method?.toUpperCase()}
-          </Text>
+          <Text style={styles.headerText}>{order.payment_method?.toUpperCase()}</Text>
 
           <View style={styles.divider} />
 
           <View style={styles.section}>
-            <Text style={styles.largeBoldText}>{order.customer_name || order.customer_email}</Text>
-            {order.customer_phone && <Text style={styles.largeBoldText}>{order.customer_phone}</Text>}
+            <View style={styles.customerSection}>
+              <Text style={styles.customerLargeBoldText}>{order.customer_name || order.customer_email}</Text>
+              {order.customer_phone && <Text style={styles.customerLargeBoldText}>{order.customer_phone}</Text>}
             {order.order_type === 'delivery' && order.delivery_address_line1 && (
               <View style={styles.deliveryContainer}>
-                <Text style={styles.normalText}>Delivery Address:</Text>
-                <Text style={styles.boldText}>{order.delivery_address_line1}</Text>
-                {order.delivery_address_line2 && <Text style={styles.boldText}>{order.delivery_address_line2}</Text>}
-                <Text style={styles.boldText}>
+                <Text style={styles.customerNormalText}>Delivery Address:</Text>
+                <Text style={styles.customerBoldText}>{order.delivery_address_line1}</Text>
+                {order.delivery_address_line2 && <Text style={styles.customerBoldText}>{order.delivery_address_line2}</Text>}
+                <Text style={styles.customerBoldText}>
                   {[order.delivery_city, order.delivery_state, order.delivery_postcode].filter(Boolean).join(' ')}
                 </Text>
-                <Text style={styles.normalText}>Delivery Status: {deliveryStatusLabel}</Text>
-                {order.delivery_driver_name && <Text style={styles.normalText}>Driver: {order.delivery_driver_name}</Text>}
-                {order.delivery_driver_phone && <Text style={styles.normalText}>Driver Phone: {order.delivery_driver_phone}</Text>}
-                {order.delivery_driver_pin && <Text style={styles.normalText}>Driver PIN: {order.delivery_driver_pin}</Text>}
-                {order.delivery_vehicle_info && <Text style={styles.normalText}>Vehicle: {order.delivery_vehicle_info}</Text>}
-                {order.delivery_instructions && <Text style={styles.normalText}>Instructions: {order.delivery_instructions}</Text>}
+                <Text style={styles.customerNormalText}>Delivery Status: {deliveryStatusLabel}</Text>
+                {order.delivery_driver_name && <Text style={styles.customerNormalText}>Driver: {order.delivery_driver_name}</Text>}
+                {order.delivery_driver_phone && <Text style={styles.customerNormalText}>Driver Phone: {order.delivery_driver_phone}</Text>}
+                {order.delivery_driver_pin && <Text style={styles.customerNormalText}>Driver PIN: {order.delivery_driver_pin}</Text>}
+                {order.delivery_vehicle_info && <Text style={styles.customerNormalText}>Vehicle: {order.delivery_vehicle_info}</Text>}
+                {order.delivery_instructions && <Text style={styles.customerNormalText}>Instructions: {order.delivery_instructions}</Text>}
               </View>
             )}
+            </View>
           </View>
 
           {orderNotes && (
@@ -290,6 +303,21 @@ const styles = StyleSheet.create({
   ticketSpacing: {
     marginTop: 32,
   },
+  receiptHeader: {
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  marketplaceLogo: {
+    width: 220,
+    height: 72,
+    marginBottom: 16,
+  },
+  receiptHeaderLabel: {
+    fontSize: 48,
+    fontWeight: 'bold',
+    color: '#000',
+    textAlign: 'center',
+  },
   ticketCounterRow: {
     alignItems: 'flex-end',
     marginBottom: 4,
@@ -326,6 +354,25 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: 12,
+  },
+  customerSection: {
+    backgroundColor: '#000',
+    padding: 12,
+    borderRadius: 4,
+  },
+  customerLargeBoldText: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  customerNormalText: {
+    fontSize: 30,
+    color: '#fff',
+  },
+  customerBoldText: {
+    fontSize: 30,
+    fontWeight: 'bold',
+    color: '#fff',
   },
   normalText: {
     fontSize: 30,

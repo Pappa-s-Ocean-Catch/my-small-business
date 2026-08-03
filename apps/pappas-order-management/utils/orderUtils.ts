@@ -170,6 +170,34 @@ export const getOrderChannelLabel = (order: Order): string => {
 
 export const getOrderChannelReceiptLabel = (order: Order): string => getOrderChannelLabel(order).toUpperCase();
 
+export type ReceiptHeader = {
+  label: string;
+  logo: 'uber_eats' | 'doordash' | null;
+};
+
+export const getReceiptHeader = (order: Order): ReceiptHeader => {
+  const channel = getOrderChannel(order);
+  const partner = order.delivery_partner_name?.trim().toLowerCase();
+
+  if (channel === 'third_party' && partner === 'uber eats') {
+    return { label: 'DELIVERY', logo: 'uber_eats' };
+  }
+  if (channel === 'third_party' && partner === 'doordash') {
+    return { label: 'DELIVERY', logo: 'doordash' };
+  }
+  if (channel === 'instore') {
+    return { label: 'INSTORE', logo: null };
+  }
+  if (channel === 'phone_pickup') {
+    return { label: 'PHONE PICKUP', logo: null };
+  }
+  if (channel === 'phone_delivery') {
+    return { label: 'PHONE DELIVERY', logo: null };
+  }
+
+  return { label: getOrderChannelReceiptLabel(order), logo: null };
+};
+
 const KNOWN_ORDER_OPTIONS = new Set([
   'Chicken salt',
   'Salt',
