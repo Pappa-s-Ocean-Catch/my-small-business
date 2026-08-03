@@ -13,7 +13,20 @@ type MarketplaceImportResult = {
   error: string | null;
 };
 
-type MarketplaceSyncDependencies<Detail> = {
+type MarketplaceStatusSyncResult<SyncedOrder> = {
+  order: SyncedOrder | null;
+  error: string | null;
+};
+
+type OpenMarketplaceOrderForHistory = {
+  id: string;
+  provider: MarketplaceProvider;
+  externalOrderId: string;
+  workflowUuid: string | null;
+  orderStatus: string;
+};
+
+type MarketplaceSyncDependencies<Detail, SyncedOrder> = {
   getActiveOrders: (
     provider: MarketplaceProvider,
     cursor?: string
@@ -28,13 +41,81 @@ type MarketplaceSyncDependencies<Detail> = {
   importMarketplaceOrder: (
     detail: Detail
   ) => Promise<MarketplaceImportResult>;
+  getOpenMarketplaceOrdersForHistory: () => Promise<{
+    data: OpenMarketplaceOrderForHistory[] | null;
+    error: string | null;
+  }>;
+  syncMarketplaceOrderStatus: (
+    provider: MarketplaceProvider,
+    externalOrderId: string,
+    detail: Detail
+  ) => Promise<MarketplaceStatusSyncResult<SyncedOrder>>;
   logError?: (message: string, error: unknown) => void;
   setInterval?: (callback: () => void, delayMs: number) => unknown;
   clearInterval?: (handle: unknown) => void;
 };
 
-export function createMarketplaceSyncCoordinator<Detail>(
-  dependencies: MarketplaceSyncDependencies<Detail>
+type ManualMarketplaceSyncOrder = {
+  order_channel: string;
+  delivery_partner_name: string | null;
+  external_order_number: string | null;
+  marketplace_workflow_uuid: string | null;
+};
+
+export type ManualMarketplaceSyncTarget = {
+  provider: MarketplaceProvider;
+  externalOrderId: string;
+  workflowUuid: string;
+};
+
+const TERMINAL_ORDER_STATUSES = new Set(['completed', 'cancelled', 'refunded']);
+
+export function getManualMarketplaceSyncTarget(
+  order: ManualMarketplaceSyncOrder
+): ManualMarketplaceSyncTarget | null {
+  if (order.order_channel !== 'third_party') return null;
+
+  const partnerName = order.delivery_partner_name?.trim().toLowerCase();
+  const provider = partnerName === 'uber eats'
+    ? 'uber_eats'
+    : partnerName === 'doordash' || partnerName === 'door dash'
+      ? 'doordash'
+      : null;
+  const externalOrderId = order.external_order_number?.trim();
+  const workflowUuid = order.marketplace_workflow_uuid?.trim();
+
+  return provider && externalOrderId && workflowUuid
+    ? { provider, externalOrderId, workflowUuid }
+    : null;
+}
+
+export async function syncMarketplaceOrderOnDemand<Detail, SyncedOrder>(input: {
+  provider: MarketplaceProvider;
+  externalOrderId: string;
+  workflowUuid: string;
+  getOrderDetail: (
+    provider: MarketplaceProvider,
+    workflowUuid: string,
+    options: { mode: 'live' | 'history' }
+  ) => Promise<Detail>;
+  syncMarketplaceOrderStatus: (
+    provider: MarketplaceProvider,
+    externalOrderId: string,
+    detail: Detail
+  ) => Promise<MarketplaceStatusSyncResult<SyncedOrder>>;
+}): Promise<MarketplaceStatusSyncResult<SyncedOrder>> {
+  let detail: Detail;
+  try {
+    detail = await input.getOrderDetail(input.provider, input.workflowUuid, { mode: 'live' });
+  } catch {
+    detail = await input.getOrderDetail(input.provider, input.workflowUuid, { mode: 'history' });
+  }
+
+  return input.syncMarketplaceOrderStatus(input.provider, input.externalOrderId, detail);
+}
+
+export function createMarketplaceSyncCoordinator<Detail, SyncedOrder>(
+  dependencies: MarketplaceSyncDependencies<Detail, SyncedOrder>
 ) {
   const logError = dependencies.logError ?? ((message: string, error: unknown) => {
     console.error(message, error);
@@ -71,12 +152,67 @@ export function createMarketplaceSyncCoordinator<Detail>(
     }
   };
 
-  const syncProvider = async (provider: MarketplaceProvider) => {
+  const syncMissingOrder = async (order: OpenMarketplaceOrderForHistory) => {
+    const externalOrderId = order.externalOrderId.trim();
+    const workflowUuid = order.workflowUuid?.trim();
+    if (
+      !externalOrderId
+      || !workflowUuid
+      || TERMINAL_ORDER_STATUSES.has(order.orderStatus)
+    ) {
+      return;
+    }
+
     try {
-      const active = await dependencies.getActiveOrders(provider);
-      await Promise.all(active.orders.map((order) => (
-        syncOrder(provider, order.orderId, order.workflowUuid)
-      )));
+      const detail = await dependencies.getOrderDetail(
+        order.provider,
+        workflowUuid,
+        { mode: 'history' }
+      );
+      const result = await dependencies.syncMarketplaceOrderStatus(
+        order.provider,
+        externalOrderId,
+        detail
+      );
+      if (result.error) {
+        logError(
+          `[marketplace-sync] ${order.provider} order ${externalOrderId} history status failed`,
+          result.error
+        );
+      }
+    } catch (error) {
+      logError(
+        `[marketplace-sync] ${order.provider} order ${externalOrderId} history sync failed`,
+        error
+      );
+    }
+  };
+
+  const syncProvider = async (
+    provider: MarketplaceProvider,
+    openOrdersPromise: Promise<OpenMarketplaceOrderForHistory[]>
+  ) => {
+    try {
+      const [active, openOrders] = await Promise.all([
+        dependencies.getActiveOrders(provider),
+        openOrdersPromise,
+      ]);
+      const activeOrderIds = new Set(
+        active.orders
+          .map((order) => order.orderId.trim())
+          .filter(Boolean)
+      );
+      const missingOrders = openOrders.filter((order) => (
+        order.provider === provider
+        && !activeOrderIds.has(order.externalOrderId.trim())
+      ));
+
+      await Promise.all([
+        ...active.orders.map((order) => (
+          syncOrder(provider, order.orderId, order.workflowUuid)
+        )),
+        ...missingOrders.map(syncMissingOrder),
+      ]);
     } catch (error) {
       logError(`[marketplace-sync] ${provider} active orders failed`, error);
     }
@@ -87,7 +223,20 @@ export function createMarketplaceSyncCoordinator<Detail>(
 
     inFlight = true;
     try {
-      await Promise.all(MARKETPLACE_PROVIDERS.map(syncProvider));
+      const openOrdersPromise = dependencies.getOpenMarketplaceOrdersForHistory()
+        .then((result) => {
+          if (result.error) {
+            logError('[marketplace-sync] open marketplace orders failed', result.error);
+          }
+          return result.data ?? [];
+        })
+        .catch((error) => {
+          logError('[marketplace-sync] open marketplace orders failed', error);
+          return [];
+        });
+      await Promise.all(MARKETPLACE_PROVIDERS.map((provider) => (
+        syncProvider(provider, openOrdersPromise)
+      )));
     } finally {
       inFlight = false;
     }

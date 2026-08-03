@@ -40,6 +40,12 @@ import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
 import { getOrderPromotionSummary, isFreePromotionOrderItem } from '@/lib/promotion-summary';
 import { PayByLinkModal } from './PayByLinkModal';
 import { canPayByLink } from '../utils/pay-by-link';
+import { getMarketplaceOrderDetail } from '@/lib/marketplace';
+import {
+  getManualMarketplaceSyncTarget,
+  syncMarketplaceOrderOnDemand,
+} from '@/lib/marketplace-sync';
+import { syncMarketplaceOrderStatus } from '@/lib/marketplace-pos-order';
 
 interface OrderDetailModalProps {
   visible: boolean;
@@ -73,7 +79,7 @@ interface OrderDetailModalProps {
 
 export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   visible,
-  order,
+  order: orderProp,
   onClose,
   onOrderRefresh,
   onPrint,
@@ -108,11 +114,18 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const [printDebugContext, setPrintDebugContext] = React.useState<KitchenPrintDebugContext | null>(null);
   const [printPreviewOrder, setPrintPreviewOrder] = React.useState<Order | null>(null);
   const [showPayByLink, setShowPayByLink] = React.useState(false);
+  const [refreshedOrder, setRefreshedOrder] = React.useState<Order | null>(orderProp);
+  const [isMarketplaceSyncing, setIsMarketplaceSyncing] = React.useState(false);
+  const order = refreshedOrder?.id === orderProp?.id ? refreshedOrder : orderProp;
   const receiptRef = React.useRef(null);
   const customerReceiptRef = React.useRef(null);
   const orderPrintState = usePrinterAutomationStore((state) => (
     order?.id ? state.orderPrintStates[order.id] || null : null
   ));
+
+  React.useEffect(() => {
+    setRefreshedOrder(orderProp);
+  }, [orderProp]);
 
   React.useEffect(() => {
     setPrintPreviewOrder(order);
@@ -125,6 +138,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     const refreshOrder = async () => {
       const latestOrderResult = await getOrder(order.id);
       if (!mounted || !latestOrderResult.data) return;
+      setRefreshedOrder(latestOrderResult.data);
       onOrderRefresh?.(latestOrderResult.data);
     };
 
@@ -356,6 +370,32 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const showPaymentAction = onPaymentStatusUpdate && order.payment_status === 'pending';
   const showCancelAction = onStatusUpdate && order.order_status !== 'completed' && order.order_status !== 'cancelled';
   const showDeliveryRefreshAction = !!onRefreshDeliveryStatus && order.order_type === 'delivery';
+  const marketplaceSyncTarget = getManualMarketplaceSyncTarget(order);
+
+  const handleMarketplaceStatusSync = async () => {
+    if (!marketplaceSyncTarget || isMarketplaceSyncing) return;
+
+    setIsMarketplaceSyncing(true);
+    try {
+      const result = await syncMarketplaceOrderOnDemand({
+        ...marketplaceSyncTarget,
+        getOrderDetail: getMarketplaceOrderDetail,
+        syncMarketplaceOrderStatus,
+      });
+      if (result.error || !result.order) {
+        throw new Error(result.error || 'The local marketplace order could not be refreshed.');
+      }
+      setRefreshedOrder(result.order);
+      onOrderRefresh?.(result.order);
+    } catch (error) {
+      Alert.alert(
+        'Marketplace status sync failed',
+        error instanceof Error ? error.message : 'Failed to sync marketplace order status.'
+      );
+    } finally {
+      setIsMarketplaceSyncing(false);
+    }
+  };
 
   const content = (
       <View style={styles.container}>
@@ -610,6 +650,19 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 compact={!isWide}
               >
                 Refresh Delivery
+              </PaperButton>
+            )}
+            {marketplaceSyncTarget && (
+              <PaperButton
+                mode="outlined"
+                icon="sync"
+                onPress={handleMarketplaceStatusSync}
+                disabled={isMarketplaceSyncing || isUpdating}
+                loading={isMarketplaceSyncing}
+                style={styles.actionButton}
+                compact={!isWide}
+              >
+                Sync marketplace status
               </PaperButton>
             )}
             {showCancelAction && (

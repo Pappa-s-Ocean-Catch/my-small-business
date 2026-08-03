@@ -327,7 +327,7 @@ export async function getOpenMarketplaceOrdersForHistory(): Promise<{
     if (error) return { data: null, error: error.message };
 
     const orders = (data || []).flatMap((row) => {
-      const provider = row.delivery_partner_name === 'Uber Eats'
+      const provider: MarketplaceProvider | null = row.delivery_partner_name === 'Uber Eats'
         ? 'uber_eats'
         : row.delivery_partner_name === 'DoorDash'
           ? 'doordash'

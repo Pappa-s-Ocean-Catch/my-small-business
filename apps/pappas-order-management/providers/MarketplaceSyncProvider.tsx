@@ -6,7 +6,11 @@ import {
   getMarketplaceActiveOrders,
   getMarketplaceOrderDetail,
 } from '@/lib/marketplace';
-import { importMarketplaceOrder } from '@/lib/marketplace-pos-order';
+import {
+  importMarketplaceOrder,
+  syncMarketplaceOrderStatus,
+} from '@/lib/marketplace-pos-order';
+import { getOpenMarketplaceOrdersForHistory } from '@/lib/orders';
 
 type MarketplaceSyncProviderProps = PropsWithChildren<{
   enabled: boolean;
@@ -20,6 +24,8 @@ export function MarketplaceSyncProvider({
     getActiveOrders: getMarketplaceActiveOrders,
     getOrderDetail: getMarketplaceOrderDetail,
     importMarketplaceOrder,
+    getOpenMarketplaceOrdersForHistory,
+    syncMarketplaceOrderStatus,
   }), []);
 
   useEffect(() => {

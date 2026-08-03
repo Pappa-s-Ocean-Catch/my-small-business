@@ -90,7 +90,7 @@ export function shouldReconcileMarketplaceOrderStatus(
   if (localStatus === upstreamStatus) return false;
 
   return !(
-    LOCAL_KITCHEN_ORDER_STATUSES.includes(localStatus)
+    (LOCAL_KITCHEN_ORDER_STATUSES.includes(localStatus) || localStatus === 'on_the_way')
     && NON_ADVANCING_UPSTREAM_ORDER_STATUSES.includes(upstreamStatus)
   );
 }

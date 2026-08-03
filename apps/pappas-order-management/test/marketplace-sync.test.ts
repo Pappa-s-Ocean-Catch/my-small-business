@@ -4,6 +4,8 @@ import test from 'node:test';
 import {
   MARKETPLACE_SYNC_INTERVAL_MS,
   createMarketplaceSyncCoordinator,
+  getManualMarketplaceSyncTarget,
+  syncMarketplaceOrderOnDemand,
 } from '../lib/marketplace-sync';
 
 function activeResult(
@@ -74,6 +76,8 @@ test('starts with an immediate poll and schedules the next polls every 30 second
       throw new Error('empty active lists must not load details');
     },
     importMarketplaceOrder: async () => ({ order: null, created: false, error: null }),
+    getOpenMarketplaceOrdersForHistory: async () => ({ data: [], error: null }),
+    syncMarketplaceOrderStatus: async () => ({ order: null, error: null }),
     logError: () => undefined,
     setInterval: (callback, delayMs) => {
       scheduled.push({ callback, delayMs });
@@ -117,6 +121,8 @@ test('does not overlap a scheduled poll with one already in flight', async () =>
       throw new Error('empty active lists must not load details');
     },
     importMarketplaceOrder: async () => ({ order: null, created: false, error: null }),
+    getOpenMarketplaceOrdersForHistory: async () => ({ data: [], error: null }),
+    syncMarketplaceOrderStatus: async () => ({ order: null, error: null }),
     logError: () => undefined,
     setInterval: (callback) => {
       scheduledPoll = callback;
@@ -157,6 +163,8 @@ test('processes Uber Eats and DoorDash independently with live detail requests',
       imported.push(orderDetail.orderId);
       return { order: null, created: true, error: null };
     },
+    getOpenMarketplaceOrdersForHistory: async () => ({ data: [], error: null }),
+    syncMarketplaceOrderStatus: async () => ({ order: null, error: null }),
     logError: (message) => logged.push(message),
   });
 
@@ -194,6 +202,8 @@ test('continues importing other active orders when one order fails', async () =>
       imported.push(orderDetail.orderId);
       return { order: null, created: true, error: null };
     },
+    getOpenMarketplaceOrdersForHistory: async () => ({ data: [], error: null }),
+    syncMarketplaceOrderStatus: async () => ({ order: null, error: null }),
     logError: (message) => logged.push(message),
   });
 
@@ -202,4 +212,223 @@ test('continues importing other active orders when one order fails', async () =>
   assert.deepEqual(imported, ['UE-good']);
   assert.equal(logged.length, 1);
   assert.match(logged[0], /UE-broken/);
+});
+
+test('reconciles a missing DoorDash on-the-way order through history using status-only sync', async () => {
+  const detailCalls: Array<{ provider: string; workflowUuid: string; mode: string | undefined }> = [];
+  const statusCalls: Array<{ provider: string; externalOrderId: string; orderId: string }> = [];
+  let importCalls = 0;
+  const dependencies = {
+    getActiveOrders: async (provider: 'uber_eats' | 'doordash') => activeResult(provider, []),
+    getOrderDetail: async (
+      provider: 'uber_eats' | 'doordash',
+      workflowUuid: string,
+      options?: { mode?: 'history' | 'live' }
+    ) => {
+      detailCalls.push({ provider, workflowUuid, mode: options?.mode });
+      return detail(provider, ' DD-42 ');
+    },
+    importMarketplaceOrder: async () => {
+      importCalls += 1;
+      return { order: null, created: false, error: null };
+    },
+    getOpenMarketplaceOrdersForHistory: async () => ({
+      data: [{
+        id: 'local-dd-42',
+        provider: 'doordash' as const,
+        externalOrderId: ' DD-42 ',
+        workflowUuid: ' dd-history-workflow ',
+        orderStatus: 'on_the_way' as const,
+      }],
+      error: null,
+    }),
+    syncMarketplaceOrderStatus: async (
+      provider: 'uber_eats' | 'doordash',
+      externalOrderId: string,
+      orderDetail: ReturnType<typeof detail>
+    ) => {
+      statusCalls.push({ provider, externalOrderId, orderId: orderDetail.orderId });
+      return { order: null, error: null };
+    },
+    logError: () => undefined,
+  };
+  const coordinator = createMarketplaceSyncCoordinator(dependencies);
+
+  await coordinator.poll();
+
+  assert.deepEqual(detailCalls, [{
+    provider: 'doordash',
+    workflowUuid: 'dd-history-workflow',
+    mode: 'history',
+  }]);
+  assert.deepEqual(statusCalls, [{
+    provider: 'doordash',
+    externalOrderId: 'DD-42',
+    orderId: ' DD-42 ',
+  }]);
+  assert.equal(importCalls, 0);
+});
+
+test('does not history-fetch active, terminal, or workflow-less local marketplace orders', async () => {
+  const historyCalls: string[] = [];
+  const dependencies = {
+    getActiveOrders: async (provider: 'uber_eats' | 'doordash') => activeResult(
+      provider,
+      provider === 'uber_eats'
+        ? [{ orderId: ' UE-active ', workflowUuid: 'active-workflow' }]
+        : []
+    ),
+    getOrderDetail: async (
+      provider: 'uber_eats' | 'doordash',
+      workflowUuid: string,
+      options?: { mode?: 'history' | 'live' }
+    ) => {
+      if (options?.mode === 'history') historyCalls.push(workflowUuid);
+      return detail(provider, 'UE-active');
+    },
+    importMarketplaceOrder: async () => ({ order: null, created: false, error: null }),
+    getOpenMarketplaceOrdersForHistory: async () => ({
+      data: [
+        {
+          id: 'active',
+          provider: 'uber_eats' as const,
+          externalOrderId: 'UE-active',
+          workflowUuid: 'active-history-workflow',
+          orderStatus: 'preparing' as const,
+        },
+        {
+          id: 'terminal',
+          provider: 'uber_eats' as const,
+          externalOrderId: 'UE-terminal',
+          workflowUuid: 'terminal-workflow',
+          orderStatus: 'completed' as const,
+        },
+        {
+          id: 'no-workflow',
+          provider: 'doordash' as const,
+          externalOrderId: 'DD-no-workflow',
+          workflowUuid: null,
+          orderStatus: 'on_the_way' as const,
+        },
+      ],
+      error: null,
+    }),
+    syncMarketplaceOrderStatus: async () => ({ order: null, error: null }),
+    logError: () => undefined,
+  };
+  const coordinator = createMarketplaceSyncCoordinator(dependencies);
+
+  await coordinator.poll();
+
+  assert.deepEqual(historyCalls, []);
+});
+
+test('continues history reconciliation after another missing order fails', async () => {
+  const statusCalls: string[] = [];
+  const logged: string[] = [];
+  const dependencies = {
+    getActiveOrders: async (provider: 'uber_eats' | 'doordash') => activeResult(provider, []),
+    getOrderDetail: async (
+      provider: 'uber_eats' | 'doordash',
+      workflowUuid: string,
+      options?: { mode?: 'history' | 'live' }
+    ) => {
+      assert.equal(options?.mode, 'history');
+      if (workflowUuid === 'broken-workflow') throw new Error('history unavailable');
+      return detail(provider, 'UE-good');
+    },
+    importMarketplaceOrder: async () => ({ order: null, created: false, error: null }),
+    getOpenMarketplaceOrdersForHistory: async () => ({
+      data: [
+        {
+          id: 'broken',
+          provider: 'uber_eats' as const,
+          externalOrderId: 'UE-broken',
+          workflowUuid: 'broken-workflow',
+          orderStatus: 'preparing' as const,
+        },
+        {
+          id: 'good',
+          provider: 'uber_eats' as const,
+          externalOrderId: 'UE-good',
+          workflowUuid: 'good-workflow',
+          orderStatus: 'preparing' as const,
+        },
+      ],
+      error: null,
+    }),
+    syncMarketplaceOrderStatus: async (
+      _provider: 'uber_eats' | 'doordash',
+      externalOrderId: string
+    ) => {
+      statusCalls.push(externalOrderId);
+      return { order: null, error: null };
+    },
+    logError: (message: string) => logged.push(message),
+  };
+  const coordinator = createMarketplaceSyncCoordinator(dependencies);
+
+  await coordinator.poll();
+
+  assert.deepEqual(statusCalls, ['UE-good']);
+  assert.equal(logged.length, 1);
+  assert.match(logged[0], /UE-broken/);
+});
+
+test('manual sync targets only supported third-party orders with persisted identity', () => {
+  assert.deepEqual(getManualMarketplaceSyncTarget({
+    order_channel: 'third_party',
+    delivery_partner_name: 'DoorDash',
+    external_order_number: ' DD-9 ',
+    marketplace_workflow_uuid: ' workflow-9 ',
+  }), {
+    provider: 'doordash',
+    externalOrderId: 'DD-9',
+    workflowUuid: 'workflow-9',
+  });
+  assert.equal(getManualMarketplaceSyncTarget({
+    order_channel: 'third_party',
+    delivery_partner_name: 'Menulog',
+    external_order_number: 'ML-9',
+    marketplace_workflow_uuid: 'workflow-9',
+  }), null);
+  assert.equal(getManualMarketplaceSyncTarget({
+    order_channel: 'instore',
+    delivery_partner_name: 'Uber Eats',
+    external_order_number: 'UE-9',
+    marketplace_workflow_uuid: 'workflow-9',
+  }), null);
+  assert.equal(getManualMarketplaceSyncTarget({
+    order_channel: 'third_party',
+    delivery_partner_name: 'Uber Eats',
+    external_order_number: 'UE-9',
+    marketplace_workflow_uuid: null,
+  }), null);
+});
+
+test('manual sync falls back from live detail to history and performs status-only sync', async () => {
+  const detailModes: string[] = [];
+  const statusCalls: Array<{ provider: string; externalOrderId: string; orderId: string }> = [];
+  const result = await syncMarketplaceOrderOnDemand({
+    provider: 'uber_eats',
+    externalOrderId: 'UE-77',
+    workflowUuid: 'workflow-77',
+    getOrderDetail: async (provider, _workflowUuid, options) => {
+      detailModes.push(options.mode);
+      if (options.mode === 'live') throw new Error('not active');
+      return detail(provider, 'UE-77');
+    },
+    syncMarketplaceOrderStatus: async (provider, externalOrderId, orderDetail) => {
+      statusCalls.push({ provider, externalOrderId, orderId: orderDetail.orderId });
+      return { order: { id: 'local-77' }, error: null };
+    },
+  });
+
+  assert.deepEqual(detailModes, ['live', 'history']);
+  assert.deepEqual(statusCalls, [{
+    provider: 'uber_eats',
+    externalOrderId: 'UE-77',
+    orderId: 'UE-77',
+  }]);
+  assert.deepEqual(result, { order: { id: 'local-77' }, error: null });
 });

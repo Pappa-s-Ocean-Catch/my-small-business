@@ -461,6 +461,26 @@ test('keeps local preparing or ready status when upstream has not advanced it', 
   }
 });
 
+test('keeps local on-the-way status when history has no later lifecycle state', async () => {
+  const localOrder = { ...existingOrder, order_status: 'on_the_way' } as Order;
+  const updateCalls: MarketplaceUpdateCall[] = [];
+  const service = createExistingOrderService(localOrder, updateCalls);
+
+  const result = await service.syncMarketplaceOrderStatus(
+    'uber_eats',
+    'UE-123',
+    {
+      ...detail,
+      orderJobState: null,
+      statusDescription: null,
+      orderStateChanges: [],
+    }
+  );
+
+  assert.equal(result.order, localOrder);
+  assert.deepEqual(updateCalls, []);
+});
+
 test('applies upstream delivery and terminal status changes to a local preparing order', async () => {
   const upstreamStates = [
     { orderJobState: 'PICKED_UP', statusDescription: 'Driver is on the way', status: 'on_the_way' },
