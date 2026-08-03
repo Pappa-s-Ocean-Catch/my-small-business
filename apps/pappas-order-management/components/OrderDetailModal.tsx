@@ -12,6 +12,7 @@ import {
   resolvePrinterForSection,
 } from '@/lib/printer-routing';
 import { CustomerReceiptTemplate } from './CustomerReceiptTemplate';
+import { usesLandscapeTabletOrderDetailLayout } from '../utils/order-detail-layout';
 import { captureReceiptPreviewAndRaw, type PrinterImageSource } from '@/lib/printer-image';
 import { isSimulatorPrinter, type SavedPrinter } from '@/lib/escpos-printer';
 import { ManualPrintButton } from '@/components/printer/ManualPrintButton';
@@ -106,9 +107,10 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   routedKitchenPrintStrategy = 'prefer-simulator',
 }) => {
   const router = useRouter();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const isWide = width >= 920;
+  const isLandscapeTablet = usesLandscapeTabletOrderDetailLayout(width, height);
+  const isWide = width >= 920 && !isLandscapeTablet;
   const [isCapturing, setIsCapturing] = React.useState(false);
   const [captureTarget, setCaptureTarget] = React.useState<'kitchen' | 'customer' | null>(null);
   const [printDebugContext, setPrintDebugContext] = React.useState<KitchenPrintDebugContext | null>(null);
@@ -449,7 +451,8 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 </View>
               </View>
             ) : null}
-            <View style={[styles.summaryGrid, isWide && styles.summaryGridWide]}>
+            <View style={[styles.orderDetailContent, isLandscapeTablet && styles.orderDetailContentLandscape]}>
+            <View style={[styles.summaryGrid, isWide && styles.summaryGridWide, isLandscapeTablet && styles.summaryGridLandscape]}>
               <Card style={[styles.infoCard, isWide && styles.summaryCard]}>
                 <Card.Title title="Customer" titleStyle={styles.cardTitle} left={(props) => <IconButton {...props} icon="account" />} />
                 <Card.Content>
@@ -554,6 +557,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               </Card>
             </View>
 
+            <View style={[styles.orderDetailPrimary, isLandscapeTablet && styles.orderDetailPrimaryLandscape]}>
             <Card style={styles.infoCard}>
               <Card.Title
                 title={`Items (${lineItemCount})`}
@@ -611,6 +615,8 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 </Card.Content>
               </Card>
             )}
+            </View>
+            </View>
           </View>
         </ScrollView>
 
@@ -844,6 +850,8 @@ const styles = StyleSheet.create({
   scrollContainer: { padding: 16, paddingBottom: 132 },
   scrollContainerWide: { padding: 18, paddingBottom: 96 },
   contentStack: { gap: 14 },
+  orderDetailContent: { gap: 14 },
+  orderDetailContentLandscape: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
   printFeedbackBanner: {
     borderRadius: 16,
     borderWidth: 1,
@@ -869,6 +877,9 @@ const styles = StyleSheet.create({
   },
   summaryGrid: { gap: 14 },
   summaryGridWide: { flexDirection: 'row', alignItems: 'stretch', gap: 14 },
+  summaryGridLandscape: { width: '33.333%', flexShrink: 0 },
+  orderDetailPrimary: { gap: 14 },
+  orderDetailPrimaryLandscape: { flex: 1, minWidth: 0 },
   summaryCard: { flex: 1, alignSelf: 'stretch' },
   infoCard: {
     backgroundColor: '#fff',
