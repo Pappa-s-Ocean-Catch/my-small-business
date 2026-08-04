@@ -1233,7 +1233,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    padding: 16,
+    padding: 12,
     gap: 12,
   },
   utilityCard: {
@@ -1248,6 +1248,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
     alignItems: 'center',
+    flexWrap: 'wrap',
   },
   utilityTitleWrap: {
     flex: 1,
@@ -1266,9 +1267,11 @@ const styles = StyleSheet.create({
   providerConfigRow: {
     flexDirection: 'row',
     gap: 10,
+    flexWrap: 'wrap',
   },
   providerConfigButton: {
     flex: 1,
+    minWidth: 140,
     borderRadius: 16,
     borderWidth: 1,
     paddingHorizontal: 14,
@@ -1321,6 +1324,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#e2e8f0',
     paddingTop: 12,
+    flexWrap: 'wrap',
   },
   mappingCompactCopy: {
     flex: 1,
@@ -1358,6 +1362,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: 12,
+    flexWrap: 'wrap',
   },
   tableCard: {
     borderRadius: 18,
@@ -1379,9 +1384,11 @@ const styles = StyleSheet.create({
   filterToolbar: {
     flexDirection: 'row',
     gap: 8,
+    flexWrap: 'wrap',
   },
   filterControl: {
     flex: 1,
+    minWidth: 140,
     gap: 6,
   },
   filterDropdownButton: {
@@ -1405,9 +1412,11 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
+    flexWrap: 'wrap',
   },
   tableHeading: {
     flex: 1,
+    minWidth: 120,
     fontSize: 12,
     fontWeight: '800',
     color: '#475569',
@@ -1434,10 +1443,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
+    flexWrap: 'wrap',
   },
   historyCell: {
     flex: 1,
     gap: 4,
+    minWidth: 140,
   },
   historyPrimary: {
     fontSize: 13,
@@ -1506,7 +1517,7 @@ const styles = StyleSheet.create({
     maxWidth: 560,
   },
   modalCard: {
-    marginHorizontal: 24,
+    marginHorizontal: 12,
     padding: 20,
     borderRadius: 20,
     backgroundColor: '#fff',
@@ -1529,6 +1540,7 @@ const styles = StyleSheet.create({
     gap: 12,
     alignItems: 'flex-start',
     paddingHorizontal: 16,
+    flexWrap: 'wrap',
   },
   detailHeaderCopy: {
     flex: 1,
@@ -1611,6 +1623,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10,
     gap: 12,
+    flexWrap: 'wrap',
   },
   detailTotalLabel: {
     fontSize: 14,
@@ -1640,6 +1653,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     gap: 12,
+    flexWrap: 'wrap',
   },
   detailItemName: {
     flex: 1,
@@ -1679,6 +1693,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
+    flexWrap: 'wrap',
   },
   timelineState: {
     flex: 1,
@@ -1703,9 +1718,11 @@ const styles = StyleSheet.create({
   doordashConfigRow: {
     flexDirection: 'row',
     gap: 12,
+    flexWrap: 'wrap',
   },
   doordashConfigInput: {
     flex: 1,
+    minWidth: 180,
     backgroundColor: '#fff',
   },
   cookieInput: {
@@ -1719,5 +1736,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 10,
+    flexWrap: 'wrap',
   },
 });

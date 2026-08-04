@@ -9,6 +9,7 @@ import {
   Alert,
   TouchableOpacity,
   ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import {
   Button as PaperButton,
@@ -43,6 +44,8 @@ import { isScheduledPreOrder } from '@/utils/orderUtils';
 import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
 import { JOURNAL_LOGS_ENABLED } from '@/lib/journal-config';
 import { getPrintDeviceId } from '@/lib/print-device';
+import { shouldUseLiveOrderCardRail, shouldUseVerticalLiveOrderCards } from '@/lib/live-orders-layout';
+import { isCompactPhoneWidth } from '@/lib/responsive';
 import {
   buildKitchenPrintDebugContext,
   createPrintDebugSessionId,
@@ -69,6 +72,7 @@ const RECEIPT_REF_MAX_ATTEMPTS = 8;
 const DELIVERY_STATUS_SYNC_INTERVAL_MS = 10_000;
 
 export default function LiveOrdersScreen() {
+  const { width } = useWindowDimensions();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -764,7 +768,15 @@ export default function LiveOrdersScreen() {
       setShowOrderModal(true);
     }
   };
-  const isVerticalCardLayout = appSettings.liveOrderCardLayout === 'vertical';
+  const isPhoneLayout = isCompactPhoneWidth(width);
+  const isVerticalCardLayout = shouldUseVerticalLiveOrderCards(
+    appSettings.liveOrderCardLayout === 'vertical',
+    width,
+  );
+  const useVerticalCardRail = shouldUseLiveOrderCardRail(
+    appSettings.liveOrderCardLayout === 'vertical',
+    width,
+  );
 
   return (
     <View style={styles.container}>
@@ -809,23 +821,25 @@ export default function LiveOrdersScreen() {
       )}
 
       <Surface style={styles.header} elevation={1}>
-        <View style={styles.headerRow}>
-          <View style={styles.headerTitleWrap}>
-            <Text style={styles.headerTitle}>Live Orders</Text>
+        <View style={[styles.headerRow, isPhoneLayout ? styles.headerRowPhone : null]}>
+          <View style={[styles.headerTitleWrap, isPhoneLayout ? styles.headerTitleWrapPhone : null]}>
+            {!isPhoneLayout ? <Text style={styles.headerTitle}>Live Orders</Text> : null}
             <Text style={styles.headerSubtitle}>
               {summaryCounts.all} active • {isStale ? 'Sync delayed' : refreshCountdown > 0 ? `Refresh in ${refreshCountdown}s` : 'Up to date'}
             </Text>
           </View>
-          <View style={styles.headerActions}>
+          <View style={[styles.headerActions, isPhoneLayout ? styles.headerActionsPhone : null]}>
             <View style={styles.preOrderBadgeContainer}>
               <PaperButton
                 mode="outlined"
                 onPress={() => router.push('/pre-orders')}
-                style={styles.preOrderButton}
+                style={[styles.preOrderButton, isPhoneLayout ? styles.phoneActionButton : null]}
+                contentStyle={isPhoneLayout ? styles.phoneActionContent : undefined}
                 compact
                 icon="calendar-clock"
+                accessibilityLabel="Pre-orders"
               >
-                Pre-orders
+                {isPhoneLayout ? '' : 'Pre-orders'}
               </PaperButton>
               {preOrderCount > 0 && (
                 <Badge style={styles.preOrderBadge} size={20}>
@@ -836,11 +850,13 @@ export default function LiveOrdersScreen() {
             <PaperButton
               mode={headerExpanded ? 'contained-tonal' : 'outlined'}
               onPress={() => setHeaderExpanded((current) => !current)}
-              style={styles.filterToggleButton}
+              style={[styles.filterToggleButton, isPhoneLayout ? styles.phoneActionButton : null]}
+              contentStyle={isPhoneLayout ? styles.phoneActionContent : undefined}
               compact
               icon="filter-variant"
+              accessibilityLabel={`Filter: ${activeFilterOption.label}`}
             >
-              {activeFilterOption.label}
+              {isPhoneLayout ? '' : activeFilterOption.label}
             </PaperButton>
             {JOURNAL_LOGS_ENABLED ? (
               <TouchableOpacity
@@ -861,10 +877,13 @@ export default function LiveOrdersScreen() {
                 void loadOrders();
               }}
               loading={loading || isFetchingOrders}
-              style={styles.refreshButton}
+              style={[styles.refreshButton, isPhoneLayout ? styles.phoneActionButton : null]}
+              contentStyle={isPhoneLayout ? styles.phoneActionContent : undefined}
               compact
+              icon="refresh"
+              accessibilityLabel="Refresh live orders"
             >
-              Refresh
+              {isPhoneLayout ? '' : 'Refresh'}
             </PaperButton>
           </View>
         </View>
@@ -919,9 +938,10 @@ export default function LiveOrdersScreen() {
                   <Text style={styles.sectionHeaderCount}>{section.count}</Text>
                 </View>
                 <ScrollView
-                  horizontal
+                  horizontal={useVerticalCardRail}
+                  scrollEnabled={useVerticalCardRail}
                   showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.verticalSectionRail}
+                  contentContainerStyle={[styles.verticalSectionRail, isPhoneLayout ? styles.verticalSectionRailPhone : null]}
                 >
                   {section.orders.map((order) => (
                     <LiveOrderListItem
@@ -1124,11 +1144,14 @@ export default function LiveOrdersScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
   header: { padding: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e5e5e5', gap: 10 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' },
+  headerRowPhone: { alignItems: 'center' },
   headerTitleWrap: { flex: 1, gap: 2 },
+  headerTitleWrapPhone: { flexBasis: '100%' },
   headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827', flexShrink: 1 },
   headerSubtitle: { fontSize: 12, color: '#6b7280', fontWeight: '700' },
-  headerActions: { flexDirection: 'row', gap: 8, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' },
+  headerActions: { flexDirection: 'row', gap: 8, flexShrink: 1, flexWrap: 'wrap', justifyContent: 'flex-start' },
+  headerActionsPhone: { width: '100%', justifyContent: 'space-between', flexWrap: 'nowrap' },
   preOrderBadgeContainer: { position: 'relative' },
   preOrderButton: { borderRadius: 8, borderColor: '#2563eb' },
   filterToggleButton: { borderRadius: 8 },
@@ -1157,6 +1180,8 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   refreshButton: { borderRadius: 8, minWidth: 88 },
+  phoneActionButton: { minWidth: 0, width: 40 },
+  phoneActionContent: { width: 40, height: 40, marginHorizontal: 0 },
   filterRow: { gap: 8, paddingRight: 12 },
   filterChip: {
     flexDirection: 'row',
@@ -1192,6 +1217,7 @@ const styles = StyleSheet.create({
   verticalListContent: { padding: 12, paddingBottom: 20, gap: 12 },
   verticalSection: { gap: 8 },
   verticalSectionRail: { paddingRight: 12 },
+  verticalSectionRailPhone: { paddingRight: 0 },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',

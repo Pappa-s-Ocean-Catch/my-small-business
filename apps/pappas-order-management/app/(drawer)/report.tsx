@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useNavigation } from '@react-navigation/native';
+import { isCompactPhoneWidth } from '@/lib/responsive';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { Appbar, Button, Surface, Text } from 'react-native-paper';
 import { LineChart, type lineDataItem } from 'react-native-gifted-charts';
@@ -361,6 +362,7 @@ function ComparisonChart({
 export default function ReportScreen() {
   const navigation = useNavigation<DrawerNavigationProp<any>>();
   const { width } = useWindowDimensions();
+  const isPhoneLayout = isCompactPhoneWidth(width);
   const requestIdRef = useRef(0);
   const [selectedReport, setSelectedReport] = useState<ReportType>('daily');
   const [selectedDate, setSelectedDate] = useState(getTodayDateString());
@@ -606,6 +608,7 @@ export default function ReportScreen() {
                 key={tile.type}
                 style={[
                   styles.reportTile,
+                  isPhoneLayout ? styles.reportTilePhone : null,
                   active ? styles.reportTileActive : null,
                   { borderColor: tile.accent },
                 ]}
@@ -613,18 +616,18 @@ export default function ReportScreen() {
               >
                 <View style={[styles.reportTileAccent, { backgroundColor: tile.accent }]} />
                 <Text style={styles.reportTileTitle}>{tile.title}</Text>
-                <Text style={styles.reportTileDescription}>{tile.description}</Text>
-                <Text style={[styles.reportTileAction, { color: tile.accent }]}>
+                {!isPhoneLayout ? <Text style={styles.reportTileDescription}>{tile.description}</Text> : null}
+                <Text style={[styles.reportTileAction, isPhoneLayout ? styles.reportTileActionPhone : null, { color: tile.accent }]}>
                   {active ? 'Viewing now' : 'Open report'}
                 </Text>
               </TouchableOpacity>
             );
           })}
-          <Surface style={styles.reportTileSoon} elevation={0}>
+          <Surface style={[styles.reportTileSoon, isPhoneLayout ? styles.reportTilePhone : null]} elevation={0}>
             <Text style={styles.reportTileSoonTitle}>More reports coming soon</Text>
-            <Text style={styles.reportTileSoonText}>
+            {!isPhoneLayout ? <Text style={styles.reportTileSoonText}>
               Inventory, staff, product, and customer insights can plug into this same hub later.
-            </Text>
+            </Text> : null}
           </Surface>
         </View>
 
@@ -677,28 +680,28 @@ export default function ReportScreen() {
         ) : (
           <>
             <View style={styles.statGrid}>
-              <View style={[styles.statBox, styles.statBoxSales]}>
+              <View style={[styles.statBox, isPhoneLayout ? styles.statBoxPhone : null, styles.statBoxSales]}>
                 <Text style={styles.statLabel}>Gross sales</Text>
                 <Text style={styles.statValue}>{money(currentTotal)}</Text>
               </View>
-              <View style={[styles.statBox, styles.statBoxOrders]}>
+              <View style={[styles.statBox, isPhoneLayout ? styles.statBoxPhone : null, styles.statBoxOrders]}>
                 <Text style={styles.statLabel}>Paid orders</Text>
                 <Text style={styles.statValue}>{currentSalesOrders.length}</Text>
               </View>
-              <View style={[styles.statBox, styles.statBoxAverage]}>
+              <View style={[styles.statBox, isPhoneLayout ? styles.statBoxPhone : null, styles.statBoxAverage]}>
                 <Text style={styles.statLabel}>Average order</Text>
                 <Text style={styles.statValue}>
                   {currentSalesOrders.length ? money(currentTotal / currentSalesOrders.length) : money(0)}
                 </Text>
               </View>
-              <View style={[styles.statBox, styles.statBoxAverage]}>
+              <View style={[styles.statBox, isPhoneLayout ? styles.statBoxPhone : null, styles.statBoxAverage]}>
                 <Text style={styles.statLabel}>Discounts</Text>
                 <Text style={styles.statValue}>{money(currentDiscountTotal)}</Text>
                 <Text style={styles.statSubtext}>
                   Vs {compareSummaryLabel} {money(currentDiscountTotal - compareDiscountTotal)}
                 </Text>
               </View>
-              <View style={[styles.statBox, difference >= 0 ? styles.statBoxPositive : styles.statBoxNegative]}>
+              <View style={[styles.statBox, isPhoneLayout ? styles.statBoxPhone : null, difference >= 0 ? styles.statBoxPositive : styles.statBoxNegative]}>
                 <Text style={styles.statLabel}>Vs {compareSummaryLabel}</Text>
                 <Text style={[styles.statValue, difference >= 0 ? styles.positive : styles.negative]}>
                   {difference >= 0 ? '+' : ''}{money(difference)}
@@ -804,7 +807,7 @@ export default function ReportScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f3f4f6' },
   appbar: { backgroundColor: '#1f2937' },
-  content: { padding: 16, gap: 14, paddingBottom: 32 },
+  content: { padding: 12, gap: 14, paddingBottom: 32 },
   heroCard: {
     backgroundColor: '#111827',
     borderRadius: 18,
@@ -828,6 +831,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderWidth: 1,
     padding: 16,
+  },
+  reportTilePhone: {
+    flexBasis: '47%',
+    flexGrow: 1,
+    minHeight: 108,
+    padding: 12,
   },
   reportTileActive: {
     backgroundColor: '#f8fafc',
@@ -858,6 +867,7 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     fontWeight: '800',
   },
+  reportTileActionPhone: { paddingTop: 8, fontSize: 12 },
   reportTileSoon: {
     flexBasis: 220,
     flexGrow: 1,
@@ -882,6 +892,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: 12,
+    flexWrap: 'wrap',
   },
   periodActions: {
     flexDirection: 'row',
@@ -917,6 +928,10 @@ const styles = StyleSheet.create({
     padding: 14,
     borderLeftWidth: 4,
   },
+  statBoxPhone: {
+    flexGrow: 0,
+    flexBasis: '47%',
+  },
   statBoxSales: { backgroundColor: '#eff6ff', borderLeftColor: '#2563eb' },
   statBoxOrders: { backgroundColor: '#f0fdf4', borderLeftColor: '#16a34a' },
   statBoxAverage: { backgroundColor: '#fff7ed', borderLeftColor: '#f97316' },
@@ -933,10 +948,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
     marginBottom: 10,
+    flexWrap: 'wrap',
   },
   panelTitle: { fontSize: 17, color: '#111827', fontWeight: '800' },
   panelSubtitle: { color: '#64748b', marginTop: 2, flexShrink: 1 },
-  legend: { alignItems: 'flex-end', gap: 3 },
+  legend: { alignItems: 'flex-end', gap: 3, flexShrink: 1 },
   legendCurrent: { color: '#2563eb', fontWeight: '800' },
   legendCompare: { color: '#64748b', fontWeight: '800' },
   chartWrap: { marginTop: 6, marginLeft: -4 },
@@ -959,8 +975,9 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#e5e7eb',
+    gap: 12,
   },
-  breakdownLabel: { color: '#111827', fontWeight: '800' },
+  breakdownLabel: { color: '#111827', fontWeight: '800', flexShrink: 1 },
   breakdownMeta: { color: '#64748b', marginTop: 2 },
   breakdownValue: { color: '#111827', fontWeight: '800', fontSize: 16 },
   channelFinancialRow: {
@@ -974,6 +991,7 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
     justifyContent: 'space-between',
     gap: 12,
+    flexWrap: 'wrap',
   },
   channelFinancialMetrics: {
     flexDirection: 'row',

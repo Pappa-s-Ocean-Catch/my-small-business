@@ -594,7 +594,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   content: {
-    padding: 16,
+    padding: 12,
     gap: 16,
   },
   panel: {
@@ -642,7 +642,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   contactFilterItem: {
-    width: 118,
+    flexGrow: 1,
+    minWidth: 110,
     paddingVertical: 0,
   },
   segmented: {
@@ -661,7 +662,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   sortDirectionButtons: {
-    minWidth: 180,
+    flexGrow: 1,
+    minWidth: 140,
   },
   selectionSummaryRow: {
     flexDirection: 'row',
@@ -686,6 +688,7 @@ const styles = StyleSheet.create({
   paginationActions: {
     flexDirection: 'row',
     gap: 8,
+    flexWrap: 'wrap',
   },
   dualListWrapper: {
     flexDirection: 'row',
@@ -695,7 +698,8 @@ const styles = StyleSheet.create({
   },
   dualListColumn: {
     flex: 1,
-    minWidth: 480,
+    minWidth: 0,
+    flexBasis: 280,
     backgroundColor: '#f8fafc',
     borderRadius: 14,
     padding: 8,
@@ -718,6 +722,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderBottomWidth: 1,
     borderBottomColor: '#dbe4ee',
+    flexWrap: 'wrap',
   },
   tableHeaderText: {
     fontSize: 12,
@@ -732,6 +737,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
     gap: 8,
+    flexWrap: 'wrap',
   },
   checkboxCell: {
     flexDirection: 'row',
@@ -740,6 +746,7 @@ const styles = StyleSheet.create({
   customerCell: {
     flex: 1,
     minWidth: 0,
+    flexBasis: 160,
   },
   tablePrimaryText: {
     fontSize: 13,
@@ -766,6 +773,7 @@ const styles = StyleSheet.create({
   colAction: {
     flex: 0.9,
     alignItems: 'flex-end',
+    minWidth: 72,
   },
   selectedListItem: {
     backgroundColor: '#ecfeff',
@@ -782,10 +790,12 @@ const styles = StyleSheet.create({
   sendActions: {
     flexDirection: 'row',
     gap: 12,
+    flexWrap: 'wrap',
     marginBottom: 24,
   },
   sendButtonHalf: {
     flex: 1,
+    minWidth: 140,
     marginBottom: 0,
   },
 });

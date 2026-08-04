@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { Card, Button as PaperButton } from 'react-native-paper';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import type { SavedPrinter } from '@/lib/escpos-printer';
@@ -15,6 +15,7 @@ import {
 } from '../utils/constants';
 import { paymentSummary, getNextQuickAction, formatElapsed } from '../utils/orderUtils';
 import type { OrderPrintState } from '@/stores/printerAutomationStore';
+import { isCompactPhoneWidth } from '@/lib/responsive';
 
 type LiveOrderCardLayout = 'horizontal' | 'vertical';
 
@@ -53,6 +54,8 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
   layout = 'horizontal',
   printState = null,
 }) => {
+  const { width } = useWindowDimensions();
+  const isPhoneLayout = isCompactPhoneWidth(width);
   const isDeliveryOrder = order.order_type === 'delivery';
   const isThirdPartyOrder = order.order_channel === 'third_party';
   const statusColor = STATUS_COLORS[order.order_status];
@@ -192,6 +195,7 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
       <Card
         style={[
           styles.verticalOrderCard,
+          isPhoneLayout ? styles.verticalOrderCardPhone : null,
           isDeliveryOrder ? styles.deliveryOrderCard : null,
         ]}
         onPress={() => onOrderPress(order)}
@@ -416,6 +420,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#dbe5f0',
+  },
+  verticalOrderCardPhone: {
+    width: '100%',
+    marginRight: 0,
   },
   deliveryOrderCard: {
     borderColor: '#14b8a6',

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert } from 'react-native';
+import { Alert, type StyleProp, type ViewStyle } from 'react-native';
 import { Button as PaperButton, IconButton } from 'react-native-paper';
 import type { SavedPrinter } from '@/lib/escpos-printer';
 
@@ -10,6 +10,7 @@ type ManualPrintButtonProps = {
   label?: string;
   icon?: string;
   mode?: 'button' | 'icon';
+  style?: StyleProp<ViewStyle>;
   onSelectPrinter: (printer: SavedPrinter | null) => void | Promise<void>;
 };
 
@@ -20,6 +21,7 @@ export function ManualPrintButton({
   label = 'Print',
   icon = 'printer',
   mode = 'button',
+  style,
   onSelectPrinter,
 }: ManualPrintButtonProps) {
   const handlePress = React.useCallback(() => {
@@ -51,6 +53,7 @@ export function ManualPrintButton({
         onPress={handlePress}
         disabled={disabled || loading}
         accessibilityLabel={label}
+        style={style}
       />
     );
   }
@@ -63,6 +66,7 @@ export function ManualPrintButton({
       loading={loading}
       disabled={disabled || loading}
       compact
+      style={style}
     >
       {label}
     </PaperButton>

@@ -567,7 +567,7 @@ const styles = StyleSheet.create({
   appbar: { backgroundColor: '#2563eb' },
   appbarTitle: { color: '#fff', fontWeight: 'bold' },
   subHeader: { padding: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e5e5e5' },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   countText: { fontSize: 14, color: '#6b7280', fontWeight: '600' },
   refreshButton: { borderRadius: 8 },
   listContent: { padding: 16 },

@@ -12,7 +12,7 @@ import {
   resolvePrinterForSection,
 } from '@/lib/printer-routing';
 import { CustomerReceiptTemplate } from './CustomerReceiptTemplate';
-import { usesLandscapeTabletOrderDetailLayout } from '../utils/order-detail-layout';
+import { usesIconOnlyOrderDetailActions, usesLandscapeTabletOrderDetailLayout } from '../utils/order-detail-layout';
 import { captureReceiptPreviewAndRaw, type PrinterImageSource } from '@/lib/printer-image';
 import { isSimulatorPrinter, type SavedPrinter } from '@/lib/escpos-printer';
 import { ManualPrintButton } from '@/components/printer/ManualPrintButton';
@@ -26,7 +26,7 @@ import {
   getDeliveryStatusColor,
   getDeliveryStatusLabel,
 } from '../utils/constants';
-import { paymentSummary, getNextQuickAction, groupAddons, getOrderLineItemCount, getOrderNotes, getOrderOptions } from '../utils/orderUtils';
+import { formatOrderPaymentMethod, paymentSummary, getNextQuickAction, groupAddons, getOrderLineItemCount, getOrderNotes, getOrderOptions } from '../utils/orderUtils';
 import type { AppSettings } from '../lib/settings';
 import { DEFAULT_APP_SETTINGS, loadAppSettings } from '../lib/settings';
 import { getPrintDeviceId } from '@/lib/print-device';
@@ -111,6 +111,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const insets = useSafeAreaInsets();
   const isLandscapeTablet = usesLandscapeTabletOrderDetailLayout(width, height);
   const isWide = width >= 920 && !isLandscapeTablet;
+  const isPhoneActionLayout = usesIconOnlyOrderDetailActions(width);
   const [isCapturing, setIsCapturing] = React.useState(false);
   const [captureTarget, setCaptureTarget] = React.useState<'kitchen' | 'customer' | null>(null);
   const [printDebugContext, setPrintDebugContext] = React.useState<KitchenPrintDebugContext | null>(null);
@@ -161,6 +162,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const statusLabel = STATUS_LABELS[order.order_status];
   const paymentColor = PAYMENT_STATUS_COLORS[order.payment_status];
   const paymentLabel = PAYMENT_STATUS_LABELS[order.payment_status];
+  const paymentMethodLabel = formatOrderPaymentMethod(order);
   const deliveryStatusColor = getDeliveryStatusColor(order.delivery_status);
   const deliveryStatusLabel = getDeliveryStatusLabel(order.delivery_status);
   const quickAction = getNextQuickAction(order);
@@ -357,14 +359,16 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     if (!onQuickAction || !quickAction) return null;
     return (
       <PaperButton
-        mode="contained"
+        mode={isPhoneActionLayout ? 'outlined' : 'contained'}
+        icon={quickAction.action === 'accept' ? 'check' : quickAction.action === 'prepare' ? 'chef-hat' : 'check-circle'}
         onPress={() => onQuickAction(order, quickAction.action)}
         loading={isUpdating}
         disabled={isUpdating}
-        style={[styles.primaryActionButton, !isWide && styles.primaryActionButtonCompact]}
-        contentStyle={styles.primaryActionButtonContent}
+        style={[styles.primaryActionButton, !isWide && styles.primaryActionButtonCompact, isPhoneActionLayout ? styles.phoneActionButton : null]}
+        contentStyle={[styles.primaryActionButtonContent, isPhoneActionLayout ? styles.phoneActionButtonContent : null]}
+        accessibilityLabel={quickAction.label}
       >
-        {quickAction.label}
+        {isPhoneActionLayout ? '' : quickAction.label}
       </PaperButton>
     );
   };
@@ -498,6 +502,16 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     <Text style={styles.totalLabel}>Total items</Text>
                     <Text style={styles.totalValue}>{lineItemCount}</Text>
                   </View>
+                  <View style={styles.totalRow}>
+                    <Text style={styles.totalLabel}>Payment status</Text>
+                    <Text style={[styles.totalValue, { color: paymentColor }]}>{paymentLabel}</Text>
+                  </View>
+                  {order.payment_status === 'paid' ? (
+                    <View style={styles.totalRow}>
+                      <Text style={styles.totalLabel}>Payment method</Text>
+                      <Text style={styles.totalValue}>{paymentMethodLabel}</Text>
+                    </View>
+                  ) : null}
                   <View style={styles.totalRow}>
                     <Text style={styles.totalLabel}>Subtotal</Text>
                     <Text style={styles.totalValue}>${order.subtotal.toFixed(2)}</Text>
@@ -636,6 +650,8 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               loading={isCapturing}
               disabled={isCapturing}
               onSelectPrinter={handleInternalPrint}
+              mode={isPhoneActionLayout ? 'icon' : 'button'}
+              style={isPhoneActionLayout ? styles.phoneActionIconButton : undefined}
             />
             <ManualPrintButton
               printers={availablePrinters}
@@ -644,6 +660,8 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               loading={isCapturing}
               disabled={isCapturing || !onPrintCustomerCopyImage}
               onSelectPrinter={handleCustomerCopyPrint}
+              mode={isPhoneActionLayout ? 'icon' : 'button'}
+              style={isPhoneActionLayout ? styles.phoneActionIconButton : undefined}
             />
             {showDeliveryRefreshAction && (
               <PaperButton
@@ -652,10 +670,12 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 onPress={() => onRefreshDeliveryStatus(order)}
                 disabled={isUpdating}
                 loading={isUpdating}
-                style={styles.actionButton}
+                style={[styles.actionButton, isPhoneActionLayout ? styles.phoneActionButton : null]}
+                contentStyle={isPhoneActionLayout ? styles.phoneActionButtonContent : undefined}
                 compact={!isWide}
+                accessibilityLabel="Refresh delivery"
               >
-                Refresh Delivery
+                {isPhoneActionLayout ? '' : 'Refresh Delivery'}
               </PaperButton>
             )}
             {marketplaceSyncTarget && (
@@ -665,10 +685,12 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 onPress={handleMarketplaceStatusSync}
                 disabled={isMarketplaceSyncing || isUpdating}
                 loading={isMarketplaceSyncing}
-                style={styles.actionButton}
+                style={[styles.actionButton, isPhoneActionLayout ? styles.phoneActionButton : null]}
+                contentStyle={isPhoneActionLayout ? styles.phoneActionButtonContent : undefined}
                 compact={!isWide}
+                accessibilityLabel="Sync marketplace status"
               >
-                Sync marketplace status
+                {isPhoneActionLayout ? '' : 'Sync marketplace status'}
               </PaperButton>
             )}
             {showCancelAction && (
@@ -682,10 +704,12 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     { text: 'Yes, Cancel', onPress: () => onStatusUpdate!(order, 'cancelled'), style: 'destructive' }
                   ]);
                 }} 
-                style={styles.actionButton}
+                style={[styles.actionButton, isPhoneActionLayout ? styles.phoneActionButton : null]}
+                contentStyle={isPhoneActionLayout ? styles.phoneActionButtonContent : undefined}
                 compact={!isWide}
+                accessibilityLabel="Cancel order"
               >
-                Cancel
+                {isPhoneActionLayout ? '' : 'Cancel'}
               </PaperButton>
             )}
             {order.payment_status !== 'paid' && order.order_status !== 'completed' && order.order_status !== 'cancelled' && (
@@ -696,10 +720,12 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                   onClose();
                   router.push({ pathname: '/pos', params: { orderId: order.id } });
                 }} 
-                style={styles.actionButton}
+                style={[styles.actionButton, isPhoneActionLayout ? styles.phoneActionButton : null]}
+                contentStyle={isPhoneActionLayout ? styles.phoneActionButtonContent : undefined}
                 compact={!isWide}
+                accessibilityLabel="Edit order"
               >
-                Edit
+                {isPhoneActionLayout ? '' : 'Edit'}
               </PaperButton>
             )}
             {showPaymentAction && (
@@ -707,10 +733,12 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 mode="outlined"
                 icon="cash"
                 onPress={() => onPaymentStatusUpdate!(order.id, 'paid', 'Cash')}
-                style={styles.actionButton}
+                style={[styles.actionButton, isPhoneActionLayout ? styles.phoneActionButton : null]}
+                contentStyle={isPhoneActionLayout ? styles.phoneActionButtonContent : undefined}
                 compact={!isWide}
+                accessibilityLabel="Mark paid by cash"
               >
-                Cash
+                {isPhoneActionLayout ? '' : 'Cash'}
               </PaperButton>
             )}
             {showPaymentAction && (
@@ -718,10 +746,12 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 mode="outlined"
                 icon="credit-card-outline"
                 onPress={() => onPaymentStatusUpdate!(order.id, 'paid', 'Card')}
-                style={styles.actionButton}
+                style={[styles.actionButton, isPhoneActionLayout ? styles.phoneActionButton : null]}
+                contentStyle={isPhoneActionLayout ? styles.phoneActionButtonContent : undefined}
                 compact={!isWide}
+                accessibilityLabel="Mark paid by card"
               >
-                Card
+                {isPhoneActionLayout ? '' : 'Card'}
               </PaperButton>
             )}
             {canSmartpay && (
@@ -731,15 +761,17 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 onPress={() => onSmartpayPayment(order)}
                 loading={smartpayProcessing}
                 disabled={smartpayProcessing || isUpdating}
-                style={styles.actionButton}
+                style={[styles.actionButton, isPhoneActionLayout ? styles.phoneActionButton : null]}
+                contentStyle={isPhoneActionLayout ? styles.phoneActionButtonContent : undefined}
                 compact={!isWide}
+                accessibilityLabel="Pay with SmartPay"
               >
-                SmartPay
+                {isPhoneActionLayout ? '' : 'SmartPay'}
               </PaperButton>
             )}
             {canPayByLink(order) && (
-              <PaperButton mode="outlined" icon="qrcode-scan" onPress={() => setShowPayByLink(true)} style={styles.actionButton} compact={!isWide}>
-                Pay by Link
+              <PaperButton mode="outlined" icon="qrcode-scan" onPress={() => setShowPayByLink(true)} style={[styles.actionButton, isPhoneActionLayout ? styles.phoneActionButton : null]} contentStyle={isPhoneActionLayout ? styles.phoneActionButtonContent : undefined} compact={!isWide} accessibilityLabel="Pay by link">
+                {isPhoneActionLayout ? '' : 'Pay by Link'}
               </PaperButton>
             )}
           </View>
@@ -947,7 +979,10 @@ const styles = StyleSheet.create({
   },
   secondaryActions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, flex: 1 },
   actionButton: { borderRadius: 12, borderColor: '#cbd5e1', backgroundColor: '#fff' },
-  primaryActionButton: { minWidth: 220, borderRadius: 14, backgroundColor: '#10243f' },
+  phoneActionButton: { flexGrow: 0, width: 40, minWidth: 0, borderWidth: 1, borderColor: '#cbd5e1', backgroundColor: '#fff' },
+  phoneActionButtonContent: { width: 40, height: 40, marginHorizontal: 0 },
+  phoneActionIconButton: { width: 40, height: 40, margin: 0, borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 12, backgroundColor: '#fff' },
+  primaryActionButton: { flexGrow: 1, minWidth: 0, borderRadius: 14, backgroundColor: '#10243f' },
   primaryActionButtonCompact: { flexGrow: 1 },
   primaryActionButtonContent: { height: 52 },
   hiddenReceiptContainer: {

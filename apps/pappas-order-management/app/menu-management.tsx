@@ -910,15 +910,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   segmentedWrap: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingTop: 16,
   },
   managementNavWrap: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingTop: 12,
   },
   infoBanner: {
-    marginHorizontal: 16,
+    marginHorizontal: 12,
     marginTop: 12,
     backgroundColor: '#fff',
   },
@@ -926,7 +926,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   content: {
-    padding: 16,
+    padding: 12,
     gap: 12,
   },
   input: {
@@ -940,15 +940,16 @@ const styles = StyleSheet.create({
     paddingBottom: 120,
   },
   listCard: {
-    marginHorizontal: 16,
+    marginHorizontal: 12,
     marginBottom: 12,
   },
   childCard: {
-    marginLeft: 32,
+    marginLeft: 20,
   },
   rowHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
   },
   rowText: {
     flex: 1,
@@ -957,6 +958,7 @@ const styles = StyleSheet.create({
   rowActions: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexShrink: 0,
   },
   mutedText: {
     color: '#6b7280',
@@ -989,6 +991,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 12,
   },
   checkboxItem: {
     paddingHorizontal: 0,
@@ -1002,6 +1005,7 @@ const styles = StyleSheet.create({
   inlineRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
   },
   flexText: {
     flex: 1,

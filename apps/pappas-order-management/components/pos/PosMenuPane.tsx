@@ -2,7 +2,7 @@ import React from 'react';
 import { FlatList, Text, TouchableOpacity, View } from 'react-native';
 import type { DimensionValue } from 'react-native';
 import { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { Button, IconButton, TextInput } from 'react-native-paper';
+import { Button, TextInput } from 'react-native-paper';
 
 import { styles } from './pos.styles';
 import type {
@@ -135,7 +135,6 @@ type Props = {
   handleThirdPartyOrderAtPickerChange: (event: DateTimePickerEvent, date?: Date) => void;
   handleThirdPartyCheckout: () => Promise<void>;
   initialCheckoutTab?: PosCheckoutTab;
-  quickListVisible: boolean;
 };
 
 export function PosMenuPane(props: Props) {
@@ -244,7 +243,6 @@ export function PosMenuPane(props: Props) {
     handleThirdPartyOrderAtPickerChange,
     handleThirdPartyCheckout,
     initialCheckoutTab,
-    quickListVisible,
   } = props;
 
   return (
@@ -438,7 +436,7 @@ export function PosMenuPane(props: Props) {
                 contentStyle={styles.levelFooterButtonContent}
                 labelStyle={styles.levelFooterButtonLabel}
               >
-                {selectedParentCatId ? `Back to ${activeParentCategoryName}` : 'Back to Groups'}
+                {selectedParentCatId ? 'Back to Subgroups' : 'Back to Groups'}
               </Button>
               <Button
                 mode="contained"
@@ -644,7 +642,51 @@ export function PosMenuPane(props: Props) {
         />
       )}
 
-      {menuLevel !== 'groups' && menuLevel !== 'items' && menuLevel !== 'addons' && (
+      {menuLevel === 'quick-list' && (
+        <>
+          <View style={styles.menuHeader}>
+            <Button mode="outlined" icon="arrow-left" onPress={() => setQuickListVisible(false)} style={styles.backButton}>
+              Back
+            </Button>
+            <View style={styles.menuHeaderText}>
+              <Text style={styles.menuTitle}>Quick List</Text>
+              <Text style={styles.menuSubtitle}>{quickAccessProducts.length} quick items</Text>
+            </View>
+          </View>
+          {quickAccessProducts.length > 0 ? (
+            <ProductGrid
+              data={quickAccessProducts}
+              gridColumns={quickListColumns}
+              listKey="quick-list"
+              contentContainerStyle={styles.quickListGrid}
+              getQuantity={quickQuantityForProduct}
+              onPressProduct={(item) => void quickAddProduct(item, { forcePlainAdd: true, skipCustomization: true })}
+              productTilePalette={productTilePalette}
+            />
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>No quick-list items</Text>
+              <Text style={styles.quickListEmpty}>
+                Select products in POS Layout and check `Show on quick list` to display them here.
+              </Text>
+            </View>
+          )}
+          <View style={styles.levelFooter}>
+            <Button
+              mode="outlined"
+              icon="arrow-left"
+              onPress={() => setQuickListVisible(false)}
+              style={styles.levelFooterButton}
+              contentStyle={styles.levelFooterButtonContent}
+              labelStyle={styles.levelFooterButtonLabel}
+            >
+              Back
+            </Button>
+          </View>
+        </>
+      )}
+
+      {menuLevel !== 'groups' && menuLevel !== 'items' && menuLevel !== 'addons' && menuLevel !== 'quick-list' && (
         <View pointerEvents="box-none" style={styles.quickListButtonWrap}>
           <Button
             mode="contained"
@@ -660,34 +702,6 @@ export function PosMenuPane(props: Props) {
         </View>
       )}
 
-      {quickListVisible && (
-        <View style={styles.quickListOverlay}>
-          <View style={styles.quickListPanel}>
-            <View style={styles.quickListHeader}>
-              <View>
-                <Text style={styles.quickListTitle}>Quick list</Text>
-                <Text style={styles.quickListSubtitle}>Tap items to add without leaving the cart</Text>
-              </View>
-              <IconButton icon="close" size={20} onPress={() => setQuickListVisible(false)} />
-            </View>
-            {quickAccessProducts.length > 0 ? (
-              <ProductGrid
-                data={quickAccessProducts}
-                gridColumns={quickListColumns}
-                listKey="quick-list"
-                contentContainerStyle={styles.quickListGrid}
-                getQuantity={quickQuantityForProduct}
-                onPressProduct={(item) => void quickAddProduct(item, { forcePlainAdd: true, skipCustomization: true })}
-                productTilePalette={productTilePalette}
-              />
-            ) : (
-              <Text style={styles.quickListEmpty}>
-                Select products in POS Layout and check `Show on quick list` to display them here.
-              </Text>
-            )}
-          </View>
-        </View>
-      )}
     </View>
   );
 }

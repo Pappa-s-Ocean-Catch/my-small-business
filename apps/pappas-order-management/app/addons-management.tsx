@@ -438,16 +438,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#f3f4f6',
   },
   content: {
-    padding: 16,
+    padding: 12,
     paddingBottom: 120,
     gap: 12,
   },
   managementNavWrap: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingTop: 12,
   },
   infoBanner: {
-    marginHorizontal: 16,
+    marginHorizontal: 12,
     marginTop: 12,
     backgroundColor: '#fff',
   },
@@ -460,6 +460,7 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexShrink: 0,
   },
   groupMeta: {
     paddingTop: 0,
@@ -496,5 +497,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 12,
   },
 });

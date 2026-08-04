@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Order } from '@my-small-business/types';
-import { getPaymentStatType, getReceiptHeader } from '../utils/orderUtils';
+import { formatOrderPaymentMethod, getPaymentStatType, getReceiptHeader } from '../utils/orderUtils';
 
 function makeOrder(overrides: Partial<Order> = {}): Order {
   return {
@@ -38,6 +38,12 @@ test('classifies marketplace orders before their cash-like payment fields', () =
 test('retains direct card and cash classifications', () => {
   assert.equal(getPaymentStatType(makeOrder({ payment_method: 'online' })), 'card');
   assert.equal(getPaymentStatType(makeOrder()), 'cash');
+});
+
+test('prefers the recorded payment detail when displaying a paid order method', () => {
+  assert.equal(formatOrderPaymentMethod(makeOrder({ payment_method: 'store', payment_method_detail: 'smartpay' })), 'Smartpay');
+  assert.equal(formatOrderPaymentMethod(makeOrder({ payment_method: 'online', payment_method_detail: null })), 'Online');
+  assert.equal(formatOrderPaymentMethod(makeOrder({ payment_method: undefined, payment_method_detail: null })), 'Not recorded');
 });
 
 test('maps supported marketplace partners to a branded delivery receipt header', () => {

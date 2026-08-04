@@ -39,6 +39,7 @@ import type { PosCheckoutTab } from '../components/pos/PosCheckoutPanel';
 import { usePendingOnlinePaymentsStore } from '../stores/pendingOnlinePaymentsStore';
 import { useMarketplacePosDraftStore } from '../stores/marketplacePosDraftStore';
 import { styles } from '../components/pos/pos.styles';
+import { isCompactPhoneWidth } from '../lib/responsive';
 import type {
   AddonGroup,
   AddonItem,
@@ -274,7 +275,7 @@ export default function PosScreen() {
   const [loadingTopSellers, setLoadingTopSellers] = useState(false);
   const [topSellerRefreshKey, setTopSellerRefreshKey] = useState(0);
   const [customizableProductIds, setCustomizableProductIds] = useState<Set<string>>(new Set());
-  const [menuLevel, setMenuLevel] = useState<'groups' | 'subgroups' | 'items' | 'addons' | 'checkout' | 'search'>('groups');
+  const [menuLevel, setMenuLevel] = useState<'groups' | 'subgroups' | 'items' | 'addons' | 'checkout' | 'search' | 'quick-list'>('groups');
   const [searchQuery, setSearchQuery] = useState('');
   const [instorePaymentDialogVisible, setInstorePaymentDialogVisible] = useState(false);
   const [searchProducts, setSearchProducts] = useState<SaleProduct[]>([]);
@@ -321,7 +322,7 @@ export default function PosScreen() {
   const [discountDialogVisible, setDiscountDialogVisible] = useState(false);
   const [orderNoteText, setOrderNoteText] = useState('');
   const [discountConfig, setDiscountConfig] = useState<PosDiscountConfig>(EMPTY_DISCOUNT);
-  const [quickListVisible, setQuickListVisible] = useState(false);
+  const [quickListReturnLevel, setQuickListReturnLevel] = useState<'groups' | 'subgroups' | 'items' | 'addons' | 'checkout' | 'search'>('groups');
   const [activePromotions, setActivePromotions] = useState<PosPromotion[]>([]);
   const [promotionsLoaded, setPromotionsLoaded] = useState(false);
   const [selectedFreeItemId, setSelectedFreeItemId] = useState<string | null>(null);
@@ -333,6 +334,15 @@ export default function PosScreen() {
 
   const goHome = () => {
     router.replace('/(drawer)/(tabs)/live-orders');
+  };
+
+  const setQuickListVisible = (visible: boolean) => {
+    if (visible) {
+      if (menuLevel !== 'quick-list') setQuickListReturnLevel(menuLevel);
+      setMenuLevel('quick-list');
+      return;
+    }
+    setMenuLevel(quickListReturnLevel);
   };
 
   const openLayoutSettings = () => {
@@ -2583,6 +2593,7 @@ export default function PosScreen() {
     ))?.quantity ?? 0
   );
   const isCompactLayout = width < 1000;
+  const isPhoneLayout = isCompactPhoneWidth(width);
   const isNarrowLayout = width < 760;
   const gridColumns = isNarrowLayout ? 2 : isCompactLayout ? 3 : 4;
   const quickListColumns = isNarrowLayout ? 2 : 3;
@@ -2624,7 +2635,13 @@ export default function PosScreen() {
         <Appbar.Action icon="home" onPress={goHome} iconColor="#fff" accessibilityLabel="Back home" />
       </Appbar.Header>
 
-      <View style={[styles.body, isCompactLayout ? styles.bodyCompact : null]}>
+      <View
+        style={[
+          styles.body,
+          isCompactLayout ? styles.bodyCompact : null,
+          isPhoneLayout ? styles.bodyPhone : null,
+        ]}
+      >
         <View style={[styles.menuPane, isCompactLayout ? styles.menuPaneCompact : null]}>
           <PosMenuPane
             menuLevel={menuLevel}
@@ -2735,7 +2752,6 @@ export default function PosScreen() {
             setThirdPartyExternalOrderId={handleThirdPartyExternalOrderIdChange}
             handleThirdPartyCheckout={handleThirdPartyCheckout}
             initialCheckoutTab={initialCheckoutTab}
-            quickListVisible={quickListVisible}
           />
         </View>
 

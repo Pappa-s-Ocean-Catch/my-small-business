@@ -433,6 +433,16 @@ export const getNextQuickAction = (
   }
 };
 
+export const formatOrderPaymentMethod = (
+  order: Pick<Order, 'payment_method' | 'payment_method_detail'>
+): string => {
+  const rawMethod = order.payment_method_detail || order.payment_method;
+  if (!rawMethod) return 'Not recorded';
+  return rawMethod
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+};
+
 export type PaymentMethodType = 'card' | 'cash';
 export type PaymentStatType = PaymentMethodType | 'marketplace';
 
