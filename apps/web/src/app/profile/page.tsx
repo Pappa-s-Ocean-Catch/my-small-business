@@ -8,6 +8,7 @@ import { FaEye, FaEyeSlash } from "react-icons/fa6";
 import { FaUser, FaEnvelope, FaShieldAlt } from "react-icons/fa";
 import { Icon } from "@/components/Icon";
 import { OrderHeader } from "@/components/OrderHeader";
+import { hasPasswordLogin } from "@/lib/password-auth";
 
 interface Profile {
   id: string;
@@ -61,9 +62,9 @@ export default function ProfilePage() {
       setEditingName(profileData.full_name || "");
       setEditingPhone(profileData.phone || "");
       
-      // Check if user has a password set
+      // The email provider is used for both password and magic-link sessions.
       const { data: { session } } = await supabase.auth.getSession();
-      setHasPassword(session?.user?.app_metadata?.provider === 'email');
+      setHasPassword(session?.user ? hasPasswordLogin(session.user) : false);
       
     } catch (error) {
       console.error("Error fetching profile:", error);
@@ -138,8 +139,9 @@ export default function ProfilePage() {
       }
 
       // Update password
-      const { error } = await supabase.auth.updateUser({ 
-        password: newPassword 
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+        data: { has_password: true },
       });
 
       if (error) {

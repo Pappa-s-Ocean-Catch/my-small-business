@@ -101,6 +101,7 @@ export default function LoginPage() {
         // Get user role
         const { data: { user: authUser } } = await supabase.auth.getUser();
         if (authUser) {
+          await supabase.auth.updateUser({ data: { has_password: true } });
           posthog.identify(authUser.id, { email: authUser.email });
           posthog.capture('user_logged_in', { auth_method: 'password', email: authUser.email });
           const { data: profile } = await supabase
@@ -278,4 +279,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

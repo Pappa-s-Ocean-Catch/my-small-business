@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { Banner, Button, Text, TextInput } from 'react-native-paper';
 import { supabase } from '@/lib/supabase';
-import { isAdminUser } from '@/lib/auth';
+import { canAccessOrderManagement } from '@/lib/auth';
 import { useRouter } from 'expo-router';
 
 export default function LoginScreen() {
@@ -83,9 +83,9 @@ export default function LoginScreen() {
           return;
         }
 
-        let isAdmin = false;
+        let canAccess = false;
         try {
-          isAdmin = await isAdminUser(userId);
+          canAccess = await canAccessOrderManagement(userId);
         } catch (roleErr) {
           await supabase.auth.signOut();
           setError(
@@ -95,9 +95,9 @@ export default function LoginScreen() {
           return;
         }
 
-        if (!isAdmin) {
+        if (!canAccess) {
           await supabase.auth.signOut();
-          setError('Not authorized: this app is currently restricted to admin users.');
+          setError('Not authorized: staff or admin access is required.');
           return;
         }
 

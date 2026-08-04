@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sendSmsMessage } from '@/lib/sms';
+import { authenticateStaffApiRequest } from '@/lib/staff-api-auth';
 
 type Body = {
   phone?: string;
@@ -18,6 +19,11 @@ const formatCurrency = (amount?: number) => (
 
 export async function POST(request: Request) {
   try {
+    const auth = await authenticateStaffApiRequest(request);
+    if ('error' in auth) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    }
+
     const body = (await request.json()) as Body;
     const phone = body.phone?.trim() || '';
     const paymentUrl = body.paymentUrl?.trim() || '';

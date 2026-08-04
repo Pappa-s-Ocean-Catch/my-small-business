@@ -1,5 +1,6 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
 import { createServiceRoleClient } from '@my-small-business/supabase/server';
+import { authenticateStaffApiRequest } from './staff-api-auth';
 
 export type MarketplaceProvider = 'uber_eats' | 'doordash';
 
@@ -74,33 +75,7 @@ function decryptCookies(input: {
 }
 
 export async function authenticateMarketplaceRequest(request: Request) {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return { error: 'Missing or invalid authorization header', status: 401 as const };
-  }
-
-  const token = authHeader.split(' ')[1];
-  const supabase = await createServiceRoleClient();
-  const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-  if (userError || !user) {
-    return { error: 'Unauthorized - Invalid token', status: 401 as const };
-  }
-
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('id, role_slug')
-    .eq('id', user.id)
-    .single();
-
-  if (profileError || !profile) {
-    return { error: 'Profile lookup failed', status: 500 as const };
-  }
-
-  if (profile.role_slug !== 'admin' && profile.role_slug !== 'staff') {
-    return { error: 'Forbidden - Staff or admin access required', status: 403 as const };
-  }
-
-  return { supabase, profile } as const;
+  return authenticateStaffApiRequest(request);
 }
 
 export async function getMarketplaceCredentialStatus(provider: MarketplaceProvider): Promise<MarketplaceCredentialStatus> {

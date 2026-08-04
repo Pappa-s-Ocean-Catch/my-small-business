@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { getSupabaseClient } from "@my-small-business/supabase/client";
 import { LoadingSpinner } from "@/components/Loading";
 import { FaEye, FaEyeSlash } from "react-icons/fa6";
+import { getRecoveryTokens } from "@/lib/password-auth";
 
 function ResetPasswordForm() {
   const router = useRouter();
@@ -18,9 +19,23 @@ function ResetPasswordForm() {
   const [isTokenValid, setIsTokenValid] = useState<boolean | null>(null);
 
   useEffect(() => {
-    // Check if user is authenticated (Supabase handles token verification automatically)
     const checkAuth = async () => {
       const supabase = getSupabaseClient();
+      const recoveryTokens = getRecoveryTokens(window.location.hash);
+
+      if (recoveryTokens) {
+        const { error } = await supabase.auth.setSession({
+          access_token: recoveryTokens.accessToken,
+          refresh_token: recoveryTokens.refreshToken,
+        });
+
+        if (error) {
+          setMessage("Invalid or expired reset link. Please request a new password reset.");
+          setIsTokenValid(false);
+          return;
+        }
+      }
+
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {

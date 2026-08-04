@@ -1,6 +1,8 @@
 import { Linking } from 'react-native';
+import { supabase } from './supabase';
+import { buildStaffAuthorizationHeader } from './pos-api-auth';
 
-const DEFAULT_SITE_URL = 'https://pappasoceancatch.com.au';
+const DEFAULT_SITE_URL = 'https://www.pappasfishnchips.com.au';
 const DEFAULT_STORE_ADDRESS = {
   address_line1: 'Shop 2/87 Unitt Street',
   city: 'Melton',
@@ -140,8 +142,14 @@ export async function sendPaymentLinkSms(params: {
   deliveryFee?: number;
   deliveryEtaMinutes?: number;
 }) {
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError || !session?.access_token) {
+    throw new Error(sessionError?.message || 'Missing authenticated session');
+  }
+
   const payload = await fetchJson<{ success: true; provider: string; result: string }>('/api/pos/send-payment-link-sms', {
     method: 'POST',
+    headers: buildStaffAuthorizationHeader(session.access_token),
     body: JSON.stringify(params),
   });
   return payload;

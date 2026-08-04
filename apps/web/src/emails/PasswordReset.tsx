@@ -1,87 +1,52 @@
-import { EmailLayout } from "./components/EmailLayout";
+import * as React from 'react';
+import { Button, Container, Section, Text } from '@react-email/components';
+import { Tailwind } from '@react-email/tailwind';
+import { EmailLayout } from './components/EmailLayout';
 
 interface PasswordResetProps {
   resetUrl: string;
   userEmail: string;
+  businessName?: string;
+  logoUrl?: string;
 }
 
-export const PasswordReset = ({ resetUrl, userEmail }: PasswordResetProps) => {
+export function PasswordReset({
+  resetUrl,
+  userEmail,
+  businessName = 'Pappas Ocean Catch',
+  logoUrl,
+}: PasswordResetProps) {
   return (
-    <EmailLayout title="Password Reset">
-      <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-        <h1 style={{ 
-          color: '#1f2937', 
-          fontSize: '28px', 
-          fontWeight: 'bold', 
-          marginBottom: '16px' 
-        }}>
-          Reset Your Password
-        </h1>
-        
-        <p style={{ 
-          color: '#6b7280', 
-          fontSize: '16px', 
-          lineHeight: '1.6', 
-          marginBottom: '32px' 
-        }}>
-          You requested to reset your password for your OperateFlow account.
-        </p>
-        
-        <div style={{ 
-          backgroundColor: '#f9fafb', 
-          border: '1px solid #e5e7eb', 
-          borderRadius: '8px', 
-          padding: '24px', 
-          marginBottom: '32px' 
-        }}>
-          <p style={{ 
-            color: '#374151', 
-            fontSize: '14px', 
-            marginBottom: '16px' 
-          }}>
-            <strong>Account:</strong> {userEmail}
-          </p>
-          <p style={{ 
-            color: '#6b7280', 
-            fontSize: '14px', 
-            margin: '0' 
-          }}>
-            Click the button below to reset your password. This link will expire in 1 hour.
-          </p>
-        </div>
-        
-        <a 
-          href={resetUrl}
-          style={{
-            display: 'inline-block',
-            backgroundColor: '#1f2937',
-            color: '#ffffff',
-            padding: '12px 32px',
-            borderRadius: '8px',
-            textDecoration: 'none',
-            fontSize: '16px',
-            fontWeight: '600',
-            marginBottom: '32px'
-          }}
-        >
-          Reset Password
-        </a>
-        
-        <div style={{ 
-          borderTop: '1px solid #e5e7eb', 
-          paddingTop: '24px', 
-          marginTop: '32px' 
-        }}>
-          <p style={{ 
-            color: '#9ca3af', 
-            fontSize: '12px', 
-            lineHeight: '1.5' 
-          }}>
-            If you didn&apos;t request this password reset, you can safely ignore this email.<br/>
-            The link will expire in 1 hour for security reasons.
-          </p>
-        </div>
-      </div>
+    <EmailLayout
+      title={`Reset your ${businessName} password`}
+      companyName={businessName}
+      logoUrl={logoUrl}
+      previewText={`Your ${businessName} password reset link`}
+    >
+      <Tailwind>
+        <Container className="max-w-lg mx-auto font-sans">
+          <Section className="p-6">
+            <Text className="text-base text-gray-800 m-0 mb-3">Hello,</Text>
+            <Text className="text-base text-gray-600 mb-4 m-0">
+              We received a request to reset the password for <strong>{userEmail}</strong>.
+            </Text>
+            <Text className="text-base text-gray-600 mb-4 m-0">
+              Click the button below to choose a new password. This link expires in one hour.
+            </Text>
+            <Section className="mt-4">
+              <Button
+                href={resetUrl}
+                className="inline-block bg-blue-500 text-white no-underline px-4 py-3 rounded-lg font-semibold text-sm"
+              >
+                Reset password
+              </Button>
+            </Section>
+            <Text className="text-xs text-gray-500 mt-4 mb-0">
+              If you didn&apos;t request this, you can safely ignore this email.
+            </Text>
+          </Section>
+        </Container>
+      </Tailwind>
     </EmailLayout>
   );
-};
+}

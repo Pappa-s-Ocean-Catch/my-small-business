@@ -3,7 +3,8 @@
 import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@my-small-business/supabase/server';
 import type { Order } from '@my-small-business/types';
-import { sendOrderPlacedEmail, sendOrderReadyEmail, sendOrderCompletedEmail } from '@/app/actions/email';
+import { sendOrderPlacedEmail } from '@/app/actions/email';
+import { isPublicStatusEmailStatus } from '@/lib/pos-status-email';
 
 export async function POST(request: Request) {
     try {
@@ -11,8 +12,8 @@ export async function POST(request: Request) {
         const orderId = body?.orderId;
         const status = body?.status;
 
-        if (!orderId || !status) {
-            return NextResponse.json({ success: false, error: 'orderId and status are required' }, { status: 400 });
+        if (!orderId || !isPublicStatusEmailStatus(status)) {
+            return NextResponse.json({ success: false, error: 'orderId and a placed status are required' }, { status: 400 });
         }
 
         const supabase = await createServiceRoleClient();
@@ -30,16 +31,7 @@ export async function POST(request: Request) {
             );
         }
 
-        let emailResult;
-        if (status === 'ready') {
-            emailResult = await sendOrderReadyEmail(order as Order);
-        } else if (status === 'completed') {
-            emailResult = await sendOrderCompletedEmail(order as Order);
-        } else if (status === 'placed') {
-            emailResult = await sendOrderPlacedEmail(order as Order);
-        } else {
-            return NextResponse.json({ success: false, error: 'Unsupported status for email' }, { status: 400 });
-        }
+        const emailResult = await sendOrderPlacedEmail(order as Order);
 
         if (!emailResult.success) {
             return NextResponse.json(

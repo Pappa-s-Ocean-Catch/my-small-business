@@ -25,6 +25,7 @@
     "lib/marketplace-pos-order.ts",
     "lib/marketplace-sync.ts",
     "lib/promotion-summary.ts",
+    "lib/pos-api-auth.ts",
     "lib/print-debug-footer.ts",
     "lib/responsive.ts",
     "lib/live-orders-layout.ts",

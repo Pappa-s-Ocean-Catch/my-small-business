@@ -8,6 +8,8 @@ import { buildSectionPrintJobs, getSectionPrintTickets, getSectionRoutingDebugLa
 import { loadAppSettings, type AppSettings } from '@/lib/settings';
 import { formatSmartpayError, isSmartpayPaired, processSmartpayCardPayment } from '@/lib/smartpay';
 import { enqueuePreparedPrintJobs, waitForPrintJobs } from '@/lib/print-queue';
+import { supabase } from '@/lib/supabase';
+import { buildStaffAuthorizationHeader } from '@/lib/pos-api-auth';
 
 const webBaseUrl = process.env.EXPO_PUBLIC_SITE_URL;
 const CLOSED_ORDER_STATUSES: OrderStatus[] = ['completed', 'cancelled'];
@@ -78,9 +80,18 @@ export const useOrderActions = (
       return;
     }
     try {
-      const response = await fetch(`${webBaseUrl}/api/orders/status-email`, {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session?.access_token) {
+        console.warn('[OrderActions] Missing authenticated session; skipping status email.');
+        return;
+      }
+
+      const response = await fetch(`${webBaseUrl}/api/pos/orders/status-email`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...buildStaffAuthorizationHeader(session.access_token),
+        },
         body: JSON.stringify({ orderId, status }),
       });
       if (!response.ok) {

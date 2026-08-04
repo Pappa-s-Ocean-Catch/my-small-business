@@ -391,9 +391,19 @@ export default function OrdersPage() {
   // Send status email for ready/completed
   const triggerOrderStatusEmail = async (orderId: string, status: string) => {
     try {
-      const response = await fetch('/api/orders/status-email', {
+      const supabase = getSupabaseClient();
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session?.access_token) {
+        console.error('[AdminOrders] Missing authenticated session; skipping status email.');
+        return;
+      }
+
+      const response = await fetch('/api/pos/orders/status-email', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({ orderId, status }),
       });
       if (!response.ok) {
