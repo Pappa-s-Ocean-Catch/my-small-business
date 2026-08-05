@@ -136,7 +136,7 @@ export function Hero({ homePromotions, enablePickupOrder, reviewSectionId }: Her
                         Delivery Order
                         <Icon icon={FaArrowRight} className="w-5 h-5" />
                     </Link>
-                    <a
+                    {/* <a
                         href="https://pappasoceancatch-ea.com.au/"
                         target="_blank"
                         rel="noopener noreferrer"
@@ -144,7 +144,7 @@ export function Hero({ homePromotions, enablePickupOrder, reviewSectionId }: Her
                     >
                         Delivery (Old)
                         <Icon icon={FaArrowRight} className="w-5 h-5" />
-                    </a>
+                    </a> */}
 
                     {/* <Link
                         href="/menu"
