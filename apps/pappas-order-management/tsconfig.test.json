@@ -27,10 +27,13 @@
     "lib/promotion-summary.ts",
     "lib/pos-api-auth.ts",
     "lib/print-debug-footer.ts",
+    "lib/png.ts",
+    "lib/escpos-raster.ts",
     "lib/responsive.ts",
     "lib/live-orders-layout.ts",
     "stores/posCatalogCacheStore.ts",
     "test/pay-by-link.test.ts",
+    "test/escpos-raster.test.ts",
     "test/customer-profile.test.ts",
     "types/**/*.ts",
     "../../libs/types/**/*.ts"

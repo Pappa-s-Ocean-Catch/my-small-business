@@ -1,5 +1,6 @@
 import { decodePngRgba } from './png';
 import type { PrinterImageSource } from './printer-image';
+import { prepareEscPosImage } from './escpos-raster';
 
 export type PrinterDriver = 'epsonSdk' | 'rawTcp' | 'simulator';
 
@@ -491,21 +492,14 @@ async function resizeRgbaToWidth(width: number, height: number, rgba: Uint8Array
 
 async function buildRawImagePrintBytes(imageSource: PrinterImageSource | string, maxWidth: number): Promise<Uint8Array> {
   const source = typeof imageSource === 'string' ? { kind: 'uri', uri: imageSource } as const : imageSource;
-  const normalized = source.kind === 'raw-argb'
-    ? await resizeRgbaToWidth(source.width, source.height, argbToRgba(source.argb), maxWidth)
+  const prepared = source.kind === 'raw-argb'
+    ? await prepareEscPosImage(source, maxWidth)
     : await (async () => {
-      const pngBytes = source.kind === 'png-base64'
-        ? decodeBase64(source.base64)
-        : await readImageBytes(source.uri);
-      const decoded = await decodePngRgba(pngBytes);
-      return await resizeRgbaToWidth(decoded.width, decoded.height, decoded.rgba, maxWidth);
+      const pngBytes = source.kind === 'png-base64' ? decodeBase64(source.base64) : await readImageBytes(source.uri);
+      return await prepareEscPosImage(source.kind === 'png-base64' ? { kind: 'png-base64', base64: source.base64 } : { kind: 'png-bytes', bytes: pngBytes }, maxWidth);
     })();
-  const raster = await rgbaToEscPosBitImage(normalized.width, normalized.height, normalized.rgba);
-  return concatBytes([
-    Uint8Array.from([ESC, 0x40, ESC, 0x61, 0x01]),
-    raster,
-    Uint8Array.from([LF, LF, LF, GS, 0x56, 0x00]),
-  ]);
+  console.info(`[raw-tcp-baseline] source=${source.kind} size=${prepared.width}x${prepared.height} sourceBytes=${prepared.sourceByteLength} rasterBytes=${prepared.bytes.length} decode=${prepared.phasesMs.decode}ms resize=${prepared.phasesMs.resize}ms raster=${prepared.phasesMs.raster}ms total=${prepared.phasesMs.total}ms`);
+  return prepared.bytes;
 }
 
 export async function escposPrintOrderImage(
