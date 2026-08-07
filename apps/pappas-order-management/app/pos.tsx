@@ -40,10 +40,10 @@ import { usePendingOnlinePaymentsStore } from '../stores/pendingOnlinePaymentsSt
 import { useMarketplacePosDraftStore } from '../stores/marketplacePosDraftStore';
 import { styles } from '../components/pos/pos.styles';
 import { isCompactPhoneWidth } from '../lib/responsive';
+import { posCatalogCacheStore } from '../stores/posCatalogCacheStore';
 import type {
   AddonGroup,
   AddonItem,
-  CacheEntry,
   CashTenderMode,
   CustomizationData,
   LayoutCategoryButton,
@@ -74,8 +74,6 @@ const cartItemHasCustomizations = (item: Pick<OrderItem, 'addons' | 'removed_ing
   || Boolean(item.comment)
 );
 
-const CATALOG_CACHE_TTL_MS = 60 * 60 * 1000;
-const TOP_SELLERS_CACHE_TTL_MS = 5 * 60 * 1000;
 const POS_CACHE_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
 const PRODUCT_TILE_PALETTE = [
   { backgroundColor: '#fff7ed', borderColor: '#fed7aa', priceColor: '#c2410c' },
@@ -93,49 +91,6 @@ const ADDON_GROUP_PALETTE = [
   { backgroundColor: '#f0fdfa', borderColor: '#5eead4', labelColor: '#0f766e' },
   { backgroundColor: '#fefce8', borderColor: '#fde047', labelColor: '#a16207' },
 ];
-
-const catalogCache = {
-  categories: null as CacheEntry<SaleCategory[]> | null,
-  allProducts: null as CacheEntry<SaleProduct[]> | null,
-  productsByCategory: new Map<string, CacheEntry<SaleProduct[]>>(),
-  hasCustomizationByProduct: new Map<string, CacheEntry<boolean>>(),
-  customizationByProduct: new Map<string, CacheEntry<CustomizationData>>(),
-  topSellersToday: null as CacheEntry<TopSellerProduct[]> | null,
-};
-
-const isCacheFresh = <T,>(entry: CacheEntry<T> | null | undefined): entry is CacheEntry<T> => (
-  Boolean(entry && entry.expiresAt > Date.now())
-);
-
-const cacheEntry = <T,>(data: T, ttlMs = CATALOG_CACHE_TTL_MS): CacheEntry<T> => ({
-  data,
-  expiresAt: Date.now() + ttlMs,
-});
-
-const getFreshCacheEntry = <K, T>(cache: Map<K, CacheEntry<T>>, key: K) => {
-  const entry = cache.get(key);
-  if (isCacheFresh(entry)) return entry;
-  if (entry) cache.delete(key);
-  return null;
-};
-
-const pruneExpiredCacheEntries = <K, T>(cache: Map<K, CacheEntry<T>>, now = Date.now()) => {
-  for (const [key, entry] of cache.entries()) {
-    if (entry.expiresAt <= now) cache.delete(key);
-  }
-};
-
-const pruneCatalogCache = () => {
-  const now = Date.now();
-  if (catalogCache.categories && catalogCache.categories.expiresAt <= now) catalogCache.categories = null;
-  if (catalogCache.allProducts && catalogCache.allProducts.expiresAt <= now) catalogCache.allProducts = null;
-  if (catalogCache.topSellersToday && catalogCache.topSellersToday.expiresAt <= now) {
-    catalogCache.topSellersToday = null;
-  }
-  pruneExpiredCacheEntries(catalogCache.productsByCategory, now);
-  pruneExpiredCacheEntries(catalogCache.hasCustomizationByProduct, now);
-  pruneExpiredCacheEntries(catalogCache.customizationByProduct, now);
-};
 
 const defaultPickupTime = () => {
   const next = new Date();
@@ -388,8 +343,8 @@ export default function PosScreen() {
   }, []);
 
   useEffect(() => {
-    pruneCatalogCache();
-    const sweepTimer = setInterval(pruneCatalogCache, POS_CACHE_SWEEP_INTERVAL_MS);
+    posCatalogCacheStore.getState().pruneExpired();
+    const sweepTimer = setInterval(() => posCatalogCacheStore.getState().pruneExpired(), POS_CACHE_SWEEP_INTERVAL_MS);
     return () => clearInterval(sweepTimer);
   }, []);
 
@@ -401,9 +356,9 @@ export default function PosScreen() {
 
   useEffect(() => {
     const fetchCategories = async () => {
-      pruneCatalogCache();
-      if (isCacheFresh(catalogCache.categories)) {
-        setCategories(catalogCache.categories.data);
+      const cachedCategories = posCatalogCacheStore.getState().getCategories();
+      if (cachedCategories) {
+        setCategories(cachedCategories);
         return;
       }
 
@@ -419,7 +374,7 @@ export default function PosScreen() {
       }
 
       const nextCategories = (data || []) as SaleCategory[];
-      catalogCache.categories = cacheEntry(nextCategories);
+      posCatalogCacheStore.getState().setCategories(nextCategories);
       setCategories(nextCategories);
     };
 
@@ -568,7 +523,7 @@ export default function PosScreen() {
   }, [categories]);
 
   const invalidateTopSellers = () => {
-    catalogCache.topSellersToday = null;
+    posCatalogCacheStore.getState().clearTopSellers();
     setTopSellerRefreshKey((key) => key + 1);
   };
 
@@ -585,9 +540,9 @@ export default function PosScreen() {
   }, []);
 
   const loadTopSellersToday = async () => {
-    pruneCatalogCache();
-    if (isCacheFresh(catalogCache.topSellersToday)) {
-      setTopSellers(catalogCache.topSellersToday.data);
+    const cachedTopSellers = posCatalogCacheStore.getState().getTopSellers();
+    if (cachedTopSellers) {
+      setTopSellers(cachedTopSellers);
       return;
     }
 
@@ -626,7 +581,7 @@ export default function PosScreen() {
       .map(([productId]) => productId);
 
     if (rankedProductIds.length === 0) {
-      catalogCache.topSellersToday = cacheEntry([], TOP_SELLERS_CACHE_TTL_MS);
+      posCatalogCacheStore.getState().setTopSellers([]);
       setTopSellers([]);
       setLoadingTopSellers(false);
       return;
@@ -657,7 +612,7 @@ export default function PosScreen() {
       })
       .filter((product): product is TopSellerProduct => Boolean(product));
 
-    catalogCache.topSellersToday = cacheEntry(nextTopSellers, TOP_SELLERS_CACHE_TTL_MS);
+    posCatalogCacheStore.getState().setTopSellers(nextTopSellers);
     setTopSellers(nextTopSellers);
     setLoadingTopSellers(false);
     void loadCustomizationAvailability(nextTopSellers.map((product) => product.id));
@@ -670,10 +625,10 @@ export default function PosScreen() {
   }, [menuLevel, topSellerRefreshKey]);
 
   const loadSearchProducts = useCallback(async () => {
-    pruneCatalogCache();
-    if (isCacheFresh(catalogCache.allProducts)) {
-      setSearchProducts(catalogCache.allProducts.data);
-      void loadCustomizationAvailability(catalogCache.allProducts.data.map((product) => product.id));
+    const cachedProducts = posCatalogCacheStore.getState().getAllProducts();
+    if (cachedProducts) {
+      setSearchProducts(cachedProducts);
+      void loadCustomizationAvailability(cachedProducts.map((product) => product.id));
       return;
     }
 
@@ -691,7 +646,7 @@ export default function PosScreen() {
     }
 
     const nextProducts = (data || []) as SaleProduct[];
-    catalogCache.allProducts = cacheEntry(nextProducts);
+    posCatalogCacheStore.getState().setAllProducts(nextProducts);
     setSearchProducts(nextProducts);
     void loadCustomizationAvailability(nextProducts.map((product) => product.id));
   }, []);
@@ -724,7 +679,7 @@ export default function PosScreen() {
 
     const catalogProducts = searchProducts.length > 0
       ? searchProducts
-      : catalogCache.allProducts?.data ?? [];
+      : posCatalogCacheStore.getState().getAllProducts() ?? [];
     if (catalogProducts.length === 0) return [];
 
     const productsById = new Map(catalogProducts.map((product) => [product.id, product]));
@@ -753,12 +708,11 @@ export default function PosScreen() {
         return;
       }
       const cacheKey = categoryIds.sort().join(',');
-      pruneCatalogCache();
-      const cachedProducts = getFreshCacheEntry(catalogCache.productsByCategory, cacheKey);
+      const cachedProducts = posCatalogCacheStore.getState().getProductsByCategory(cacheKey);
 
       if (cachedProducts) {
-        setProducts(cachedProducts.data);
-        void loadCustomizationAvailability(cachedProducts.data.map((product) => product.id));
+        setProducts(cachedProducts);
+        void loadCustomizationAvailability(cachedProducts.map((product) => product.id));
         return;
       }
 
@@ -776,7 +730,7 @@ export default function PosScreen() {
         return;
       }
       const nextProducts = (data || []) as SaleProduct[];
-      catalogCache.productsByCategory.set(cacheKey, cacheEntry(nextProducts));
+      posCatalogCacheStore.getState().setProductsByCategory(cacheKey, nextProducts);
       setProducts(nextProducts);
       void loadCustomizationAvailability(nextProducts.map((product) => product.id));
     };
@@ -1253,20 +1207,20 @@ export default function PosScreen() {
 
     const uniqueProductIds = Array.from(new Set(productIds));
     const missingProductIds = uniqueProductIds.filter((productId) => {
-      const fullCustomization = getFreshCacheEntry(catalogCache.customizationByProduct, productId);
+      const fullCustomization = posCatalogCacheStore.getState().getCustomization(productId);
       if (fullCustomization) {
-        catalogCache.hasCustomizationByProduct.set(
+        posCatalogCacheStore.getState().setCustomizationAvailability(
           productId,
-          cacheEntry(fullCustomization.data.groups.length > 0 || fullCustomization.data.removableIngredients.length > 0)
+          fullCustomization.groups.length > 0 || fullCustomization.removableIngredients.length > 0
         );
         return false;
       }
-      return !getFreshCacheEntry(catalogCache.hasCustomizationByProduct, productId);
+      return posCatalogCacheStore.getState().getCustomizationAvailability(productId) === null;
     });
 
     if (missingProductIds.length === 0) {
       setCustomizableProductIds(new Set(uniqueProductIds.filter((productId) => (
-        getFreshCacheEntry(catalogCache.hasCustomizationByProduct, productId)?.data
+        posCatalogCacheStore.getState().getCustomizationAvailability(productId)
       ))));
       return;
     }
@@ -1285,7 +1239,7 @@ export default function PosScreen() {
 
     if (addonResult.error || ingredientResult.error) {
       setCustomizableProductIds(new Set(uniqueProductIds.filter((productId) => (
-        getFreshCacheEntry(catalogCache.hasCustomizationByProduct, productId)?.data
+        posCatalogCacheStore.getState().getCustomizationAvailability(productId)
       ))));
       return;
     }
@@ -1296,27 +1250,27 @@ export default function PosScreen() {
     ]);
 
     missingProductIds.forEach((productId) => {
-      catalogCache.hasCustomizationByProduct.set(productId, cacheEntry(customizableIds.has(productId)));
+      posCatalogCacheStore.getState().setCustomizationAvailability(productId, customizableIds.has(productId));
     });
 
     setCustomizableProductIds(new Set(uniqueProductIds.filter((productId) => (
-      getFreshCacheEntry(catalogCache.hasCustomizationByProduct, productId)?.data
+      posCatalogCacheStore.getState().getCustomizationAvailability(productId)
     ))));
   };
 
   const productHasCustomization = async (productId: string) => {
-    const fullCustomization = getFreshCacheEntry(catalogCache.customizationByProduct, productId);
+    const fullCustomization = posCatalogCacheStore.getState().getCustomization(productId);
     if (fullCustomization) {
-      return fullCustomization.data.groups.length > 0 || fullCustomization.data.removableIngredients.length > 0;
+      return fullCustomization.groups.length > 0 || fullCustomization.removableIngredients.length > 0;
     }
 
-    const cachedAvailability = getFreshCacheEntry(catalogCache.hasCustomizationByProduct, productId);
-    if (cachedAvailability) {
-      return cachedAvailability.data;
+    const cachedAvailability = posCatalogCacheStore.getState().getCustomizationAvailability(productId);
+    if (cachedAvailability !== null) {
+      return cachedAvailability;
     }
 
     await loadCustomizationAvailability([productId]);
-    return getFreshCacheEntry(catalogCache.hasCustomizationByProduct, productId)?.data ?? false;
+    return posCatalogCacheStore.getState().getCustomizationAvailability(productId) ?? false;
   };
 
   const loadCustomizations = async (
@@ -1344,11 +1298,11 @@ export default function PosScreen() {
       }, {})
     );
 
-    const cachedCustomizations = getFreshCacheEntry(catalogCache.customizationByProduct, productId);
+    const cachedCustomizations = posCatalogCacheStore.getState().getCustomization(productId);
     if (cachedCustomizations) {
       setLoadingAddons(false);
-      applyCustomizationData(cachedCustomizations.data);
-      return cachedCustomizations.data;
+      applyCustomizationData(cachedCustomizations);
+      return cachedCustomizations;
     }
 
     setLoadingAddons(true);
@@ -1426,10 +1380,10 @@ export default function PosScreen() {
     });
 
     const customizations = { groups, removableIngredients };
-    catalogCache.customizationByProduct.set(productId, cacheEntry(customizations));
-    catalogCache.hasCustomizationByProduct.set(
+    posCatalogCacheStore.getState().setCustomization(productId, customizations);
+    posCatalogCacheStore.getState().setCustomizationAvailability(
       productId,
-      cacheEntry(groups.length > 0 || removableIngredients.length > 0)
+      groups.length > 0 || removableIngredients.length > 0
     );
     applyCustomizationData(customizations);
 

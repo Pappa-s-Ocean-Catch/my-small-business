@@ -27,6 +27,7 @@ import { SettingsSectionCard } from '@/components/settings/SettingsSectionCard';
 import { useAppSettingsQuery } from '@/hooks/useAppSettingsQuery';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
+import { posCatalogCacheStore } from '@/stores/posCatalogCacheStore';
 import { JOURNAL_LOGS_ENABLED } from '@/lib/journal-config';
 
 type SettingsDialogKey = 'refresh' | 'sound' | 'printer' | 'liveOrders' | 'printDiagnostics' | 'journal' | null;
@@ -211,6 +212,24 @@ export default function SettingsScreen() {
                     text: 'Clear journal',
                     style: 'destructive',
                     onPress: () => clearJournal(),
+                },
+            ]
+        );
+    };
+
+    const handleClearPosCache = () => {
+        Alert.alert(
+            'Clear POS cache?',
+            'This removes cached categories, products, and customizations. They will refresh the next time you use POS. This keeps you signed in and does not change your settings.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Clear POS cache',
+                    style: 'destructive',
+                    onPress: () => {
+                        posCatalogCacheStore.getState().clear();
+                        Alert.alert('POS cache cleared', 'Product data will refresh when you next open POS.');
+                    },
                 },
             ]
         );
@@ -655,6 +674,18 @@ export default function SettingsScreen() {
                     description={printerDebugFooter ? 'Diagnostic footer enabled' : 'Diagnostic footer disabled'}
                     icon="text-box-search-outline"
                     onPress={() => setActiveDialog('printDiagnostics')}
+                />
+            </SettingsSectionCard>
+
+            <SettingsSectionCard
+                title="Storage"
+                description="Remove transient POS product data without changing this device's settings."
+            >
+                <SettingsActionTile
+                    title="Clear POS cache"
+                    description="Remove cached categories, products, and customizations"
+                    icon="database-remove-outline"
+                    onPress={handleClearPosCache}
                 />
             </SettingsSectionCard>
 
