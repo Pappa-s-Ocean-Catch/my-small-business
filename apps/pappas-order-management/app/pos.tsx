@@ -41,6 +41,7 @@ import { useMarketplacePosDraftStore } from '../stores/marketplacePosDraftStore'
 import { styles } from '../components/pos/pos.styles';
 import { isCompactPhoneWidth } from '../lib/responsive';
 import { posCatalogCacheStore } from '../stores/posCatalogCacheStore';
+import { useInstoreCustomerReceiptPrint } from '../providers/instoreCustomerReceiptPrintContext';
 import type {
   AddonGroup,
   AddonItem,
@@ -214,6 +215,7 @@ const getDiscountConfigFromOrder = (order: Order | null): PosDiscountConfig => {
 };
 
 export default function PosScreen() {
+  const { printInstoreCustomerReceipt } = useInstoreCustomerReceiptPrint();
   const router = useRouter();
   const { width, height } = useWindowDimensions();
   const params = useLocalSearchParams<{ orderId?: string | string[] }>();
@@ -2071,6 +2073,7 @@ export default function PosScreen() {
       }
       if (result.data?.id) {
         await applyRewardPointsForSavedOrder(result.data.id, customerId);
+        await printInstoreCustomerReceipt(result.data);
       }
       invalidateTopSellers();
       router.back();
@@ -2201,6 +2204,9 @@ export default function PosScreen() {
     }
     if (result.data?.id) {
       await applyRewardPointsForSavedOrder(result.data.id, customerId);
+      if (paymentStatus === 'paid') {
+        await printInstoreCustomerReceipt(result.data);
+      }
     }
     invalidateTopSellers();
     router.back();

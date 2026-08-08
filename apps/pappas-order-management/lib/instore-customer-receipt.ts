@@ -73,3 +73,22 @@ export function isInstoreCustomerReceiptAutoPrintEligible(
       now,
     );
 }
+
+export function getInstoreCustomerReceiptPrintJob(
+  order: Pick<Order, 'order_channel' | 'payment_status' | 'payment_method' | 'payment_method_detail'>,
+  settings: InstoreCustomerReceiptSettings,
+  savedPrinterTargets: string[],
+  now = new Date(),
+): { printerTarget: string; template: 'customer-copy'; priority: 'customer-receipt'; copies: 1 } | null {
+  const printerTarget = settings.instoreCustomerReceiptPrinterTarget;
+  if (!isInstoreCustomerReceiptAutoPrintEligible(order, settings, now) || !printerTarget || !savedPrinterTargets.includes(printerTarget)) {
+    return null;
+  }
+
+  return {
+    printerTarget,
+    template: 'customer-copy',
+    priority: 'customer-receipt',
+    copies: 1,
+  };
+}

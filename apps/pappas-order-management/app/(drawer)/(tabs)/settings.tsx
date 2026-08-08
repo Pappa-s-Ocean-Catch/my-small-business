@@ -59,6 +59,10 @@ export default function SettingsScreen() {
 
     const [printerEnabled, setPrinterEnabled] = useState<boolean>(DEFAULT_APP_SETTINGS.printerEnabled);
     const [printerAutoPrint, setPrinterAutoPrint] = useState<boolean>(DEFAULT_APP_SETTINGS.printerAutoPrint);
+    const [instoreCustomerReceiptAutoPrintEnabled, setInstoreCustomerReceiptAutoPrintEnabled] = useState(DEFAULT_APP_SETTINGS.instoreCustomerReceiptAutoPrintEnabled);
+    const [instoreCustomerReceiptPrinterTarget, setInstoreCustomerReceiptPrinterTarget] = useState<string | null>(DEFAULT_APP_SETTINGS.instoreCustomerReceiptPrinterTarget);
+    const [instoreCustomerReceiptEnabledFromTime, setInstoreCustomerReceiptEnabledFromTime] = useState(DEFAULT_APP_SETTINGS.instoreCustomerReceiptEnabledFromTime || '');
+    const [instoreCustomerReceiptEnabledToTime, setInstoreCustomerReceiptEnabledToTime] = useState(DEFAULT_APP_SETTINGS.instoreCustomerReceiptEnabledToTime || '');
     const [printerSaved, setPrinterSaved] = useState<SavedPrinter[]>(DEFAULT_APP_SETTINGS.printerSaved);
     const [printerSelectedTarget, setPrinterSelectedTarget] = useState<string | null>(DEFAULT_APP_SETTINGS.printerSelectedTarget);
     const [printerSectionAssignments, setPrinterSectionAssignments] = useState<PrinterSectionAssignment[]>(
@@ -92,6 +96,10 @@ export default function SettingsScreen() {
 
         setPrinterEnabled(currentSettings.printerEnabled);
         setPrinterAutoPrint(currentSettings.printerAutoPrint);
+        setInstoreCustomerReceiptAutoPrintEnabled(currentSettings.instoreCustomerReceiptAutoPrintEnabled);
+        setInstoreCustomerReceiptPrinterTarget(currentSettings.instoreCustomerReceiptPrinterTarget);
+        setInstoreCustomerReceiptEnabledFromTime(currentSettings.instoreCustomerReceiptEnabledFromTime || '');
+        setInstoreCustomerReceiptEnabledToTime(currentSettings.instoreCustomerReceiptEnabledToTime || '');
         setPrinterSaved(currentSettings.printerSaved);
         setPrinterSelectedTarget(currentSettings.printerSelectedTarget);
         setPrinterSectionAssignments(currentSettings.printerSectionAssignments);
@@ -549,6 +557,12 @@ export default function SettingsScreen() {
             enabledFromTime: normalizeTimeInput(assignment.enabledFromTime),
             enabledToTime: normalizeTimeInput(assignment.enabledToTime),
         }));
+        const receiptFromTime = normalizeTimeInput(instoreCustomerReceiptEnabledFromTime);
+        const receiptToTime = normalizeTimeInput(instoreCustomerReceiptEnabledToTime);
+        if ((!!receiptFromTime && !receiptToTime) || (!receiptFromTime && !!receiptToTime) || [receiptFromTime, receiptToTime].some((value) => !!value && !/^\d{2}:\d{2}$/.test(value))) {
+            Alert.alert('Invalid customer receipt time window', 'Set both From and To times in HH:MM format, or leave both blank to always print.');
+            return;
+        }
         const nonDefaultAssignments = normalizedAssignments.filter((assignment) => !assignment.isDefault);
         const missingSectionName = nonDefaultAssignments.find((assignment) => !assignment.sectionName);
         if (missingSectionName) {
@@ -593,6 +607,10 @@ export default function SettingsScreen() {
                 liveOrderCardLayout,
                 printerEnabled,
                 printerAutoPrint,
+                instoreCustomerReceiptAutoPrintEnabled,
+                instoreCustomerReceiptPrinterTarget,
+                instoreCustomerReceiptEnabledFromTime: receiptFromTime,
+                instoreCustomerReceiptEnabledToTime: receiptToTime,
                 printerSelectedTarget,
                 printerSaved,
                 printerSectionAssignments: normalizedAssignments,
@@ -1169,6 +1187,28 @@ export default function SettingsScreen() {
                                     disabled={!hasPrinterCapability || !printerAutoPrint}
                                 />
                                 <Text style={styles.helper}>Wait before printing a new order (0 to 120).</Text>
+
+                                <View style={styles.separator} />
+                                <Text style={styles.label}>In-store customer receipt</Text>
+                                <Text style={styles.helper}>Print one combined customer receipt first for new paid in-store Cash, Card, or SmartPay orders only.</Text>
+                                <View style={styles.switchRow}>
+                                    <Text style={styles.label}>Enable automatic receipt</Text>
+                                    <Switch value={instoreCustomerReceiptAutoPrintEnabled} onValueChange={setInstoreCustomerReceiptAutoPrintEnabled} disabled={!hasPrinterCapability} />
+                                </View>
+                                <Text style={[styles.label, styles.assignmentSubLabel]}>Receipt printer</Text>
+                                <View style={styles.buttonGroup}>
+                                    {printerSaved.map((printer) => (
+                                        <Button key={printer.target} mode={instoreCustomerReceiptPrinterTarget === printer.target ? 'contained' : 'outlined'} onPress={() => setInstoreCustomerReceiptPrinterTarget(printer.target)} style={styles.flexButton} disabled={!hasPrinterCapability}>
+                                            {printer.deviceName}
+                                        </Button>
+                                    ))}
+                                </View>
+                                {printerSaved.length === 0 ? <Text style={styles.helper}>Add a saved printer before enabling automatic customer receipts.</Text> : null}
+                                <View style={styles.buttonGroup}>
+                                    <TextInput mode="outlined" label="From" value={instoreCustomerReceiptEnabledFromTime} onChangeText={setInstoreCustomerReceiptEnabledFromTime} placeholder="17:00" style={[styles.input, styles.flexButton]} disabled={!instoreCustomerReceiptAutoPrintEnabled} />
+                                    <TextInput mode="outlined" label="To" value={instoreCustomerReceiptEnabledToTime} onChangeText={setInstoreCustomerReceiptEnabledToTime} placeholder="20:00" style={[styles.input, styles.flexButton]} disabled={!instoreCustomerReceiptAutoPrintEnabled} />
+                                </View>
+                                <Text style={styles.helper}>Leave both blank to always print. Uses 24-hour time and supports overnight windows.</Text>
 
                                 <View style={styles.separator} />
 

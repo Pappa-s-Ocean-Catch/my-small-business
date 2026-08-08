@@ -29,6 +29,7 @@ import { ReceiptTemplate } from '@/components/ReceiptTemplate';
 import { CustomerReceiptTemplate } from '@/components/CustomerReceiptTemplate';
 import { shouldPlayOrderSound } from '@/utils/orderUtils';
 import { getPrintDeviceId } from '@/lib/print-device';
+import { getInstoreCustomerReceiptPrintJob } from '@/lib/instore-customer-receipt';
 import { getAutoPrintableLiveOrders } from '@/lib/live-order-window';
 import { getFriendlyOrderNumber } from '@/utils/orderNumber';
 import { playNewOrderSound } from '@/lib/sounds';
@@ -38,6 +39,7 @@ import {
   createPrintDebugSessionId,
   type KitchenPrintDebugContext,
 } from '@/lib/print-debug-footer';
+import { InstoreCustomerReceiptPrintContext } from './instoreCustomerReceiptPrintContext';
 
 type TimeoutHandle = ReturnType<typeof setTimeout>;
 type JournalOrderRef = { id: string; order_number?: string | null };
@@ -52,6 +54,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
   const queryClient = useQueryClient();
   const { data: appSettings = DEFAULT_APP_SETTINGS } = useAppSettingsQuery();
   const globalReceiptRef = useRef(null);
+  const instoreCustomerReceiptRef = useRef(null);
   const pendingAnnouncementTimersRef = useRef<Map<string, TimeoutHandle>>(new Map());
   const announcingOrderIdsRef = useRef<Set<string>>(new Set());
   const processedOrderIdsRef = useRef<Set<string>>(new Set());
@@ -67,6 +70,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
   const [tempPrintDuplicateBySections, setTempPrintDuplicateBySections] = useState(false);
   const [tempPrintTemplate, setTempPrintTemplate] = useState<'kitchen' | 'customer-copy'>('kitchen');
   const [tempPrintDebugContext, setTempPrintDebugContext] = useState<KitchenPrintDebugContext | null>(null);
+  const [tempInstoreCustomerReceiptOrder, setTempInstoreCustomerReceiptOrder] = useState<Order | null>(null);
 
   const autoPrintToast = usePrinterAutomationStore((state) => state.autoPrintToast);
   const dismissToast = usePrinterAutomationStore((state) => state.dismissToast);
@@ -124,6 +128,82 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     }
   }, []);
+
+  const printInstoreCustomerReceipt = useCallback(async (order: Order) => {
+    try {
+      const effectiveSettings = await loadAppSettings().catch(() => appSettings);
+      const jobSettings = getInstoreCustomerReceiptPrintJob(
+        order,
+        effectiveSettings,
+        effectiveSettings.printerSaved.map((printer) => printer.target),
+      );
+      if (!jobSettings) {
+        logOrderEvent('decision', 'instore-customer-receipt', 'Skipped automatic customer receipt', {
+          order,
+          details: 'Setting, printer, time window, or paid in-store eligibility did not match',
+        });
+        return;
+      }
+
+      const printer = effectiveSettings.printerSaved.find((item) => item.target === jobSettings.printerTarget) || null;
+      if (!printer) return;
+      if (!isSimulatorPrinter(printer) && !effectiveSettings.printerEnabled) {
+        showToast('Customer receipt was not printed because the printer is disabled.', 'error');
+        return;
+      }
+
+      setTempInstoreCustomerReceiptOrder(order);
+      await new Promise((resolve) => setTimeout(resolve, RECEIPT_RENDER_SETTLE_MS));
+      await waitForReceiptRenderFrames();
+      if (!instoreCustomerReceiptRef.current) {
+        throw new Error('Customer receipt template is still loading.');
+      }
+
+      const targetDots = effectiveSettings.printerPaperWidth === '58mm' ? 384 : 576;
+      const captureWidth = targetDots * (effectiveSettings.printerHighQuality ? 2 : 1);
+      if (isSimulatorPrinter(printer)) {
+        const previewUri = await captureReceiptPreview(instoreCustomerReceiptRef.current, captureWidth);
+        showAutoPrintSimulator({
+          order,
+          imageUri: previewUri,
+          imageUris: [previewUri],
+          imageLabels: [printer.deviceName],
+        });
+        return;
+      }
+
+      const image = await captureReceiptForPrinter(
+        instoreCustomerReceiptRef.current,
+        printer,
+        captureWidth,
+        effectiveSettings.printerHighQuality,
+      );
+      enqueuePreparedPrintJobs({
+        order,
+        source: 'customer-copy',
+        scope: 'instore-customer-receipt',
+        jobs: [{
+          image,
+          printer,
+          width: targetDots,
+          label: printer.deviceName,
+          copies: jobSettings.copies,
+          priority: jobSettings.priority,
+        }],
+        silentSuccess: true,
+      });
+      logOrderEvent('success', 'instore-customer-receipt', 'Queued priority customer receipt', {
+        order,
+        details: `printer=${printer.deviceName}`,
+      });
+    } catch (error) {
+      const reason = formatPrinterError(error) || 'Failed to print customer receipt.';
+      logOrderEvent('error', 'instore-customer-receipt', 'Automatic customer receipt failed', { order, details: reason });
+      showToast(`Customer receipt failed: ${reason}`, 'error');
+    } finally {
+      setTempInstoreCustomerReceiptOrder(null);
+    }
+  }, [appSettings, logOrderEvent, showAutoPrintSimulator, showToast, waitForReceiptRenderFrames]);
 
   const playAttentionSoundForOrder = useCallback((order: Pick<Order, 'id' | 'order_channel' | 'payment_method' | 'customer_name' | 'scheduled_pickup_at'>) => {
     if (!appSettings.soundEnabled) return;
@@ -644,6 +724,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
   }, [logOrderEvent, playAttentionSoundForOrder, queryClient, scheduleOrderAnnouncement, setPreOrderSkipNotice]);
 
   return (
+    <InstoreCustomerReceiptPrintContext.Provider value={{ printInstoreCustomerReceipt }}>
     <>
       {children}
       <View style={{ position: 'absolute', left: -9999, top: -9999, opacity: 0 }} pointerEvents="none">
@@ -665,6 +746,14 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
                 printDebugContext={tempPrintDebugContext}
               />
             )}
+          </View>
+        ) : null}
+        {tempInstoreCustomerReceiptOrder ? (
+          <View ref={instoreCustomerReceiptRef} collapsable={false}>
+            <CustomerReceiptTemplate
+              order={tempInstoreCustomerReceiptOrder}
+              width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
+            />
           </View>
         ) : null}
       </View>
@@ -695,5 +784,6 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
         onClose={dismissAutoPrintSimulator}
       />
     </>
+    </InstoreCustomerReceiptPrintContext.Provider>
   );
 }

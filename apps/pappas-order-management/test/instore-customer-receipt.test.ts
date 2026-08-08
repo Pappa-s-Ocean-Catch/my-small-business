@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Order } from '@my-small-business/types';
 import {
+  getInstoreCustomerReceiptPrintJob,
   isInstoreCustomerReceiptAutoPrintEligible,
   normalizeInstoreCustomerReceiptSettings,
 } from '../lib/instore-customer-receipt';
@@ -57,4 +58,16 @@ test('supports all-day and overnight receipt time windows', () => {
     instoreCustomerReceiptEnabledFromTime: '20:00',
     instoreCustomerReceiptEnabledToTime: '06:00',
   }, new Date(2026, 7, 8, 2, 0, 0)), true);
+});
+
+test('builds one priority customer-copy job only when the configured printer is saved', () => {
+  assert.deepEqual(getInstoreCustomerReceiptPrintJob(makeOrder(), enabledSettings, [
+    'tcp:192.168.1.20:9100',
+  ], new Date(2026, 7, 8, 18, 0, 0)), {
+    printerTarget: 'tcp:192.168.1.20:9100',
+    template: 'customer-copy',
+    priority: 'customer-receipt',
+    copies: 1,
+  });
+  assert.equal(getInstoreCustomerReceiptPrintJob(makeOrder(), enabledSettings, [], new Date(2026, 7, 8, 18, 0, 0)), null);
 });
