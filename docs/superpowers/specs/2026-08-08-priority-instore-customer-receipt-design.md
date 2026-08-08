@@ -10,8 +10,8 @@ Automatically print a customer receipt as the highest-priority print job when a 
 - Use the existing customer receipt template.
 - Print exactly one combined customer receipt; it is never split by kitchen section.
 - Start the print only after `savePosOrder` has returned the newly created order successfully.
-- Apply it only to the cash/card and SmartPay in-store checkout creation paths, and only when their payment status is `paid`.
-- Do not print for unpaid in-store orders, edited orders, other POS channels, failed saves, or later payment-status updates.
+- Apply it only to the cash/card and SmartPay **POS in-store checkout creation paths**, and only when their payment status is `paid`.
+- Do not print for unpaid in-store orders, edited orders, phone-pickup orders, marketplace/imported orders, manually added orders, other POS channels, failed saves, or later payment-status updates.
 
 ## Settings
 
@@ -36,7 +36,7 @@ The print is best-effort: a receipt-print failure is surfaced/logged but does no
 
 ## Boundaries
 
-- This is a dedicated checkout flow, not a change to the global new-order auto-print listener.
+- This is a dedicated POS in-store checkout flow, not a change to the global new-order auto-print listener. In particular, the shared listener must not print a customer receipt for phone pickup, marketplace/imported, manually added, or other incoming orders.
 - Existing kitchen routing, default customer-copy assignments, and manual customer receipt printing remain unchanged.
 - No automatic trigger is added to `updatePaymentStatus`, so marking an existing order paid cannot produce a receipt.
 
@@ -48,5 +48,5 @@ Unit tests cover settings normalization/defaults, time-window eligibility, and t
 
 - A paid cash, card, or SmartPay in-store POS order created during its configured window produces one combined customer receipt on the configured register printer before kitchen jobs.
 - Turning off the setting, leaving the printer unset, or being outside its configured window prevents the automatic receipt.
-- An unpaid in-store order and any later update of an order's payment status do not automatically print a customer receipt.
+- An unpaid in-store order, any later update of an order's payment status, and all phone-pickup, marketplace/imported, and manually added orders do not automatically print a customer receipt.
 - Manual customer receipt printing and existing kitchen printer automation keep their current behavior.
