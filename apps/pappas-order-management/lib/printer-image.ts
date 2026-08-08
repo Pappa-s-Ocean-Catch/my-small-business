@@ -2,6 +2,7 @@ import { findNodeHandle, Platform } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 import type { SavedPrinter } from './escpos-printer';
 import { getPrinterDriver } from './escpos-printer';
+import { shouldUseRawTcpRawCapture } from './raw-tcp-native-settings';
 
 export type PrinterImageSource =
   | { kind: 'uri'; uri: string }
@@ -60,7 +61,8 @@ function bgraToArgb(bgra: Uint8Array): Uint8Array {
 export async function captureReceiptForPrinter(
   ref: any,
   printer: SavedPrinter,
-  width: number
+  width: number,
+  highQuality: boolean = true
 ): Promise<PrinterImageSource> {
   const nativeViewTag = findNodeHandle(ref);
   if (getPrinterDriver(printer) === 'rawTcp') {
@@ -72,7 +74,7 @@ export async function captureReceiptForPrinter(
         result: 'base64',
         width,
       }),
-      Platform.OS === 'android' ? captureRef(ref, { format: 'raw', result: 'base64', width }).catch(() => null) : Promise.resolve(null),
+      Platform.OS === 'android' && shouldUseRawTcpRawCapture(highQuality) ? captureRef(ref, { format: 'raw', result: 'base64', width }).catch(() => null) : Promise.resolve(null),
     ]);
     let rawCandidate: { width: number; height: number; argb: Uint8Array } | undefined;
     try {
@@ -108,7 +110,8 @@ export async function captureReceiptPreview(
 
 export async function captureReceiptPreviewAndRaw(
   ref: any,
-  width: number
+  width: number,
+  highQuality: boolean = true
 ): Promise<PrinterImageSource> {
   const nativeViewTag = findNodeHandle(ref);
   const [previewUri, base64, rawCapture] = await Promise.all([
@@ -119,7 +122,7 @@ export async function captureReceiptPreviewAndRaw(
       result: 'base64',
       width,
     }),
-    Platform.OS === 'android' ? captureRef(ref, { format: 'raw', result: 'base64', width }) : Promise.resolve(null),
+    Platform.OS === 'android' && shouldUseRawTcpRawCapture(highQuality) ? captureRef(ref, { format: 'raw', result: 'base64', width }) : Promise.resolve(null),
   ]);
   let rawCandidate: { width: number; height: number; argb: Uint8Array } | undefined;
   try {

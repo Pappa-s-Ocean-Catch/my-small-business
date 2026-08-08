@@ -282,7 +282,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
         const targetDots = appSettings.printerPaperWidth === '58mm' ? 384 : 576;
         const scale = appSettings.printerHighQuality ? 2 : 1;
         
-        const image = await captureReceiptPreviewAndRaw(receiptRef.current, targetDots * scale);
+        const image = await captureReceiptPreviewAndRaw(receiptRef.current, targetDots * scale, appSettings.printerHighQuality);
         success = await onPrintImage(printOrder, image, resolvedPrintPrinter);
       } catch (error) {
         console.error('Manual receipt print failed:', error);
@@ -343,7 +343,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       const targetDots = appSettings.printerPaperWidth === '58mm' ? 384 : 576;
       const scale = appSettings.printerHighQuality ? 2 : 1;
 
-      const image = await captureReceiptPreviewAndRaw(customerReceiptRef.current, targetDots * scale);
+      const image = await captureReceiptPreviewAndRaw(customerReceiptRef.current, targetDots * scale, appSettings.printerHighQuality);
       await onPrintCustomerCopyImage(printOrder, image, printer);
     } catch (error) {
       console.error('Failed to capture customer receipt:', error);

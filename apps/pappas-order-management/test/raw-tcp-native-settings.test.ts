@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getNativeRawTcpPrinter } from '../lib/raw-tcp-native';
-import { getRawTcpNativeMode, normalizeRawTcpNativeMode } from '../lib/raw-tcp-native-settings';
+import { getRawTcpNativeMode, normalizeRawTcpNativeMode, shouldUseRawTcpRawCapture } from '../lib/raw-tcp-native-settings';
 
 test('native printer lookup is unavailable-safe when no native module is installed', () => {
   const printer = getNativeRawTcpPrinter(() => {
@@ -20,4 +20,9 @@ test('rollout mode is selected independently for Android and iOS', () => {
   const modes = { rawTcpNativeModeAndroid: 'native-diagnostic' as const, rawTcpNativeModeIos: 'native-enabled' as const };
   assert.equal(getRawTcpNativeMode(modes, 'android'), 'native-diagnostic');
   assert.equal(getRawTcpNativeMode(modes, 'ios'), 'native-enabled');
+});
+
+test('standard-quality raw TCP capture avoids Android raw pixels', () => {
+  assert.equal(shouldUseRawTcpRawCapture(false), false);
+  assert.equal(shouldUseRawTcpRawCapture(true), true);
 });

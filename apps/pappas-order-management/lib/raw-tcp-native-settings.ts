@@ -14,3 +14,8 @@ export function getRawTcpNativeMode(settings: RawTcpNativeModeSettings, platform
     ? settings.rawTcpNativeModeAndroid
     : settings.rawTcpNativeModeIos);
 }
+
+/** Android raw capture ignores requested dimensions, so reserve it for HD printing only. */
+export function shouldUseRawTcpRawCapture(highQuality: boolean): boolean {
+  return highQuality;
+}

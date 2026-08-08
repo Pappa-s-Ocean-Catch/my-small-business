@@ -333,7 +333,7 @@ export default function LiveOrdersScreen() {
         }
 
         const captureStartedAt = Date.now();
-        const image = await captureReceiptForPrinter(receiptRef, selectedPrinter, targetDots * scale);
+        const image = await captureReceiptForPrinter(receiptRef, selectedPrinter, targetDots * scale, s.printerHighQuality);
         logOrderEvent('info', 'print', 'Captured receipt image for direct printer', {
           order: freshOrder,
           details: `capture=${formatDurationMs(captureStartedAt)} width=${targetDots * scale}`,
@@ -426,7 +426,7 @@ export default function LiveOrdersScreen() {
           capturedJobs.push({ image: { kind: 'uri', uri }, previewUri: uri, label: job.label, printer: job.printer });
         } else {
           const captureStartedAt = Date.now();
-          const image = await captureReceiptForPrinter(receiptRef, job.printer, targetDots * scale);
+          const image = await captureReceiptForPrinter(receiptRef, job.printer, targetDots * scale, s.printerHighQuality);
           const previewUri = image.kind === 'uri' ? image.uri : await captureReceiptPreview(receiptRef, targetDots * scale);
           logOrderEvent('info', 'print', 'Captured receipt image for routed print job', {
             order: freshOrder,

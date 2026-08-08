@@ -279,7 +279,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
           });
         } else {
           const captureStartedAt = Date.now();
-          const image = await captureReceiptForPrinter(receiptRef, job.printer, targetDots * scale);
+          const image = await captureReceiptForPrinter(receiptRef, job.printer, targetDots * scale, effectiveSettings.printerHighQuality);
           const previewUri = image.kind === 'uri' ? image.uri : await captureReceiptPreview(receiptRef, targetDots * scale);
           logOrderEvent('info', 'print', 'Captured receipt image for auto-print job', {
             order: freshOrder,

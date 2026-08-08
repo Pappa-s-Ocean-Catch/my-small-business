@@ -230,7 +230,7 @@ export default function PreOrdersScreen() {
           return;
         }
 
-        const image = await captureReceiptForPrinter(receiptRef, selectedPrinter, targetDots * scale);
+        const image = await captureReceiptForPrinter(receiptRef, selectedPrinter, targetDots * scale, s.printerHighQuality);
 
         if (!s.printerEnabled) {
           Alert.alert('Printer error', `No printer is selected. ${printSettingsDetails}`);
@@ -301,7 +301,7 @@ export default function PreOrdersScreen() {
           const uri = await captureReceiptPreview(receiptRef, targetDots * scale);
           capturedJobs.push({ image: { kind: 'uri', uri }, previewUri: uri, label: job.label, printer: job.printer });
         } else {
-          const image = await captureReceiptForPrinter(receiptRef, job.printer, targetDots * scale);
+          const image = await captureReceiptForPrinter(receiptRef, job.printer, targetDots * scale, s.printerHighQuality);
           const previewUri = image.kind === 'uri' ? image.uri : await captureReceiptPreview(receiptRef, targetDots * scale);
           capturedJobs.push({ image, previewUri, label: job.label, printer: job.printer });
         }
