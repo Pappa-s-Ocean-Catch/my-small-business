@@ -3,6 +3,7 @@ import type { Order } from '@my-small-business/types';
 import type { SavedPrinter } from '@/lib/escpos-printer';
 import type { PrinterImageSource } from '@/lib/printer-image';
 import { JOURNAL_LOGS_ENABLED } from '@/lib/journal-config';
+import { selectReadyPrintJobIds } from '@/lib/print-job-priority';
 
 export type JournalLevel = 'info' | 'decision' | 'success' | 'error';
 export type PrintJobStatus = 'queued' | 'printing' | 'success' | 'failed';
@@ -26,6 +27,7 @@ export type PrintJob = {
   orderId: string | null;
   orderNumber: string | null;
   source: PrintJobSource;
+  priority: 'normal' | 'customer-receipt';
   scope: string;
   label: string;
   printer: SavedPrinter;
@@ -163,7 +165,7 @@ type PrinterAutomationState = {
   addJournalEntry: (entry: Omit<JournalEntry, 'id' | 'timestamp'>) => void;
   clearJournal: () => void;
   pruneRuntimeState: () => void;
-  enqueuePrintJobs: (jobs: Array<Omit<PrintJob, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'attemptCount' | 'startedAt' | 'completedAt' | 'error'>>) => PrintJob[];
+  enqueuePrintJobs: (jobs: Array<Omit<PrintJob, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'attemptCount' | 'startedAt' | 'completedAt' | 'error' | 'priority'> & { priority?: PrintJob['priority'] }>) => PrintJob[];
   markPrintJobStarted: (jobId: string) => PrintJob | null;
   markPrintJobSucceeded: (jobId: string) => PrintJob | null;
   markPrintJobFailed: (jobId: string, error: string) => PrintJob | null;
@@ -243,6 +245,7 @@ export const usePrinterAutomationStore = create<PrinterAutomationState>((set, ge
     const now = Date.now();
     const nextJobs: PrintJob[] = jobs.map((job) => ({
       ...job,
+      priority: job.priority ?? 'normal',
       id: buildId('print-job'),
       createdAt: now,
       updatedAt: now,
@@ -396,21 +399,16 @@ export function getPendingPrintJob(): PrintJob | null {
 
 export function getReadyPendingPrintJobs(): PrintJob[] {
   const { printJobs } = usePrinterAutomationStore.getState();
-  const printingTargets = new Set(
-    printJobs
-      .filter((job) => job.status === 'printing')
-      .map((job) => job.printer.target)
-  );
-  const readyJobsByPrinter = new Map<string, PrintJob>();
-
-  for (const job of printJobs) {
-    if (job.status !== 'queued') continue;
-    if (printingTargets.has(job.printer.target)) continue;
-    if (readyJobsByPrinter.has(job.printer.target)) continue;
-    readyJobsByPrinter.set(job.printer.target, job);
-  }
-
-  return Array.from(readyJobsByPrinter.values());
+  const jobsById = new Map(printJobs.map((job) => [job.id, job]));
+  return selectReadyPrintJobIds(printJobs.map((job) => ({
+    id: job.id,
+    priority: job.priority,
+    status: job.status,
+    printerTarget: job.printer.target,
+  }))).flatMap((jobId) => {
+    const job = jobsById.get(jobId);
+    return job ? [job] : [];
+  });
 }
 
 export function getOrderPrintState(orderId: string | null | undefined): OrderPrintState | null {

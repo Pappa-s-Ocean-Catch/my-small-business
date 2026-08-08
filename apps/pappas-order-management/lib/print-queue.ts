@@ -17,6 +17,7 @@ export type PreparedPrintJobInput = {
   label: string;
   width: number;
   copies?: number;
+  priority?: PrintJob['priority'];
 };
 
 export function enqueuePreparedPrintJobs(options: {
@@ -38,6 +39,7 @@ export function enqueuePreparedPrintJobs(options: {
     copies: job.copies ?? 1,
     width: job.width,
     silentSuccess: options.silentSuccess,
+    priority: job.priority ?? 'normal',
   })));
 
   const addJournalEntry = usePrinterAutomationStore.getState().addJournalEntry;

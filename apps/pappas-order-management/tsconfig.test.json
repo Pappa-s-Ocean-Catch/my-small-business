@@ -35,6 +35,7 @@
     "lib/live-orders-layout.ts",
     "lib/instore-customer-receipt.ts",
     "stores/posCatalogCacheStore.ts",
+    "lib/print-job-priority.ts",
     "test/pay-by-link.test.ts",
     "test/escpos-raster.test.ts",
     "test/escpos-raster-fixtures.test.ts",
