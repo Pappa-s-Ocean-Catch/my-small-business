@@ -33,6 +33,7 @@
     "lib/raw-tcp-native-settings.ts",
     "lib/responsive.ts",
     "lib/live-orders-layout.ts",
+    "lib/instore-customer-receipt.ts",
     "stores/posCatalogCacheStore.ts",
     "test/pay-by-link.test.ts",
     "test/escpos-raster.test.ts",
