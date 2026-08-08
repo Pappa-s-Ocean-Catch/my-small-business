@@ -10,8 +10,9 @@ export type RasterImageSource =
   | { kind: 'raw-argb'; width: number; height: number; argb: Uint8Array };
 
 export type RasterPhasesMs = { decode: number; resize: number; raster: number; total: number };
-export type PreparedEscPosImage = { bytes: Uint8Array; width: number; height: number; sourceByteLength: number; phasesMs: RasterPhasesMs };
+export type PreparedEscPosImage = { bytes: Uint8Array; width: number; height: number; sourceWidth: number; sourceHeight: number; sourceByteLength: number; phasesMs: RasterPhasesMs };
 export type PayloadComparison = { equal: boolean; firstMismatchIndex: number | null; referenceLength: number; candidateLength: number };
+export type EscPosRasterFixture = { width: number; height: number; byteLength: number; fnv1a32: string };
 
 function decodeBase64(base64: string): Uint8Array {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
@@ -41,6 +42,25 @@ function argbToRgba(argb: Uint8Array): Uint8Array {
   return rgba;
 }
 
+function rgbaToArgb(rgba: Uint8Array): Uint8Array {
+  const argb = new Uint8Array(rgba.length);
+  for (let i = 0; i < rgba.length; i += 4) { argb[i] = rgba[i + 3]; argb[i + 1] = rgba[i]; argb[i + 2] = rgba[i + 1]; argb[i + 3] = rgba[i + 2]; }
+  return argb;
+}
+
+function fnv1a32(bytes: Uint8Array): string {
+  let hash = 0x811c9dc5;
+  for (const byte of bytes) {
+    hash ^= byte;
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
+export function getEscPosPayloadFingerprint(bytes: Uint8Array): string {
+  return fnv1a32(bytes);
+}
+
 function resizeRgbaToWidth(width: number, height: number, rgba: Uint8Array, maxWidth: number) {
   const normalizedMaxWidth = Math.max(8, maxWidth) - (Math.max(8, maxWidth) % 8);
   if (width <= normalizedMaxWidth && width % 8 === 0) return { width, height, rgba };
@@ -50,7 +70,11 @@ function resizeRgbaToWidth(width: number, height: number, rgba: Uint8Array, maxW
   const output = new Uint8Array(nextWidth * nextHeight * 4);
   for (let y = 0; y < nextHeight; y += 1) for (let x = 0; x < nextWidth; x += 1) {
     const source = ((Math.min(height - 1, Math.floor(y / scale)) * width) + Math.min(width - 1, Math.floor(x / scale))) * 4;
-    output.set(rgba.slice(source, source + 4), (y * nextWidth + x) * 4);
+    const target = (y * nextWidth + x) * 4;
+    output[target] = rgba[source];
+    output[target + 1] = rgba[source + 1];
+    output[target + 2] = rgba[source + 2];
+    output[target + 3] = rgba[source + 3];
   }
   return { width: nextWidth, height: nextHeight, rgba: output };
 }
@@ -83,7 +107,13 @@ export async function prepareEscPosImage(source: RasterImageSource, maxWidth: nu
   const raster = rgbaToEscPosBitImage(normalized.width, normalized.height, normalized.rgba);
   const bytes = concatBytes([Uint8Array.from([ESC, 0x40, ESC, 0x61, 0x01]), raster, Uint8Array.from([LF, LF, LF, GS, 0x56, 0x00])]);
   const completedAt = Date.now();
-  return { bytes, width: normalized.width, height: normalized.height, sourceByteLength, phasesMs: { decode: decodedAt - started, resize: resizedAt - decodedAt, raster: completedAt - resizedAt, total: completedAt - started } };
+  return { bytes, width: normalized.width, height: normalized.height, sourceWidth: width, sourceHeight: height, sourceByteLength, phasesMs: { decode: decodedAt - started, resize: resizedAt - decodedAt, raster: completedAt - resizedAt, total: completedAt - started } };
+}
+
+export async function createEscPosRasterFixture(rgba: Uint8Array, width: number, height: number, maxWidth: number): Promise<EscPosRasterFixture> {
+  if (rgba.length !== width * height * 4) throw new Error(`RGBA fixture expected ${width * height * 4} bytes but received ${rgba.length}.`);
+  const prepared = await prepareEscPosImage({ kind: 'raw-argb', width, height, argb: rgbaToArgb(rgba) }, maxWidth);
+  return { width: prepared.width, height: prepared.height, byteLength: prepared.bytes.length, fnv1a32: fnv1a32(prepared.bytes) };
 }
 
 export function compareEscPosPayloads(reference: Uint8Array, candidate: Uint8Array): PayloadComparison {

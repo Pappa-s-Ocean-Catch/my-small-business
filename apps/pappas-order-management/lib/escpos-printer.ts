@@ -1,6 +1,10 @@
 import { decodePngRgba } from './png';
+import { Platform } from 'react-native';
 import type { PrinterImageSource } from './printer-image';
-import { prepareEscPosImage } from './escpos-raster';
+import { compareEscPosPayloads, getEscPosPayloadFingerprint, prepareEscPosImage } from './escpos-raster';
+import { loadAppSettings } from './settings';
+import { getRawTcpNativeMode } from './raw-tcp-native-settings';
+import { getNativeRawTcpPrinter, type NativeRawTcpPrintOptions } from './raw-tcp-native';
 
 export type PrinterDriver = 'epsonSdk' | 'rawTcp' | 'simulator';
 
@@ -495,11 +499,59 @@ async function buildRawImagePrintBytes(imageSource: PrinterImageSource | string,
   const prepared = source.kind === 'raw-argb'
     ? await prepareEscPosImage(source, maxWidth)
     : await (async () => {
-      const pngBytes = source.kind === 'png-base64' ? decodeBase64(source.base64) : await readImageBytes(source.uri);
-      return await prepareEscPosImage(source.kind === 'png-base64' ? { kind: 'png-base64', base64: source.base64 } : { kind: 'png-bytes', bytes: pngBytes }, maxWidth);
+      if (source.kind === 'png-base64') {
+        return await prepareEscPosImage({ kind: 'png-base64', base64: source.base64 }, maxWidth);
+      }
+      return await prepareEscPosImage({ kind: 'png-bytes', bytes: await readImageBytes(source.uri) }, maxWidth);
     })();
-  console.info(`[raw-tcp-baseline] source=${source.kind} size=${prepared.width}x${prepared.height} sourceBytes=${prepared.sourceByteLength} rasterBytes=${prepared.bytes.length} decode=${prepared.phasesMs.decode}ms resize=${prepared.phasesMs.resize}ms raster=${prepared.phasesMs.raster}ms total=${prepared.phasesMs.total}ms`);
+  console.info(`[raw-tcp-baseline] source=${source.kind} sourceSize=${prepared.sourceWidth}x${prepared.sourceHeight} size=${prepared.width}x${prepared.height} sourceBytes=${prepared.sourceByteLength} rasterBytes=${prepared.bytes.length} decode=${prepared.phasesMs.decode}ms resize=${prepared.phasesMs.resize}ms raster=${prepared.phasesMs.raster}ms total=${prepared.phasesMs.total}ms`);
+  if (source.kind === 'png-base64' && source.rawCandidate) {
+    const convert = (layout: 'argb' | 'rgba' | 'bgra' | 'abgr') => {
+      if (layout === 'argb') return source.rawCandidate!.argb;
+      const input = source.rawCandidate!.argb;
+      const output = new Uint8Array(input.length);
+      for (let index = 0; index < input.length; index += 4) {
+        if (layout === 'rgba') output.set([input[index + 3], input[index], input[index + 1], input[index + 2]], index);
+        if (layout === 'bgra') output.set([input[index + 3], input[index + 2], input[index + 1], input[index]], index);
+        if (layout === 'abgr') output.set([input[index], input[index + 3], input[index + 2], input[index + 1]], index);
+      }
+      return output;
+    };
+    const results = await Promise.all((['argb', 'rgba', 'bgra', 'abgr'] as const).map(async (layout) => {
+      const candidate = await prepareEscPosImage({ kind: 'raw-argb', width: source.rawCandidate!.width, height: source.rawCandidate!.height, argb: convert(layout) }, maxWidth);
+      return { layout, candidate, comparison: compareEscPosPayloads(prepared.bytes, candidate.bytes) };
+    }));
+    const best = results.reduce((left, right) => (right.comparison.equal || (!left.comparison.equal && (right.comparison.firstMismatchIndex ?? -1) > (left.comparison.firstMismatchIndex ?? -1)) ? right : left));
+    console.info(`[raw-tcp-compare] equal=${best.comparison.equal} layout=${best.layout} mismatch=${best.comparison.firstMismatchIndex ?? 'none'} rawDecode=${best.candidate.phasesMs.decode}ms rawResize=${best.candidate.phasesMs.resize}ms rawRaster=${best.candidate.phasesMs.raster}ms rawTotal=${best.candidate.phasesMs.total}ms`);
+  }
   return prepared.bytes;
+}
+
+async function tryNativeRawTcpPrint(imageSource: PrinterImageSource | string, printer: SavedPrinter, copies: number, width: number): Promise<boolean> {
+  const platform = Platform.OS === 'android' ? 'android' : Platform.OS === 'ios' ? 'ios' : null;
+  if (!platform || typeof imageSource === 'string' || imageSource.kind === 'uri') return false;
+  const mode = getRawTcpNativeMode(await loadAppSettings(), platform);
+  if (mode === 'js-only') return false;
+  const viewTag = imageSource.nativeViewTag;
+  const nativePrinter = getNativeRawTcpPrinter();
+  if (!viewTag || !nativePrinter) {
+    console.info(`[raw-tcp-native] mode=${mode} skipped=${!viewTag ? 'missing-view-tag' : 'module-unavailable'}`);
+    return false;
+  }
+  const { host, port } = getRawTcpConnectionOptions(printer);
+  const options: NativeRawTcpPrintOptions = { viewTag, host, port, width, copies, timeoutMs: 30000, operation: mode === 'native-enabled' ? 'print' : 'diagnostic' };
+  try {
+    const result = await nativePrinter.print(options);
+    if (!result.ok) {
+      console.warn(`[raw-tcp-native] mode=${mode} fallback code=${result.error.code} phase=${result.error.phase} message=${result.error.message}`);
+      return false;
+    }
+    console.info(`[raw-tcp-native] mode=${mode} sent=${result.sent} bytes=${result.byteLength} digest=${result.fnv1a32} capture=${result.captureMs}ms resize=${result.resizeMs}ms raster=${result.rasterMs}ms send=${result.sendMs}ms total=${result.totalMs}ms`);
+    return mode === 'native-enabled' && result.sent;
+  } catch (error) {
+    console.warn(`[raw-tcp-native] mode=${mode} fallback exception=${formatPrinterError(error)}`);
+    return false;
+  }
 }
 
 export async function escposPrintOrderImage(
@@ -512,9 +564,15 @@ export async function escposPrintOrderImage(
   const repeat = normalizeCopies(copies);
 
   return enqueuePrinterJob(printer, async () => {
-    const rawImageBytes = getPrinterDriver(printer) === 'rawTcp'
-      ? await buildRawImagePrintBytes(imageSource, width)
-      : null;
+    const rawDriver = getPrinterDriver(printer) === 'rawTcp';
+    if (rawDriver && await tryNativeRawTcpPrint(imageSource, printer, repeat, width)) return;
+    const rawImageBytes = rawDriver ? await buildRawImagePrintBytes(imageSource, width) : null;
+    if (rawDriver && typeof imageSource !== 'string' && imageSource.kind !== 'uri') {
+      const platform = Platform.OS === 'android' ? 'android' : Platform.OS === 'ios' ? 'ios' : null;
+      if (platform && getRawTcpNativeMode(await loadAppSettings(), platform) === 'native-diagnostic') {
+        console.info(`[raw-tcp-native] diagnostic-js digest=${getEscPosPayloadFingerprint(rawImageBytes!)} bytes=${rawImageBytes!.length}`);
+      }
+    }
     const imageUri = typeof imageSource === 'string'
       ? imageSource
       : imageSource.kind === 'uri'
@@ -522,7 +580,7 @@ export async function escposPrintOrderImage(
         : (imageSource.previewUri ?? null);
 
     for (let i = 0; i < repeat; i++) {
-      if (getPrinterDriver(printer) === 'rawTcp') {
+      if (rawDriver) {
         await withRawTcpPrinter(printer, async (socket) => {
           await writeRawBytes(socket, rawImageBytes!);
         }, { timeoutMs: 30000 });

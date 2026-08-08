@@ -1,0 +1,7 @@
+{
+  "name": "@my-small-business/native-raw-tcp-printer",
+  "version": "0.0.1",
+  "main": "src/index.ts",
+  "private": true,
+  "dependencies": { "expo-modules-core": "~3.0.29" }
+}

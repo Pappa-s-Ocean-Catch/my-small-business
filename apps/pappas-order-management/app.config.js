@@ -42,6 +42,7 @@ module.exports = {
         },
       ],
       './plugins/withEscPosPrinterPermissions',
+      '@my-small-business/native-raw-tcp-printer/app.plugin',
       './plugins/withAndroidFullscreen',
     ],
     scheme: 'pappas-order',

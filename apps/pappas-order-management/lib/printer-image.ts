@@ -1,12 +1,12 @@
-import { Platform } from 'react-native';
+import { findNodeHandle, Platform } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 import type { SavedPrinter } from './escpos-printer';
 import { getPrinterDriver } from './escpos-printer';
 
 export type PrinterImageSource =
   | { kind: 'uri'; uri: string }
-  | { kind: 'png-base64'; base64: string; previewUri?: string | null }
-  | { kind: 'raw-argb'; width: number; height: number; argb: Uint8Array; previewUri?: string | null };
+  | { kind: 'png-base64'; base64: string; previewUri?: string | null; nativeViewTag?: number | null; rawCandidate?: { width: number; height: number; argb: Uint8Array } }
+  | { kind: 'raw-argb'; width: number; height: number; argb: Uint8Array; previewUri?: string | null; nativeViewTag?: number | null };
 
 function decodeBase64(base64: string): Uint8Array {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
@@ -31,7 +31,7 @@ function decodeBase64(base64: string): Uint8Array {
   return output;
 }
 
-function parseRawCapture(data: string): PrinterImageSource {
+function parseRawCapture(data: string): { width: number; height: number; argb: Uint8Array } {
   const match = /^(\d+):(\d+)\|/.exec(data);
   if (!match) {
     throw new Error('Raw capture result is missing width/height metadata.');
@@ -41,16 +41,30 @@ function parseRawCapture(data: string): PrinterImageSource {
   const height = Number.parseInt(match[2], 10);
   const base64 = data.slice(match[0].length);
   const argb = decodeBase64(base64);
-  return { kind: 'raw-argb', width, height, argb };
+  if (argb.length !== width * height * 4) throw new Error(`Raw capture expected ${width * height * 4} bytes but received ${argb.length}.`);
+  return { width, height, argb };
 }
+
+function bgraToArgb(bgra: Uint8Array): Uint8Array {
+  const argb = new Uint8Array(bgra.length);
+  for (let index = 0; index < bgra.length; index += 4) {
+    argb[index] = bgra[index + 3];
+    argb[index + 1] = bgra[index + 2];
+    argb[index + 2] = bgra[index + 1];
+    argb[index + 3] = bgra[index];
+  }
+  return argb;
+}
+
 
 export async function captureReceiptForPrinter(
   ref: any,
   printer: SavedPrinter,
   width: number
 ): Promise<PrinterImageSource> {
+  const nativeViewTag = findNodeHandle(ref);
   if (getPrinterDriver(printer) === 'rawTcp') {
-    const [previewUri, base64] = await Promise.all([
+    const [previewUri, base64, rawCapture] = await Promise.all([
       captureReceiptPreview(ref, width),
       captureRef(ref, {
         format: 'png',
@@ -58,9 +72,17 @@ export async function captureReceiptForPrinter(
         result: 'base64',
         width,
       }),
+      Platform.OS === 'android' ? captureRef(ref, { format: 'raw', result: 'base64', width }).catch(() => null) : Promise.resolve(null),
     ]);
-
-    return { kind: 'png-base64', base64, previewUri };
+    let rawCandidate: { width: number; height: number; argb: Uint8Array } | undefined;
+    try {
+      if (rawCapture) rawCandidate = parseRawCapture(rawCapture);
+      else console.info('[raw-tcp-compare] skipped reason=non-android');
+    } catch (error) {
+      console.info(`[raw-tcp-compare] skipped reason=raw-capture-rejected error=${error instanceof Error ? error.message : String(error)}`);
+    }
+    if (rawCandidate) return { kind: 'raw-argb', width: rawCandidate.width, height: rawCandidate.height, argb: bgraToArgb(rawCandidate.argb), previewUri, nativeViewTag };
+    return { kind: 'png-base64', base64, previewUri, nativeViewTag };
   }
 
   const uri = await captureRef(ref, {
@@ -88,7 +110,8 @@ export async function captureReceiptPreviewAndRaw(
   ref: any,
   width: number
 ): Promise<PrinterImageSource> {
-  const [previewUri, base64] = await Promise.all([
+  const nativeViewTag = findNodeHandle(ref);
+  const [previewUri, base64, rawCapture] = await Promise.all([
     captureReceiptPreview(ref, width),
     captureRef(ref, {
       format: 'png',
@@ -96,7 +119,15 @@ export async function captureReceiptPreviewAndRaw(
       result: 'base64',
       width,
     }),
+    Platform.OS === 'android' ? captureRef(ref, { format: 'raw', result: 'base64', width }) : Promise.resolve(null),
   ]);
-
-  return { kind: 'png-base64', base64, previewUri };
+  let rawCandidate: { width: number; height: number; argb: Uint8Array } | undefined;
+  try {
+    if (rawCapture) rawCandidate = parseRawCapture(rawCapture);
+    else console.info('[raw-tcp-compare] skipped reason=non-android');
+  } catch (error) {
+    console.info(`[raw-tcp-compare] skipped reason=raw-capture-rejected error=${error instanceof Error ? error.message : String(error)}`);
+  }
+  if (rawCandidate) return { kind: 'raw-argb', width: rawCandidate.width, height: rawCandidate.height, argb: bgraToArgb(rawCandidate.argb), previewUri, nativeViewTag };
+  return { kind: 'png-base64', base64, previewUri, nativeViewTag };
 }
