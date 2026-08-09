@@ -2,7 +2,8 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import type { Order } from '@my-small-business/types';
 import { ReceiptQrCode } from './ReceiptQrCode';
-import { getReceiptOrderClaimUrl, getReceiptQrLandingUrl, getReceiptStoreAddressLines, getReceiptStoreName, getReceiptStorePhone, getReceiptWebsiteUrl } from '../lib/receipt-config';
+import { getReceiptOrderClaimUrl } from '../lib/receipt-config';
+import { useStoreInfo } from '../hooks/useStoreInfo';
 import { getOrderChannelReceiptLabel, getOrderDisplaySubtotal, getOrderDisplayTotal, getOrderItemDisplaySubtotal, getOrderLineItemCount, getOrderNotes, groupAddons } from '../utils/orderUtils';
 import { getOrderPromotionSummary, isFreePromotionOrderItem } from '../lib/promotion-summary';
 
@@ -16,12 +17,13 @@ function formatMoney(amount: number) {
 }
 
 export function CustomerReceiptTemplate({ order, width = 576 }: Props) {
-  const siteUrl = getReceiptWebsiteUrl();
-  const qrLandingUrl = getReceiptQrLandingUrl();
+  const storeInfo = useStoreInfo();
+  const siteUrl = storeInfo.website;
+  const qrLandingUrl = `${siteUrl.replace(/\/+$/, '')}/qr`;
   const claimQrUrl = order.receipt_claim_token ? getReceiptOrderClaimUrl(order.receipt_claim_token) : null;
-  const storeName = getReceiptStoreName();
-  const addressLines = getReceiptStoreAddressLines();
-  const storePhone = getReceiptStorePhone();
+  const storeName = storeInfo.shopName;
+  const addressLines = [storeInfo.addressLine1, storeInfo.addressLine2].filter(Boolean);
+  const storePhone = storeInfo.phone;
   const orderNotes = getOrderNotes(order);
   const rewardPointsUsed = order.reward_points_used ?? 0;
   const rewardPointsValue = order.reward_points_value ?? 0;
@@ -46,6 +48,7 @@ export function CustomerReceiptTemplate({ order, width = 576 }: Props) {
       <View style={styles.heroBand}>
         <Text style={styles.heroEyebrow}>Customer Receipt</Text>
         <Text style={styles.storeName}>{storeName}</Text>
+        {storeInfo.logoUrl ? <Text style={styles.logoHint}>★</Text> : null}
         <View style={styles.contactBlock}>
           {addressLines.map((line) => (
             <Text key={line} style={styles.addressText}>{line}</Text>
@@ -216,6 +219,8 @@ export function CustomerReceiptTemplate({ order, width = 576 }: Props) {
         <Text style={styles.footerText}>Prepared fresh with care by {storeName}.</Text>
         <Text style={styles.footerText}>Receipt issued on {orderDate.toLocaleString()}.</Text>
         <Text style={styles.footerText}>To place your next order, call {storePhone}.</Text>
+        <Text style={styles.legalText}>{storeInfo.legalName}</Text>
+        <Text style={styles.legalText}>ABN {storeInfo.abn}</Text>
       </View>
     </View>
   );
@@ -237,7 +242,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#111',
   },
   heroEyebrow: {
-    fontSize: 14,
+    fontSize: 21,
     letterSpacing: 2,
     textTransform: 'uppercase',
     fontWeight: '700',
@@ -253,21 +258,23 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
   storeName: {
-    fontSize: 30,
+    fontSize: 51,
     fontWeight: '800',
     color: '#000',
     textAlign: 'center',
   },
   addressText: {
-    fontSize: 16,
+    fontSize: 27,
     color: '#000',
     textAlign: 'center',
   },
   contactText: {
-    fontSize: 15,
+    fontSize: 25.5,
     color: '#000',
     textAlign: 'center',
   },
+  logoHint: { fontSize: 33, color: '#111', marginTop: 4 },
+  legalText: { fontSize: 22.5, color: '#222', textAlign: 'center', marginTop: 3, fontWeight: '600' },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -278,14 +285,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerLabel: {
-    fontSize: 13,
+    fontSize: 19.5,
     letterSpacing: 1.2,
     textTransform: 'uppercase',
     fontWeight: '700',
     color: '#57534e',
   },
   orderNumberText: {
-    fontSize: 30,
+    fontSize: 45,
     fontWeight: '900',
     color: '#000',
     marginTop: 4,
@@ -298,7 +305,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   statusPillText: {
-    fontSize: 13,
+    fontSize: 19.5,
     fontWeight: '800',
     textTransform: 'uppercase',
     color: '#111',
@@ -316,7 +323,7 @@ const styles = StyleSheet.create({
     width: '48%',
   },
   infoLabel: {
-    fontSize: 12,
+    fontSize: 18,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     fontWeight: '700',
@@ -324,7 +331,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   infoValue: {
-    fontSize: 16,
+    fontSize: 24,
     fontWeight: '600',
     color: '#111',
   },
@@ -342,12 +349,12 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   sectionTitle: {
-    fontSize: 22,
+    fontSize: 33,
     fontWeight: '700',
     color: '#000',
   },
   sectionCount: {
-    fontSize: 18,
+    fontSize: 27,
     fontWeight: '700',
     color: '#44403c',
   },
@@ -370,7 +377,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   itemQty: {
-    fontSize: 17,
+    fontSize: 25.5,
     fontWeight: '800',
     color: '#111',
     minWidth: 30,
@@ -380,7 +387,7 @@ const styles = StyleSheet.create({
   },
   itemName: {
     flex: 1,
-    fontSize: 21,
+    fontSize: 31.5,
     fontWeight: '700',
     color: '#000',
   },
@@ -395,12 +402,12 @@ const styles = StyleSheet.create({
     color: '#059669',
   },
   itemPriceOriginal: {
-    fontSize: 16,
+    fontSize: 24,
     color: '#6b7280',
     textDecorationLine: 'line-through',
   },
   modifierText: {
-    fontSize: 15,
+    fontSize: 22.5,
     color: '#44403c',
     paddingLeft: 38,
     marginTop: 4,
@@ -414,13 +421,13 @@ const styles = StyleSheet.create({
     borderTopColor: '#d6d3d1',
   },
   notesTitle: {
-    fontSize: 18,
+    fontSize: 27,
     fontWeight: '700',
     color: '#000',
     marginBottom: 4,
   },
   notesText: {
-    fontSize: 16,
+    fontSize: 24,
     color: '#000',
     lineHeight: 22,
   },
@@ -438,7 +445,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   totalLabel: {
-    fontSize: 17,
+    fontSize: 25.5,
     color: '#000',
   },
   totalValue: {
@@ -456,7 +463,7 @@ const styles = StyleSheet.create({
     borderTopColor: '#111',
   },
   grandTotalLabel: {
-    fontSize: 26,
+    fontSize: 39,
     fontWeight: '800',
     color: '#000',
   },
@@ -466,7 +473,7 @@ const styles = StyleSheet.create({
     color: '#000',
   },
   paymentStatus: {
-    fontSize: 14,
+    fontSize: 21,
     fontWeight: '700',
     color: '#44403c',
     textAlign: 'right',
@@ -495,13 +502,13 @@ const styles = StyleSheet.create({
     borderTopColor: '#d6d3d1',
   },
   qrIntro: {
-    fontSize: 18,
+    fontSize: 27,
     fontWeight: '700',
     color: '#000',
     marginBottom: 8,
   },
   websiteText: {
-    fontSize: 14,
+    fontSize: 21,
     color: '#44403c',
     textAlign: 'center',
     marginTop: 8,
@@ -514,14 +521,14 @@ const styles = StyleSheet.create({
     paddingTop: 14,
   },
   footerHeadline: {
-    fontSize: 20,
+    fontSize: 30,
     fontWeight: '800',
     color: '#111',
     textAlign: 'center',
     marginBottom: 4,
   },
   footerText: {
-    fontSize: 15,
+    fontSize: 22.5,
     color: '#44403c',
     textAlign: 'center',
     lineHeight: 21,

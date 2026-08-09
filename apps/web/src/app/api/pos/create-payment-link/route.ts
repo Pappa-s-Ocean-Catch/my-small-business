@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     if (!Number.isFinite(amount) || amount < 50) {
       return NextResponse.json({ error: 'Order total must be at least $0.50.' }, { status: 422 });
     }
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://pappasoceancatch.com.au';
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://pappasfishnchips.com.au';
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       payment_method_types: ['card'],

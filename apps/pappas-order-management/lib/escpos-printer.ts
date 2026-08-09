@@ -141,6 +141,18 @@ export function getPrinterDriver(printer: SavedPrinter | null | undefined): Prin
   return 'epsonSdk';
 }
 
+export async function getPrinterTransportLabel(printer: SavedPrinter): Promise<string> {
+  const driver = getPrinterDriver(printer);
+  if (driver === 'simulator') return 'simulator';
+  if (driver === 'epsonSdk') return 'Epson SDK';
+  const platform = Platform.OS === 'android' ? 'android' : Platform.OS === 'ios' ? 'ios' : null;
+  if (!platform) return 'JS Raw TCP (web/unsupported platform)';
+  const mode = getRawTcpNativeMode(await loadAppSettings(), platform);
+  if (mode === 'native-enabled') return 'Native Raw TCP (falls back to JS if unavailable)';
+  if (mode === 'native-diagnostic') return 'Native diagnostic + JS Raw TCP';
+  return 'JS Raw TCP';
+}
+
 export function isSamePhysicalPrinter(
   left: Pick<SavedPrinter, 'deviceName' | 'macAddress' | 'bdAddress'> | null | undefined,
   right: Pick<SavedPrinter, 'deviceName' | 'macAddress' | 'bdAddress'> | null | undefined

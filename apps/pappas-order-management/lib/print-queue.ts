@@ -1,5 +1,5 @@
 import type { Order } from '@my-small-business/types';
-import { escposPrintOrderImage, formatPrinterError } from '@/lib/escpos-printer';
+import { escposPrintOrderImage, formatPrinterError, getPrinterDriver } from '@/lib/escpos-printer';
 import type { SavedPrinter } from '@/lib/escpos-printer';
 import type { PrinterImageSource } from '@/lib/printer-image';
 import {
@@ -119,6 +119,10 @@ export async function processPendingPrintJob(jobId: string): Promise<boolean> {
 
   const sendStartedAt = Date.now();
   const queuedDurationMs = Math.max(0, sendStartedAt - startedJob.createdAt);
+  const driver = getPrinterDriver(startedJob.printer);
+  const transport = driver === 'rawTcp'
+    ? 'Raw TCP (native/JS resolved during dispatch)'
+    : driver === 'epsonSdk' ? 'Epson SDK' : 'simulator';
 
   store.addJournalEntry({
     level: 'info',
@@ -126,7 +130,7 @@ export async function processPendingPrintJob(jobId: string): Promise<boolean> {
     message: 'Started queued print job',
     orderId: startedJob.orderId,
     orderNumber: startedJob.orderNumber,
-    details: `job=${startedJob.label} printer=${startedJob.printer.deviceName} queued=${queuedDurationMs}ms`,
+    details: `job=${startedJob.label} printer=${startedJob.printer.deviceName} driver=${driver} transport=${transport} queue=${queuedDurationMs}ms dispatch=0ms`,
   });
 
   try {
@@ -139,7 +143,7 @@ export async function processPendingPrintJob(jobId: string): Promise<boolean> {
       message: 'Completed queued print job',
       orderId: startedJob.orderId,
       orderNumber: startedJob.orderNumber,
-      details: `job=${startedJob.label} printer=${startedJob.printer.deviceName} queued=${queuedDurationMs}ms send=${durationMs}ms total=${Math.max(0, Date.now() - startedJob.createdAt)}ms`,
+      details: `job=${startedJob.label} printer=${startedJob.printer.deviceName} driver=${driver} transport=${transport} queue=${queuedDurationMs}ms dispatch=${durationMs}ms print=${durationMs}ms total=${Math.max(0, Date.now() - startedJob.createdAt)}ms`,
     });
 
     if (completedJob && !completedJob.silentSuccess && completedJob.source !== 'auto') {
@@ -157,7 +161,7 @@ export async function processPendingPrintJob(jobId: string): Promise<boolean> {
       message: 'Queued print job failed',
       orderId: startedJob.orderId,
       orderNumber: startedJob.orderNumber,
-      details: `job=${startedJob.label} printer=${startedJob.printer.deviceName} queued=${queuedDurationMs}ms send=${Math.max(0, Date.now() - sendStartedAt)}ms total=${Math.max(0, Date.now() - startedJob.createdAt)}ms reason=${message}`,
+      details: `job=${startedJob.label} printer=${startedJob.printer.deviceName} driver=${driver} transport=${transport} queue=${queuedDurationMs}ms dispatch=${Math.max(0, Date.now() - sendStartedAt)}ms total=${Math.max(0, Date.now() - startedJob.createdAt)}ms reason=${message}`,
     });
     usePrinterAutomationStore.getState().showToast(
       `Print failed${startedJob.orderNumber ? ` for ${startedJob.orderNumber}` : ''}: ${message}`,

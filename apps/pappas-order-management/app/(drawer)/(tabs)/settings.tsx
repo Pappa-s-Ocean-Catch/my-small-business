@@ -30,8 +30,9 @@ import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
 import { posCatalogCacheStore } from '@/stores/posCatalogCacheStore';
 import { JOURNAL_LOGS_ENABLED } from '@/lib/journal-config';
+import { DEFAULT_STORE_INFO, fetchStoreInfo, saveStoreInfo, type StoreInfo } from '@/lib/store-info';
 
-type SettingsDialogKey = 'refresh' | 'sound' | 'printer' | 'liveOrders' | 'printDiagnostics' | 'journal' | null;
+type SettingsDialogKey = 'refresh' | 'sound' | 'printer' | 'liveOrders' | 'printDiagnostics' | 'journal' | 'storeInfo' | null;
 
 const SETTINGS_MODAL_TITLES: Record<Exclude<SettingsDialogKey, null>, string> = {
     refresh: 'Refresh interval',
@@ -40,6 +41,7 @@ const SETTINGS_MODAL_TITLES: Record<Exclude<SettingsDialogKey, null>, string> = 
     liveOrders: 'Live order cards',
     printDiagnostics: 'Print diagnostics',
     journal: 'Journal',
+    storeInfo: 'Store information',
 };
 
 export default function SettingsScreen() {
@@ -82,10 +84,12 @@ export default function SettingsScreen() {
     const [editingManualPrinterTarget, setEditingManualPrinterTarget] = useState<string | null>(null);
 
     const [saving, setSaving] = useState(false);
+    const [storeInfo, setStoreInfo] = useState<StoreInfo>(DEFAULT_STORE_INFO);
 
     const { printers, isDiscovering, printerError, start, stop, pairBluetoothDevice } = usePrintersDiscovery();
 
     useEffect(() => {
+        void fetchStoreInfo().then(setStoreInfo).catch(() => undefined);
         setRefreshIntervalSecText(String(currentSettings.refreshIntervalSec));
         setSoundEnabled(currentSettings.soundEnabled);
         setSoundId(currentSettings.soundId);
@@ -646,6 +650,7 @@ export default function SettingsScreen() {
                 title="Catalog"
                 description="Manage categories, products, layouts, and add-ons in smaller focused tools."
             >
+                <SettingsActionTile title="Store information" description={storeInfo.shopName} icon="storefront-outline" onPress={() => setActiveDialog('storeInfo')} />
                 <SettingsActionTile
                     title="Menu management"
                     description="Products, categories, and pricing"
@@ -836,6 +841,16 @@ export default function SettingsScreen() {
                                     <Switch value={printerDebugFooter} onValueChange={setPrinterDebugFooter} />
                                 </View>
                                 <Text style={styles.helper}>Adds diagnostic details to kitchen tickets. Leave off during normal service.</Text>
+                            </>
+                        )}
+
+                        {activeDialog === 'storeInfo' && (
+                            <>
+                                {([['shopName', 'Shop name'], ['legalName', 'Legal company name'], ['abn', 'ABN'], ['addressLine1', 'Address line 1'], ['addressLine2', 'Address line 2'], ['phone', 'Phone'], ['website', 'Website'], ['logoUrl', 'Logo URL'], ['openingHours', 'Opening hours']] as Array<[keyof StoreInfo, string]>).map(([key, label]) => (
+                                    <TextInput key={key} mode="outlined" label={label} value={storeInfo[key]} onChangeText={(value) => setStoreInfo((current) => ({ ...current, [key]: value }))} style={styles.input} />
+                                ))}
+                                <Text style={styles.helper}>This shared information syncs to all online POS registers. Opening hours are stored for future use and are not printed on receipts.</Text>
+                                <Button mode="contained" loading={saving} disabled={saving || !storeInfo.shopName.trim()} onPress={async () => { try { setSaving(true); setStoreInfo(await saveStoreInfo({ ...storeInfo, shopName: storeInfo.shopName.trim() })); Alert.alert('Saved', 'Store information updated for all registers.'); } catch (error) { Alert.alert('Save failed', error instanceof Error ? error.message : 'Unable to update store information.'); } finally { setSaving(false); } }} style={styles.previewButton}>Save store information</Button>
                             </>
                         )}
 
