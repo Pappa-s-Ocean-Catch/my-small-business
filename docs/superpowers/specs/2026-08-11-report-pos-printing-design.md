@@ -18,7 +18,7 @@ This change adds report printing only. It does not change the reporting calculat
 
 ## Receipt template
 
-The new `ReportPrintTemplate` is a hidden, capture-only React Native view sized for 80 mm thermal paper. It contains no chart and no comparison metrics.
+The new `ReportPrintTemplate` is a hidden, capture-only React Native view sized for 80 mm thermal paper. It is always captured at 576 dots for this report type, regardless of the configurable kitchen-receipt paper setting. It contains no chart and no comparison metrics.
 
 Sections appear in this order:
 
@@ -36,9 +36,9 @@ Amounts use the existing Australian-dollar formatting and source data uses the c
 
 - Extract selected-period report snapshot data into a small, testable report-print model builder shared by the Report screen and receipt template.
 - `ReportPrintTemplate` consumes only that model and renders the fixed receipt layout.
-- The Report screen holds the template ref off-screen. After the printer choice it calls the existing printer-image capture helper with the configured paper width and quality.
+- The Report screen holds the template ref off-screen. After the printer choice it calls the existing printer-image capture helper at 576 dots, retaining the configured high-quality capture setting.
 - For simulator selection, keep the preview URI in Report screen state and pass it to `PrintSimulatorModal`. The modal will support a report title/subtitle without requiring an `Order`.
-- For physical printers, call the existing `escposPrintOrderImage` with one copy and the configured 80 mm image width. No parallel printer routing or setting mutation is required.
+- For physical printers, call the existing `escposPrintOrderImage` with one copy and the 576-dot 80 mm image width. No parallel printer routing or setting mutation is required.
 
 ## Error handling
 
