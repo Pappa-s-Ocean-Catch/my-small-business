@@ -50,14 +50,16 @@ type MarketplaceOrderDetail = {
   }>;
 };
 
-type MarketplaceMappingEntityType = 'product' | 'addon' | 'ingredient';
+export type MarketplaceMappingEntityType = 'product' | 'addon_group' | 'addon' | 'ingredient';
 
-type MarketplaceMappingRecord = {
+export type MarketplaceMappingRecord = {
   provider: MarketplaceProvider;
   entity_type: MarketplaceMappingEntityType;
   external_name: string;
   normalized_external_name: string;
+  parent_normalized_external_name?: string;
   internal_name: string;
+  internal_entity_id?: string | null;
   is_active: boolean;
 };
 
@@ -99,7 +101,6 @@ type MarketplaceOrderPayload = Omit<
   Order,
   | 'id'
   | 'order_number'
-  | 'created_at'
   | 'updated_at'
   | 'items'
   | 'receipt_claim_token'
@@ -109,7 +110,7 @@ type MarketplaceOrderPayload = Omit<
   | 'kitchen_print_claimed_by'
   | 'kitchen_print_completed_at'
   | 'kitchen_print_completed_by'
->;
+> & { created_at?: string };
 
 type MarketplaceOrderItemPayload = Omit<
   OrderItem,
@@ -134,6 +135,16 @@ export type MarketplacePosOrderDraft = {
   metadata: MarketplaceImportMetadata;
   unmatchedProducts: string[];
   unmatchedOptions: string[];
+  unresolvedIssues: MarketplaceResolutionIssue[];
+};
+
+export type MarketplaceResolutionIssue = {
+  kind: MarketplaceMappingEntityType;
+  externalName: string;
+  mappingExternalName: string;
+  parentExternalName: string;
+  marketplacePrice: string | null;
+  marketplaceGroupName?: string;
 };
 
 export type MarketplacePosOrderDependencies = {
@@ -295,6 +306,13 @@ function buildMarketplacePromotion(discountAmount: number) {
   }];
 }
 
+function formatUnmatchedMarketplaceAddon(option: MarketplaceOrderDetailItemOption): string {
+  const quantity = Math.max(1, option.quantity || 1);
+  const quantityPrefix = quantity > 1 ? `${quantity}x ` : '';
+  const price = parseMarketplaceMoney(option.price);
+  return `Add-on: ${quantityPrefix}${option.name}${price == null ? '' : ` (+$${price.toFixed(2)})`}`;
+}
+
 export function createMarketplacePosOrderService(dependencies: MarketplacePosOrderDependencies) {
   const buildMarketplacePosOrderDraft = async (
     detail: MarketplaceOrderDetail
@@ -319,16 +337,20 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
     const cartItems: PosCartItem[] = [];
     const unmatchedProducts: string[] = [];
     const unmatchedOptions: string[] = [];
+    const unresolvedIssues: MarketplaceResolutionIssue[] = [];
 
     for (const item of detail.items) {
       const productAlias = marketplaceMappings.find((mapping) => (
         mapping.entity_type === 'product'
         && mapping.normalized_external_name === normalizeMarketplaceName(item.name)
+        && !mapping.parent_normalized_external_name
       ));
 
       let matchedProduct: SaleProduct | null = null;
       if (productAlias) {
-        matchedProduct = findBestInternalNameMatch(products, productAlias.internal_name)?.candidate ?? null;
+        matchedProduct = products.find((product) => product.id === productAlias.internal_entity_id)
+          ?? findBestInternalNameMatch(products, productAlias.internal_name)?.candidate
+          ?? null;
       } else {
         const bestProductMatch = products
           .map((product) => ({ product, score: getNameSimilarity(item.name, product.name) }))
@@ -340,6 +362,10 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
 
       if (!matchedProduct) {
         unmatchedProducts.push(item.name);
+        unresolvedIssues.push({
+          kind: 'product', externalName: item.name, mappingExternalName: item.name,
+          parentExternalName: '', marketplacePrice: item.price,
+        });
         void dependencies.recordUnmatchedName({
           provider: detail.provider,
           entityType: 'product',
@@ -350,24 +376,40 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
 
       const customizationData = await dependencies.loadProductCustomizations(matchedProduct.id);
       if (customizationData.error) throw new Error(customizationData.error);
-      const flattenedOptions = item.customizations.flatMap((customization) => customization.options);
       const addons: OrderItemAddon[] = [];
       const removedIngredients: string[] = [];
+      const unmatchedAddonNotes: string[] = [];
 
-      flattenedOptions.forEach((option) => {
-        const addonAlias = marketplaceMappings.find((mapping) => (
+      item.customizations.forEach((customization) => {
+        const groupAliases = marketplaceMappings.filter((mapping) => (
+          mapping.entity_type === 'addon_group'
+          && mapping.normalized_external_name === normalizeMarketplaceName(customization.name)
+        ));
+        const groupAlias = groupAliases.find((mapping) => (
+          mapping.parent_normalized_external_name === normalizeMarketplaceName(item.name)
+        )) ?? groupAliases.find((mapping) => !mapping.parent_normalized_external_name);
+        const posGroup = groupAlias ? customizationData.groups.find((group) => (
+          group.id === groupAlias.internal_entity_id
+          || normalizeMarketplaceName(group.name) === normalizeMarketplaceName(groupAlias.internal_name)
+        )) : customizationData.groups.find((group) => (
+          normalizeMarketplaceName(group.name) === normalizeMarketplaceName(customization.name)
+        )) ?? null;
+        customization.options.forEach((option) => {
+        const addonAliases = marketplaceMappings.filter((mapping) => (
           mapping.entity_type === 'addon'
           && mapping.normalized_external_name === normalizeMarketplaceName(option.name)
         ));
-        const optionMatches = customizationData.groups.flatMap((group) => (
-          group.items.map((groupItem) => ({
+        const addonAlias = addonAliases.find((mapping) => (
+          mapping.parent_normalized_external_name === normalizeMarketplaceName(item.name)
+        )) ?? addonAliases.find((mapping) => !mapping.parent_normalized_external_name);
+        const optionMatches = (posGroup ? [posGroup] : customizationData.groups).flatMap((group) => group.items.map((groupItem) => ({
             group,
             addonItem: groupItem,
             score: getNameSimilarity(option.name, groupItem.name),
-          }))
-        )).sort((left, right) => right.score - left.score);
+          } as any))).sort((left, right) => right.score - left.score);
         const exactOptionMatch = addonAlias?.is_active
-          ? optionMatches.find((match) => (
+          ? optionMatches.find((match) => match.addonItem.id === addonAlias.internal_entity_id)
+            ?? optionMatches.find((match) => (
             normalizeMarketplaceName(match.addonItem.name)
             === normalizeMarketplaceName(addonAlias.internal_name)
           )) ?? null
@@ -378,14 +420,18 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
 
         const removalCandidate = exactOptionMatch ? null : getMarketplaceRemovalCandidate(option.name);
         if (removalCandidate) {
-          const ingredientAlias = marketplaceMappings.find((mapping) => (
+          const ingredientAliases = marketplaceMappings.filter((mapping) => (
             mapping.entity_type === 'ingredient'
             && mapping.normalized_external_name === normalizeMarketplaceName(removalCandidate)
           ));
+          const ingredientAlias = ingredientAliases.find((mapping) => (
+            mapping.parent_normalized_external_name === normalizeMarketplaceName(item.name)
+          )) ?? ingredientAliases.find((mapping) => !mapping.parent_normalized_external_name);
           const targetIngredient = ingredientAlias?.internal_name ?? removalCandidate;
           const matchedIngredientName = customizationData.removableIngredients.find((ingredient) => (
             ingredient.customer_can_remove
-            && normalizeMarketplaceName(ingredient.ingredient_name) === normalizeMarketplaceName(targetIngredient)
+            && (ingredient.id === ingredientAlias?.internal_entity_id
+              || normalizeMarketplaceName(ingredient.ingredient_name) === normalizeMarketplaceName(targetIngredient))
           ))?.ingredient_name ?? null;
 
           if (matchedIngredientName) {
@@ -394,6 +440,10 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
           }
 
           unmatchedOptions.push(`${item.name}: ${option.name}`);
+          unresolvedIssues.push({
+            kind: 'ingredient', externalName: option.name, mappingExternalName: removalCandidate,
+            parentExternalName: item.name, marketplacePrice: option.price,
+          });
           void dependencies.recordUnmatchedName({
             provider: detail.provider,
             entityType: 'ingredient',
@@ -410,8 +460,8 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
           )) ?? null
           : optionMatches[0] ?? null);
 
-        if (!bestOptionMatch || (!addonAlias && bestOptionMatch.score < MARKETPLACE_MATCH_THRESHOLD)) {
-          unmatchedOptions.push(`${item.name}: ${option.name}`);
+        if (!bestOptionMatch || (!addonAlias && bestOptionMatch.score < MARKETPLACE_MATCH_THRESHOLD) || (!posGroup && !exactOptionMatch)) {
+          unmatchedAddonNotes.push(formatUnmatchedMarketplaceAddon(option));
           void dependencies.recordUnmatchedName({
             provider: detail.provider,
             entityType: 'addon',
@@ -438,6 +488,7 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
             display_group_order: bestOptionMatch.group.display_order ?? undefined,
           });
         }
+        });
       });
 
       const overridePrice = parseMarketplaceMoney(item.price);
@@ -462,7 +513,7 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
           getProductGroupSection(matchedProduct, categories)
         ),
         removed_ingredients: Array.from(new Set(removedIngredients)),
-        comment: item.specialInstructions.trim() || null,
+        comment: [item.specialInstructions.trim(), ...unmatchedAddonNotes].filter(Boolean).join('\n') || null,
         created_at: dependencies.now().toISOString(),
         addons,
       });
@@ -487,6 +538,7 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
       },
       unmatchedProducts,
       unmatchedOptions,
+      unresolvedIssues,
     };
   };
 
@@ -584,6 +636,7 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
       ].filter(Boolean).join('\n');
 
       const orderPayload: MarketplaceOrderPayload = {
+        created_at: draft.requestedAt.toISOString(),
         user_id: null,
         customer_email: '',
         customer_phone: externalOrderNumber,
@@ -721,7 +774,7 @@ const defaultDependencies: MarketplacePosOrderDependencies = {
     const { supabase } = require('./supabase');
     const { data, error } = await supabase
       .from('marketplace_name_mappings')
-      .select('provider, entity_type, external_name, normalized_external_name, internal_name, is_active')
+      .select('provider, entity_type, external_name, normalized_external_name, parent_normalized_external_name, internal_name, internal_entity_id, is_active')
       .eq('provider', provider)
       .eq('is_active', true);
 

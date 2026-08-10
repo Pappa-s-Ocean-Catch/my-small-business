@@ -4,7 +4,7 @@ import { Tailwind } from '@react-email/tailwind';
 import { Container, Section, Text } from '@react-email/components';
 
 export function WelcomeEmail({ fullName, businessName = "Pappa's Ocean Catch", logoUrl }: { fullName?: string; businessName?: string; logoUrl?: string }) {
-    const websiteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://pappasoceancatch.com.au';
+    const websiteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://pappasfishnchips.com.au';
     const shopPhone = '+61397438150';
     const greetingName = fullName && fullName.trim().length > 0 ? fullName : 'there';
     return (

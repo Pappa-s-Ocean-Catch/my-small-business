@@ -69,7 +69,7 @@ export default function Home() {
     "@context": "https://schema.org",
     "@type": "Restaurant",
     "name": "Pappa's Ocean Catch",
-    "image": `${process.env.NEXT_PUBLIC_SITE_URL || "https://pappasoceancatch.com.au"}/og-image.png`,
+    "image": `${process.env.NEXT_PUBLIC_SITE_URL || "https://pappasfishnchips.com.au"}/og-image.png`,
     "description": "Fresh fish and chips takeaway in Melton. Traditional batter, hand-cut chips, and the freshest seafood daily.",
     "address": {
       "@type": "PostalAddress",
@@ -100,8 +100,8 @@ export default function Home() {
         "closes": "20:30",
       },
     ],
-    "url": process.env.NEXT_PUBLIC_SITE_URL || "https://pappasoceancatch.com.au",
-    "menu": `${process.env.NEXT_PUBLIC_SITE_URL || "https://pappasoceancatch.com.au"}/menu`,
+    "url": process.env.NEXT_PUBLIC_SITE_URL || "https://pappasfishnchips.com.au",
+    "menu": `${process.env.NEXT_PUBLIC_SITE_URL || "https://pappasfishnchips.com.au"}/menu`,
     "acceptsReservations": false,
     "hasMenu": true,
   };

@@ -1049,9 +1049,10 @@ export default function PosScreen() {
     () => cartItems.reduce((sum, item) => sum + item.subtotal, 0),
     [cartItems]
   );
+  const isMarketplaceManualImport = marketplaceImportMetadata !== null;
   const freeItemPromoTotals = useMemo(
     () => computePosFreeItemPromotion({
-      promotions: activePromotions,
+      promotions: isMarketplaceManualImport ? [] : activePromotions,
       items: cartItems.map((item) => ({
         id: item.id,
         product_id: item.product_id,
@@ -1063,7 +1064,7 @@ export default function PosScreen() {
       cartSubtotal,
       selectedFreeItemId,
     }),
-    [activePromotions, cartItems, cartSubtotal, selectedFreeItemId]
+    [activePromotions, cartItems, cartSubtotal, isMarketplaceManualImport, selectedFreeItemId]
   );
   const freeItemPromotion = freeItemPromoTotals.freeItemPromotion;
   const unlockedFreeItemPromotion = freeItemPromoTotals.unlockedFreeItemPromotion;
@@ -2242,6 +2243,7 @@ export default function PosScreen() {
         ? marketplaceImportMetadata
         : null;
       const orderPayload = {
+        created_at: importedMarketplaceOrder ? thirdPartyOrderAt.toISOString() : undefined,
         user_id: null,
         customer_email: '',
         customer_phone: externalOrderNumber,

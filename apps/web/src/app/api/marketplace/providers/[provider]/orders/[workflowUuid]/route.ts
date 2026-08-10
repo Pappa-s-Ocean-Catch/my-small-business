@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { parseDoorDashTimestamp } from '@/lib/marketplace-time';
 import {
   authenticateMarketplaceRequest,
   getMarketplaceCookies,
@@ -438,12 +439,6 @@ function normalizeUberOrderDetails(details: UberNormalizedOrderDetails): Marketp
   };
 }
 
-function parseDateToMilliseconds(value?: string | null) {
-  if (!value) return null;
-  const parsed = new Date(value).getTime();
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
 function formatDoorDashPrice(price?: DoorDashPrice | null) {
   if (!price) return '';
   return price.displayString || (typeof price.unitAmount === 'number' ? `A$${(price.unitAmount / 100).toFixed(2)}` : '');
@@ -559,11 +554,11 @@ function normalizeDoorDashOrderDetails(payload: DoorDashDetailResponse['data']):
   const summary = buildDoorDashSummary(payload, items);
 
   const orderStateChanges = [
-    payload?.estimatedPickupTime ? { changedAt: parseDateToMilliseconds(payload.estimatedPickupTime) || 0, orderState: 'ESTIMATED_PICKUP' } : null,
-    payload?.actualPickupTime ? { changedAt: parseDateToMilliseconds(payload.actualPickupTime) || 0, orderState: 'PICKED_UP' } : null,
-    payload?.quotedDeliveryTime ? { changedAt: parseDateToMilliseconds(payload.quotedDeliveryTime) || 0, orderState: 'ESTIMATED_DELIVERY' } : null,
-    payload?.actualDeliveryTime ? { changedAt: parseDateToMilliseconds(payload.actualDeliveryTime) || 0, orderState: 'DELIVERED' } : null,
-    payload?.completedTime ? { changedAt: parseDateToMilliseconds(payload.completedTime) || 0, orderState: 'COMPLETED' } : null,
+    payload?.estimatedPickupTime ? { changedAt: parseDoorDashTimestamp(payload.estimatedPickupTime) || 0, orderState: 'ESTIMATED_PICKUP' } : null,
+    payload?.actualPickupTime ? { changedAt: parseDoorDashTimestamp(payload.actualPickupTime) || 0, orderState: 'PICKED_UP' } : null,
+    payload?.quotedDeliveryTime ? { changedAt: parseDoorDashTimestamp(payload.quotedDeliveryTime) || 0, orderState: 'ESTIMATED_DELIVERY' } : null,
+    payload?.actualDeliveryTime ? { changedAt: parseDoorDashTimestamp(payload.actualDeliveryTime) || 0, orderState: 'DELIVERED' } : null,
+    payload?.completedTime ? { changedAt: parseDoorDashTimestamp(payload.completedTime) || 0, orderState: 'COMPLETED' } : null,
   ].filter((entry): entry is { changedAt: number; orderState: string } => Boolean(entry));
 
   return {
@@ -571,8 +566,8 @@ function normalizeDoorDashOrderDetails(payload: DoorDashDetailResponse['data']):
     sourceName: 'DoorDash',
     orderId: payload?.orderId || '',
     orderUUID: payload?.deliveryUuid || '',
-    requestedAt: parseDateToMilliseconds(payload?.orderDate) || 0,
-    completedAtTimestamp: parseDateToMilliseconds(payload?.completedTime),
+    requestedAt: parseDoorDashTimestamp(payload?.orderDate) || 0,
+    completedAtTimestamp: parseDoorDashTimestamp(payload?.completedTime),
     customerName: payload?.consumer?.informalName || payload?.consumer?.formalNameAbbreviated || 'Customer',
     customerPhone: null,
     customerAddress: payload?.deliveryAddress?.printableAddress || null,

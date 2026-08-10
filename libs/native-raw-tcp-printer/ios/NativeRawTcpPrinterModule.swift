@@ -17,7 +17,7 @@ private actor PrinterQueues {
     let task = Task { if let previous { _ = await previous.result } }
     tails[key] = task
     _ = await task.result
-    defer { if tails[key] === task { tails.removeValue(forKey: key) } }
+    defer { if tails[key] == task { tails.removeValue(forKey: key) } }
     return try await work()
   }
 }
@@ -93,9 +93,9 @@ public final class NativeRawTcpPrinterModule: Module {
     for _ in 0..<options.copies { try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
       let connection = NWConnection(host: NWEndpoint.Host(options.host), port: NWEndpoint.Port(rawValue: options.port)!, using: .tcp)
       var settled = false; func finish(_ result: Result<Void, Error>) { guard !settled else { return }; settled = true; connection.cancel(); continuation.resume(with: result) }
-      connection.stateUpdateHandler = { state in if case .failed(let error) = state { finish(.failure(NativeFailure(code: "CONNECTION_FAILED", phase: "send", message: error.localizedDescription)) } }
+      connection.stateUpdateHandler = { state in if case .failed(let error) = state { finish(.failure(NativeFailure(code: "CONNECTION_FAILED", phase: "send", message: error.localizedDescription))) } }
       connection.start(queue: .global()); connection.send(content: Data(bytes), completion: .contentProcessed { error in if let error { finish(.failure(NativeFailure(code: "SEND_FAILED", phase: "send", message: error.localizedDescription))) } else { finish(.success(())) } })
-      DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(options.timeoutMs)) { finish(.failure(NativeFailure(code: "TIMEOUT", phase: "send", message: "Printer timed out")) }
+      DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(options.timeoutMs)) { finish(.failure(NativeFailure(code: "TIMEOUT", phase: "send", message: "Printer timed out"))) }
     } }
   }
 

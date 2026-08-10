@@ -109,6 +109,7 @@ export default function RootLayout() {
                       animation: 'slide_from_bottom',
                     }}
                   />
+                  <Stack.Screen name="marketplace-resolver" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
                   <Stack.Screen name="pos-layout-settings" />
                   <Stack.Screen name="POS-intergation" />
                 </Stack>

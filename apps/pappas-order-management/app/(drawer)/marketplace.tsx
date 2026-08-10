@@ -25,7 +25,7 @@ import type { AddonItem, RemovableIngredient, SaleProduct } from '@/app/pos.type
 
 type ProviderTab = 'uber_eats' | 'doordash';
 type MarketplaceListTab = 'active' | 'scheduled' | 'history';
-type MappingEntityType = 'product' | 'addon' | 'ingredient';
+type MappingEntityType = 'product' | 'addon_group' | 'addon' | 'ingredient';
 
 type MarketplaceUnmatchedName = {
   id: string;
@@ -36,6 +36,17 @@ type MarketplaceUnmatchedName = {
   parent_external_name: string;
   occurrences: number;
   last_seen_at: string;
+};
+
+type MarketplaceSavedMapping = {
+  id: string;
+  provider: MarketplaceProvider;
+  entity_type: MappingEntityType;
+  external_name: string;
+  normalized_external_name: string;
+  internal_name: string;
+  internal_entity_id: string | null;
+  parent_normalized_external_name: string;
 };
 
 const PROVIDER_LABELS: Record<ProviderTab, string> = {
@@ -143,6 +154,7 @@ export default function MarketplaceScreen() {
   const [savingMappingId, setSavingMappingId] = useState<string | null>(null);
   const [showMappingsModal, setShowMappingsModal] = useState(false);
   const [unmatchedNames, setUnmatchedNames] = useState<MarketplaceUnmatchedName[]>([]);
+  const [savedMappings, setSavedMappings] = useState<MarketplaceSavedMapping[]>([]);
   const [products, setProducts] = useState<SaleProduct[]>([]);
   const [addonItems, setAddonItems] = useState<AddonItem[]>([]);
   const [ingredients, setIngredients] = useState<RemovableIngredient[]>([]);
@@ -155,6 +167,7 @@ export default function MarketplaceScreen() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [selectedOrderDetail, setSelectedOrderDetail] = useState<MarketplaceOrderDetail | null>(null);
   const setMarketplacePosDraft = useMarketplacePosDraftStore((state) => state.setDraft);
+  const setMappingEdit = useMarketplacePosDraftStore((state) => state.setMappingEdit);
   const [credentialStatus, setCredentialStatus] = useState<Record<MarketplaceProvider, MarketplaceCredentialStatus>>({
     uber_eats: { provider: 'uber_eats', configured: false, updatedAt: null, configuredBy: null, providerConfig: {} },
     doordash: { provider: 'doordash', configured: false, updatedAt: null, configuredBy: null, providerConfig: {} },
@@ -245,7 +258,7 @@ export default function MarketplaceScreen() {
   const loadMappings = useCallback(async () => {
     try {
       setMappingLoading(true);
-      const [unmatchedResult, productsResult, addonsResult, ingredientsResult] = await Promise.all([
+      const [unmatchedResult, savedMappingsResult, productsResult, addonsResult, ingredientsResult] = await Promise.all([
         supabase
           .from('marketplace_unmatched_names')
           .select('id, provider, entity_type, external_name, normalized_external_name, parent_external_name, occurrences, last_seen_at')
@@ -253,6 +266,13 @@ export default function MarketplaceScreen() {
           .order('occurrences', { ascending: false })
           .order('last_seen_at', { ascending: false })
           .limit(50),
+        supabase
+          .from('marketplace_name_mappings')
+          .select('id, provider, entity_type, external_name, normalized_external_name, internal_name, internal_entity_id, parent_normalized_external_name')
+          .eq('provider', providerTab)
+          .eq('is_active', true)
+          .order('updated_at', { ascending: false })
+          .limit(100),
         supabase
           .from('sale_products')
           .select('id, name, description, section, search_term, sale_price, image_url, sale_category_id, sub_category_id, sort_order, is_active')
@@ -271,6 +291,7 @@ export default function MarketplaceScreen() {
       ]);
 
       setUnmatchedNames((unmatchedResult.data || []) as MarketplaceUnmatchedName[]);
+      setSavedMappings((savedMappingsResult.data || []) as MarketplaceSavedMapping[]);
       setProducts((productsResult.data || []) as SaleProduct[]);
       setAddonItems((addonsResult.data || []) as AddonItem[]);
       const mappedIngredients = ((ingredientsResult.data || []) as Array<{
@@ -451,7 +472,7 @@ export default function MarketplaceScreen() {
       });
       setShowDetailModal(false);
       setSelectedOrderDetail(null);
-      router.push('/pos');
+      router.push('/marketplace-resolver');
     } catch (error) {
       Alert.alert(
         'Marketplace',
@@ -531,6 +552,39 @@ export default function MarketplaceScreen() {
     } finally {
       setSavingMappingId(null);
     }
+  };
+
+  const removeSavedMapping = (mapping: MarketplaceSavedMapping) => {
+    Alert.alert('Remove mapping?', `Future ${mapping.external_name} orders will need to be resolved again.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove', style: 'destructive', onPress: () => {
+          void (async () => {
+            setSavingMappingId(mapping.id);
+            try {
+              const { error } = await supabase.from('marketplace_name_mappings').delete().eq('id', mapping.id);
+              if (error) throw error;
+              setSavedMappings((current) => current.filter((entry) => entry.id !== mapping.id));
+            } catch (error) {
+              Alert.alert('Marketplace', error instanceof Error ? error.message : 'Could not remove mapping.');
+            } finally {
+              setSavingMappingId(null);
+            }
+          })();
+        },
+      },
+    ]);
+  };
+
+  const editSavedMapping = (mapping: MarketplaceSavedMapping) => {
+    setMappingEdit({
+      id: mapping.id, provider: mapping.provider, entityType: mapping.entity_type,
+      externalName: mapping.external_name, normalizedExternalName: mapping.normalized_external_name,
+      parentNormalizedExternalName: mapping.parent_normalized_external_name,
+      internalName: mapping.internal_name, internalEntityId: mapping.internal_entity_id,
+    });
+    setShowMappingsModal(false);
+    router.push('/marketplace-resolver');
   };
 
   const getMappingOptions = (entityType: MappingEntityType) => {
@@ -973,6 +1027,29 @@ export default function MarketplaceScreen() {
                     </Text>
                   </View>
                 )}
+                {savedMappings.length > 0 ? (
+                  <View style={styles.mappingList}>
+                    <Text style={styles.savedMappingsTitle}>Saved mappings</Text>
+                    {savedMappings.map((mapping) => (
+                      <Card key={mapping.id} style={styles.mappingCard}>
+                        <Card.Content style={styles.mappingCardContent}>
+                          <Text style={styles.mappingTitle}>{mapping.external_name} → {mapping.internal_name}</Text>
+                          <Text style={styles.mappingMeta}>
+                            {mapping.entity_type.toUpperCase()}{mapping.parent_normalized_external_name ? ' • Product-specific' : ''}
+                          </Text>
+                          <View style={styles.mappingActions}>
+                            <Button mode="outlined" onPress={() => editSavedMapping(mapping)} disabled={Boolean(savingMappingId)}>
+                              Edit in resolver
+                            </Button>
+                            <Button mode="text" textColor="#b91c1c" onPress={() => removeSavedMapping(mapping)} disabled={Boolean(savingMappingId)}>
+                              Remove mapping
+                            </Button>
+                          </View>
+                        </Card.Content>
+                      </Card>
+                    ))}
+                  </View>
+                ) : null}
               </ScrollView>
             </View>
           </View>
@@ -1467,6 +1544,11 @@ const styles = StyleSheet.create({
   },
   mappingList: {
     gap: 12,
+  },
+  savedMappingsTitle: {
+    color: '#36566b',
+    fontWeight: '700',
+    marginTop: 12,
   },
   mappingCard: {
     borderRadius: 16,

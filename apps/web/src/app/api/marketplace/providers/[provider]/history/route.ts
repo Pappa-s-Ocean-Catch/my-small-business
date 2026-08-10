@@ -250,15 +250,12 @@ function buildUberHistoryPayload(cookieHeader: string, cursor?: string, dateRang
       limit: 20,
       nextTable: 'liveOrders',
     },
-  };
-
-  if (cursor) {
-    payload.pagination = {
-      cursor,
+    pagination: {
+      cursor: cursor || '',
       nextTable: 'historyOrders',
       limit: 20,
-    };
-  }
+    },
+  };
 
   return payload;
 }
@@ -273,6 +270,7 @@ async function fetchUberHistory(cookieHeader: string, cursor?: string, dateRange
       'content-type': 'application/json',
       origin: 'https://merchants.ubereats.com',
       priority: 'u=1, i',
+      referer: `https://merchants.ubereats.com/manager/orders?dateRange=${dateRange.toLowerCase()}`,
       'sec-ch-ua': '"Not;A=Brand";v="8", "Chromium";v="150", "Google Chrome";v="150"',
       'sec-ch-ua-mobile': '?0',
       'sec-ch-ua-platform': '"macOS"',
@@ -293,7 +291,11 @@ async function fetchUberHistory(cookieHeader: string, cursor?: string, dateRange
     try {
       return JSON.parse(responseText) as {
         status?: string;
-        data?: { orders?: UberHistoricOrder[]; pagination?: { cursor?: string } };
+        data?: {
+          orders?: UberHistoricOrder[];
+          pagination?: { cursor?: string };
+          paginationResult?: { nextCursor?: string; nextTable?: string };
+        };
         message?: string;
       };
     } catch {
@@ -305,24 +307,26 @@ async function fetchUberHistory(cookieHeader: string, cursor?: string, dateRange
     throw new Error(payload?.message || responseText.slice(0, 200).trim() || `Uber Eats history request failed (${response.status})`);
   }
 
+  const rawOrders = payload.data?.orders || [];
+  const orders = rawOrders.map((order) => ({
+    orderId: order.orderId,
+    workflowUuid: order.workflowUuid,
+    orderUuid: order.orderUuid,
+    customerName: order.eater?.name || 'Customer',
+    salesTotal: order.salesTotal,
+    netPayout: resolveHistoryNetPayout(order as UberHistoricOrder & Record<string, unknown>),
+    requestedAt: order.requestedAt,
+    courierName: order.courierName || '',
+    fulfillmentType: order.fulfillmentType,
+    issueType: order.issueType || '',
+    orderChannel: order.orderChannel,
+    isSubscriber: Boolean(order.eater?.isEatsPassSubscriber),
+    subscriptionPass: order.eater?.subscriptionPass || '',
+  }));
   return {
     provider: 'uber_eats' as MarketplaceProvider,
-    orders: (payload.data?.orders || []).map((order) => ({
-      orderId: order.orderId,
-      workflowUuid: order.workflowUuid,
-      orderUuid: order.orderUuid,
-      customerName: order.eater?.name || 'Customer',
-      salesTotal: order.salesTotal,
-      netPayout: resolveHistoryNetPayout(order as UberHistoricOrder & Record<string, unknown>),
-      requestedAt: order.requestedAt,
-      courierName: order.courierName || '',
-      fulfillmentType: order.fulfillmentType,
-      issueType: order.issueType || '',
-      orderChannel: order.orderChannel,
-      isSubscriber: Boolean(order.eater?.isEatsPassSubscriber),
-      subscriptionPass: order.eater?.subscriptionPass || '',
-    })),
-    nextCursor: payload.data?.pagination?.cursor || null,
+    orders,
+    nextCursor: payload.data?.paginationResult?.nextCursor || payload.data?.pagination?.cursor || null,
   };
 }
 

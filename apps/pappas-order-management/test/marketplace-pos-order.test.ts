@@ -52,6 +52,17 @@ const existingOrder = {
   items: [{ id: 'staff-item' }],
 } as unknown as Order;
 
+const choicesGroupMapping = {
+  provider: 'uber_eats' as const,
+  entity_type: 'addon_group' as const,
+  external_name: 'Choices',
+  normalized_external_name: 'choices',
+  parent_normalized_external_name: 'classic burger',
+  internal_name: 'Extras',
+  internal_entity_id: 'extras',
+  is_active: true,
+};
+
 type MarketplaceUpdateCall = {
   orderId: string;
   update: Record<string, unknown>;
@@ -138,7 +149,7 @@ test('imports a new marketplace detail through savePosOrder exactly once', async
       }],
       categories: [{ id: 'mains', section: 'Grilled' }],
     }),
-    loadMappings: async () => [],
+    loadMappings: async () => [choicesGroupMapping],
     loadProductCustomizations: async () => ({
       groups: [{
         id: 'extras',
@@ -202,7 +213,7 @@ test('imports No Salt as an exact POS add-on before treating it as an ingredient
       }],
       categories: [{ id: 'mains', section: 'Grilled' }],
     }),
-    loadMappings: async () => [],
+    loadMappings: async () => [choicesGroupMapping],
     loadProductCustomizations: async () => ({
       groups: [{
         id: 'extras', name: 'Extras', is_required: false, multiple_choice: true, display_order: 1,
@@ -265,7 +276,7 @@ test('uses an explicit No Salt add-on mapping before removal processing', async 
       }],
       categories: [{ id: 'mains', section: 'Grilled' }],
     }),
-    loadMappings: async () => [{
+    loadMappings: async () => [choicesGroupMapping, {
       provider: 'uber_eats', entity_type: 'addon', external_name: 'No Salt',
       normalized_external_name: 'no salt', internal_name: 'No Salt Light', is_active: true,
     }],
@@ -332,9 +343,9 @@ test('does not create an order when required customization data fails to load', 
       }],
       categories: [{ id: 'mains', section: 'Grilled' }],
     }),
-    loadMappings: async () => [],
+    loadMappings: async () => [choicesGroupMapping],
     loadProductCustomizations: async () => ({
-      groups: [],
+      groups: [{ id: 'extras', name: 'Extras', is_required: false, multiple_choice: true, display_order: 1, items: [] }],
       removableIngredients: [],
       error: 'Marketplace customizations unavailable',
     }),
@@ -350,7 +361,7 @@ test('does not create an order when required customization data fails to load', 
   assert.equal(saveCalls, 0);
 });
 
-test('does not automatically create a partially matched marketplace order', async () => {
+test('imports a matched product and retains an unmatched add-on as a note', async () => {
   let saveCalls = 0;
   const service = createMarketplacePosOrderService({
     findMarketplaceOrder: async () => ({ data: null, error: null }),
@@ -377,9 +388,9 @@ test('does not automatically create a partially matched marketplace order', asyn
       }],
       categories: [{ id: 'mains', section: 'Grilled' }],
     }),
-    loadMappings: async () => [],
+    loadMappings: async () => [choicesGroupMapping],
     loadProductCustomizations: async () => ({
-      groups: [],
+      groups: [{ id: 'extras', name: 'Extras', is_required: false, multiple_choice: true, display_order: 1, items: [] }],
       removableIngredients: [{
         id: 'tomato',
         ingredient_name: 'Tomato',
@@ -393,12 +404,40 @@ test('does not automatically create a partially matched marketplace order', asyn
 
   const result = await service.importMarketplaceOrder(detail);
 
-  assert.equal(result.created, false);
-  assert.equal(
-    result.error,
-    'Marketplace order needs manual review before import. Unmatched products: none. Unmatched options: Classic Burger: Extra Cheese.'
-  );
-  assert.equal(saveCalls, 0);
+  assert.equal(result.created, true);
+  assert.equal(result.error, null);
+  assert.equal(saveCalls, 1);
+});
+
+test('records unmatched add-on quantity and price in the product note', async () => {
+  const service = createMarketplacePosOrderService({
+    findMarketplaceOrder: async () => ({ data: null, error: null }),
+    savePosOrder: async () => ({ data: existingOrder, error: null }),
+    updateMarketplaceOrder: async () => ({ data: existingOrder, error: null }),
+    loadCatalog: async () => ({
+      products: [{
+        id: 'burger', name: 'Classic Burger', description: null, section: null, search_term: null,
+        sale_price: 20, image_url: null, sale_category_id: null, sub_category_id: null, sort_order: 1, is_active: true,
+      }],
+      categories: [],
+    }),
+    loadMappings: async () => [choicesGroupMapping],
+    loadProductCustomizations: async () => ({ groups: [{ id: 'extras', name: 'Extras', is_required: false, multiple_choice: true, display_order: 1, items: [] }], removableIngredients: [] }),
+    recordUnmatchedName: async () => undefined,
+    createLocalId: () => 'local-item',
+    now: () => new Date('2026-08-02T00:00:00.000Z'),
+  });
+
+  const draft = await service.buildMarketplacePosOrderDraft({
+    ...detail,
+    items: [{
+      ...detail.items[0],
+      customizations: [{ name: 'Choices', options: [{ name: 'Extra Cheese', quantity: 1, price: '$2.00' }] }],
+    }],
+  });
+
+  assert.deepEqual(draft.unresolvedIssues, []);
+  assert.equal(draft.cartItems[0].comment, 'Cut in half\nAdd-on: Extra Cheese (+$2.00)');
 });
 
 test('updates only order_status when the provider and trimmed ID already exist', async () => {

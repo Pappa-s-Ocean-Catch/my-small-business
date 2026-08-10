@@ -23,6 +23,7 @@
     "lib/marketplace-order-summary.ts",
     "lib/marketplace-pos-import.ts",
     "lib/marketplace-pos-order.ts",
+    "lib/marketplace-resolver-groups.ts",
     "lib/marketplace-sync.ts",
     "lib/promotion-summary.ts",
     "lib/pos-api-auth.ts",
