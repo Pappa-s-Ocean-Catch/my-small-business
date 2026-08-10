@@ -5,7 +5,7 @@
 3. Restart the web application after changing those environment variables.
 4. Open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select this folder.
 5. Open extension **Details** then **Extension options**.
-6. Set API base URL to `https://pappasfishnchips.com.au` and paste the same sync secret.
+6. Set API base URL to `https://www.pappasfishnchips.com.au` and paste the same sync secret. Do not use the non-`www` hostname: it redirects and browsers reject redirected CORS preflight requests.
 7. Open a signed-in Uber Eats Manager or DoorDash Merchant Orders page and refresh the portal once so it makes an API request. Click **Sync marketplace session**, review the read-only captured request cookie header, optionally copy it, then choose **Submit session** to send it.
 
 The server validates the session before replacing the encrypted saved credential. A validation failure does not overwrite the existing session.

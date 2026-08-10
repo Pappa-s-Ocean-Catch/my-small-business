@@ -311,6 +311,25 @@ export const getKitchenSectionDisplay = (value?: string | null): string =>
     .map((section) => section.toUpperCase())
     .join(' & ');
 
+export const shouldSkipOverlappingCombinedSectionTicket = (
+  sectionName: string | null | undefined,
+  allSectionNames: Array<string | null | undefined>,
+): boolean => {
+  const normalizedSection = sectionName?.trim().toLowerCase() || '';
+  const combinedParts = normalizedSection
+    .split('&')
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (combinedParts.length < 2) return false;
+
+  const individualSections = new Set(
+    allSectionNames
+      .map((name) => name?.trim().toLowerCase() || '')
+      .filter((name) => name && !name.includes('&')),
+  );
+  return combinedParts.some((part) => individualSections.has(part));
+};
+
 export const resolveKitchenSections = (
   baseSection?: string | null,
   addons?: OrderItemAddon[],

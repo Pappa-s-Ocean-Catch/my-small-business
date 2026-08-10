@@ -1,5 +1,10 @@
 import type { Order } from '@my-small-business/types';
-import { buildKitchenReceiptCopies, CUSTOMER_COPY_SECTION, DEFAULT_KITCHEN_SECTION } from '@/utils/orderUtils';
+import {
+  buildKitchenReceiptCopies,
+  CUSTOMER_COPY_SECTION,
+  DEFAULT_KITCHEN_SECTION,
+  shouldSkipOverlappingCombinedSectionTicket,
+} from '@/utils/orderUtils';
 import { getPrinterDriver, isSimulatorPrinterTarget, type SavedPrinter } from './escpos-printer';
 import type { AppSettings, PrinterSectionAssignment } from './settings';
 
@@ -135,6 +140,7 @@ export function buildSectionPrintJobs(
   order: Pick<Order, 'items'>
 ): ResolvedSectionPrintJob[] {
   const tickets = getSectionPrintTickets(order);
+  const ticketSectionNames = tickets.map((ticket) => ticket.sections[0]?.sectionName || null);
   const jobs: ResolvedSectionPrintJob[] = [];
   const seenCombinedKeys = new Set<string>();
   const specialAssignments = settings.printerSectionAssignments.filter((assignment) => (
@@ -146,6 +152,9 @@ export function buildSectionPrintJobs(
 
   tickets.forEach((ticket, index) => {
     const sectionName = ticket.sections[0]?.sectionName || null;
+    if (shouldSkipOverlappingCombinedSectionTicket(sectionName, ticketSectionNames)) {
+      return;
+    }
     if (shouldSkipPrintForSection(settings, sectionName)) {
       return;
     }

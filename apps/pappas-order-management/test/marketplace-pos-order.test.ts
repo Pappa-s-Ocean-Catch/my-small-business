@@ -184,7 +184,7 @@ test('imports a new marketplace detail through savePosOrder exactly once', async
   assert.equal(result.order, savedOrder);
   assert.equal(result.error, null);
   assert.equal(saveCalls.length, 1);
-  assert.equal(saveCalls[0].orderPayload.order_status, 'ready');
+  assert.equal(saveCalls[0].orderPayload.order_status, 'confirmed');
   assert.equal(saveCalls[0].orderPayload.marketplace_gross_sales, 25);
   assert.equal(saveCalls[0].orderPayload.marketplace_gross_payout, 18.5);
   assert.equal(saveCalls[0].orderPayload.external_order_number, 'UE-123');

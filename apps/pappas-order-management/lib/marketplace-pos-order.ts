@@ -646,7 +646,10 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
         payment_method_detail: draft.metadata.source,
         order_type: 'pickup',
         payment_status: 'paid',
-        order_status: draft.metadata.orderStatus,
+        // savePosOrder creates the parent in a non-printable staging state, inserts every
+        // item and add-on, then publishes this status. Confirming here lets auto-print
+        // observe a complete marketplace order before a later provider poll reconciles it.
+        order_status: 'confirmed',
         subtotal,
         tax: 0,
         delivery_fee: 0,
