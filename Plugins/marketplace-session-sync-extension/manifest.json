@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "Marketplace Session Sync",
+  "version": "1.0.0",
+  "description": "Refreshes the saved Uber Eats and DoorDash marketplace sessions on demand.",
+  "permissions": ["storage", "webRequest"],
+  "host_permissions": [
+    "https://merchants.ubereats.com/*",
+    "https://www.doordash.com/*",
+    "https://merchant-portal.doordash.com/*",
+    "https://pappasfishnchips.com.au/*",
+    "http://localhost:3001/*",
+    "http://localhost:3000/*",
+    "https://localhost:3000/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://merchants.ubereats.com/manager/*",
+        "https://www.doordash.com/merchant/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "action": {
+    "default_title": "Marketplace Session Sync"
+  }
+}

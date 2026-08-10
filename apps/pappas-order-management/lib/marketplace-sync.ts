@@ -1,4 +1,15 @@
-export const MARKETPLACE_SYNC_INTERVAL_MS = 30_000;
+export const MARKETPLACE_SYNC_INTERVAL_MS = 15_000;
+
+const MARKETPLACE_AUTO_SYNC_TIME_ZONE = 'Australia/Melbourne';
+
+export function isMarketplaceAutoSyncOpenAt(date: Date) {
+  const hour = Number(new Intl.DateTimeFormat('en-AU', {
+    timeZone: MARKETPLACE_AUTO_SYNC_TIME_ZONE,
+    hour: '2-digit',
+    hourCycle: 'h23',
+  }).format(date));
+  return hour >= 11 && hour < 20;
+}
 
 type MarketplaceProvider = 'uber_eats' | 'doordash';
 
@@ -51,6 +62,7 @@ type MarketplaceSyncDependencies<Detail, SyncedOrder> = {
     detail: Detail
   ) => Promise<MarketplaceStatusSyncResult<SyncedOrder>>;
   logError?: (message: string, error: unknown) => void;
+  canPoll?: () => boolean;
   setInterval?: (callback: () => void, delayMs: number) => unknown;
   clearInterval?: (handle: unknown) => void;
 };
@@ -219,7 +231,7 @@ export function createMarketplaceSyncCoordinator<Detail, SyncedOrder>(
   };
 
   const poll = async () => {
-    if (inFlight) return;
+    if (inFlight || dependencies.canPoll?.() === false) return;
 
     inFlight = true;
     try {

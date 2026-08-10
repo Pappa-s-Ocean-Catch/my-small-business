@@ -31,6 +31,7 @@ import { shouldPlayOrderSound } from '@/utils/orderUtils';
 import { getPrintDeviceId } from '@/lib/print-device';
 import { getInstoreCustomerReceiptPrintJob } from '@/lib/instore-customer-receipt';
 import { getAutoPrintableLiveOrders } from '@/lib/live-order-window';
+import { getOrderAnnouncementDelayMs } from '@/lib/marketplace-print-scheduling';
 import { getFriendlyOrderNumber } from '@/utils/orderNumber';
 import { playNewOrderSound } from '@/lib/sounds';
 import { usePrinterAutomationStore, type JournalLevel } from '@/stores/printerAutomationStore';
@@ -561,16 +562,13 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
     }
   }, [announceAndPrintOrder, logOrderEvent]);
 
-  const scheduleOrderAnnouncement = useCallback((order: Pick<Order, 'id' | 'created_at'>) => {
+  const scheduleOrderAnnouncement = useCallback((order: Pick<Order, 'id' | 'created_at' | 'order_channel'>) => {
     if (processedOrderIdsRef.current.has(order.id)) return;
     if (pendingAnnouncementTimersRef.current.has(order.id)) return;
     if (announcingOrderIdsRef.current.has(order.id)) return;
 
     const delayMs = getPrintDelayMs();
-    const createdAtMs = new Date(order.created_at).getTime();
-    const dueInMs = Number.isFinite(createdAtMs)
-      ? Math.max(0, createdAtMs + delayMs - Date.now())
-      : delayMs;
+    const dueInMs = getOrderAnnouncementDelayMs(order, delayMs);
 
     const timer = setTimeout(() => {
       pendingAnnouncementTimersRef.current.delete(order.id);
@@ -580,7 +578,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
 
     logOrderEvent('decision', 'scheduler', 'Scheduled order announcement', {
       order: { id: order.id },
-      details: `Due in ${dueInMs}ms`,
+      details: `Due in ${dueInMs}ms (${order.order_channel === 'third_party' ? 'marketplace arrival' : 'order creation'})`,
     });
   }, [fetchAndAnnounceOrder, getPrintDelayMs, logOrderEvent]);
 
@@ -708,6 +706,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
           scheduleOrderAnnouncement({
             id: orderId,
             created_at: (payload.new as any)?.created_at || new Date().toISOString(),
+            order_channel: (payload.new as any)?.order_channel ?? null,
           });
         },
       )

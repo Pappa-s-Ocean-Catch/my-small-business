@@ -25,6 +25,7 @@
     "lib/marketplace-pos-order.ts",
     "lib/marketplace-resolver-groups.ts",
     "lib/marketplace-sync.ts",
+    "lib/marketplace-print-scheduling.ts",
     "lib/promotion-summary.ts",
     "lib/pos-api-auth.ts",
     "lib/print-debug-footer.ts",

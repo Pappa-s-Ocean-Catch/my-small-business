@@ -102,7 +102,7 @@ export async function getMarketplaceCredentialStatus(provider: MarketplaceProvid
 export async function saveMarketplaceCookies(input: {
   provider: MarketplaceProvider;
   cookies: string;
-  configuredBy: string;
+  configuredBy: string | null;
   providerConfig?: Record<string, string | number | boolean | null>;
 }) {
   const normalizedCookies = normalizeCookieHeaderValue(input.cookies);

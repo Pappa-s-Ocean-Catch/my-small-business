@@ -5,6 +5,7 @@ import {
   MARKETPLACE_SYNC_INTERVAL_MS,
   createMarketplaceSyncCoordinator,
   getManualMarketplaceSyncTarget,
+  isMarketplaceAutoSyncOpenAt,
   syncMarketplaceOrderOnDemand,
 } from '../lib/marketplace-sync';
 
@@ -62,7 +63,7 @@ function detail(provider: 'uber_eats' | 'doordash', orderId: string) {
   };
 }
 
-test('starts with an immediate poll and schedules the next polls every 30 seconds', async () => {
+test('starts with an immediate poll and schedules the next polls every 15 seconds', async () => {
   const scheduled: Array<{ callback: () => void; delayMs: number }> = [];
   const cleared: unknown[] = [];
   let activeRequests = 0;
@@ -92,8 +93,8 @@ test('starts with an immediate poll and schedules the next polls every 30 second
 
   assert.equal(activeRequests, 2);
   assert.equal(scheduled.length, 1);
-  assert.equal(scheduled[0].delayMs, 30_000);
-  assert.equal(MARKETPLACE_SYNC_INTERVAL_MS, 30_000);
+  assert.equal(scheduled[0].delayMs, 15_000);
+  assert.equal(MARKETPLACE_SYNC_INTERVAL_MS, 15_000);
 
   scheduled[0].callback();
   await new Promise((resolve) => setImmediate(resolve));
@@ -101,6 +102,13 @@ test('starts with an immediate poll and schedules the next polls every 30 second
 
   coordinator.stop();
   assert.deepEqual(cleared, ['poll-timer']);
+});
+
+test('only enables marketplace auto-sync from 11:00am until 8:00pm Melbourne time', () => {
+  assert.equal(isMarketplaceAutoSyncOpenAt(new Date('2026-01-14T23:59:59.000Z')), false);
+  assert.equal(isMarketplaceAutoSyncOpenAt(new Date('2026-01-15T00:00:00.000Z')), true);
+  assert.equal(isMarketplaceAutoSyncOpenAt(new Date('2026-01-15T08:59:59.000Z')), true);
+  assert.equal(isMarketplaceAutoSyncOpenAt(new Date('2026-01-15T09:00:00.000Z')), false);
 });
 
 test('does not overlap a scheduled poll with one already in flight', async () => {

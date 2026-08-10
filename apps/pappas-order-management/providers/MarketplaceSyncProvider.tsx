@@ -5,6 +5,7 @@ import {
   createMarketplaceSyncCoordinator,
   getMarketplaceActiveOrders,
   getMarketplaceOrderDetail,
+  isMarketplaceAutoSyncOpenAt,
 } from '@/lib/marketplace';
 import {
   importMarketplaceOrder,
@@ -26,6 +27,7 @@ export function MarketplaceSyncProvider({
     importMarketplaceOrder,
     getOpenMarketplaceOrdersForHistory,
     syncMarketplaceOrderStatus,
+    canPoll: () => isMarketplaceAutoSyncOpenAt(new Date()),
   }), []);
 
   useEffect(() => {

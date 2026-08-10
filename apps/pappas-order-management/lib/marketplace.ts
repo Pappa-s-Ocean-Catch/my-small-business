@@ -4,6 +4,7 @@ import { getApiUrl } from '@/utils/orderUtils';
 export {
   MARKETPLACE_SYNC_INTERVAL_MS,
   createMarketplaceSyncCoordinator,
+  isMarketplaceAutoSyncOpenAt,
 } from './marketplace-sync';
 
 export type MarketplaceProvider = 'uber_eats' | 'doordash';
