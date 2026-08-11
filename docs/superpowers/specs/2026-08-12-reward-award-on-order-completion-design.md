@@ -12,6 +12,7 @@ Award customer reward points exactly once, when either a paid eligible order is 
 - Preserve the existing receipt-claim reward flow. A successful receipt claim atomically links the order to the claiming customer (`user_id`) and then awards that order's points; this is the intentional exception for eligible in-store receipts claimed after completion.
 - Add database enforcement that permits at most one `earned` reward transaction for an order.
 - Correct existing duplicate earned transactions by keeping the oldest earned entry for each order and recalculating only affected customer balances.
+- Improve the POS completion feedback on live-order cards and order detail: selecting Complete immediately shows an in-progress state and disables further order actions until the operation succeeds, fails, or is cancelled.
 
 ## Data Flow
 
@@ -40,9 +41,11 @@ The migration will run in this order:
 - The database constraint provides correctness even if a later code path mistakenly attempts to allocate rewards twice.
 - The reward completion trigger retains the existing checks for linked customer, paid payment status, enabled rewards, and positive subtotal; it adds the non-marketplace and customer-profile requirements.
 - Receipt claiming remains operationally unchanged, including its existing customer-linking and reward-award behavior. The unique index makes a repeated claim or any concurrent completion path idempotent.
+- POS completion feedback begins before the completion freshness check and remains active across payment selection and the status update. Live-order-card and order-detail controls use the same order-scoped `updatingStatus` state, preventing repeated completion taps without blocking unrelated orders.
 
 ## Verification
 
 - Add a regression test around the payment-processing routes to assert reward allocation is not invoked on payment success.
 - Validate the migration using representative duplicate ledger fixtures: it preserves one transaction per order, removes only later entries, and produces correct affected balances.
+- Add a focused POS component test covering the visible, disabled loading state for a completing order and the unchanged interaction state for other order cards.
 - Run the relevant web test suite and TypeScript/lint checks available in this workspace.
