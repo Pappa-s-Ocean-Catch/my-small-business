@@ -30,7 +30,6 @@ export default function TabsLayout() {
         ),
         headerRight: () => (
           <React.Fragment>
-            <Text style={{ color: '#dbeafe', fontSize: 11, fontWeight: '800', letterSpacing: 0.8 }}>V1.0.0</Text>
             <Appbar.Action icon="storefront-outline" onPress={() => router.push('/marketplace')} iconColor="#fff" />
             <Appbar.Action icon="account-circle" onPress={handleOpenDrawer} iconColor="#fff" />
           </React.Fragment>
