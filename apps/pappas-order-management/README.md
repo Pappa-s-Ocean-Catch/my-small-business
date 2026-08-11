@@ -84,6 +84,49 @@ eas build --platform ios
 eas build --platform android
 ```
 
+### About Screen Release and Update Smoke Test
+
+Run this test against the production Android channel after the About screen is
+included in the build. The `release.env` file must contain the production
+configuration used by the release scripts.
+
+1. From the repository root, run:
+
+   ```bash
+   pnpm --filter pappas-order-management release:android:production
+   ```
+
+2. Install the generated APK on a device, open the drawer, and select **About**.
+   Confirm **Build/update date** is in `YYYYMMDD-HHMM` format and **Revision** is
+   exactly the first eight characters of the Git SHA. It must include `(+)` only
+   when `git status --porcelain` had output when the APK was built.
+
+3. Tap **Restart app**, choose **Cancel**, and confirm the app continues running.
+   Tap **Restart app** again, choose **Restart**, and confirm it restarts only
+   after that explicit confirmation.
+
+4. Make a JavaScript-only change, then publish it from the repository root:
+
+   ```bash
+   pnpm --filter pappas-order-management update:android:production
+   ```
+
+5. With the installed APK still running the previous update, return to **About**
+   and tap **Check for update**. Confirm an available update downloads and the
+   app restarts only after the download completes. Reopen **About** and confirm
+   the displayed build/update metadata reflects the published update.
+
+6. Tap **Check for update** again when no newer update is published. Confirm the
+   app reports that it is up to date and remains running.
+
+7. Disable network access (or otherwise force an update-check failure), tap
+   **Check for update**, and confirm the failure is reported while the currently
+   running app remains usable. Restore network access after the check.
+
+8. Open a build where EAS Updates is disabled or unavailable, then tap
+   **Check for update**. Confirm the app shows a safe unavailable message and
+   does not download an update or reload.
+
 ## App Structure
 
 ```

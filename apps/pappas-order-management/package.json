@@ -22,6 +22,8 @@
     "build:android:apk": "expo prebuild --platform android && cd android && ./gradlew assembleRelease",
     "build:release:android": "dotenv -e release.env -- sh -c 'expo prebuild --platform android && cd android && ./gradlew assembleRelease'",
     "build:release:ios": "dotenv -e release.env -- expo run:ios --configuration Release",
+    "release:android:production": "dotenv -e release.env -- node scripts/run-with-build-metadata.mjs eas build --platform android --profile production --local",
+    "update:android:production": "dotenv -e release.env -- node scripts/run-with-build-metadata.mjs eas update --channel production --environment production --platform android",
     "test:unit": "rm -rf dist-test && tsc -p tsconfig.test.json && node --test dist-test/apps/pappas-order-management/test/**/*.test.js"
   },
   "dependencies": {
@@ -43,11 +45,13 @@
     "expo-linear-gradient": "~15.0.8",
     "expo-linking": "~8.0.11",
     "expo-modules-core": "~3.0.29",
+    "expo-notifications": "~0.32.17",
     "expo-print": "~15.0.8",
     "expo-router": "~6.0.21",
     "expo-sharing": "~14.0.8",
     "expo-status-bar": "~3.0.9",
     "expo-system-ui": "^6.0.9",
+    "expo-updates": "~29.0.19",
     "pako": "^3.0.1",
     "react": "19.1.0",
     "react-native": "0.81.5",

@@ -8,9 +8,9 @@ Notify every signed-in Pappas Order Management device when a new order is create
 
 The Order Management Expo app registers its Expo push token after a staff user signs in and keeps the token in a dedicated, staff-only `order_management_push_devices` table. Token registration is best-effort and never changes authentication or navigation behaviour.
 
-An `AFTER INSERT` trigger on `public.orders` inserts a compact payload into `public.push_notification_jobs`. This insert is entirely local to Postgres and completes with the order transaction. A Supabase Database Webhook then invokes a `send-new-order-push` Edge Function for each pending job. The Edge Function sends the notification to every active device token through the Expo Push Service, marks successful delivery submissions as sent, removes tokens that Expo reports as unregistered, and records retryable failures.
+Supabase Dashboard Database Webhook configuration observes `INSERT` on `public.orders` only after the order row has committed. It invokes a `send-new-order-push` Edge Function with the inserted order record. The function creates and updates notification jobs in its own isolated table, sends the notification to every active device token through the Expo Push Service, removes tokens that Expo reports as unregistered, and records retryable failures.
 
-The webhook/Edge Function path is explicitly outside the order creation path. A webhook failure, unavailable Expo API, invalid token, or Edge Function error can only leave a job pending or failed; it must never reject, roll back, delay, or alter an order.
+There is no application-owned database trigger, schema constraint, foreign key, or database function attached to `public.orders`. The webhook/Edge Function path is explicitly outside the order creation path. A webhook failure, unavailable Expo API, invalid token, or Edge Function error can only leave a job pending or failed; it must never reject, roll back, delay, or alter an order.
 
 ## Data model
 
@@ -23,7 +23,7 @@ The webhook/Edge Function path is explicitly outside the order creation path. A 
 
 ### `push_notification_jobs`
 
-- One `new_order` job per newly inserted order, protected by a unique `order_id` constraint.
+- One `new_order` job per webhook-received order, protected by a unique `order_id` value with no foreign key to `orders`.
 - Stores only operational order details needed for the notification: order ID, order number, channel, total, current status, delivery state, attempt count, last error, and timestamps.
 - Tracks `pending`, `sending`, `sent`, and `failed` status. Failed temporary sends remain retryable; terminal invalid device tokens are removed.
 
@@ -37,8 +37,8 @@ The webhook/Edge Function path is explicitly outside the order creation path. A 
 
 ## Failure isolation and recovery
 
-- The database trigger only creates a local job; it performs no network request.
-- The webhook runs asynchronously and does not block the database transaction.
+- The application does not install a database trigger or function on `orders`.
+- The Supabase-managed webhook runs asynchronously after the database transaction and does not block it.
 - The Edge Function uses an Expo access token stored as a Supabase secret; it is never bundled into the APK.
 - Job transitions use short, bounded retries with recorded error details. A later retry invocation may resend only jobs still pending/failed; the unique order job prevents duplicate logical jobs.
 - Failure to register a device token, receive a token, send a push, inspect receipts, or navigate from a notification is caught and logged without crashing the app.
@@ -61,7 +61,7 @@ The webhook/Edge Function path is explicitly outside the order creation path. A 
 
 ## Deployment requirements
 
-- Apply the SQL migration before deploying the Edge Function and mobile build.
+- Apply only the isolated notification tables migration before deploying the Edge Function and mobile build; it does not modify `orders`.
 - Set the Expo access token as a Supabase Edge Function secret.
 - Create the Supabase Database Webhook only after the function is deployed and authenticated with a secret header.
 - Upload FCM v1 credentials to the Expo project, build/install a fresh Android APK, grant notification permission, and sign in once on each staff device.

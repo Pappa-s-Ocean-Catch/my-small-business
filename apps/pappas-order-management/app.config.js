@@ -1,7 +1,21 @@
 // Expo CLI automatically loads .env files with EXPO_PUBLIC_ prefix
 // No need for dotenv - see: https://docs.expo.dev/guides/environment-variables/
 module.exports = {
+
   expo: {
+    "updates": {
+      "url": "https://u.expo.dev/028aa6b2-4b91-4805-9668-cf67bd4ec0e6"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    owner: 'pappas-ocean-catch',
+
+    "extra": {
+      "eas": {
+        "projectId": "028aa6b2-4b91-4805-9668-cf67bd4ec0e6"
+      }
+    },
     name: 'Pappas Order Management',
     slug: 'pappas-order-management',
     version: '1.0.0',
@@ -25,6 +39,7 @@ module.exports = {
         backgroundColor: '#ffffff',
       },
       package: 'com.pappas.ordermanagement',
+      googleServicesFile: "./google-services.json",
       supportsTablet: true,
       // Helps avoid TextInput focus "jumping" due to keyboard resize behavior on Android
       softwareKeyboardLayoutMode: 'resize',
@@ -41,6 +56,7 @@ module.exports = {
           microphonePermission: false,
         },
       ],
+      'expo-notifications',
       './plugins/withEscPosPrinterPermissions',
       '@my-small-business/native-raw-tcp-printer/app.plugin',
       './plugins/withAndroidFullscreen',

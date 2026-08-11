@@ -10,7 +10,7 @@ pnpm-debug.log*
 .next/
 .next-agent/
 out/
-
+*.apk
 # Environment variables
 .env*
 
@@ -44,3 +44,4 @@ tsconfig.tsbuildinfo
 **/dist-test/**
 
 libs/*.js
+**adminsdk**

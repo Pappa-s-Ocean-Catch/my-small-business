@@ -3,6 +3,7 @@ import { Tabs } from 'expo-router';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Appbar } from 'react-native-paper';
+import { Text } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 
@@ -29,6 +30,7 @@ export default function TabsLayout() {
         ),
         headerRight: () => (
           <React.Fragment>
+            <Text style={{ color: '#dbeafe', fontSize: 11, fontWeight: '800', letterSpacing: 0.8 }}>V1.0.0</Text>
             <Appbar.Action icon="storefront-outline" onPress={() => router.push('/marketplace')} iconColor="#fff" />
             <Appbar.Action icon="account-circle" onPress={handleOpenDrawer} iconColor="#fff" />
           </React.Fragment>

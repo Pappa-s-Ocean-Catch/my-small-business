@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1033734174735",
+    "project_id": "pappas-order-management",
+    "storage_bucket": "pappas-order-management.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1033734174735:android:06f3a12d5c0e8421c58b7a",
+        "android_client_info": {
+          "package_name": "com.pappas.ordermanagement"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA_-x1xGxxwWTPQcFhjGTqvQAGy3BLWQKA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

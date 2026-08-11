@@ -15,6 +15,10 @@ import { appQueryClient } from '@/lib/query-client';
 import { PrinterAutomationProvider } from '@/providers/PrinterAutomationProvider';
 import { AppSettingsProvider } from '@/providers/AppSettingsProvider';
 import { MarketplaceSyncProvider } from '@/providers/MarketplaceSyncProvider';
+import {
+  registerExpoPushDeviceForStaff,
+  subscribeToNewOrderNotificationResponses,
+} from '@/lib/expo-push-notifications';
 
 export default function RootLayout() {
   const router = useRouter();
@@ -68,6 +72,7 @@ export default function RootLayout() {
       }
 
       setMarketplaceSyncEnabled(true);
+      void registerExpoPushDeviceForStaff(userId);
 
       if (currentSegment === 'login' || !currentSegment) {
         router.replace('/(drawer)/(tabs)/live-orders');
@@ -91,6 +96,10 @@ export default function RootLayout() {
       subscription.unsubscribe();
     };
   }, [router, segments]);
+
+  useEffect(() => subscribeToNewOrderNotificationResponses((route) => {
+    router.push(route);
+  }), [router]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

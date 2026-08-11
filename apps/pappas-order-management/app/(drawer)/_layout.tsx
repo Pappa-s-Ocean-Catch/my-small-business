@@ -99,6 +99,15 @@ export default function DrawerLayout() {
           ),
         }}
       />
+      <Drawer.Screen
+        name="about"
+        options={{
+          drawerLabel: 'About',
+          drawerIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="information-outline" color={color} size={size} />
+          ),
+        }}
+      />
     </Drawer>
   );
 }
