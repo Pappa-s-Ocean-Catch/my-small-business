@@ -1050,18 +1050,8 @@ export async function updateOrderStatus(
       return { data: null, error: 'Order not found' };
     }
 
-    // If status is set to completed, ensure reward points exist and send review email.
+    // Reward points are awarded by the database completion trigger. Send the review email here.
     if (status === 'completed' && order) {
-      try {
-        const { ensureOrderRewardPoints } = await import('@/app/actions/reward-points');
-        const ensureResult = await ensureOrderRewardPoints(orderId);
-        if (!ensureResult.success) {
-          console.error('Failed to ensure reward points on completion:', ensureResult.error);
-        }
-      } catch (err) {
-        console.error('Failed to ensure reward points on completion:', err);
-      }
-
       try {
         const { sendOrderCompletedEmail } = require('./email');
         await sendOrderCompletedEmail(order);

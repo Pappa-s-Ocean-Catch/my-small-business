@@ -197,7 +197,8 @@ export async function getUserRewardPointTransactions(
 }
 
 /**
- * Earn reward points for a paid order (called after payment success)
+ * Earn reward points when an in-store receipt is claimed.
+ * Paid completed orders are awarded by the database completion trigger instead.
  * Points are earned only on the food subtotal, not on fees, tax, or delivery
  */
 export async function earnRewardPoints(
@@ -269,6 +270,21 @@ export async function earnRewardPoints(
       });
 
     if (transactionError) {
+      // The order-level unique index is the final guard against concurrent
+      // receipt-claim retries. Treat the winner's transaction as success.
+      if (transactionError.code === '23505') {
+        const { data: concurrentEarnedTx, error: concurrentEarnedTxError } = await supabase
+          .from('reward_point_transactions')
+          .select('points')
+          .eq('order_id', orderId)
+          .eq('transaction_type', 'earned')
+          .maybeSingle();
+
+        if (!concurrentEarnedTxError && concurrentEarnedTx) {
+          return { success: true, pointsEarned: concurrentEarnedTx.points };
+        }
+      }
+
       console.error('Error creating reward point transaction:', transactionError);
       return { success: false, error: 'Failed to record reward points' };
     }
@@ -277,47 +293,6 @@ export async function earnRewardPoints(
   } catch (error) {
     console.error('Error earning reward points:', error);
     return { success: false, error: 'An unexpected error occurred' };
-  }
-}
-
-export async function ensureOrderRewardPoints(
-  orderId: string
-): Promise<{ success: boolean; error?: string; pointsEarned?: number; skipped?: boolean }> {
-  try {
-    const supabase = await createServiceRoleClient();
-
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .select('id, user_id, payment_status, subtotal')
-      .eq('id', orderId)
-      .maybeSingle();
-
-    if (orderError) {
-      console.error('Error fetching order for reward points:', orderError);
-      return { success: false, error: 'Failed to load order for reward points' };
-    }
-
-    if (!order) {
-      return { success: false, error: 'Order not found for reward points' };
-    }
-
-    if (!order.user_id) {
-      return { success: true, skipped: true };
-    }
-
-    if (order.payment_status !== 'paid') {
-      return { success: true, skipped: true };
-    }
-
-    const foodSubtotal = Number(order.subtotal ?? 0);
-    if (!Number.isFinite(foodSubtotal) || foodSubtotal <= 0) {
-      return { success: true, skipped: true };
-    }
-
-    return await earnRewardPoints(order.user_id, order.id, foodSubtotal);
-  } catch (error) {
-    console.error('Error ensuring order reward points:', error);
-    return { success: false, error: 'An unexpected error occurred while ensuring reward points' };
   }
 }
 

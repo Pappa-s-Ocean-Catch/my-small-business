@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createServiceRoleClient } from '@my-small-business/supabase/server';
 import { getPostHogClient } from '@/lib/posthog-server';
-import { ensureOrderRewardPoints } from '@/app/actions/reward-points';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const stripe = stripeSecretKey ? new Stripe(stripeSecretKey) : null;
@@ -96,12 +95,6 @@ export async function POST(request: Request) {
         }
       }
 
-      const ensureResult = await ensureOrderRewardPoints(order.id);
-
-      if (!ensureResult.success) {
-        console.error('[Stripe Webhook] Failed to ensure reward points:', ensureResult.error);
-      }
-
       console.log('[Stripe Webhook] Order updated successfully:', {
         orderId: order.id,
         orderNumber: order.order_number,
@@ -158,10 +151,6 @@ export async function POST(request: Request) {
         if (updateError) {
           console.error('[Stripe Webhook] Error updating order from payment_intent:', updateError);
         } else {
-          const ensureResult = await ensureOrderRewardPoints(order.id);
-          if (!ensureResult.success) {
-            console.error('[Stripe Webhook] Failed to ensure reward points from payment_intent:', ensureResult.error);
-          }
           console.log('[Stripe Webhook] Order updated from payment_intent:', {
             orderId: order.id,
             orderNumber: order.order_number,

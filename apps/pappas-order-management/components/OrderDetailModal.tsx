@@ -27,6 +27,7 @@ import {
   getDeliveryStatusLabel,
 } from '../utils/constants';
 import { formatOrderPaymentMethod, paymentSummary, getNextQuickAction, groupAddons, getOrderLineItemCount, getOrderNotes, getOrderOptions } from '../utils/orderUtils';
+import { getOrderActionFeedback } from '../lib/order-status-feedback';
 import type { AppSettings } from '../lib/settings';
 import { DEFAULT_APP_SETTINGS, loadAppSettings } from '../lib/settings';
 import { getPrintDeviceId } from '@/lib/print-device';
@@ -167,6 +168,9 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const deliveryStatusLabel = getDeliveryStatusLabel(order.delivery_status);
   const quickAction = getNextQuickAction(order);
   const isUpdating = updatingStatus === order.id;
+  const quickActionFeedback = quickAction
+    ? getOrderActionFeedback(order.id, updatingStatus ?? null, quickAction.label)
+    : null;
   const rewardPointsUsed = order.reward_points_used ?? 0;
   const rewardPointsValue = order.reward_points_value ?? 0;
   const rewardPointsBalance = Number((order as Order & { reward_points_balance?: number | null }).reward_points_balance ?? 0);
@@ -362,13 +366,13 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
         mode={isPhoneActionLayout ? 'outlined' : 'contained'}
         icon={quickAction.action === 'accept' ? 'check' : quickAction.action === 'prepare' ? 'chef-hat' : 'check-circle'}
         onPress={() => onQuickAction(order, quickAction.action)}
-        loading={isUpdating}
-        disabled={isUpdating}
+        loading={quickActionFeedback?.isUpdating}
+        disabled={quickActionFeedback?.isUpdating}
         style={[styles.primaryActionButton, !isWide && styles.primaryActionButtonCompact, isPhoneActionLayout ? styles.phoneActionButton : null]}
         contentStyle={[styles.primaryActionButtonContent, isPhoneActionLayout ? styles.phoneActionButtonContent : null]}
         accessibilityLabel={quickAction.label}
       >
-        {isPhoneActionLayout ? '' : quickAction.label}
+        {isPhoneActionLayout ? '' : (quickActionFeedback?.label ?? quickAction.label)}
       </PaperButton>
     );
   };

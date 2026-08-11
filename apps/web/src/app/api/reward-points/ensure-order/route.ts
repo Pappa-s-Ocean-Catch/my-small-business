@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@my-small-business/supabase/server';
-import { ensureOrderRewardPoints } from '@/app/actions/reward-points';
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,15 +33,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'orderId is required' }, { status: 400 });
     }
 
-    const result = await ensureOrderRewardPoints(orderId);
-    if (!result.success) {
-      return NextResponse.json({ error: result.error || 'Failed to ensure reward points' }, { status: 400 });
-    }
-
+    // Kept as a successful no-op while older POS clients are still deployed.
+    // Reward allocation now occurs only inside the completed-order database trigger.
     return NextResponse.json({
       success: true,
-      pointsEarned: result.pointsEarned ?? 0,
-      skipped: Boolean(result.skipped),
+      pointsEarned: 0,
+      skipped: true,
     });
   } catch (error) {
     return NextResponse.json(

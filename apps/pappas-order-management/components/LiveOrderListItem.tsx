@@ -14,6 +14,7 @@ import {
   getDeliveryStatusLabel,
 } from '../utils/constants';
 import { paymentSummary, getNextQuickAction, formatElapsed } from '../utils/orderUtils';
+import { getOrderActionFeedback } from '../lib/order-status-feedback';
 import type { OrderPrintState } from '@/stores/printerAutomationStore';
 import { isCompactPhoneWidth } from '@/lib/responsive';
 
@@ -65,6 +66,9 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
   const deliveryStatusColor = getDeliveryStatusColor(order.delivery_status);
   const deliveryStatusLabel = getDeliveryStatusLabel(order.delivery_status);
   const quickAction = getNextQuickAction(order);
+  const quickActionFeedback = quickAction
+    ? getOrderActionFeedback(order.id, updatingStatus, quickAction.label)
+    : null;
   const elapsed = formatElapsed(order.created_at, nowMs, order.scheduled_pickup_at);
   const elapsedColor = elapsed.isCountdown
     ? !elapsed.overdue && elapsed.minutes > 15
@@ -178,13 +182,14 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
         <PaperButton
           mode="contained"
           onPress={() => onQuickAction(order, quickAction.action)}
-          disabled={updatingStatus === order.id || smartpayProcessing}
+          loading={quickActionFeedback?.isUpdating}
+          disabled={quickActionFeedback?.isUpdating || smartpayProcessing}
           style={styles.bodyQuickButton}
           contentStyle={styles.bodyQuickButtonContent}
           labelStyle={styles.primaryActionLabel}
           compact
         >
-          {quickAction.label}
+          {quickActionFeedback?.label ?? quickAction.label}
         </PaperButton>
       )}
     </View>

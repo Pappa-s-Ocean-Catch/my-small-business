@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createServiceRoleClient } from '@my-small-business/supabase/server';
 import { updatePaymentStatus, updateOrderStatus } from '@/app/actions/orders';
-import { ensureOrderRewardPoints } from '@/app/actions/reward-points';
 import { getShipdayClient } from '@my-small-business/shipday';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
@@ -101,10 +100,6 @@ export async function POST(request: Request) {
 
       // SECURITY: Prevent duplicate updates if already paid (idempotency)
       if (existingOrder.payment_status === 'paid') {
-        const ensureResult = await ensureOrderRewardPoints(orderId);
-        if (!ensureResult.success) {
-          console.error('[Stripe] Failed to ensure reward points for already-paid order:', ensureResult.error);
-        }
         console.log('[Stripe] Order already marked as paid, skipping update');
         return NextResponse.json({
           success: true,
@@ -147,12 +142,6 @@ export async function POST(request: Request) {
           console.error('[verify-session] Failed to send order placed email:', emailErr);
         }
       }
-      // Ensure reward points are allocated once for paid orders.
-      const ensureResult = await ensureOrderRewardPoints(orderId);
-      if (!ensureResult.success) {
-        console.error('[Stripe Verify] Failed to ensure reward points:', ensureResult.error);
-      }
-
       // Automatically create delivery in Shipday for delivery orders (post-payment)
       try {
         if (orderResult.data && orderResult.data.order_type === 'delivery') {

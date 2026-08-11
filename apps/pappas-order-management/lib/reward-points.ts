@@ -74,51 +74,6 @@ export async function applyRewardPointsToOrder(input: {
   }
 }
 
-export async function ensureRewardPointsForOrder(orderId: string): Promise<{
-  success: boolean;
-  error?: string;
-  pointsEarned?: number;
-  skipped?: boolean;
-}> {
-  try {
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError || !session?.access_token) {
-      return { success: false, error: sessionError?.message || 'Missing authenticated session' };
-    }
-
-    const response = await fetch(getApiUrl('/api/reward-points/ensure-order'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify({ orderId }),
-    });
-
-    const payload = await response.json().catch(() => null) as
-      | { success?: boolean; error?: string; pointsEarned?: number; skipped?: boolean }
-      | null;
-
-    if (!response.ok || !payload?.success) {
-      return {
-        success: false,
-        error: payload?.error || `Reward points request failed (${response.status})`,
-      };
-    }
-
-    return {
-      success: true,
-      pointsEarned: typeof payload.pointsEarned === 'number' ? payload.pointsEarned : undefined,
-      skipped: Boolean(payload.skipped),
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to ensure reward points',
-    };
-  }
-}
-
 export async function adjustCustomerRewardPoints(input: {
   userId: string;
   pointsDelta: number;
