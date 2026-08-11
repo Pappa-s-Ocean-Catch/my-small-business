@@ -27,3 +27,23 @@ test('kitchen receipt capture mounts its template before checking its ref', () =
   assert.doesNotMatch(modalSource, /if \(onPrintImage && receiptRef\.current\)/);
   assert.match(modalSource, /setCaptureTarget\('kitchen'\);[\s\S]*if \(!receiptRef\.current\)/);
 });
+
+test('print simulator supports generic copy while preserving the order fallback', () => {
+  const simulatorSource = source('components/PrintSimulatorModal.tsx');
+
+  assert.match(simulatorSource, /title\?: string/);
+  assert.match(simulatorSource, /subtitle\?: string/);
+  assert.match(simulatorSource, /title \|\| 'Print Simulation'/);
+  assert.match(simulatorSource, /subtitle \|\| `Order #\$\{/);
+});
+
+test('report printing uses the existing image pipeline at 80mm', () => {
+  const reportSource = source('app/(drawer)/report.tsx');
+
+  assert.match(reportSource, /ReportPrintTemplate/);
+  assert.match(reportSource, /captureReceiptForPrinter/);
+  assert.match(reportSource, /escposPrintOrderImage/);
+  assert.match(reportSource, /REPORT_RECEIPT_WIDTH/);
+  assert.match(reportSource, /isSimulatorPrinter/);
+  assert.doesNotMatch(reportSource, /Print\.printAsync|generatePrintHTML/);
+});

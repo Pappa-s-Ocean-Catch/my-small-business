@@ -15,9 +15,18 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import { useNavigation } from '@react-navigation/native';
 import { isCompactPhoneWidth } from '@/lib/responsive';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
-import { Appbar, Button, Surface, Text } from 'react-native-paper';
+import { Appbar, Button, IconButton, Surface, Text, TextInput } from 'react-native-paper';
 import { LineChart, type lineDataItem } from 'react-native-gifted-charts';
 import type { Order } from '@my-small-business/types';
+import { ReportPrintTemplate } from '@/components/ReportPrintTemplate';
+import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
+import { useAppSettingsQuery } from '@/hooks/useAppSettingsQuery';
+import { useStoreInfo } from '@/hooks/useStoreInfo';
+import { captureReceiptForPrinter, captureReceiptPreview } from '@/lib/printer-image';
+import { escposPrintOrderImage, formatPrinterError, isSimulatorPrinter, type SavedPrinter } from '@/lib/escpos-printer';
+import { buildReportPrintSnapshot, REPORT_RECEIPT_WIDTH } from '@/lib/report-printing';
+import { clampRollingDays, getRollingReportRanges } from '@/lib/report-periods';
+import { DEFAULT_APP_SETTINGS } from '@/lib/settings';
 import { getAllOrders } from '@/lib/orders';
 import {
   buildChannelFinancialBreakdown,
@@ -27,7 +36,7 @@ import {
 import { formatDateToLocalISO, getOrderChannelLabel, getPaymentStatLabel, getTodayDateString } from '@/utils/orderUtils';
 
 type CompareMode = 'lastWeek' | 'lastMonth' | 'lastYear' | 'custom';
-type ReportType = 'daily' | 'weekly' | 'monthly';
+type ReportType = 'daily' | 'weekly' | 'monthly' | 'rolling';
 
 type ReportTile = {
   type: ReportType;
@@ -71,6 +80,7 @@ const REPORT_TILES: ReportTile[] = [
     description: 'Full month performance grouped by date with previous month comparison.',
     accent: '#ea580c',
   },
+  { type: 'rolling', title: 'Last X days', description: 'Rolling sales period ending yesterday, compared with the preceding equal period.', accent: '#7c3aed' },
 ];
 
 const REPORT_START_HOUR = 10;
@@ -88,6 +98,7 @@ const REPORT_LABELS: Record<ReportType, string> = {
   daily: 'Sales report',
   weekly: 'Weekly sales',
   monthly: 'Monthly sales',
+  rolling: 'Last X days',
 };
 
 const money = (value: number) => `$${Math.round(value).toLocaleString('en-AU')}`;
@@ -164,7 +175,7 @@ const formatRangeLabel = (start: string, end: string) => (
 
 const getPaidSalesOrders = (orders: Order[]) => orders.filter(isMarketplaceSalesOrder);
 
-const getRangeForReport = (reportType: ReportType, dateString: string): DateRange => {
+const getRangeForReport = (reportType: Exclude<ReportType, 'rolling'>, dateString: string): DateRange => {
   if (reportType === 'weekly') {
     return { start: startOfWeek(dateString), end: endOfWeek(dateString) };
   }
@@ -175,7 +186,7 @@ const getRangeForReport = (reportType: ReportType, dateString: string): DateRang
 };
 
 const getCompareRangeForReport = (
-  reportType: ReportType,
+  reportType: Exclude<ReportType, 'rolling'>,
   currentDate: string,
   compareMode: CompareMode,
   customCompareDate: string
@@ -364,7 +375,11 @@ export default function ReportScreen() {
   const { width } = useWindowDimensions();
   const isPhoneLayout = isCompactPhoneWidth(width);
   const requestIdRef = useRef(0);
+  const reportReceiptRef = useRef<View>(null);
+  const { data: appSettings = DEFAULT_APP_SETTINGS } = useAppSettingsQuery();
+  const storeInfo = useStoreInfo();
   const [selectedReport, setSelectedReport] = useState<ReportType>('daily');
+  const [rollingDays, setRollingDays] = useState(15);
   const [selectedDate, setSelectedDate] = useState(getTodayDateString());
   const [compareMode, setCompareMode] = useState<CompareMode>('lastWeek');
   const [customCompareDate, setCustomCompareDate] = useState(addDate(getTodayDateString(), -7, 'day'));
@@ -374,15 +389,18 @@ export default function ReportScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState<'current' | 'custom' | null>(null);
   const [draftDate, setDraftDate] = useState<Date>(parseLocalDate(getTodayDateString()));
+  const [showPrinterPicker, setShowPrinterPicker] = useState(false);
+  const [isPrintingReport, setIsPrintingReport] = useState(false);
+  const [showReportSimulator, setShowReportSimulator] = useState(false);
+  const [reportPreviewUri, setReportPreviewUri] = useState<string | null>(null);
+  const [tileInfo, setTileInfo] = useState<ReportTile | null>(null);
 
-  const currentRange = useMemo(
-    () => getRangeForReport(selectedReport, selectedDate),
-    [selectedDate, selectedReport]
-  );
+  const rollingRanges = useMemo(() => getRollingReportRanges(getTodayDateString(), rollingDays), [rollingDays]);
+  const currentRange = useMemo(() => selectedReport === 'rolling' ? rollingRanges.current : getRangeForReport(selectedReport, selectedDate), [rollingRanges.current, selectedDate, selectedReport]);
 
   const compareRange = useMemo(
-    () => getCompareRangeForReport(selectedReport, selectedDate, compareMode, customCompareDate),
-    [compareMode, customCompareDate, selectedDate, selectedReport]
+    () => selectedReport === 'rolling' ? rollingRanges.compare : getCompareRangeForReport(selectedReport, selectedDate, compareMode, customCompareDate),
+    [compareMode, customCompareDate, rollingRanges.compare, selectedDate, selectedReport]
   );
 
   const loadReport = useCallback(async (options?: { clearBeforeLoad?: boolean }) => {
@@ -492,6 +510,7 @@ export default function ReportScreen() {
 
   const compareSummaryLabel = useMemo(() => {
     if (selectedReport === 'daily') return COMPARE_LABELS[compareMode].toLowerCase();
+    if (selectedReport === 'rolling') return 'previous period';
     return selectedReport === 'weekly' ? 'previous week' : 'previous month';
   }, [compareMode, selectedReport]);
 
@@ -499,15 +518,43 @@ export default function ReportScreen() {
     ? '30 minute gross sales'
     : selectedReport === 'weekly'
       ? 'Gross sales by day'
-      : 'Monthly daily gross sales';
+      : selectedReport === 'rolling' ? 'Gross sales by date' : 'Monthly daily gross sales';
 
   const chartSubtitle = selectedReport === 'daily'
     ? `Current date compared with ${formatDisplayDate(compareRange.start)}`
     : `${formatRangeLabel(currentRange.start, currentRange.end)} compared with ${formatRangeLabel(compareRange.start, compareRange.end)}`;
 
-  const periodTitle = selectedReport === 'daily'
+  const periodTitle = selectedReport === 'rolling'
+    ? `Last ${rollingDays} days: ${formatRangeLabel(currentRange.start, currentRange.end)}`
+    : selectedReport === 'daily'
     ? formatDisplayDate(selectedDate)
     : formatRangeLabel(currentRange.start, currentRange.end);
+
+  const reportPrintSnapshot = useMemo(
+    () => buildReportPrintSnapshot({ reportType: selectedReport, periodLabel: periodTitle, generatedAt: new Date(), orders: currentOrders }),
+    [currentOrders, periodTitle, selectedReport]
+  );
+
+  const printReportToPrinter = async (printer: SavedPrinter) => {
+    try {
+      setShowPrinterPicker(false);
+      setIsPrintingReport(true);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      if (!reportReceiptRef.current) throw new Error('Report receipt is not ready yet.');
+      if (isSimulatorPrinter(printer)) {
+        setReportPreviewUri(await captureReceiptPreview(reportReceiptRef.current, REPORT_RECEIPT_WIDTH));
+        setShowReportSimulator(true);
+        return;
+      }
+      const image = await captureReceiptForPrinter(reportReceiptRef.current, printer, REPORT_RECEIPT_WIDTH, appSettings.printerHighQuality);
+      await escposPrintOrderImage(image, printer, 1, REPORT_RECEIPT_WIDTH);
+      Alert.alert('Printed', `Report sent to ${printer.deviceName}.`);
+    } catch (error) {
+      Alert.alert('Print error', formatPrinterError(error));
+    } finally {
+      setIsPrintingReport(false);
+    }
+  };
 
   const shiftSelectedPeriod = (direction: 'previous' | 'next') => {
     const amount = direction === 'previous' ? -1 : 1;
@@ -615,20 +662,10 @@ export default function ReportScreen() {
                 onPress={() => setSelectedReport(tile.type)}
               >
                 <View style={[styles.reportTileAccent, { backgroundColor: tile.accent }]} />
-                <Text style={styles.reportTileTitle}>{tile.title}</Text>
-                {!isPhoneLayout ? <Text style={styles.reportTileDescription}>{tile.description}</Text> : null}
-                <Text style={[styles.reportTileAction, isPhoneLayout ? styles.reportTileActionPhone : null, { color: tile.accent }]}>
-                  {active ? 'Viewing now' : 'Open report'}
-                </Text>
+                <View style={styles.tileTitleRow}><Text style={styles.reportTileTitle}>{tile.title}</Text><IconButton icon="information-outline" size={18} onPress={() => setTileInfo(tile)} /></View>
               </TouchableOpacity>
             );
           })}
-          <Surface style={[styles.reportTileSoon, isPhoneLayout ? styles.reportTilePhone : null]} elevation={0}>
-            <Text style={styles.reportTileSoonTitle}>More reports coming soon</Text>
-            {!isPhoneLayout ? <Text style={styles.reportTileSoonText}>
-              Inventory, staff, product, and customer insights can plug into this same hub later.
-            </Text> : null}
-          </Surface>
         </View>
 
         <View style={styles.headerRow}>
@@ -637,7 +674,7 @@ export default function ReportScreen() {
             <Text style={styles.reportPeriodTitle}>{periodTitle}</Text>
           </View>
           <View style={styles.periodActions}>
-            {selectedReport !== 'daily' && (
+            {selectedReport !== 'rolling' && (
               <>
                 <Button mode="outlined" compact icon="chevron-left" onPress={() => shiftSelectedPeriod('previous')}>
                   Prev
@@ -647,8 +684,11 @@ export default function ReportScreen() {
                 </Button>
               </>
             )}
-            <Button mode="outlined" icon="calendar" onPress={() => openDatePicker('current')}>
+            {selectedReport !== 'rolling' ? <Button mode="outlined" icon="calendar" onPress={() => openDatePicker('current')}>
               {selectedReport === 'daily' ? 'Date' : 'Pick'}
+            </Button> : null}
+            <Button mode="contained" icon="printer" onPress={() => setShowPrinterPicker(true)} disabled={loading || refreshing || isPrintingReport} loading={isPrintingReport}>
+              Print report
             </Button>
           </View>
         </View>
@@ -671,6 +711,18 @@ export default function ReportScreen() {
             ))}
           </View>
         )}
+
+        {selectedReport === 'rolling' ? (
+          <Surface style={styles.panel} elevation={1}>
+            <Text style={styles.panelTitle}>Rolling period</Text>
+            <View style={[styles.rollingControls, isPhoneLayout && styles.rollingControlsPhone]}>
+              <View style={styles.compareRow}>
+                {[7, 15, 30, 90].map((days) => <Button key={days} compact mode={rollingDays === days ? 'contained' : 'outlined'} onPress={() => setRollingDays(days)}>{days} days</Button>)}
+              </View>
+              <TextInput style={styles.rollingCustomInput} dense mode="outlined" label="Custom days" keyboardType="number-pad" value={String(rollingDays)} onChangeText={(value) => setRollingDays(clampRollingDays(Number(value)))} />
+            </View>
+          </Surface>
+        ) : null}
 
         {loading && !refreshing ? (
           <View style={styles.loading}>
@@ -800,6 +852,32 @@ export default function ReportScreen() {
           </Surface>
         </View>
       </Modal>
+
+      <Modal visible={showPrinterPicker} transparent animationType="fade" onRequestClose={() => setShowPrinterPicker(false)}>
+        <View style={styles.dateModalBackdrop}>
+          <Surface style={styles.dateModal} elevation={3}>
+            <Text style={styles.panelTitle}>Select printer</Text>
+            <Text style={styles.panelSubtitle}>Choose a printer for this report. You will be asked every time.</Text>
+            {appSettings.printerSaved.length ? appSettings.printerSaved.map((printer) => (
+              <Button key={printer.target} mode="outlined" icon={isSimulatorPrinter(printer) ? 'monitor' : 'printer'} onPress={() => void printReportToPrinter(printer)} style={styles.printerChoice}>
+                {printer.deviceName}{isSimulatorPrinter(printer) ? ' (Simulator)' : ''}
+              </Button>
+            )) : <Text style={styles.emptyText}>No saved printers. Add a printer in Settings before printing a report.</Text>}
+            <View style={styles.dateModalActions}><Button mode="outlined" onPress={() => setShowPrinterPicker(false)}>Close</Button></View>
+          </Surface>
+        </View>
+      </Modal>
+      <Modal visible={!!tileInfo} transparent animationType="fade" onRequestClose={() => setTileInfo(null)}><View style={styles.dateModalBackdrop}><Surface style={styles.dateModal} elevation={3}><Text style={styles.panelTitle}>{tileInfo?.title}</Text><Text style={styles.panelSubtitle}>{tileInfo?.description}</Text><View style={styles.dateModalActions}><Button mode="outlined" onPress={() => setTileInfo(null)}>Close</Button></View></Surface></View></Modal>
+
+      {isPrintingReport ? (
+        <View style={styles.hiddenReceiptContainer} pointerEvents="none">
+          <View ref={reportReceiptRef} collapsable={false}>
+            <ReportPrintTemplate snapshot={reportPrintSnapshot} storeName={storeInfo.shopName} />
+          </View>
+        </View>
+      ) : null}
+
+      <PrintSimulatorModal visible={showReportSimulator} order={null} imageUri={reportPreviewUri} title="Report print simulation" subtitle={reportPrintSnapshot.periodLabel} onClose={() => setShowReportSimulator(false)} />
     </View>
   );
 }
@@ -826,16 +904,14 @@ const styles = StyleSheet.create({
   reportTile: {
     flexBasis: 220,
     flexGrow: 1,
-    minHeight: 168,
     borderRadius: 16,
     backgroundColor: '#fff',
     borderWidth: 1,
-    padding: 16,
+    padding: 12,
   },
   reportTilePhone: {
     flexBasis: '47%',
     flexGrow: 1,
-    minHeight: 108,
     padding: 12,
   },
   reportTileActive: {
@@ -850,7 +926,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 6,
     borderRadius: 999,
-    marginBottom: 14,
+    marginBottom: 8,
   },
   reportTileTitle: {
     fontSize: 18,
@@ -908,6 +984,9 @@ const styles = StyleSheet.create({
   title: { fontSize: 26, color: '#fff', fontWeight: '800', marginTop: 4 },
   reportPeriodTitle: { fontSize: 24, color: '#111827', fontWeight: '800', marginTop: 2 },
   compareRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  rollingControls: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 10, flexWrap: 'wrap' },
+  rollingControlsPhone: { alignItems: 'stretch' },
+  rollingCustomInput: { width: 150, backgroundColor: '#fff' },
   compareChip: {
     borderWidth: 1,
     borderColor: '#cbd5e1',
@@ -1023,4 +1102,7 @@ const styles = StyleSheet.create({
     gap: 10,
     marginTop: 10,
   },
+  printerChoice: { marginTop: 10, alignItems: 'flex-start' },
+  tileTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  hiddenReceiptContainer: { position: 'absolute', left: -10000, top: 0, opacity: 0 },
 });

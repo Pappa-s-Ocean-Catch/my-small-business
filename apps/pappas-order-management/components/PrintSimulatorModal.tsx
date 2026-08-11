@@ -11,6 +11,8 @@ interface PrintSimulatorModalProps {
   imageUri: string | null;
   imageUris?: string[] | null;
   imageLabels?: string[] | null;
+  title?: string;
+  subtitle?: string;
   useModal?: boolean;
   onClose: () => void;
 }
@@ -21,9 +23,13 @@ export const PrintSimulatorModal: React.FC<PrintSimulatorModalProps> = ({
   imageUri,
   imageUris,
   imageLabels,
+  title,
+  subtitle,
   useModal = true,
   onClose,
 }) => {
+  const simulatorTitle = title || 'Print Simulation';
+  const simulatorSubtitle = subtitle || `Order #${order ? getFriendlyOrderNumber(order.order_number) : ''}`;
   const images = imageUris && imageUris.length > 0
     ? imageUris
     : imageUri
@@ -62,10 +68,8 @@ export const PrintSimulatorModal: React.FC<PrintSimulatorModalProps> = ({
                <IconButton icon="printer-check" size={32} iconColor="#10b981" style={styles.headerIcon} />
             </View>
             <View style={styles.headerTitleContainer}>
-              <Text style={styles.simulatorTitle}>Print Simulation</Text>
-              <Text style={styles.simulatorSubtitle}>
-                Order #{order ? getFriendlyOrderNumber(order.order_number) : ''}
-              </Text>
+              <Text style={styles.simulatorTitle}>{simulatorTitle}</Text>
+              <Text style={styles.simulatorSubtitle}>{simulatorSubtitle}</Text>
               {!!imageLabels?.length && (
                 <Text style={styles.simulatorHint}>
                   Labels show which section/printer rule each simulated ticket used.
