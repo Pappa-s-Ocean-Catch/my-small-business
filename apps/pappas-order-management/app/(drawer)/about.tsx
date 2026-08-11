@@ -62,7 +62,10 @@ function resultMessage(result: UpdateResult): { title: string; message: string }
 export default function AboutScreen() {
   const navigation = useNavigation<DrawerNavigationProp<any>>();
   const [active, setActive] = useState(false);
-  const metadata = getBuildMetadata(process.env, Constants.expoConfig?.version ?? Constants.nativeAppVersion ?? 'Unknown');
+  const metadata = getBuildMetadata({
+    EXPO_PUBLIC_BUILD_DATE: process.env.EXPO_PUBLIC_BUILD_DATE,
+    EXPO_PUBLIC_GIT_SHA: process.env.EXPO_PUBLIC_GIT_SHA,
+  }, Constants.expoConfig?.version ?? Constants.nativeAppVersion ?? 'Unknown');
   const updateDetails = getUpdateDetails();
 
   const showResult = (result: UpdateResult) => {

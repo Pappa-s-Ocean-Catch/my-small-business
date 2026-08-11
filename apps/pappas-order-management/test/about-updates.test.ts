@@ -15,6 +15,14 @@ test('registers the About drawer route', () => {
   assert.match(drawerSource, /name="about"/);
 });
 
+test('reads public build metadata through Expo-inlineable environment references', () => {
+  const aboutSource = readFileSync(join(process.cwd(), 'app/(drawer)/about.tsx'), 'utf8');
+
+  assert.match(aboutSource, /process\.env\.EXPO_PUBLIC_BUILD_DATE/);
+  assert.match(aboutSource, /process\.env\.EXPO_PUBLIC_GIT_SHA/);
+  assert.doesNotMatch(aboutSource, /getBuildMetadata\(process\.env,/);
+});
+
 function availableClient(calls: string[]): UpdatesClient {
   return {
     isEnabled: true,
