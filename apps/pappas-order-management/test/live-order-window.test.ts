@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import type { Order } from '@my-small-business/types';
 import {
   getAutoPrintableLiveOrders,
+  getLiveOrderEligibility,
+  getLiveOrderQueryRange,
   getScheduledOrderAutomationRange,
   isLiveOrder,
   isOnTheWayOrder,
@@ -31,6 +33,25 @@ test('excludes a preorder more than 30 minutes before pickup', () => {
   const order = makeOrder({ scheduled_pickup_at: '2026-07-28T10:30:00.001Z' });
 
   assert.equal(isLiveOrder(order, nowMs), false);
+});
+
+test('records why a preorder is excluded from Live Orders', () => {
+  const order = makeOrder({
+    id: 'future-preorder',
+    scheduled_pickup_at: '2026-07-28T10:30:00.001Z',
+  });
+
+  assert.deepEqual(getLiveOrderEligibility(order, nowMs), {
+    isLive: false,
+    reason: 'pickup_outside_live_window',
+    leadMinutes: 30.000016666666667,
+  });
+});
+
+test('builds the live query window from pickup time rather than order creation time', () => {
+  assert.deepEqual(getLiveOrderQueryRange(nowMs), {
+    until: '2026-07-28T10:30:00.000Z',
+  });
 });
 
 test('selects only pending or confirmed live orders for auto-print', () => {

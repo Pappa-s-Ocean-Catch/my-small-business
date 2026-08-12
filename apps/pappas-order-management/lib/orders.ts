@@ -162,6 +162,8 @@ export async function getAllOrders(filters?: {
   until?: string;
   scheduled_pickup_since?: string;
   scheduled_pickup_until?: string;
+  /** Include ASAP orders and scheduled orders due by this time. */
+  live_pickup_until?: string;
 }): Promise<{ data: Order[] | null; error: string | null }> {
   try {
     let query = supabase
@@ -187,6 +189,12 @@ export async function getAllOrders(filters?: {
 
     if (filters?.scheduled_pickup_until) {
       query = query.lte('scheduled_pickup_at', filters.scheduled_pickup_until);
+    }
+
+    if (filters?.live_pickup_until) {
+      query = query.or(
+        `scheduled_pickup_at.is.null,scheduled_pickup_at.lte.${filters.live_pickup_until}`,
+      );
     }
 
     if (filters?.since && filters?.until) {

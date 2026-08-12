@@ -45,3 +45,4 @@ tsconfig.tsbuildinfo
 
 libs/*.js
 **adminsdk**
+data.json

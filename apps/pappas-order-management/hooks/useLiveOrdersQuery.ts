@@ -2,13 +2,36 @@ import { useQuery } from '@tanstack/react-query';
 import { getAllOrders } from '@/lib/orders';
 import type { Order } from '@my-small-business/types';
 import { isScheduledPreOrder } from '@/utils/orderUtils';
-import { getScheduledOrderAutomationRange, isLiveOrder, isOnTheWayOrder } from '@/lib/live-order-window';
+import {
+  getLiveOrderEligibility,
+  getLiveOrderQueryRange,
+  getScheduledOrderAutomationRange,
+  isLiveOrder,
+  isOnTheWayOrder,
+} from '@/lib/live-order-window';
 
 export const LIVE_ORDERS_QUERY_KEY = ['live-orders'] as const;
 export const ON_THE_WAY_ORDERS_QUERY_KEY = ['on-the-way-orders'] as const;
 export const PRE_ORDER_COUNT_QUERY_KEY = ['live-orders', 'pre-order-count'] as const;
 export const PRE_ORDERS_QUERY_KEY = ['pre-orders'] as const;
 const LIVE_ORDER_ELIGIBILITY_REFRESH_MS = 30_000;
+
+export type LiveOrderFetchDiagnostics = {
+  deviceNow: string;
+  sourcePickupUntil: string;
+  fetchedCount: number;
+  liveCount: number;
+  orders: Array<{
+    id: string;
+    orderNumber: string;
+    status: Order['order_status'];
+    paymentStatus: Order['payment_status'];
+    scheduledPickupAt: string | null;
+    isLive: boolean;
+    exclusionReason: string | null;
+    leadMinutes: number | null;
+  }>;
+};
 
 function sortLiveOrders(orders: Order[]): Order[] {
   return [...orders].sort((a, b) => {
@@ -30,19 +53,52 @@ function sortPreOrders(orders: Order[]): Order[] {
   });
 }
 
-export async function fetchLiveOrders(): Promise<Order[]> {
-  const since = new Date();
-  since.setHours(since.getHours() - 24);
-
+async function fetchLiveOrderResult(nowMs: number = Date.now()): Promise<{
+  orders: Order[];
+  diagnostics: LiveOrderFetchDiagnostics;
+}> {
+  const range = getLiveOrderQueryRange(nowMs);
   const result = await getAllOrders({
-    since: since.toISOString(),
+    live_pickup_until: range.until,
   });
 
   if (result.error) {
     throw new Error(result.error);
   }
 
-  return sortLiveOrders((result.data || []).filter(isLiveOrder));
+  const candidates = result.data || [];
+  const decisions = candidates.map((order) => ({ order, eligibility: getLiveOrderEligibility(order, nowMs) }));
+  const orders = sortLiveOrders(decisions
+    .filter(({ eligibility }) => eligibility.isLive)
+    .map(({ order }) => order));
+
+  return {
+    orders,
+    diagnostics: {
+      deviceNow: new Date(nowMs).toISOString(),
+      sourcePickupUntil: range.until,
+      fetchedCount: candidates.length,
+      liveCount: orders.length,
+      orders: decisions.slice(0, 100).map(({ order, eligibility }) => ({
+        id: order.id,
+        orderNumber: order.order_number,
+        status: order.order_status,
+        paymentStatus: order.payment_status,
+        scheduledPickupAt: order.scheduled_pickup_at,
+        isLive: eligibility.isLive,
+        exclusionReason: eligibility.reason,
+        leadMinutes: eligibility.leadMinutes,
+      })),
+    },
+  };
+}
+
+export async function fetchLiveOrders(): Promise<Order[]> {
+  return (await fetchLiveOrderResult()).orders;
+}
+
+export async function fetchLiveOrderDiagnostics(): Promise<LiveOrderFetchDiagnostics> {
+  return (await fetchLiveOrderResult()).diagnostics;
 }
 
 export async function fetchOnTheWayOrders(): Promise<Order[]> {
