@@ -15,6 +15,7 @@ import { appQueryClient } from '@/lib/query-client';
 import { PrinterAutomationProvider } from '@/providers/PrinterAutomationProvider';
 import { AppSettingsProvider } from '@/providers/AppSettingsProvider';
 import { MarketplaceSyncProvider } from '@/providers/MarketplaceSyncProvider';
+import { OrderListSyncProvider } from '@/providers/OrderListSyncProvider';
 import {
   registerExpoPushDeviceForStaff,
   subscribeToNewOrderNotificationResponses,
@@ -104,31 +105,33 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <QueryClientProvider client={appQueryClient}>
-        <PaperProvider theme={MD3LightTheme}>
-          <AppSettingsProvider>
-            <MarketplaceSyncProvider enabled={marketplaceSyncEnabled}>
-              <PrinterAutomationProvider>
-                <Stack screenOptions={{ headerShown: false }}>
-                  <Stack.Screen name="login" />
-                  <Stack.Screen name="(drawer)" />
-                  <Stack.Screen
-                    name="order-detail"
-                    options={{
-                      presentation: 'fullScreenModal',
-                      animation: 'slide_from_bottom',
-                    }}
-                  />
-                  <Stack.Screen name="marketplace-resolver" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
-                  <Stack.Screen name="pos-layout-settings" />
-                  <Stack.Screen name="POS-intergation" />
-                </Stack>
-                <StatusBar hidden />
-                <OfflineAttentionOverlay appName="Pappas Order" />
-                <PendingOnlinePaymentsOverlay />
-              </PrinterAutomationProvider>
-            </MarketplaceSyncProvider>
-          </AppSettingsProvider>
-        </PaperProvider>
+        <OrderListSyncProvider>
+          <PaperProvider theme={MD3LightTheme}>
+            <AppSettingsProvider>
+              <MarketplaceSyncProvider enabled={marketplaceSyncEnabled}>
+                <PrinterAutomationProvider>
+                  <Stack screenOptions={{ headerShown: false }}>
+                    <Stack.Screen name="login" />
+                    <Stack.Screen name="(drawer)" />
+                    <Stack.Screen
+                      name="order-detail"
+                      options={{
+                        presentation: 'fullScreenModal',
+                        animation: 'slide_from_bottom',
+                      }}
+                    />
+                    <Stack.Screen name="marketplace-resolver" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
+                    <Stack.Screen name="pos-layout-settings" />
+                    <Stack.Screen name="POS-intergation" />
+                  </Stack>
+                  <StatusBar hidden />
+                  <OfflineAttentionOverlay appName="Pappas Order" />
+                  <PendingOnlinePaymentsOverlay />
+                </PrinterAutomationProvider>
+              </MarketplaceSyncProvider>
+            </AppSettingsProvider>
+          </PaperProvider>
+        </OrderListSyncProvider>
       </QueryClientProvider>
     </GestureHandlerRootView>
   );
