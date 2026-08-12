@@ -21,6 +21,15 @@ test('order actions contain no system or text receipt fallbacks', () => {
   assert.doesNotMatch(detailScreenSource, /Print\.printAsync|generatePrintHTML|escposPrintKitchenReceipt/);
 });
 
+test('All Orders passes its available SmartPay action through to order details', () => {
+  const historySource = source('app/(drawer)/(tabs)/orders.tsx');
+
+  assert.match(historySource, /handleSmartpayPayment,/);
+  assert.match(historySource, /onSmartpayPayment=\{handleSmartpayPayment\}/);
+  assert.match(historySource, /smartpayPaired=\{smartpayPaired\}/);
+  assert.match(historySource, /smartpayProcessing=\{smartpayProcessingOrderId === selectedOrder\?\.id\}/);
+});
+
 test('kitchen receipt capture mounts its template before checking its ref', () => {
   const modalSource = source('components/OrderDetailModal.tsx');
 

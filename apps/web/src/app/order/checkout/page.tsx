@@ -42,6 +42,7 @@ import {
 } from "@/lib/promotions";
 import { validateCouponCode } from "@/app/actions/coupons";
 import { getCouponErrorMessage, type CouponValidationResult } from "@/lib/coupons";
+import { getPendingCheckoutOrderId } from "@/lib/checkout-pending-order";
 import posthog from "posthog-js";
 import { toast } from "react-toastify";
 
@@ -155,30 +156,25 @@ export default function CheckoutPage() {
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
     const canceled = url.searchParams.get("canceled");
-    let orderId = url.searchParams.get("orderId");
-    // Try to get orderId from localStorage if not in URL
-    if (!orderId) {
-      const stored = window.localStorage.getItem("checkout:lastOrderId");
-      orderId = stored ? stored : null;
-    }
+    const orderId = getPendingCheckoutOrderId(
+      url.searchParams,
+      window.localStorage.getItem("checkout:lastOrderId"),
+    );
     if (canceled === "true" && orderId) {
       // Call API to delete order if status is pending_online_payment
       fetch(`/api/orders/${orderId}`, { method: "DELETE" })
         .then(async (res) => {
+          if (!res.ok) {
+            throw new Error('Failed to cancel pending online order');
+          }
           window.localStorage.removeItem("checkout:lastOrderId");
           posthog.capture('checkout_cancelled', { order_id: orderId });
           setCancelToast(true);
-          setTimeout(() => {
-            setCancelToast(false);
-            window.location.href = "/order/summary";
-          }, 2000);
+          setTimeout(() => setCancelToast(false), 4000);
         })
         .catch(() => {
           setCancelToast(true);
-          setTimeout(() => {
-            setCancelToast(false);
-            window.location.href = "/order/summary";
-          }, 2000);
+          setTimeout(() => setCancelToast(false), 4000);
         });
     }
   }, []);
@@ -846,6 +842,18 @@ export default function CheckoutPage() {
     if (orderType === 'delivery' && method === 'store') {
       setError("Delivery orders must be paid online.");
       return;
+    }
+    if (method === 'store' && typeof window !== 'undefined') {
+      const pendingOrderId = window.localStorage.getItem('checkout:lastOrderId');
+      if (pendingOrderId) {
+        void fetch(`/api/orders/${pendingOrderId}`, { method: 'DELETE' })
+          .then((response) => {
+            if (response.ok) {
+              window.localStorage.removeItem('checkout:lastOrderId');
+            }
+          })
+          .catch(() => {});
+      }
     }
     setPaymentMethod(method);
     setError(null);
@@ -1792,6 +1800,10 @@ export default function CheckoutPage() {
         const checkoutData = await checkoutResponse.json();
         if (!checkoutResponse.ok || !checkoutData.url) {
           setIsRedirecting(false);
+          const cancelResponse = await fetch(`/api/orders/${result.data.id}`, { method: 'DELETE' });
+          if (cancelResponse.ok && typeof window !== 'undefined') {
+            window.localStorage.removeItem('checkout:lastOrderId');
+          }
           errorMessage = checkoutData.error || "Failed to create checkout session";
           throw new Error(errorMessage);
         }

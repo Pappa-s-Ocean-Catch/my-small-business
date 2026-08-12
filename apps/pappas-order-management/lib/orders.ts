@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { getPaymentStatusUpdatePayload } from './order-payment-status';
 import type { Order, OrderItem, OrderItemAddon, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { getOrderNotes, getOrderOptions } from '../utils/orderUtils';
 import type { DeliveryAddressDraft, DeliveryQuoteResult } from './delivery';
@@ -647,11 +648,20 @@ export async function updatePaymentStatus(
   paymentMethodDetail?: string | null
 ): Promise<{ data: Order | null; error: string | null }> {
   try {
+    const { data: currentOrder, error: currentOrderError } = await supabase
+      .from('orders')
+      .select('order_status')
+      .eq('id', orderId)
+      .single();
+
+    if (currentOrderError || !currentOrder) {
+      return { data: null, error: currentOrderError?.message || 'Order not found' };
+    }
+
     const { data, error } = await supabase
       .from('orders')
       .update({
-        payment_status: paymentStatus,
-        payment_method_detail: paymentMethodDetail ?? null,
+        ...getPaymentStatusUpdatePayload(currentOrder.order_status as OrderStatus, paymentStatus, paymentMethodDetail),
         updated_at: new Date().toISOString(),
       })
       .eq('id', orderId)

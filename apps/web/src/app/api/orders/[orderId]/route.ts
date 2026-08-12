@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@my-small-business/supabase/server";
-import { OrderStatus } from "@my-small-business/types/order";
+import { createServiceRoleClient } from "@my-small-business/supabase/server";
 
 // DELETE /api/orders/[orderId]
 
@@ -15,7 +14,9 @@ export async function DELETE(
         return NextResponse.json({ error: "Missing orderId" }, { status: 400 });
     }
 
-    const supabase = await createServerSupabaseClient();
+    // Anonymous web checkout orders are created before the customer signs in, so
+    // this narrowly scoped cancellation must not depend on an authenticated RLS session.
+    const supabase = await createServiceRoleClient();
     // Fetch order to check status
     const { data: order, error: fetchError } = await supabase
         .from("orders")

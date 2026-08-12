@@ -86,6 +86,9 @@ export default function HistoryScreen() {
     printImageLabels,
     handleStatusUpdate,
     handlePaymentStatusUpdate,
+    smartpayPaired,
+    smartpayProcessingOrderId,
+    handleSmartpayPayment,
     handleQuickAction,
     handlePrint,
     handlePrintImage,
@@ -316,8 +319,11 @@ export default function HistoryScreen() {
         onCustomerPress={handleCustomerPress}
         onStatusUpdate={handleStatusUpdate}
         onPaymentStatusUpdate={handlePaymentStatusUpdate}
+        onSmartpayPayment={handleSmartpayPayment}
         onQuickAction={handleQuickAction}
         updatingStatus={updatingStatus}
+        smartpayPaired={smartpayPaired}
+        smartpayProcessing={smartpayProcessingOrderId === selectedOrder?.id}
         showSimulator={showSimulator}
         setShowSimulator={setShowSimulator}
         simulatorOrder={simulatorOrder}
