@@ -42,6 +42,7 @@
     "lib/responsive.ts",
     "lib/live-orders-layout.ts",
     "lib/instore-customer-receipt.ts",
+    "lib/order-list-sync.ts",
     "stores/posCatalogCacheStore.ts",
     "lib/print-job-priority.ts",
     "test/pay-by-link.test.ts",
