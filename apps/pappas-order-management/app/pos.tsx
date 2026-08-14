@@ -5,7 +5,7 @@ import { Appbar } from 'react-native-paper';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import type { Order, OrderItem, OrderItemAddon, PaymentStatus } from '@my-small-business/types';
-import { savePosOrder, updatePosOrder } from '../lib/orders';
+import { savePosOrder, updatePaymentStatus, updatePosOrder } from '../lib/orders';
 import { createCustomerIfNotExists, findCustomerByPhone, type Customer } from '../lib/customers';
 import {
   calculateDeliveryFees,
@@ -42,6 +42,14 @@ import { styles } from '../components/pos/pos.styles';
 import { isCompactPhoneWidth } from '../lib/responsive';
 import { posCatalogCacheStore } from '../stores/posCatalogCacheStore';
 import { useInstoreCustomerReceiptPrint } from '../providers/instoreCustomerReceiptPrintContext';
+import {
+  createOrReusePendingInstoreOrder,
+  getPendingInstoreOrderLockMessage,
+  getPendingInstorePaymentPlan,
+  getPendingInstoreRewardPoints,
+  getSmartpayDisplayOrderNumber,
+  settlePendingInstorePayment,
+} from '../lib/instore-smartpay-checkout';
 import type {
   AddonGroup,
   AddonItem,
@@ -215,7 +223,7 @@ const getDiscountConfigFromOrder = (order: Order | null): PosDiscountConfig => {
 };
 
 export default function PosScreen() {
-  const { printInstoreCustomerReceipt } = useInstoreCustomerReceiptPrint();
+  const { printInstoreCustomerReceipt, printInstoreInstantTicket } = useInstoreCustomerReceiptPrint();
   const router = useRouter();
   const { width, height } = useWindowDimensions();
   const params = useLocalSearchParams<{ orderId?: string | string[] }>();
@@ -256,6 +264,8 @@ export default function PosScreen() {
   const [rewardPointsValue, setRewardPointsValue] = useState(0);
   const [creatingOrder, setCreatingOrder] = useState(false);
   const [smartpayProcessing, setSmartpayProcessing] = useState(false);
+  const [pendingInstoreSmartpayOrder, setPendingInstoreSmartpayOrder] = useState<Order | null>(null);
+  const [smartpayApprovedOrderId, setSmartpayApprovedOrderId] = useState<string | null>(null);
   const [smartpayPaired, setSmartpayPaired] = useState(false);
   const [cashTenderMode, setCashTenderMode] = useState<CashTenderMode | null>(null);
   const cashTenderConfirmedRef = useRef(false);
@@ -292,6 +302,23 @@ export default function PosScreen() {
   const goHome = () => {
     router.replace('/(drawer)/(tabs)/live-orders');
   };
+
+  const preventPendingCartEdit = useCallback(() => {
+    const lockMessage = getPendingInstoreOrderLockMessage(pendingInstoreSmartpayOrder);
+    if (!lockMessage) return false;
+    Alert.alert(
+      'Order already saved',
+      lockMessage,
+    );
+    return true;
+  }, [pendingInstoreSmartpayOrder]);
+
+  const preventPendingIndependentCheckout = useCallback(() => {
+    const lockMessage = getPendingInstoreOrderLockMessage(pendingInstoreSmartpayOrder);
+    if (!lockMessage) return false;
+    Alert.alert('Settle pending order', lockMessage);
+    return true;
+  }, [pendingInstoreSmartpayOrder]);
 
   const setQuickListVisible = (visible: boolean) => {
     if (visible) {
@@ -983,6 +1010,7 @@ export default function PosScreen() {
   }, [initialCheckoutTab, menuLevel]);
 
   const handleToggleRewardPoints = useCallback(() => {
+    if (preventPendingCartEdit()) return;
     if (!rewardPointsSettings.enabled || !selectedCustomer) return;
     if (rewardPointsToUse > 0) {
       setRewardPointsToUse(0);
@@ -993,15 +1021,19 @@ export default function PosScreen() {
     const nextPoints = maxRewardPointsForOrder;
     setRewardPointsToUse(nextPoints);
     setRewardPointsValue(Number((nextPoints * rewardPointsSettings.dollars_per_point).toFixed(2)));
-  }, [maxRewardPointsForOrder, rewardPointsSettings, rewardPointsToUse, selectedCustomer]);
+  }, [maxRewardPointsForOrder, preventPendingCartEdit, rewardPointsSettings, rewardPointsToUse, selectedCustomer]);
 
-  const applyRewardPointsForSavedOrder = useCallback(async (orderIdToApply: string, customerUserId?: string | null) => {
-    if (!orderIdToApply || !customerUserId || rewardPointsToUse <= 0) return;
+  const applyRewardPointsForSavedOrder = useCallback(async (
+    orderIdToApply: string,
+    customerUserId?: string | null,
+    pointsToApply = rewardPointsToUse,
+  ) => {
+    if (!orderIdToApply || !customerUserId || pointsToApply <= 0) return;
 
     const result = await applyRewardPointsToOrder({
       userId: customerUserId,
       orderId: orderIdToApply,
-      pointsToUse: rewardPointsToUse,
+      pointsToUse: pointsToApply,
     });
 
     if (!result.success) {
@@ -1182,6 +1214,7 @@ export default function PosScreen() {
 
   useEffect(() => {
     if (!promotionsLoaded || !selectedFreeItemId) return;
+    if (pendingInstoreSmartpayOrder) return;
     if (freeItemPromotion) return;
 
     const stillExists = cartItems.some((item) => item.id === selectedFreeItemId);
@@ -1193,7 +1226,7 @@ export default function PosScreen() {
     setCartItems((current) => current.filter((item) => item.id !== selectedFreeItemId));
     setSelectedFreeItemId(null);
     Alert.alert('Free item removed', 'This order no longer qualifies for the free-item promotion.');
-  }, [cartItems, freeItemPromotion, promotionsLoaded, selectedFreeItemId]);
+  }, [cartItems, freeItemPromotion, pendingInstoreSmartpayOrder, promotionsLoaded, selectedFreeItemId]);
 
   const selectedRemovedIngredients = useMemo(
     () => editorRemovableIngredients
@@ -1503,6 +1536,7 @@ export default function PosScreen() {
   ), [freeItemPromotion, selectedFreeItemId]);
 
   const handleSelectFreeItem = useCallback((product: SaleProduct) => {
+    if (preventPendingCartEdit()) return;
     if (selectedFreeItemId) {
       setCartItems((current) => current.filter((item) => item.id !== selectedFreeItemId));
       setSelectedFreeItemId(null);
@@ -1512,12 +1546,13 @@ export default function PosScreen() {
     setCartItems((current) => [...current, newItem]);
     setSelectedFreeItemId(newItem.id);
     setFreeItemDialogVisible(false);
-  }, [buildCartItem, selectedFreeItemId]);
+  }, [buildCartItem, preventPendingCartEdit, selectedFreeItemId]);
 
   const quickAddProduct = async (
     product: SaleProduct,
     options: { skipCustomization?: boolean; forcePlainAdd?: boolean } = {}
   ) => {
+    if (preventPendingCartEdit()) return;
     const hasCustomizedCopy = cartItems.some((item) => (
       item.product_id === product.id && cartItemHasCustomizations(item)
     ));
@@ -1557,6 +1592,7 @@ export default function PosScreen() {
   };
 
   const openCartItemEditor = (item: PosCartItem) => {
+    if (preventPendingCartEdit()) return;
     setQuickListVisible(false);
 
     const catalogProduct = [...products, ...searchProducts, ...topSellers].find((product) => product.id === item.product_id);
@@ -1590,6 +1626,7 @@ export default function PosScreen() {
     comment: string,
     removedIngredients: string[]
   ) => {
+    if (preventPendingCartEdit()) return;
     const lineSubtotal = (product.sale_price + addonTotal(addons)) * quantity;
     const normalizedComment = comment.trim();
     const existing = cartItems.find((item) => (
@@ -1617,6 +1654,7 @@ export default function PosScreen() {
     addons: OrderItemAddon[],
     removedIngredients: string[]
   ) => {
+    if (preventPendingCartEdit()) return;
     if (!selectedProduct || !editingItemId) return;
 
     setCartItems((prev) => prev.map((item) => {
@@ -1633,6 +1671,7 @@ export default function PosScreen() {
   };
 
   const removeCartItem = (id: string) => {
+    if (preventPendingCartEdit()) return;
     if (menuLevel === 'addons') backToItems();
     if (selectedFreeItemId === id) {
       setSelectedFreeItemId(null);
@@ -1641,6 +1680,7 @@ export default function PosScreen() {
   };
 
   const openNoteEditor = (item: PosCartItem) => {
+    if (preventPendingCartEdit()) return;
     setNoteItemId(item.id);
     setNoteDraft(item.comment ?? '');
   };
@@ -1651,6 +1691,7 @@ export default function PosScreen() {
   };
 
   const saveNote = () => {
+    if (preventPendingCartEdit()) return;
     if (!noteItemId) return;
     const normalizedNote = noteDraft.trim();
     setCartItems((prev) => prev.map((item) => (
@@ -1685,6 +1726,7 @@ export default function PosScreen() {
 
   const handleClearCart = () => {
     if (orderId) return;
+    if (preventPendingCartEdit()) return;
 
     if (cartItems.length === 0) return;
     Alert.alert(
@@ -1755,6 +1797,7 @@ export default function PosScreen() {
   };
 
   const updateQuantity = (id: string, delta: number) => {
+    if (preventPendingCartEdit()) return;
     const currentItem = cartItems.find((item) => item.id === id);
     if (menuLevel === 'addons' && currentItem && currentItem.quantity + delta <= 0) {
       backToItems();
@@ -1815,6 +1858,7 @@ export default function PosScreen() {
   };
 
   const handleCheckout = async (paymentOverride?: PosCheckoutPaymentOverride) => {
+    if (preventPendingIndependentCheckout()) return;
     if (freeItemSelectionRequired) {
       setFreeItemDialogVisible(true);
       Alert.alert('Free item available', 'Please choose the free promotion item before checkout.');
@@ -1993,94 +2037,137 @@ export default function PosScreen() {
       return;
     }
 
+    let terminalApproved = Boolean(
+      pendingInstoreSmartpayOrder
+      && smartpayApprovedOrderId === pendingInstoreSmartpayOrder.id
+    );
+    let pendingOrderForAttempt = pendingInstoreSmartpayOrder;
+
     try {
-      setSmartpayProcessing(true);
-      await processSmartpayCardPayment(totals.total);
       setCreatingOrder(true);
-      const phone = customerPhone.trim();
-      const name = customerName.trim();
-      let customerId: string | null = null;
-      let customerEmail = '';
+      let pendingOrder = pendingOrderForAttempt;
 
-      if (phone) {
-        const { data: customer, error: customerError } = await createCustomerIfNotExists(phone, name);
-        if (customerError) {
-          Alert.alert('Customer', customerError);
-          return;
+      if (!pendingOrder) {
+        const phone = customerPhone.trim();
+        const name = customerName.trim();
+        let customerId: string | null = null;
+        let customerEmail = '';
+
+        if (phone) {
+          const { data: customer, error: customerError } = await createCustomerIfNotExists(phone, name);
+          if (customerError) {
+            Alert.alert('Customer', customerError);
+            return;
+          }
+          customerId = customer?.id ?? null;
+          customerEmail = customer?.email ?? '';
         }
-        customerId = customer?.id ?? null;
-        customerEmail = customer?.email ?? '';
+
+        const orderPayload = {
+          user_id: customerId,
+          customer_email: customerEmail,
+          customer_phone: phone,
+          customer_name: name || 'INSTORE',
+          payment_method: 'store',
+          order_channel: 'instore',
+          payment_method_detail: 'SmartPay',
+          order_type: 'pickup',
+          payment_status: 'pending',
+          order_status: 'pending_online_payment',
+          subtotal: totals.subtotal,
+          tax: totals.tax,
+          delivery_fee: 0,
+          service_fee: 0,
+          promotion_discount: discountAmount + freeItemDiscountAmount,
+          promotions_applied: promotionsApplied,
+          coupon_code: null,
+          coupon_discount: 0,
+          total: totals.total,
+          reward_points_used: rewardPointsToUse || null,
+          reward_points_value: rewardPointsValue || null,
+          order_options: orderOptions,
+          special_instructions: orderSpecialInstructions,
+          delivery_address_id: null,
+          delivery_address_line1: null,
+          delivery_address_line2: null,
+          delivery_city: null,
+          delivery_state: null,
+          delivery_postcode: null,
+          delivery_country: null,
+          delivery_latitude: null,
+          delivery_longitude: null,
+          delivery_quote_id: null,
+          delivery_quote_amount: null,
+          delivery_quote_currency: null,
+          delivery_partner_name: null,
+          delivery_quote_expires_at: null,
+          delivery_eta_minutes: null,
+          delivery_provider_id: null,
+          delivery_status: null,
+          delivery_tracking_url: null,
+          delivery_driver_name: null,
+          delivery_driver_phone: null,
+          delivery_driver_pin: null,
+          delivery_vehicle_info: null,
+          delivery_instructions: null,
+          scheduled_pickup_at: null,
+        } as any;
+
+        const pendingResult = await createOrReusePendingInstoreOrder({ savePosOrder }, {
+          existingOrder: null,
+          orderPayload,
+          items: cartItems.map((item) => ({
+            ...item,
+            product_name: getPosCartItemDisplayName(item),
+          })),
+        });
+        pendingOrder = pendingResult.order;
+        pendingOrderForAttempt = pendingOrder;
+        setPendingInstoreSmartpayOrder(pendingOrder);
+        setSmartpayApprovedOrderId(null);
+        if (pendingResult.created) {
+          void printInstoreInstantTicket(pendingOrder);
+        }
       }
 
-      const orderPayload = {
-        user_id: customerId,
-        customer_email: customerEmail,
-        customer_phone: phone,
-        customer_name: name || 'INSTORE',
-        payment_method: 'store',
-        order_channel: 'instore',
-        payment_method_detail: 'SmartPay',
-        order_type: 'pickup',
-        payment_status: 'paid',
-        order_status: 'confirmed',
-        subtotal: totals.subtotal,
-        tax: totals.tax,
-        delivery_fee: 0,
-        service_fee: 0,
-        promotion_discount: discountAmount + freeItemDiscountAmount,
-        promotions_applied: promotionsApplied,
-        coupon_code: null,
-        coupon_discount: 0,
-        total: totals.total,
-        reward_points_used: rewardPointsToUse || null,
-        reward_points_value: rewardPointsValue || null,
-        order_options: orderOptions,
-        special_instructions: orderSpecialInstructions,
-        delivery_address_id: null,
-        delivery_address_line1: null,
-        delivery_address_line2: null,
-        delivery_city: null,
-        delivery_state: null,
-        delivery_postcode: null,
-        delivery_country: null,
-        delivery_latitude: null,
-        delivery_longitude: null,
-        delivery_quote_id: null,
-        delivery_quote_amount: null,
-        delivery_quote_currency: null,
-        delivery_partner_name: null,
-        delivery_quote_expires_at: null,
-        delivery_eta_minutes: null,
-        delivery_provider_id: null,
-        delivery_status: null,
-        delivery_tracking_url: null,
-        delivery_driver_name: null,
-        delivery_driver_phone: null,
-        delivery_driver_pin: null,
-        delivery_vehicle_info: null,
-        delivery_instructions: null,
-        scheduled_pickup_at: null,
-      } as any;
-
-      const result = await savePosOrder(orderPayload, cartItems.map((item) => ({
-        ...item,
-        product_name: getPosCartItemDisplayName(item),
-      })));
+      const paymentPlan = getPendingInstorePaymentPlan(
+        pendingOrder,
+        smartpayApprovedOrderId,
+        'smartpay',
+      );
       setCreatingOrder(false);
+      setSmartpayProcessing(true);
+      if (paymentPlan.shouldStartTerminal) {
+        await processSmartpayCardPayment(pendingOrder.total);
+        terminalApproved = true;
+        setSmartpayApprovedOrderId(pendingOrder.id);
+      }
 
-      if (result.error) {
-        Alert.alert('Instore Order', result.error);
-        return;
-      }
-      if (result.data?.id) {
-        await applyRewardPointsForSavedOrder(result.data.id, customerId);
-        await printInstoreCustomerReceipt(result.data);
-      }
+      const settledOrder = await settlePendingInstorePayment(
+        { updatePaymentStatus },
+        pendingOrder.id,
+        paymentPlan.detail,
+      );
+      const completedOrder = { ...pendingOrder, ...settledOrder, items: pendingOrder.items };
+
+      await applyRewardPointsForSavedOrder(
+        completedOrder.id,
+        completedOrder.user_id,
+        getPendingInstoreRewardPoints(completedOrder),
+      );
+      await printInstoreCustomerReceipt(completedOrder);
+      setPendingInstoreSmartpayOrder(null);
+      setSmartpayApprovedOrderId(null);
       invalidateTopSellers();
       router.back();
     } catch (error) {
       console.error('SmartPay instore payment failed', error);
-      Alert.alert('SmartPay payment failed', formatSmartpayError(error));
+      Alert.alert(
+        terminalApproved ? 'SmartPay approved — save pending' : 'SmartPay payment failed',
+        terminalApproved
+          ? `The terminal approved this payment, but the order could not be settled. Retry SmartPay to reconcile Order #${getSmartpayDisplayOrderNumber(pendingOrderForAttempt)} without charging again.\n\n${formatSmartpayError(error)}`
+          : formatSmartpayError(error),
+      );
     } finally {
       setCreatingOrder(false);
       setSmartpayProcessing(false);
@@ -2114,8 +2201,60 @@ export default function PosScreen() {
 
     if (cartItems.length === 0) return;
 
+    let pendingPaymentPlan: ReturnType<typeof getPendingInstorePaymentPlan> | null = null;
+    if (pendingInstoreSmartpayOrder) {
+      try {
+        pendingPaymentPlan = getPendingInstorePaymentPlan(
+          pendingInstoreSmartpayOrder,
+          smartpayApprovedOrderId,
+          payment,
+        );
+      } catch (error) {
+        Alert.alert(
+          smartpayApprovedOrderId === pendingInstoreSmartpayOrder.id
+            ? 'SmartPay payment already approved'
+            : 'Order already saved',
+          error instanceof Error ? error.message : 'This pending order cannot use that payment option.',
+        );
+        return;
+      }
+    }
+
     if (payment === 'cash' && !cashTenderConfirmedRef.current) {
       setCashTenderMode('instore');
+      return;
+    }
+
+    if (pendingInstoreSmartpayOrder && pendingPaymentPlan) {
+      setCreatingOrder(true);
+      try {
+        const settledOrder = await settlePendingInstorePayment(
+          { updatePaymentStatus },
+          pendingInstoreSmartpayOrder.id,
+          pendingPaymentPlan.detail,
+        );
+        const completedOrder = {
+          ...pendingInstoreSmartpayOrder,
+          ...settledOrder,
+          items: pendingInstoreSmartpayOrder.items,
+        };
+
+        cashTenderConfirmedRef.current = false;
+        await applyRewardPointsForSavedOrder(
+          completedOrder.id,
+          completedOrder.user_id,
+          getPendingInstoreRewardPoints(completedOrder),
+        );
+        await printInstoreCustomerReceipt(completedOrder);
+        setPendingInstoreSmartpayOrder(null);
+        setSmartpayApprovedOrderId(null);
+        invalidateTopSellers();
+        router.back();
+      } catch (error) {
+        Alert.alert('Instore Order', error instanceof Error ? error.message : 'Failed to settle in-store payment.');
+      } finally {
+        setCreatingOrder(false);
+      }
       return;
     }
 
@@ -2214,6 +2353,7 @@ export default function PosScreen() {
   };
 
   const handleThirdPartyCheckout = async () => {
+    if (preventPendingIndependentCheckout()) return;
     if (freeItemSelectionRequired) {
       setFreeItemDialogVisible(true);
       Alert.alert('Free item available', 'Please choose the free promotion item before checkout.');
@@ -2319,6 +2459,7 @@ export default function PosScreen() {
   const handleDeliveryCheckout = useCallback(async (
     input: { address: DeliveryAddressDraft; quote: DeliveryQuoteResult }
   ): Promise<void> => {
+    if (preventPendingIndependentCheckout()) return;
     if (freeItemSelectionRequired) {
       setFreeItemDialogVisible(true);
       Alert.alert('Free item available', 'Please choose the free promotion item before checkout.');
@@ -2499,6 +2640,7 @@ export default function PosScreen() {
     discountAmount,
     freeItemDiscountAmount,
     getPosCartItemDisplayName,
+    preventPendingIndependentCheckout,
     resetPosForNextOrder,
     upsertPendingOnlinePaymentSession,
   ]);
@@ -2748,13 +2890,14 @@ export default function PosScreen() {
 
         <PosDialogs
           cashTenderMode={cashTenderMode}
-          total={totals.total}
+          total={pendingInstoreSmartpayOrder?.total ?? totals.total}
         onCancelCashTender={() => {
           cashTenderConfirmedRef.current = false;
           setCashTenderMode(null);
         }}
         onConfirmCashTender={handleCashTenderConfirm}
         smartpayProcessing={smartpayProcessing}
+        smartpayOrderNumber={getSmartpayDisplayOrderNumber(pendingInstoreSmartpayOrder)}
         confirmDismissSmartpayLock={confirmDismissSmartpayLock}
         saltOptionDialogVisible={saltOptionDialogVisible}
         setSaltOptionDialogVisible={setSaltOptionDialogVisible}

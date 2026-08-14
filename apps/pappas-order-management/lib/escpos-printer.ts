@@ -5,6 +5,8 @@ import { compareEscPosPayloads, getEscPosPayloadFingerprint, prepareEscPosImage 
 import { loadAppSettings } from './settings';
 import { getRawTcpNativeMode } from './raw-tcp-native-settings';
 import { getNativeRawTcpPrinter, type NativeRawTcpPrintOptions } from './raw-tcp-native';
+import { buildDocumentPrintJob } from './escpos-document';
+import type { EscPosDocument } from './instore-instant-ticket';
 
 export type PrinterDriver = 'epsonSdk' | 'rawTcp' | 'simulator';
 
@@ -356,6 +358,29 @@ async function writeRawBytes(socket: any, bytes: Uint8Array): Promise<void> {
     // Some React Native TCP implementations do not reliably invoke the write
     // callback even though the printer already received the bytes.
     setTimeout(settleSuccess, 150);
+  });
+}
+
+export async function escposPrintDocument(document: EscPosDocument, printer: SavedPrinter): Promise<void> {
+  assertPrinter(printer);
+  if (isSimulatorPrinter(printer)) {
+    throw new Error('Instant tickets require a physical printer.');
+  }
+
+  return enqueuePrinterJob(printer, async () => {
+    if (getPrinterDriver(printer) === 'rawTcp') {
+      await withRawTcpPrinter(printer, (socket) => writeRawBytes(socket, buildDocumentPrintJob(document)), { timeoutMs: 30000 });
+      return;
+    }
+
+    await withConnectedPrinter(printer, async (device) => {
+      for (const node of document.nodes) {
+        if (node.type === 'text') await device.addText(node.text);
+        if (node.type === 'feed') await device.addText('\n'.repeat(node.lines ?? 1));
+        if (node.type === 'cut') await device.addCut();
+      }
+      await device.sendData();
+    }, { timeoutMs: 30000 });
   });
 }
 

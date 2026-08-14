@@ -65,6 +65,8 @@ export default function SettingsScreen() {
     const [instoreCustomerReceiptPrinterTarget, setInstoreCustomerReceiptPrinterTarget] = useState<string | null>(DEFAULT_APP_SETTINGS.instoreCustomerReceiptPrinterTarget);
     const [instoreCustomerReceiptEnabledFromTime, setInstoreCustomerReceiptEnabledFromTime] = useState(DEFAULT_APP_SETTINGS.instoreCustomerReceiptEnabledFromTime || '');
     const [instoreCustomerReceiptEnabledToTime, setInstoreCustomerReceiptEnabledToTime] = useState(DEFAULT_APP_SETTINGS.instoreCustomerReceiptEnabledToTime || '');
+    const [instoreInstantTicketEnabled, setInstoreInstantTicketEnabled] = useState(DEFAULT_APP_SETTINGS.instoreInstantTicketEnabled);
+    const [instoreInstantTicketPrinterTarget, setInstoreInstantTicketPrinterTarget] = useState<string | null>(DEFAULT_APP_SETTINGS.instoreInstantTicketPrinterTarget);
     const [printerSaved, setPrinterSaved] = useState<SavedPrinter[]>(DEFAULT_APP_SETTINGS.printerSaved);
     const [printerSelectedTarget, setPrinterSelectedTarget] = useState<string | null>(DEFAULT_APP_SETTINGS.printerSelectedTarget);
     const [printerSectionAssignments, setPrinterSectionAssignments] = useState<PrinterSectionAssignment[]>(
@@ -104,6 +106,8 @@ export default function SettingsScreen() {
         setInstoreCustomerReceiptPrinterTarget(currentSettings.instoreCustomerReceiptPrinterTarget);
         setInstoreCustomerReceiptEnabledFromTime(currentSettings.instoreCustomerReceiptEnabledFromTime || '');
         setInstoreCustomerReceiptEnabledToTime(currentSettings.instoreCustomerReceiptEnabledToTime || '');
+        setInstoreInstantTicketEnabled(currentSettings.instoreInstantTicketEnabled);
+        setInstoreInstantTicketPrinterTarget(currentSettings.instoreInstantTicketPrinterTarget);
         setPrinterSaved(currentSettings.printerSaved);
         setPrinterSelectedTarget(currentSettings.printerSelectedTarget);
         setPrinterSectionAssignments(currentSettings.printerSectionAssignments);
@@ -162,6 +166,11 @@ export default function SettingsScreen() {
         : `${selectedPrinter?.deviceName ?? 'No default printer selected'} • ${Math.max(printerSectionAssignments.length - 1, 0)} section rule${printerSectionAssignments.length === 2 ? '' : 's'}`;
     const hasSimulatorRouting = hasAnySimulatorAssignment({ printerSectionAssignments });
     const hasPrinterCapability = printerEnabled || hasSimulatorRouting;
+    const savedPhysicalPrinters = useMemo(
+        () => printerSaved.filter((printer) => !isSimulatorPrinter(printer)),
+        [printerSaved]
+    );
+    const hasInstantTicketPrinterCapability = printerEnabled && savedPhysicalPrinters.length > 0;
     const recentJournalLabel = journalEntries.length === 0
         ? 'No logs yet'
         : `${journalEntries.length} recent entr${journalEntries.length === 1 ? 'y' : 'ies'}`;
@@ -327,6 +336,7 @@ export default function SettingsScreen() {
     const removeSavedPrinter = (target: string) => {
         setPrinterSaved((prev) => prev.filter((printer) => printer.target !== target));
         setPrinterSelectedTarget((current) => (current === target ? null : current));
+        setInstoreInstantTicketPrinterTarget((current) => (current === target ? null : current));
         setPrinterSectionAssignments((prev) => prev.map((assignment) => (
             assignment.printerTarget === target
                 ? { ...assignment, printerTarget: null }
@@ -414,6 +424,9 @@ export default function SettingsScreen() {
                     ? { ...assignment, printerTarget: updatedPrinter.target }
                     : assignment
             )));
+            setInstoreInstantTicketPrinterTarget((current) => (
+                current === existing.target ? updatedPrinter.target : current
+            ));
             setPrinterEnabled(true);
             resetManualPrinterForm();
             Alert.alert('Printer updated', `${updatedPrinter.deviceName} is ready to use.`);
@@ -615,6 +628,8 @@ export default function SettingsScreen() {
                 instoreCustomerReceiptPrinterTarget,
                 instoreCustomerReceiptEnabledFromTime: receiptFromTime,
                 instoreCustomerReceiptEnabledToTime: receiptToTime,
+                instoreInstantTicketEnabled,
+                instoreInstantTicketPrinterTarget,
                 printerSelectedTarget,
                 printerSaved,
                 printerSectionAssignments: normalizedAssignments,
@@ -1224,6 +1239,24 @@ export default function SettingsScreen() {
                                     <TextInput mode="outlined" label="To" value={instoreCustomerReceiptEnabledToTime} onChangeText={setInstoreCustomerReceiptEnabledToTime} placeholder="20:00" style={[styles.input, styles.flexButton]} disabled={!instoreCustomerReceiptAutoPrintEnabled} />
                                 </View>
                                 <Text style={styles.helper}>Leave both blank to always print. Uses 24-hour time and supports overnight windows.</Text>
+
+                                <View style={styles.separator} />
+
+                                <Text style={styles.label}>In-store instant ticket</Text>
+                                <Text style={styles.helper}>Print a compact, text-only ticket for eligible paid in-store orders. A physical printer is required.</Text>
+                                <View style={styles.switchRow}>
+                                    <Text style={styles.label}>Enable instant ticket</Text>
+                                    <Switch value={instoreInstantTicketEnabled} onValueChange={setInstoreInstantTicketEnabled} disabled={!hasInstantTicketPrinterCapability} />
+                                </View>
+                                <Text style={[styles.label, styles.assignmentSubLabel]}>Ticket printer</Text>
+                                <View style={styles.buttonGroup}>
+                                    {savedPhysicalPrinters.map((printer) => (
+                                        <Button key={printer.target} mode={instoreInstantTicketPrinterTarget === printer.target ? 'contained' : 'outlined'} onPress={() => setInstoreInstantTicketPrinterTarget(printer.target)} style={styles.flexButton} disabled={!hasInstantTicketPrinterCapability}>
+                                            {printer.deviceName}
+                                        </Button>
+                                    ))}
+                                </View>
+                                {savedPhysicalPrinters.length === 0 ? <Text style={styles.helper}>Add and enable a physical saved printer before enabling instant tickets.</Text> : null}
 
                                 <View style={styles.separator} />
 

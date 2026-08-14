@@ -12,6 +12,7 @@ type Props = {
   onCancelCashTender: () => void;
   onConfirmCashTender: () => void;
   smartpayProcessing: boolean;
+  smartpayOrderNumber: string | null;
   confirmDismissSmartpayLock: () => void;
   saltOptionDialogVisible: boolean;
   setSaltOptionDialogVisible: (visible: boolean) => void;
@@ -46,6 +47,7 @@ export function PosDialogs({
   onCancelCashTender,
   onConfirmCashTender,
   smartpayProcessing,
+  smartpayOrderNumber,
   confirmDismissSmartpayLock,
   saltOptionDialogVisible,
   setSaltOptionDialogVisible,
@@ -103,6 +105,9 @@ export function PosDialogs({
             <Text style={styles.smartpayDialogText}>
               Follow the prompts on the terminal. This screen will unlock when Smartpay returns the result.
             </Text>
+            {smartpayOrderNumber && (
+              <Text style={styles.smartpayDialogText}>Order #{smartpayOrderNumber}</Text>
+            )}
             <Text style={styles.smartpayAmount}>${total.toFixed(2)}</Text>
           </Dialog.Content>
           <Dialog.Actions>

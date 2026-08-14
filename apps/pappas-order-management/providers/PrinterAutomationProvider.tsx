@@ -20,7 +20,7 @@ import {
   releaseKitchenPrintClaim,
   updateOrderStatus,
 } from '@/lib/orders';
-import { formatPrinterError, isSimulatorPrinter } from '@/lib/escpos-printer';
+import { escposPrintDocument, formatPrinterError, isSimulatorPrinter } from '@/lib/escpos-printer';
 import { captureReceiptForPrinter, captureReceiptPreview, type PrinterImageSource } from '@/lib/printer-image';
 import { buildSectionPrintJobs, hasAnySimulatorAssignment } from '@/lib/printer-routing';
 import { enqueuePreparedPrintJobs, processReadyPendingPrintJobs, waitForPrintJobs } from '@/lib/print-queue';
@@ -30,6 +30,7 @@ import { CustomerReceiptTemplate } from '@/components/CustomerReceiptTemplate';
 import { shouldPlayOrderSound } from '@/utils/orderUtils';
 import { getPrintDeviceId } from '@/lib/print-device';
 import { getInstoreCustomerReceiptPrintJob } from '@/lib/instore-customer-receipt';
+import { buildInstoreInstantTicketDocument, getInstoreInstantTicketDebugDetails, getInstoreInstantTicketPrintJob } from '@/lib/instore-instant-ticket';
 import { getAutoPrintableLiveOrders } from '@/lib/live-order-window';
 import { getOrderAnnouncementDelayMs } from '@/lib/marketplace-print-scheduling';
 import { getFriendlyOrderNumber } from '@/utils/orderNumber';
@@ -205,6 +206,64 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
       setTempInstoreCustomerReceiptOrder(null);
     }
   }, [appSettings, logOrderEvent, showAutoPrintSimulator, showToast, waitForReceiptRenderFrames]);
+
+  const printInstoreInstantTicket = useCallback(async (order: Order) => {
+    try {
+      const effectiveSettings = await loadAppSettings().catch(() => appSettings);
+      const jobSettings = getInstoreInstantTicketPrintJob(
+        order,
+        effectiveSettings,
+        effectiveSettings.printerSaved.map((printer) => printer.target),
+      );
+      const eligibilityDetails = getInstoreInstantTicketDebugDetails(
+        order,
+        effectiveSettings,
+        effectiveSettings.printerSaved.map((printer) => printer.target),
+      );
+      if (!jobSettings) {
+        logOrderEvent('decision', 'instore-instant-ticket', 'Skipped instant ticket', {
+          order,
+          details: eligibilityDetails,
+        });
+        return;
+      }
+
+      const printer = effectiveSettings.printerSaved.find((item) => item.target === jobSettings.printerTarget) || null;
+      if (!printer) {
+        logOrderEvent('decision', 'instore-instant-ticket', 'Skipped instant ticket', {
+          order,
+          details: 'Selected printer is no longer saved',
+        });
+        return;
+      }
+      if (!effectiveSettings.printerEnabled) {
+        const reason = 'Instant ticket was not printed because the printer is disabled.';
+        logOrderEvent('decision', 'instore-instant-ticket', 'Skipped instant ticket', { order, details: reason });
+        showToast(reason, 'error');
+        return;
+      }
+      if (isSimulatorPrinter(printer)) {
+        const reason = 'Instant tickets require a physical printer.';
+        logOrderEvent('decision', 'instore-instant-ticket', 'Skipped instant ticket', { order, details: reason });
+        showToast(reason, 'error');
+        return;
+      }
+
+      logOrderEvent('info', 'instore-instant-ticket', 'Dispatching instant ticket', {
+        order,
+        details: `${eligibilityDetails} printer=${printer.deviceName} target=${printer.target} driver=${printer.driver ?? 'epsonSdk'} items=${order.items?.length ?? 0}`,
+      });
+      await escposPrintDocument(buildInstoreInstantTicketDocument(order), printer);
+      logOrderEvent('success', 'instore-instant-ticket', 'Printed instant ticket', {
+        order,
+        details: `printer=${printer.deviceName} target=${printer.target} driver=${printer.driver ?? 'epsonSdk'}`,
+      });
+    } catch (error) {
+      const reason = formatPrinterError(error) || 'Failed to print instant ticket.';
+      logOrderEvent('error', 'instore-instant-ticket', 'Instant ticket failed', { order, details: reason });
+      showToast(`Instant ticket failed: ${reason}`, 'error');
+    }
+  }, [appSettings, logOrderEvent, showToast]);
 
   const playAttentionSoundForOrder = useCallback((order: Pick<Order, 'id' | 'order_channel' | 'payment_method' | 'customer_name' | 'scheduled_pickup_at'>) => {
     if (!appSettings.soundEnabled) return;
@@ -723,7 +782,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
   }, [logOrderEvent, playAttentionSoundForOrder, queryClient, scheduleOrderAnnouncement, setPreOrderSkipNotice]);
 
   return (
-    <InstoreCustomerReceiptPrintContext.Provider value={{ printInstoreCustomerReceipt }}>
+    <InstoreCustomerReceiptPrintContext.Provider value={{ printInstoreCustomerReceipt, printInstoreInstantTicket }}>
     <>
       {children}
       <View style={{ position: 'absolute', left: -9999, top: -9999, opacity: 0 }} pointerEvents="none">

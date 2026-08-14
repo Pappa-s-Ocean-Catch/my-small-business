@@ -3,6 +3,7 @@ import type { Order } from '@my-small-business/types';
 
 export type InstoreCustomerReceiptPrintAction = {
   printInstoreCustomerReceipt: (order: Order) => Promise<void>;
+  printInstoreInstantTicket: (order: Order) => Promise<void>;
 };
 
 export const InstoreCustomerReceiptPrintContext = createContext<InstoreCustomerReceiptPrintAction | null>(null);

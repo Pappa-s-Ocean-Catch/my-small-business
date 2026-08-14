@@ -8,6 +8,7 @@ import {
 import { normalizeDiagnosticSettings } from './settings-diagnostics';
 import { normalizeRawTcpNativeMode, type RawTcpNativeMode } from './raw-tcp-native-settings';
 import { normalizeInstoreCustomerReceiptSettings } from './instore-customer-receipt';
+import { normalizeInstoreInstantTicketSettings } from './instore-instant-ticket';
 
 function isSavedPrinter(value: unknown): value is SavedPrinter {
     const v = value as any;
@@ -132,6 +133,8 @@ export type AppSettings = {
     instoreCustomerReceiptPrinterTarget: string | null;
     instoreCustomerReceiptEnabledFromTime: string | null;
     instoreCustomerReceiptEnabledToTime: string | null;
+    instoreInstantTicketEnabled: boolean;
+    instoreInstantTicketPrinterTarget: string | null;
 
     printerSelectedTarget: string | null;
     printerSaved: SavedPrinter[];
@@ -196,6 +199,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     instoreCustomerReceiptPrinterTarget: null,
     instoreCustomerReceiptEnabledFromTime: null,
     instoreCustomerReceiptEnabledToTime: null,
+    instoreInstantTicketEnabled: false,
+    instoreInstantTicketPrinterTarget: null,
 
     printerSelectedTarget: null,
     printerSaved: [],
@@ -263,6 +268,7 @@ export async function loadAppSettings(): Promise<AppSettings> {
             ? (parsed as any).printerAutoPrint
             : DEFAULT_APP_SETTINGS.printerAutoPrint;
         const instoreCustomerReceiptSettings = normalizeInstoreCustomerReceiptSettings(parsed);
+        const instoreInstantTicketSettings = normalizeInstoreInstantTicketSettings(parsed);
 
         const printerSelectedTarget = typeof (parsed as any)?.printerSelectedTarget === 'string'
             ? (parsed as any).printerSelectedTarget
@@ -312,6 +318,7 @@ export async function loadAppSettings(): Promise<AppSettings> {
             printerEnabled,
             printerAutoPrint,
             ...instoreCustomerReceiptSettings,
+            ...instoreInstantTicketSettings,
 
             printerSelectedTarget,
             printerSaved,
@@ -337,6 +344,7 @@ export async function loadAppSettings(): Promise<AppSettings> {
 export async function saveAppSettings(settings: AppSettings): Promise<void> {
     const diagnosticSettings = normalizeDiagnosticSettings(settings);
     const instoreCustomerReceiptSettings = normalizeInstoreCustomerReceiptSettings(settings);
+    const instoreInstantTicketSettings = normalizeInstoreInstantTicketSettings(settings);
     const normalized: AppSettings = {
         registerName: diagnosticSettings.registerName,
         refreshIntervalSec: clampInt(settings.refreshIntervalSec, 5, 600),
@@ -348,6 +356,7 @@ export async function saveAppSettings(settings: AppSettings): Promise<void> {
         printerEnabled: !!settings.printerEnabled,
         printerAutoPrint: !!settings.printerAutoPrint,
         ...instoreCustomerReceiptSettings,
+        ...instoreInstantTicketSettings,
 
         printerSelectedTarget: settings.printerSelectedTarget ? String(settings.printerSelectedTarget) : null,
         printerSaved: Array.isArray(settings.printerSaved) ? settings.printerSaved.filter(isSavedPrinter) : [],
