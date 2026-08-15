@@ -15,7 +15,7 @@ import java.net.Socket
 import java.util.concurrent.ConcurrentHashMap
 
 private data class Raster(val width: Int, val height: Int, val rgba: ByteArray)
-private data class Options(val viewTag: Int, val host: String, val port: Int, val width: Int, val copies: Int, val operation: String, val timeoutMs: Int)
+private data class Options(val viewTag: Int, val host: String, val port: Int, val width: Int, val copies: Int, val captureScale: Int, val timeoutMs: Int)
 
 private object PrinterQueues {
   private val queues = ConcurrentHashMap<String, Mutex>()
@@ -30,24 +30,22 @@ class NativeRawTcpPrinterModule : Module() {
       try {
         val options = parseOptions(input)
         val captureStarted = System.nanoTime()
-        val bitmap = withContext(Dispatchers.Main) { capture(options.viewTag) }
+        val bitmap = withContext(Dispatchers.Main) { capture(options.viewTag, options.captureScale) }
         val capturedAt = System.nanoTime()
         val resized = resize(bitmapToRgba(bitmap), options.width)
         val resizedAt = System.nanoTime()
         val bytes = escPos(resized)
         val rasterAt = System.nanoTime()
         var sendMs = 0L
-        if (options.operation == "print") {
-          val sendStarted = System.nanoTime()
-          PrinterQueues.run(options.host.trim().lowercase() + ":" + options.port) {
-            withContext(Dispatchers.IO) { send(options, bytes) }
-          }
-          sendMs = elapsedMs(sendStarted)
+        val sendStarted = System.nanoTime()
+        PrinterQueues.run(options.host.trim().lowercase() + ":" + options.port) {
+          withContext(Dispatchers.IO) { send(options, bytes) }
         }
+        sendMs = elapsedMs(sendStarted)
         mapOf(
           "ok" to true, "captureMs" to elapsedMs(captureStarted, capturedAt), "resizeMs" to elapsedMs(capturedAt, resizedAt),
           "rasterMs" to elapsedMs(resizedAt, rasterAt), "sendMs" to sendMs, "totalMs" to elapsedMs(started),
-          "width" to resized.width, "height" to resized.height, "byteLength" to bytes.size, "fnv1a32" to fnv1a32(bytes), "sent" to (options.operation == "print")
+          "width" to resized.width, "height" to resized.height, "byteLength" to bytes.size, "fnv1a32" to fnv1a32(bytes), "sent" to true
         )
       } catch (error: PrinterFailure) {
         mapOf("ok" to false, "error" to mapOf("code" to error.code, "message" to error.message.orEmpty(), "phase" to error.phase), "totalMs" to elapsedMs(started))
@@ -60,16 +58,15 @@ class NativeRawTcpPrinterModule : Module() {
   private fun parseOptions(input: Map<String, Any?>): Options {
     fun number(name: String): Int = (input[name] as? Number)?.toInt() ?: throw PrinterFailure("INVALID_OPTIONS", "options", "$name is required")
     val host = input["host"] as? String ?: throw PrinterFailure("INVALID_OPTIONS", "options", "host is required")
-    val operation = input["operation"] as? String ?: "print"
-    val result = Options(number("viewTag"), host, number("port"), number("width"), number("copies"), operation, number("timeoutMs"))
-    if (result.host.isBlank() || result.port !in 1..65535 || result.width < 8 || result.copies !in 1..10 || (operation != "print" && operation != "diagnostic")) throw PrinterFailure("INVALID_OPTIONS", "options", "Invalid printer options")
+    val result = Options(number("viewTag"), host, number("port"), number("width"), number("copies"), number("captureScale"), number("timeoutMs"))
+    if (result.host.isBlank() || result.port !in 1..65535 || result.width < 8 || result.copies !in 1..10 || result.captureScale !in 1..2) throw PrinterFailure("INVALID_OPTIONS", "options", "Invalid printer options")
     return result
   }
 
-  private fun capture(tag: Int): Bitmap {
+  private fun capture(tag: Int, captureScale: Int): Bitmap {
     val view = appContext.findView<View>(tag) ?: throw PrinterFailure("VIEW_NOT_FOUND", "capture", "Receipt view was not found")
     if (view.width <= 0 || view.height <= 0) throw PrinterFailure("CAPTURE_FAILED", "capture", "Receipt view has no size")
-    return Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888).also { Canvas(it).apply { view.draw(this) } }
+    return Bitmap.createBitmap(view.width * captureScale, view.height * captureScale, Bitmap.Config.ARGB_8888).also { Canvas(it).apply { scale(captureScale.toFloat(), captureScale.toFloat()); view.draw(this) } }
   }
 }
 

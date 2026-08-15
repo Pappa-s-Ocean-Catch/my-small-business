@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { Order } from '@my-small-business/types';
-import { formatOrderPaymentMethod, getPaymentStatType, getReceiptHeader } from '../utils/orderUtils';
+import type { Order, OrderItemAddon } from '@my-small-business/types';
+import { formatOrderPaymentMethod, getPaymentStatType, getReceiptHeader, groupAddons } from '../utils/orderUtils';
 
 function makeOrder(overrides: Partial<Order> = {}): Order {
   return {
@@ -13,6 +13,62 @@ function makeOrder(overrides: Partial<Order> = {}): Order {
     ...overrides,
   } as Order;
 }
+
+function makeAddon(overrides: Partial<OrderItemAddon> = {}): OrderItemAddon {
+  return {
+    id: 'addon-1',
+    order_item_id: 'item-1',
+    addon_group_id: 'group-1',
+    addon_group_name: 'Fish choice 1',
+    addon_item_id: 'fried',
+    addon_item_name: 'Fried',
+    addon_item_price: 0,
+    created_at: '2026-08-14T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
+test('groups same-name same-price add-ons across groups within one product', () => {
+  const grouped = groupAddons([
+    makeAddon({ addon_group_name: 'Fish choice 1' }),
+    makeAddon({ id: 'addon-2', addon_group_id: 'group-2', addon_group_name: 'Fish choice 2' }),
+    makeAddon({ id: 'addon-3', addon_group_id: 'group-3', addon_group_name: 'Fish choice 3' }),
+    makeAddon({ id: 'addon-4', addon_group_id: 'group-4', addon_group_name: 'Fish choice 4' }),
+  ]);
+
+  assert.deepEqual(grouped, [{
+    name: 'Fried',
+    group: 'Fish choice 1',
+    price: 0,
+    quantity: 4,
+  }]);
+});
+
+test('groups same-name same-price add-ons despite surrounding name whitespace', () => {
+  const grouped = groupAddons([
+    makeAddon({ addon_item_name: 'Fried' }),
+    makeAddon({ id: 'addon-2', addon_group_name: 'Fish choice 2', addon_item_name: ' Fried ' }),
+  ]);
+
+  assert.deepEqual(grouped, [{
+    name: 'Fried',
+    group: 'Fish choice 1',
+    price: 0,
+    quantity: 2,
+  }]);
+});
+
+test('keeps same-name add-ons with different prices separate', () => {
+  const grouped = groupAddons([
+    makeAddon({ addon_group_name: 'Fish choice 1', addon_item_price: 0 }),
+    makeAddon({ id: 'addon-2', addon_group_name: 'Fish choice 2', addon_item_price: 1.5 }),
+  ]);
+
+  assert.deepEqual(grouped, [
+    { name: 'Fried', group: 'Fish choice 1', price: 0, quantity: 1 },
+    { name: 'Fried', group: 'Fish choice 2', price: 1.5, quantity: 1 },
+  ]);
+});
 
 test('classifies marketplace orders before their cash-like payment fields', () => {
   assert.equal(

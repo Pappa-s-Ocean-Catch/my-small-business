@@ -1,12 +1,10 @@
-export type NativeRawTcpOperation = 'diagnostic' | 'print';
-
 export type NativeRawTcpPrintOptions = {
   viewTag: number;
   host: string;
   port: number;
   width: number;
   copies: number;
-  operation: NativeRawTcpOperation;
+  captureScale: number;
   timeoutMs: number;
 };
 

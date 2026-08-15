@@ -55,8 +55,12 @@ test('reports the exact instant ticket eligibility inputs for the print journal'
 test('creates a text-only ticket without customisations', () => {
   const doc = buildInstoreInstantTicketDocument(makeOrder({
     order_number: 'ORD-123',
+    created_at: '2026-08-14T10:30:00.000Z',
+    total: 42.5,
+    payment_status: 'pending',
     items: [{
       product_name: 'Fish Burger',
+      quantity: 2,
       comment: 'No salt',
       addons: [{ addon_item_name: 'Cheese' }],
     }] as Order['items'],
@@ -64,15 +68,20 @@ test('creates a text-only ticket without customisations', () => {
   const text = doc.nodes.map((node) => node.type === 'text' ? node.text : '').join('\n');
 
   assert.match(text, /ORDER #P123/);
+  assert.match(text, /ORDER TIME: 2026-08-14 10:30/);
+  assert.match(text, /ITEMS: 2/);
+  assert.match(text, /TOTAL: \$42\.50/);
+  assert.match(text, /PAYMENT: PENDING/);
   assert.match(text, /Fish Burger/);
   assert.doesNotMatch(text, /No salt|Cheese/);
   assert.deepEqual(doc.nodes[0], {
     type: 'text',
     text: 'ORDER #P123',
-    style: { align: 'center', widthScale: 2, heightScale: 2 },
+    style: { align: 'center', bold: true, widthScale: 2, heightScale: 2 },
     newline: true,
   });
-  assert.deepEqual(doc.nodes[1], { type: 'feed', lines: 1 });
+  assert.deepEqual(doc.nodes[1], { type: 'text', text: 'ORDER TIME: 2026-08-14 10:30', newline: true });
+  assert.deepEqual(doc.nodes[2], { type: 'feed', lines: 2 });
   assert.deepEqual(doc.nodes.at(-1), { type: 'cut', partial: false });
   const bytes = buildDocumentPrintJob(doc);
   assert.equal(bytes.includes(0x2a), false);

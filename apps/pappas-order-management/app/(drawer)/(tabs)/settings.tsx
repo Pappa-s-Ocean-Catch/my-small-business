@@ -3,7 +3,6 @@ import { Alert, Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { Appbar, Button, Switch, Text, TextInput } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { DEFAULT_APP_SETTINGS, type PrinterSectionAssignment } from '@/lib/settings';
-import type { RawTcpNativeMode } from '@/lib/raw-tcp-native-settings';
 import { playNewOrderSound, SOUND_OPTIONS, type SoundId } from '@/lib/sounds';
 import { PRINT_SECTION_OPTIONS } from '@/utils/orderUtils';
 import { usePrintersDiscovery } from 'react-native-esc-pos-printer';
@@ -77,8 +76,6 @@ export default function SettingsScreen() {
     );
     const [printerPaperWidth, setPrinterPaperWidth] = useState<'58mm' | '80mm'>(DEFAULT_APP_SETTINGS.printerPaperWidth);
     const [printerHighQuality, setPrinterHighQuality] = useState<boolean>(DEFAULT_APP_SETTINGS.printerHighQuality);
-    const [rawTcpNativeModeAndroid, setRawTcpNativeModeAndroid] = useState<RawTcpNativeMode>(DEFAULT_APP_SETTINGS.rawTcpNativeModeAndroid);
-    const [rawTcpNativeModeIos, setRawTcpNativeModeIos] = useState<RawTcpNativeMode>(DEFAULT_APP_SETTINGS.rawTcpNativeModeIos);
     const [manualPrinterIp, setManualPrinterIp] = useState('');
     const [manualPrinterPortText, setManualPrinterPortText] = useState(String(DEFAULT_MANUAL_PRINTER_PORT));
     const [manualPrinterName, setManualPrinterName] = useState('');
@@ -114,8 +111,6 @@ export default function SettingsScreen() {
         setPrinterDelayPrintSecText(String(currentSettings.printerDelayPrintSec));
         setPrinterPaperWidth(currentSettings.printerPaperWidth);
         setPrinterHighQuality(currentSettings.printerHighQuality);
-        setRawTcpNativeModeAndroid(currentSettings.rawTcpNativeModeAndroid);
-        setRawTcpNativeModeIos(currentSettings.rawTcpNativeModeIos);
     }, [currentSettings]);
 
     const selectedSoundLabel = useMemo(
@@ -636,8 +631,6 @@ export default function SettingsScreen() {
                 printerDelayPrintSec,
                 printerPaperWidth,
                 printerHighQuality,
-                rawTcpNativeModeAndroid,
-                rawTcpNativeModeIos,
                 printerDebugFooter,
             });
             Alert.alert('Saved', 'Settings updated.');
@@ -1286,24 +1279,6 @@ export default function SettingsScreen() {
                                 <Text style={styles.helper}>
                                     Improves sharpness on higher-end thermal printers by capturing at 2x resolution.
                                 </Text>
-
-                                <View style={styles.separator} />
-                                <Text style={styles.label}>Native raw-TCP rollout</Text>
-                                <Text style={styles.helper}>Use diagnostic before native-enabled. Epson and simulator printers are unaffected.</Text>
-                                {(['Android', 'iOS'] as const).map((platform) => {
-                                    const mode = platform === 'Android' ? rawTcpNativeModeAndroid : rawTcpNativeModeIos;
-                                    const setMode = platform === 'Android' ? setRawTcpNativeModeAndroid : setRawTcpNativeModeIos;
-                                    return <View key={platform} style={{ marginTop: 10 }}>
-                                        <Text style={styles.helper}>{platform}: {mode}</Text>
-                                        <View style={styles.buttonGroup}>
-                                            {(['js-only', 'native-diagnostic', 'native-enabled'] as RawTcpNativeMode[]).map((option) => (
-                                                <Button key={option} mode={mode === option ? 'contained' : 'outlined'} onPress={() => setMode(option)} style={styles.flexButton} compact>
-                                                    {option === 'js-only' ? 'JS' : option === 'native-diagnostic' ? 'Diagnostic' : 'Native'}
-                                                </Button>
-                                            ))}
-                                        </View>
-                                    </View>;
-                                })}
 
                                 {JOURNAL_LOGS_ENABLED ? (
                                     <>

@@ -302,7 +302,7 @@ export default function PreOrdersScreen() {
           capturedJobs.push({ image: { kind: 'uri', uri }, previewUri: uri, label: job.label, printer: job.printer });
         } else {
           const image = await captureReceiptForPrinter(receiptRef, job.printer, targetDots * scale, s.printerHighQuality);
-          const previewUri = image.kind === 'uri' ? image.uri : await captureReceiptPreview(receiptRef, targetDots * scale);
+          const previewUri = image.kind === 'uri' ? image.uri : null;
           capturedJobs.push({ image, previewUri, label: job.label, printer: job.printer });
         }
       }

@@ -47,18 +47,30 @@ export function getInstoreInstantTicketDebugDetails(
 }
 
 export function buildInstoreInstantTicketDocument(
-  order: Pick<Order, 'order_number' | 'items'>,
+  order: Pick<Order, 'order_number' | 'items' | 'created_at' | 'total' | 'payment_status'>,
 ): EscPosDocument {
+  const createdAt = new Date(order.created_at);
+  const orderTime = Number.isNaN(createdAt.getTime())
+    ? 'UNKNOWN'
+    : `${createdAt.getUTCFullYear()}-${String(createdAt.getUTCMonth() + 1).padStart(2, '0')}-${String(createdAt.getUTCDate()).padStart(2, '0')} ${String(createdAt.getUTCHours()).padStart(2, '0')}:${String(createdAt.getUTCMinutes()).padStart(2, '0')}`;
+  const itemCount = (order.items ?? []).reduce((count, item) => count + Math.max(1, item.quantity ?? 1), 0);
+  const total = Number.isFinite(order.total) ? order.total.toFixed(2) : '0.00';
+
   return {
     nodes: [
       {
         type: 'text',
         text: `ORDER #${getFriendlyOrderNumber(order.order_number)}`,
-        style: { align: 'center', widthScale: 2, heightScale: 2 },
+        style: { align: 'center', bold: true, widthScale: 2, heightScale: 2 },
         newline: true,
       },
-      { type: 'feed', lines: 1 },
+      { type: 'text', text: `ORDER TIME: ${orderTime}`, newline: true },
+      { type: 'feed', lines: 2 },
       ...(order.items ?? []).map((item) => ({ type: 'text' as const, text: item.product_name, newline: true })),
+      { type: 'feed', lines: 1 },
+      { type: 'text', text: `ITEMS: ${itemCount}`, newline: true },
+      { type: 'text', text: `TOTAL: $${total}`, newline: true },
+      { type: 'text', text: `PAYMENT: ${order.payment_status.toUpperCase()}`, newline: true },
       { type: 'feed', lines: 3 },
       { type: 'cut', partial: false },
     ],

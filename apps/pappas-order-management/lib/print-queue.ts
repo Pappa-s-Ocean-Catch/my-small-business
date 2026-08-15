@@ -134,7 +134,8 @@ export async function processPendingPrintJob(jobId: string): Promise<boolean> {
   });
 
   try {
-    await escposPrintOrderImage(startedJob.image, startedJob.printer, startedJob.copies, startedJob.width);
+    if (!startedJob.image) throw new Error('Print job image payload is unavailable.');
+    const dispatch = await escposPrintOrderImage(startedJob.image, startedJob.printer, startedJob.copies, startedJob.width);
     const completedJob = usePrinterAutomationStore.getState().markPrintJobSucceeded(startedJob.id);
     const durationMs = Date.now() - sendStartedAt;
     usePrinterAutomationStore.getState().addJournalEntry({
@@ -143,7 +144,7 @@ export async function processPendingPrintJob(jobId: string): Promise<boolean> {
       message: 'Completed queued print job',
       orderId: startedJob.orderId,
       orderNumber: startedJob.orderNumber,
-      details: `job=${startedJob.label} printer=${startedJob.printer.deviceName} driver=${driver} transport=${transport} queue=${queuedDurationMs}ms dispatch=${durationMs}ms print=${durationMs}ms total=${Math.max(0, Date.now() - startedJob.createdAt)}ms`,
+      details: `job=${startedJob.label} printer=${startedJob.printer.deviceName} driver=${driver} transport=${transport} quality=${dispatch.quality} captureScale=${dispatch.captureScale} requestedWidth=${startedJob.width} queue=${queuedDurationMs}ms dispatch=${durationMs}ms print=${durationMs}ms total=${Math.max(0, Date.now() - startedJob.createdAt)}ms${dispatch.native ? ` nativeCapture=${dispatch.native.captureMs}ms nativeResize=${dispatch.native.resizeMs}ms nativeRaster=${dispatch.native.rasterMs}ms nativeSend=${dispatch.native.sendMs}ms nativeSize=${dispatch.native.width}x${dispatch.native.height} nativeBytes=${dispatch.native.byteLength}` : ''}`,
     });
 
     if (completedJob && !completedJob.silentSuccess && completedJob.source !== 'auto') {

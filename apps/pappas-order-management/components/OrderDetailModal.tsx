@@ -13,7 +13,7 @@ import {
 } from '@/lib/printer-routing';
 import { CustomerReceiptTemplate } from './CustomerReceiptTemplate';
 import { usesIconOnlyOrderDetailActions, usesLandscapeTabletOrderDetailLayout } from '../utils/order-detail-layout';
-import { captureReceiptPreviewAndRaw, type PrinterImageSource } from '@/lib/printer-image';
+import { captureReceiptForPrinter, type PrinterImageSource } from '@/lib/printer-image';
 import { isSimulatorPrinter, type SavedPrinter } from '@/lib/escpos-printer';
 import { ManualPrintButton } from '@/components/printer/ManualPrintButton';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
@@ -286,7 +286,8 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
         const targetDots = appSettings.printerPaperWidth === '58mm' ? 384 : 576;
         const scale = appSettings.printerHighQuality ? 2 : 1;
         
-        const image = await captureReceiptPreviewAndRaw(receiptRef.current, targetDots * scale, appSettings.printerHighQuality);
+        if (!resolvedPrintPrinter) throw new Error('No printer is available for this receipt.');
+        const image = await captureReceiptForPrinter(receiptRef.current, resolvedPrintPrinter, targetDots * scale, appSettings.printerHighQuality);
         success = await onPrintImage(printOrder, image, resolvedPrintPrinter);
       } catch (error) {
         console.error('Manual receipt print failed:', error);
@@ -347,7 +348,8 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       const targetDots = appSettings.printerPaperWidth === '58mm' ? 384 : 576;
       const scale = appSettings.printerHighQuality ? 2 : 1;
 
-      const image = await captureReceiptPreviewAndRaw(customerReceiptRef.current, targetDots * scale, appSettings.printerHighQuality);
+      if (!printer) throw new Error('Select a printer before printing the customer receipt.');
+      const image = await captureReceiptForPrinter(customerReceiptRef.current, printer, targetDots * scale, appSettings.printerHighQuality);
       await onPrintCustomerCopyImage(printOrder, image, printer);
     } catch (error) {
       console.error('Failed to capture customer receipt:', error);

@@ -15,14 +15,16 @@ export const groupAddons = (addons: OrderItemAddon[]) => {
   }> = {};
   
   addons.forEach(addon => {
-    // Group by name + price + group name to be safe
-    // We avoid using addon_item_id because it might be unique per order entry in some DB schemas
-    const key = `${addon.addon_item_name}-${addon.addon_group_name}-${addon.addon_item_price}-${addon.section || ''}`;
+    // This helper is called with one parent product's add-ons, so group only
+    // same-name, same-price selections even when they come from different groups.
+    // We avoid using addon_item_id because it might be unique per order entry in some DB schemas.
+    const name = addon.addon_item_name.trim();
+    const key = `${name}-${addon.addon_item_price}`;
     if (grouped[key]) {
       grouped[key].quantity += 1;
     } else {
       grouped[key] = {
-        name: addon.addon_item_name,
+        name,
         group: addon.addon_group_name,
         price: addon.addon_item_price,
         quantity: 1

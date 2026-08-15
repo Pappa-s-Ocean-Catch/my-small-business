@@ -2343,6 +2343,7 @@ export default function PosScreen() {
       return;
     }
     if (result.data?.id) {
+      void printInstoreInstantTicket(result.data);
       await applyRewardPointsForSavedOrder(result.data.id, customerId);
       if (paymentStatus === 'paid') {
         await printInstoreCustomerReceipt(result.data);

@@ -13,6 +13,27 @@ test('receipt printing only exposes the image transport', () => {
   assert.doesNotMatch(escposPrinterSource, /buildRawKitchenReceiptBytes/);
 });
 
+test('Raw TCP printing is native-only and keeps no JavaScript raster fallback', () => {
+  const printerSource = source('lib/escpos-printer.ts');
+  const imageSource = source('lib/printer-image.ts');
+
+  assert.match(printerSource, /Native Raw TCP is unavailable/);
+  assert.doesNotMatch(printerSource, /escpos-raster/);
+  assert.doesNotMatch(printerSource, /buildRawImagePrintBytes/);
+  assert.match(imageSource, /kind: 'native-view'/);
+  assert.doesNotMatch(imageSource, /png-base64/);
+  assert.doesNotMatch(imageSource, /captureReceiptPreviewAndRaw/);
+});
+
+test('physical print journal records image quality and native Raw TCP timings', () => {
+  const queueSource = source('lib/print-queue.ts');
+
+  assert.match(queueSource, /quality=/);
+  assert.match(queueSource, /captureScale=/);
+  assert.match(queueSource, /nativeCapture=/);
+  assert.match(queueSource, /nativeRaster=/);
+});
+
 test('order actions contain no system or text receipt fallbacks', () => {
   const orderActionsSource = source('hooks/useOrderActions.ts');
   const detailScreenSource = source('app/order-detail.tsx');
@@ -55,4 +76,14 @@ test('report printing uses the existing image pipeline at 80mm', () => {
   assert.match(reportSource, /REPORT_RECEIPT_WIDTH/);
   assert.match(reportSource, /isSimulatorPrinter/);
   assert.doesNotMatch(reportSource, /Print\.printAsync|generatePrintHTML/);
+});
+
+test('in-store checkout requests an instant ticket for every newly created in-store order', () => {
+  const posSource = source('app/pos.tsx');
+  const instoreCheckout = posSource.slice(
+    posSource.indexOf('const handleInstoreCheckout'),
+    posSource.indexOf('const handleThirdPartyCheckout'),
+  );
+
+  assert.match(instoreCheckout, /if \(result\.data\?\.id\) \{[\s\S]*void printInstoreInstantTicket\(result\.data\);/);
 });

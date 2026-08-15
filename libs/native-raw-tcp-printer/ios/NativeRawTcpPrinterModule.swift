@@ -4,7 +4,7 @@ import UIKit
 import CryptoKit
 
 private struct PrinterOptions {
-  let viewTag: Int; let host: String; let port: UInt16; let width: Int; let copies: Int; let operation: String; let timeoutMs: Int
+  let viewTag: Int; let host: String; let port: UInt16; let width: Int; let copies: Int; let captureScale: CGFloat; let timeoutMs: Int
 }
 private struct Raster { let width: Int; let height: Int; let rgba: [UInt8] }
 private struct NativeFailure: Error { let code: String; let phase: String; let message: String }
@@ -30,20 +30,18 @@ public final class NativeRawTcpPrinterModule: Module {
       do {
         let options = try Self.parse(input)
         let captureStart = DispatchTime.now().uptimeNanoseconds
-        let image = try await MainActor.run { try self.capture(tag: options.viewTag) }
+        let image = try await MainActor.run { try self.capture(tag: options.viewTag, scale: options.captureScale) }
         let captureEnd = DispatchTime.now().uptimeNanoseconds
         let raster = try Self.resize(try Self.rgba(image), maxWidth: options.width)
         let resizeEnd = DispatchTime.now().uptimeNanoseconds
         let bytes = Self.escPos(raster)
         let rasterEnd = DispatchTime.now().uptimeNanoseconds
         var sendMs: UInt64 = 0
-        if options.operation == "print" {
-          let sendStart = DispatchTime.now().uptimeNanoseconds
-          let target = options.host.lowercased() + ":" + String(options.port)
-          try await PrinterQueues.shared.run(key: target) { try await Self.send(bytes, options: options) }
-          sendMs = Self.elapsed(sendStart)
-        }
-        return ["ok": true, "captureMs": Self.elapsed(captureStart, captureEnd), "resizeMs": Self.elapsed(captureEnd, resizeEnd), "rasterMs": Self.elapsed(resizeEnd, rasterEnd), "sendMs": sendMs, "totalMs": Self.elapsed(started), "width": raster.width, "height": raster.height, "byteLength": bytes.count, "fnv1a32": Self.fnv1a32(bytes), "sent": options.operation == "print"]
+        let sendStart = DispatchTime.now().uptimeNanoseconds
+        let target = options.host.lowercased() + ":" + String(options.port)
+        try await PrinterQueues.shared.run(key: target) { try await Self.send(bytes, options: options) }
+        sendMs = Self.elapsed(sendStart)
+        return ["ok": true, "captureMs": Self.elapsed(captureStart, captureEnd), "resizeMs": Self.elapsed(captureEnd, resizeEnd), "rasterMs": Self.elapsed(resizeEnd, rasterEnd), "sendMs": sendMs, "totalMs": Self.elapsed(started), "width": raster.width, "height": raster.height, "byteLength": bytes.count, "fnv1a32": Self.fnv1a32(bytes), "sent": true]
       } catch let failure as NativeFailure {
         return ["ok": false, "error": ["code": failure.code, "phase": failure.phase, "message": failure.message], "totalMs": Self.elapsed(started)]
       } catch {
@@ -52,18 +50,17 @@ public final class NativeRawTcpPrinterModule: Module {
     }
   }
 
-  private func capture(tag: Int) throws -> UIImage {
+  private func capture(tag: Int, scale: CGFloat) throws -> UIImage {
     guard let view: UIView = appContext?.findView(withTag: tag, ofType: UIView.self) else { throw NativeFailure(code: "VIEW_NOT_FOUND", phase: "capture", message: "Receipt view was not found") }
     guard view.bounds.width > 0 && view.bounds.height > 0 else { throw NativeFailure(code: "CAPTURE_FAILED", phase: "capture", message: "Receipt view has no size") }
-    let renderer = UIGraphicsImageRenderer(bounds: view.bounds)
+    let renderer = UIGraphicsImageRenderer(bounds: view.bounds, format: { let format = UIGraphicsImageRendererFormat(); format.scale = scale; return format }())
     return renderer.image { _ in view.drawHierarchy(in: view.bounds, afterScreenUpdates: true) }
   }
 
   private static func parse(_ value: [String: Any]) throws -> PrinterOptions {
     guard let viewTag = value["viewTag"] as? Int, let host = value["host"] as? String, let port = value["port"] as? Int, let width = value["width"] as? Int, let copies = value["copies"] as? Int, let timeoutMs = value["timeoutMs"] as? Int else { throw NativeFailure(code: "INVALID_OPTIONS", phase: "options", message: "Missing printer options") }
-    let operation = value["operation"] as? String ?? "print"
-    guard !host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, (1...65535).contains(port), width >= 8, (1...10).contains(copies), timeoutMs > 0, operation == "print" || operation == "diagnostic" else { throw NativeFailure(code: "INVALID_OPTIONS", phase: "options", message: "Invalid printer options") }
-    return PrinterOptions(viewTag: viewTag, host: host, port: UInt16(port), width: width, copies: copies, operation: operation, timeoutMs: timeoutMs)
+    guard let captureScale = value["captureScale"] as? Double, !host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, (1...65535).contains(port), width >= 8, (1...10).contains(copies), timeoutMs > 0, (1...2).contains(captureScale) else { throw NativeFailure(code: "INVALID_OPTIONS", phase: "options", message: "Invalid printer options") }
+    return PrinterOptions(viewTag: viewTag, host: host, port: UInt16(port), width: width, copies: copies, captureScale: CGFloat(captureScale), timeoutMs: timeoutMs)
   }
 
   private static func rgba(_ image: UIImage) throws -> Raster {

@@ -420,7 +420,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
         } else {
           const captureStartedAt = Date.now();
           const image = await captureReceiptForPrinter(receiptRef, job.printer, targetDots * scale, effectiveSettings.printerHighQuality);
-          const previewUri = image.kind === 'uri' ? image.uri : await captureReceiptPreview(receiptRef, targetDots * scale);
+          const previewUri = image.kind === 'uri' ? image.uri : null;
           logOrderEvent('info', 'print', 'Captured receipt image for auto-print job', {
             order: freshOrder,
             details: `job=${job.label} capture=${formatDurationMs(captureStartedAt)} printer=${job.printer.deviceName} driver=${job.printer.driver ?? 'epsonSdk'}`,

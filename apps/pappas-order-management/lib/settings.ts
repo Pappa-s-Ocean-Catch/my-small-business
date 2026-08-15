@@ -6,7 +6,6 @@ import {
     type SavedPrinter,
 } from './escpos-printer';
 import { normalizeDiagnosticSettings } from './settings-diagnostics';
-import { normalizeRawTcpNativeMode, type RawTcpNativeMode } from './raw-tcp-native-settings';
 import { normalizeInstoreCustomerReceiptSettings } from './instore-customer-receipt';
 import { normalizeInstoreInstantTicketSettings } from './instore-instant-ticket';
 
@@ -144,9 +143,6 @@ export type AppSettings = {
 
     printerPaperWidth: '58mm' | '80mm';
     printerHighQuality: boolean;
-    /** Per-platform native raw-TCP rollout mode. Defaults to safe JavaScript printing. */
-    rawTcpNativeModeAndroid: RawTcpNativeMode;
-    rawTcpNativeModeIos: RawTcpNativeMode;
     /** Include device-local diagnostic information on kitchen tickets when enabled. */
     printerDebugFooter: boolean;
 };
@@ -218,8 +214,6 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     printerDelayPrintSec: 3,
     printerPaperWidth: '80mm',
     printerHighQuality: true,
-    rawTcpNativeModeAndroid: 'js-only',
-    rawTcpNativeModeIos: 'js-only',
     printerDebugFooter: false,
 };
 
@@ -329,8 +323,6 @@ export async function loadAppSettings(): Promise<AppSettings> {
             printerHighQuality: typeof (parsed as any)?.printerHighQuality === 'boolean'
                 ? (parsed as any).printerHighQuality
                 : DEFAULT_APP_SETTINGS.printerHighQuality,
-            rawTcpNativeModeAndroid: normalizeRawTcpNativeMode((parsed as any)?.rawTcpNativeModeAndroid),
-            rawTcpNativeModeIos: normalizeRawTcpNativeMode((parsed as any)?.rawTcpNativeModeIos),
             printerDebugFooter: diagnosticSettings.printerDebugFooter,
         };
         cachedSettings = result;
@@ -370,8 +362,6 @@ export async function saveAppSettings(settings: AppSettings): Promise<void> {
         printerDelayPrintSec: clampInt(settings.printerDelayPrintSec, 0, 120),
         printerPaperWidth: settings.printerPaperWidth === '58mm' ? '58mm' : '80mm',
         printerHighQuality: !!settings.printerHighQuality,
-        rawTcpNativeModeAndroid: normalizeRawTcpNativeMode(settings.rawTcpNativeModeAndroid),
-        rawTcpNativeModeIos: normalizeRawTcpNativeMode(settings.rawTcpNativeModeIos),
         printerDebugFooter: diagnosticSettings.printerDebugFooter,
     };
 
