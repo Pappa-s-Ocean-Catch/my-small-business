@@ -153,7 +153,7 @@ export function buildKitchenReceiptDocument(order: Order, options: KitchenReceip
         const itemLabel = `${item.quantity}x ${item.product_name.toUpperCase()}`;
         const itemPrice = isFreePromotionOrderItem(order, item.product_name) ? 'FREE' : `$${money(lineTotal)}`;
         const itemWidth = width;
-        for (const line of wrap(`${itemLabel} - ${itemPrice}`, itemWidth)) addText(nodes, line, bold);
+        for (const line of wrap(`${itemLabel} - ${itemPrice}`, itemWidth)) addText(nodes, line, { ...bold, doubleStrike: true });
         if (isFreePromotionOrderItem(order, item.product_name)) addText(nodes, `$${money(lineTotal)} original`, { align: 'right' });
         for (const ingredient of item.removed_ingredients || []) addWrapped(nodes, `No ${ingredient}`, width, bold);
         for (const addon of groupAddons(item.addons || [])) {

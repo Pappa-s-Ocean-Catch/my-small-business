@@ -17,6 +17,7 @@ function pushTextStyle(bytes: number[], style: EscPosTextStyle | undefined) {
   bytes.push(
     ESC, 0x61, align,
     ESC, 0x45, style?.bold ? 1 : 0,
+    ESC, 0x47, style?.doubleStrike ? 1 : 0,
     ESC, 0x2d, style?.underline ? 1 : 0,
     GS, 0x42, style?.invert ? 1 : 0,
     ESC, 0x4d, font,

@@ -105,6 +105,15 @@ test('does not invoke the iOS-crashing raw Epson command bridge', () => {
   assert.doesNotMatch(source('lib/escpos-printer.ts'), /device\.addCommand\(/);
 });
 
+test('encodes double-strike text without changing its width', () => {
+  const bytes = buildDocumentPrintJob({
+    nodes: [{ type: 'text', text: 'ITEM', style: { bold: true, doubleStrike: true }, newline: true }],
+  });
+
+  assert.ok(bytes.some((byte, index) => byte === 0x1b && bytes[index + 1] === 0x47 && bytes[index + 2] === 1));
+  assert.ok(bytes.some((byte, index) => byte === 0x1d && bytes[index + 1] === 0x21 && bytes[index + 2] === 0));
+});
+
 test('preserves document newline nodes for Epson text printing', () => {
   assert.match(
     source('lib/escpos-printer.ts'),

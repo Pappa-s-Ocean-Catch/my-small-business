@@ -83,6 +83,8 @@ export type EscPosTextStyle = {
   bold?: boolean;
   underline?: boolean;
   invert?: boolean;
+  /** Raw ESC/POS double-strike for stronger text without changing its dimensions. */
+  doubleStrike?: boolean;
   font?: 'A' | 'B';
   widthScale?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
   heightScale?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;

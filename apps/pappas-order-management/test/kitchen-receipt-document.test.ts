@@ -192,7 +192,7 @@ test('uses a hyphen between an item and price without alignment padding', () => 
   const firstItem = document.nodes[firstItemIndex];
 
   assert.deepEqual(firstItem, {
-    type: 'text', text: '1x FIRST BURGER - $14.90', style: { bold: true }, newline: true,
+    type: 'text', text: '1x FIRST BURGER - $14.90', style: { bold: true, doubleStrike: true }, newline: true,
   });
   assert.equal((firstItem as Extract<typeof firstItem, { type: 'text' }>).text.includes('  $'), false);
   assert.deepEqual(document.nodes[firstItemIndex + 1], { type: 'feed', lines: 1 });
