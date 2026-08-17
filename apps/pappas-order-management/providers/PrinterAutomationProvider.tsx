@@ -30,6 +30,8 @@ import { CustomerReceiptTemplate } from '@/components/CustomerReceiptTemplate';
 import { shouldPlayOrderSound } from '@/utils/orderUtils';
 import { getPrintDeviceId } from '@/lib/print-device';
 import { getInstoreCustomerReceiptPrintJob } from '@/lib/instore-customer-receipt';
+import { buildKitchenReceiptDocument } from '@/lib/kitchen-receipt-document';
+import { getOrderPrintIntegrityWarning } from '@/lib/order-print-integrity';
 import { buildInstoreInstantTicketDocument, getInstoreInstantTicketDebugDetails, getInstoreInstantTicketPrintJob } from '@/lib/instore-instant-ticket';
 import { getAutoPrintableLiveOrders } from '@/lib/live-order-window';
 import { getOrderAnnouncementDelayMs } from '@/lib/marketplace-print-scheduling';
@@ -359,6 +361,29 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
       for (let index = 0; index < jobs.length; index += 1) {
         const job = jobs[index];
         const jobStartedAt = Date.now();
+        if (effectiveSettings.printerReceiptMode === 'text' && job.printer && !isSimulatorPrinter(job.printer)) {
+          if (!effectiveSettings.printerEnabled) throw new Error('Auto-print is enabled, but no printer is selected.');
+          const queuedJobs = enqueuePreparedPrintJobs({
+            order: freshOrder,
+            source: 'auto',
+            scope: 'auto-print',
+            jobs: [{
+              document: buildKitchenReceiptDocument(freshOrder, {
+                paperWidth: effectiveSettings.printerPaperWidth,
+                onlyTicketIndex: job.onlyTicketIndex,
+                duplicateBySections: job.duplicateBySections,
+                printDebugContext: null,
+              }),
+              printer: job.printer,
+              width: targetDots,
+              label: job.printer.deviceName,
+            }],
+            silentSuccess: true,
+          });
+          const queueResult = await waitForPrintJobs(queuedJobs.map((queuedJob) => queuedJob.id));
+          if (!queueResult.success) throw new Error(queueResult.failedJobs[0]?.error || 'Queued text print job failed');
+          continue;
+        }
         setTempPrintTicketIndex(job.onlyTicketIndex ?? 0);
         setTempPrintDuplicateBySections(job.duplicateBySections);
         setTempPrintTemplate(job.template);
@@ -583,7 +608,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
 
     try {
       const result = await getOrder(orderId);
-      const order = result.data;
+      let order = result.data;
       const isPrintableStatus = order?.order_status === 'pending' || order?.order_status === 'confirmed';
 
       if (!order || !isPrintableStatus || order.payment_status === 'refunded') {
@@ -595,24 +620,31 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
         return;
       }
 
-      if (!order.items || order.items.length === 0) {
+      const integrityWarning = getOrderPrintIntegrityWarning(order);
+      if (!order.items || order.items.length === 0 || integrityWarning) {
         if (attempt < 3) {
-          logOrderEvent('decision', 'scheduler', 'Retrying because order items are not ready yet', {
+          logOrderEvent('decision', 'scheduler', 'Retrying because order print data is not ready yet', {
             order,
-            details: `Retry ${attempt + 2} scheduled in 1000ms`,
+            details: `${integrityWarning || 'Order items are empty'} • Retry ${attempt + 2} scheduled in 1000ms`,
           });
           const retryTimer = setTimeout(() => {
             pendingAnnouncementTimersRef.current.delete(orderId);
             void fetchAndAnnounceOrder(orderId, attempt + 1);
           }, 1000);
           pendingAnnouncementTimersRef.current.set(orderId, retryTimer);
-        } else {
+          return;
+        } else if (!order.items || order.items.length === 0) {
           logOrderEvent('error', 'scheduler', 'Order items still missing after retries', {
             order,
             details: 'Auto workflow stopped before printing',
           });
+          return;
+        } else {
+          logOrderEvent('error', 'scheduler', 'Order totals still mismatch after retries', {
+            order,
+            details: `${integrityWarning} • Printing with receipt warning`,
+          });
         }
-        return;
       }
 
       await announceAndPrintOrder(order);

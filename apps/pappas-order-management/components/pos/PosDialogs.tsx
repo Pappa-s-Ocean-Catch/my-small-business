@@ -13,6 +13,7 @@ type Props = {
   onConfirmCashTender: () => void;
   smartpayProcessing: boolean;
   smartpayOrderNumber: string | null;
+  smartpayDialogMinimized: boolean;
   confirmDismissSmartpayLock: () => void;
   saltOptionDialogVisible: boolean;
   setSaltOptionDialogVisible: (visible: boolean) => void;
@@ -48,6 +49,7 @@ export function PosDialogs({
   onConfirmCashTender,
   smartpayProcessing,
   smartpayOrderNumber,
+  smartpayDialogMinimized,
   confirmDismissSmartpayLock,
   saltOptionDialogVisible,
   setSaltOptionDialogVisible,
@@ -95,7 +97,7 @@ export function PosDialogs({
 
       <Portal>
         <Dialog
-          visible={smartpayProcessing}
+          visible={smartpayProcessing && !smartpayDialogMinimized}
           dismissable
           onDismiss={confirmDismissSmartpayLock}
           style={styles.smartpayDialog}

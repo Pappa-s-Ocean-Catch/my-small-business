@@ -110,6 +110,7 @@ type Props = {
   orderNoteText: string;
   setOrderNoteText: (value: string) => void;
   creatingOrder: boolean;
+  smartpayPreparing: boolean;
   smartpayProcessing: boolean;
   orderId?: string;
   checkoutPrimaryLabel: string;
@@ -221,6 +222,7 @@ export function PosMenuPane(props: Props) {
     orderNoteText,
     setOrderNoteText,
     creatingOrder,
+    smartpayPreparing,
     smartpayProcessing,
     orderId,
     checkoutPrimaryLabel,
@@ -618,6 +620,7 @@ export function PosMenuPane(props: Props) {
           orderNoteText={orderNoteText}
           setOrderNoteText={setOrderNoteText}
           creatingOrder={creatingOrder}
+          smartpayPreparing={smartpayPreparing}
           smartpayProcessing={smartpayProcessing}
           orderId={orderId}
           checkoutPrimaryLabel={checkoutPrimaryLabel}

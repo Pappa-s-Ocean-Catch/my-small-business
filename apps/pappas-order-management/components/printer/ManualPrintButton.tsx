@@ -51,6 +51,7 @@ export function ManualPrintButton({
         icon={icon}
         size={18}
         onPress={handlePress}
+        loading={loading}
         disabled={disabled || loading}
         accessibilityLabel={label}
         style={style}

@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import test from 'node:test';
 import type { Order } from '@my-small-business/types';
 import {
@@ -8,6 +10,8 @@ import {
   normalizeInstoreInstantTicketSettings,
 } from '../lib/instore-instant-ticket';
 import { buildDocumentPrintJob } from '../lib/escpos-document';
+
+const source = (path: string) => readFileSync(join(process.cwd(), path), 'utf8');
 
 function makeOrder(overrides: Partial<Order> = {}): Order {
   return {
@@ -33,22 +37,32 @@ test('routes enabled in-store store orders only to a saved printer', () => {
     instoreInstantTicketPrinterTarget: 'TCP:192.168.1.20',
   };
 
-  assert.deepEqual(getInstoreInstantTicketPrintJob(makeOrder(), settings, ['TCP:192.168.1.20']), {
+  assert.deepEqual(getInstoreInstantTicketPrintJob(makeOrder({ payment_status: 'paid' }), settings, ['TCP:192.168.1.20']), {
     printerTarget: 'TCP:192.168.1.20',
     priority: 'instant-ticket',
   });
-  assert.equal(getInstoreInstantTicketPrintJob(makeOrder({ order_channel: 'phone_pickup' }), settings, ['TCP:192.168.1.20']), null);
-  assert.equal(getInstoreInstantTicketPrintJob(makeOrder({ payment_method: 'online' }), settings, ['TCP:192.168.1.20']), null);
-  assert.equal(getInstoreInstantTicketPrintJob(makeOrder(), settings, []), null);
+  assert.equal(getInstoreInstantTicketPrintJob(makeOrder({ order_channel: 'phone_pickup', payment_status: 'paid' }), settings, ['TCP:192.168.1.20']), null);
+  assert.equal(getInstoreInstantTicketPrintJob(makeOrder({ payment_method: 'online', payment_status: 'paid' }), settings, ['TCP:192.168.1.20']), null);
+  assert.equal(getInstoreInstantTicketPrintJob(makeOrder({ payment_status: 'paid' }), settings, []), null);
+});
+
+test('does not route a pending in-store payment to the instant-ticket printer', () => {
+  assert.equal(
+    getInstoreInstantTicketPrintJob(makeOrder({ payment_status: 'pending' }), {
+      instoreInstantTicketEnabled: true,
+      instoreInstantTicketPrinterTarget: 'TCP:192.168.1.20',
+    }, ['TCP:192.168.1.20']),
+    null,
+  );
 });
 
 test('reports the exact instant ticket eligibility inputs for the print journal', () => {
   assert.equal(
-    getInstoreInstantTicketDebugDetails(makeOrder({ order_channel: 'phone_pickup' }), {
+    getInstoreInstantTicketDebugDetails(makeOrder({ order_channel: 'phone_pickup', payment_status: 'paid' }), {
       instoreInstantTicketEnabled: true,
       instoreInstantTicketPrinterTarget: 'TCP:192.168.1.20',
     }, ['TCP:192.168.1.20']),
-    'enabled=true target=TCP:192.168.1.20 saved=true channel=phone_pickup method=store eligible=false',
+    'enabled=true target=TCP:192.168.1.20 saved=true channel=phone_pickup method=store payment=paid eligible=false',
   );
 });
 
@@ -85,4 +99,15 @@ test('creates a text-only ticket without customisations', () => {
   assert.deepEqual(doc.nodes.at(-1), { type: 'cut', partial: false });
   const bytes = buildDocumentPrintJob(doc);
   assert.equal(bytes.includes(0x2a), false);
+});
+
+test('does not invoke the iOS-crashing raw Epson command bridge', () => {
+  assert.doesNotMatch(source('lib/escpos-printer.ts'), /device\.addCommand\(/);
+});
+
+test('preserves document newline nodes for Epson text printing', () => {
+  assert.match(
+    source('lib/escpos-printer.ts'),
+    /device\.addText\(node\.newline !== false \? `\$\{node\.text\}\\n` : node\.text\)/,
+  );
 });

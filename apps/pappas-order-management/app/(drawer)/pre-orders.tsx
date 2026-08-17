@@ -35,6 +35,7 @@ import { useAppSettingsQuery } from '@/hooks/useAppSettingsQuery';
 import { PRE_ORDERS_QUERY_KEY, usePreOrdersQuery } from '@/hooks/useLiveOrdersQuery';
 import { captureReceiptForPrinter, captureReceiptPreview, type PrinterImageSource } from '@/lib/printer-image';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
+import { buildKitchenReceiptDocument } from '@/lib/kitchen-receipt-document';
 import { CustomerReceiptTemplate } from '@/components/CustomerReceiptTemplate';
 import { isSimulatorPrinter, type SavedPrinter } from '@/lib/escpos-printer';
 import { buildSectionPrintJobs, hasAnySimulatorAssignment } from '@/lib/printer-routing';
@@ -135,6 +136,9 @@ export default function PreOrdersScreen() {
     let claimedDeviceId: string | null = null;
     let shouldReleaseClaim = false;
 
+    setIsCapturing(true);
+    setPrintingOrderId(order.id);
+
     try {
       if (!printDeviceIdRef.current) {
         printDeviceIdRef.current = await getPrintDeviceId();
@@ -178,9 +182,6 @@ export default function PreOrdersScreen() {
         `sectionRules=${s.printerSectionAssignments.length}`,
       ].join(', ');
       console.log('[PreOrders] Resolved manual print settings:', printSettingsDetails);
-      setIsCapturing(true);
-      setPrintingOrderId(order.id);
-      
       // Update the hidden template with this order
       setTempPrintingOrder(freshOrder);
       setTempPrintSource('pre-orders:manual-list-print');
@@ -188,6 +189,15 @@ export default function PreOrdersScreen() {
       const targetDots = s.printerPaperWidth === '58mm' ? 384 : 576;
       const scale = s.printerHighQuality ? 2 : 1;
       if (selectedPrinter) {
+        if (s.printerReceiptMode === 'text' && !isSimulatorPrinter(selectedPrinter)) {
+          const queuedJobs = enqueuePreparedPrintJobs({ order: freshOrder, source: 'manual', scope: 'pre-orders:manual-direct', jobs: [{ document: buildKitchenReceiptDocument(freshOrder, { paperWidth: s.printerPaperWidth, duplicateBySections: false, printDebugContext: null }), printer: selectedPrinter, width: targetDots, label: selectedPrinter.deviceName }] });
+          const queueResult = await waitForPrintJobs(queuedJobs.map((job) => job.id));
+          if (!queueResult.success) throw new Error(queueResult.failedJobs[0]?.error || 'Queued text print job failed');
+          const completion = await completeKitchenPrintClaim(order.id, claimedDeviceId);
+          if (!completion.completed) throw new Error(completion.error || 'Failed to complete kitchen print claim');
+          shouldReleaseClaim = false;
+          return;
+        }
         setTempPrintTicketIndex(0);
         setTempPrintDuplicateBySections(false);
         setTempPrintDebugContext(buildKitchenPrintDebugContext({

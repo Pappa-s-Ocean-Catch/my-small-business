@@ -8,6 +8,7 @@ import {
 import { normalizeDiagnosticSettings } from './settings-diagnostics';
 import { normalizeInstoreCustomerReceiptSettings } from './instore-customer-receipt';
 import { normalizeInstoreInstantTicketSettings } from './instore-instant-ticket';
+import { normalizePrinterReceiptMode, type PrinterReceiptMode } from './receipt-print-mode';
 
 function isSavedPrinter(value: unknown): value is SavedPrinter {
     const v = value as any;
@@ -142,6 +143,7 @@ export type AppSettings = {
     printerDelayPrintSec: number;
 
     printerPaperWidth: '58mm' | '80mm';
+    printerReceiptMode: PrinterReceiptMode;
     printerHighQuality: boolean;
     /** Include device-local diagnostic information on kitchen tickets when enabled. */
     printerDebugFooter: boolean;
@@ -213,6 +215,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
 
     printerDelayPrintSec: 3,
     printerPaperWidth: '80mm',
+    printerReceiptMode: 'text',
     printerHighQuality: true,
     printerDebugFooter: false,
 };
@@ -320,6 +323,7 @@ export async function loadAppSettings(): Promise<AppSettings> {
 
             printerDelayPrintSec,
             printerPaperWidth: parsed?.printerPaperWidth === '58mm' ? '58mm' : '80mm',
+            printerReceiptMode: normalizePrinterReceiptMode(parsed?.printerReceiptMode),
             printerHighQuality: typeof (parsed as any)?.printerHighQuality === 'boolean'
                 ? (parsed as any).printerHighQuality
                 : DEFAULT_APP_SETTINGS.printerHighQuality,
@@ -361,6 +365,7 @@ export async function saveAppSettings(settings: AppSettings): Promise<void> {
 
         printerDelayPrintSec: clampInt(settings.printerDelayPrintSec, 0, 120),
         printerPaperWidth: settings.printerPaperWidth === '58mm' ? '58mm' : '80mm',
+        printerReceiptMode: normalizePrinterReceiptMode(settings.printerReceiptMode),
         printerHighQuality: !!settings.printerHighQuality,
         printerDebugFooter: diagnosticSettings.printerDebugFooter,
     };

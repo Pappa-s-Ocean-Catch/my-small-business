@@ -21,10 +21,6 @@ const TCP_TARGET_PREFIX = 'TCP:';
 const SIMULATOR_TARGET_PREFIX = 'SIMULATOR:';
 export const DEFAULT_MANUAL_PRINTER_PORT = 9100;
 export const DEFAULT_SIMULATOR_PRINTER_NAME = 'Print Simulator';
-const ESC = 0x1b;
-const GS = 0x1d;
-const LF = 0x0a;
-
 type EscPosModule = typeof import('react-native-esc-pos-printer');
 type TcpSocketModule = typeof import('react-native-tcp-socket');
 type EscPosPrinterInstance = InstanceType<EscPosModule['Printer']>;
@@ -366,7 +362,12 @@ export async function escposPrintDocument(document: EscPosDocument, printer: Sav
 
     await withConnectedPrinter(printer, async (device) => {
       for (const node of document.nodes) {
-        if (node.type === 'text') await device.addText(node.text);
+        if (node.type === 'text') {
+          await device.addTextAlign(node.style?.align === 'center' ? 1 : node.style?.align === 'right' ? 2 : 0);
+          await device.addTextSize({ width: node.style?.widthScale ?? 1, height: node.style?.heightScale ?? 1 });
+          await device.addTextStyle({ em: node.style?.bold ? 1 : 0, reverse: node.style?.invert ? 1 : 0, ul: node.style?.underline ? 1 : 0 });
+          await device.addText(node.newline !== false ? `${node.text}\n` : node.text);
+        }
         if (node.type === 'feed') await device.addText('\n'.repeat(node.lines ?? 1));
         if (node.type === 'cut') await device.addCut();
       }

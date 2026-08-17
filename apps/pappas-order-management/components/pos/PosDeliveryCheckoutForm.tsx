@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { Button, TextInput } from 'react-native-paper';
 
 import { styles } from './pos.styles';
@@ -89,6 +89,7 @@ export function PosDeliveryCheckoutForm({
   const [quote, setQuote] = useState<DeliveryQuoteResult | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [loadingAddressDetails, setLoadingAddressDetails] = useState(false);
+  const [loadingAddressPlaceId, setLoadingAddressPlaceId] = useState<string | null>(null);
   const [calculatingFees, setCalculatingFees] = useState(false);
   const [feeSummary, setFeeSummary] = useState<DeliveryFeeSummary | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -124,6 +125,7 @@ export function PosDeliveryCheckoutForm({
   }, [addressQuery, selectedAddress]);
 
   const chooseSuggestion = async (suggestion: AddressSuggestion) => {
+    setLoadingAddressPlaceId(suggestion.placeId);
     try {
       setLoadingAddressDetails(true);
       setQuoteError(null);
@@ -137,6 +139,7 @@ export function PosDeliveryCheckoutForm({
       setQuoteError(error instanceof Error ? error.message : 'Failed to load address details');
     } finally {
       setLoadingAddressDetails(false);
+      setLoadingAddressPlaceId(null);
     }
   };
 
@@ -242,11 +245,17 @@ export function PosDeliveryCheckoutForm({
                   key={suggestion.placeId}
                   style={styles.deliverySuggestionCard}
                   onPress={() => void chooseSuggestion(suggestion)}
+                  disabled={loadingAddressDetails}
                 >
-                  <Text style={styles.deliverySuggestionTitle}>{suggestion.mainText}</Text>
-                  {!!suggestion.secondaryText && (
-                    <Text style={styles.deliverySuggestionMeta}>{suggestion.secondaryText}</Text>
-                  )}
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.deliverySuggestionTitle}>{suggestion.mainText}</Text>
+                    {!!suggestion.secondaryText && (
+                      <Text style={styles.deliverySuggestionMeta}>{suggestion.secondaryText}</Text>
+                    )}
+                  </View>
+                  {loadingAddressPlaceId === suggestion.placeId ? (
+                    <ActivityIndicator size="small" color="#2563eb" />
+                  ) : null}
                 </TouchableOpacity>
               ))}
             </View>

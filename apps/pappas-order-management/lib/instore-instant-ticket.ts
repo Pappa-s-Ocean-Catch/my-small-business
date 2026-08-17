@@ -19,7 +19,7 @@ export function normalizeInstoreInstantTicketSettings(value: unknown): InstoreIn
 }
 
 export function getInstoreInstantTicketPrintJob(
-  order: Pick<Order, 'order_channel' | 'payment_method'>,
+  order: Pick<Order, 'order_channel' | 'payment_method' | 'payment_status'>,
   settings: InstoreInstantTicketSettings,
   savedTargets: string[],
 ): { printerTarget: string; priority: 'instant-ticket' } | null {
@@ -28,6 +28,7 @@ export function getInstoreInstantTicketPrintJob(
     || !printerTarget
     || order.order_channel !== 'instore'
     || order.payment_method !== 'store'
+    || order.payment_status !== 'paid'
     || !savedTargets.includes(printerTarget)) {
     return null;
   }
@@ -36,14 +37,14 @@ export function getInstoreInstantTicketPrintJob(
 }
 
 export function getInstoreInstantTicketDebugDetails(
-  order: Pick<Order, 'order_channel' | 'payment_method'>,
+  order: Pick<Order, 'order_channel' | 'payment_method' | 'payment_status'>,
   settings: InstoreInstantTicketSettings,
   savedTargets: string[],
 ): string {
   const target = settings.instoreInstantTicketPrinterTarget;
   const saved = Boolean(target && savedTargets.includes(target));
   const eligible = Boolean(getInstoreInstantTicketPrintJob(order, settings, savedTargets));
-  return `enabled=${settings.instoreInstantTicketEnabled} target=${target ?? 'none'} saved=${saved} channel=${order.order_channel} method=${order.payment_method} eligible=${eligible}`;
+  return `enabled=${settings.instoreInstantTicketEnabled} target=${target ?? 'none'} saved=${saved} channel=${order.order_channel} method=${order.payment_method} payment=${order.payment_status} eligible=${eligible}`;
 }
 
 export function buildInstoreInstantTicketDocument(
@@ -93,4 +94,4 @@ export type EscPosDocumentNode =
   | { type: 'cut'; partial?: boolean };
 
 /** Structural subset of @my-small-business/escpos-printer's document contract. */
-export type EscPosDocument = { initialize?: boolean; nodes: EscPosDocumentNode[] };
+export type EscPosDocument = { initialize?: boolean; paperWidth?: '58mm' | '80mm'; nodes: EscPosDocumentNode[] };

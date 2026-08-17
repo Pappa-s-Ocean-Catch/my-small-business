@@ -624,6 +624,8 @@ export const styles = StyleSheet.create({
   },
   deliverySuggestionList: { gap: 8 },
   deliverySuggestionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: '#dbeafe',
     borderRadius: 8,

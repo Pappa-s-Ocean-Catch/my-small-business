@@ -18,6 +18,7 @@ import {
   getKitchenPrintDebugFooterLines,
   type KitchenPrintDebugContext,
 } from '../lib/print-debug-footer';
+import { getOrderPrintIntegrityWarning } from '../lib/order-print-integrity';
 
 interface ReceiptTemplateProps {
   order: Order;
@@ -89,6 +90,7 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
     )
     : [combinedTicket];
   const printDebugLines = getKitchenPrintDebugFooterLines(printDebugContext);
+  const integrityWarning = getOrderPrintIntegrityWarning(order);
 
   return (
     <View>
@@ -280,12 +282,18 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
           </View>
           <View style={styles.footerContainer}>
             <Text style={styles.footerText}>Thanks for your order!</Text>
+            <Text style={styles.engineText}>Engine = Image</Text>
           </View>
           {printDebugLines.length > 0 && (
             <View style={styles.printDebugContainer}>
               {printDebugLines.map((line, index) => (
                 <Text key={`print-debug-${index}`} style={styles.printDebugText}>{line}</Text>
               ))}
+            </View>
+          )}
+          {integrityWarning && (
+            <View style={styles.integrityWarningContainer}>
+              <Text style={styles.integrityWarningText}>{integrityWarning}</Text>
             </View>
           )}
         </View>
@@ -541,6 +549,11 @@ const styles = StyleSheet.create({
     color: '#000',
     fontStyle: 'italic',
   },
+  engineText: {
+    marginTop: 4,
+    fontSize: 14,
+    color: '#666',
+  },
   printSourceText: {
     marginTop: 4,
     fontSize: 14,
@@ -557,5 +570,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 18,
     color: '#333',
+  },
+  integrityWarningContainer: {
+    marginTop: 8,
+    padding: 8,
+    backgroundColor: '#000',
+  },
+  integrityWarningText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
   },
 });

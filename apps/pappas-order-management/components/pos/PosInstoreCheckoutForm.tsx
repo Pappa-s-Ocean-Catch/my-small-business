@@ -35,6 +35,7 @@ type Props = {
   orderNoteText: string;
   setOrderNoteText: (value: string) => void;
   creatingOrder: boolean;
+  smartpayPreparing: boolean;
   smartpayProcessing: boolean;
   handleInstoreCheckout: (payment: PosInstorePaymentChoice) => Promise<void>;
   smartpayPaired: boolean;
@@ -67,6 +68,7 @@ export function PosInstoreCheckoutForm({
   orderNoteText,
   setOrderNoteText,
   creatingOrder,
+  smartpayPreparing,
   smartpayProcessing,
   handleInstoreCheckout,
   smartpayPaired,
@@ -142,8 +144,8 @@ export function PosInstoreCheckoutForm({
         <Button
           mode="contained"
           icon="check"
-          loading={creatingOrder}
-          disabled={creatingOrder || smartpayProcessing || cartItemsCount === 0}
+          loading={creatingOrder && !smartpayPreparing}
+          disabled={creatingOrder || smartpayPreparing || smartpayProcessing || cartItemsCount === 0}
           onPress={() => void handleInstoreCheckout(paymentChoice)}
           style={styles.placeOrderButton}
           buttonColor="#dc2626"
@@ -157,8 +159,8 @@ export function PosInstoreCheckoutForm({
             <Button
               mode="contained"
               icon="credit-card-wireless-outline"
-              loading={smartpayProcessing}
-              disabled={!smartpayPaired || creatingOrder || smartpayProcessing || cartItemsCount === 0}
+              loading={smartpayPreparing || smartpayProcessing}
+              disabled={!smartpayPaired || creatingOrder || smartpayPreparing || smartpayProcessing || cartItemsCount === 0}
               onPress={() => void handleSmartpayInstoreCheckout()}
               style={styles.secondaryActionButton}
               buttonColor="#2563eb"

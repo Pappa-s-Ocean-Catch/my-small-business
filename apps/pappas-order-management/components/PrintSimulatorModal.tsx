@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, Modal, Image, ScrollView, TouchableOpacity, Alert, Platform } from 'react-native';
 import { IconButton, Button as PaperButton, Surface } from 'react-native-paper';
 import * as Sharing from 'expo-sharing';
@@ -35,10 +35,12 @@ export const PrintSimulatorModal: React.FC<PrintSimulatorModalProps> = ({
     : imageUri
       ? [imageUri]
       : [];
+  const [sharing, setSharing] = useState(false);
 
   const handleShare = async () => {
-    if (!images[0]) return;
+    if (!images[0] || sharing) return;
     
+    setSharing(true);
     try {
       const isAvailable = await Sharing.isAvailableAsync();
       if (!isAvailable) {
@@ -54,6 +56,8 @@ export const PrintSimulatorModal: React.FC<PrintSimulatorModalProps> = ({
     } catch (error) {
       console.error('Error sharing receipt:', error);
       Alert.alert('Error', 'Failed to share receipt image');
+    } finally {
+      setSharing(false);
     }
   };
 
@@ -120,6 +124,8 @@ export const PrintSimulatorModal: React.FC<PrintSimulatorModalProps> = ({
                 mode="outlined"
                 icon="download"
                 onPress={handleShare}
+                loading={sharing}
+                disabled={sharing}
                 style={styles.downloadButton}
                 labelStyle={styles.buttonLabel}
               >

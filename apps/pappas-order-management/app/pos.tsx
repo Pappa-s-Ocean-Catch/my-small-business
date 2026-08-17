@@ -263,7 +263,9 @@ export default function PosScreen() {
   const [rewardPointsToUse, setRewardPointsToUse] = useState(0);
   const [rewardPointsValue, setRewardPointsValue] = useState(0);
   const [creatingOrder, setCreatingOrder] = useState(false);
+  const [smartpayPreparing, setSmartpayPreparing] = useState(false);
   const [smartpayProcessing, setSmartpayProcessing] = useState(false);
+  const [smartpayDialogMinimized, setSmartpayDialogMinimized] = useState(false);
   const [pendingInstoreSmartpayOrder, setPendingInstoreSmartpayOrder] = useState<Order | null>(null);
   const [smartpayApprovedOrderId, setSmartpayApprovedOrderId] = useState<string | null>(null);
   const [smartpayPaired, setSmartpayPaired] = useState(false);
@@ -1887,6 +1889,7 @@ export default function PosScreen() {
       }
 
       try {
+        setSmartpayDialogMinimized(false);
         setSmartpayProcessing(true);
         await processSmartpayCardPayment(totals.total);
       } catch (error) {
@@ -1898,6 +1901,7 @@ export default function PosScreen() {
     }
 
     setCreatingOrder(true);
+    try {
     const pickupAt = isPreOrder
       ? (scheduledPickupAt.getTime() > Date.now() ? scheduledPickupAt : defaultPickupTime())
       : null;
@@ -1905,9 +1909,6 @@ export default function PosScreen() {
     if (phone) {
       const { data: customer, error: customerError } = await createCustomerIfNotExists(phone, name);
       if (customerError) {
-        setCreatingOrder(false);
-        setSmartpayProcessing(false);
-        cashTenderConfirmedRef.current = false;
         Alert.alert('Customer', customerError);
         return;
       }
@@ -2004,11 +2005,7 @@ export default function PosScreen() {
         product_name: getPosCartItemDisplayName(item),
       })));
 
-    setCreatingOrder(false);
-    cashTenderConfirmedRef.current = false;
-    setSmartpayProcessing(false);
     if (result.error) {
-      setSmartpayProcessing(false);
       Alert.alert('Checkout', result.error);
       return;
     }
@@ -2017,6 +2014,14 @@ export default function PosScreen() {
     }
     invalidateTopSellers();
     router.back();
+    } catch (error) {
+      console.error('Checkout failed', error);
+      Alert.alert('Checkout', error instanceof Error ? error.message : 'Failed to complete checkout.');
+    } finally {
+      setCreatingOrder(false);
+      setSmartpayProcessing(false);
+      cashTenderConfirmedRef.current = false;
+    }
   };
 
   const handleSmartpayInstoreCheckout = async () => {
@@ -2043,6 +2048,7 @@ export default function PosScreen() {
     );
     let pendingOrderForAttempt = pendingInstoreSmartpayOrder;
 
+    setSmartpayPreparing(true);
     try {
       setCreatingOrder(true);
       let pendingOrder = pendingOrderForAttempt;
@@ -2125,9 +2131,6 @@ export default function PosScreen() {
         pendingOrderForAttempt = pendingOrder;
         setPendingInstoreSmartpayOrder(pendingOrder);
         setSmartpayApprovedOrderId(null);
-        if (pendingResult.created) {
-          void printInstoreInstantTicket(pendingOrder);
-        }
       }
 
       const paymentPlan = getPendingInstorePaymentPlan(
@@ -2136,6 +2139,8 @@ export default function PosScreen() {
         'smartpay',
       );
       setCreatingOrder(false);
+      setSmartpayPreparing(false);
+      setSmartpayDialogMinimized(false);
       setSmartpayProcessing(true);
       if (paymentPlan.shouldStartTerminal) {
         await processSmartpayCardPayment(pendingOrder.total);
@@ -2150,6 +2155,7 @@ export default function PosScreen() {
       );
       const completedOrder = { ...pendingOrder, ...settledOrder, items: pendingOrder.items };
 
+      await printInstoreInstantTicket(completedOrder);
       await applyRewardPointsForSavedOrder(
         completedOrder.id,
         completedOrder.user_id,
@@ -2170,7 +2176,9 @@ export default function PosScreen() {
       );
     } finally {
       setCreatingOrder(false);
+      setSmartpayPreparing(false);
       setSmartpayProcessing(false);
+      setSmartpayDialogMinimized(false);
     }
   };
 
@@ -2178,11 +2186,11 @@ export default function PosScreen() {
     if (!smartpayProcessing) return;
 
     Alert.alert(
-      'Hide SmartPay screen?',
-      'The payment may still be running on the terminal. Hide this screen only if you need to return to the POS.',
+      'Minimize SmartPay payment?',
+      'Payment polling will continue in the background. Use the payment button in the header to reopen this screen.',
       [
         { text: 'Keep waiting', style: 'cancel' },
-        { text: 'Hide', style: 'destructive', onPress: () => setSmartpayProcessing(false) },
+        { text: 'Minimize', onPress: () => setSmartpayDialogMinimized(true) },
       ]
     );
   };
@@ -2259,6 +2267,7 @@ export default function PosScreen() {
     }
 
     setCreatingOrder(true);
+    try {
     const phone = customerPhone.trim();
     const name = customerName.trim();
     let customerId: string | null = null;
@@ -2267,7 +2276,6 @@ export default function PosScreen() {
     if (phone) {
       const { data: customer, error: customerError } = await createCustomerIfNotExists(phone, name);
       if (customerError) {
-        setCreatingOrder(false);
         Alert.alert('Customer', customerError);
         return;
       }
@@ -2336,21 +2344,36 @@ export default function PosScreen() {
       product_name: getPosCartItemDisplayName(item),
     })));
 
-    setCreatingOrder(false);
-    cashTenderConfirmedRef.current = false;
-    if (result.error) {
-      Alert.alert('Instore Order', result.error);
+    if (result.error || !result.data?.id) {
+      Alert.alert('Instore Order', result.error || 'Failed to create in-store order.');
       return;
     }
-    if (result.data?.id) {
-      void printInstoreInstantTicket(result.data);
+
+    try {
+      if (paymentStatus === 'paid') {
+        await printInstoreInstantTicket(result.data);
+      }
       await applyRewardPointsForSavedOrder(result.data.id, customerId);
       if (paymentStatus === 'paid') {
         await printInstoreCustomerReceipt(result.data);
       }
+    } catch (error) {
+      console.error('Instore checkout post-save work failed', error);
+      Alert.alert(
+        'Instore Order',
+        `Order #${result.data.order_number} was created, but post-save receipt work could not be completed.`,
+      );
     }
     invalidateTopSellers();
+    resetPosForNextOrder();
     router.back();
+    } catch (error) {
+      console.error('Instore checkout failed', error);
+      Alert.alert('Instore Order', error instanceof Error ? error.message : 'Failed to create in-store order.');
+    } finally {
+      setCreatingOrder(false);
+      cashTenderConfirmedRef.current = false;
+    }
   };
 
   const handleThirdPartyCheckout = async () => {
@@ -2735,6 +2758,14 @@ export default function PosScreen() {
     <View style={styles.container}>
       <Appbar.Header style={styles.header}>
         <Appbar.Content title={orderId ? 'Edit Order' : 'Take Order'} titleStyle={styles.headerTitle} />
+        {smartpayProcessing && smartpayDialogMinimized ? (
+          <Appbar.Action
+            icon="credit-card-wireless-outline"
+            onPress={() => setSmartpayDialogMinimized(false)}
+            iconColor="#fff"
+            accessibilityLabel="Resume SmartPay payment"
+          />
+        ) : null}
         <Appbar.Action icon="magnify" onPress={openSearch} iconColor="#fff" accessibilityLabel="Search items" />
         <Appbar.Action icon="view-grid-plus-outline" onPress={openLayoutSettings} iconColor="#fff" accessibilityLabel="POS layout settings" />
         <Appbar.Action icon="home" onPress={goHome} iconColor="#fff" accessibilityLabel="Back home" />
@@ -2841,6 +2872,7 @@ export default function PosScreen() {
             orderNoteText={orderNoteText}
             setOrderNoteText={setOrderNoteText}
             creatingOrder={creatingOrder}
+            smartpayPreparing={smartpayPreparing}
             smartpayProcessing={smartpayProcessing}
             orderId={orderId}
             checkoutPrimaryLabel={checkoutPrimaryLabel}
@@ -2879,6 +2911,7 @@ export default function PosScreen() {
           getCartItemDisplayName={getPosCartItemDisplayName}
           isFreePromotionItem={(item) => selectedFreeItemId === item.id && freeItemPromotion?.item.id === item.id}
           creatingOrder={creatingOrder}
+          smartpayPreparing={smartpayPreparing}
           smartpayProcessing={smartpayProcessing}
           handleClearCart={handleClearCart}
           openCheckout={openCheckout}
@@ -2899,6 +2932,7 @@ export default function PosScreen() {
         onConfirmCashTender={handleCashTenderConfirm}
         smartpayProcessing={smartpayProcessing}
         smartpayOrderNumber={getSmartpayDisplayOrderNumber(pendingInstoreSmartpayOrder)}
+        smartpayDialogMinimized={smartpayDialogMinimized}
         confirmDismissSmartpayLock={confirmDismissSmartpayLock}
         saltOptionDialogVisible={saltOptionDialogVisible}
         setSaltOptionDialogVisible={setSaltOptionDialogVisible}

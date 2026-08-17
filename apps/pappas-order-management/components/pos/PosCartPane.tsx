@@ -25,6 +25,7 @@ type Props = {
   getCartItemDisplayName: (item: PosCartItem) => string;
   isFreePromotionItem: (item: PosCartItem) => boolean;
   creatingOrder: boolean;
+  smartpayPreparing: boolean;
   smartpayProcessing: boolean;
   handleClearCart: () => void;
   openCheckout: () => void;
@@ -53,6 +54,7 @@ export function PosCartPane({
   getCartItemDisplayName,
   isFreePromotionItem,
   creatingOrder,
+  smartpayPreparing,
   smartpayProcessing,
   handleClearCart,
   openCheckout,
@@ -210,6 +212,7 @@ export function PosCartPane({
       <Button
         mode="contained"
         icon={orderId ? 'content-save' : 'cash-register'}
+        loading={Boolean(orderId) && creatingOrder}
         disabled={cartItems.length === 0 || creatingOrder || smartpayProcessing}
         onPress={orderId ? () => void handleCheckout() : openCheckout}
         style={styles.checkoutButton}
@@ -224,8 +227,8 @@ export function PosCartPane({
             <Button
               mode="contained-tonal"
               icon="check-circle-outline"
-              loading={creatingOrder}
-              disabled={creatingOrder || smartpayProcessing || cartItems.length === 0}
+              loading={creatingOrder && !smartpayPreparing}
+              disabled={creatingOrder || smartpayPreparing || smartpayProcessing || cartItems.length === 0}
               onPress={openInstorePaymentPrompt}
               style={[styles.checkoutButton, styles.quickPaymentButton, styles.completeButton]}
               buttonColor="#dc2626"
@@ -236,8 +239,8 @@ export function PosCartPane({
             <Button
               mode="contained"
               icon="credit-card-wireless-outline"
-              loading={smartpayProcessing}
-              disabled={!smartpayPaired || creatingOrder || smartpayProcessing || cartItems.length === 0}
+              loading={smartpayPreparing || smartpayProcessing}
+              disabled={!smartpayPaired || creatingOrder || smartpayPreparing || smartpayProcessing || cartItems.length === 0}
               onPress={() => void handleSmartpayInstoreCheckout()}
               style={[styles.checkoutButton, styles.quickPaymentButton]}
               buttonColor="#2563eb"

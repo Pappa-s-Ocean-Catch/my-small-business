@@ -59,6 +59,7 @@ type Props = {
   orderNoteText: string;
   setOrderNoteText: (value: string) => void;
   creatingOrder: boolean;
+  smartpayPreparing: boolean;
   smartpayProcessing: boolean;
   orderId?: string;
   checkoutPrimaryLabel: string;
@@ -128,6 +129,7 @@ export function PosCheckoutPanel({
   orderNoteText,
   setOrderNoteText,
   creatingOrder,
+  smartpayPreparing,
   smartpayProcessing,
   orderId,
   checkoutPrimaryLabel,
@@ -217,6 +219,7 @@ export function PosCheckoutPanel({
           orderNoteText={orderNoteText}
           setOrderNoteText={setOrderNoteText}
           creatingOrder={creatingOrder}
+          smartpayPreparing={smartpayPreparing}
           smartpayProcessing={smartpayProcessing}
           handleInstoreCheckout={handleInstoreCheckout}
           smartpayPaired={smartpayPaired}

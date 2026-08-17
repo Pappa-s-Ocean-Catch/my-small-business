@@ -75,6 +75,7 @@ export default function SettingsScreen() {
         String(DEFAULT_APP_SETTINGS.printerDelayPrintSec)
     );
     const [printerPaperWidth, setPrinterPaperWidth] = useState<'58mm' | '80mm'>(DEFAULT_APP_SETTINGS.printerPaperWidth);
+    const [printerReceiptMode, setPrinterReceiptMode] = useState(DEFAULT_APP_SETTINGS.printerReceiptMode);
     const [printerHighQuality, setPrinterHighQuality] = useState<boolean>(DEFAULT_APP_SETTINGS.printerHighQuality);
     const [manualPrinterIp, setManualPrinterIp] = useState('');
     const [manualPrinterPortText, setManualPrinterPortText] = useState(String(DEFAULT_MANUAL_PRINTER_PORT));
@@ -110,6 +111,7 @@ export default function SettingsScreen() {
         setPrinterSectionAssignments(currentSettings.printerSectionAssignments);
         setPrinterDelayPrintSecText(String(currentSettings.printerDelayPrintSec));
         setPrinterPaperWidth(currentSettings.printerPaperWidth);
+        setPrinterReceiptMode(currentSettings.printerReceiptMode);
         setPrinterHighQuality(currentSettings.printerHighQuality);
     }, [currentSettings]);
 
@@ -630,6 +632,7 @@ export default function SettingsScreen() {
                 printerSectionAssignments: normalizedAssignments,
                 printerDelayPrintSec,
                 printerPaperWidth,
+                printerReceiptMode,
                 printerHighQuality,
                 printerDebugFooter,
             });
@@ -1271,6 +1274,13 @@ export default function SettingsScreen() {
                                 </Button>
                                 </View>
                                 <Text style={styles.helper}>Choose your paper width. 80mm is standard.</Text>
+
+                                <Text style={[styles.label, { marginTop: 12 }]}>Kitchen receipt mode</Text>
+                                <View style={styles.buttonGroup}>
+                                    <Button mode={printerReceiptMode === 'text' ? 'contained' : 'outlined'} onPress={() => setPrinterReceiptMode('text')} style={styles.flexButton}>Text</Button>
+                                    <Button mode={printerReceiptMode === 'image' ? 'contained' : 'outlined'} onPress={() => setPrinterReceiptMode('image')} style={styles.flexButton}>Image</Button>
+                                </View>
+                                <Text style={styles.helper}>Text printing is faster; Image preserves the current captured receipt layout.</Text>
 
                                 <View style={[styles.switchRow, { marginTop: 12 }]}>
                                     <Text style={styles.label}>High quality capture (2x DPI)</Text>

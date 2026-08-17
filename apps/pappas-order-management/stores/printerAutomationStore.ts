@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Order } from '@my-small-business/types';
 import type { SavedPrinter } from '@/lib/escpos-printer';
 import type { PrinterImageSource } from '@/lib/printer-image';
+import type { EscPosDocument } from '@/lib/instore-instant-ticket';
 import { JOURNAL_LOGS_ENABLED } from '@/lib/journal-config';
 import { selectReadyPrintJobIds } from '@/lib/print-job-priority';
 
@@ -32,6 +33,7 @@ export type PrintJob = {
   label: string;
   printer: SavedPrinter;
   image: PrinterImageSource | null;
+  document: EscPosDocument | null;
   copies: number;
   width: number;
   status: PrintJobStatus;
@@ -62,10 +64,11 @@ function buildId(prefix: string): string {
 
 function stripCompletedJobPayload(job: PrintJob): PrintJob {
   if (job.status === 'queued' || job.status === 'printing') return job;
-  if (job.image == null) return job;
+  if (job.image == null && job.document == null) return job;
   return {
     ...job,
     image: null,
+    document: null,
   };
 }
 

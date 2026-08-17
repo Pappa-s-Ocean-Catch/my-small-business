@@ -19,15 +19,23 @@ export default function CustomerInfoModal({ visible, onClose, onSubmit }: Props)
   const [error, setError] = useState<string | null>(null);
 
   const handleConfirm = async () => {
+    if (loading) return;
+
     setLoading(true);
     setError(null);
-    const result = await onSubmit(phone.trim(), name.trim());
-    setLoading(false);
-    if (result.error) {
-      setError(result.error);
-    } else {
-      // success, close modal
-      onClose();
+
+    try {
+      const result = await onSubmit(phone.trim(), name.trim());
+      if (result.error) {
+        setError(result.error);
+      } else {
+        // success, close modal
+        onClose();
+      }
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Unable to save customer information.');
+    } finally {
+      setLoading(false);
     }
   };
 

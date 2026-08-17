@@ -27,6 +27,10 @@ function pushTextStyle(bytes: number[], style: EscPosTextStyle | undefined) {
 /** Encodes the shared text-document shape without any raster or image commands. */
 export function buildDocumentPrintJob(document: EscPosDocument): Uint8Array {
   const bytes: number[] = document.initialize === false ? [] : [ESC, 0x40];
+  if (document.paperWidth) {
+    const dots = document.paperWidth === '58mm' ? 384 : 576;
+    bytes.push(GS, 0x57, dots & 0xff, dots >> 8);
+  }
 
   for (const node of document.nodes) {
     if (node.type === 'text') {

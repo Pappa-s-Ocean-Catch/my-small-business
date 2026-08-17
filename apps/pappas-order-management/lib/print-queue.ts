@@ -1,7 +1,8 @@
 import type { Order } from '@my-small-business/types';
-import { escposPrintOrderImage, formatPrinterError, getPrinterDriver } from '@/lib/escpos-printer';
+import { escposPrintDocument, escposPrintOrderImage, formatPrinterError, getPrinterDriver } from '@/lib/escpos-printer';
 import type { SavedPrinter } from '@/lib/escpos-printer';
 import type { PrinterImageSource } from '@/lib/printer-image';
+import type { EscPosDocument } from '@/lib/instore-instant-ticket';
 import {
   getReadyPendingPrintJobs,
   usePrinterAutomationStore,
@@ -11,14 +12,18 @@ import {
 
 const WAIT_FOR_PRINT_JOBS_TIMEOUT_MS = 2 * 60 * 1000;
 
-export type PreparedPrintJobInput = {
+type PreparedPrintJobBase = {
   printer: SavedPrinter;
-  image: PrinterImageSource;
   label: string;
   width: number;
   copies?: number;
   priority?: PrintJob['priority'];
 };
+
+export type PreparedPrintJobInput = PreparedPrintJobBase & (
+  | { image: PrinterImageSource; document?: never }
+  | { document: EscPosDocument; image?: never }
+);
 
 export function enqueuePreparedPrintJobs(options: {
   order?: Pick<Order, 'id' | 'order_number'> | null;
@@ -35,7 +40,8 @@ export function enqueuePreparedPrintJobs(options: {
     scope: options.scope,
     label: job.label,
     printer: job.printer,
-    image: job.image,
+    image: job.image ?? null,
+    document: job.document ?? null,
     copies: job.copies ?? 1,
     width: job.width,
     silentSuccess: options.silentSuccess,
@@ -50,7 +56,7 @@ export function enqueuePreparedPrintJobs(options: {
       message: 'Queued print job',
       orderId: job.orderId,
       orderNumber: job.orderNumber,
-      details: `job=${job.label} printer=${job.printer.deviceName} driver=${job.printer.driver ?? 'epsonSdk'}`,
+      details: `job=${job.label} printer=${job.printer.deviceName} driver=${job.printer.driver ?? 'epsonSdk'} payload=${job.document ? 'text' : 'image'}`,
     });
   }
 
@@ -134,8 +140,10 @@ export async function processPendingPrintJob(jobId: string): Promise<boolean> {
   });
 
   try {
-    if (!startedJob.image) throw new Error('Print job image payload is unavailable.');
-    const dispatch = await escposPrintOrderImage(startedJob.image, startedJob.printer, startedJob.copies, startedJob.width);
+    if (!startedJob.document && !startedJob.image) throw new Error('Print job payload is unavailable.');
+    const dispatch = startedJob.document
+      ? (await escposPrintDocument(startedJob.document, startedJob.printer), null)
+      : await escposPrintOrderImage(startedJob.image!, startedJob.printer, startedJob.copies, startedJob.width);
     const completedJob = usePrinterAutomationStore.getState().markPrintJobSucceeded(startedJob.id);
     const durationMs = Date.now() - sendStartedAt;
     usePrinterAutomationStore.getState().addJournalEntry({
@@ -144,7 +152,9 @@ export async function processPendingPrintJob(jobId: string): Promise<boolean> {
       message: 'Completed queued print job',
       orderId: startedJob.orderId,
       orderNumber: startedJob.orderNumber,
-      details: `job=${startedJob.label} printer=${startedJob.printer.deviceName} driver=${driver} transport=${transport} quality=${dispatch.quality} captureScale=${dispatch.captureScale} requestedWidth=${startedJob.width} queue=${queuedDurationMs}ms dispatch=${durationMs}ms print=${durationMs}ms total=${Math.max(0, Date.now() - startedJob.createdAt)}ms${dispatch.native ? ` nativeCapture=${dispatch.native.captureMs}ms nativeResize=${dispatch.native.resizeMs}ms nativeRaster=${dispatch.native.rasterMs}ms nativeSend=${dispatch.native.sendMs}ms nativeSize=${dispatch.native.width}x${dispatch.native.height} nativeBytes=${dispatch.native.byteLength}` : ''}`,
+      details: startedJob.document
+        ? `job=${startedJob.label} printer=${startedJob.printer.deviceName} driver=${driver} transport=${transport} payload=text queue=${queuedDurationMs}ms dispatch=${durationMs}ms print=${durationMs}ms total=${Math.max(0, Date.now() - startedJob.createdAt)}ms`
+        : `job=${startedJob.label} printer=${startedJob.printer.deviceName} driver=${driver} transport=${transport} payload=image quality=${dispatch!.quality} captureScale=${dispatch!.captureScale} requestedWidth=${startedJob.width} queue=${queuedDurationMs}ms dispatch=${durationMs}ms print=${durationMs}ms total=${Math.max(0, Date.now() - startedJob.createdAt)}ms${dispatch!.native ? ` nativeCapture=${dispatch!.native.captureMs}ms nativeResize=${dispatch!.native.resizeMs}ms nativeRaster=${dispatch!.native.rasterMs} nativeSend=${dispatch!.native.sendMs} nativeSize=${dispatch!.native.width}x${dispatch!.native.height} nativeBytes=${dispatch!.native.byteLength}` : ''}`,
     });
 
     if (completedJob && !completedJob.silentSuccess && completedJob.source !== 'auto') {

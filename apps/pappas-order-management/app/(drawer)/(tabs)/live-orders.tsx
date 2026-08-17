@@ -38,6 +38,7 @@ import { buildSectionPrintJobs, hasAnySimulatorAssignment } from '@/lib/printer-
 import { captureReceiptForPrinter, captureReceiptPreview, type PrinterImageSource } from '@/lib/printer-image';
 import { enqueuePreparedPrintJobs, waitForPrintJobs } from '@/lib/print-queue';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
+import { buildKitchenReceiptDocument } from '@/lib/kitchen-receipt-document';
 import { CustomerReceiptTemplate } from '@/components/CustomerReceiptTemplate';
 import { JournalLogsModal } from '@/components/PrintLogsModal';
 import { isScheduledPreOrder } from '@/utils/orderUtils';
@@ -226,6 +227,8 @@ export default function LiveOrdersScreen() {
   const quickPrintOrder = async (order: Order, selectedPrinter?: SavedPrinter | null) => {
     const workflowStartedAt = Date.now();
 
+    setPrintingOrderId(order.id);
+
     try {
       let freshOrder = order;
 
@@ -263,8 +266,6 @@ export default function LiveOrdersScreen() {
         order: freshOrder,
         details: printSettingsDetails,
       });
-      setPrintingOrderId(order.id);
-
       logOrderEvent('info', 'print', 'Manual print queue acquired', {
         order: freshOrder,
         details: `driver=${selectedPrinter ? selectedPrinter.driver ?? 'epsonSdk' : 'section-routing'}`,
@@ -277,6 +278,12 @@ export default function LiveOrdersScreen() {
       const targetDots = s.printerPaperWidth === '58mm' ? 384 : 576;
       const scale = s.printerHighQuality ? 2 : 1;
       if (selectedPrinter) {
+        if (s.printerReceiptMode === 'text' && !isSimulatorPrinter(selectedPrinter)) {
+          const queuedJobs = enqueuePreparedPrintJobs({ order: freshOrder, source: 'manual', scope: 'live-orders:manual-direct', jobs: [{ document: buildKitchenReceiptDocument(freshOrder, { paperWidth: s.printerPaperWidth, duplicateBySections: false, printDebugContext: null }), printer: selectedPrinter, width: targetDots, label: selectedPrinter.deviceName }] });
+          const queueResult = await waitForPrintJobs(queuedJobs.map((job) => job.id));
+          if (!queueResult.success) throw new Error(queueResult.failedJobs[0]?.error || 'Queued text print job failed');
+          return;
+        }
         setTempPrintTicketIndex(0);
         setTempPrintDuplicateBySections(false);
         setTempPrintDebugContext(buildKitchenPrintDebugContext({
@@ -755,11 +762,11 @@ export default function LiveOrdersScreen() {
     setShowCustomerModal(true);
   };
 
-  const handlePaymentStatusUpdateWithTender = (
+  const handlePaymentStatusUpdateWithTender = async (
     orderId: string,
     status: PaymentStatus,
     paymentMethodDetail?: string | null
-  ) => {
+  ): Promise<void> => {
     if (status === 'paid' && paymentMethodDetail?.toLowerCase() === 'cash') {
       const order = orders.find((item) => item.id === orderId)
         || (selectedOrder?.id === orderId ? selectedOrder : null);
@@ -769,7 +776,7 @@ export default function LiveOrdersScreen() {
       }
     }
 
-    void handlePaymentStatusUpdate(orderId, status, paymentMethodDetail);
+    await handlePaymentStatusUpdate(orderId, status, paymentMethodDetail);
   };
 
   const handleOpenOrderFromCustomerModal = async (orderId: string) => {

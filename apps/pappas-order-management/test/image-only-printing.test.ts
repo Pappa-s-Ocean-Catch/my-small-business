@@ -78,12 +78,13 @@ test('report printing uses the existing image pipeline at 80mm', () => {
   assert.doesNotMatch(reportSource, /Print\.printAsync|generatePrintHTML/);
 });
 
-test('in-store checkout requests an instant ticket for every newly created in-store order', () => {
+test('in-store checkout awaits an instant ticket for every newly created in-store order', () => {
   const posSource = source('app/pos.tsx');
   const instoreCheckout = posSource.slice(
     posSource.indexOf('const handleInstoreCheckout'),
     posSource.indexOf('const handleThirdPartyCheckout'),
   );
 
-  assert.match(instoreCheckout, /if \(result\.data\?\.id\) \{[\s\S]*void printInstoreInstantTicket\(result\.data\);/);
+  assert.match(instoreCheckout, /if \(result\.error \|\| !result\.data\?\.id\) \{[\s\S]*return;/);
+  assert.match(instoreCheckout, /try \{[\s\S]*await printInstoreInstantTicket\(result\.data\);[\s\S]*catch \(error\) \{[\s\S]*Instore checkout post-save work failed[\s\S]*resetPosForNextOrder\(\);[\s\S]*router\.back\(\);/);
 });

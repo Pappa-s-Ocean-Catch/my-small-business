@@ -14,7 +14,8 @@ import {
 import { CustomerReceiptTemplate } from './CustomerReceiptTemplate';
 import { usesIconOnlyOrderDetailActions, usesLandscapeTabletOrderDetailLayout } from '../utils/order-detail-layout';
 import { captureReceiptForPrinter, type PrinterImageSource } from '@/lib/printer-image';
-import { isSimulatorPrinter, type SavedPrinter } from '@/lib/escpos-printer';
+import { escposPrintDocument, isSimulatorPrinter, type SavedPrinter } from '@/lib/escpos-printer';
+import { buildKitchenReceiptDocument } from '@/lib/kitchen-receipt-document';
 import { ManualPrintButton } from '@/components/printer/ManualPrintButton';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { getFriendlyOrderNumber } from '../utils/orderNumber';
@@ -58,8 +59,8 @@ interface OrderDetailModalProps {
   onPrintImage?: (order: Order, image: PrinterImageSource, printer?: SavedPrinter | null) => Promise<boolean>;
   onPrintCustomerCopyImage?: (order: Order, image: PrinterImageSource, printer?: SavedPrinter | null) => Promise<boolean>;
   onCustomerPress: (order: Order) => void;
-  onStatusUpdate?: (order: Order, status: OrderStatus) => void;
-  onPaymentStatusUpdate?: (id: string, status: PaymentStatus, paymentMethodDetail?: string | null) => void;
+  onStatusUpdate?: (order: Order, status: OrderStatus) => Promise<void>;
+  onPaymentStatusUpdate?: (id: string, status: PaymentStatus, paymentMethodDetail?: string | null) => Promise<void>;
   onSmartpayPayment?: (order: Order) => void;
   onQuickAction?: (order: Order, action: string) => void;
   onRefreshDeliveryStatus?: (order: Order) => void;
@@ -120,6 +121,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const [showPayByLink, setShowPayByLink] = React.useState(false);
   const [refreshedOrder, setRefreshedOrder] = React.useState<Order | null>(orderProp);
   const [isMarketplaceSyncing, setIsMarketplaceSyncing] = React.useState(false);
+  const [pendingOrderAction, setPendingOrderAction] = React.useState<'cancel' | 'cash' | 'card' | null>(null);
   const order = refreshedOrder?.id === orderProp?.id ? refreshedOrder : orderProp;
   const receiptRef = React.useRef(null);
   const customerReceiptRef = React.useRef(null);
@@ -168,6 +170,17 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const deliveryStatusLabel = getDeliveryStatusLabel(order.delivery_status);
   const quickAction = getNextQuickAction(order);
   const isUpdating = updatingStatus === order.id;
+  const requestOrderAction = async (
+    action: 'cancel' | 'cash' | 'card',
+    request: () => Promise<void>,
+  ) => {
+    setPendingOrderAction(action);
+    try {
+      await request();
+    } finally {
+      setPendingOrderAction(null);
+    }
+  };
   const quickActionFeedback = quickAction
     ? getOrderActionFeedback(order.id, updatingStatus ?? null, quickAction.label)
     : null;
@@ -224,20 +237,19 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
           : null;
 
   const handleInternalPrint = async (printer?: SavedPrinter | null) => {
-    let success = false;
-    let printOrder = order;
+    setIsCapturing(true);
+    try {
+      let printOrder = order;
+      const latestOrderResult = await getOrder(order.id);
+      if (latestOrderResult.data) {
+        printOrder = latestOrderResult.data;
+        setPrintPreviewOrder(latestOrderResult.data);
+      } else if (latestOrderResult.error) {
+        console.warn('[OrderDetailModal] Failed to refresh order before printing:', latestOrderResult.error);
+      }
 
-    const latestOrderResult = await getOrder(order.id);
-    if (latestOrderResult.data) {
-      printOrder = latestOrderResult.data;
-      setPrintPreviewOrder(latestOrderResult.data);
-    } else if (latestOrderResult.error) {
-      console.warn('[OrderDetailModal] Failed to refresh order before printing:', latestOrderResult.error);
-    }
-
-    // If onPrintImage is provided, capture the template first
-    if (onPrintImage) {
-      try {
+      // If onPrintImage is provided, capture the template first
+      if (onPrintImage) {
         const effectiveSettings = await loadAppSettings().catch(() => appSettings);
         const deviceId = await getPrintDeviceId().catch(() => 'unknown');
         const routedJobs = buildSectionPrintJobs(effectiveSettings, printOrder);
@@ -257,6 +269,31 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               || routedJobs.find((job) => !!job.printer && !isSimulatorPrinter(job.printer))
               || null;
         const resolvedPrintPrinter = printer || routedJob?.printer || null;
+        if (effectiveSettings.printerReceiptMode === 'text' && resolvedPrintPrinter && !isSimulatorPrinter(resolvedPrintPrinter)) {
+          const document = buildKitchenReceiptDocument(printOrder, {
+            paperWidth: effectiveSettings.printerPaperWidth,
+            duplicateBySections: false,
+            printDebugContext: null,
+          });
+          usePrinterAutomationStore.getState().addJournalEntry({
+            level: 'info',
+            scope: 'order-detail:manual-text-direct',
+            message: 'Sending manual text receipt',
+            orderId: printOrder.id,
+            orderNumber: printOrder.order_number,
+            details: `printer=${resolvedPrintPrinter.deviceName} driver=${resolvedPrintPrinter.driver ?? 'epsonSdk'} target=${resolvedPrintPrinter.target} paper=${effectiveSettings.printerPaperWidth} nodes=${document.nodes.length}`,
+          });
+          await escposPrintDocument(document, resolvedPrintPrinter);
+          usePrinterAutomationStore.getState().addJournalEntry({
+            level: 'success',
+            scope: 'order-detail:manual-text-direct',
+            message: 'Manual text receipt dispatch completed',
+            orderId: printOrder.id,
+            orderNumber: printOrder.order_number,
+            details: `printer=${resolvedPrintPrinter.deviceName} driver=${resolvedPrintPrinter.driver ?? 'epsonSdk'}`,
+          });
+          return;
+        }
         setPrintDebugContext(buildKitchenPrintDebugContext({
           enabled: effectiveSettings.printerDebugFooter,
           registerName: effectiveSettings.registerName,
@@ -275,7 +312,6 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
           highQuality: appSettings.printerHighQuality,
           capturedAt: new Date().toISOString(),
         }));
-        setIsCapturing(true);
         setCaptureTarget('kitchen');
         // Small delay to ensure the hidden view is rendered
         await new Promise(resolve => setTimeout(resolve, 300));
@@ -288,23 +324,29 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
         
         if (!resolvedPrintPrinter) throw new Error('No printer is available for this receipt.');
         const image = await captureReceiptForPrinter(receiptRef.current, resolvedPrintPrinter, targetDots * scale, appSettings.printerHighQuality);
-        success = await onPrintImage(printOrder, image, resolvedPrintPrinter);
-      } catch (error) {
-        console.error('Manual receipt print failed:', error);
-        Alert.alert(
-          'Print error',
-          error instanceof Error ? error.message : 'Failed to print receipt.'
-        );
-        success = false;
-      } finally {
-        setIsCapturing(false);
-        setCaptureTarget(null);
-        setPrintDebugContext(null);
+        await onPrintImage(printOrder, image, resolvedPrintPrinter);
+      } else {
+        await onPrint(printOrder, printer);
       }
-    } else {
-      success = await onPrint(printOrder, printer);
+    } catch (error) {
+      usePrinterAutomationStore.getState().addJournalEntry({
+        level: 'error',
+        scope: 'order-detail:manual-print',
+        message: 'Manual receipt print failed',
+        orderId: order.id,
+        orderNumber: order.order_number,
+        details: error instanceof Error ? error.message : String(error),
+      });
+      console.error('Manual receipt print failed:', error);
+      Alert.alert(
+        'Print error',
+        error instanceof Error ? error.message : 'Failed to print receipt.'
+      );
+    } finally {
+      setIsCapturing(false);
+      setCaptureTarget(null);
+      setPrintDebugContext(null);
     }
-
   };
 
   const handleCustomerCopyPrint = async (printer?: SavedPrinter | null) => {
@@ -313,25 +355,24 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       return;
     }
 
-    let printOrder = order;
-
-    const latestOrderResult = await getOrder(order.id);
-    if (latestOrderResult.data) {
-      printOrder = latestOrderResult.data;
-      setPrintPreviewOrder(latestOrderResult.data);
-      console.log('[OrderDetailModal] refreshed customer copy order', {
-        orderId: latestOrderResult.data.id,
-        orderNumber: latestOrderResult.data.order_number,
-        customerName: latestOrderResult.data.customer_name,
-        userId: latestOrderResult.data.user_id,
-        receiptClaimToken: latestOrderResult.data.receipt_claim_token,
-      });
-    } else if (latestOrderResult.error) {
-      console.warn('[OrderDetailModal] Failed to refresh order before customer copy print:', latestOrderResult.error);
-    }
-
+    setIsCapturing(true);
     try {
-      setIsCapturing(true);
+      let printOrder = order;
+      const latestOrderResult = await getOrder(order.id);
+      if (latestOrderResult.data) {
+        printOrder = latestOrderResult.data;
+        setPrintPreviewOrder(latestOrderResult.data);
+        console.log('[OrderDetailModal] refreshed customer copy order', {
+          orderId: latestOrderResult.data.id,
+          orderNumber: latestOrderResult.data.order_number,
+          customerName: latestOrderResult.data.customer_name,
+          userId: latestOrderResult.data.user_id,
+          receiptClaimToken: latestOrderResult.data.receipt_claim_token,
+        });
+      } else if (latestOrderResult.error) {
+        console.warn('[OrderDetailModal] Failed to refresh order before customer copy print:', latestOrderResult.error);
+      }
+
       setCaptureTarget('customer');
       await new Promise((resolve) => setTimeout(resolve, 300));
       if (!customerReceiptRef.current) {
@@ -707,9 +748,11 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 onPress={() => {
                   Alert.alert('Cancel Order', 'Are you sure you want to cancel this order?', [
                     { text: 'No', style: 'cancel' },
-                    { text: 'Yes, Cancel', onPress: () => onStatusUpdate!(order, 'cancelled'), style: 'destructive' }
+                    { text: 'Yes, Cancel', onPress: () => void requestOrderAction('cancel', () => onStatusUpdate!(order, 'cancelled')), style: 'destructive' }
                   ]);
                 }} 
+                disabled={isUpdating || pendingOrderAction !== null}
+                loading={pendingOrderAction === 'cancel'}
                 style={[styles.actionButton, isPhoneActionLayout ? styles.phoneActionButton : null]}
                 contentStyle={isPhoneActionLayout ? styles.phoneActionButtonContent : undefined}
                 compact={!isWide}
@@ -738,7 +781,9 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               <PaperButton
                 mode="outlined"
                 icon="cash"
-                onPress={() => onPaymentStatusUpdate!(order.id, 'paid', 'Cash')}
+                onPress={() => void requestOrderAction('cash', () => onPaymentStatusUpdate!(order.id, 'paid', 'Cash'))}
+                loading={pendingOrderAction === 'cash'}
+                disabled={isUpdating || pendingOrderAction !== null}
                 style={[styles.actionButton, isPhoneActionLayout ? styles.phoneActionButton : null]}
                 contentStyle={isPhoneActionLayout ? styles.phoneActionButtonContent : undefined}
                 compact={!isWide}
@@ -751,7 +796,9 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               <PaperButton
                 mode="outlined"
                 icon="credit-card-outline"
-                onPress={() => onPaymentStatusUpdate!(order.id, 'paid', 'Card')}
+                onPress={() => void requestOrderAction('card', () => onPaymentStatusUpdate!(order.id, 'paid', 'Card'))}
+                loading={pendingOrderAction === 'card'}
+                disabled={isUpdating || pendingOrderAction !== null}
                 style={[styles.actionButton, isPhoneActionLayout ? styles.phoneActionButton : null]}
                 contentStyle={isPhoneActionLayout ? styles.phoneActionButtonContent : undefined}
                 compact={!isWide}
