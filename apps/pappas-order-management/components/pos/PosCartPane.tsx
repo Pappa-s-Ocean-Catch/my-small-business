@@ -8,6 +8,8 @@ import type {
 
 type Props = {
   isCompactLayout: boolean;
+  isPhoneLayout?: boolean;
+  onBackToMenu?: () => void;
   orderId?: string;
   cartItems: PosCartItem[];
   quickOrderNote: string | null;
@@ -37,7 +39,10 @@ type Props = {
 
 export function PosCartPane({
   isCompactLayout,
+  isPhoneLayout,
+  onBackToMenu,
   orderId,
+
   cartItems,
   quickOrderNote,
   setSaltOptionDialogVisible,
@@ -69,20 +74,47 @@ export function PosCartPane({
 
   return (
     <View style={[styles.cartPane, isCompactLayout ? styles.cartPaneCompact : null]}>
-      <View style={styles.cartHeader}>
-        <Text style={styles.cartTitle}>Current Order</Text>
-        <Button
-          mode="outlined"
-          icon="trash-can-outline"
-          compact
-          disabled={Boolean(orderId) || cartItems.length === 0}
-          onPress={handleClearCart}
-          textColor="#dc2626"
-          style={styles.clearCartButton}
-        >
-          Clear
-        </Button>
-      </View>
+      {isPhoneLayout && onBackToMenu ? (
+        <View style={styles.phoneCartHeader}>
+          <Button
+            mode="text"
+            icon="arrow-left"
+            onPress={onBackToMenu}
+            compact
+            contentStyle={styles.phoneBackToMenuButton}
+          >
+            Menu
+          </Button>
+          <Text style={styles.cartTitle}>Current Order</Text>
+          <Button
+            mode="outlined"
+            icon="trash-can-outline"
+            compact
+            disabled={Boolean(orderId) || cartItems.length === 0}
+            onPress={handleClearCart}
+            textColor="#dc2626"
+            style={styles.clearCartButton}
+          >
+            Clear
+          </Button>
+        </View>
+      ) : (
+        <View style={styles.cartHeader}>
+          <Text style={styles.cartTitle}>Current Order</Text>
+          <Button
+            mode="outlined"
+            icon="trash-can-outline"
+            compact
+            disabled={Boolean(orderId) || cartItems.length === 0}
+            onPress={handleClearCart}
+            textColor="#dc2626"
+            style={styles.clearCartButton}
+          >
+            Clear
+          </Button>
+        </View>
+      )}
+
       <TouchableOpacity
         style={[styles.quickOrderNoteButton, quickOrderNote && styles.quickOrderNoteButtonSelected]}
         onPress={() => setSaltOptionDialogVisible(true)}

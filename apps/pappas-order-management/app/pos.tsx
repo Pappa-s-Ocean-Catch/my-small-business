@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, FlatList, Platform, Text, View, useWindowDimensions } from 'react-native';
+import { Alert, FlatList, Platform, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+
 import { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Appbar } from 'react-native-paper';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -321,8 +322,10 @@ export default function PosScreen() {
   const upsertPendingOnlinePaymentSession = usePendingOnlinePaymentsStore((state) => state.upsertSession);
   const marketplaceDraft = useMarketplacePosDraftStore((state) => state.draft);
   const clearMarketplaceDraft = useMarketplacePosDraftStore((state) => state.clearDraft);
+  const [phoneViewTab, setPhoneViewTab] = useState<'menu' | 'cart'>('menu');
 
   const goHome = () => {
+
     router.replace('/(drawer)/(tabs)/live-orders');
   };
 
@@ -1032,21 +1035,8 @@ export default function PosScreen() {
     }
   }, [initialCheckoutTab, menuLevel]);
 
-  const handleToggleRewardPoints = useCallback(() => {
-    if (preventPendingCartEdit()) return;
-    if (!rewardPointsSettings.enabled || !selectedCustomer) return;
-    if (rewardPointsToUse > 0) {
-      setRewardPointsToUse(0);
-      setRewardPointsValue(0);
-      return;
-    }
-
-    const nextPoints = maxRewardPointsForOrder;
-    setRewardPointsToUse(nextPoints);
-    setRewardPointsValue(Number((nextPoints * rewardPointsSettings.dollars_per_point).toFixed(2)));
-  }, [maxRewardPointsForOrder, preventPendingCartEdit, rewardPointsSettings, rewardPointsToUse, selectedCustomer]);
-
   const applyRewardPointsForSavedOrder = useCallback(async (
+
     orderIdToApply: string,
     customerUserId?: string | null,
     pointsToApply = rewardPointsToUse,
@@ -1157,6 +1147,21 @@ export default function PosScreen() {
 
     return Math.min(currentBalance, Math.floor(eligibleOrderAmount / dollarsPerPoint));
   }, [cartSubtotal, discountAmount, editingOrder, freeItemDiscountAmount, rewardPointsSettings, selectedCustomer]);
+
+  const handleToggleRewardPoints = useCallback(() => {
+    if (preventPendingCartEdit()) return;
+    if (!rewardPointsSettings.enabled || !selectedCustomer) return;
+    if (rewardPointsToUse > 0) {
+      setRewardPointsToUse(0);
+      setRewardPointsValue(0);
+      return;
+    }
+
+    const nextPoints = maxRewardPointsForOrder;
+    setRewardPointsToUse(nextPoints);
+    setRewardPointsValue(Number((nextPoints * rewardPointsSettings.dollars_per_point).toFixed(2)));
+  }, [maxRewardPointsForOrder, preventPendingCartEdit, rewardPointsSettings, rewardPointsToUse, selectedCustomer]);
+
 
   useEffect(() => {
     if (!rewardPointsSettings.enabled || maxRewardPointsForOrder <= 0) {
@@ -1519,6 +1524,9 @@ export default function PosScreen() {
 
   const openCheckout = () => {
     setMenuLevel('checkout');
+    if (isPhoneLayout) {
+      setPhoneViewTab('cart');
+    }
     setSelectedProduct(null);
     setEditingItemId(null);
     setEditorAddonGroups([]);
@@ -1526,6 +1534,7 @@ export default function PosScreen() {
     setEditorRemovableIngredients([]);
     setEditorRemovedIngredientIds({});
   };
+
 
   const buildCartItem = (
     product: SaleProduct,
@@ -1777,7 +1786,9 @@ export default function PosScreen() {
   };
 
   const resetPosForNextOrder = useCallback(() => {
+    setPhoneViewTab('menu');
     setCartItems([]);
+
     setCustomerPhone('');
     setCustomerName('');
     setSelectedCustomer(null);
@@ -2790,7 +2801,9 @@ export default function PosScreen() {
   };
   const addonSelectionCount = selectedEditorAddons.length + selectedRemovedIngredients.length;
   const addonSelectionTotal = addonTotal(selectedEditorAddons);
+
   return (
+
     <View style={styles.container}>
       <Appbar.Header style={styles.header}>
         <Appbar.Content title={orderId ? 'Edit Order' : 'Take Order'} titleStyle={styles.headerTitle} />
@@ -2807,6 +2820,43 @@ export default function PosScreen() {
         <Appbar.Action icon="home" onPress={goHome} iconColor="#fff" accessibilityLabel="Back home" />
       </Appbar.Header>
 
+      {isPhoneLayout && (
+        <View style={styles.phoneNavContainer}>
+          <View style={styles.phoneNavTabs}>
+            <TouchableOpacity
+              style={[styles.phoneNavTab, phoneViewTab === 'menu' && menuLevel !== 'checkout' && styles.phoneNavTabActive]}
+              onPress={() => {
+                if (menuLevel === 'checkout') setMenuLevel('groups');
+                setPhoneViewTab('menu');
+              }}
+              activeOpacity={0.8}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: phoneViewTab === 'menu' && menuLevel !== 'checkout' }}
+            >
+              <Text style={[styles.phoneNavTabText, phoneViewTab === 'menu' && menuLevel !== 'checkout' && styles.phoneNavTabTextActive]}>
+                🍔 Menu
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.phoneNavTab, (phoneViewTab === 'cart' || menuLevel === 'checkout') && styles.phoneNavTabActive]}
+              onPress={() => setPhoneViewTab('cart')}
+              activeOpacity={0.8}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: phoneViewTab === 'cart' || menuLevel === 'checkout' }}
+            >
+              <Text style={[styles.phoneNavTabText, (phoneViewTab === 'cart' || menuLevel === 'checkout') && styles.phoneNavTabTextActive]}>
+                🛒 Cart
+              </Text>
+              {cartItems.length > 0 && (
+                <View style={styles.phoneCartBadge}>
+                  <Text style={styles.phoneCartBadgeText}>{cartItems.length}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       <View
         style={[
           styles.body,
@@ -2814,149 +2864,425 @@ export default function PosScreen() {
           isPhoneLayout ? styles.bodyPhone : null,
         ]}
       >
-        <View style={[styles.menuPane, isCompactLayout ? styles.menuPaneCompact : null]}>
-          <PosMenuPane
-            menuLevel={menuLevel}
-            gridColumns={gridColumns}
-            quickListColumns={quickListColumns}
-            addonOptionWidth={addonOptionWidth}
-            layoutTopLevelCategories={layoutTopLevelCategories}
-            topSellers={topSellers}
-            loadingTopSellers={loadingTopSellers}
-            quickQuantityForProduct={quickQuantityForProduct}
-            openCategory={openCategory}
-            quickAddProduct={quickAddProduct}
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            searchResults={searchResults}
-            loadingSearchProducts={loadingSearchProducts}
-            backToGroups={backToGroups}
-            activeParentCategoryName={activeParentCategoryName}
-            childCategoriesForSelectedGroup={childCategoriesForSelectedGroup}
-            activeLayoutCategory={activeLayoutCategory ? {
-              color: activeLayoutCategory.color,
-              title: activeLayoutCategory.title,
-              showProductsOnTopLevel: activeLayoutCategory.showProductsOnTopLevel,
-            } : null}
-            openSubcategory={openSubcategory}
-            activeCategoryName={activeCategoryName}
-            layoutProducts={layoutProducts}
-            loadingProducts={loadingProducts}
-            itemsBackAction={itemsBackAction}
-            itemsBackLabel={itemsBackLabel}
-            selectedParentCatId={selectedParentCatId}
-            setQuickListVisible={setQuickListVisible}
-            quickAccessProducts={quickAccessProducts}
-            productButtonColor={productButtonColor}
-            productTilePalette={productTilePalette}
-            selectedProduct={selectedProduct}
-            backToItems={backToItems}
-            editorRemovableIngredients={editorRemovableIngredients}
-            editorRemovedIngredientIds={editorRemovedIngredientIds}
-            toggleRemovedIngredient={toggleRemovedIngredient}
-            editorAddonGroups={editorAddonGroups}
-            loadingAddons={loadingAddons}
-            editorSelectedIds={editorSelectedIds}
-            toggleAddon={toggleAddon}
-            addonGroupPalette={addonGroupPalette}
-            addonSelectionCount={addonSelectionCount}
-            addonSelectionTotal={addonSelectionTotal}
-            openCheckout={openCheckout}
-            customerLookupStatus={customerLookupStatus}
-            customerPhone={customerPhone}
-            onChangeCustomerPhone={handleCustomerPhoneChange}
-            customerName={customerName}
-            onChangeCustomerName={handleCustomerNameChange}
-            customerLookupError={customerLookupError}
-            selectedCustomer={selectedCustomer}
-            onSelectCustomer={handleSelectCustomer}
-            onClearCustomer={handleClearCustomer}
-            onResetToDefaultInstore={handleResetToDefaultInstore}
-            rewardPointsEnabled={rewardPointsSettings.enabled}
-            rewardPointsBalance={rewardPointsBalance}
-            rewardPointsDollarValue={rewardPointsDollarValue}
-            rewardPointsApplied={rewardPointsToUse > 0}
-            appliedRewardPointsValue={rewardPointsValue}
-            onToggleRewardPoints={handleToggleRewardPoints}
-            totals={totals}
-            freeItemPromotionTitle={freeItemPromotionTitle}
-            freeItemSelectionRequired={freeItemSelectionRequired}
-            selectedFreeItemName={selectedFreeItemName}
-            onOpenFreeItemDialog={() => setFreeItemDialogVisible(true)}
-            discountLabel={discountLabel}
-            discountAmount={discountAmount}
-            activeDiscountPercent={activeDiscountPercent}
-            selectDiscountPreset={applyPresetDiscount}
-            openDiscountDialog={() => setDiscountDialogVisible(true)}
-            cartItemsCount={cartItems.length}
-            isPreOrder={isPreOrder}
-            setIsPreOrder={setIsPreOrder}
-            scheduledPickupAt={scheduledPickupAt}
-            setScheduledPickupAt={setScheduledPickupAt}
-            defaultPickupTime={defaultPickupTime}
-            formatPickupTime={formatPickupTime}
-            openPickupPicker={openPickupPicker}
-            showPickupPicker={showPickupPicker}
-            pickupPickerMode={pickupPickerMode}
-            handlePickupPickerChange={handlePickupPickerChange}
-            thirdPartyOrderAt={thirdPartyOrderAt}
-            formatOrderTime={formatOrderTime}
-            openThirdPartyOrderAtPicker={openThirdPartyOrderAtPicker}
-            showThirdPartyOrderAtPicker={showThirdPartyOrderAtPicker}
-            thirdPartyOrderAtPickerMode={thirdPartyOrderAtPickerMode}
-            handleThirdPartyOrderAtPickerChange={handleThirdPartyOrderAtPickerChange}
-            orderNoteText={orderNoteText}
-            setOrderNoteText={setOrderNoteText}
-            creatingOrder={creatingOrder}
-            smartpayPreparing={smartpayPreparing}
-            smartpayProcessing={smartpayProcessing}
-            orderId={orderId}
-            checkoutPrimaryLabel={checkoutPrimaryLabel}
-            handleCheckout={handleCheckout}
-            smartpayPaired={smartpayPaired}
-            handleInstoreCheckout={handleInstoreCheckout}
-            handleSmartpayInstoreCheckout={handleSmartpayInstoreCheckout}
-            handleDeliveryCheckout={handleDeliveryCheckout}
-            thirdPartySource={thirdPartySource}
-            setThirdPartySource={handleThirdPartySourceChange}
-            thirdPartyCustomerName={thirdPartyCustomerName}
-            setThirdPartyCustomerName={setThirdPartyCustomerName}
-            thirdPartyExternalOrderId={thirdPartyExternalOrderId}
-            setThirdPartyExternalOrderId={handleThirdPartyExternalOrderIdChange}
-            handleThirdPartyCheckout={handleThirdPartyCheckout}
-            initialCheckoutTab={initialCheckoutTab}
-          />
-        </View>
+        {isPhoneLayout ? (
+          phoneViewTab === 'cart' || menuLevel === 'checkout' ? (
+            menuLevel === 'checkout' ? (
+              <View style={[styles.menuPane, styles.menuPaneCompact]}>
+                <PosMenuPane
+                  isPhoneLayout={isPhoneLayout}
+                  onOpenCart={() => setPhoneViewTab('cart')}
+                  menuLevel={menuLevel}
+                  gridColumns={gridColumns}
+                  quickListColumns={quickListColumns}
+                  addonOptionWidth={addonOptionWidth}
+                  layoutTopLevelCategories={layoutTopLevelCategories}
+                  topSellers={topSellers}
+                  loadingTopSellers={loadingTopSellers}
+                  quickQuantityForProduct={quickQuantityForProduct}
+                  openCategory={openCategory}
+                  quickAddProduct={quickAddProduct}
+                  searchQuery={searchQuery}
+                  setSearchQuery={setSearchQuery}
+                  searchResults={searchResults}
+                  loadingSearchProducts={loadingSearchProducts}
+                  backToGroups={backToGroups}
+                  activeParentCategoryName={activeParentCategoryName}
+                  childCategoriesForSelectedGroup={childCategoriesForSelectedGroup}
+                  activeLayoutCategory={activeLayoutCategory ? {
+                    color: activeLayoutCategory.color,
+                    title: activeLayoutCategory.title,
+                    showProductsOnTopLevel: activeLayoutCategory.showProductsOnTopLevel,
+                  } : null}
+                  openSubcategory={openSubcategory}
+                  activeCategoryName={activeCategoryName}
+                  layoutProducts={layoutProducts}
+                  loadingProducts={loadingProducts}
+                  itemsBackAction={itemsBackAction}
+                  itemsBackLabel={itemsBackLabel}
+                  selectedParentCatId={selectedParentCatId}
+                  setQuickListVisible={setQuickListVisible}
+                  quickAccessProducts={quickAccessProducts}
+                  productButtonColor={productButtonColor}
+                  productTilePalette={productTilePalette}
+                  selectedProduct={selectedProduct}
+                  backToItems={backToItems}
+                  editorRemovableIngredients={editorRemovableIngredients}
+                  editorRemovedIngredientIds={editorRemovedIngredientIds}
+                  toggleRemovedIngredient={toggleRemovedIngredient}
+                  editorAddonGroups={editorAddonGroups}
+                  loadingAddons={loadingAddons}
+                  editorSelectedIds={editorSelectedIds}
+                  toggleAddon={toggleAddon}
+                  addonGroupPalette={addonGroupPalette}
+                  addonSelectionCount={addonSelectionCount}
+                  addonSelectionTotal={addonSelectionTotal}
+                  openCheckout={openCheckout}
+                  customerLookupStatus={customerLookupStatus}
+                  customerPhone={customerPhone}
+                  onChangeCustomerPhone={handleCustomerPhoneChange}
+                  customerName={customerName}
+                  onChangeCustomerName={handleCustomerNameChange}
+                  customerLookupError={customerLookupError}
+                  selectedCustomer={selectedCustomer}
+                  onSelectCustomer={handleSelectCustomer}
+                  onClearCustomer={handleClearCustomer}
+                  onResetToDefaultInstore={handleResetToDefaultInstore}
+                  rewardPointsEnabled={rewardPointsSettings.enabled}
+                  rewardPointsBalance={rewardPointsBalance}
+                  rewardPointsDollarValue={rewardPointsDollarValue}
+                  rewardPointsApplied={rewardPointsToUse > 0}
+                  appliedRewardPointsValue={rewardPointsValue}
+                  onToggleRewardPoints={handleToggleRewardPoints}
+                  totals={totals}
+                  freeItemPromotionTitle={freeItemPromotionTitle}
+                  freeItemSelectionRequired={freeItemSelectionRequired}
+                  selectedFreeItemName={selectedFreeItemName}
+                  onOpenFreeItemDialog={() => setFreeItemDialogVisible(true)}
+                  discountLabel={discountLabel}
+                  discountAmount={discountAmount}
+                  activeDiscountPercent={activeDiscountPercent}
+                  selectDiscountPreset={applyPresetDiscount}
+                  openDiscountDialog={() => setDiscountDialogVisible(true)}
+                  cartItemsCount={cartItems.length}
+                  isPreOrder={isPreOrder}
+                  setIsPreOrder={setIsPreOrder}
+                  scheduledPickupAt={scheduledPickupAt}
+                  setScheduledPickupAt={setScheduledPickupAt}
+                  defaultPickupTime={defaultPickupTime}
+                  formatPickupTime={formatPickupTime}
+                  openPickupPicker={openPickupPicker}
+                  showPickupPicker={showPickupPicker}
+                  pickupPickerMode={pickupPickerMode}
+                  handlePickupPickerChange={handlePickupPickerChange}
+                  thirdPartyOrderAt={thirdPartyOrderAt}
+                  formatOrderTime={formatOrderTime}
+                  openThirdPartyOrderAtPicker={openThirdPartyOrderAtPicker}
+                  showThirdPartyOrderAtPicker={showThirdPartyOrderAtPicker}
+                  thirdPartyOrderAtPickerMode={thirdPartyOrderAtPickerMode}
+                  handleThirdPartyOrderAtPickerChange={handleThirdPartyOrderAtPickerChange}
+                  orderNoteText={orderNoteText}
+                  setOrderNoteText={setOrderNoteText}
+                  creatingOrder={creatingOrder}
+                  smartpayPreparing={smartpayPreparing}
+                  smartpayProcessing={smartpayProcessing}
+                  orderId={orderId}
+                  checkoutPrimaryLabel={checkoutPrimaryLabel}
+                  handleCheckout={handleCheckout}
+                  smartpayPaired={smartpayPaired}
+                  handleInstoreCheckout={handleInstoreCheckout}
+                  handleSmartpayInstoreCheckout={handleSmartpayInstoreCheckout}
+                  handleDeliveryCheckout={handleDeliveryCheckout}
+                  thirdPartySource={thirdPartySource}
+                  setThirdPartySource={handleThirdPartySourceChange}
+                  thirdPartyCustomerName={thirdPartyCustomerName}
+                  setThirdPartyCustomerName={setThirdPartyCustomerName}
+                  thirdPartyExternalOrderId={thirdPartyExternalOrderId}
+                  setThirdPartyExternalOrderId={handleThirdPartyExternalOrderIdChange}
+                  handleThirdPartyCheckout={handleThirdPartyCheckout}
+                  initialCheckoutTab={initialCheckoutTab}
+                />
+              </View>
+            ) : (
+              <PosCartPane
+                isCompactLayout={isCompactLayout}
+                isPhoneLayout={isPhoneLayout}
+                onBackToMenu={() => setPhoneViewTab('menu')}
+                orderId={orderId}
+                cartItems={cartItems}
+                quickOrderNote={quickOrderNote}
+                setSaltOptionDialogVisible={setSaltOptionDialogVisible}
+                activeCartItemId={activeCartItemId}
+                openCartItemEditor={openCartItemEditor}
+                updateQuantity={updateQuantity}
+                openNoteEditor={openNoteEditor}
+                removeCartItem={removeCartItem}
+                totals={totals}
+                freeItemPromotionTitle={freeItemPromotionTitle}
+                freeItemSelectionRequired={freeItemSelectionRequired}
+                selectedFreeItemName={selectedFreeItemName}
+                onOpenFreeItemDialog={() => setFreeItemDialogVisible(true)}
+                getCartItemDisplayName={getPosCartItemDisplayName}
+                isFreePromotionItem={(item) => selectedFreeItemId === item.id && freeItemPromotion?.item.id === item.id}
+                creatingOrder={creatingOrder}
+                smartpayPreparing={smartpayPreparing}
+                smartpayProcessing={smartpayProcessing}
+                handleClearCart={handleClearCart}
+                openCheckout={openCheckout}
+                openInstorePaymentPrompt={openInstorePaymentPrompt}
+                handleCheckout={() => handleCheckout()}
+                smartpayPaired={smartpayPaired}
+                handleSmartpayInstoreCheckout={handleSmartpayInstoreCheckout}
+              />
+            )
+          ) : (
+            <View style={[styles.menuPane, styles.menuPaneCompact]}>
+              <PosMenuPane
+                isPhoneLayout={isPhoneLayout}
+                onOpenCart={() => setPhoneViewTab('cart')}
+                menuLevel={menuLevel}
+                gridColumns={gridColumns}
+                quickListColumns={quickListColumns}
+                addonOptionWidth={addonOptionWidth}
+                layoutTopLevelCategories={layoutTopLevelCategories}
+                topSellers={topSellers}
+                loadingTopSellers={loadingTopSellers}
+                quickQuantityForProduct={quickQuantityForProduct}
+                openCategory={openCategory}
+                quickAddProduct={quickAddProduct}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                searchResults={searchResults}
+                loadingSearchProducts={loadingSearchProducts}
+                backToGroups={backToGroups}
+                activeParentCategoryName={activeParentCategoryName}
+                childCategoriesForSelectedGroup={childCategoriesForSelectedGroup}
+                activeLayoutCategory={activeLayoutCategory ? {
+                  color: activeLayoutCategory.color,
+                  title: activeLayoutCategory.title,
+                  showProductsOnTopLevel: activeLayoutCategory.showProductsOnTopLevel,
+                } : null}
+                openSubcategory={openSubcategory}
+                activeCategoryName={activeCategoryName}
+                layoutProducts={layoutProducts}
+                loadingProducts={loadingProducts}
+                itemsBackAction={itemsBackAction}
+                itemsBackLabel={itemsBackLabel}
+                selectedParentCatId={selectedParentCatId}
+                setQuickListVisible={setQuickListVisible}
+                quickAccessProducts={quickAccessProducts}
+                productButtonColor={productButtonColor}
+                productTilePalette={productTilePalette}
+                selectedProduct={selectedProduct}
+                backToItems={backToItems}
+                editorRemovableIngredients={editorRemovableIngredients}
+                editorRemovedIngredientIds={editorRemovedIngredientIds}
+                toggleRemovedIngredient={toggleRemovedIngredient}
+                editorAddonGroups={editorAddonGroups}
+                loadingAddons={loadingAddons}
+                editorSelectedIds={editorSelectedIds}
+                toggleAddon={toggleAddon}
+                addonGroupPalette={addonGroupPalette}
+                addonSelectionCount={addonSelectionCount}
+                addonSelectionTotal={addonSelectionTotal}
+                openCheckout={openCheckout}
+                customerLookupStatus={customerLookupStatus}
+                customerPhone={customerPhone}
+                onChangeCustomerPhone={handleCustomerPhoneChange}
+                customerName={customerName}
+                onChangeCustomerName={handleCustomerNameChange}
+                customerLookupError={customerLookupError}
+                selectedCustomer={selectedCustomer}
+                onSelectCustomer={handleSelectCustomer}
+                onClearCustomer={handleClearCustomer}
+                onResetToDefaultInstore={handleResetToDefaultInstore}
+                rewardPointsEnabled={rewardPointsSettings.enabled}
+                rewardPointsBalance={rewardPointsBalance}
+                rewardPointsDollarValue={rewardPointsDollarValue}
+                rewardPointsApplied={rewardPointsToUse > 0}
+                appliedRewardPointsValue={rewardPointsValue}
+                onToggleRewardPoints={handleToggleRewardPoints}
+                totals={totals}
+                freeItemPromotionTitle={freeItemPromotionTitle}
+                freeItemSelectionRequired={freeItemSelectionRequired}
+                selectedFreeItemName={selectedFreeItemName}
+                onOpenFreeItemDialog={() => setFreeItemDialogVisible(true)}
+                discountLabel={discountLabel}
+                discountAmount={discountAmount}
+                activeDiscountPercent={activeDiscountPercent}
+                selectDiscountPreset={applyPresetDiscount}
+                openDiscountDialog={() => setDiscountDialogVisible(true)}
+                cartItemsCount={cartItems.length}
+                isPreOrder={isPreOrder}
+                setIsPreOrder={setIsPreOrder}
+                scheduledPickupAt={scheduledPickupAt}
+                setScheduledPickupAt={setScheduledPickupAt}
+                defaultPickupTime={defaultPickupTime}
+                formatPickupTime={formatPickupTime}
+                openPickupPicker={openPickupPicker}
+                showPickupPicker={showPickupPicker}
+                pickupPickerMode={pickupPickerMode}
+                handlePickupPickerChange={handlePickupPickerChange}
+                thirdPartyOrderAt={thirdPartyOrderAt}
+                formatOrderTime={formatOrderTime}
+                openThirdPartyOrderAtPicker={openThirdPartyOrderAtPicker}
+                showThirdPartyOrderAtPicker={showThirdPartyOrderAtPicker}
+                thirdPartyOrderAtPickerMode={thirdPartyOrderAtPickerMode}
+                handleThirdPartyOrderAtPickerChange={handleThirdPartyOrderAtPickerChange}
+                orderNoteText={orderNoteText}
+                setOrderNoteText={setOrderNoteText}
+                creatingOrder={creatingOrder}
+                smartpayPreparing={smartpayPreparing}
+                smartpayProcessing={smartpayProcessing}
+                orderId={orderId}
+                checkoutPrimaryLabel={checkoutPrimaryLabel}
+                handleCheckout={handleCheckout}
+                smartpayPaired={smartpayPaired}
+                handleInstoreCheckout={handleInstoreCheckout}
+                handleSmartpayInstoreCheckout={handleSmartpayInstoreCheckout}
+                handleDeliveryCheckout={handleDeliveryCheckout}
+                thirdPartySource={thirdPartySource}
+                setThirdPartySource={handleThirdPartySourceChange}
+                thirdPartyCustomerName={thirdPartyCustomerName}
+                setThirdPartyCustomerName={setThirdPartyCustomerName}
+                thirdPartyExternalOrderId={thirdPartyExternalOrderId}
+                setThirdPartyExternalOrderId={handleThirdPartyExternalOrderIdChange}
+                handleThirdPartyCheckout={handleThirdPartyCheckout}
+                initialCheckoutTab={initialCheckoutTab}
+              />
+            </View>
+          )
+        ) : (
+          <>
+            <View style={[styles.menuPane, isCompactLayout ? styles.menuPaneCompact : null]}>
+              <PosMenuPane
+                isPhoneLayout={isPhoneLayout}
+                onOpenCart={() => setPhoneViewTab('cart')}
+                menuLevel={menuLevel}
+                gridColumns={gridColumns}
+                quickListColumns={quickListColumns}
+                addonOptionWidth={addonOptionWidth}
+                layoutTopLevelCategories={layoutTopLevelCategories}
+                topSellers={topSellers}
+                loadingTopSellers={loadingTopSellers}
+                quickQuantityForProduct={quickQuantityForProduct}
+                openCategory={openCategory}
+                quickAddProduct={quickAddProduct}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                searchResults={searchResults}
+                loadingSearchProducts={loadingSearchProducts}
+                backToGroups={backToGroups}
+                activeParentCategoryName={activeParentCategoryName}
+                childCategoriesForSelectedGroup={childCategoriesForSelectedGroup}
+                activeLayoutCategory={activeLayoutCategory ? {
+                  color: activeLayoutCategory.color,
+                  title: activeLayoutCategory.title,
+                  showProductsOnTopLevel: activeLayoutCategory.showProductsOnTopLevel,
+                } : null}
+                openSubcategory={openSubcategory}
+                activeCategoryName={activeCategoryName}
+                layoutProducts={layoutProducts}
+                loadingProducts={loadingProducts}
+                itemsBackAction={itemsBackAction}
+                itemsBackLabel={itemsBackLabel}
+                selectedParentCatId={selectedParentCatId}
+                setQuickListVisible={setQuickListVisible}
+                quickAccessProducts={quickAccessProducts}
+                productButtonColor={productButtonColor}
+                productTilePalette={productTilePalette}
+                selectedProduct={selectedProduct}
+                backToItems={backToItems}
+                editorRemovableIngredients={editorRemovableIngredients}
+                editorRemovedIngredientIds={editorRemovedIngredientIds}
+                toggleRemovedIngredient={toggleRemovedIngredient}
+                editorAddonGroups={editorAddonGroups}
+                loadingAddons={loadingAddons}
+                editorSelectedIds={editorSelectedIds}
+                toggleAddon={toggleAddon}
+                addonGroupPalette={addonGroupPalette}
+                addonSelectionCount={addonSelectionCount}
+                addonSelectionTotal={addonSelectionTotal}
+                openCheckout={openCheckout}
+                customerLookupStatus={customerLookupStatus}
+                customerPhone={customerPhone}
+                onChangeCustomerPhone={handleCustomerPhoneChange}
+                customerName={customerName}
+                onChangeCustomerName={handleCustomerNameChange}
+                customerLookupError={customerLookupError}
+                selectedCustomer={selectedCustomer}
+                onSelectCustomer={handleSelectCustomer}
+                onClearCustomer={handleClearCustomer}
+                onResetToDefaultInstore={handleResetToDefaultInstore}
+                rewardPointsEnabled={rewardPointsSettings.enabled}
+                rewardPointsBalance={rewardPointsBalance}
+                rewardPointsDollarValue={rewardPointsDollarValue}
+                rewardPointsApplied={rewardPointsToUse > 0}
+                appliedRewardPointsValue={rewardPointsValue}
+                onToggleRewardPoints={handleToggleRewardPoints}
+                totals={totals}
+                freeItemPromotionTitle={freeItemPromotionTitle}
+                freeItemSelectionRequired={freeItemSelectionRequired}
+                selectedFreeItemName={selectedFreeItemName}
+                onOpenFreeItemDialog={() => setFreeItemDialogVisible(true)}
+                discountLabel={discountLabel}
+                discountAmount={discountAmount}
+                activeDiscountPercent={activeDiscountPercent}
+                selectDiscountPreset={applyPresetDiscount}
+                openDiscountDialog={() => setDiscountDialogVisible(true)}
+                cartItemsCount={cartItems.length}
+                isPreOrder={isPreOrder}
+                setIsPreOrder={setIsPreOrder}
+                scheduledPickupAt={scheduledPickupAt}
+                setScheduledPickupAt={setScheduledPickupAt}
+                defaultPickupTime={defaultPickupTime}
+                formatPickupTime={formatPickupTime}
+                openPickupPicker={openPickupPicker}
+                showPickupPicker={showPickupPicker}
+                pickupPickerMode={pickupPickerMode}
+                handlePickupPickerChange={handlePickupPickerChange}
+                thirdPartyOrderAt={thirdPartyOrderAt}
+                formatOrderTime={formatOrderTime}
+                openThirdPartyOrderAtPicker={openThirdPartyOrderAtPicker}
+                showThirdPartyOrderAtPicker={showThirdPartyOrderAtPicker}
+                thirdPartyOrderAtPickerMode={thirdPartyOrderAtPickerMode}
+                handleThirdPartyOrderAtPickerChange={handleThirdPartyOrderAtPickerChange}
+                orderNoteText={orderNoteText}
+                setOrderNoteText={setOrderNoteText}
+                creatingOrder={creatingOrder}
+                smartpayPreparing={smartpayPreparing}
+                smartpayProcessing={smartpayProcessing}
+                orderId={orderId}
+                checkoutPrimaryLabel={checkoutPrimaryLabel}
+                handleCheckout={handleCheckout}
+                smartpayPaired={smartpayPaired}
+                handleInstoreCheckout={handleInstoreCheckout}
+                handleSmartpayInstoreCheckout={handleSmartpayInstoreCheckout}
+                handleDeliveryCheckout={handleDeliveryCheckout}
+                thirdPartySource={thirdPartySource}
+                setThirdPartySource={handleThirdPartySourceChange}
+                thirdPartyCustomerName={thirdPartyCustomerName}
+                setThirdPartyCustomerName={setThirdPartyCustomerName}
+                thirdPartyExternalOrderId={thirdPartyExternalOrderId}
+                setThirdPartyExternalOrderId={handleThirdPartyExternalOrderIdChange}
+                handleThirdPartyCheckout={handleThirdPartyCheckout}
+                initialCheckoutTab={initialCheckoutTab}
+              />
+            </View>
 
-        <PosCartPane
-          isCompactLayout={isCompactLayout}
-          orderId={orderId}
-          cartItems={cartItems}
-          quickOrderNote={quickOrderNote}
-          setSaltOptionDialogVisible={setSaltOptionDialogVisible}
-          activeCartItemId={activeCartItemId}
-          openCartItemEditor={openCartItemEditor}
-          updateQuantity={updateQuantity}
-          openNoteEditor={openNoteEditor}
-          removeCartItem={removeCartItem}
-          totals={totals}
-          freeItemPromotionTitle={freeItemPromotionTitle}
-          freeItemSelectionRequired={freeItemSelectionRequired}
-          selectedFreeItemName={selectedFreeItemName}
-          onOpenFreeItemDialog={() => setFreeItemDialogVisible(true)}
-          getCartItemDisplayName={getPosCartItemDisplayName}
-          isFreePromotionItem={(item) => selectedFreeItemId === item.id && freeItemPromotion?.item.id === item.id}
-          creatingOrder={creatingOrder}
-          smartpayPreparing={smartpayPreparing}
-          smartpayProcessing={smartpayProcessing}
-          handleClearCart={handleClearCart}
-          openCheckout={openCheckout}
-          openInstorePaymentPrompt={openInstorePaymentPrompt}
-          handleCheckout={() => handleCheckout()}
-          smartpayPaired={smartpayPaired}
-          handleSmartpayInstoreCheckout={handleSmartpayInstoreCheckout}
-        />
+            <PosCartPane
+              isCompactLayout={isCompactLayout}
+              isPhoneLayout={isPhoneLayout}
+              onBackToMenu={() => setPhoneViewTab('menu')}
+              orderId={orderId}
+              cartItems={cartItems}
+              quickOrderNote={quickOrderNote}
+              setSaltOptionDialogVisible={setSaltOptionDialogVisible}
+              activeCartItemId={activeCartItemId}
+              openCartItemEditor={openCartItemEditor}
+              updateQuantity={updateQuantity}
+              openNoteEditor={openNoteEditor}
+              removeCartItem={removeCartItem}
+              totals={totals}
+              freeItemPromotionTitle={freeItemPromotionTitle}
+              freeItemSelectionRequired={freeItemSelectionRequired}
+              selectedFreeItemName={selectedFreeItemName}
+              onOpenFreeItemDialog={() => setFreeItemDialogVisible(true)}
+              getCartItemDisplayName={getPosCartItemDisplayName}
+              isFreePromotionItem={(item) => selectedFreeItemId === item.id && freeItemPromotion?.item.id === item.id}
+              creatingOrder={creatingOrder}
+              smartpayPreparing={smartpayPreparing}
+              smartpayProcessing={smartpayProcessing}
+              handleClearCart={handleClearCart}
+              openCheckout={openCheckout}
+              openInstorePaymentPrompt={openInstorePaymentPrompt}
+              handleCheckout={() => handleCheckout()}
+              smartpayPaired={smartpayPaired}
+              handleSmartpayInstoreCheckout={handleSmartpayInstoreCheckout}
+            />
+          </>
+        )}
       </View>
+
 
         <PosDialogs
           cashTenderMode={cashTenderMode}

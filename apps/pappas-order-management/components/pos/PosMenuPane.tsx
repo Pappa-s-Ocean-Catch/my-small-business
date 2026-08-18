@@ -21,12 +21,16 @@ import type { PosCheckoutTab } from './PosCheckoutPanel';
 import type { DeliveryAddressDraft, DeliveryQuoteResult } from '../../lib/delivery';
 import type { Customer } from '../../lib/customers';
 
-type MenuLevel = 'groups' | 'subgroups' | 'items' | 'addons' | 'checkout' | 'search';
+type MenuLevel = 'groups' | 'subgroups' | 'items' | 'addons' | 'checkout' | 'search' | 'quick-list';
+
 type CustomerLookupStatus = 'idle' | 'loading' | 'found' | 'new' | 'error';
 
 type Props = {
+  isPhoneLayout?: boolean;
+  onOpenCart?: () => void;
   menuLevel: MenuLevel;
   gridColumns: number;
+
   quickListColumns: number;
   addonOptionWidth: DimensionValue;
   layoutTopLevelCategories: LayoutCategoryButton[];
@@ -140,8 +144,11 @@ type Props = {
 
 export function PosMenuPane(props: Props) {
   const {
+    isPhoneLayout,
+    onOpenCart,
     menuLevel,
     gridColumns,
+
     quickListColumns,
     addonOptionWidth,
     layoutTopLevelCategories,
@@ -705,6 +712,27 @@ export function PosMenuPane(props: Props) {
         </View>
       )}
 
+      {isPhoneLayout && cartItemsCount > 0 && onOpenCart && menuLevel !== 'checkout' && (
+        <TouchableOpacity
+          style={styles.phoneFloatingCartBar}
+          onPress={onOpenCart}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={`View cart with ${cartItemsCount} items total ${totals.subtotal.toFixed(2)}`}
+        >
+          <View style={styles.phoneFloatingCartInfo}>
+            <Text style={styles.phoneFloatingCartTitle}>
+              Cart ({cartItemsCount} {cartItemsCount === 1 ? 'item' : 'items'})
+            </Text>
+            <Text style={styles.phoneFloatingCartSub}>
+              Subtotal: ${totals.subtotal.toFixed(2)}
+            </Text>
+          </View>
+          <View style={styles.phoneFloatingCartButton}>
+            <Text style={styles.phoneFloatingCartButtonText}>View Cart & Checkout →</Text>
+          </View>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }

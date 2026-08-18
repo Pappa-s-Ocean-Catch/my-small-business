@@ -47,3 +47,4 @@ libs/*.js
 **adminsdk**
 data.json
 **/.gradle/*
+.agents
