@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { Button, Dialog, Portal, TextInput } from 'react-native-paper';
 
+import { getCouponsList, validateCouponCode, type Coupon } from '../../lib/coupons';
+import { findCustomerById, findCustomerByEmail, type Customer } from '../../lib/customers';
 import { CashTenderModal } from '../CashTenderModal';
 import { styles } from './pos.styles';
 import type { CashTenderMode, PosInstorePaymentChoice, SaleProduct } from '../../app/pos.types';
@@ -9,6 +11,8 @@ import type { CashTenderMode, PosInstorePaymentChoice, SaleProduct } from '../..
 type Props = {
   cashTenderMode: CashTenderMode | null;
   total: number;
+  cartSubtotal?: number;
+  selectedCustomer?: { id?: string; email?: string } | null;
   onCancelCashTender: () => void;
   onConfirmCashTender: () => void;
   smartpayProcessing: boolean;
@@ -39,12 +43,15 @@ type Props = {
   onApplyPresetDiscount: (percent: number) => void;
   onApplyCustomPercentDiscount: (percent: number) => void;
   onApplyCustomFixedDiscount: (amount: number) => void;
+  onApplyCouponDiscount?: (coupon: Coupon, discountAmount: number, customer?: Customer | null) => void;
   onClearDiscount: () => void;
 };
 
 export function PosDialogs({
   cashTenderMode,
   total,
+  cartSubtotal,
+  selectedCustomer,
   onCancelCashTender,
   onConfirmCashTender,
   smartpayProcessing,
@@ -75,16 +82,84 @@ export function PosDialogs({
   onApplyPresetDiscount,
   onApplyCustomPercentDiscount,
   onApplyCustomFixedDiscount,
+  onApplyCouponDiscount,
   onClearDiscount,
 }: Props) {
   const [customPercent, setCustomPercent] = useState('');
   const [customAmount, setCustomAmount] = useState('');
+  const [couponCodeInput, setCouponCodeInput] = useState('');
+  const [couponValidating, setCouponValidating] = useState(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [foundCoupon, setFoundCoupon] = useState<{
+    coupon: Coupon;
+    discountAmount: number;
+    linkedCustomer: Customer | null;
+  } | null>(null);
 
   useEffect(() => {
     if (!discountDialogVisible) return;
     setCustomPercent('');
     setCustomAmount('');
+    setCouponCodeInput('');
+    setCouponError(null);
+    setFoundCoupon(null);
   }, [discountDialogVisible]);
+
+  const handleSearchCoupon = async () => {
+    const code = couponCodeInput.trim().toUpperCase();
+    if (!code) return;
+    setCouponValidating(true);
+    setCouponError(null);
+    setFoundCoupon(null);
+    try {
+      const result = await validateCouponCode({
+        code,
+        cartSubtotal: cartSubtotal ?? total,
+        userId: selectedCustomer?.id,
+        customerEmail: selectedCustomer?.email,
+      });
+      if (result.isValid && result.coupon) {
+        let linkedCustomer: Customer | null = null;
+        if (result.coupon.user_id) {
+          const { data: cData } = await findCustomerById(result.coupon.user_id);
+          if (cData) linkedCustomer = cData;
+        }
+        if (!linkedCustomer && result.coupon.target_email) {
+          const { data: cData } = await findCustomerByEmail(result.coupon.target_email);
+          if (cData) linkedCustomer = cData;
+        }
+
+        if (!linkedCustomer && (result.coupon.target_email || result.coupon.user_id)) {
+          linkedCustomer = {
+            id: result.coupon.user_id || '',
+            name: result.coupon.target_email || 'Targeted Customer',
+            email: result.coupon.target_email || '',
+            phone: '',
+          };
+        }
+
+        setFoundCoupon({
+          coupon: result.coupon,
+          discountAmount: result.discountAmount,
+          linkedCustomer,
+        });
+      } else {
+        setCouponError(result.errorMessage || 'Coupon code not found or invalid.');
+      }
+    } catch (err: any) {
+      setCouponError(err?.message || 'Failed to check coupon code.');
+    } finally {
+      setCouponValidating(false);
+    }
+  };
+
+  const handleApplyFoundCoupon = () => {
+    if (!foundCoupon) return;
+    if (onApplyCouponDiscount) {
+      onApplyCouponDiscount(foundCoupon.coupon, foundCoupon.discountAmount, foundCoupon.linkedCustomer);
+    }
+    setDiscountDialogVisible(false);
+  };
 
   return (
     <>
@@ -298,6 +373,90 @@ export function PosDialogs({
               >
                 Apply $
               </Button>
+            </View>
+
+            <View style={{ marginTop: 14, borderTopWidth: 1, borderTopColor: '#e2e8f0', paddingTop: 12 }}>
+              <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#1e293b', marginBottom: 6 }}>
+                Find & Apply Coupon Code
+              </Text>
+              <View style={styles.discountInputGroup}>
+                <TextInput
+                  label="Enter Coupon Code"
+                  mode="outlined"
+                  value={couponCodeInput}
+                  onChangeText={(text) => {
+                    setCouponCodeInput(text.toUpperCase());
+                    if (couponError) setCouponError(null);
+                    if (foundCoupon) setFoundCoupon(null);
+                  }}
+                  autoCapitalize="characters"
+                  placeholder="e.g. SUMMER20"
+                  style={styles.checkoutInput}
+                />
+                <Button
+                  mode="contained-tonal"
+                  loading={couponValidating}
+                  disabled={couponValidating || !couponCodeInput.trim()}
+                  onPress={handleSearchCoupon}
+                >
+                  Search
+                </Button>
+              </View>
+              {couponError ? (
+                <Text style={{ color: '#d32f2f', marginTop: 6, fontSize: 13, fontWeight: '500' }}>
+                  {couponError}
+                </Text>
+              ) : null}
+
+              {/* Found Coupon Card Preview */}
+              {foundCoupon ? (
+                <View style={{ marginTop: 12, padding: 12, backgroundColor: '#f0fdf4', borderRadius: 8, borderWidth: 1, borderColor: '#bbf7d0' }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={{ fontWeight: 'bold', fontSize: 16, color: '#166534' }}>
+                          {foundCoupon.coupon.code}
+                        </Text>
+                        <Text style={{ fontWeight: '700', fontSize: 12, color: '#15803d', backgroundColor: '#dcfce7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                          {foundCoupon.coupon.discount_type === 'percent'
+                            ? `${foundCoupon.coupon.discount_value}% OFF (-$${foundCoupon.discountAmount.toFixed(2)})`
+                            : `$${foundCoupon.coupon.discount_value.toFixed(2)} OFF`}
+                        </Text>
+                      </View>
+                      <Text style={{ fontSize: 13, color: '#334155', marginTop: 4, fontWeight: '500' }}>
+                        {foundCoupon.coupon.title}
+                      </Text>
+                    </View>
+                    <Button
+                      mode="contained"
+                      style={{ backgroundColor: '#15803d' }}
+                      onPress={handleApplyFoundCoupon}
+                    >
+                      Apply Coupon
+                    </Button>
+                  </View>
+
+                  {foundCoupon.coupon.target_email || foundCoupon.coupon.user_id ? (
+                    <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#dcfce7' }}>
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: '#166534' }}>
+                        Targeted Customer Record:
+                      </Text>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: '#1e293b', marginTop: 2 }}>
+                        {foundCoupon.linkedCustomer?.name || foundCoupon.coupon.target_email || 'Targeted Customer'} {foundCoupon.linkedCustomer?.phone ? `(${foundCoupon.linkedCustomer.phone})` : ''}
+                      </Text>
+                      {foundCoupon.coupon.target_email || foundCoupon.linkedCustomer?.email ? (
+                        <Text style={{ fontSize: 12, color: '#64748b' }}>
+                          Email: {foundCoupon.linkedCustomer?.email || foundCoupon.coupon.target_email}
+                        </Text>
+                      ) : null}
+                    </View>
+                  ) : (
+                    <Text style={{ fontSize: 11, color: '#64748b', marginTop: 6, fontStyle: 'italic' }}>
+                      Public coupon (Applies discount to current order)
+                    </Text>
+                  )}
+                </View>
+              ) : null}
             </View>
           </Dialog.Content>
           <Dialog.Actions>

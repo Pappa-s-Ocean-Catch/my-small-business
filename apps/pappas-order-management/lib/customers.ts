@@ -166,7 +166,7 @@ export async function findCustomerByEmail(email: string): Promise<{ data: Custom
     const summaryResult = await supabase
       .from('customer_summary')
       .select('*')
-      .eq('email', normalizedEmail)
+      .ilike('email', normalizedEmail)
       .order('lastOrderDate', { ascending: false })
       .limit(1);
 
@@ -181,8 +181,48 @@ export async function findCustomerByEmail(email: string): Promise<{ data: Custom
     const { data, error } = await supabase
       .from('profiles')
       .select('id, full_name, email, phone')
-      .eq('role_slug', 'customer')
-      .eq('email', normalizedEmail)
+      .ilike('email', normalizedEmail)
+      .limit(1);
+
+    if (error) return { data: null, error: error.message };
+    const profile = data?.[0];
+    if (!profile) return { data: null, error: null };
+    return {
+      data: {
+        id: profile.id,
+        name: profile.full_name ?? '',
+        email: profile.email ?? '',
+        phone: profile.phone ?? '',
+      },
+      error: null,
+    };
+  } catch (err) {
+    return { data: null, error: err instanceof Error ? err.message : 'Unknown error' };
+  }
+}
+
+export async function findCustomerById(id: string): Promise<{ data: Customer | null; error: string | null }> {
+  try {
+    if (!id) return { data: null, error: null };
+
+    const summaryResult = await supabase
+      .from('customer_summary')
+      .select('*')
+      .eq('id', id)
+      .limit(1);
+
+    if (summaryResult.error) return { data: null, error: summaryResult.error.message };
+    const summaryCustomer = summaryResult.data?.[0]
+      ? customerFromSummary(summaryResult.data[0])
+      : null;
+    if (summaryCustomer) {
+      return { data: summaryCustomer, error: null };
+    }
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, full_name, email, phone')
+      .eq('id', id)
       .limit(1);
 
     if (error) return { data: null, error: error.message };

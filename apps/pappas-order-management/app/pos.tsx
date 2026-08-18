@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import type { Order, OrderItem, OrderItemAddon, PaymentStatus } from '@my-small-business/types';
 import { savePosOrder, updatePaymentStatus, updatePosOrder } from '../lib/orders';
 import { createCustomerIfNotExists, findCustomerByPhone, type Customer } from '../lib/customers';
+import { recordCouponRedemption, type Coupon } from '../lib/coupons';
 import {
   calculateDeliveryFees,
   createStripeCheckoutSession,
@@ -147,7 +148,8 @@ const formatDeliveryAddress = (address: DeliveryAddressDraft) => (
 type PosDiscountConfig =
   | { kind: 'none' }
   | { kind: 'percent'; percent: number }
-  | { kind: 'fixed'; amount: number };
+  | { kind: 'fixed'; amount: number }
+  | { kind: 'coupon'; code: string; couponId: string; amount: number; title?: string };
 
 const EMPTY_DISCOUNT: PosDiscountConfig = { kind: 'none' };
 const DEFAULT_REWARD_POINTS_SETTINGS: RewardPointsSettings = {
@@ -167,7 +169,7 @@ const getDiscountAmount = (discount: PosDiscountConfig, subtotal: number) => {
   if (discount.kind === 'percent') {
     return clampDiscountAmount(subtotal * (Math.max(0, discount.percent) / 100), subtotal);
   }
-  if (discount.kind === 'fixed') {
+  if (discount.kind === 'fixed' || discount.kind === 'coupon') {
     return clampDiscountAmount(discount.amount, subtotal);
   }
   return 0;
@@ -176,6 +178,7 @@ const getDiscountAmount = (discount: PosDiscountConfig, subtotal: number) => {
 const getDiscountLabel = (discount: PosDiscountConfig) => {
   if (discount.kind === 'percent') return `${discount.percent}% off`;
   if (discount.kind === 'fixed') return `$${discount.amount.toFixed(2)} off`;
+  if (discount.kind === 'coupon') return `Coupon ${discount.code}`;
   return 'No discount';
 };
 
@@ -190,6 +193,16 @@ const getDiscountPromotionsApplied = (discount: PosDiscountConfig, amount: numbe
       label: `${discount.percent}% off`,
     }];
   }
+  if (discount.kind === 'coupon') {
+    return [{
+      source: 'coupon',
+      kind: 'coupon',
+      code: discount.code,
+      coupon_id: discount.couponId,
+      amount,
+      label: `Coupon ${discount.code}`,
+    }];
+  }
 
   return [{
     source: 'pos',
@@ -202,6 +215,14 @@ const getDiscountPromotionsApplied = (discount: PosDiscountConfig, amount: numbe
 
 const getDiscountConfigFromOrder = (order: Order | null): PosDiscountConfig => {
   if (!order) return EMPTY_DISCOUNT;
+  if (order.coupon_code) {
+    return {
+      kind: 'coupon',
+      code: order.coupon_code,
+      couponId: '',
+      amount: Number(order.coupon_discount ?? 0),
+    };
+  }
   const promotions = Array.isArray(order.promotions_applied) ? order.promotions_applied : [];
   const firstPromotion = promotions[0] as Record<string, unknown> | undefined;
 
@@ -1945,8 +1966,8 @@ export default function PosScreen() {
       service_fee: 0,
       promotion_discount: discountAmount + freeItemDiscountAmount,
       promotions_applied: promotionsApplied,
-      coupon_code: null,
-      coupon_discount: 0,
+      coupon_code: discountConfig.kind === 'coupon' ? discountConfig.code : null,
+      coupon_discount: discountConfig.kind === 'coupon' ? discountAmount : 0,
       total: totals.total,
       reward_points_used: rewardPointsToUse || null,
       reward_points_value: rewardPointsValue || null,
@@ -1995,8 +2016,8 @@ export default function PosScreen() {
         scheduled_pickup_at: pickupAt ? pickupAt.toISOString() : null,
         promotion_discount: discountAmount + freeItemDiscountAmount,
         promotions_applied: promotionsApplied,
-        coupon_code: null,
-        coupon_discount: 0,
+        coupon_code: discountConfig.kind === 'coupon' ? discountConfig.code : null,
+        coupon_discount: discountConfig.kind === 'coupon' ? discountAmount : 0,
         reward_points_used: rewardPointsToUse || null,
         reward_points_value: rewardPointsValue || null,
       })
@@ -2010,6 +2031,13 @@ export default function PosScreen() {
       return;
     }
     if (result.data?.id) {
+      if (discountConfig.kind === 'coupon' && discountConfig.couponId) {
+        await recordCouponRedemption({
+          couponId: discountConfig.couponId,
+          orderId: result.data.id,
+          userId: customerId || null,
+        });
+      }
       await applyRewardPointsForSavedOrder(result.data.id, customerId);
     }
     invalidateTopSellers();
@@ -2086,8 +2114,8 @@ export default function PosScreen() {
           service_fee: 0,
           promotion_discount: discountAmount + freeItemDiscountAmount,
           promotions_applied: promotionsApplied,
-          coupon_code: null,
-          coupon_discount: 0,
+          coupon_code: discountConfig.kind === 'coupon' ? discountConfig.code : null,
+          coupon_discount: discountConfig.kind === 'coupon' ? discountAmount : 0,
           total: totals.total,
           reward_points_used: rewardPointsToUse || null,
           reward_points_value: rewardPointsValue || null,
@@ -2306,8 +2334,8 @@ export default function PosScreen() {
       service_fee: 0,
       promotion_discount: discountAmount + freeItemDiscountAmount,
       promotions_applied: promotionsApplied,
-      coupon_code: null,
-      coupon_discount: 0,
+      coupon_code: discountConfig.kind === 'coupon' ? discountConfig.code : null,
+      coupon_discount: discountConfig.kind === 'coupon' ? discountAmount : 0,
       total: totals.total,
       reward_points_used: rewardPointsToUse || null,
       reward_points_value: rewardPointsValue || null,
@@ -2347,6 +2375,14 @@ export default function PosScreen() {
     if (result.error || !result.data?.id) {
       Alert.alert('Instore Order', result.error || 'Failed to create in-store order.');
       return;
+    }
+
+    if (discountConfig.kind === 'coupon' && discountConfig.couponId) {
+      await recordCouponRedemption({
+        couponId: discountConfig.couponId,
+        orderId: result.data.id,
+        userId: customerId || null,
+      });
     }
 
     try {
@@ -2955,9 +2991,27 @@ export default function PosScreen() {
         setDiscountDialogVisible={setDiscountDialogVisible}
         discountLabel={discountLabel}
         discountAmount={discountAmount}
+        cartSubtotal={totals.subtotal}
+        selectedCustomer={selectedCustomer ? { id: selectedCustomer.id, email: selectedCustomer.email } : null}
         onApplyPresetDiscount={applyPresetDiscount}
         onApplyCustomPercentDiscount={applyCustomPercentDiscount}
         onApplyCustomFixedDiscount={applyCustomFixedDiscount}
+        onApplyCouponDiscount={(coupon, amount, autoCustomer) => {
+          setDiscountConfig({
+            kind: 'coupon',
+            code: coupon.code,
+            couponId: coupon.id,
+            amount,
+            title: coupon.title,
+          });
+
+          if (autoCustomer) {
+            setSelectedCustomer(autoCustomer);
+            if (autoCustomer.phone) setCustomerPhone(autoCustomer.phone);
+            if (autoCustomer.name) setCustomerName(autoCustomer.name);
+            setCustomerLookupStatus('found');
+          }
+        }}
         onClearDiscount={() => setDiscountConfig(EMPTY_DISCOUNT)}
       />
 

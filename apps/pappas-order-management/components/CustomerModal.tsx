@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Modal, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Alert, Clipboard, Linking, Modal, ScrollView, StyleSheet, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Avatar,
@@ -7,6 +7,7 @@ import {
   Card,
   IconButton,
   Surface,
+  Switch,
   Text,
   TextInput,
   useTheme,
@@ -18,6 +19,7 @@ import { getFriendlyOrderNumber } from '../utils/orderNumber';
 import { STATUS_COLORS, STATUS_LABELS } from '../utils/constants';
 import { getApiUrl } from '../utils/orderUtils';
 import { adjustCustomerRewardPoints } from '@/lib/reward-points';
+import { getCustomerCoupons, toggleCouponActive, type CustomerCouponItem } from '@/lib/coupons';
 import { AddCustomerModal } from '@/components/customers/AddCustomerModal';
 import { supabase } from '@/lib/supabase';
 
@@ -84,6 +86,41 @@ export function CustomerModal({
   const [pointsDelta, setPointsDelta] = useState('');
   const [pointsReason, setPointsReason] = useState('');
   const [savingPoints, setSavingPoints] = useState(false);
+  const [customerCoupons, setCustomerCoupons] = useState<CustomerCouponItem[]>([]);
+  const [loadingCoupons, setLoadingCoupons] = useState(false);
+  const [togglingCouponId, setTogglingCouponId] = useState<string | null>(null);
+
+  const handleCopyCode = (code: string) => {
+    try {
+      Clipboard.setString(code);
+      Alert.alert('Copied', `Coupon code "${code}" copied to clipboard.`);
+    } catch {
+      Alert.alert('Copied', `Coupon code "${code}" copied.`);
+    }
+  };
+
+  const loadCoupons = async (c: CustomerSummary | null) => {
+    if (!c) {
+      setCustomerCoupons([]);
+      return;
+    }
+    setLoadingCoupons(true);
+    const { data } = await getCustomerCoupons({ userId: c.profileId, customerEmail: c.email });
+    setCustomerCoupons(data);
+    setLoadingCoupons(false);
+  };
+
+  const handleToggleCustomerCoupon = async (item: CustomerCouponItem) => {
+    const newStatus = !item.coupon.is_active;
+    setTogglingCouponId(item.coupon.id);
+    const { success, error: toggleErr } = await toggleCouponActive(item.coupon.id, newStatus);
+    setTogglingCouponId(null);
+    if (success && customer) {
+      await loadCoupons(customer);
+    } else if (toggleErr) {
+      Alert.alert('Error', toggleErr);
+    }
+  };
 
   const loadCustomer = async () => {
     setLoading(true);
@@ -108,6 +145,12 @@ export function CustomerModal({
     if (!visible) return;
     void loadCustomer();
   }, [email, phone, visible]);
+
+  useEffect(() => {
+    if (customer) {
+      void loadCoupons(customer);
+    }
+  }, [customer]);
 
   const getInitials = (name: string) =>
     name
@@ -499,10 +542,83 @@ export function CustomerModal({
                                 </Text>
                               ) : null}
                               {item.orderId ? (
-                                <Button mode="text" compact onPress={() => onOrderPress(item.orderId)} style={styles.rewardOrderButton}>
+                                <Button mode="text" compact onPress={() => item.orderId && onOrderPress(item.orderId)} style={styles.rewardOrderButton}>
                                   View order
                                 </Button>
                               ) : null}
+                            </Card.Content>
+                          </Card>
+                        );
+                      })
+                    )}
+                  </View>
+
+                  <View style={styles.section}>
+                    <Text variant="titleMedium" style={styles.sectionTitle}>
+                      Associated Coupons & Offers
+                    </Text>
+                    {loadingCoupons ? (
+                      <ActivityIndicator size="small" style={{ marginVertical: 12 }} />
+                    ) : customerCoupons.length === 0 ? (
+                      <Text variant="bodyMedium" style={styles.emptyText}>
+                        No coupons assigned to this customer.
+                      </Text>
+                    ) : (
+                      customerCoupons.map((item) => {
+                        const isToggling = togglingCouponId === item.coupon.id;
+                        const badgeColor =
+                          item.status === 'active' ? '#2e7d32' :
+                          item.status === 'redeemed' ? '#616161' :
+                          item.status === 'expired' ? '#d32f2f' : '#ed6c02';
+                        const badgeBg =
+                          item.status === 'active' ? '#e8f5e9' :
+                          item.status === 'redeemed' ? '#f5f5f5' :
+                          item.status === 'expired' ? '#ffebee' : '#fff3e0';
+
+                        return (
+                          <Card key={item.coupon.id} style={styles.rewardCard} mode="contained">
+                            <Card.Content style={styles.rewardCardContent}>
+                              <View style={styles.rewardCardTopRow}>
+                                <View style={styles.rewardCardInfo}>
+                                  <View style={[styles.rewardBadge, { backgroundColor: badgeBg }]}>
+                                    <Text style={[styles.rewardBadgeText, { color: badgeColor }]}>
+                                      {item.statusLabel}
+                                    </Text>
+                                  </View>
+                                  <TouchableOpacity
+                                    style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#e3f2fd', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, marginLeft: 8 }}
+                                    onPress={() => handleCopyCode(item.coupon.code)}
+                                  >
+                                    <Text variant="titleSmall" style={{ fontWeight: 'bold', color: '#1565c0' }}>
+                                      {item.coupon.code}
+                                    </Text>
+                                    <MaterialCommunityIcons name="content-copy" size={14} color="#1565c0" style={{ marginLeft: 4 }} />
+                                  </TouchableOpacity>
+                                </View>
+                                <Text variant="titleSmall" style={{ fontWeight: 'bold', color: '#2e7d32' }}>
+                                  {item.coupon.discount_type === 'percent'
+                                    ? `${item.coupon.discount_value}% OFF`
+                                    : `$${item.coupon.discount_value.toFixed(2)} OFF`}
+                                </Text>
+                              </View>
+                              <View style={styles.rewardCardBottomRow}>
+                                <Text variant="bodyMedium" style={styles.rewardDescription}>
+                                  {item.coupon.title}
+                                </Text>
+                                <Text variant="bodySmall" style={styles.rewardBalanceText}>
+                                  Used {item.userRedemptionsCount} {item.coupon.max_uses_per_user != null ? `/ ${item.coupon.max_uses_per_user}` : ''} times
+                                </Text>
+                              </View>
+                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 6, borderTopWidth: 1, borderTopColor: '#f0f0f0' }}>
+                                <Text variant="bodySmall" style={{ color: '#555' }}>
+                                  Active Status
+                                </Text>
+                                <Switch
+                                  value={item.coupon.is_active}
+                                  onValueChange={() => handleToggleCustomerCoupon(item)}
+                                  disabled={isToggling}
+                                />
+                              </View>
                             </Card.Content>
                           </Card>
                         );

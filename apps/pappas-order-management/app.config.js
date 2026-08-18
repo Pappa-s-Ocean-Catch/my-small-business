@@ -50,6 +50,7 @@ module.exports = {
     plugins: [
       'expo-router',
       'expo-dev-client',
+      'newrelic-react-native-agent',
       [
         'expo-av',
         {
