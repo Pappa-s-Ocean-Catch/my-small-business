@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState, useRef, Suspense } from 'react';
+import Link from 'next/link'; // ensure Link is available for error page
+
 import Modal from '@/components/Modal';
 import { ImageUpload } from '@/components/ImageUpload';
 import { likeItem, getOrderReviews } from '@/app/actions/social-activity';
@@ -12,7 +14,8 @@ import { getOrderRewardPoints, type OrderRewardPointsSummary } from '@/app/actio
 import { useCart } from '@/contexts/CartContext';
 import { FaCheckCircle, FaPrint, FaArrowLeft, FaShoppingBag, FaGift, FaThumbsUp, FaThumbsDown } from 'react-icons/fa';
 import { Icon } from '@/components/Icon';
-import Link from 'next/link';
+import React, { ErrorInfo } from 'react';
+
 import { LoadingSpinner } from '@/components/Loading';
 import type { Order, OrderItemAddon } from '@my-small-business/types';
 import posthog from 'posthog-js';
@@ -39,6 +42,7 @@ function OrderConfirmationContent() {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isServerError, setIsServerError] = useState<boolean>(false);
   const [rewardSummary, setRewardSummary] = useState<OrderRewardPointsSummary | null>(null);
   const clearedCartRef = useRef(false);
   // --- Move all useState declarations to the top ---
@@ -242,20 +246,54 @@ function OrderConfirmationContent() {
         // If we have session_id and order_id from Stripe redirect, verify payment first
         if (sessionId && orderId) {
           try {
-            // Verify the Stripe checkout session and update order status if payment succeeded
             const verifyResponse = await fetch('/api/payments/verify-session', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ sessionId, orderId })
             });
 
-            const verifyData = await verifyResponse.json();
+            // ---- Handle non‑2xx status codes (e.g., 502, 503) ----
+            if (!verifyResponse.ok) {
+              let msg = `Payment verification failed (status ${verifyResponse.status})`;
+              try {
+                const text = await verifyResponse.text();
+                const parsed = JSON.parse(text);
+                msg = parsed.error || msg;
+              } catch (_) {
+                // ignore parsing errors – keep generic msg
+              }
+              setError(msg);
+              setIsServerError(true);
+              setLoading(false);
+              return; // stop further processing
+            }
+
+            // ---- Safe JSON parsing (malformed JSON) ----
+            let verifyData: any;
+            try {
+              verifyData = await verifyResponse.json();
+            } catch (jsonErr) {
+              console.error('[Confirmation] Malformed JSON from verify-session:', jsonErr);
+              setError('Payment verification returned an unexpected response. Please try again later.');
+              setIsServerError(true);
+              setLoading(false);
+              return;
+            }
+
             if (verifyData.success && verifyData.paymentStatus === 'paid') {
               console.log('[Confirmation] Payment verified, order updated to paid');
+            } else {
+              setError(verifyData.error ?? 'Payment verification failed');
+              setIsServerError(true);
+              setLoading(false);
+              return;
             }
           } catch (verifyError) {
-            console.error('[Confirmation] Error verifying session:', verifyError);
-            // Continue to load order even if verification fails
+            console.error('[Confirmation] Network error verifying session:', verifyError);
+            setError('Failed to verify payment – please try again later.');
+            setIsServerError(true);
+            setLoading(false);
+            return;
           }
         }
 
@@ -340,7 +378,10 @@ function OrderConfirmationContent() {
         setError('Order number or ID not provided');
         setLoading(false);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load order');
+        // Unexpected error while fetching order – treat as server error
+        const msg = err instanceof Error ? err.message : 'Failed to load order';
+        setError(msg);
+        setIsServerError(true);
         setLoading(false);
       }
     };
@@ -391,6 +432,22 @@ function OrderConfirmationContent() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  // ----- Friendly server‑error page -----
+  if (isServerError && error) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-neutral-900 p-4">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Oops! Something went wrong.</h1>
+        <p className="text-gray-600 dark:text-gray-400 mb-4 max-w-lg text-center">{error}</p>
+        <Link
+          href="/order"
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+        >
+          Back to Menu
+        </Link>
       </div>
     );
   }
@@ -1001,14 +1058,60 @@ function OrderConfirmationContent() {
   );
 }
 
-export default function OrderConfirmationPage() {
+class GlobalErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean; error: any}> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error('[GlobalErrorBoundary] Caught error:', error, errorInfo);
+  }
+
+  resetError = () => {
+    this.setState({ hasError: false, error: null });
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-neutral-900 p-4">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Oops! Something went wrong.</h1>
+          <p className="text-gray-600 dark:text-gray-400 mb-4 max-w-lg text-center">
+            {this.state.error?.message || 'An unexpected error occurred.'}
+          </p>
+          <Link href="/order" className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700" onClick={this.resetError}>
+            Back to Menu
+          </Link>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function GlobalErrorWrapper({ children }: { children: React.ReactNode }) {
   return (
-    <Suspense fallback={
+    <React.Suspense fallback={
       <div className="min-h-screen bg-gray-50 dark:bg-neutral-900 flex items-center justify-center">
         <LoadingSpinner size="lg" />
       </div>
     }>
-      <OrderConfirmationContent />
-    </Suspense>
+      {children}
+    </React.Suspense>
+  );
+}
+
+export default function OrderConfirmationPage() {
+  return (
+    <GlobalErrorBoundary>
+      <GlobalErrorWrapper>
+        <OrderConfirmationContent />
+      </GlobalErrorWrapper>
+    </GlobalErrorBoundary>
   );
 }

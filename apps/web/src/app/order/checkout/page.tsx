@@ -827,17 +827,6 @@ export default function CheckoutPage() {
     checkAuth();
   }, []);
 
-  if (cartLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Loading cart...</p>
-        </div>
-      </div>
-    );
-  }
-
   const handlePaymentMethodSelect = (method: PaymentMethod) => {
     if (orderType === 'delivery' && method === 'store') {
       setError("Delivery orders must be paid online.");
@@ -914,6 +903,17 @@ export default function CheckoutPage() {
       setTimeout(() => handleApplyCoupon(autoCoupon), 100);
     }
   }, [cartSubtotal]); // run when cart is ready
+
+  if (cartLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Loading cart...</p>
+        </div>
+      </div>
+    );
+  }
 
 
   const handleRemoveCoupon = () => {

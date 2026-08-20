@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@my-small-business/supabase/server";
+import { getPendingCheckoutCancellationState } from "@/lib/checkout-pending-order";
 
 // DELETE /api/orders/[orderId]
 
@@ -22,13 +23,21 @@ export async function DELETE(
         .from("orders")
         .select("id, order_status")
         .eq("id", orderId)
-        .single();
+        .maybeSingle();
 
-    if (fetchError || !order) {
-        return NextResponse.json({ error: "Order not found" }, { status: 404 });
+    if (fetchError) {
+        return NextResponse.json({ error: "Failed to load order" }, { status: 500 });
     }
 
-    if (order.order_status !== "pending_online_payment") {
+    const cancellationState = getPendingCheckoutCancellationState(
+        order?.order_status ?? null,
+    );
+
+    if (cancellationState === "already-cancelled") {
+        return NextResponse.json({ success: true, alreadyCancelled: true });
+    }
+
+    if (cancellationState === "cannot-cancel") {
         return NextResponse.json({ error: "Order cannot be deleted" }, { status: 400 });
     }
 

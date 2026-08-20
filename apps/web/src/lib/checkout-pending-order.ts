@@ -6,3 +6,15 @@ export function getPendingCheckoutOrderId(
     ?? searchParams.get('orderId')
     ?? storedOrderId;
 }
+
+export function getPendingCheckoutCancellationState(
+  orderStatus: string | null,
+): 'delete' | 'already-cancelled' | 'cannot-cancel' {
+  if (orderStatus === null) {
+    return 'already-cancelled';
+  }
+
+  return orderStatus === 'pending_online_payment'
+    ? 'delete'
+    : 'cannot-cancel';
+}
