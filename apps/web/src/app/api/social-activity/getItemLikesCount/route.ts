@@ -33,8 +33,8 @@ export async function GET(req: NextRequest) {
             status: 200,
             headers: {
                 'Content-Type': 'application/json',
-                // Cache for 15 minutes (900 seconds)
-                'Cache-Control': 'public, max-age=900, stale-while-revalidate=60',
+                // Vercel uses s-maxage for CDN caching; max-age caches repeat browser requests.
+                'Cache-Control': 'public, max-age=86400, s-maxage=86400',
             },
         });
     } catch (err) {

@@ -22,7 +22,17 @@ export async function GET(req: NextRequest) {
         const likeMap: Record<string, boolean | null> = {};
         ids.forEach(id => { likeMap[id] = null; });
         data?.forEach(row => { likeMap[row.item_id] = row.is_like; });
-        return NextResponse.json({ itemLikes: likeMap });
+        return NextResponse.json(
+            { itemLikes: likeMap },
+            {
+                headers: {
+                    // Vercel uses s-maxage for CDN caching; max-age caches repeat browser requests.
+                    'Cache-Control': 'public, max-age=86400, s-maxage=86400',
+                    // This response varies by the requesting user's likes.
+                    'Vary': 'Cookie, Authorization',
+                },
+            }
+        );
     } catch (err) {
         return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
     }
