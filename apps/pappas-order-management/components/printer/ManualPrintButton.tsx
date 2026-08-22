@@ -3,6 +3,13 @@ import { Alert, type StyleProp, type ViewStyle } from 'react-native';
 import { Button as PaperButton, IconButton } from 'react-native-paper';
 import type { SavedPrinter } from '@/lib/escpos-printer';
 
+export type ManualPrintMode = {
+  label: string;
+  icon?: string;
+  disabled?: boolean;
+  onSelectPrinter: (printer: SavedPrinter | null) => void | Promise<void>;
+};
+
 type ManualPrintButtonProps = {
   printers: SavedPrinter[];
   disabled?: boolean;
@@ -12,6 +19,7 @@ type ManualPrintButtonProps = {
   mode?: 'button' | 'icon';
   style?: StyleProp<ViewStyle>;
   onSelectPrinter: (printer: SavedPrinter | null) => void | Promise<void>;
+  printModes?: ManualPrintMode[];
 };
 
 export function ManualPrintButton({
@@ -23,10 +31,11 @@ export function ManualPrintButton({
   mode = 'button',
   style,
   onSelectPrinter,
+  printModes,
 }: ManualPrintButtonProps) {
-  const handlePress = React.useCallback(() => {
+  const choosePrinter = React.useCallback((onSelect: ManualPrintMode['onSelectPrinter']) => {
     if (printers.length <= 1) {
-      void onSelectPrinter(printers[0] ?? null);
+      void onSelect(printers[0] ?? null);
       return;
     }
 
@@ -37,29 +46,44 @@ export function ManualPrintButton({
         ...printers.map((printer) => ({
           text: printer.deviceName,
           onPress: () => {
-            void onSelectPrinter(printer);
+            void onSelect(printer);
           },
         })),
         { text: 'Cancel', style: 'cancel' as const },
       ]
     );
-  }, [onSelectPrinter, printers]);
+  }, [printers]);
 
-  if (mode === 'icon') {
-    return (
-      <IconButton
-        icon={icon}
-        size={18}
-        onPress={handlePress}
-        loading={loading}
-        disabled={disabled || loading}
-        accessibilityLabel={label}
-        style={style}
-      />
-    );
-  }
+  const handlePress = React.useCallback(() => {
+    if (printModes?.length) {
+      Alert.alert(
+        'Choose print type',
+        'Select what you want to print.',
+        [
+          ...printModes.map((printMode) => ({
+            text: printMode.label,
+            onPress: () => choosePrinter(printMode.onSelectPrinter),
+            disabled: printMode.disabled,
+          })),
+          { text: 'Cancel', style: 'cancel' as const },
+        ],
+      );
+      return;
+    }
+    choosePrinter(onSelectPrinter);
+  }, [choosePrinter, onSelectPrinter, printModes]);
 
-  return (
+  const button = mode === 'icon' ? (
+    <IconButton
+      icon={icon}
+      size={18}
+      onPress={handlePress}
+      loading={loading}
+      disabled={disabled || loading}
+      accessibilityLabel={printModes?.length ? 'Choose print type' : label}
+      style={style}
+    />
+  ) : (
     <PaperButton
       mode="outlined"
       icon={icon}
@@ -68,8 +92,11 @@ export function ManualPrintButton({
       disabled={disabled || loading}
       compact
       style={style}
+      accessibilityLabel={printModes?.length ? 'Choose print type' : label}
     >
       {label}
     </PaperButton>
   );
+
+  return button;
 }

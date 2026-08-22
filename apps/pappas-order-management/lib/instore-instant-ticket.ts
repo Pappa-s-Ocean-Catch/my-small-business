@@ -67,7 +67,11 @@ export function buildInstoreInstantTicketDocument(
       },
       { type: 'text', text: `ORDER TIME: ${orderTime}`, newline: true },
       { type: 'feed', lines: 2 },
-      ...(order.items ?? []).map((item) => ({ type: 'text' as const, text: item.product_name, newline: true })),
+      ...(order.items ?? []).map((item) => ({
+        type: 'text' as const,
+        text: `${Math.max(1, item.quantity ?? 1)}x ${item.product_name}`,
+        newline: true,
+      })),
       { type: 'feed', lines: 1 },
       { type: 'text', text: `ITEMS: ${itemCount}`, newline: true },
       { type: 'text', text: `TOTAL: $${total}`, newline: true },

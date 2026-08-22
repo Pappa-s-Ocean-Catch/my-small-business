@@ -86,7 +86,7 @@ test('creates a text-only ticket without customisations', () => {
   assert.match(text, /ITEMS: 2/);
   assert.match(text, /TOTAL: \$42\.50/);
   assert.match(text, /PAYMENT: PENDING/);
-  assert.match(text, /Fish Burger/);
+  assert.match(text, /2x Fish Burger/);
   assert.doesNotMatch(text, /No salt|Cheese/);
   assert.deepEqual(doc.nodes[0], {
     type: 'text',

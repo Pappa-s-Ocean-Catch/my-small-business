@@ -16,6 +16,7 @@ import { usesIconOnlyOrderDetailActions, usesLandscapeTabletOrderDetailLayout } 
 import { captureReceiptForPrinter, type PrinterImageSource } from '@/lib/printer-image';
 import { escposPrintDocument, isSimulatorPrinter, type SavedPrinter } from '@/lib/escpos-printer';
 import { buildKitchenReceiptDocument } from '@/lib/kitchen-receipt-document';
+import { buildInstoreInstantTicketDocument } from '@/lib/instore-instant-ticket';
 import { ManualPrintButton } from '@/components/printer/ManualPrintButton';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { getFriendlyOrderNumber } from '../utils/orderNumber';
@@ -401,6 +402,56 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     }
   };
 
+  const handleInstantTicketPrint = async (printer?: SavedPrinter | null) => {
+    setIsCapturing(true);
+    try {
+      let printOrder = order;
+      const latestOrderResult = await getOrder(order.id);
+      if (latestOrderResult.data) {
+        printOrder = latestOrderResult.data;
+        setPrintPreviewOrder(latestOrderResult.data);
+      } else if (latestOrderResult.error) {
+        console.warn('[OrderDetailModal] Failed to refresh order before ticket printing:', latestOrderResult.error);
+      }
+
+      if (!printer) throw new Error('Select a printer before printing the ticket.');
+      if (isSimulatorPrinter(printer)) throw new Error('Tickets require a physical printer.');
+
+      const document = buildInstoreInstantTicketDocument(printOrder);
+      usePrinterAutomationStore.getState().addJournalEntry({
+        level: 'info',
+        scope: 'order-detail:manual-instant-ticket',
+        message: 'Sending manual instant ticket',
+        orderId: printOrder.id,
+        orderNumber: printOrder.order_number,
+        details: `printer=${printer.deviceName} driver=${printer.driver ?? 'epsonSdk'} target=${printer.target} nodes=${document.nodes.length}`,
+      });
+      await escposPrintDocument(document, printer);
+      usePrinterAutomationStore.getState().addJournalEntry({
+        level: 'success',
+        scope: 'order-detail:manual-instant-ticket',
+        message: 'Manual instant ticket dispatch completed',
+        orderId: printOrder.id,
+        orderNumber: printOrder.order_number,
+        details: `printer=${printer.deviceName} driver=${printer.driver ?? 'epsonSdk'}`,
+      });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      usePrinterAutomationStore.getState().addJournalEntry({
+        level: 'error',
+        scope: 'order-detail:manual-instant-ticket',
+        message: 'Manual instant ticket failed',
+        orderId: order.id,
+        orderNumber: order.order_number,
+        details: reason,
+      });
+      console.error('Manual instant ticket print failed:', error);
+      Alert.alert('Print error', reason || 'Failed to print ticket.');
+    } finally {
+      setIsCapturing(false);
+    }
+  };
+
 
   const renderActionButton = () => {
     if (!onQuickAction || !quickAction) return null;
@@ -697,16 +748,11 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               loading={isCapturing}
               disabled={isCapturing}
               onSelectPrinter={handleInternalPrint}
-              mode={isPhoneActionLayout ? 'icon' : 'button'}
-              style={isPhoneActionLayout ? styles.phoneActionIconButton : undefined}
-            />
-            <ManualPrintButton
-              printers={availablePrinters}
-              label="Print Customer Copy"
-              icon="receipt-text-outline"
-              loading={isCapturing}
-              disabled={isCapturing || !onPrintCustomerCopyImage}
-              onSelectPrinter={handleCustomerCopyPrint}
+              printModes={[
+                { label: 'Kitchen', icon: 'chef-hat', onSelectPrinter: handleInternalPrint },
+                { label: 'Customer Copy', icon: 'receipt-text-outline', disabled: !onPrintCustomerCopyImage, onSelectPrinter: handleCustomerCopyPrint },
+                { label: 'Ticket', icon: 'ticket-confirmation-outline', onSelectPrinter: handleInstantTicketPrint },
+              ]}
               mode={isPhoneActionLayout ? 'icon' : 'button'}
               style={isPhoneActionLayout ? styles.phoneActionIconButton : undefined}
             />

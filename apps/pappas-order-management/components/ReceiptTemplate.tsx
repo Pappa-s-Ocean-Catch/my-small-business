@@ -128,22 +128,22 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
             <View style={styles.customerSection}>
               <Text style={styles.customerLargeBoldText}>{order.customer_name || order.customer_email}</Text>
               {order.customer_phone && <Text style={styles.customerLargeBoldText}>{order.customer_phone}</Text>}
-            {order.order_type === 'delivery' && order.delivery_address_line1 && (
-              <View style={styles.deliveryContainer}>
-                <Text style={styles.customerNormalText}>Delivery Address:</Text>
-                <Text style={styles.customerBoldText}>{order.delivery_address_line1}</Text>
-                {order.delivery_address_line2 && <Text style={styles.customerBoldText}>{order.delivery_address_line2}</Text>}
-                <Text style={styles.customerBoldText}>
-                  {[order.delivery_city, order.delivery_state, order.delivery_postcode].filter(Boolean).join(' ')}
-                </Text>
-                <Text style={styles.customerNormalText}>Delivery Status: {deliveryStatusLabel}</Text>
-                {order.delivery_driver_name && <Text style={styles.customerNormalText}>Driver: {order.delivery_driver_name}</Text>}
-                {order.delivery_driver_phone && <Text style={styles.customerNormalText}>Driver Phone: {order.delivery_driver_phone}</Text>}
-                {order.delivery_driver_pin && <Text style={styles.customerNormalText}>Driver PIN: {order.delivery_driver_pin}</Text>}
-                {order.delivery_vehicle_info && <Text style={styles.customerNormalText}>Vehicle: {order.delivery_vehicle_info}</Text>}
-                {order.delivery_instructions && <Text style={styles.customerNormalText}>Instructions: {order.delivery_instructions}</Text>}
-              </View>
-            )}
+              {order.order_type === 'delivery' && order.delivery_address_line1 && (
+                <View style={styles.deliveryContainer}>
+                  <Text style={styles.customerNormalText}>Delivery Address:</Text>
+                  <Text style={styles.customerBoldText}>{order.delivery_address_line1}</Text>
+                  {order.delivery_address_line2 && <Text style={styles.customerBoldText}>{order.delivery_address_line2}</Text>}
+                  <Text style={styles.customerBoldText}>
+                    {[order.delivery_city, order.delivery_state, order.delivery_postcode].filter(Boolean).join(' ')}
+                  </Text>
+                  <Text style={styles.customerNormalText}>Delivery Status: {deliveryStatusLabel}</Text>
+                  {order.delivery_driver_name && <Text style={styles.customerNormalText}>Driver: {order.delivery_driver_name}</Text>}
+                  {order.delivery_driver_phone && <Text style={styles.customerNormalText}>Driver Phone: {order.delivery_driver_phone}</Text>}
+                  {order.delivery_driver_pin && <Text style={styles.customerNormalText}>Driver PIN: {order.delivery_driver_pin}</Text>}
+                  {order.delivery_vehicle_info && <Text style={styles.customerNormalText}>Vehicle: {order.delivery_vehicle_info}</Text>}
+                  {order.delivery_instructions && <Text style={styles.customerNormalText}>Instructions: {order.delivery_instructions}</Text>}
+                </View>
+              )}
             </View>
           </View>
 
@@ -282,7 +282,6 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
           </View>
           <View style={styles.footerContainer}>
             <Text style={styles.footerText}>Thanks for your order!</Text>
-            <Text style={styles.engineText}>Engine = Image</Text>
           </View>
           {printDebugLines.length > 0 && (
             <View style={styles.printDebugContainer}>
