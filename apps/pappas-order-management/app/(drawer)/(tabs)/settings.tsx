@@ -31,13 +31,14 @@ import { posCatalogCacheStore } from '@/stores/posCatalogCacheStore';
 import { JOURNAL_LOGS_ENABLED } from '@/lib/journal-config';
 import { DEFAULT_STORE_INFO, fetchStoreInfo, saveStoreInfo, type StoreInfo } from '@/lib/store-info';
 
-type SettingsDialogKey = 'refresh' | 'sound' | 'printer' | 'liveOrders' | 'printDiagnostics' | 'journal' | 'storeInfo' | null;
+type SettingsDialogKey = 'refresh' | 'sound' | 'printer' | 'liveOrders' | 'marketplace' | 'printDiagnostics' | 'journal' | 'storeInfo' | null;
 
 const SETTINGS_MODAL_TITLES: Record<Exclude<SettingsDialogKey, null>, string> = {
     refresh: 'Refresh interval',
     sound: 'Order sound',
     printer: 'Kitchen printer',
     liveOrders: 'Live order cards',
+    marketplace: 'Marketplace',
     printDiagnostics: 'Print diagnostics',
     journal: 'Journal',
     storeInfo: 'Store information',
@@ -55,6 +56,7 @@ export default function SettingsScreen() {
     const [soundId, setSoundId] = useState<SoundId>(DEFAULT_APP_SETTINGS.soundId);
     const [repeatCountText, setRepeatCountText] = useState(String(DEFAULT_APP_SETTINGS.soundRepeatCount));
     const [liveOrderCardLayout, setLiveOrderCardLayout] = useState<'horizontal' | 'vertical'>(DEFAULT_APP_SETTINGS.liveOrderCardLayout);
+    const [marketplaceAutoSyncEnabled, setMarketplaceAutoSyncEnabled] = useState(DEFAULT_APP_SETTINGS.marketplaceAutoSyncEnabled);
     const [registerName, setRegisterName] = useState(DEFAULT_APP_SETTINGS.registerName);
     const [printerDebugFooter, setPrinterDebugFooter] = useState(DEFAULT_APP_SETTINGS.printerDebugFooter);
 
@@ -95,6 +97,7 @@ export default function SettingsScreen() {
         setSoundId(currentSettings.soundId);
         setRepeatCountText(String(currentSettings.soundRepeatCount));
         setLiveOrderCardLayout(currentSettings.liveOrderCardLayout);
+        setMarketplaceAutoSyncEnabled(currentSettings.marketplaceAutoSyncEnabled);
         setRegisterName(currentSettings.registerName);
         setPrinterDebugFooter(currentSettings.printerDebugFooter);
 
@@ -619,6 +622,7 @@ export default function SettingsScreen() {
                 soundId,
                 soundRepeatCount,
                 liveOrderCardLayout,
+                marketplaceAutoSyncEnabled,
                 printerEnabled,
                 printerAutoPrint,
                 instoreCustomerReceiptAutoPrintEnabled,
@@ -703,6 +707,12 @@ export default function SettingsScreen() {
                     description={liveOrdersSummary}
                     icon="view-carousel-outline"
                     onPress={() => setActiveDialog('liveOrders')}
+                />
+                <SettingsActionTile
+                    title="Marketplace auto-sync"
+                    description={marketplaceAutoSyncEnabled ? 'Enabled on this tablet' : 'Disabled on this tablet'}
+                    icon="sync"
+                    onPress={() => setActiveDialog('marketplace')}
                 />
                 <SettingsActionTile
                     title="Kitchen printer"
@@ -832,6 +842,18 @@ export default function SettingsScreen() {
                             </Button>
                         </View>
                         <Text style={styles.helper}>Vertical uses compact queue cards with horizontal scrolling. Horizontal keeps the full-width row list.</Text>
+                            </>
+                        )}
+
+                        {activeDialog === 'marketplace' && (
+                            <>
+                                <View style={styles.switchRow}>
+                                    <Text style={styles.label}>Marketplace auto-sync</Text>
+                                    <Switch value={marketplaceAutoSyncEnabled} onValueChange={setMarketplaceAutoSyncEnabled} />
+                                </View>
+                                <Text style={styles.helper}>
+                                    Automatically checks Uber Eats and DoorDash on this tablet. Manual marketplace refresh and status updates remain available.
+                                </Text>
                             </>
                         )}
 

@@ -16,7 +16,7 @@ import { StatusBar } from 'expo-status-bar';
 import { appQueryClient } from '@/lib/query-client';
 import { PrinterAutomationProvider } from '@/providers/PrinterAutomationProvider';
 import { AppSettingsProvider } from '@/providers/AppSettingsProvider';
-import { MarketplaceSyncProvider } from '@/providers/MarketplaceSyncProvider';
+import { MarketplaceSyncGate } from '@/providers/MarketplaceSyncGate';
 import { OrderListSyncProvider } from '@/providers/OrderListSyncProvider';
 import {
   registerExpoPushDeviceForStaff,
@@ -26,7 +26,7 @@ import {
 export default function RootLayout() {
   const router = useRouter();
   const segments = useSegments();
-  const [marketplaceSyncEnabled, setMarketplaceSyncEnabled] = useState(false);
+  const [authenticatedStaffAccess, setAuthenticatedStaffAccess] = useState(false);
   useKeepAwake();
 
   useEffect(() => {
@@ -36,7 +36,7 @@ export default function RootLayout() {
       const currentSegment = segments[0];
 
       if (!session) {
-        setMarketplaceSyncEnabled(false);
+        setAuthenticatedStaffAccess(false);
         if (currentSegment !== 'login') {
           router.replace('/login');
         }
@@ -45,7 +45,7 @@ export default function RootLayout() {
 
       const userId = session.user?.id;
       if (!userId) {
-        setMarketplaceSyncEnabled(false);
+        setAuthenticatedStaffAccess(false);
         await supabase.auth.signOut();
         if (currentSegment !== 'login') {
           router.replace('/login');
@@ -58,7 +58,7 @@ export default function RootLayout() {
         if (cancelled) return;
 
         if (!canAccess) {
-          setMarketplaceSyncEnabled(false);
+          setAuthenticatedStaffAccess(false);
           await supabase.auth.signOut();
           if (currentSegment !== 'login') {
             router.replace('/login');
@@ -66,7 +66,7 @@ export default function RootLayout() {
           return;
         }
       } catch {
-        setMarketplaceSyncEnabled(false);
+        setAuthenticatedStaffAccess(false);
         await supabase.auth.signOut();
         if (currentSegment !== 'login') {
           router.replace('/login');
@@ -74,7 +74,7 @@ export default function RootLayout() {
         return;
       }
 
-      setMarketplaceSyncEnabled(true);
+      setAuthenticatedStaffAccess(true);
       void registerExpoPushDeviceForStaff(userId);
 
       if (currentSegment === 'login' || !currentSegment) {
@@ -110,7 +110,7 @@ export default function RootLayout() {
         <OrderListSyncProvider>
           <PaperProvider theme={MD3LightTheme}>
             <AppSettingsProvider>
-              <MarketplaceSyncProvider enabled={marketplaceSyncEnabled}>
+              <MarketplaceSyncGate authenticated={authenticatedStaffAccess}>
                 <PrinterAutomationProvider>
                   <Stack screenOptions={{ headerShown: false }}>
                     <Stack.Screen name="login" />
@@ -130,7 +130,7 @@ export default function RootLayout() {
                   <OfflineAttentionOverlay appName="Pappas Order" />
                   <PendingOnlinePaymentsOverlay />
                 </PrinterAutomationProvider>
-              </MarketplaceSyncProvider>
+              </MarketplaceSyncGate>
             </AppSettingsProvider>
           </PaperProvider>
         </OrderListSyncProvider>
