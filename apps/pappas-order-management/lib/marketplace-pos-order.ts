@@ -26,6 +26,7 @@ type MarketplaceOrderDetail = {
   sourceName: string;
   orderId: string;
   orderUUID: string;
+  workflowUuid?: string;
   requestedAt: number;
   customerName: string;
   totalAmount: number | null;
@@ -679,7 +680,7 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
         delivery_quote_currency: null,
         delivery_partner_name: draft.metadata.source,
         external_order_number: externalOrderNumber,
-        marketplace_workflow_uuid: detail.orderUUID,
+        marketplace_workflow_uuid: detail.workflowUuid?.trim() || detail.orderUUID,
         delivery_quote_expires_at: null,
         delivery_eta_minutes: null,
         delivery_provider_id: null,

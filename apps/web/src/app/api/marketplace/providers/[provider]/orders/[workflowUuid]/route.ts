@@ -17,6 +17,7 @@ type MarketplaceOrderDetailsResponse = {
   sourceName: string;
   orderId: string;
   orderUUID: string;
+  workflowUuid: string;
   requestedAt: number;
   completedAtTimestamp: number | null;
   customerName: string;
@@ -381,7 +382,10 @@ function buildLiveOrderDetailsQuery() {
 }`;
 }
 
-function normalizeUberOrderDetails(details: UberNormalizedOrderDetails): MarketplaceOrderDetailsResponse {
+function normalizeUberOrderDetails(
+  details: UberNormalizedOrderDetails,
+  workflowUuid: string
+): MarketplaceOrderDetailsResponse {
   const normalizeEpochToMilliseconds = (value?: number | null) => {
     if (!value) return 0;
     return value < 1_000_000_000_000 ? value * 1000 : value;
@@ -393,6 +397,7 @@ function normalizeUberOrderDetails(details: UberNormalizedOrderDetails): Marketp
     sourceName: 'Uber Eats',
     orderId: details.orderId,
     orderUUID: details.orderUUID,
+    workflowUuid,
     requestedAt: normalizeEpochToMilliseconds(details.requestedAt),
     completedAtTimestamp: details.completedAtTimestamp ? normalizeEpochToMilliseconds(details.completedAtTimestamp) : null,
     customerName: details.eater?.name || 'Customer',
@@ -526,7 +531,10 @@ function buildDoorDashSummary(payload: DoorDashDetailResponse['data'], items: Ar
   };
 }
 
-function normalizeDoorDashOrderDetails(payload: DoorDashDetailResponse['data']): MarketplaceOrderDetailsResponse {
+function normalizeDoorDashOrderDetails(
+  payload: DoorDashDetailResponse['data'],
+  workflowUuid: string
+): MarketplaceOrderDetailsResponse {
   const items = (payload?.orders || []).flatMap((order) => (
     (order.orderItems || []).map((item) => ({
       name: item.name || 'Item',
@@ -566,6 +574,7 @@ function normalizeDoorDashOrderDetails(payload: DoorDashDetailResponse['data']):
     sourceName: 'DoorDash',
     orderId: payload?.orderId || '',
     orderUUID: payload?.deliveryUuid || '',
+    workflowUuid,
     requestedAt: parseDoorDashTimestamp(payload?.orderDate) || 0,
     completedAtTimestamp: parseDoorDashTimestamp(payload?.completedTime),
     customerName: payload?.consumer?.informalName || payload?.consumer?.formalNameAbbreviated || 'Customer',
@@ -686,7 +695,7 @@ async function fetchUberOrderDetail(cookieHeader: string, workflowUuid: string, 
     throw new Error(payload?.errors?.[0]?.message || text.slice(0, 200).trim() || `Uber Eats order detail request failed (${response.status})`);
   }
 
-  return normalizeUberOrderDetails(details);
+  return normalizeUberOrderDetails(details, workflowUuid);
 }
 
 async function fetchDoorDashOrderDetail(
@@ -742,7 +751,7 @@ async function fetchDoorDashOrderDetail(
     throw new Error(payload?.message || text.slice(0, 200).trim() || `DoorDash order detail request failed (${response.status})`);
   }
 
-  return normalizeDoorDashOrderDetails(payload.data);
+  return normalizeDoorDashOrderDetails(payload.data, workflowUuid);
 }
 
 export async function GET(request: Request, context: RouteContext) {
@@ -766,12 +775,12 @@ export async function GET(request: Request, context: RouteContext) {
       const mode = url.searchParams.get('mode') === 'live' ? 'live' : 'history';
       const cookieHeader = await getMarketplaceCookies(provider);
       const result = await fetchUberOrderDetail(cookieHeader, workflowUuid.trim(), mode);
-      return NextResponse.json({ success: true, data: result });
+      return NextResponse.json({ success: true, data: { ...result, workflowUuid: workflowUuid.trim() } });
     }
 
     const { cookies, providerConfig } = await getMarketplaceCredentialBundle(provider);
     const result = await fetchDoorDashOrderDetail(cookies, workflowUuid.trim(), providerConfig);
-    return NextResponse.json({ success: true, data: result });
+    return NextResponse.json({ success: true, data: { ...result, workflowUuid: workflowUuid.trim() } });
   } catch (error) {
     return NextResponse.json(
       { success: false, error: error instanceof Error ? error.message : 'Unexpected error' },

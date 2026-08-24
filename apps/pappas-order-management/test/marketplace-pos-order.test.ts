@@ -178,7 +178,13 @@ test('imports a new marketplace detail through savePosOrder exactly once', async
     now: () => new Date('2026-08-02T00:00:00.000Z'),
   });
 
-  const result = await service.importMarketplaceOrder(detail);
+  const result = await service.importMarketplaceOrder({
+    ...detail,
+    // The detail response's order UUID is not the workflow UUID required by
+    // Uber's detail endpoints. The workflow UUID is carried from the list
+    // request that loaded this detail.
+    workflowUuid: 'workflow-ue-123-live',
+  } as MarketplaceOrderDetailInput & { workflowUuid: string });
 
   assert.equal(result.created, true);
   assert.equal(result.order, savedOrder);
@@ -188,7 +194,7 @@ test('imports a new marketplace detail through savePosOrder exactly once', async
   assert.equal(saveCalls[0].orderPayload.marketplace_gross_sales, 25);
   assert.equal(saveCalls[0].orderPayload.marketplace_gross_payout, 18.5);
   assert.equal(saveCalls[0].orderPayload.external_order_number, 'UE-123');
-  assert.equal(saveCalls[0].orderPayload.marketplace_workflow_uuid, 'workflow-ue-123');
+  assert.equal(saveCalls[0].orderPayload.marketplace_workflow_uuid, 'workflow-ue-123-live');
   assert.deepEqual(saveCalls[0].items[0].removed_ingredients, ['Tomato']);
   assert.equal((saveCalls[0].items[0].addons as unknown[]).length, 1);
 });

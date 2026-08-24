@@ -122,6 +122,8 @@ function normalizePrinterSectionAssignments(
     return deduped;
 }
 
+export type MarketplaceFetchMode = 'api' | 'local';
+
 export type AppSettings = {
     /** Optional label displayed on printed diagnostic information for this device. */
     registerName: string;
@@ -132,6 +134,7 @@ export type AppSettings = {
     liveOrderCardLayout: 'horizontal' | 'vertical';
     marketplaceAutoSyncEnabled: boolean;
     marketplaceSyncIntervalSec: number;
+    marketplaceFetchMode: MarketplaceFetchMode;
 
     // Kitchen printer (ESC/POS)
     printerEnabled: boolean;
@@ -199,6 +202,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     liveOrderCardLayout: 'vertical',
     marketplaceAutoSyncEnabled: true,
     marketplaceSyncIntervalSec: DEFAULT_MARKETPLACE_SYNC_INTERVAL_SEC,
+    marketplaceFetchMode: 'api',
 
     printerEnabled: false,
     printerAutoPrint: true,
@@ -271,6 +275,7 @@ export async function loadAppSettings(): Promise<AppSettings> {
         const marketplaceSyncIntervalSec = normalizeMarketplaceSyncIntervalSec(
             parsed?.marketplaceSyncIntervalSec
         );
+        const marketplaceFetchMode = (parsed as any)?.marketplaceFetchMode === 'local' ? 'local' : 'api';
 
         const printerEnabled = typeof (parsed as any)?.printerEnabled === 'boolean'
             ? (parsed as any).printerEnabled
@@ -328,6 +333,7 @@ export async function loadAppSettings(): Promise<AppSettings> {
             liveOrderCardLayout,
             marketplaceAutoSyncEnabled,
             marketplaceSyncIntervalSec,
+            marketplaceFetchMode,
 
             printerEnabled,
             printerAutoPrint,
@@ -367,6 +373,7 @@ export async function saveAppSettings(settings: AppSettings): Promise<void> {
         liveOrderCardLayout: settings.liveOrderCardLayout === 'horizontal' ? 'horizontal' : 'vertical',
         marketplaceAutoSyncEnabled: settings.marketplaceAutoSyncEnabled !== false,
         marketplaceSyncIntervalSec: normalizeMarketplaceSyncIntervalSec(settings.marketplaceSyncIntervalSec),
+        marketplaceFetchMode: settings.marketplaceFetchMode === 'local' ? 'local' : 'api',
 
         printerEnabled: !!settings.printerEnabled,
         printerAutoPrint: !!settings.printerAutoPrint,

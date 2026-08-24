@@ -171,7 +171,7 @@ export async function getMarketplaceCredentialBundle(provider: MarketplaceProvid
   const supabase = await createServiceRoleClient();
   const { data, error } = await supabase
     .from('marketplace_provider_credentials')
-    .select('encrypted_cookies, encryption_iv, encryption_tag, provider_config')
+    .select('encrypted_cookies, encryption_iv, encryption_tag, provider_config, updated_at')
     .eq('provider', provider)
     .maybeSingle();
 
@@ -190,5 +190,11 @@ export async function getMarketplaceCredentialBundle(provider: MarketplaceProvid
       encryptionTag: data.encryption_tag,
     }),
     providerConfig: (data.provider_config as Record<string, string | number | boolean | null> | null) ?? {},
+    updatedAt: data.updated_at ?? null,
   };
+}
+
+export async function getMarketplaceSessionBundle(provider: MarketplaceProvider) {
+  const { cookies, providerConfig, updatedAt } = await getMarketplaceCredentialBundle(provider);
+  return { provider, cookies, providerConfig, updatedAt };
 }

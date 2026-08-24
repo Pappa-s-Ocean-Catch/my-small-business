@@ -250,11 +250,6 @@ function buildUberHistoryPayload(cookieHeader: string, cursor?: string, dateRang
       limit: 20,
       nextTable: 'liveOrders',
     },
-    pagination: {
-      cursor: cursor || '',
-      nextTable: 'historyOrders',
-      limit: 20,
-    },
   };
 
   return payload;
@@ -262,6 +257,11 @@ function buildUberHistoryPayload(cookieHeader: string, cursor?: string, dateRang
 
 async function fetchUberHistory(cookieHeader: string, cursor?: string, dateRange: MarketplaceHistoryDateRange = 'TODAY') {
   const requestPayload = buildUberHistoryPayload(cookieHeader, cursor, dateRange);
+  console.info('[marketplace-history] Uber Eats history request', {
+    requestedDateRange: dateRange,
+    dateFilter: (requestPayload.filters as { dateFilter?: unknown }).dateFilter,
+    pagingInfo: requestPayload.pagingInfo,
+  });
   const response = await fetch('https://merchants.ubereats.com/manager/api/getHistoricOrders?localeCode=en-GB', {
     method: 'POST',
     headers: {

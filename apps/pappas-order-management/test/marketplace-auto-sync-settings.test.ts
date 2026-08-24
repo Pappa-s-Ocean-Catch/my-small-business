@@ -8,6 +8,7 @@ import { DEFAULT_APP_SETTINGS } from '../lib/settings';
 test('defaults marketplace auto-sync to enabled per tablet', () => {
   assert.equal(DEFAULT_APP_SETTINGS.marketplaceAutoSyncEnabled, true);
   assert.equal(DEFAULT_APP_SETTINGS.marketplaceSyncIntervalSec, 30);
+  assert.equal(DEFAULT_APP_SETTINGS.marketplaceFetchMode, 'api');
 });
 
 test('Settings exposes and persists the marketplace auto-sync preference', () => {

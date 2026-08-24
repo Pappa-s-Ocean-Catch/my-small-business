@@ -1,5 +1,8 @@
 import { supabase } from './supabase';
 import { getApiUrl } from '@/utils/orderUtils';
+import { loadAppSettings } from './settings';
+import { getLocalMarketplaceActiveOrders } from './marketplace-local-active';
+import { getLocalMarketplaceHistory, getLocalMarketplaceOrderDetail } from './marketplace-local-active';
 
 export {
   MARKETPLACE_SYNC_INTERVAL_MS,
@@ -103,6 +106,7 @@ export type MarketplaceOrderDetail = {
   sourceName: string;
   orderId: string;
   orderUUID: string;
+  workflowUuid: string;
   requestedAt: number;
   completedAtTimestamp: number | null;
   customerName: string;
@@ -191,6 +195,10 @@ export async function getMarketplaceHistory(
   provider: MarketplaceProvider,
   options?: { cursor?: string; dateRange?: MarketplaceHistoryDateRange; statuses?: string[]; mode?: 'history' | 'scheduled' }
 ) {
+  const settings = await loadAppSettings();
+  if (settings.marketplaceFetchMode === 'local') {
+    return getLocalMarketplaceHistory(provider, options) as Promise<MarketplaceHistoryResult>;
+  }
   const token = await getAccessToken();
   const params = new URLSearchParams();
   if (options?.cursor) params.set('cursor', options.cursor);
@@ -215,6 +223,10 @@ export async function getMarketplaceHistory(
 }
 
 export async function getMarketplaceActiveOrders(provider: MarketplaceProvider, cursor?: string) {
+  const settings = await loadAppSettings();
+  if (settings.marketplaceFetchMode === 'local') {
+    return getLocalMarketplaceActiveOrders(provider, cursor) as Promise<MarketplaceActiveResult>;
+  }
   const token = await getAccessToken();
   const params = new URLSearchParams();
   if (cursor) params.set('cursor', cursor);
@@ -240,6 +252,10 @@ export async function getMarketplaceOrderDetail(
   workflowUuid: string,
   options?: { mode?: MarketplaceOrderDetailMode }
 ) {
+  const settings = await loadAppSettings();
+  if (settings.marketplaceFetchMode === 'local') {
+    return getLocalMarketplaceOrderDetail(provider, workflowUuid, options) as Promise<MarketplaceOrderDetail>;
+  }
   const token = await getAccessToken();
   const params = new URLSearchParams();
   if (options?.mode) params.set('mode', options.mode);

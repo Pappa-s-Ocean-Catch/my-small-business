@@ -8,6 +8,9 @@
       ],
       "@my-small-business/types": [
         "../../libs/types"
+      ],
+      "@my-small-business/marketplace": [
+        "../../libs/marketplace"
       ]
     }
   },

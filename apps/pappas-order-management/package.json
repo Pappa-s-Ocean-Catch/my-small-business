@@ -29,6 +29,7 @@
   "dependencies": {
     "@expo/metro-runtime": "^6.1.2",
     "@my-small-business/native-raw-tcp-printer": "workspace:*",
+    "@my-small-business/marketplace": "workspace:*",
     "@my-small-business/types": "workspace:*",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-community/datetimepicker": "8.4.4",

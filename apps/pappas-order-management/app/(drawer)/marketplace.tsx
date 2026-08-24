@@ -21,6 +21,7 @@ import {
   type MarketplaceProvider,
 } from '@/lib/marketplace';
 import { useMarketplacePosDraftStore } from '@/stores/marketplacePosDraftStore';
+import { invalidateLocalMarketplaceSession } from '@/lib/marketplace-local-session';
 import type { AddonItem, RemovableIngredient, SaleProduct } from '@/app/pos.types';
 
 type ProviderTab = 'uber_eats' | 'doordash';
@@ -367,6 +368,7 @@ export default function MarketplaceScreen() {
         cookies: nextCookies,
         providerConfig,
       });
+      invalidateLocalMarketplaceSession(providerTab);
       setCredentialStatus((prev) => ({ ...prev, [providerTab]: status }));
       setCookieInput('');
       setBusinessIdInput('');
@@ -399,6 +401,7 @@ export default function MarketplaceScreen() {
     try {
       setSaving(true);
       await deleteMarketplaceCookies(providerTab);
+      invalidateLocalMarketplaceSession(providerTab);
       setCredentialStatus((prev) => ({
         ...prev,
         [providerTab]: { provider: providerTab, configured: false, updatedAt: null, configuredBy: null, providerConfig: {} },

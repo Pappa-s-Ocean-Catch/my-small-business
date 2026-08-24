@@ -118,6 +118,9 @@ importers:
       '@expo/metro-runtime':
         specifier: ^6.1.2
         version: 6.1.2(expo@54.0.31)(react-dom@19.2.3(react@19.1.0))(react-native@0.81.5(@babel/core@7.28.6)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
+      '@my-small-business/marketplace':
+        specifier: workspace:*
+        version: link:../../libs/marketplace
       '@my-small-business/native-raw-tcp-printer':
         specifier: workspace:*
         version: link:../../libs/native-raw-tcp-printer
@@ -275,6 +278,9 @@ importers:
       '@google/generative-ai':
         specifier: ^0.24.1
         version: 0.24.1
+      '@my-small-business/marketplace':
+        specifier: workspace:*
+        version: link:../../libs/marketplace
       '@my-small-business/supabase':
         specifier: workspace:*
         version: link:../../libs/supabase
@@ -453,6 +459,15 @@ importers:
 
   libs/escpos-printer:
     devDependencies:
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+
+  libs/marketplace:
+    devDependencies:
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.29
       typescript:
         specifier: ^5.3.3
         version: 5.9.3
@@ -4539,6 +4554,7 @@ packages:
   eslint@9.39.2:
     resolution: {integrity: sha512-LEyamqS7W5HB3ujJyvi0HQK/dtVINZvd5mAAp9eT5S/ujByGjiZLCzPcHVzuXbpJDJF/cxwHlfceVUDZ2lnSTw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'
@@ -9231,7 +9247,7 @@ snapshots:
       wrap-ansi: 7.0.0
       ws: 8.19.0
     optionalDependencies:
-      expo-router: 6.0.21(239558a7598466b80c5ebc4fd1f103ff)
+      expo-router: 6.0.21(95a4ace4bc112ba730e36d337359fdd0)
       react-native: 0.81.5(@babel/core@7.28.6)(@types/react@19.1.17)(react@19.1.0)
     transitivePeerDependencies:
       - bufferutil
@@ -13401,7 +13417,7 @@ snapshots:
       react-refresh: 0.14.2
       whatwg-url-without-unicode: 8.0.0-3
     optionalDependencies:
-      '@expo/metro-runtime': 6.1.2(expo@54.0.31)(react-dom@19.2.3(react@19.1.0))(react-native@0.81.5(@babel/core@7.28.6)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
+      '@expo/metro-runtime': 6.1.2(expo@54.0.31)(react-dom@19.1.0(react@19.1.0))(react-native@0.81.5(@babel/core@7.28.6)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
     transitivePeerDependencies:
       - '@babel/core'
       - bufferutil

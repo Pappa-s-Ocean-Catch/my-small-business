@@ -30,6 +30,7 @@ import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
 import { posCatalogCacheStore } from '@/stores/posCatalogCacheStore';
 import { JOURNAL_LOGS_ENABLED } from '@/lib/journal-config';
 import { DEFAULT_STORE_INFO, fetchStoreInfo, saveStoreInfo, type StoreInfo } from '@/lib/store-info';
+import { invalidateLocalMarketplaceSession } from '@/lib/marketplace-local-session';
 
 type SettingsDialogKey = 'refresh' | 'sound' | 'printer' | 'liveOrders' | 'marketplace' | 'printDiagnostics' | 'journal' | 'storeInfo' | null;
 
@@ -58,6 +59,7 @@ export default function SettingsScreen() {
     const [liveOrderCardLayout, setLiveOrderCardLayout] = useState<'horizontal' | 'vertical'>(DEFAULT_APP_SETTINGS.liveOrderCardLayout);
     const [marketplaceAutoSyncEnabled, setMarketplaceAutoSyncEnabled] = useState(DEFAULT_APP_SETTINGS.marketplaceAutoSyncEnabled);
     const [marketplaceSyncIntervalSecText, setMarketplaceSyncIntervalSecText] = useState(String(DEFAULT_APP_SETTINGS.marketplaceSyncIntervalSec));
+    const [marketplaceFetchMode, setMarketplaceFetchMode] = useState<'api' | 'local'>(DEFAULT_APP_SETTINGS.marketplaceFetchMode);
     const [registerName, setRegisterName] = useState(DEFAULT_APP_SETTINGS.registerName);
     const [printerDebugFooter, setPrinterDebugFooter] = useState(DEFAULT_APP_SETTINGS.printerDebugFooter);
 
@@ -100,6 +102,7 @@ export default function SettingsScreen() {
         setLiveOrderCardLayout(currentSettings.liveOrderCardLayout);
         setMarketplaceAutoSyncEnabled(currentSettings.marketplaceAutoSyncEnabled);
         setMarketplaceSyncIntervalSecText(String(currentSettings.marketplaceSyncIntervalSec));
+        setMarketplaceFetchMode(currentSettings.marketplaceFetchMode);
         setRegisterName(currentSettings.registerName);
         setPrinterDebugFooter(currentSettings.printerDebugFooter);
 
@@ -634,6 +637,7 @@ export default function SettingsScreen() {
                 liveOrderCardLayout,
                 marketplaceAutoSyncEnabled,
                 marketplaceSyncIntervalSec,
+                marketplaceFetchMode,
                 printerEnabled,
                 printerAutoPrint,
                 instoreCustomerReceiptAutoPrintEnabled,
@@ -651,6 +655,9 @@ export default function SettingsScreen() {
                 printerHighQuality,
                 printerDebugFooter,
             });
+            if (marketplaceFetchMode !== currentSettings.marketplaceFetchMode) {
+                invalidateLocalMarketplaceSession();
+            }
             Alert.alert('Saved', 'Settings updated.');
         } catch (e) {
             Alert.alert('Error', e instanceof Error ? e.message : 'Failed to save settings');
@@ -875,6 +882,26 @@ export default function SettingsScreen() {
                                 />
                                 <Text style={styles.helper}>
                                     Checks in the background every 15 to 600 seconds. The default is 30 seconds and applies immediately after saving.
+                                </Text>
+                                <Text style={styles.label}>Marketplace request mode</Text>
+                                <View style={styles.segmentedButtons}>
+                                    <Button
+                                        mode={marketplaceFetchMode === 'api' ? 'contained' : 'outlined'}
+                                        onPress={() => setMarketplaceFetchMode('api')}
+                                        style={styles.segmentedButton}
+                                    >
+                                        API (recommended)
+                                    </Button>
+                                    <Button
+                                        mode={marketplaceFetchMode === 'local' ? 'contained' : 'outlined'}
+                                        onPress={() => setMarketplaceFetchMode('local')}
+                                        style={styles.segmentedButton}
+                                    >
+                                        Local tablet
+                                    </Button>
+                                </View>
+                                <Text style={styles.helper}>
+                                    API sends provider requests through the web API. Local tablet sends provider requests directly from this tablet after fetching a session held in memory for up to one hour.
                                 </Text>
                             </>
                         )}
@@ -1710,5 +1737,13 @@ const styles = StyleSheet.create({
     logDetails: {
         fontSize: 12,
         color: '#334155',
+    },
+    segmentedButtons: {
+        flexDirection: 'row',
+        gap: 8,
+        marginTop: 8,
+    },
+    segmentedButton: {
+        flex: 1,
     },
 });

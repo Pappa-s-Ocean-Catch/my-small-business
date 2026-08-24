@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { createMarketplaceProviderClient } from '@my-small-business/marketplace';
 import {
   authenticateMarketplaceRequest,
   getMarketplaceCookies,
@@ -267,14 +268,13 @@ export async function GET(request: Request, context: RouteContext) {
     const url = new URL(request.url);
     const cursor = url.searchParams.get('cursor')?.trim() || undefined;
 
-    if (provider === 'uber_eats') {
-      const cookieHeader = await getMarketplaceCookies(provider);
-      const result = await fetchUberActiveOrders(cookieHeader, cursor);
-      return NextResponse.json({ success: true, data: result });
-    }
-
-    const { cookies, providerConfig } = await getMarketplaceCredentialBundle(provider);
-    const result = await fetchDoorDashActiveOrders(cookies, providerConfig);
+    const client = createMarketplaceProviderClient({
+      getSession: async (requestedProvider) => {
+        const { cookies, providerConfig } = await getMarketplaceCredentialBundle(requestedProvider);
+        return { provider: requestedProvider, cookies, providerConfig, updatedAt: null };
+      },
+    });
+    const result = await client.getActiveOrders(provider, cursor);
     return NextResponse.json({ success: true, data: result });
   } catch (error) {
     return NextResponse.json(
