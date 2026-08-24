@@ -57,6 +57,7 @@ export default function SettingsScreen() {
     const [repeatCountText, setRepeatCountText] = useState(String(DEFAULT_APP_SETTINGS.soundRepeatCount));
     const [liveOrderCardLayout, setLiveOrderCardLayout] = useState<'horizontal' | 'vertical'>(DEFAULT_APP_SETTINGS.liveOrderCardLayout);
     const [marketplaceAutoSyncEnabled, setMarketplaceAutoSyncEnabled] = useState(DEFAULT_APP_SETTINGS.marketplaceAutoSyncEnabled);
+    const [marketplaceSyncIntervalSecText, setMarketplaceSyncIntervalSecText] = useState(String(DEFAULT_APP_SETTINGS.marketplaceSyncIntervalSec));
     const [registerName, setRegisterName] = useState(DEFAULT_APP_SETTINGS.registerName);
     const [printerDebugFooter, setPrinterDebugFooter] = useState(DEFAULT_APP_SETTINGS.printerDebugFooter);
 
@@ -98,6 +99,7 @@ export default function SettingsScreen() {
         setRepeatCountText(String(currentSettings.soundRepeatCount));
         setLiveOrderCardLayout(currentSettings.liveOrderCardLayout);
         setMarketplaceAutoSyncEnabled(currentSettings.marketplaceAutoSyncEnabled);
+        setMarketplaceSyncIntervalSecText(String(currentSettings.marketplaceSyncIntervalSec));
         setRegisterName(currentSettings.registerName);
         setPrinterDebugFooter(currentSettings.printerDebugFooter);
 
@@ -545,11 +547,19 @@ export default function SettingsScreen() {
 
     const handleSave = async () => {
         const refreshIntervalSec = parseIntOr(refreshIntervalSecText, DEFAULT_APP_SETTINGS.refreshIntervalSec);
+        const marketplaceSyncIntervalSec = parseIntOr(
+            marketplaceSyncIntervalSecText,
+            DEFAULT_APP_SETTINGS.marketplaceSyncIntervalSec
+        );
         const soundRepeatCount = parseIntOr(repeatCountText, DEFAULT_APP_SETTINGS.soundRepeatCount);
         const printerDelayPrintSec = parseIntOr(printerDelayPrintSecText, DEFAULT_APP_SETTINGS.printerDelayPrintSec);
 
         if (refreshIntervalSec < 5 || refreshIntervalSec > 600) {
             Alert.alert('Invalid refresh interval', 'Please enter a value between 5 and 600 seconds.');
+            return;
+        }
+        if (marketplaceSyncIntervalSec < 15 || marketplaceSyncIntervalSec > 600) {
+            Alert.alert('Invalid marketplace polling interval', 'Please enter a value between 15 and 600 seconds.');
             return;
         }
         if (soundRepeatCount < 1 || soundRepeatCount > 10) {
@@ -623,6 +633,7 @@ export default function SettingsScreen() {
                 soundRepeatCount,
                 liveOrderCardLayout,
                 marketplaceAutoSyncEnabled,
+                marketplaceSyncIntervalSec,
                 printerEnabled,
                 printerAutoPrint,
                 instoreCustomerReceiptAutoPrintEnabled,
@@ -853,6 +864,17 @@ export default function SettingsScreen() {
                                 </View>
                                 <Text style={styles.helper}>
                                     Automatically checks Uber Eats and DoorDash on this tablet. Manual marketplace refresh and status updates remain available.
+                                </Text>
+                                <TextInput
+                                    mode="outlined"
+                                    label="Marketplace polling interval (seconds)"
+                                    value={marketplaceSyncIntervalSecText}
+                                    onChangeText={setMarketplaceSyncIntervalSecText}
+                                    keyboardType="number-pad"
+                                    style={styles.input}
+                                />
+                                <Text style={styles.helper}>
+                                    Checks in the background every 15 to 600 seconds. The default is 30 seconds and applies immediately after saving.
                                 </Text>
                             </>
                         )}

@@ -1,4 +1,6 @@
-export const MARKETPLACE_SYNC_INTERVAL_MS = 15_000;
+import { DEFAULT_MARKETPLACE_SYNC_INTERVAL_SEC } from '@/lib/marketplace-sync-interval';
+
+export const MARKETPLACE_SYNC_INTERVAL_MS = DEFAULT_MARKETPLACE_SYNC_INTERVAL_SEC * 1_000;
 
 const MARKETPLACE_AUTO_SYNC_TIME_ZONE = 'Australia/Melbourne';
 
@@ -62,7 +64,10 @@ type MarketplaceSyncDependencies<Detail, SyncedOrder> = {
     detail: Detail
   ) => Promise<MarketplaceStatusSyncResult<SyncedOrder>>;
   logError?: (message: string, error: unknown) => void;
+  onProviderPollSuccess?: (provider: MarketplaceProvider) => void;
+  onProviderPollFailure?: (provider: MarketplaceProvider, error: unknown) => void;
   canPoll?: () => boolean;
+  intervalMs?: number;
   setInterval?: (callback: () => void, delayMs: number) => unknown;
   clearInterval?: (handle: unknown) => void;
 };
@@ -138,6 +143,9 @@ export function createMarketplaceSyncCoordinator<Detail, SyncedOrder>(
   const cancelInterval = dependencies.clearInterval ?? ((handle) => {
     globalThis.clearInterval(handle as ReturnType<typeof globalThis.setInterval>);
   });
+  const intervalMs = Number.isFinite(dependencies.intervalMs)
+    ? Math.max(1_000, Math.trunc(dependencies.intervalMs!))
+    : MARKETPLACE_SYNC_INTERVAL_MS;
 
   let intervalHandle: unknown = null;
   let inFlight = false;
@@ -209,6 +217,7 @@ export function createMarketplaceSyncCoordinator<Detail, SyncedOrder>(
         dependencies.getActiveOrders(provider),
         openOrdersPromise,
       ]);
+      dependencies.onProviderPollSuccess?.(provider);
       const activeOrderIds = new Set(
         active.orders
           .map((order) => order.orderId.trim())
@@ -227,6 +236,7 @@ export function createMarketplaceSyncCoordinator<Detail, SyncedOrder>(
       ]);
     } catch (error) {
       logError(`[marketplace-sync] ${provider} active orders failed`, error);
+      dependencies.onProviderPollFailure?.(provider, error);
     }
   };
 
@@ -260,7 +270,7 @@ export function createMarketplaceSyncCoordinator<Detail, SyncedOrder>(
     const initialPoll = poll();
     intervalHandle = scheduleInterval(() => {
       void poll();
-    }, MARKETPLACE_SYNC_INTERVAL_MS);
+    }, intervalMs);
     return initialPoll;
   };
 

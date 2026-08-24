@@ -10,7 +10,10 @@ export function MarketplaceSyncGate({
   const { data: settings, isLoading } = useAppSettingsQuery();
 
   return (
-    <MarketplaceSyncProvider enabled={authenticated && !isLoading && settings.marketplaceAutoSyncEnabled}>
+    <MarketplaceSyncProvider
+      enabled={authenticated && !isLoading && settings.marketplaceAutoSyncEnabled}
+      intervalMs={settings.marketplaceSyncIntervalSec * 1_000}
+    >
       {children}
     </MarketplaceSyncProvider>
   );

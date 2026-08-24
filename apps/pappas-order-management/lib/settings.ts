@@ -1,4 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import {
+    DEFAULT_MARKETPLACE_SYNC_INTERVAL_SEC,
+    normalizeMarketplaceSyncIntervalSec,
+} from '@/lib/marketplace-sync-interval';
 import { SOUND_OPTIONS, type SoundId } from './sounds';
 import {
     createSimulatorSavedPrinter,
@@ -126,6 +131,7 @@ export type AppSettings = {
     soundRepeatCount: number;
     liveOrderCardLayout: 'horizontal' | 'vertical';
     marketplaceAutoSyncEnabled: boolean;
+    marketplaceSyncIntervalSec: number;
 
     // Kitchen printer (ESC/POS)
     printerEnabled: boolean;
@@ -192,6 +198,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     soundRepeatCount: 3,
     liveOrderCardLayout: 'vertical',
     marketplaceAutoSyncEnabled: true,
+    marketplaceSyncIntervalSec: DEFAULT_MARKETPLACE_SYNC_INTERVAL_SEC,
 
     printerEnabled: false,
     printerAutoPrint: true,
@@ -261,6 +268,9 @@ export async function loadAppSettings(): Promise<AppSettings> {
         const marketplaceAutoSyncEnabled = typeof (parsed as any)?.marketplaceAutoSyncEnabled === 'boolean'
             ? (parsed as any).marketplaceAutoSyncEnabled
             : DEFAULT_APP_SETTINGS.marketplaceAutoSyncEnabled;
+        const marketplaceSyncIntervalSec = normalizeMarketplaceSyncIntervalSec(
+            parsed?.marketplaceSyncIntervalSec
+        );
 
         const printerEnabled = typeof (parsed as any)?.printerEnabled === 'boolean'
             ? (parsed as any).printerEnabled
@@ -317,6 +327,7 @@ export async function loadAppSettings(): Promise<AppSettings> {
             soundRepeatCount,
             liveOrderCardLayout,
             marketplaceAutoSyncEnabled,
+            marketplaceSyncIntervalSec,
 
             printerEnabled,
             printerAutoPrint,
@@ -355,6 +366,7 @@ export async function saveAppSettings(settings: AppSettings): Promise<void> {
         soundRepeatCount: clampInt(settings.soundRepeatCount, 1, 10),
         liveOrderCardLayout: settings.liveOrderCardLayout === 'horizontal' ? 'horizontal' : 'vertical',
         marketplaceAutoSyncEnabled: settings.marketplaceAutoSyncEnabled !== false,
+        marketplaceSyncIntervalSec: normalizeMarketplaceSyncIntervalSec(settings.marketplaceSyncIntervalSec),
 
         printerEnabled: !!settings.printerEnabled,
         printerAutoPrint: !!settings.printerAutoPrint,

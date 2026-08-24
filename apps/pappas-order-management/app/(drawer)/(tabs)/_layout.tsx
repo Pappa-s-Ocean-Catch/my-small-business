@@ -6,10 +6,20 @@ import { Appbar } from 'react-native-paper';
 import { Text } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
+import { useAppSettingsQuery } from '@/hooks/useAppSettingsQuery';
+import { marketplaceSyncAlertStore } from '@/stores/marketplaceSyncAlertStore';
+import { getMarketplaceSyncIndicatorColor } from '@/lib/marketplace-sync-indicator';
 
 export default function TabsLayout() {
   const router = useRouter();
   const navigation = useNavigation<DrawerNavigationProp<any>>();
+  const { data: appSettings, isLoading: settingsLoading } = useAppSettingsQuery();
+  const alerts = marketplaceSyncAlertStore((state) => state.alerts);
+  const hasMarketplaceError = Object.values(alerts).some((alert) => alert?.visible);
+  const marketplaceSyncColor = getMarketplaceSyncIndicatorColor(
+    !settingsLoading && appSettings.marketplaceAutoSyncEnabled,
+    hasMarketplaceError,
+  );
 
   const handleOpenDrawer = () => {
     navigation.openDrawer();
@@ -30,7 +40,7 @@ export default function TabsLayout() {
         ),
         headerRight: () => (
           <React.Fragment>
-            <Appbar.Action icon="storefront-outline" onPress={() => router.push('/marketplace')} iconColor="#fff" />
+            <Appbar.Action icon="storefront-outline" onPress={() => router.push('/marketplace')} iconColor={marketplaceSyncColor} />
             <Appbar.Action icon="account-circle" onPress={handleOpenDrawer} iconColor="#fff" />
           </React.Fragment>
         ),

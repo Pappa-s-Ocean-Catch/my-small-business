@@ -63,7 +63,7 @@ function detail(provider: 'uber_eats' | 'doordash', orderId: string) {
   };
 }
 
-test('starts with an immediate poll and schedules the next polls every 15 seconds', async () => {
+test('starts with an immediate poll and schedules the next polls every 30 seconds', async () => {
   const scheduled: Array<{ callback: () => void; delayMs: number }> = [];
   const cleared: unknown[] = [];
   let activeRequests = 0;
@@ -93,8 +93,8 @@ test('starts with an immediate poll and schedules the next polls every 15 second
 
   assert.equal(activeRequests, 2);
   assert.equal(scheduled.length, 1);
-  assert.equal(scheduled[0].delayMs, 15_000);
-  assert.equal(MARKETPLACE_SYNC_INTERVAL_MS, 15_000);
+  assert.equal(scheduled[0].delayMs, 30_000);
+  assert.equal(MARKETPLACE_SYNC_INTERVAL_MS, 30_000);
 
   scheduled[0].callback();
   await new Promise((resolve) => setImmediate(resolve));
@@ -102,6 +102,30 @@ test('starts with an immediate poll and schedules the next polls every 15 second
 
   coordinator.stop();
   assert.deepEqual(cleared, ['poll-timer']);
+});
+
+test('uses the device-configured marketplace polling interval', async () => {
+  const scheduled: Array<{ delayMs: number }> = [];
+  const coordinator = createMarketplaceSyncCoordinator({
+    getActiveOrders: async (provider) => activeResult(provider, []),
+    getOrderDetail: async () => {
+      throw new Error('empty active lists must not load details');
+    },
+    importMarketplaceOrder: async () => ({ order: null, created: false, error: null }),
+    getOpenMarketplaceOrdersForHistory: async () => ({ data: [], error: null }),
+    syncMarketplaceOrderStatus: async () => ({ order: null, error: null }),
+    intervalMs: 90_000,
+    setInterval: (_callback, delayMs) => {
+      scheduled.push({ delayMs });
+      return 'poll-timer';
+    },
+    clearInterval: () => undefined,
+  });
+
+  await coordinator.start();
+
+  assert.deepEqual(scheduled, [{ delayMs: 90_000 }]);
+  coordinator.stop();
 });
 
 test('only enables marketplace auto-sync from 11:00am until 8:00pm Melbourne time', () => {
@@ -186,6 +210,32 @@ test('processes Uber Eats and DoorDash independently with live detail requests',
   assert.deepEqual(imported, ['DD-1']);
   assert.equal(logged.length, 1);
   assert.match(logged[0], /uber_eats/);
+});
+
+test('reports provider poll failure and clears it after a later successful active response', async () => {
+  const failures: string[] = [];
+  const successes: string[] = [];
+  let shouldFail = true;
+  const coordinator = createMarketplaceSyncCoordinator({
+    getActiveOrders: async (provider) => {
+      if (provider === 'uber_eats' && shouldFail) throw new Error('offline');
+      return activeResult(provider, []);
+    },
+    getOrderDetail: async () => { throw new Error('not needed'); },
+    importMarketplaceOrder: async () => ({ order: null, created: false, error: null }),
+    getOpenMarketplaceOrdersForHistory: async () => ({ data: [], error: null }),
+    syncMarketplaceOrderStatus: async () => ({ order: null, error: null }),
+    logError: () => undefined,
+    onProviderPollFailure: (provider) => failures.push(provider),
+    onProviderPollSuccess: (provider) => successes.push(provider),
+  });
+
+  await coordinator.poll();
+  shouldFail = false;
+  await coordinator.poll();
+
+  assert.deepEqual(failures, ['uber_eats']);
+  assert.deepEqual(successes, ['doordash', 'uber_eats', 'doordash']);
 });
 
 test('continues importing other active orders when one order fails', async () => {

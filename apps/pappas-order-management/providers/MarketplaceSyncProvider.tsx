@@ -12,14 +12,18 @@ import {
   syncMarketplaceOrderStatus,
 } from '@/lib/marketplace-pos-order';
 import { getOpenMarketplaceOrdersForHistory } from '@/lib/orders';
+import { MarketplaceSyncAlertBanner } from '@/components/MarketplaceSyncAlertBanner';
+import { marketplaceSyncAlertStore } from '@/stores/marketplaceSyncAlertStore';
 
 type MarketplaceSyncProviderProps = PropsWithChildren<{
   enabled: boolean;
+  intervalMs: number;
 }>;
 
 export function MarketplaceSyncProvider({
   children,
   enabled,
+  intervalMs,
 }: MarketplaceSyncProviderProps) {
   const coordinator = useMemo(() => createMarketplaceSyncCoordinator({
     getActiveOrders: getMarketplaceActiveOrders,
@@ -28,11 +32,16 @@ export function MarketplaceSyncProvider({
     getOpenMarketplaceOrdersForHistory,
     syncMarketplaceOrderStatus,
     canPoll: () => isMarketplaceAutoSyncOpenAt(new Date()),
-  }), []);
+    intervalMs,
+    onProviderPollSuccess: (provider) => marketplaceSyncAlertStore.getState().clear(provider),
+    onProviderPollFailure: (provider) => marketplaceSyncAlertStore.getState().reportFailure(provider),
+  }), [intervalMs]);
 
   useEffect(() => {
     if (!enabled) {
       coordinator.stop();
+      marketplaceSyncAlertStore.getState().clear('uber_eats');
+      marketplaceSyncAlertStore.getState().clear('doordash');
       return;
     }
 
@@ -53,5 +62,5 @@ export function MarketplaceSyncProvider({
     };
   }, [coordinator, enabled]);
 
-  return children;
+  return <>{children}<MarketplaceSyncAlertBanner /></>;
 }
