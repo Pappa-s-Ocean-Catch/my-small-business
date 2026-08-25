@@ -3,7 +3,7 @@ import { buildUberActivePayload } from './uber-active';
 
 export type MarketplaceDateParts = { year: number; month: number; day: number };
 type Range = { start: MarketplaceDateParts; end: MarketplaceDateParts };
-const BROWSER_HEADERS = { priority: 'u=1, i', 'sec-ch-ua': '"Not;A=Brand";v="8", "Chromium";v="150", "Google Chrome";v="150"', 'sec-ch-ua-mobile': '?0', 'sec-ch-ua-platform': '"macOS"', 'sec-fetch-dest': 'empty', 'sec-fetch-mode': 'cors', 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36' };
+const BROWSER_HEADERS = { priority: 'u=1, i', 'sec-ch-ua': '"Not=A?Brand";v="99", "Google Chrome";v="151", "Chromium";v="151"', 'sec-ch-ua-mobile': '?0', 'sec-ch-ua-platform': '"macOS"', 'sec-fetch-dest': 'empty', 'sec-fetch-mode': 'cors', 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36' };
 const FLAGS = '{"featureKey":"OrdersList","isMobile":"false","isEmbedded":"false","userCohort":"MEMBERSHIP_LESS_THAN_500","pageName":"orders","operationMetricsUDLFlowEnabled":"true","isUEMOperationMetricsConsistencyEnabled":"true"}';
 
 function restaurant(cookies: string) { const id = cookies.match(/(?:^|;\s*)selectedRestaurant=([^;]+)/)?.[1]?.trim(); if (!id) throw new Error('Uber Eats request failed: missing selected restaurant'); return id; }
@@ -15,7 +15,7 @@ export function createUberEatsClient(transport: MarketplaceTransport) {
   return {
     async getActive(session: MarketplaceSessionBundle, cursor?: string) {
       const body = buildUberActivePayload(session.cookies, cursor);
-      return request(transport, 'active', 'https://merchants.ubereats.com/manager/api/getActiveOrders?localeCode=en-AU', { method: 'POST', headers: { ...headers(session.cookies, 'https://merchants.ubereats.com/manager/orders/active?dateRange=this_week', FLAGS), 'accept-language': 'en-AU,en-GB;q=0.9,en-US;q=0.8,en;q=0.7' }, body: JSON.stringify(body), cache: 'no-store' });
+      return request(transport, 'active', 'https://merchants.ubereats.com/manager/api/getActiveOrders?localeCode=en-AU', { method: 'POST', headers: { ...headers(session.cookies, 'https://merchants.ubereats.com/manager/orders/active?dateRange=this_week', FLAGS), 'accept-language': 'en-AU,en-GB;q=0.9,en-US;q=0.8,en;q=0.7', 'cache-control': 'no-cache', pragma: 'no-cache' }, body: JSON.stringify(body), cache: 'no-store' });
     },
     async getHistory(session: MarketplaceSessionBundle, range: Range, options: MarketplaceHistoryOptions) {
       const restaurantUuid = restaurant(session.cookies);

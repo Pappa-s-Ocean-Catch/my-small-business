@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { adaptUberHistory } from '../src/uber-eats-adapter';
-import { adaptDoorDashHistory } from '../src/doordash-adapter';
+import { adaptDoorDashActive, adaptDoorDashHistory } from '../src/doordash-adapter';
 
 test('Uber adapter converts Uber history rows without relying on DoorDash fields', () => {
   const result = adaptUberHistory({ data: { orders: [{ orderId: 'UE-1', workflowUuid: 'workflow-1', orderUuid: 'order-1', eater: { name: 'Uber customer' }, salesTotal: '$12.00' }] } });
@@ -12,4 +12,9 @@ test('Uber adapter converts Uber history rows without relying on DoorDash fields
 test('DoorDash adapter converts DoorDash history rows without relying on Uber fields', () => {
   const result = adaptDoorDashHistory({ orders: [{ orderId: 'DD-1', deliveryUuid: 'delivery-1', consumer: { informalName: 'DoorDash customer' }, orderValue: { displayString: '$13.00' } }] }, 'history');
   assert.deepEqual(result.orders, [{ orderId: 'DD-1', workflowUuid: 'delivery-1', orderUuid: 'delivery-1', customerName: 'DoorDash customer', salesTotal: '$13.00', netPayout: '', requestedAt: '', courierName: '', fulfillmentType: '', issueType: '', orderChannel: 'DoorDash', isSubscriber: false, subscriptionPass: '' }]);
+});
+
+test('DoorDash active adapter preserves the prior active-order display mapping', () => {
+  const result = adaptDoorDashActive({ orders: [{ orderId: 'DD-1', deliveryUuid: 'delivery-1', pickupTime: 'pickup', deliveryTime: 'delivery', orderSubStatus: { display: 'On the way' }, orderStatusDisplay: 'Confirmed', orderExperience: 'ignored' }] });
+  assert.deepEqual(result.orders, [{ orderId: 'DD-1', workflowUuid: 'delivery-1', orderUuid: 'delivery-1', customerName: 'Customer', salesTotal: '', requestedAt: 'pickup', courierName: '', fulfillmentType: '', orderChannel: 'DoorDash', status: 'Confirmed', statusDescription: 'On the way' }]);
 });

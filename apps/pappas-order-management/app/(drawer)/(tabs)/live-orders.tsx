@@ -54,7 +54,6 @@ import {
 } from '@/lib/print-debug-footer';
 import {
   LIVE_ORDERS_QUERY_KEY,
-  fetchLiveOrderDiagnostics,
   useLiveOrdersQuery,
   usePreOrderCountQuery,
 } from '@/hooks/useLiveOrdersQuery';
@@ -710,21 +709,6 @@ export default function LiveOrdersScreen() {
     loadOrders();
   };
 
-  const handleLiveOrderDebug = async () => {
-    try {
-      const diagnostics = await fetchLiveOrderDiagnostics();
-      logOrderEvent('decision', 'live-orders', 'Captured Live Orders query diagnostics', {
-        details: JSON.stringify(diagnostics),
-      });
-    } catch (error) {
-      logOrderEvent('error', 'live-orders', 'Failed to capture Live Orders query diagnostics', {
-        details: error instanceof Error ? error.message : String(error),
-      });
-    } finally {
-      setShowPrintLogs(true);
-    }
-  };
-
   const handleOrderPress = (order: Order) => {
     setSelectedOrder(order);
     logOrderEvent('info', 'ui', 'Opened order detail from live list', {
@@ -892,15 +876,6 @@ export default function LiveOrdersScreen() {
                     {journalEntries.length > 99 ? '99+' : journalEntries.length}
                   </Badge>
                 ) : null}
-              </TouchableOpacity>
-            ) : null}
-            {JOURNAL_LOGS_ENABLED ? (
-              <TouchableOpacity
-                style={styles.logButton}
-                onPress={() => void handleLiveOrderDebug()}
-                accessibilityLabel="Capture Live Orders diagnostics"
-              >
-                <MaterialCommunityIcons name="bug-outline" size={20} color="#1f2937" />
               </TouchableOpacity>
             ) : null}
             <PaperButton

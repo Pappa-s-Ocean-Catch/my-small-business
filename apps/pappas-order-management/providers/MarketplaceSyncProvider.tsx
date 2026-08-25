@@ -14,11 +14,19 @@ import {
 import { getOpenMarketplaceOrdersForHistory } from '@/lib/orders';
 import { MarketplaceSyncAlertBanner } from '@/components/MarketplaceSyncAlertBanner';
 import { marketplaceSyncAlertStore } from '@/stores/marketplaceSyncAlertStore';
+import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
 
 type MarketplaceSyncProviderProps = PropsWithChildren<{
   enabled: boolean;
   intervalMs: number;
 }>;
+
+function marketplaceSyncErrorDetails(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return message
+    .replace(/(cookie|authorization|token)=?[^\s;]*/gi, '$1=[redacted]')
+    .slice(0, 500);
+}
 
 export function MarketplaceSyncProvider({
   children,
@@ -33,6 +41,15 @@ export function MarketplaceSyncProvider({
     syncMarketplaceOrderStatus,
     canPoll: () => isMarketplaceAutoSyncOpenAt(new Date()),
     intervalMs,
+    logError: (message, error) => {
+      usePrinterAutomationStore.getState().addJournalEntry({
+        level: 'error',
+        scope: 'marketplace-sync',
+        message,
+        details: `reason=${marketplaceSyncErrorDetails(error)}`,
+      });
+      console.error(message, error);
+    },
     onProviderPollSuccess: (provider) => marketplaceSyncAlertStore.getState().clear(provider),
     onProviderPollFailure: (provider) => marketplaceSyncAlertStore.getState().reportFailure(provider),
   }), [intervalMs]);
