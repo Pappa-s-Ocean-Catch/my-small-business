@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { Appbar, Button, Switch, Text, TextInput } from 'react-native-paper';
 import { useRouter } from 'expo-router';
+import * as Sharing from 'expo-sharing';
 import { DEFAULT_APP_SETTINGS, type PrinterSectionAssignment } from '@/lib/settings';
 import { playNewOrderSound, SOUND_OPTIONS, type SoundId } from '@/lib/sounds';
 import { PRINT_SECTION_OPTIONS } from '@/utils/orderUtils';
@@ -31,6 +32,7 @@ import { posCatalogCacheStore } from '@/stores/posCatalogCacheStore';
 import { JOURNAL_LOGS_ENABLED } from '@/lib/journal-config';
 import { DEFAULT_STORE_INFO, fetchStoreInfo, saveStoreInfo, type StoreInfo } from '@/lib/store-info';
 import { invalidateLocalMarketplaceSession } from '@/lib/marketplace-local-session';
+import { pickSettingsBackup, writeSavedSettingsBackupFile } from '@/lib/settings-backup-device';
 
 type SettingsDialogKey = 'refresh' | 'sound' | 'printer' | 'liveOrders' | 'marketplace' | 'printDiagnostics' | 'journal' | 'storeInfo' | null;
 
@@ -91,6 +93,7 @@ export default function SettingsScreen() {
     const [editingManualPrinterTarget, setEditingManualPrinterTarget] = useState<string | null>(null);
 
     const [saving, setSaving] = useState(false);
+    const [settingsBackupBusy, setSettingsBackupBusy] = useState(false);
     const [storeInfo, setStoreInfo] = useState<StoreInfo>(DEFAULT_STORE_INFO);
 
     const { printers, isDiscovering, printerError, start, stop, pairBluetoothDevice } = usePrintersDiscovery();
@@ -679,18 +682,63 @@ export default function SettingsScreen() {
         }
     };
 
+    const handleExportSettings = async () => {
+        if (settingsBackupBusy) return;
+        setSettingsBackupBusy(true);
+        try {
+            const fileUri = await writeSavedSettingsBackupFile();
+            if (!await Sharing.isAvailableAsync()) {
+                throw new Error('Sharing is not available on this device');
+            }
+            await Sharing.shareAsync(fileUri, {
+                mimeType: 'application/json',
+                dialogTitle: 'Export POS settings',
+            });
+        } catch (error) {
+            Alert.alert('Export settings failed', error instanceof Error ? error.message : 'Unable to export settings');
+        } finally {
+            setSettingsBackupBusy(false);
+        }
+    };
+
+    const handleImportSettings = async () => {
+        if (settingsBackupBusy) return;
+        setSettingsBackupBusy(true);
+        try {
+            const importedSettings = await pickSettingsBackup();
+            if (!importedSettings) return;
+            Alert.alert(
+                'Replace this tablet’s settings?',
+                'This replaces the current local POS settings. It does not restore login, marketplace cookies, orders, or payment-terminal pairing.',
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                        text: 'Replace settings',
+                        style: 'destructive',
+                        onPress: () => {
+                            setSettingsBackupBusy(true);
+                            void saveSettings(importedSettings)
+                                .then(() => Alert.alert('Settings imported', 'This tablet’s settings have been restored.'))
+                                .catch((error) => Alert.alert('Import settings failed', error instanceof Error ? error.message : 'Unable to import settings'))
+                                .finally(() => setSettingsBackupBusy(false));
+                        },
+                    },
+                ],
+            );
+        } catch (error) {
+            Alert.alert('Import settings failed', error instanceof Error ? error.message : 'Choose a valid POS settings backup file.');
+        } finally {
+            setSettingsBackupBusy(false);
+        }
+    };
+
     return (
-        <ScrollView contentContainerStyle={styles.container}>
-            <Text style={styles.title}>Settings</Text>
-            <Button
-                mode="text"
-                icon="arrow-left"
-                onPress={() => router.push('/live-orders')}
-                style={styles.backButton}
-                contentStyle={styles.backButtonContent}
-            >
-                Back to Home
-            </Button>
+        <View style={styles.screen}>
+            <Appbar.Header style={styles.settingsHeader}>
+                <Appbar.BackAction onPress={() => router.push('/live-orders')} iconColor="#fff" />
+                <Appbar.Content title="Settings" titleStyle={styles.settingsHeaderTitle} />
+            </Appbar.Header>
+            <ScrollView contentContainerStyle={styles.container}>
 
             <SettingsSectionCard
                 title="Catalog"
@@ -761,13 +809,25 @@ export default function SettingsScreen() {
 
             <SettingsSectionCard
                 title="Storage"
-                description="Remove transient POS product data without changing this device's settings."
+                description="Manage transient POS data and settings backups for this tablet."
             >
                 <SettingsActionTile
                     title="Clear POS cache"
                     description="Remove cached categories, products, and customizations"
                     icon="database-remove-outline"
                     onPress={handleClearPosCache}
+                />
+                <SettingsActionTile
+                    title="Export POS settings"
+                    description="Save this tablet’s settings as a JSON backup"
+                    icon="file-export-outline"
+                    onPress={handleExportSettings}
+                />
+                <SettingsActionTile
+                    title="Import POS settings"
+                    description="Restore a previously exported settings backup"
+                    icon="file-import-outline"
+                    onPress={handleImportSettings}
                 />
             </SettingsSectionCard>
 
@@ -1463,20 +1523,27 @@ export default function SettingsScreen() {
                     </View>
                 </View>
             </Modal>
-        </ScrollView>
+            </ScrollView>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
+    screen: {
+        flex: 1,
+        backgroundColor: '#f5f5f5',
+    },
+    settingsHeader: {
+        backgroundColor: '#2563eb',
+    },
+    settingsHeaderTitle: {
+        color: '#fff',
+        fontWeight: '700',
+    },
     container: {
         padding: 16,
         backgroundColor: '#f5f5f5',
         flexGrow: 1,
-    },
-    title: {
-        fontSize: 28,
-        fontWeight: '700',
-        marginBottom: 8,
     },
     modalScreen: {
         flex: 1,
@@ -1506,14 +1573,6 @@ const styles = StyleSheet.create({
         borderTopColor: '#d7dee7',
         backgroundColor: '#fbfdff',
         alignItems: 'flex-end',
-    },
-    backButton: {
-        alignSelf: 'flex-start',
-        marginBottom: 12,
-        marginLeft: -8,
-    },
-    backButtonContent: {
-        paddingHorizontal: 0,
     },
     label: {
         fontSize: 14,
