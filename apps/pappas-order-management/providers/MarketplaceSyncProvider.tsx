@@ -15,10 +15,12 @@ import { getOpenMarketplaceOrdersForHistory } from '@/lib/orders';
 import { MarketplaceSyncAlertBanner } from '@/components/MarketplaceSyncAlertBanner';
 import { marketplaceSyncAlertStore } from '@/stores/marketplaceSyncAlertStore';
 import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
+import type { MarketplaceSyncWindow } from '@/lib/marketplace-sync-window';
 
 type MarketplaceSyncProviderProps = PropsWithChildren<{
   enabled: boolean;
   intervalMs: number;
+  syncWindow: MarketplaceSyncWindow;
 }>;
 
 function marketplaceSyncErrorDetails(error: unknown) {
@@ -32,6 +34,7 @@ export function MarketplaceSyncProvider({
   children,
   enabled,
   intervalMs,
+  syncWindow,
 }: MarketplaceSyncProviderProps) {
   const coordinator = useMemo(() => createMarketplaceSyncCoordinator({
     getActiveOrders: (provider) => getMarketplaceActiveOrders(provider, undefined, 'auto-sync'),
@@ -39,7 +42,7 @@ export function MarketplaceSyncProvider({
     importMarketplaceOrder,
     getOpenMarketplaceOrdersForHistory,
     syncMarketplaceOrderStatus,
-    canPoll: () => isMarketplaceAutoSyncOpenAt(new Date()),
+    canPoll: () => isMarketplaceAutoSyncOpenAt(new Date(), syncWindow),
     intervalMs,
     logError: (message, error) => {
       usePrinterAutomationStore.getState().addJournalEntry({
@@ -52,7 +55,7 @@ export function MarketplaceSyncProvider({
     },
     onProviderPollSuccess: (provider) => marketplaceSyncAlertStore.getState().clear(provider),
     onProviderPollFailure: (provider) => marketplaceSyncAlertStore.getState().reportFailure(provider),
-  }), [intervalMs]);
+  }), [intervalMs, syncWindow.endTime, syncWindow.startTime]);
 
   useEffect(() => {
     if (!enabled) {

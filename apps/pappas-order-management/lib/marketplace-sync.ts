@@ -1,16 +1,22 @@
 import { DEFAULT_MARKETPLACE_SYNC_INTERVAL_SEC } from '@/lib/marketplace-sync-interval';
+import {
+  isMarketplaceSyncTimeOpen,
+  normalizeMarketplaceSyncWindow,
+  type MarketplaceSyncWindow,
+} from '@/lib/marketplace-sync-window';
 
 export const MARKETPLACE_SYNC_INTERVAL_MS = DEFAULT_MARKETPLACE_SYNC_INTERVAL_SEC * 1_000;
 
 const MARKETPLACE_AUTO_SYNC_TIME_ZONE = 'Australia/Melbourne';
 
-export function isMarketplaceAutoSyncOpenAt(date: Date) {
-  const hour = Number(new Intl.DateTimeFormat('en-AU', {
+export function isMarketplaceAutoSyncOpenAt(date: Date, window?: MarketplaceSyncWindow) {
+  const time = new Intl.DateTimeFormat('en-AU', {
     timeZone: MARKETPLACE_AUTO_SYNC_TIME_ZONE,
     hour: '2-digit',
+    minute: '2-digit',
     hourCycle: 'h23',
-  }).format(date));
-  return hour >= 11 && hour < 20;
+  }).format(date);
+  return isMarketplaceSyncTimeOpen(time, normalizeMarketplaceSyncWindow(window));
 }
 
 type MarketplaceProvider = 'uber_eats' | 'doordash';

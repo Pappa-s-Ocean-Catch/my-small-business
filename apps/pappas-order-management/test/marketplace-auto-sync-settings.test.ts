@@ -8,6 +8,8 @@ import { DEFAULT_APP_SETTINGS } from '../lib/settings';
 test('defaults marketplace auto-sync to enabled per tablet', () => {
   assert.equal(DEFAULT_APP_SETTINGS.marketplaceAutoSyncEnabled, true);
   assert.equal(DEFAULT_APP_SETTINGS.marketplaceSyncIntervalSec, 30);
+  assert.equal(DEFAULT_APP_SETTINGS.marketplaceSyncStartTime, '11:00');
+  assert.equal(DEFAULT_APP_SETTINGS.marketplaceSyncEndTime, '20:30');
   assert.equal(DEFAULT_APP_SETTINGS.marketplaceFetchMode, 'api');
 });
 

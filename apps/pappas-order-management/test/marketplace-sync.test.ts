@@ -128,11 +128,19 @@ test('uses the device-configured marketplace polling interval', async () => {
   coordinator.stop();
 });
 
-test('only enables marketplace auto-sync from 11:00am until 8:00pm Melbourne time', () => {
+test('only enables marketplace auto-sync from 11:00am until 8:30pm Melbourne time', () => {
   assert.equal(isMarketplaceAutoSyncOpenAt(new Date('2026-01-14T23:59:59.000Z')), false);
   assert.equal(isMarketplaceAutoSyncOpenAt(new Date('2026-01-15T00:00:00.000Z')), true);
-  assert.equal(isMarketplaceAutoSyncOpenAt(new Date('2026-01-15T08:59:59.000Z')), true);
-  assert.equal(isMarketplaceAutoSyncOpenAt(new Date('2026-01-15T09:00:00.000Z')), false);
+  assert.equal(isMarketplaceAutoSyncOpenAt(new Date('2026-01-15T09:29:59.000Z')), true);
+  assert.equal(isMarketplaceAutoSyncOpenAt(new Date('2026-01-15T09:30:00.000Z')), false);
+});
+
+test('uses the configured marketplace auto-sync window in Melbourne time', () => {
+  const window = { startTime: '12:00', endTime: '12:30' };
+  assert.equal(isMarketplaceAutoSyncOpenAt(new Date('2026-01-15T00:59:59.000Z'), window), false);
+  assert.equal(isMarketplaceAutoSyncOpenAt(new Date('2026-01-15T01:00:00.000Z'), window), true);
+  assert.equal(isMarketplaceAutoSyncOpenAt(new Date('2026-01-15T01:29:59.000Z'), window), true);
+  assert.equal(isMarketplaceAutoSyncOpenAt(new Date('2026-01-15T01:30:00.000Z'), window), false);
 });
 
 test('does not overlap a scheduled poll with one already in flight', async () => {

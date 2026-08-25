@@ -13,6 +13,10 @@ export function MarketplaceSyncGate({
     <MarketplaceSyncProvider
       enabled={authenticated && !isLoading && settings.marketplaceAutoSyncEnabled}
       intervalMs={settings.marketplaceSyncIntervalSec * 1_000}
+      syncWindow={{
+        startTime: settings.marketplaceSyncStartTime,
+        endTime: settings.marketplaceSyncEndTime,
+      }}
     >
       {children}
     </MarketplaceSyncProvider>

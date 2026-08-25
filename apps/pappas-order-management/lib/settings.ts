@@ -4,6 +4,7 @@ import {
     DEFAULT_MARKETPLACE_SYNC_INTERVAL_SEC,
     normalizeMarketplaceSyncIntervalSec,
 } from '@/lib/marketplace-sync-interval';
+import { normalizeMarketplaceSyncWindow } from '@/lib/marketplace-sync-window';
 import { SOUND_OPTIONS, type SoundId } from './sounds';
 import {
     createSimulatorSavedPrinter,
@@ -134,6 +135,8 @@ export type AppSettings = {
     liveOrderCardLayout: 'horizontal' | 'vertical';
     marketplaceAutoSyncEnabled: boolean;
     marketplaceSyncIntervalSec: number;
+    marketplaceSyncStartTime: string;
+    marketplaceSyncEndTime: string;
     marketplaceFetchMode: MarketplaceFetchMode;
 
     // Kitchen printer (ESC/POS)
@@ -202,6 +205,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     liveOrderCardLayout: 'vertical',
     marketplaceAutoSyncEnabled: true,
     marketplaceSyncIntervalSec: DEFAULT_MARKETPLACE_SYNC_INTERVAL_SEC,
+    marketplaceSyncStartTime: '11:00',
+    marketplaceSyncEndTime: '20:30',
     marketplaceFetchMode: 'api',
 
     printerEnabled: false,
@@ -275,6 +280,10 @@ export async function loadAppSettings(): Promise<AppSettings> {
         const marketplaceSyncIntervalSec = normalizeMarketplaceSyncIntervalSec(
             parsed?.marketplaceSyncIntervalSec
         );
+        const marketplaceSyncWindow = normalizeMarketplaceSyncWindow({
+            startTime: parsed?.marketplaceSyncStartTime,
+            endTime: parsed?.marketplaceSyncEndTime,
+        });
         const marketplaceFetchMode = (parsed as any)?.marketplaceFetchMode === 'local' ? 'local' : 'api';
 
         const printerEnabled = typeof (parsed as any)?.printerEnabled === 'boolean'
@@ -333,6 +342,8 @@ export async function loadAppSettings(): Promise<AppSettings> {
             liveOrderCardLayout,
             marketplaceAutoSyncEnabled,
             marketplaceSyncIntervalSec,
+            marketplaceSyncStartTime: marketplaceSyncWindow.startTime,
+            marketplaceSyncEndTime: marketplaceSyncWindow.endTime,
             marketplaceFetchMode,
 
             printerEnabled,
@@ -364,6 +375,10 @@ export async function saveAppSettings(settings: AppSettings): Promise<void> {
     const diagnosticSettings = normalizeDiagnosticSettings(settings);
     const instoreCustomerReceiptSettings = normalizeInstoreCustomerReceiptSettings(settings);
     const instoreInstantTicketSettings = normalizeInstoreInstantTicketSettings(settings);
+    const marketplaceSyncWindow = normalizeMarketplaceSyncWindow({
+        startTime: settings.marketplaceSyncStartTime,
+        endTime: settings.marketplaceSyncEndTime,
+    });
     const normalized: AppSettings = {
         registerName: diagnosticSettings.registerName,
         refreshIntervalSec: clampInt(settings.refreshIntervalSec, 5, 600),
@@ -373,6 +388,8 @@ export async function saveAppSettings(settings: AppSettings): Promise<void> {
         liveOrderCardLayout: settings.liveOrderCardLayout === 'horizontal' ? 'horizontal' : 'vertical',
         marketplaceAutoSyncEnabled: settings.marketplaceAutoSyncEnabled !== false,
         marketplaceSyncIntervalSec: normalizeMarketplaceSyncIntervalSec(settings.marketplaceSyncIntervalSec),
+        marketplaceSyncStartTime: marketplaceSyncWindow.startTime,
+        marketplaceSyncEndTime: marketplaceSyncWindow.endTime,
         marketplaceFetchMode: settings.marketplaceFetchMode === 'local' ? 'local' : 'api',
 
         printerEnabled: !!settings.printerEnabled,

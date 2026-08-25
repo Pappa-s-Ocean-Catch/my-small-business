@@ -59,6 +59,8 @@ export default function SettingsScreen() {
     const [liveOrderCardLayout, setLiveOrderCardLayout] = useState<'horizontal' | 'vertical'>(DEFAULT_APP_SETTINGS.liveOrderCardLayout);
     const [marketplaceAutoSyncEnabled, setMarketplaceAutoSyncEnabled] = useState(DEFAULT_APP_SETTINGS.marketplaceAutoSyncEnabled);
     const [marketplaceSyncIntervalSecText, setMarketplaceSyncIntervalSecText] = useState(String(DEFAULT_APP_SETTINGS.marketplaceSyncIntervalSec));
+    const [marketplaceSyncStartTime, setMarketplaceSyncStartTime] = useState(DEFAULT_APP_SETTINGS.marketplaceSyncStartTime);
+    const [marketplaceSyncEndTime, setMarketplaceSyncEndTime] = useState(DEFAULT_APP_SETTINGS.marketplaceSyncEndTime);
     const [marketplaceFetchMode, setMarketplaceFetchMode] = useState<'api' | 'local'>(DEFAULT_APP_SETTINGS.marketplaceFetchMode);
     const [registerName, setRegisterName] = useState(DEFAULT_APP_SETTINGS.registerName);
     const [printerDebugFooter, setPrinterDebugFooter] = useState(DEFAULT_APP_SETTINGS.printerDebugFooter);
@@ -102,6 +104,8 @@ export default function SettingsScreen() {
         setLiveOrderCardLayout(currentSettings.liveOrderCardLayout);
         setMarketplaceAutoSyncEnabled(currentSettings.marketplaceAutoSyncEnabled);
         setMarketplaceSyncIntervalSecText(String(currentSettings.marketplaceSyncIntervalSec));
+        setMarketplaceSyncStartTime(currentSettings.marketplaceSyncStartTime);
+        setMarketplaceSyncEndTime(currentSettings.marketplaceSyncEndTime);
         setMarketplaceFetchMode(currentSettings.marketplaceFetchMode);
         setRegisterName(currentSettings.registerName);
         setPrinterDebugFooter(currentSettings.printerDebugFooter);
@@ -565,6 +569,13 @@ export default function SettingsScreen() {
             Alert.alert('Invalid marketplace polling interval', 'Please enter a value between 15 and 600 seconds.');
             return;
         }
+        const isValidMarketplaceSyncTime = (value: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+        const marketplaceSyncStartMinutes = Number(marketplaceSyncStartTime.slice(0, 2)) * 60 + Number(marketplaceSyncStartTime.slice(3, 5));
+        const marketplaceSyncEndMinutes = Number(marketplaceSyncEndTime.slice(0, 2)) * 60 + Number(marketplaceSyncEndTime.slice(3, 5));
+        if (!isValidMarketplaceSyncTime(marketplaceSyncStartTime) || !isValidMarketplaceSyncTime(marketplaceSyncEndTime) || marketplaceSyncStartMinutes >= marketplaceSyncEndMinutes) {
+            Alert.alert('Invalid marketplace sync window', 'Set a start and end time in HH:MM format, with the end time after the start time.');
+            return;
+        }
         if (soundRepeatCount < 1 || soundRepeatCount > 10) {
             Alert.alert('Invalid play count', 'Please enter a value between 1 and 10.');
             return;
@@ -637,6 +648,8 @@ export default function SettingsScreen() {
                 liveOrderCardLayout,
                 marketplaceAutoSyncEnabled,
                 marketplaceSyncIntervalSec,
+                marketplaceSyncStartTime,
+                marketplaceSyncEndTime,
                 marketplaceFetchMode,
                 printerEnabled,
                 printerAutoPrint,
@@ -882,6 +895,25 @@ export default function SettingsScreen() {
                                 />
                                 <Text style={styles.helper}>
                                     Checks in the background every 15 to 600 seconds. The default is 30 seconds and applies immediately after saving.
+                                </Text>
+                                <TextInput
+                                    mode="outlined"
+                                    label="Marketplace sync start time"
+                                    value={marketplaceSyncStartTime}
+                                    onChangeText={setMarketplaceSyncStartTime}
+                                    placeholder="11:00"
+                                    style={styles.input}
+                                />
+                                <TextInput
+                                    mode="outlined"
+                                    label="Marketplace sync end time"
+                                    value={marketplaceSyncEndTime}
+                                    onChangeText={setMarketplaceSyncEndTime}
+                                    placeholder="20:30"
+                                    style={styles.input}
+                                />
+                                <Text style={styles.helper}>
+                                    Uses Melbourne time. Auto-sync runs from the start time up to, but not including, the end time. Manual refresh remains available anytime.
                                 </Text>
                                 <Text style={styles.label}>Marketplace request mode</Text>
                                 <View style={styles.segmentedButtons}>
