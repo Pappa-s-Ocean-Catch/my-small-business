@@ -222,9 +222,20 @@ export async function getMarketplaceHistory(
   return payload.data;
 }
 
-export async function getMarketplaceActiveOrders(provider: MarketplaceProvider, cursor?: string) {
+export async function getMarketplaceActiveOrders(
+  provider: MarketplaceProvider,
+  cursor?: string,
+  source: 'marketplace-screen' | 'auto-sync' = 'marketplace-screen',
+) {
   const settings = await loadAppSettings();
-  if (settings.marketplaceFetchMode === 'local') {
+  const fetchMode = settings.marketplaceFetchMode;
+  console.info('[marketplace]', {
+    provider,
+    operation: 'active-request',
+    source,
+    fetchMode,
+  });
+  if (fetchMode === 'local') {
     return getLocalMarketplaceActiveOrders(provider, cursor) as Promise<MarketplaceActiveResult>;
   }
   const token = await getAccessToken();

@@ -1,0 +1,5 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": { "modules": ["AppMemoryModule"] },
+  "android": { "modules": ["com.mysmallbusiness.appmemory.AppMemoryModule"] }
+}

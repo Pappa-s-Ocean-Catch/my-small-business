@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { Alert, ScrollView, StyleSheet } from 'react-native';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import Constants from 'expo-constants';
 import * as Updates from 'expo-updates';
 import { Appbar, Button, Card, List, Text } from 'react-native-paper';
+import { getNativeAppMemory } from '@my-small-business/app-memory';
 
+import { getAppMemorySnapshot, type AppMemorySnapshot } from '@/lib/app-memory';
 import {
   checkAndApplyUpdate,
   getBuildMetadata,
@@ -59,9 +61,34 @@ function resultMessage(result: UpdateResult): { title: string; message: string }
   }
 }
 
+function MemoryDistributionBar({ snapshot }: { snapshot: Extract<AppMemorySnapshot, { kind: 'available' }> }) {
+  const appRatio = Math.min(snapshot.appFootprintBytes / snapshot.totalBytes, 1);
+  const availableRatio = snapshot.availableBytes === null
+    ? 0
+    : Math.min(snapshot.availableBytes / snapshot.totalBytes, Math.max(0, 1 - appRatio));
+  const otherRatio = Math.max(0, 1 - appRatio - availableRatio);
+
+  return (
+    <>
+      <View accessibilityLabel="Memory distribution" style={styles.memoryBar}>
+        <View style={[styles.memorySegment, styles.appMemorySegment, { flex: appRatio || 0.001 }]} />
+        {otherRatio > 0 ? <View style={[styles.memorySegment, styles.otherMemorySegment, { flex: otherRatio }]} /> : null}
+        {availableRatio > 0 ? <View style={[styles.memorySegment, styles.availableMemorySegment, { flex: availableRatio }]} /> : null}
+      </View>
+      <View style={styles.memoryLegend}>
+        <Text variant="bodySmall" style={styles.appMemoryText}>App</Text>
+        <Text variant="bodySmall" style={styles.otherMemoryText}>Other in use</Text>
+        {snapshot.availableBytes !== null ? <Text variant="bodySmall" style={styles.availableMemoryText}>Available</Text> : null}
+      </View>
+    </>
+  );
+}
+
 export default function AboutScreen() {
   const navigation = useNavigation<DrawerNavigationProp<any>>();
   const [active, setActive] = useState(false);
+  const [memorySnapshot, setMemorySnapshot] = useState<AppMemorySnapshot | null>(null);
+  const [memoryLoading, setMemoryLoading] = useState(false);
   const metadata = getBuildMetadata({
     EXPO_PUBLIC_BUILD_DATE: process.env.EXPO_PUBLIC_BUILD_DATE,
     EXPO_PUBLIC_GIT_SHA: process.env.EXPO_PUBLIC_GIT_SHA,
@@ -98,6 +125,24 @@ export default function AboutScreen() {
     }
   };
 
+  const refreshMemory = async () => {
+    setMemoryLoading(true);
+    try {
+      setMemorySnapshot(await getAppMemorySnapshot(getNativeAppMemory()));
+    } finally {
+      setMemoryLoading(false);
+    }
+  };
+
+  const memoryDescription =
+    memorySnapshot?.kind === 'available'
+      ? `${memorySnapshot.formattedTotal} • measured just now`
+      : memorySnapshot?.kind === 'unavailable'
+        ? 'Available after installing a native app build.'
+        : memorySnapshot?.kind === 'failed'
+          ? `Unavailable: ${memorySnapshot.message}`
+          : 'Tap Refresh to measure this device.';
+
   return (
     <>
       <Appbar.Header>
@@ -105,6 +150,13 @@ export default function AboutScreen() {
         <Appbar.Content title="About" />
       </Appbar.Header>
       <ScrollView contentContainerStyle={styles.content}>
+        <Button mode="outlined" icon="restart" onPress={confirmRestart} disabled={active} loading={active}>
+          Restart app
+        </Button>
+        <Button mode="contained" icon="download" onPress={() => void handleCheckForUpdate()} disabled={active} loading={active}>
+          Check for update
+        </Button>
+
         <Card>
           <Card.Content>
             <Text variant="titleMedium">Installed build</Text>
@@ -116,12 +168,26 @@ export default function AboutScreen() {
           {updateDetails.channel ? <List.Item title="Update channel" description={updateDetails.channel} left={(props) => <List.Icon {...props} icon="broadcast" />} /> : null}
         </Card>
 
-        <Button mode="outlined" icon="restart" onPress={confirmRestart} disabled={active} loading={active}>
-          Restart app
-        </Button>
-        <Button mode="contained" icon="download" onPress={() => void handleCheckForUpdate()} disabled={active} loading={active}>
-          Check for update
-        </Button>
+        <Card>
+          <Card.Content>
+            <Text variant="titleMedium">App memory footprint</Text>
+            <Text variant="bodySmall">Device process memory, including JavaScript, images, and native UI.</Text>
+            {memorySnapshot?.kind === 'available' ? <MemoryDistributionBar snapshot={memorySnapshot} /> : null}
+          </Card.Content>
+          <List.Item
+            title={memorySnapshot?.kind === 'available' ? 'Total memory' : 'Memory diagnostic'}
+            description={memoryDescription}
+            left={(props) => <List.Icon {...props} icon="memory" />}
+          />
+          {memorySnapshot?.kind === 'available' ? <List.Item title="App memory" description={memorySnapshot.formattedAppFootprint} left={(props) => <List.Icon {...props} icon="application-outline" />} /> : null}
+          {memorySnapshot?.kind === 'available' ? <List.Item title="Available memory" description={memorySnapshot.formattedAvailable} left={(props) => <List.Icon {...props} icon="memory" />} /> : null}
+          <Card.Actions>
+            <Button icon="refresh" onPress={() => void refreshMemory()} disabled={memoryLoading} loading={memoryLoading}>
+              Refresh
+            </Button>
+          </Card.Actions>
+        </Card>
+
       </ScrollView>
     </>
   );
@@ -131,5 +197,39 @@ const styles = StyleSheet.create({
   content: {
     gap: 16,
     padding: 16,
+  },
+  memoryBar: {
+    flexDirection: 'row',
+    height: 12,
+    marginTop: 16,
+    overflow: 'hidden',
+    borderRadius: 6,
+  },
+  memorySegment: {
+    minWidth: 1,
+  },
+  appMemorySegment: {
+    backgroundColor: '#1976D2',
+  },
+  otherMemorySegment: {
+    backgroundColor: '#90A4AE',
+  },
+  availableMemorySegment: {
+    backgroundColor: '#43A047',
+  },
+  memoryLegend: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginTop: 8,
+  },
+  appMemoryText: {
+    color: '#1976D2',
+  },
+  otherMemoryText: {
+    color: '#607D8B',
+  },
+  availableMemoryText: {
+    color: '#2E7D32',
   },
 });

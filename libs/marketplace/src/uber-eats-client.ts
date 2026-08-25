@@ -1,5 +1,6 @@
 import type { MarketplaceHistoryOptions, MarketplaceOrderDetailMode, MarketplaceSessionBundle, MarketplaceTransport } from './contracts';
 import { buildUberActivePayload } from './uber-active';
+import { readMarketplaceResponse } from './provider-response';
 
 export type MarketplaceDateParts = { year: number; month: number; day: number };
 type Range = { start: MarketplaceDateParts; end: MarketplaceDateParts };
@@ -9,7 +10,7 @@ const FLAGS = '{"featureKey":"OrdersList","isMobile":"false","isEmbedded":"false
 function restaurant(cookies: string) { const id = cookies.match(/(?:^|;\s*)selectedRestaurant=([^;]+)/)?.[1]?.trim(); if (!id) throw new Error('Uber Eats request failed: missing selected restaurant'); return id; }
 function headers(cookies: string, referer: string, featureFlags?: string) { return { accept: '*/*', 'accept-language': 'en-GB,en-US;q=0.9,en;q=0.8', 'content-type': 'application/json', origin: 'https://merchants.ubereats.com', referer, ...BROWSER_HEADERS, 'sec-fetch-site': 'same-origin', 'x-csrf-token': 'x', ...(featureFlags ? { 'x-feature-flags': featureFlags } : {}), Cookie: cookies }; }
 function localDate(parts: MarketplaceDateParts, end = false) { return `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}${end ? ' 23:59:59' : ' 00:00:00'}`; }
-async function request(transport: MarketplaceTransport, operation: string, url: string, init: RequestInit) { const response = await transport({ url, init }); const payload = await response.json().catch(() => null); if (!response.ok) throw new Error(`Uber Eats ${operation} request failed (${response.status})`); return { payload, status: response.status }; }
+async function request(transport: MarketplaceTransport, operation: string, url: string, init: RequestInit) { const response = await transport({ url, init }); const { payload, rejection } = await readMarketplaceResponse(response); if (!response.ok) throw new Error(`Uber Eats ${operation} request failed (${response.status}; response=${rejection})`); return { payload, status: response.status }; }
 
 export function createUberEatsClient(transport: MarketplaceTransport) {
   return {
@@ -25,8 +26,8 @@ export function createUberEatsClient(transport: MarketplaceTransport) {
         const body = { operationName: 'ordersV2', variables: { filters: { orderStatusFilter: [], search: '', dateRange: { start: short(range.start), end: short(range.end) }, locationConstraints: { cities: [], countries: [], locationUUIDs: [restaurantUuid] }, displayCurrencyCode: 'AUD', currentTab: 'scheduledOrders' }, pagination: { limit: 20, cursor: options.cursor || '', nextTable: 'liveOrders' } }, query };
         return request(transport, 'scheduled history', 'https://merchants.ubereats.com/manager/graphql?op=ordersV2', { method: 'POST', headers: headers(session.cookies, 'https://merchants.ubereats.com/manager/orders/scheduled'), body: JSON.stringify(body), cache: 'no-store' });
       }
-      const body = { filters: { currentTab: '', displayCurrencyCode: '', locationConstraints: { cities: [], countries: [], locationUuids: [restaurantUuid] }, dateFilter: { startDate: localDate(range.start), endDate: localDate(range.end, true), lastUpdatedAt: '' }, isEatsPassSubscriber: false, search: null, orderIssuesV2: [], issueOrderStatusFilter: [], displayByocIssues: false }, sort: { sortColumn: 'SORT_COLUMN_ORDER_COMPLETED_AT', sortDirection: 'SORT_DIRECTION_DESC' }, pagingInfo: { cursor: options.cursor || '', limit: 20, nextTable: 'liveOrders' }, pagination: { cursor: options.cursor || '', nextTable: 'historyOrders', limit: 20 } };
-      console.info('[marketplace]', { provider: 'uber_eats', operation: 'history-filter', mode: options.mode ?? 'history', dateRange: options.dateRange || 'TODAY', startDate: body.filters.dateFilter.startDate, endDate: body.filters.dateFilter.endDate });
+      const body = { filters: { currentTab: '', displayCurrencyCode: '', locationConstraints: { cities: [], countries: [], locationUuids: [restaurantUuid] }, dateFilter: { startDate: localDate(range.start), endDate: localDate(range.end, true), lastUpdatedAt: '' }, isEatsPassSubscriber: false, search: null, orderIssuesV2: [], issueOrderStatusFilter: [], displayByocIssues: false }, sort: { sortColumn: 'SORT_COLUMN_ORDER_COMPLETED_AT', sortDirection: 'SORT_DIRECTION_DESC' }, pagingInfo: { cursor: options.cursor || '', limit: 20, nextTable: 'liveOrders' } };
+      console.info('[marketplace-history] Uber Eats history request payload', JSON.stringify(body, null, 2));
       return request(transport, 'history', 'https://merchants.ubereats.com/manager/api/getHistoricOrders?localeCode=en-AU', { method: 'POST', headers: headers(session.cookies, `https://merchants.ubereats.com/manager/orders?restaurantUUID=${restaurantUuid}`, FLAGS), body: JSON.stringify(body), cache: 'no-store' });
     },
     async getOrderDetail(session: MarketplaceSessionBundle, workflowUuid: string, mode: MarketplaceOrderDetailMode = 'history') {

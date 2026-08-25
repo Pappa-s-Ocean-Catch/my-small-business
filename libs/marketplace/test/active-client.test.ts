@@ -52,3 +52,33 @@ test('does not send a stale DoorDash ATT key with an active-order list request',
   await client.getActiveOrders('doordash');
   assert.equal((headers as Record<string, string>)['dd-att-key'], undefined);
 });
+
+test('reports a bounded, safe provider rejection category for a non-JSON Uber response', async () => {
+  const client = createMarketplaceActiveClient({
+    getSession: async () => ({ provider: 'uber_eats', cookies: 'selectedRestaurant=store-1', providerConfig: {}, updatedAt: null }),
+    fetch: async () => new Response('<html><title>Just a moment...</title>cloudflare</html>', {
+      status: 404,
+      headers: { 'content-type': 'text/html' },
+    }),
+  });
+
+  await assert.rejects(
+    () => client.getActiveOrders('uber_eats'),
+    /Uber Eats active request failed \(404; response=html-cloudflare\)/,
+  );
+});
+
+test('reports a safe provider error code from a JSON rejection', async () => {
+  const client = createMarketplaceActiveClient({
+    getSession: async () => ({ provider: 'uber_eats', cookies: 'selectedRestaurant=store-1', providerConfig: {}, updatedAt: null }),
+    fetch: async () => new Response(JSON.stringify({ errorCode: 'INVALID_SESSION', message: 'session token is invalid' }), {
+      status: 401,
+      headers: { 'content-type': 'application/json' },
+    }),
+  });
+
+  await assert.rejects(
+    () => client.getActiveOrders('uber_eats'),
+    /Uber Eats active request failed \(401; response=json-invalid_session\)/,
+  );
+});

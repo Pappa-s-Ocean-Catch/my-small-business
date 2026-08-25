@@ -5,6 +5,7 @@ import {
   type MarketplaceProvider,
   type MarketplaceProviderClient,
   type MarketplaceSessionBundle,
+  type MarketplaceTransport,
 } from '@my-small-business/marketplace';
 
 export const MARKETPLACE_SESSION_TTL_MS = 3_600_000;
@@ -12,6 +13,7 @@ export const MARKETPLACE_SESSION_TTL_MS = 3_600_000;
 type LocalClientInput = {
   getSessionBundle: (provider: MarketplaceProvider) => Promise<MarketplaceSessionBundle>;
   invalidate: (provider?: MarketplaceProvider) => void;
+  transport?: MarketplaceTransport;
   createProviderClient?: (getSession: (provider: MarketplaceProvider) => Promise<MarketplaceSessionBundle>) => MarketplaceProviderClient;
 };
 
@@ -22,7 +24,7 @@ function isUnauthorized(error: unknown) {
 export function createMarketplaceLocalClient(input: LocalClientInput): MarketplaceProviderClient & { invalidate(provider?: MarketplaceProvider): void } {
   const providerClient = input.createProviderClient
     ? input.createProviderClient(input.getSessionBundle)
-    : createMarketplaceProviderClient({ getSession: input.getSessionBundle });
+    : createMarketplaceProviderClient({ getSession: input.getSessionBundle, transport: input.transport });
   const retryOnce = async <T>(provider: MarketplaceProvider, operation: () => Promise<T>) => {
     try {
       return await operation();

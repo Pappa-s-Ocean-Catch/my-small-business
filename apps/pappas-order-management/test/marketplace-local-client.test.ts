@@ -38,6 +38,21 @@ test('refreshes once and retries once after a provider 401', async () => {
   assert.equal(invalidations, 1);
 });
 
+test('passes the supplied native transport to the shared provider client', async () => {
+  let transportCalls = 0;
+  const client = createMarketplaceLocalClient({
+    getSessionBundle: async () => ({ provider: 'uber_eats', cookies: 'selectedRestaurant=store-1', providerConfig: {}, updatedAt: null }),
+    invalidate: () => undefined,
+    transport: async () => {
+      transportCalls += 1;
+      return new Response(JSON.stringify({ status: 'success', data: { rows: [] } }), { status: 200 });
+    },
+  });
+
+  await client.getActiveOrders('uber_eats');
+  assert.equal(transportCalls, 1);
+});
+
 test('does not retry a second provider 401', async () => {
   let calls = 0;
   const client = createMarketplaceLocalClient({

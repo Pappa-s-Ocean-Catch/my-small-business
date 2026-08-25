@@ -1,0 +1,9 @@
+{
+  "name": "@my-small-business/app-memory",
+  "version": "0.0.1",
+  "main": "src/index.ts",
+  "private": true,
+  "dependencies": {
+    "expo-modules-core": "~3.0.29"
+  }
+}

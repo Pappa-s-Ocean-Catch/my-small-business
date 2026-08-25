@@ -28,6 +28,8 @@ test('keeps Uber history rows when Uber uses uppercase UUID field names', async 
 
 test('preserves the complete Uber completed-history request contract', async () => {
   let request: { url: string; body: Record<string, any>; headers: Record<string, string> } | null = null;
+  const logs: unknown[][] = [];
+  const originalConsoleInfo = console.info;
   const client = createMarketplaceProviderClient({
     getSession: async () => ({ provider: 'uber_eats', cookies: 'session=value; selectedRestaurant=store-1', providerConfig: {}, updatedAt: null }),
     transport: async ({ url, init }) => {
@@ -36,7 +38,12 @@ test('preserves the complete Uber completed-history request contract', async () 
     },
   });
 
-  await client.getHistory('uber_eats', { dateRange: 'THIS_MONTH', cursor: 'page-2' });
+  console.info = (...args: unknown[]) => { logs.push(args); };
+  try {
+    await client.getHistory('uber_eats', { dateRange: 'THIS_MONTH', cursor: 'page-2' });
+  } finally {
+    console.info = originalConsoleInfo;
+  }
 
   assert.equal(request!.url, 'https://merchants.ubereats.com/manager/api/getHistoricOrders?localeCode=en-AU');
   assert.deepEqual(request!.body.filters, {
@@ -58,11 +65,17 @@ test('preserves the complete Uber completed-history request contract', async () 
   assert.match(request!.body.filters.dateFilter.endDate, /^\d{4}-\d{2}-\d{2} 23:59:59$/);
   assert.deepEqual(request!.body.sort, { sortColumn: 'SORT_COLUMN_ORDER_COMPLETED_AT', sortDirection: 'SORT_DIRECTION_DESC' });
   assert.deepEqual(request!.body.pagingInfo, { cursor: 'page-2', limit: 20, nextTable: 'liveOrders' });
-  assert.deepEqual(request!.body.pagination, { cursor: 'page-2', nextTable: 'historyOrders', limit: 20 });
+  assert.equal(request!.body.pagination, undefined);
   assert.equal(request!.headers.referer, 'https://merchants.ubereats.com/manager/orders?restaurantUUID=store-1');
   assert.equal(request!.headers['x-csrf-token'], 'x');
   assert.ok(request!.headers['x-feature-flags']);
   assert.equal(request!.headers.Cookie, 'session=value; selectedRestaurant=store-1');
+
+  const historyRequestLog = logs.find(([label]) =>
+    label === '[marketplace-history] Uber Eats history request payload'
+  )?.[1];
+  assert.deepEqual(JSON.parse(String(historyRequestLog)), request!.body);
+  assert.doesNotMatch(String(historyRequestLog), /session=value|Cookie|x-csrf-token/);
 });
 
 test('keeps the required DoorDash detail request headers in the shared client', async () => {

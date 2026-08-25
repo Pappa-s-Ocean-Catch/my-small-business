@@ -34,7 +34,7 @@ export function MarketplaceSyncProvider({
   intervalMs,
 }: MarketplaceSyncProviderProps) {
   const coordinator = useMemo(() => createMarketplaceSyncCoordinator({
-    getActiveOrders: getMarketplaceActiveOrders,
+    getActiveOrders: (provider) => getMarketplaceActiveOrders(provider, undefined, 'auto-sync'),
     getOrderDetail: getMarketplaceOrderDetail,
     importMarketplaceOrder,
     getOpenMarketplaceOrdersForHistory,

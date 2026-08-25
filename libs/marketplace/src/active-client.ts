@@ -22,6 +22,7 @@ export function createMarketplaceActiveClient(input: { getSession: (provider: Ma
     const result = await doordash.getActive(session); const payload = result.payload as any;
     if (!Array.isArray(payload?.orders)) throw new Error('DoorDash active orders request failed');
     const mapped = adaptDoorDashActive(payload);
+    console.info('[marketplace]', { provider: 'doordash', operation: 'active', status: result.status, providerRows: payload.orders.length, rows: mapped.orders.length });
     return { provider, orders: mapped.orders, nextCursor: mapped.nextCursor };
   };
   return { getActiveOrders };

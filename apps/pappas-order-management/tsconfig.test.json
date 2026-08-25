@@ -23,6 +23,7 @@
     "lib/live-order-window.ts",
     "lib/order-payment-status.ts",
     "lib/about-updates.ts",
+    "lib/app-memory.ts",
     "lib/marketing-contact-filter.ts",
     "lib/marketplace-order-summary.ts",
     "lib/marketplace-pos-import.ts",
