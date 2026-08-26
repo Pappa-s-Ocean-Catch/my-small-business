@@ -21,7 +21,7 @@ module.exports = {
     version: '1.0.0',
     // Respect device orientation (use OS rotation / orientation lock)
     orientation: 'default',
-    icon: './assets/icon.png',
+    icon: './assets/app-icon.png',
     userInterfaceStyle: 'automatic',
     splash: {
       image: './assets/splash.png',
@@ -35,8 +35,8 @@ module.exports = {
     },
     android: {
       adaptiveIcon: {
-        foregroundImage: './assets/adaptive-icon.png',
-        backgroundColor: '#ffffff',
+        foregroundImage: './assets/app-icon.png',
+        backgroundColor: '#061e52',
       },
       package: 'com.pappas.ordermanagement',
       googleServicesFile: "./google-services.json",
@@ -45,7 +45,7 @@ module.exports = {
       softwareKeyboardLayoutMode: 'resize',
     },
     web: {
-      favicon: './assets/favicon.png',
+      favicon: './assets/android-chrome-512x512.png',
     },
     plugins: [
       'expo-router',
