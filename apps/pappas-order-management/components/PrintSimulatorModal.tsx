@@ -4,6 +4,7 @@ import { IconButton, Button as PaperButton, Surface } from 'react-native-paper';
 import * as Sharing from 'expo-sharing';
 import type { Order } from '@my-small-business/types';
 import { getFriendlyOrderNumber } from '../utils/orderNumber';
+import { BRAND_COLORS } from '@/utils/brand';
 
 interface PrintSimulatorModalProps {
   visible: boolean;
@@ -80,7 +81,7 @@ export const PrintSimulatorModal: React.FC<PrintSimulatorModalProps> = ({
                 </Text>
               )}
             </View>
-            <IconButton icon="close" size={24} onPress={onClose} />
+            <IconButton icon="close" size={24} onPress={onClose} iconColor="#fff" />
           </View>
 
           <ScrollView 
@@ -186,7 +187,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    backgroundColor: BRAND_COLORS.header,
+    borderBottomColor: BRAND_COLORS.header,
   },
   headerIconContainer: {
     width: 48,
@@ -206,11 +208,11 @@ const styles = StyleSheet.create({
   simulatorTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#0f172a',
+    color: '#fff',
   },
   simulatorSubtitle: {
     fontSize: 14,
-    color: '#64748b',
+    color: '#d7e4ed',
     fontWeight: '500',
   },
   simulatorHint: {

@@ -22,6 +22,7 @@ import { adjustCustomerRewardPoints } from '@/lib/reward-points';
 import { getCustomerCoupons, toggleCouponActive, type CustomerCouponItem } from '@/lib/coupons';
 import { AddCustomerModal } from '@/components/customers/AddCustomerModal';
 import { supabase } from '@/lib/supabase';
+import { BRAND_COLORS } from '@/utils/brand';
 
 function orderStatusColor(status: string): string {
   if (Object.prototype.hasOwnProperty.call(STATUS_COLORS, status)) {
@@ -726,7 +727,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
   },
   header: {
-    backgroundColor: '#0f172a',
+    backgroundColor: BRAND_COLORS.header,
     paddingBottom: 18,
   },
   headerTop: {

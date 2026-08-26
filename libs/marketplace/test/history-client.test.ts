@@ -64,8 +64,7 @@ test('preserves the complete Uber completed-history request contract', async () 
   assert.match(request!.body.filters.dateFilter.startDate, /^\d{4}-\d{2}-01 00:00:00$/);
   assert.match(request!.body.filters.dateFilter.endDate, /^\d{4}-\d{2}-\d{2} 23:59:59$/);
   assert.deepEqual(request!.body.sort, { sortColumn: 'SORT_COLUMN_ORDER_COMPLETED_AT', sortDirection: 'SORT_DIRECTION_DESC' });
-  assert.deepEqual(request!.body.pagingInfo, { cursor: 'page-2', limit: 20, nextTable: 'liveOrders' });
-  assert.equal(request!.body.pagination, undefined);
+  assert.deepEqual(request!.body.pagination, { cursor: 'page-2', nextTable: 'historyOrders', limit: 20 });
   assert.equal(request!.headers.referer, 'https://merchants.ubereats.com/manager/orders?restaurantUUID=store-1');
   assert.equal(request!.headers['x-csrf-token'], 'x');
   assert.ok(request!.headers['x-feature-flags']);

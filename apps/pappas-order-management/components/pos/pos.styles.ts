@@ -1,8 +1,9 @@
 import { StyleSheet } from 'react-native';
+import { BRAND_COLORS } from '@/utils/brand';
 
 export const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f4f6f8' },
-  header: { backgroundColor: '#1f2937' },
+  header: { backgroundColor: BRAND_COLORS.header },
   headerTitle: { color: '#fff', fontWeight: '700' },
   body: { flex: 1, flexDirection: 'row', gap: 12, padding: 12 },
   bodyCompact: { flexDirection: 'column' },
@@ -1208,4 +1209,3 @@ export const styles = StyleSheet.create({
     paddingRight: 8,
   },
 });
-

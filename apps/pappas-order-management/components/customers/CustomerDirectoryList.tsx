@@ -13,6 +13,7 @@ import {
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 import type { Customer } from '@/lib/customers';
+import { BRAND_COLORS } from '@/utils/brand';
 
 type Props = {
   customers: Customer[];
@@ -141,6 +142,7 @@ export function CustomerDirectoryList({
               mode="contained"
               icon="account-plus-outline"
               onPress={onHeaderActionPress}
+              buttonColor={BRAND_COLORS.header}
               style={styles.headerActionButton}
               contentStyle={styles.headerActionButtonContent}
             >

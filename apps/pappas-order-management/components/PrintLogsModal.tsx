@@ -2,6 +2,7 @@ import React from 'react';
 import { Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { Appbar, Button, Text } from 'react-native-paper';
 import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
+import { BRAND_COLORS } from '@/utils/brand';
 
 type PrintLogsModalProps = {
   visible: boolean;
@@ -94,7 +95,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   modalHeader: {
-    backgroundColor: '#10243f',
+    backgroundColor: BRAND_COLORS.header,
   },
   modalHeaderTitle: {
     color: '#fff',

@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { buildMarketplacePosOrderDraft, type MarketplaceResolutionIssue } from '@/lib/marketplace-pos-order';
 import { groupResolverAddonTargets, type ResolverAddonChoice } from '@/lib/marketplace-resolver-groups';
 import { useMarketplacePosDraftStore } from '@/stores/marketplacePosDraftStore';
+import { BRAND_COLORS } from '@/utils/brand';
 
 type ResolverTarget = { id: string; name: string; detail?: string } & Partial<ResolverAddonChoice>;
 
@@ -247,7 +248,7 @@ export default function MarketplaceResolverScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f4f6f8' }, center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  appbar: { backgroundColor: '#123047' }, appbarTitle: { color: '#fff', fontWeight: '700' }, content: { padding: 16, gap: 12 },
+  appbar: { backgroundColor: BRAND_COLORS.header }, appbarTitle: { color: '#fff', fontWeight: '700' }, content: { padding: 16, gap: 12 },
   summary: { backgroundColor: '#fff' }, kicker: { color: '#557084', fontWeight: '700', fontSize: 12, letterSpacing: 1 },
   muted: { color: '#64748b', marginTop: 6 }, loader: { marginVertical: 28 }, step: { color: '#36566b', fontWeight: '700', marginTop: 4 },
   issue: { backgroundColor: '#e8f2f8', borderColor: '#b8d5e6', borderWidth: 1 }, parent: { color: '#36566b', fontWeight: '700', marginBottom: 6 },

@@ -16,6 +16,7 @@ import { Appbar } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { useRouter } from 'expo-router';
+import { BRAND_COLORS } from '@/utils/brand';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '@/lib/supabase';
 import {
@@ -574,7 +575,7 @@ export default function PreOrdersScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
-  appbar: { backgroundColor: '#2563eb' },
+  appbar: { backgroundColor: BRAND_COLORS.header },
   appbarTitle: { color: '#fff', fontWeight: 'bold' },
   subHeader: { padding: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e5e5e5' },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' },

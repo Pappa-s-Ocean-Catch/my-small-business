@@ -6,6 +6,7 @@ import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { Customer, getRecentCustomers, searchCustomers } from '@/lib/customers';
 import { generateMarketingCampaign, generateMarketingImage, sendMarketingCampaign, type MarketingChannel } from '@/lib/marketing';
 import { matchesContactFilter, type ContactFilters } from '@/lib/marketing-contact-filter';
+import { BRAND_COLORS } from '@/utils/brand';
 
 type MarketingCustomer = Customer & {
   profileId?: string;
@@ -587,7 +588,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f7fb',
   },
   appbar: {
-    backgroundColor: '#0f766e',
+    backgroundColor: BRAND_COLORS.header,
   },
   appbarTitle: {
     color: '#fff',

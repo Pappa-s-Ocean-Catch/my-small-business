@@ -10,6 +10,7 @@ import type { CustomerLookupStatus } from './PosCheckoutPanel';
 import { PosPhoneInputModal } from './PosPhoneInputModal';
 import { PosTextInputModal } from './PosTextInputModal';
 import { styles } from './pos.styles';
+import { BRAND_COLORS } from '@/utils/brand';
 
 type Props = {
   customerLookupStatus: CustomerLookupStatus;
@@ -286,7 +287,7 @@ const modalStyles = StyleSheet.create({
   modalShell: { flex: 1, backgroundColor: '#eef2f6' },
   header: {
     paddingBottom: 18,
-    backgroundColor: '#10243f',
+    backgroundColor: BRAND_COLORS.header,
     borderBottomWidth: 1,
     borderBottomColor: '#183457',
   },

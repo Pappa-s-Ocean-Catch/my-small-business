@@ -6,6 +6,7 @@ import Constants from 'expo-constants';
 import * as Updates from 'expo-updates';
 import { Appbar, Button, Card, List, Text } from 'react-native-paper';
 import { getNativeAppMemory } from '@my-small-business/app-memory';
+import { BRAND_COLORS } from '@/utils/brand';
 
 import { getAppMemorySnapshot, type AppMemorySnapshot } from '@/lib/app-memory';
 import {
@@ -145,9 +146,9 @@ export default function AboutScreen() {
 
   return (
     <>
-      <Appbar.Header>
-        <Appbar.Action icon="menu" onPress={() => navigation.openDrawer()} accessibilityLabel="Open menu" />
-        <Appbar.Content title="About" />
+      <Appbar.Header style={styles.appbar}>
+        <Appbar.Action icon="menu" onPress={() => navigation.openDrawer()} accessibilityLabel="Open menu" iconColor="#fff" />
+        <Appbar.Content title="About" titleStyle={styles.appbarTitle} />
       </Appbar.Header>
       <ScrollView contentContainerStyle={styles.content}>
         <Button mode="outlined" icon="restart" onPress={confirmRestart} disabled={active} loading={active}>
@@ -194,6 +195,12 @@ export default function AboutScreen() {
 }
 
 const styles = StyleSheet.create({
+  appbar: {
+    backgroundColor: BRAND_COLORS.header,
+  },
+  appbarTitle: {
+    color: '#fff',
+  },
   content: {
     gap: 16,
     padding: 16,

@@ -16,6 +16,7 @@ import { usesIconOnlyOrderDetailActions, usesLandscapeTabletOrderDetailLayout } 
 import { captureReceiptForPrinter, type PrinterImageSource } from '@/lib/printer-image';
 import { escposPrintDocument, isSimulatorPrinter, type SavedPrinter } from '@/lib/escpos-printer';
 import { buildKitchenReceiptDocument } from '@/lib/kitchen-receipt-document';
+import { BRAND_COLORS } from '@/utils/brand';
 import { buildInstoreInstantTicketDocument } from '@/lib/instore-instant-ticket';
 import { ManualPrintButton } from '@/components/printer/ManualPrintButton';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
@@ -953,7 +954,7 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingBottom: 18,
-    backgroundColor: '#10243f',
+    backgroundColor: BRAND_COLORS.header,
     borderBottomWidth: 1,
     borderBottomColor: '#183457',
   },

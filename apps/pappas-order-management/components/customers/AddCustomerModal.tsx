@@ -4,6 +4,7 @@ import { Button, HelperText, IconButton, Surface, Text } from 'react-native-pape
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PosPhoneInputModal } from '@/components/pos/PosPhoneInputModal';
 import { PosTextInputModal } from '@/components/pos/PosTextInputModal';
+import { BRAND_COLORS } from '@/utils/brand';
 
 type Props = {
   visible: boolean;
@@ -247,7 +248,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
   },
   header: {
-    backgroundColor: '#0f172a',
+    backgroundColor: BRAND_COLORS.header,
     paddingBottom: 18,
   },
   headerTop: {
@@ -357,7 +358,7 @@ const styles = StyleSheet.create({
   },
   primaryActionButton: {
     borderRadius: 16,
-    backgroundColor: '#2563eb',
+    backgroundColor: BRAND_COLORS.header,
   },
   primaryActionButtonContent: {
     minHeight: 52,

@@ -10,7 +10,7 @@
     "preweb": "node scripts/generate-sound-assets.js",
     "start": "expo start",
     "android": "expo start --android --device",
-    "android:tablet": "ANDROID_SERIAL=emulator-5556 expo run:android",
+    "android:tablet": "ANDROID_SERIAL=tablet:5554 expo run:android",
     "android:phone": "ANDROID_SERIAL=emulator-5554 expo run:android",
     "android:start:direct": "ANDROID_SERIAL=emulator-5554 expo start --dev-client --android",
     "ios": "expo run:ios",

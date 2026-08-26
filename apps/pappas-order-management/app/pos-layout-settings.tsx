@@ -4,6 +4,7 @@ import { Appbar, Button, Checkbox, Dialog, IconButton, Menu, Portal, TextInput }
 import { useRouter } from 'expo-router';
 import ColorPicker, { BrightnessSlider, HueSlider, Panel1, Preview } from 'reanimated-color-picker';
 import { supabase } from '@/lib/supabase';
+import { BRAND_COLORS } from '@/utils/brand';
 import {
   DEFAULT_POS_BUTTON_COLOR,
   DEFAULT_POS_QUICK_ORDER_NOTES,
@@ -905,7 +906,7 @@ export default function PosLayoutSettingsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f4f6f8' },
-  header: { backgroundColor: '#1f2937' },
+  header: { backgroundColor: BRAND_COLORS.header },
   headerTitle: { color: '#fff', fontWeight: '700' },
   body: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 12, padding: 8 },
   previewPane: { flex: 1, flexBasis: 300, minWidth: 0, backgroundColor: '#fff', borderRadius: 8, overflow: 'hidden' },

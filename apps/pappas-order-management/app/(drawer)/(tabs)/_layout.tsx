@@ -9,6 +9,7 @@ import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { useAppSettingsQuery } from '@/hooks/useAppSettingsQuery';
 import { marketplaceSyncAlertStore } from '@/stores/marketplaceSyncAlertStore';
 import { getMarketplaceSyncIndicatorColor } from '@/lib/marketplace-sync-indicator';
+import { BRAND_COLORS } from '@/utils/brand';
 
 export default function TabsLayout() {
   const router = useRouter();
@@ -29,7 +30,7 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={({ route }) => ({
         headerStyle: {
-          backgroundColor: '#2563eb',
+          backgroundColor: BRAND_COLORS.header,
         },
         headerTintColor: '#fff',
         headerTitleStyle: {

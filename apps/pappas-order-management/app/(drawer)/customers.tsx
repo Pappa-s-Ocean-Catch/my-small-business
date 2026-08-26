@@ -16,6 +16,7 @@ import { useOrderActions } from '@/hooks/useOrderActions';
 import { DEFAULT_APP_SETTINGS, loadAppSettings, subscribeAppSettings, type AppSettings } from '@/lib/settings';
 import { canAccessOrderManagement, isAdminUser } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
+import { BRAND_COLORS } from '@/utils/brand';
 
 const PAGE_SIZE = 20;
 
@@ -280,7 +281,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
   },
   appbar: {
-    backgroundColor: '#2563eb',
+    backgroundColor: BRAND_COLORS.header,
   },
   appbarTitle: {
     color: '#fff',

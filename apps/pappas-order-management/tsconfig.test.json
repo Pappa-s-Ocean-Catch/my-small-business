@@ -18,6 +18,7 @@
     "utils/orderUtils.ts",
     "utils/orderNumber.ts",
     "utils/constants.ts",
+    "utils/brand.ts",
     "utils/pay-by-link.ts",
     "utils/customer-profile.ts",
     "lib/live-order-window.ts",

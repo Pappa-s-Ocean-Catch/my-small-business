@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Appbar, Button, Card, Text, TextInput } from 'react-native-paper';
+import { BRAND_COLORS } from '@/utils/brand';
 import {
   formatSmartpayError,
   loadSmartpayPairingSettings,
@@ -184,7 +185,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   header: {
-    backgroundColor: '#1f2937',
+    backgroundColor: BRAND_COLORS.header,
   },
   headerTitle: {
     color: '#fff',

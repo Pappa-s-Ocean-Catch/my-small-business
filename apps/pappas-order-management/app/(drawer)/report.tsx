@@ -16,6 +16,7 @@ import { useNavigation } from '@react-navigation/native';
 import { isCompactPhoneWidth } from '@/lib/responsive';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { Appbar, Button, IconButton, Surface, Text, TextInput } from 'react-native-paper';
+import { BRAND_COLORS } from '@/utils/brand';
 import { LineChart, type lineDataItem } from 'react-native-gifted-charts';
 import type { Order } from '@my-small-business/types';
 import { ReportPrintTemplate } from '@/components/ReportPrintTemplate';
@@ -884,7 +885,7 @@ export default function ReportScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f3f4f6' },
-  appbar: { backgroundColor: '#1f2937' },
+  appbar: { backgroundColor: BRAND_COLORS.header },
   content: { padding: 12, gap: 14, paddingBottom: 32 },
   heroCard: {
     backgroundColor: '#111827',

@@ -5,6 +5,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
+import { BRAND_COLORS } from '@/utils/brand';
 
 import {
   deleteMarketplaceCookies,
@@ -1303,7 +1304,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f3f6fb',
   },
   appbar: {
-    backgroundColor: '#2563eb',
+    backgroundColor: BRAND_COLORS.header,
   },
   appbarTitle: {
     color: '#fff',

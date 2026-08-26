@@ -6,6 +6,7 @@ import * as Sharing from 'expo-sharing';
 import { DEFAULT_APP_SETTINGS, type PrinterSectionAssignment } from '@/lib/settings';
 import { playNewOrderSound, SOUND_OPTIONS, type SoundId } from '@/lib/sounds';
 import { PRINT_SECTION_OPTIONS } from '@/utils/orderUtils';
+import { BRAND_COLORS } from '@/utils/brand';
 import { usePrintersDiscovery } from 'react-native-esc-pos-printer';
 import type { DeviceInfo } from 'react-native-esc-pos-printer';
 import {
@@ -1534,7 +1535,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#f5f5f5',
     },
     settingsHeader: {
-        backgroundColor: '#2563eb',
+        backgroundColor: BRAND_COLORS.header,
     },
     settingsHeaderTitle: {
         color: '#fff',
@@ -1550,7 +1551,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#f5f5f5',
     },
     modalHeader: {
-        backgroundColor: '#10243f',
+        backgroundColor: BRAND_COLORS.header,
     },
     modalHeaderTitle: {
         color: '#fff',

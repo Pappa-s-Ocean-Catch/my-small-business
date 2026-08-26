@@ -24,6 +24,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { BRAND_COLORS } from '@/utils/brand';
 
 import {
   getCouponsList,
@@ -136,10 +137,15 @@ export default function CouponsScreen() {
 
   return (
     <View style={styles.container}>
-      <Appbar.Header style={{ backgroundColor: theme.colors.elevation?.level1 ?? theme.colors.surface }}>
-        <Appbar.Action icon="menu" onPress={() => navigation.openDrawer()} />
-        <Appbar.Content title="Coupon Management" subtitle="Manage & toggle discount coupon codes" />
-        <Appbar.Action icon="refresh" onPress={onRefresh} />
+      <Appbar.Header style={styles.appbar}>
+        <Appbar.Action icon="menu" onPress={() => navigation.openDrawer()} iconColor="#fff" />
+        <Appbar.Content
+          title="Coupon Management"
+          subtitle="Manage & toggle discount coupon codes"
+          titleStyle={styles.appbarTitle}
+          subtitleStyle={styles.appbarSubtitle}
+        />
+        <Appbar.Action icon="refresh" onPress={onRefresh} iconColor="#fff" />
       </Appbar.Header>
 
       <View style={styles.filterSection}>
@@ -421,6 +427,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  appbar: {
+    backgroundColor: BRAND_COLORS.header,
+  },
+  appbarTitle: {
+    color: '#fff',
+  },
+  appbarSubtitle: {
+    color: '#d7e4ed',
   },
   filterSection: {
     padding: 12,
