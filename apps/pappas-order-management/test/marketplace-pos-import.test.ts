@@ -90,6 +90,12 @@ test('maps marketplace delivery progress from state, description, and timeline',
     'on_the_way'
   );
   assert.equal(
+    getMarketplaceOrderStatus(null, null, [
+      { changedAt: 1_787_718_614_000, orderState: 'BEGINTRIP' },
+    ]),
+    'on_the_way'
+  );
+  assert.equal(
     getMarketplaceOrderStatus(null, null, [{ changedAt: 1, orderState: 'DELIVERED' }]),
     'completed'
   );

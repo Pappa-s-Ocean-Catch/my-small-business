@@ -45,7 +45,7 @@ import { isScheduledPreOrder } from '@/utils/orderUtils';
 import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
 import { JOURNAL_LOGS_ENABLED } from '@/lib/journal-config';
 import { getPrintDeviceId } from '@/lib/print-device';
-import { shouldUseLiveOrderCardRail, shouldUseVerticalLiveOrderCards } from '@/lib/live-orders-layout';
+import { shouldUseVerticalLiveOrderCards } from '@/lib/live-orders-layout';
 import { isCompactPhoneWidth } from '@/lib/responsive';
 import {
   buildKitchenPrintDebugContext,
@@ -63,10 +63,6 @@ const RECEIPT_RENDER_SETTLE_MS = 300;
 const RECEIPT_RENDER_FRAME_COUNT = 2;
 
 type FilterKey = 'all' | 'needs-action' | 'unpaid' | 'ready' | 'scheduled';
-type GroupKey = 'overdue' | 'due-soon' | 'ready' | 'on-the-way' | 'attention' | 'other';
-type ListRow =
-  | { type: 'section'; key: string; title: string; count: number }
-  | { type: 'order'; key: string; order: Order };
 
 const RECEIPT_REF_WAIT_MS = 120;
 const RECEIPT_REF_MAX_ATTEMPTS = 8;
@@ -269,7 +265,7 @@ export default function LiveOrdersScreen() {
         order: freshOrder,
         details: `driver=${selectedPrinter ? selectedPrinter.driver ?? 'epsonSdk' : 'section-routing'}`,
       });
-      
+
       // Update the hidden template with this order
       setTempPrintingOrder(freshOrder);
       setTempPrintSource('live-orders:manual-list-print');
@@ -471,7 +467,7 @@ export default function LiveOrdersScreen() {
 
       if (printerJobs.length > 0) {
         if (!s.printerEnabled) {
-        const message = `No printer is selected. ${printSettingsDetails}`;
+          const message = `No printer is selected. ${printSettingsDetails}`;
           logOrderEvent('error', 'print', 'Manual print blocked because no printer was resolved', {
             order: freshOrder,
             details: printSettingsDetails,
@@ -622,79 +618,6 @@ export default function LiveOrdersScreen() {
     }
   }, [activeFilter, orders]);
 
-  const groupedRows = useMemo<ListRow[]>(() => {
-    const groups: Record<GroupKey, Order[]> = {
-      overdue: [],
-      'due-soon': [],
-      ready: [],
-      'on-the-way': [],
-      attention: [],
-      other: [],
-    };
-
-    for (const order of filteredOrders) {
-      const targetTimeMs = new Date(order.scheduled_pickup_at || order.created_at).getTime();
-      const diffMinutes = (targetTimeMs - nowMs) / (1000 * 60);
-
-      if (
-        order.order_type === 'delivery'
-        && ['assigned', 'driver_assigned', 'inflight', 'picked_up', 'in_transit'].includes(order.delivery_status || '')
-      ) {
-        groups['on-the-way'].push(order);
-      } else if (order.order_status === 'ready') {
-        groups.ready.push(order);
-      } else if (Number.isFinite(diffMinutes) && diffMinutes < 0) {
-        groups.overdue.push(order);
-      } else if (Number.isFinite(diffMinutes) && diffMinutes <= 10) {
-        groups['due-soon'].push(order);
-      } else if (
-        order.order_status === 'pending'
-        || order.order_status === 'confirmed'
-        || order.payment_status !== 'paid'
-      ) {
-        groups.attention.push(order);
-      } else {
-        groups.other.push(order);
-      }
-    }
-
-    const defs: Array<{ key: GroupKey; title: string }> = [
-      { key: 'overdue', title: 'Overdue' },
-      { key: 'due-soon', title: 'Due Soon' },
-      { key: 'ready', title: 'Ready' },
-      { key: 'on-the-way', title: 'On The Way' },
-      { key: 'attention', title: 'Needs Action' },
-      { key: 'other', title: 'Other Live Orders' },
-    ];
-
-    const rows: ListRow[] = [];
-    for (const def of defs) {
-      const items = groups[def.key];
-      if (items.length === 0) continue;
-      rows.push({ type: 'section', key: `section-${def.key}`, title: def.title, count: items.length });
-      items.forEach((order) => {
-        rows.push({ type: 'order', key: order.id, order });
-      });
-    }
-    return rows;
-  }, [filteredOrders, nowMs]);
-
-  const groupedSections = useMemo(() => {
-    const sections: Array<{ key: string; title: string; count: number; orders: Order[] }> = [];
-    let currentSection: { key: string; title: string; count: number; orders: Order[] } | null = null;
-
-    for (const row of groupedRows) {
-      if (row.type === 'section') {
-        currentSection = { key: row.key, title: row.title, count: row.count, orders: [] };
-        sections.push(currentSection);
-      } else if (currentSection) {
-        currentSection.orders.push(row.order);
-      }
-    }
-
-    return sections;
-  }, [groupedRows]);
-
   const filterOptions: Array<{ key: FilterKey; label: string; count: number }> = [
     { key: 'all', label: 'All', count: summaryCounts.all },
     { key: 'needs-action', label: 'Needs Action', count: summaryCounts['needs-action'] },
@@ -780,11 +703,6 @@ export default function LiveOrdersScreen() {
     appSettings.liveOrderCardLayout === 'vertical',
     width,
   );
-  const useVerticalCardRail = shouldUseLiveOrderCardRail(
-    appSettings.liveOrderCardLayout === 'vertical',
-    width,
-  );
-
   return (
     <View style={styles.container}>
 
@@ -926,135 +844,58 @@ export default function LiveOrdersScreen() {
         )}
       </Surface>
 
-      {isVerticalCardLayout ? (
-        <ScrollView
-          contentContainerStyle={styles.verticalListContent}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
-        >
-          {groupedSections.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>
-                {activeFilter === 'all' ? 'No live orders' : 'No orders match this filter'}
-              </Text>
-            </View>
-          ) : (
-            groupedSections.map((section) => (
-              <View key={section.key} style={styles.verticalSection}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionHeaderTitle}>{section.title}</Text>
-                  <Text style={styles.sectionHeaderCount}>{section.count}</Text>
-                </View>
-                <ScrollView
-                  horizontal={useVerticalCardRail}
-                  scrollEnabled={useVerticalCardRail}
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={[styles.verticalSectionRail, isPhoneLayout ? styles.verticalSectionRailPhone : null]}
-                >
-                  {section.orders.map((order) => (
-                    <LiveOrderListItem
-                      key={order.id}
-                      order={order}
-                      printState={orderPrintStates[order.id] || null}
-                      nowMs={nowMs}
-                      updatingStatus={updatingStatus}
-                      layout="vertical"
-                      onOrderPress={handleOrderPress}
-                      onCustomerPress={handleCustomerPress}
-                      onPrintPress={(order, printer) => void quickPrintOrder(order, printer)}
-                      availablePrinters={appSettings.printerSaved}
-                      onQuickAction={handleQuickAction}
-                      onSmartpayPayment={handleSmartpayPayment}
-                      smartpayPaired={smartpayPaired}
-                      smartpayProcessing={smartpayProcessingOrderId === order.id}
-                      onStatusUpdate={(selectedOrder, status) => {
-                        Alert.alert('Update Status', 'Select new status', [
-                          { text: 'Confirmed', onPress: () => handleStatusUpdate(selectedOrder, 'confirmed') },
-                          { text: 'Preparing', onPress: () => handleStatusUpdate(selectedOrder, 'preparing') },
-                          { text: 'Ready', onPress: () => handleStatusUpdate(selectedOrder, 'ready') },
-                          { text: 'Completed', onPress: () => handleStatusUpdate(selectedOrder, 'completed') },
-                          { text: 'Cancelled', onPress: () => handleStatusUpdate(selectedOrder, 'cancelled') },
-                          { text: 'Cancel', style: 'cancel' },
-                        ]);
-                      }}
-                      onPaymentStatusUpdate={(id) => {
-                        const paymentOptions: Parameters<typeof Alert.alert>[2] = [
-                          { text: 'Card', onPress: () => handlePaymentStatusUpdate(id, 'paid', 'Card') },
-                          { text: 'Cash', onPress: () => setCashTenderOrder(order) },
-                          ...(smartpayPaired ? [{ text: 'SmartPay', onPress: () => handleSmartpayPayment(order) }] : []),
-                          { text: 'Cancel', style: 'cancel' as const },
-                        ];
-                        Alert.alert('Mark as paid', 'Select payment method', paymentOptions);
-                      }}
-                    />
-                  ))}
-                </ScrollView>
-              </View>
-            ))
-          )}
-        </ScrollView>
-      ) : (
-        <FlatList
-          data={groupedRows}
-          renderItem={({ item }) => {
-            if (item.type === 'section') {
-              return (
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionHeaderTitle}>{item.title}</Text>
-                  <Text style={styles.sectionHeaderCount}>{item.count}</Text>
-                </View>
-              );
-            }
-
-            const order = item.order;
-            return (
-              <LiveOrderListItem
-                order={order}
-                printState={orderPrintStates[order.id] || null}
-                nowMs={nowMs}
-                updatingStatus={updatingStatus}
-                layout="horizontal"
-                onOrderPress={handleOrderPress}
-                onCustomerPress={handleCustomerPress}
-                onPrintPress={(order, printer) => void quickPrintOrder(order, printer)}
-                availablePrinters={appSettings.printerSaved}
-                onQuickAction={handleQuickAction}
-                onSmartpayPayment={handleSmartpayPayment}
-                smartpayPaired={smartpayPaired}
-                smartpayProcessing={smartpayProcessingOrderId === order.id}
-                onStatusUpdate={(selectedOrder, status) => {
-                  Alert.alert('Update Status', 'Select new status', [
-                    { text: 'Confirmed', onPress: () => handleStatusUpdate(selectedOrder, 'confirmed') },
-                    { text: 'Preparing', onPress: () => handleStatusUpdate(selectedOrder, 'preparing') },
-                    { text: 'Ready', onPress: () => handleStatusUpdate(selectedOrder, 'ready') },
-                    { text: 'Completed', onPress: () => handleStatusUpdate(selectedOrder, 'completed') },
-                    { text: 'Cancelled', onPress: () => handleStatusUpdate(selectedOrder, 'cancelled') },
-                    { text: 'Cancel', style: 'cancel' },
-                  ]);
-                }}
-                onPaymentStatusUpdate={(id) => {
-                  const paymentOptions: Parameters<typeof Alert.alert>[2] = [
-                    { text: 'Card', onPress: () => handlePaymentStatusUpdate(id, 'paid', 'Card') },
-                    { text: 'Cash', onPress: () => setCashTenderOrder(order) },
-                    ...(smartpayPaired ? [{ text: 'SmartPay', onPress: () => handleSmartpayPayment(order) }] : []),
-                    { text: 'Cancel', style: 'cancel' as const },
-                  ];
-                  Alert.alert('Mark as paid', 'Select payment method', paymentOptions);
-                }}
-              />
-            );
-          }}
-          keyExtractor={(item) => item.key}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
-          contentContainerStyle={styles.listContent}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>
-                {activeFilter === 'all' ? 'No live orders' : 'No orders match this filter'}
-              </Text>
-            </View>
-          }
-        />
-      )}
+      <FlatList
+        data={filteredOrders}
+        renderItem={({ item: order }) => (
+          <LiveOrderListItem
+            order={order}
+            printState={orderPrintStates[order.id] || null}
+            nowMs={nowMs}
+            updatingStatus={updatingStatus}
+            layout={isVerticalCardLayout ? 'vertical' : 'horizontal'}
+            onOrderPress={handleOrderPress}
+            onCustomerPress={handleCustomerPress}
+            onPrintPress={(order, printer) => void quickPrintOrder(order, printer)}
+            availablePrinters={appSettings.printerSaved}
+            onQuickAction={handleQuickAction}
+            onSmartpayPayment={handleSmartpayPayment}
+            smartpayPaired={smartpayPaired}
+            smartpayProcessing={smartpayProcessingOrderId === order.id}
+            onStatusUpdate={(selectedOrder, status) => {
+              Alert.alert('Update Status', 'Select new status', [
+                { text: 'Confirmed', onPress: () => handleStatusUpdate(selectedOrder, 'confirmed') },
+                { text: 'Preparing', onPress: () => handleStatusUpdate(selectedOrder, 'preparing') },
+                { text: 'Ready', onPress: () => handleStatusUpdate(selectedOrder, 'ready') },
+                { text: 'Completed', onPress: () => handleStatusUpdate(selectedOrder, 'completed') },
+                { text: 'Cancelled', onPress: () => handleStatusUpdate(selectedOrder, 'cancelled') },
+                { text: 'Cancel', style: 'cancel' },
+              ]);
+            }}
+            onPaymentStatusUpdate={(id) => {
+              const paymentOptions: Parameters<typeof Alert.alert>[2] = [
+                { text: 'Card', onPress: () => handlePaymentStatusUpdate(id, 'paid', 'Card') },
+                { text: 'Cash', onPress: () => setCashTenderOrder(order) },
+                ...(smartpayPaired ? [{ text: 'SmartPay', onPress: () => handleSmartpayPayment(order) }] : []),
+                { text: 'Cancel', style: 'cancel' as const },
+              ];
+              Alert.alert('Mark as paid', 'Select payment method', paymentOptions);
+            }}
+          />
+        )}
+        keyExtractor={(order) => order.id}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+        contentContainerStyle={styles.listContent}
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        windowSize={7}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>
+              {activeFilter === 'all' ? 'No live orders' : 'No orders match this filter'}
+            </Text>
+          </View>
+        }
+      />
 
       <OrderDetailModal
         visible={showOrderModal}
@@ -1074,9 +915,9 @@ export default function LiveOrdersScreen() {
         onStatusUpdate={handleStatusUpdate}
         onPaymentStatusUpdate={handlePaymentStatusUpdateWithTender}
         onSmartpayPayment={handleSmartpayPayment}
-          onQuickAction={handleQuickAction}
-          onRefreshDeliveryStatus={handleRefreshDeliveryStatus}
-          updatingStatus={updatingStatus || refreshingDeliveryIds[0] || null}
+        onQuickAction={handleQuickAction}
+        onRefreshDeliveryStatus={handleRefreshDeliveryStatus}
+        updatingStatus={updatingStatus || refreshingDeliveryIds[0] || null}
         smartpayPaired={smartpayPaired}
         smartpayProcessing={!!selectedOrder && smartpayProcessingOrderId === selectedOrder.id}
         showSimulator={showSimulator}
@@ -1088,26 +929,26 @@ export default function LiveOrdersScreen() {
 
       {/* Global Hidden Receipt Template for auto/quick capture */}
       <View style={styles.hiddenReceiptContainer} pointerEvents="none">
-         {tempPrintingOrder && (
-           <View ref={globalReceiptRef} collapsable={false}>
-              {tempPrintTemplate === 'customer-copy' ? (
-                <CustomerReceiptTemplate
-                  order={tempPrintingOrder}
-                  width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
-                />
-              ) : (
-                <ReceiptTemplate
-                  order={tempPrintingOrder}
-                  width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
-                  printSource={tempPrintSource || undefined}
-                  showTicketCounter={hasAnySimulatorAssignment(appSettings)}
-                  onlyTicketIndex={tempPrintTicketIndex}
-                  duplicateBySections={tempPrintDuplicateBySections}
-                  printDebugContext={tempPrintDebugContext}
-                />
-              )}
-           </View>
-         )}
+        {tempPrintingOrder && (
+          <View ref={globalReceiptRef} collapsable={false}>
+            {tempPrintTemplate === 'customer-copy' ? (
+              <CustomerReceiptTemplate
+                order={tempPrintingOrder}
+                width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
+              />
+            ) : (
+              <ReceiptTemplate
+                order={tempPrintingOrder}
+                width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
+                printSource={tempPrintSource || undefined}
+                showTicketCounter={hasAnySimulatorAssignment(appSettings)}
+                onlyTicketIndex={tempPrintTicketIndex}
+                duplicateBySections={tempPrintDuplicateBySections}
+                printDebugContext={tempPrintDebugContext}
+              />
+            )}
+          </View>
+        )}
       </View>
 
       <PrintSimulatorModal
@@ -1130,7 +971,7 @@ export default function LiveOrdersScreen() {
           void handlePaymentStatusUpdate(orderId, 'paid', 'Cash');
         }}
       />
-      
+
       <CustomerModal
         visible={showCustomerModal}
         email={customerInfo.email}
@@ -1221,19 +1062,6 @@ const styles = StyleSheet.create({
   filterCountText: { color: '#374151', fontSize: 11, fontWeight: '900' },
   filterCountTextSelected: { color: '#fff' },
   listContent: { padding: 12, paddingBottom: 20 },
-  verticalListContent: { padding: 12, paddingBottom: 20, gap: 12 },
-  verticalSection: { gap: 8 },
-  verticalSectionRail: { paddingRight: 12 },
-  verticalSectionRailPhone: { paddingRight: 0 },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 6,
-    paddingBottom: 6,
-  },
-  sectionHeaderTitle: { color: '#111827', fontSize: 13, fontWeight: '900', textTransform: 'uppercase' },
-  sectionHeaderCount: { color: '#6b7280', fontSize: 12, fontWeight: '800' },
   emptyContainer: { flex: 1, alignItems: 'center', marginTop: 100 },
   emptyText: { fontSize: 16, color: '#6b7280' },
   printingOverlay: { position: 'absolute', top: 24, left: 0, right: 0, alignItems: 'center', zIndex: 100 },

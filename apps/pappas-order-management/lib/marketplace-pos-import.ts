@@ -93,6 +93,7 @@ export function getMarketplaceOrderStatus(
   if (
     hasStatus('picked up') ||
     hasStatus('en route') ||
+    hasStatus('begintrip') ||
     hasStatus('on the way') ||
     hasStatus('out for delivery')
   ) {
