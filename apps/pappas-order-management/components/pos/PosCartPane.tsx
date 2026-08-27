@@ -2,6 +2,7 @@ import React from 'react';
 import { FlatList, Text, TouchableOpacity, View } from 'react-native';
 import { Button, Divider, IconButton } from 'react-native-paper';
 import { styles } from './pos.styles';
+import { getFriendlyOrderNumber } from '../../utils/orderNumber';
 import type {
   PosCartItem,
 } from '../../app/pos.types';
@@ -11,6 +12,7 @@ type Props = {
   isPhoneLayout?: boolean;
   onBackToMenu?: () => void;
   orderId?: string;
+  editingOrderNumber?: string | null;
   cartItems: PosCartItem[];
   quickOrderNote: string | null;
   setSaltOptionDialogVisible: (visible: boolean) => void;
@@ -42,6 +44,7 @@ export function PosCartPane({
   isPhoneLayout,
   onBackToMenu,
   orderId,
+  editingOrderNumber,
 
   cartItems,
   quickOrderNote,
@@ -85,7 +88,7 @@ export function PosCartPane({
           >
             Menu
           </Button>
-          <Text style={styles.cartTitle}>Current Order</Text>
+          <View style={styles.phoneCartHeaderSpacer} />
           <Button
             mode="outlined"
             icon="trash-can-outline"
@@ -100,37 +103,66 @@ export function PosCartPane({
         </View>
       ) : (
         <View style={styles.cartHeader}>
-          <Text style={styles.cartTitle}>Current Order</Text>
-          <Button
-            mode="outlined"
-            icon="trash-can-outline"
-            compact
-            disabled={Boolean(orderId) || cartItems.length === 0}
-            onPress={handleClearCart}
-            textColor="#dc2626"
-            style={styles.clearCartButton}
-          >
-            Clear
-          </Button>
+          <View style={styles.cartHeaderActions}>
+            <TouchableOpacity
+              style={[
+                styles.quickOrderNoteButton,
+                styles.cartSaltButton,
+                quickOrderNote && styles.quickOrderNoteButtonSelected,
+              ]}
+              onPress={() => setSaltOptionDialogVisible(true)}
+            >
+              <View style={styles.quickOrderNoteButtonText}>
+                <Text style={[styles.quickOrderNoteTitle, quickOrderNote && styles.quickOrderNoteTitleSelected]}>
+                  Salt option
+                </Text>
+                <Text style={[styles.quickOrderNoteValue, quickOrderNote && styles.quickOrderNoteValueSelected]} numberOfLines={1}>
+                  {quickOrderNote || 'Not selected'}
+                </Text>
+              </View>
+              <Text style={[styles.quickOrderNoteEdit, quickOrderNote && styles.quickOrderNoteEditSelected]}>
+                Change
+              </Text>
+            </TouchableOpacity>
+            <Button
+              mode="outlined"
+              icon="trash-can-outline"
+              compact
+              disabled={Boolean(orderId) || cartItems.length === 0}
+              onPress={handleClearCart}
+              textColor="#dc2626"
+              style={styles.clearCartButton}
+            >
+              Clear
+            </Button>
+          </View>
         </View>
       )}
 
-      <TouchableOpacity
-        style={[styles.quickOrderNoteButton, quickOrderNote && styles.quickOrderNoteButtonSelected]}
-        onPress={() => setSaltOptionDialogVisible(true)}
-      >
-        <View style={styles.quickOrderNoteButtonText}>
-          <Text style={[styles.quickOrderNoteTitle, quickOrderNote && styles.quickOrderNoteTitleSelected]}>
-            Salt option
-          </Text>
-          <Text style={[styles.quickOrderNoteValue, quickOrderNote && styles.quickOrderNoteValueSelected]} numberOfLines={1}>
-            {quickOrderNote || 'Not selected'}
-          </Text>
-        </View>
-        <Text style={[styles.quickOrderNoteEdit, quickOrderNote && styles.quickOrderNoteEditSelected]}>
-          Change
+      {editingOrderNumber ? (
+        <Text style={styles.cartUpdateIndicator}>
+          You are updating order {getFriendlyOrderNumber(editingOrderNumber)}
         </Text>
-      </TouchableOpacity>
+      ) : null}
+
+      {isPhoneLayout ? (
+        <TouchableOpacity
+          style={[styles.quickOrderNoteButton, quickOrderNote && styles.quickOrderNoteButtonSelected]}
+          onPress={() => setSaltOptionDialogVisible(true)}
+        >
+          <View style={styles.quickOrderNoteButtonText}>
+            <Text style={[styles.quickOrderNoteTitle, quickOrderNote && styles.quickOrderNoteTitleSelected]}>
+              Salt option
+            </Text>
+            <Text style={[styles.quickOrderNoteValue, quickOrderNote && styles.quickOrderNoteValueSelected]} numberOfLines={1}>
+              {quickOrderNote || 'Not selected'}
+            </Text>
+          </View>
+          <Text style={[styles.quickOrderNoteEdit, quickOrderNote && styles.quickOrderNoteEditSelected]}>
+            Change
+          </Text>
+        </TouchableOpacity>
+      ) : null}
       {freeItemPromotionTitle ? (
         <TouchableOpacity
           style={[styles.quickOrderNoteButton, freeItemSelectionRequired ? styles.discountCardActive : null]}
@@ -241,28 +273,33 @@ export function PosCartPane({
           <Text style={styles.grandTotalValue}>${totals.total.toFixed(2)}</Text>
         </View>
       </View>
-      <Button
-        mode="contained"
-        icon={orderId ? 'content-save' : 'cash-register'}
-        loading={Boolean(orderId) && creatingOrder}
-        disabled={cartItems.length === 0 || creatingOrder || smartpayProcessing}
-        onPress={orderId ? () => void handleCheckout() : openCheckout}
-        style={styles.checkoutButton}
-        buttonColor="#16a34a"
-      >
-        {orderId ? 'Update Order' : 'Checkout'}
-      </Button>
-      {!orderId && (
-        <View style={styles.quickActionsPanel}>
-          <Text style={styles.quickActionsTitle}>Quick actions</Text>
-          <View style={styles.quickPaymentRow}>
+      <View style={styles.cartCheckoutActions}>
+        <Button
+          mode="contained"
+          icon={orderId ? 'content-save' : 'cash-register'}
+          compact
+          loading={Boolean(orderId) && creatingOrder}
+          disabled={cartItems.length === 0 || creatingOrder || smartpayProcessing}
+          onPress={orderId ? () => void handleCheckout() : openCheckout}
+          style={styles.cartCheckoutActionButton}
+          contentStyle={styles.cartCheckoutActionButtonContent}
+          labelStyle={styles.cartCheckoutActionLabel}
+          buttonColor="#16a34a"
+        >
+          {orderId ? 'Update Order' : 'Checkout'}
+        </Button>
+        {!orderId && (
+          <>
             <Button
               mode="contained-tonal"
               icon="check-circle-outline"
+              compact
               loading={creatingOrder && !smartpayPreparing}
               disabled={creatingOrder || smartpayPreparing || smartpayProcessing || cartItems.length === 0}
               onPress={openInstorePaymentPrompt}
-              style={[styles.checkoutButton, styles.quickPaymentButton, styles.completeButton]}
+              style={styles.cartCheckoutActionButton}
+              contentStyle={styles.cartCheckoutActionButtonContent}
+              labelStyle={styles.cartCheckoutActionLabel}
               buttonColor="#dc2626"
               textColor="#fff"
             >
@@ -271,17 +308,20 @@ export function PosCartPane({
             <Button
               mode="contained"
               icon="credit-card-wireless-outline"
+              compact
               loading={smartpayPreparing || smartpayProcessing}
               disabled={!smartpayPaired || creatingOrder || smartpayPreparing || smartpayProcessing || cartItems.length === 0}
               onPress={() => void handleSmartpayInstoreCheckout()}
-              style={[styles.checkoutButton, styles.quickPaymentButton]}
+              style={styles.cartCheckoutActionButton}
+              contentStyle={styles.cartCheckoutActionButtonContent}
+              labelStyle={styles.cartCheckoutActionLabel}
               buttonColor="#2563eb"
             >
               SmartPay
             </Button>
-          </View>
-        </View>
-      )}
+          </>
+        )}
+      </View>
     </View>
   );
 }

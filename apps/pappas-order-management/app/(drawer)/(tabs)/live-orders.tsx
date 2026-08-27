@@ -45,7 +45,12 @@ import { isScheduledPreOrder } from '@/utils/orderUtils';
 import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
 import { JOURNAL_LOGS_ENABLED } from '@/lib/journal-config';
 import { getPrintDeviceId } from '@/lib/print-device';
-import { shouldUseVerticalLiveOrderCards } from '@/lib/live-orders-layout';
+import {
+  getLiveOrderCardRailWidth,
+  shouldUseCompactLiveOrderCards,
+  shouldUseLiveOrderCardRail,
+  shouldUseVerticalLiveOrderCards,
+} from '@/lib/live-orders-layout';
 import { isCompactPhoneWidth } from '@/lib/responsive';
 import {
   buildKitchenPrintDebugContext,
@@ -69,7 +74,7 @@ const RECEIPT_REF_MAX_ATTEMPTS = 8;
 const DELIVERY_STATUS_SYNC_INTERVAL_MS = 10_000;
 
 export default function LiveOrdersScreen() {
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -703,6 +708,17 @@ export default function LiveOrdersScreen() {
     appSettings.liveOrderCardLayout === 'vertical',
     width,
   );
+  const useVerticalCardRail = shouldUseLiveOrderCardRail(
+    appSettings.liveOrderCardLayout === 'vertical',
+    width,
+    height,
+  );
+  const liveOrderCardWidth = getLiveOrderCardRailWidth(width, height);
+  const useCompactVerticalCards = shouldUseCompactLiveOrderCards(
+    appSettings.liveOrderCardLayout === 'vertical',
+    width,
+    height,
+  );
   return (
     <View style={styles.container}>
 
@@ -745,21 +761,21 @@ export default function LiveOrdersScreen() {
         />
       )}
 
-      <Surface style={styles.header} elevation={1}>
-        <View style={[styles.headerRow, isPhoneLayout ? styles.headerRowPhone : null]}>
+      <Surface style={[styles.header, useCompactVerticalCards ? styles.headerCompact : null]} elevation={1}>
+        <View style={[styles.headerRow, isPhoneLayout ? styles.headerRowPhone : null, useCompactVerticalCards ? styles.headerRowCompact : null]}>
           <View style={[styles.headerTitleWrap, isPhoneLayout ? styles.headerTitleWrapPhone : null]}>
-            {!isPhoneLayout ? <Text style={styles.headerTitle}>Live Orders</Text> : null}
-            <Text style={styles.headerSubtitle}>
+            {!isPhoneLayout ? <Text style={[styles.headerTitle, useCompactVerticalCards ? styles.headerTitleCompact : null]}>Live Orders</Text> : null}
+            <Text style={[styles.headerSubtitle, useCompactVerticalCards ? styles.headerSubtitleCompact : null]}>
               {summaryCounts.all} active • {isStale ? 'Sync delayed' : refreshCountdown > 0 ? `Refresh in ${refreshCountdown}s` : 'Up to date'}
             </Text>
           </View>
-          <View style={[styles.headerActions, isPhoneLayout ? styles.headerActionsPhone : null]}>
+          <View style={[styles.headerActions, isPhoneLayout ? styles.headerActionsPhone : null, useCompactVerticalCards ? styles.headerActionsCompact : null]}>
             <View style={styles.preOrderBadgeContainer}>
               <PaperButton
                 mode="outlined"
                 onPress={() => router.push('/pre-orders')}
-                style={[styles.preOrderButton, isPhoneLayout ? styles.phoneActionButton : null]}
-                contentStyle={isPhoneLayout ? styles.phoneActionContent : undefined}
+                style={[styles.preOrderButton, styles.headerActionButton, isPhoneLayout ? styles.phoneActionButton : null]}
+                contentStyle={isPhoneLayout ? styles.phoneActionContent : useCompactVerticalCards ? styles.headerCompactActionContent : undefined}
                 compact
                 icon="calendar-clock"
                 accessibilityLabel="Pre-orders"
@@ -775,8 +791,8 @@ export default function LiveOrdersScreen() {
             <PaperButton
               mode={headerExpanded ? 'contained-tonal' : 'outlined'}
               onPress={() => setHeaderExpanded((current) => !current)}
-              style={[styles.filterToggleButton, isPhoneLayout ? styles.phoneActionButton : null]}
-              contentStyle={isPhoneLayout ? styles.phoneActionContent : undefined}
+              style={[styles.filterToggleButton, styles.headerActionButton, isPhoneLayout ? styles.phoneActionButton : null]}
+              contentStyle={isPhoneLayout ? styles.phoneActionContent : useCompactVerticalCards ? styles.headerCompactActionContent : undefined}
               compact
               icon="filter-variant"
               accessibilityLabel={`Filter: ${activeFilterOption.label}`}
@@ -802,8 +818,8 @@ export default function LiveOrdersScreen() {
                 void loadOrders();
               }}
               loading={loading || isFetchingOrders}
-              style={[styles.refreshButton, isPhoneLayout ? styles.phoneActionButton : null]}
-              contentStyle={isPhoneLayout ? styles.phoneActionContent : undefined}
+              style={[styles.refreshButton, styles.headerActionButton, isPhoneLayout ? styles.phoneActionButton : null]}
+              contentStyle={isPhoneLayout ? styles.phoneActionContent : useCompactVerticalCards ? styles.headerCompactActionContent : undefined}
               compact
               icon="refresh"
               accessibilityLabel="Refresh live orders"
@@ -818,20 +834,20 @@ export default function LiveOrdersScreen() {
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.filterRow}
+              contentContainerStyle={[styles.filterRow, useCompactVerticalCards ? styles.filterRowCompact : null]}
             >
               {filterOptions.map((filter) => {
                 const selected = filter.key === activeFilter;
                 return (
                   <TouchableOpacity
                     key={filter.key}
-                    style={[styles.filterChip, selected ? styles.filterChipSelected : null]}
+                    style={[styles.filterChip, useCompactVerticalCards ? styles.filterChipCompact : null, selected ? styles.filterChipSelected : null]}
                     onPress={() => setActiveFilter(filter.key)}
                   >
                     <Text style={[styles.filterChipText, selected ? styles.filterChipTextSelected : null]}>
                       {filter.label}
                     </Text>
-                    <View style={[styles.filterCount, selected ? styles.filterCountSelected : null]}>
+                    <View style={[styles.filterCount, useCompactVerticalCards ? styles.filterCountCompact : null, selected ? styles.filterCountSelected : null]}>
                       <Text style={[styles.filterCountText, selected ? styles.filterCountTextSelected : null]}>
                         {filter.count}
                       </Text>
@@ -846,6 +862,8 @@ export default function LiveOrdersScreen() {
 
       <FlatList
         data={filteredOrders}
+        horizontal={useVerticalCardRail}
+        ItemSeparatorComponent={useVerticalCardRail ? () => <View style={styles.cardRailSeparator} /> : undefined}
         renderItem={({ item: order }) => (
           <LiveOrderListItem
             order={order}
@@ -853,6 +871,8 @@ export default function LiveOrdersScreen() {
             nowMs={nowMs}
             updatingStatus={updatingStatus}
             layout={isVerticalCardLayout ? 'vertical' : 'horizontal'}
+            compact={useCompactVerticalCards}
+            cardWidth={useVerticalCardRail ? liveOrderCardWidth : undefined}
             onOrderPress={handleOrderPress}
             onCustomerPress={handleCustomerPress}
             onPrintPress={(order, printer) => void quickPrintOrder(order, printer)}
@@ -884,7 +904,7 @@ export default function LiveOrdersScreen() {
         )}
         keyExtractor={(order) => order.id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, useCompactVerticalCards ? styles.listContentCompact : null]}
         initialNumToRender={8}
         maxToRenderPerBatch={8}
         windowSize={7}
@@ -992,13 +1012,18 @@ export default function LiveOrdersScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
   header: { padding: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e5e5e5', gap: 10 },
+  headerCompact: { paddingHorizontal: 8, paddingVertical: 6, gap: 5 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' },
+  headerRowCompact: { alignItems: 'center', flexWrap: 'nowrap' },
   headerRowPhone: { alignItems: 'center' },
   headerTitleWrap: { flex: 1, gap: 2 },
   headerTitleWrapPhone: { flexBasis: '100%' },
   headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827', flexShrink: 1 },
+  headerTitleCompact: { fontSize: 16 },
   headerSubtitle: { fontSize: 12, color: '#6b7280', fontWeight: '700' },
+  headerSubtitleCompact: { fontSize: 11 },
   headerActions: { flexDirection: 'row', gap: 8, flexShrink: 1, flexWrap: 'wrap', justifyContent: 'flex-start' },
+  headerActionsCompact: { gap: 5, flexWrap: 'nowrap' },
   headerActionsPhone: { width: '100%', justifyContent: 'space-between', flexWrap: 'nowrap' },
   preOrderBadgeContainer: { position: 'relative' },
   preOrderButton: { borderRadius: 8, borderColor: '#2563eb' },
@@ -1028,9 +1053,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   refreshButton: { borderRadius: 8, minWidth: 88 },
+  headerActionButton: { height: 40, minHeight: 40 },
+  headerCompactActionContent: { height: 34, paddingHorizontal: 8 },
   phoneActionButton: { minWidth: 0, width: 40 },
   phoneActionContent: { width: 40, height: 40, marginHorizontal: 0 },
   filterRow: { gap: 8, paddingRight: 12 },
+  filterRowCompact: { gap: 5, paddingRight: 8 },
   filterChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1043,6 +1071,7 @@ const styles = StyleSheet.create({
     paddingRight: 8,
     paddingVertical: 8,
   },
+  filterChipCompact: { gap: 5, paddingLeft: 8, paddingRight: 6, paddingVertical: 5 },
   filterChipSelected: {
     backgroundColor: '#111827',
     borderColor: '#111827',
@@ -1058,10 +1087,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 6,
   },
+  filterCountCompact: { minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4 },
   filterCountSelected: { backgroundColor: 'rgba(255,255,255,0.18)' },
   filterCountText: { color: '#374151', fontSize: 11, fontWeight: '900' },
   filterCountTextSelected: { color: '#fff' },
   listContent: { padding: 12, paddingBottom: 20 },
+  listContentCompact: { padding: 8, paddingBottom: 8 },
+  cardRailSeparator: { width: 12 },
   emptyContainer: { flex: 1, alignItems: 'center', marginTop: 100 },
   emptyText: { fontSize: 16, color: '#6b7280' },
   printingOverlay: { position: 'absolute', top: 24, left: 0, right: 0, alignItems: 'center', zIndex: 100 },

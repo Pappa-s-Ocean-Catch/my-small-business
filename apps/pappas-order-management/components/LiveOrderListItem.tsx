@@ -35,6 +35,8 @@ interface LiveOrderListItemProps {
   onStatusUpdate: (order: Order, status: OrderStatus) => void;
   onPaymentStatusUpdate: (orderId: string, status: PaymentStatus, paymentMethodDetail?: string | null) => void;
   layout?: LiveOrderCardLayout;
+  compact?: boolean;
+  cardWidth?: number;
   printState?: OrderPrintState | null;
 }
 
@@ -53,9 +55,11 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
   onStatusUpdate,
   onPaymentStatusUpdate,
   layout = 'horizontal',
+  compact = false,
+  cardWidth,
   printState = null,
 }) => {
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const isPhoneLayout = isCompactPhoneWidth(width);
   const isDeliveryOrder = order.order_type === 'delivery';
   const isThirdPartyOrder = order.order_channel === 'third_party';
@@ -127,12 +131,12 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
           : null;
 
   const statusControls = (
-    <View style={layout === 'vertical' ? styles.verticalStatusControls : styles.statusControls}>
-      <View style={styles.statusControl}>
-        <Text style={styles.statusControlLabel}>Status</Text>
+    <View style={layout === 'vertical' ? [styles.verticalStatusControls, compact ? styles.verticalStatusControlsCompact : null] : styles.statusControls}>
+      <View style={[styles.statusControl, layout === 'vertical' && compact ? styles.statusControlCompact : null]}>
+        <Text style={[styles.statusControlLabel, layout === 'vertical' && compact ? styles.statusControlLabelCompact : null]}>Status</Text>
         <View style={styles.statusSelectContainer}>
           <TouchableOpacity
-            style={[styles.statusSelect, { backgroundColor: statusColor }]}
+            style={[styles.statusSelect, layout === 'vertical' && compact ? styles.statusSelectCompact : null, { backgroundColor: statusColor }]}
             onPress={() => onStatusUpdate(order, order.order_status)}
             disabled={updatingStatus === order.id}
           >
@@ -140,11 +144,11 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
           </TouchableOpacity>
         </View>
       </View>
-      <View style={styles.statusControl}>
-        <Text style={styles.statusControlLabel}>Payment</Text>
+      <View style={[styles.statusControl, layout === 'vertical' && compact ? styles.statusControlCompact : null]}>
+        <Text style={[styles.statusControlLabel, layout === 'vertical' && compact ? styles.statusControlLabelCompact : null]}>Payment</Text>
         <View style={styles.statusSelectContainer}>
           <TouchableOpacity
-            style={[styles.statusSelect, { backgroundColor: paymentColor }]}
+            style={[styles.statusSelect, layout === 'vertical' && compact ? styles.statusSelectCompact : null, { backgroundColor: paymentColor }]}
             onPress={() => onPaymentStatusUpdate(order.id, order.payment_status)}
             disabled={!canUpdatePayment}
           >
@@ -156,11 +160,12 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
   );
 
   const actionButtons = (
-    <View style={layout === 'vertical' ? styles.verticalActionsCluster : styles.actionsCluster}>
+    <View style={layout === 'vertical' ? [styles.verticalActionsCluster, compact ? styles.verticalActionsClusterCompact : null] : styles.actionsCluster}>
       <ManualPrintButton
         printers={availablePrinters}
         mode="icon"
         label="Print order"
+        style={layout === 'vertical' && compact ? styles.printButtonCompact : undefined}
         onSelectPrinter={(printer) => onPrintPress(order, printer)}
       />
       {canSmartpay && (
@@ -170,9 +175,9 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
           onPress={() => onSmartpayPayment(order)}
           loading={smartpayProcessing}
           disabled={smartpayProcessing || updatingStatus === order.id}
-          style={styles.bodySmartpayButton}
-          contentStyle={styles.bodySmartpayButtonContent}
-          labelStyle={styles.secondaryActionLabel}
+          style={[styles.bodySmartpayButton, layout === 'vertical' && compact ? styles.bodySmartpayButtonCompact : null]}
+          contentStyle={[styles.bodySmartpayButtonContent, layout === 'vertical' && compact ? styles.bodyActionButtonContentCompact : null]}
+          labelStyle={[styles.secondaryActionLabel, layout === 'vertical' && compact ? styles.actionLabelCompact : null]}
           compact
         >
           SmartPay
@@ -184,9 +189,9 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
           onPress={() => onQuickAction(order, quickAction.action)}
           loading={quickActionFeedback?.isUpdating}
           disabled={quickActionFeedback?.isUpdating || smartpayProcessing}
-          style={styles.bodyQuickButton}
-          contentStyle={styles.bodyQuickButtonContent}
-          labelStyle={styles.primaryActionLabel}
+          style={[styles.bodyQuickButton, layout === 'vertical' && compact ? styles.bodyQuickButtonCompact : null]}
+          contentStyle={[styles.bodyQuickButtonContent, layout === 'vertical' && compact ? styles.bodyActionButtonContentCompact : null]}
+          labelStyle={[styles.primaryActionLabel, layout === 'vertical' && compact ? styles.actionLabelCompact : null]}
           compact
         >
           {quickActionFeedback?.label ?? quickAction.label}
@@ -200,12 +205,17 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
       <Card
         style={[
           styles.verticalOrderCard,
-          isPhoneLayout ? styles.verticalOrderCardPhone : null,
+          compact ? styles.verticalOrderCardCompact : null,
+          isPhoneLayout || width <= height ? styles.verticalOrderCardPhone : null,
+          cardWidth == null ? styles.verticalOrderCardList : null,
+          cardWidth != null ? styles.verticalOrderCardRail : null,
+          cardWidth != null && compact ? styles.verticalOrderCardRailCompact : null,
+          cardWidth != null ? { width: cardWidth } : null,
           isDeliveryOrder ? styles.deliveryOrderCard : null,
         ]}
         onPress={() => onOrderPress(order)}
       >
-        <Card.Content style={styles.verticalCardContent}>
+        <Card.Content style={[styles.verticalCardContent, compact ? styles.verticalCardContentCompact : null, cardWidth != null ? styles.verticalCardContentRail : null]}>
           <View style={styles.verticalHeader}>
             <View style={styles.verticalIdentity}>
               <View style={styles.orderTitleRow}>
@@ -229,7 +239,7 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
             </View>
           </View>
 
-          <View style={styles.verticalChipRow}>
+          <View style={[styles.verticalChipRow, compact ? styles.verticalChipRowCompact : null]}>
             {isDeliveryOrder || isThirdPartyOrder ? (
               <View
                 style={[
@@ -248,20 +258,20 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
             <View style={[styles.pickupBadge, order.scheduled_pickup_at ? styles.pickupScheduled : styles.pickupAsap]}>
               <Text style={styles.pickupText} numberOfLines={1}>{pickupLabel}</Text>
             </View>
-            <View style={[styles.compactChip, { backgroundColor: statusColor }]}>
+              <View style={[styles.compactChip, compact ? styles.compactChipCompact : null, { backgroundColor: statusColor }]}>
               <Text style={styles.compactChipText}>{statusLabel}</Text>
             </View>
             {order.order_type === 'delivery' ? (
-              <View style={[styles.compactChip, { backgroundColor: deliveryStatusColor }]}>
+              <View style={[styles.compactChip, compact ? styles.compactChipCompact : null, { backgroundColor: deliveryStatusColor }]}>
                 <Text style={styles.compactChipText}>{deliveryStatusLabel}</Text>
               </View>
             ) : null}
           </View>
 
-          <View style={styles.verticalMetaGrid}>
+          <View style={[styles.verticalMetaGrid, compact ? styles.verticalMetaGridCompact : null]}>
             <View>
               <Text style={styles.verticalMetaLabel}>Summary</Text>
-              <Text style={styles.verticalMetaValue} numberOfLines={2}>{paymentSummary(order)}</Text>
+              <Text style={[styles.verticalMetaValue, compact ? styles.verticalMetaValueCompact : null]} numberOfLines={compact ? 1 : 2}>{paymentSummary(order)}</Text>
               {externalOrderLabel ? (
                 <Text style={styles.deliveryMetaValue} numberOfLines={1}>{externalOrderLabel}</Text>
               ) : null}
@@ -275,14 +285,14 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
               <Text style={[styles.paymentAttention, isPaid ? styles.paymentAttentionPaid : styles.paymentAttentionUnpaid]}>
                 {isPaid ? 'PAID' : 'UNPAID'}
               </Text>
-              <Text style={styles.verticalTotal}>${order.total.toFixed(2)}</Text>
+              <Text style={[styles.verticalTotal, compact ? styles.verticalTotalCompact : null]}>${order.total.toFixed(2)}</Text>
             </View>
           </View>
 
-          <View style={styles.itemsPreviewBlock}>
+          <View style={[styles.itemsPreviewBlock, compact ? styles.itemsPreviewBlockCompact : null, cardWidth != null ? styles.itemsPreviewBlockRail : null, cardWidth != null && compact ? styles.itemsPreviewBlockRailCompact : null]}>
             <Text style={styles.verticalMetaLabel}>Items</Text>
             {previewItems.map((item) => (
-              <Text key={item.id} style={styles.itemPreviewText} numberOfLines={1}>
+              <Text key={item.id} style={[styles.itemPreviewText, compact ? styles.itemPreviewTextCompact : null]} numberOfLines={1}>
                 {item.quantity}x {item.product_name}
               </Text>
             ))}
@@ -291,7 +301,7 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
             ) : null}
           </View>
 
-          <View style={styles.verticalFooter}>
+          <View style={[styles.verticalFooter, compact ? styles.verticalFooterCompact : null, cardWidth != null ? styles.verticalFooterRail : null]}>
             {statusControls}
             {actionButtons}
           </View>
@@ -418,6 +428,7 @@ const styles = StyleSheet.create({
   verticalOrderCard: {
     width: 336,
     marginRight: 16,
+    alignSelf: 'flex-start',
     backgroundColor: '#fff',
     elevation: 0,
     shadowOpacity: 0,
@@ -430,6 +441,18 @@ const styles = StyleSheet.create({
     width: '100%',
     marginRight: 0,
   },
+  verticalOrderCardList: { marginBottom: 12 },
+  verticalOrderCardCompact: {
+    width: 300,
+    marginRight: 12,
+  },
+  verticalOrderCardRail: {
+    height: 586,
+    marginRight: 0,
+  },
+  verticalOrderCardRailCompact: {
+    height: 360,
+  },
   deliveryOrderCard: {
     borderColor: '#14b8a6',
     borderWidth: 2,
@@ -441,6 +464,13 @@ const styles = StyleSheet.create({
   verticalCardContent: {
     paddingVertical: 18,
     paddingHorizontal: 18,
+  },
+  verticalCardContentCompact: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  verticalCardContentRail: {
+    flex: 1,
   },
   topRow: {
     flexDirection: 'row',
@@ -564,10 +594,18 @@ const styles = StyleSheet.create({
     gap: 10,
     marginTop: 14,
   },
+  verticalChipRowCompact: {
+    gap: 6,
+    marginTop: 8,
+  },
   compactChip: {
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 6,
+  },
+  compactChipCompact: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   compactChipText: {
     color: '#fff',
@@ -610,6 +648,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 16,
   },
+  verticalMetaGridCompact: {
+    marginTop: 10,
+    gap: 8,
+  },
   verticalMetaLabel: {
     fontSize: 10,
     color: '#64748b',
@@ -622,6 +664,10 @@ const styles = StyleSheet.create({
     color: '#334155',
     fontSize: 14,
     fontWeight: '700',
+  },
+  verticalMetaValueCompact: {
+    marginTop: 3,
+    fontSize: 12,
   },
   deliveryMetaValue: {
     marginTop: 6,
@@ -638,6 +684,9 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#111827',
   },
+  verticalTotalCompact: {
+    fontSize: 20,
+  },
   itemsPreviewBlock: {
     marginTop: 18,
     paddingTop: 16,
@@ -645,11 +694,26 @@ const styles = StyleSheet.create({
     borderColor: '#eef2f7',
     gap: 6,
   },
+  itemsPreviewBlockCompact: {
+    marginTop: 10,
+    paddingTop: 8,
+    gap: 2,
+  },
+  itemsPreviewBlockRail: {
+    minHeight: 102,
+  },
+  itemsPreviewBlockRailCompact: {
+    minHeight: 82,
+  },
   itemPreviewText: {
     color: '#111827',
     fontSize: 14,
     fontWeight: '600',
     lineHeight: 20,
+  },
+  itemPreviewTextCompact: {
+    fontSize: 12,
+    lineHeight: 16,
   },
   itemPreviewMore: {
     color: '#2563eb',
@@ -672,6 +736,14 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderColor: '#eef2f7',
     gap: 12,
+  },
+  verticalFooterCompact: {
+    marginTop: 10,
+    paddingTop: 8,
+    gap: 6,
+  },
+  verticalFooterRail: {
+    marginTop: 'auto',
   },
   moneyBlock: {
     flexDirection: 'row',
@@ -717,9 +789,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
   },
+  verticalStatusControlsCompact: {
+    gap: 6,
+  },
   statusControl: {
     minWidth: 96,
     flex: 1,
+  },
+  statusControlCompact: {
+    minWidth: 0,
   },
   statusControlLabel: {
     fontSize: 10,
@@ -728,6 +806,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.4,
+  },
+  statusControlLabelCompact: {
+    marginBottom: 3,
+    fontSize: 9,
   },
   statusSelectContainer: {
     borderRadius: 8,
@@ -738,6 +820,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  statusSelectCompact: {
+    paddingVertical: 7,
+    paddingHorizontal: 8,
   },
   statusSelectText: {
     color: '#fff',
@@ -757,6 +843,9 @@ const styles = StyleSheet.create({
     gap: 8,
     justifyContent: 'space-between',
   },
+  verticalActionsClusterCompact: {
+    gap: 4,
+  },
   printButton: {
     margin: 0,
     width: 40,
@@ -764,10 +853,17 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: '#f3f4f6',
   },
+  printButtonCompact: {
+    width: 36,
+    height: 36,
+  },
   bodySmartpayButton: {
     borderRadius: 8,
     borderColor: '#2563eb',
     minHeight: 40,
+  },
+  bodySmartpayButtonCompact: {
+    minHeight: 36,
   },
   bodySmartpayButtonContent: {
     height: 40,
@@ -778,9 +874,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#1d4ed8',
     minHeight: 42,
   },
+  bodyQuickButtonCompact: {
+    minHeight: 36,
+  },
   bodyQuickButtonContent: {
     height: 42,
     paddingHorizontal: 12,
+  },
+  bodyActionButtonContentCompact: {
+    height: 36,
+    paddingHorizontal: 8,
   },
   secondaryActionLabel: {
     fontSize: 12,
@@ -789,5 +892,8 @@ const styles = StyleSheet.create({
   primaryActionLabel: {
     fontSize: 13,
     fontWeight: '800',
+  },
+  actionLabelCompact: {
+    fontSize: 11,
   },
 });

@@ -3,6 +3,7 @@ import { Alert, FlatList, Platform, Text, TouchableOpacity, View, useWindowDimen
 
 import { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Appbar } from 'react-native-paper';
+import { useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import type { Order, OrderItem, OrderItemAddon, PaymentStatus } from '@my-small-business/types';
@@ -42,6 +43,7 @@ import { usePendingOnlinePaymentsStore } from '../stores/pendingOnlinePaymentsSt
 import { useMarketplacePosDraftStore } from '../stores/marketplacePosDraftStore';
 import { styles } from '../components/pos/pos.styles';
 import { isCompactPhoneWidth } from '../lib/responsive';
+import { LIVE_ORDERS_QUERY_KEY } from '../hooks/useLiveOrdersQuery';
 import { posCatalogCacheStore } from '../stores/posCatalogCacheStore';
 import { useInstoreCustomerReceiptPrint } from '../providers/instoreCustomerReceiptPrintContext';
 import {
@@ -246,6 +248,7 @@ const getDiscountConfigFromOrder = (order: Order | null): PosDiscountConfig => {
 
 export default function PosScreen() {
   const { printInstoreCustomerReceipt, printInstoreInstantTicket } = useInstoreCustomerReceiptPrint();
+  const queryClient = useQueryClient();
   const router = useRouter();
   const { width, height } = useWindowDimensions();
   const params = useLocalSearchParams<{ orderId?: string | string[] }>();
@@ -2052,6 +2055,9 @@ export default function PosScreen() {
       await applyRewardPointsForSavedOrder(result.data.id, customerId);
     }
     invalidateTopSellers();
+    if (isEditingExistingOrder) {
+      await queryClient.refetchQueries({ queryKey: LIVE_ORDERS_QUERY_KEY });
+    }
     router.back();
     } catch (error) {
       console.error('Checkout failed', error);
@@ -2988,6 +2994,7 @@ export default function PosScreen() {
                 isPhoneLayout={isPhoneLayout}
                 onBackToMenu={() => setPhoneViewTab('menu')}
                 orderId={orderId}
+                editingOrderNumber={editingOrder?.order_number}
                 cartItems={cartItems}
                 quickOrderNote={quickOrderNote}
                 setSaltOptionDialogVisible={setSaltOptionDialogVisible}
@@ -3254,6 +3261,7 @@ export default function PosScreen() {
               isPhoneLayout={isPhoneLayout}
               onBackToMenu={() => setPhoneViewTab('menu')}
               orderId={orderId}
+              editingOrderNumber={editingOrder?.order_number}
               cartItems={cartItems}
               quickOrderNote={quickOrderNote}
               setSaltOptionDialogVisible={setSaltOptionDialogVisible}
