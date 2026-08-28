@@ -215,7 +215,7 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
         ]}
         onPress={() => onOrderPress(order)}
       >
-        <Card.Content style={[styles.verticalCardContent, compact ? styles.verticalCardContentCompact : null, cardWidth != null ? styles.verticalCardContentRail : null]}>
+        <Card.Content style={[styles.verticalCardContent, compact ? styles.verticalCardContentCompact : null]}>
           <View style={styles.verticalHeader}>
             <View style={styles.verticalIdentity}>
               <View style={styles.orderTitleRow}>
@@ -301,7 +301,7 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
             ) : null}
           </View>
 
-          <View style={[styles.verticalFooter, compact ? styles.verticalFooterCompact : null, cardWidth != null ? styles.verticalFooterRail : null]}>
+          <View style={[styles.verticalFooter, compact ? styles.verticalFooterCompact : null]}>
             {statusControls}
             {actionButtons}
           </View>
@@ -447,11 +447,11 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   verticalOrderCardRail: {
-    height: 586,
+    minHeight: 470,
     marginRight: 0,
   },
   verticalOrderCardRailCompact: {
-    height: 360,
+    minHeight: 420,
   },
   deliveryOrderCard: {
     borderColor: '#14b8a6',
@@ -468,9 +468,6 @@ const styles = StyleSheet.create({
   verticalCardContentCompact: {
     paddingVertical: 10,
     paddingHorizontal: 12,
-  },
-  verticalCardContentRail: {
-    flex: 1,
   },
   topRow: {
     flexDirection: 'row',
@@ -741,9 +738,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
     paddingTop: 8,
     gap: 6,
-  },
-  verticalFooterRail: {
-    marginTop: 'auto',
   },
   moneyBlock: {
     flexDirection: 'row',

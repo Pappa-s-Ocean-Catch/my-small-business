@@ -51,14 +51,12 @@ test('reads the screen height before checking for a single-column card', () => {
   assert.match(liveOrderCardSource, /const \{ width, height \} = useWindowDimensions\(\)/);
 });
 
-test('uses a fixed height only for landscape rail cards', () => {
-  assert.match(liveOrderCardSource, /cardWidth != null \? styles\.verticalOrderCardRail : null/);
-  assert.match(liveOrderCardSource, /cardWidth != null && compact \? styles\.verticalOrderCardRailCompact : null/);
-  assert.match(liveOrderCardSource, /verticalOrderCardRail: \{[\s\S]*height: 586/);
-  assert.match(liveOrderCardSource, /verticalOrderCardRailCompact: \{[\s\S]*height: 360/);
-  assert.match(liveOrderCardSource, /cardWidth != null \? styles\.itemsPreviewBlockRail : null/);
-  assert.match(liveOrderCardSource, /itemsPreviewBlockRail: \{[\s\S]*minHeight: 102/);
-  assert.doesNotMatch(liveOrderCardSource, /verticalOrderCard: \{[^}]*height:/);
+test('keeps landscape rail card content unconstrained so text can render', () => {
+  assert.match(liveOrderCardSource, /verticalOrderCardRail: \{[\s\S]*minHeight: 470/);
+  assert.match(liveOrderCardSource, /verticalOrderCardRailCompact: \{[\s\S]*minHeight: 420/);
+  assert.doesNotMatch(liveOrderCardSource, /verticalOrderCardRail: \{[^}]*height:/);
+  assert.doesNotMatch(liveOrderCardSource, /verticalCardContentRail/);
+  assert.doesNotMatch(liveOrderCardSource, /verticalFooterRail/);
 });
 
 test('adds spacing between cards in the vertical list only', () => {
