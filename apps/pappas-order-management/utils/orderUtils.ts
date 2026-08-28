@@ -345,9 +345,11 @@ export const resolveKitchenSections = (
 
   if (addonSections.length > 0) return addonSections;
 
-  const normalizedBase = normalizeKitchenSection(baseSection);
-  const normalizedFallback = normalizeKitchenSection(fallbackSection);
-  return [normalizedBase || normalizedFallback || DEFAULT_KITCHEN_SECTION];
+  const baseSections = parseKitchenSections(baseSection);
+  if (baseSections.length > 0) return baseSections;
+
+  const fallbackSections = parseKitchenSections(fallbackSection);
+  return fallbackSections.length > 0 ? fallbackSections : [DEFAULT_KITCHEN_SECTION];
 };
 
 export const formatKitchenSectionValue = (
@@ -390,11 +392,14 @@ export const buildKitchenReceiptCopies = <TItem extends { section?: string | nul
   const groups = (() => {
     const map = new Map<string, KitchenSectionGroup<TItem>>();
     for (const item of sourceItems) {
-      const sectionKey = getResolvedKitchenSectionKey(item.section, item.addons, getFallbackSection?.(item)) || DEFAULT_KITCHEN_SECTION;
-      const sectionName = getResolvedKitchenSectionDisplay(item.section, item.addons, getFallbackSection?.(item)) || DEFAULT_KITCHEN_SECTION.toUpperCase();
-      const existing = map.get(sectionKey) || { sectionName, items: [] };
-      existing.items.push(item);
-      map.set(sectionKey, existing);
+      const sections = resolveKitchenSections(item.section, item.addons, getFallbackSection?.(item));
+      for (const section of sections) {
+        const sectionKey = section || DEFAULT_KITCHEN_SECTION;
+        const sectionName = sectionKey.toUpperCase();
+        const existing = map.get(sectionKey) || { sectionName, items: [] };
+        existing.items.push(item);
+        map.set(sectionKey, existing);
+      }
     }
     return Array.from(map.values());
   })();

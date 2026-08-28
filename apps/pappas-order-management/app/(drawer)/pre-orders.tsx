@@ -38,8 +38,9 @@ import { captureReceiptForPrinter, captureReceiptPreview, type PrinterImageSourc
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
 import { buildKitchenReceiptDocument } from '@/lib/kitchen-receipt-document';
 import { CustomerReceiptTemplate } from '@/components/CustomerReceiptTemplate';
-import { isSimulatorPrinter, type SavedPrinter } from '@/lib/escpos-printer';
+import { getPrinterDriver, isSimulatorPrinter, type SavedPrinter } from '@/lib/escpos-printer';
 import { buildSectionPrintJobs, hasAnySimulatorAssignment } from '@/lib/printer-routing';
+import { getSectionPrintImageCaptureKey } from '@/lib/section-print-image-capture';
 import { getPrintDeviceId } from '@/lib/print-device';
 import { useQueryClient } from '@tanstack/react-query';
 import { enqueuePreparedPrintJobs, waitForPrintJobs } from '@/lib/print-queue';
@@ -272,10 +273,18 @@ export default function PreOrdersScreen() {
       }
 
       const jobs = buildSectionPrintJobs(s, freshOrder);
-      const capturedJobs: Array<{ image: PrinterImageSource; previewUri: string | null; label: string; printer: NonNullable<ReturnType<typeof buildSectionPrintJobs>[number]['printer']> | null }> = [];
+      const capturedJobs: Array<{ image: PrinterImageSource; previewUri: string | null; label: string; printer: NonNullable<ReturnType<typeof buildSectionPrintJobs>[number]['printer']> | null; captureKey: string }> = [];
 
       for (let index = 0; index < jobs.length; index += 1) {
         const job = jobs[index];
+        const captureKey = getSectionPrintImageCaptureKey(job, job.printer ? getPrinterDriver(job.printer) : 'simulator');
+        const reusedCapture = job.printMode === 'combine'
+          ? capturedJobs.find((capturedJob) => capturedJob.captureKey === captureKey)
+          : null;
+        if (reusedCapture) {
+          capturedJobs.push({ ...reusedCapture, label: job.label, printer: job.printer, captureKey });
+          continue;
+        }
         setTempPrintTicketIndex(job.onlyTicketIndex ?? 0);
         setTempPrintDuplicateBySections(job.duplicateBySections);
         setTempPrintTemplate(job.template);
@@ -310,11 +319,11 @@ export default function PreOrdersScreen() {
 
         if (!job.printer || isSimulatorPrinter(job.printer)) {
           const uri = await captureReceiptPreview(receiptRef, targetDots * scale);
-          capturedJobs.push({ image: { kind: 'uri', uri }, previewUri: uri, label: job.label, printer: job.printer });
+          capturedJobs.push({ image: { kind: 'uri', uri }, previewUri: uri, label: job.label, printer: job.printer, captureKey });
         } else {
           const image = await captureReceiptForPrinter(receiptRef, job.printer, targetDots * scale, s.printerHighQuality);
           const previewUri = image.kind === 'uri' ? image.uri : null;
-          capturedJobs.push({ image, previewUri, label: job.label, printer: job.printer });
+          capturedJobs.push({ image, previewUri, label: job.label, printer: job.printer, captureKey });
         }
       }
 

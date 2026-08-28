@@ -20,9 +20,10 @@ import {
   releaseKitchenPrintClaim,
   updateOrderStatus,
 } from '@/lib/orders';
-import { escposPrintDocument, formatPrinterError, isSimulatorPrinter } from '@/lib/escpos-printer';
+import { escposPrintDocument, formatPrinterError, getPrinterDriver, isSimulatorPrinter } from '@/lib/escpos-printer';
 import { captureReceiptForPrinter, captureReceiptPreview, type PrinterImageSource } from '@/lib/printer-image';
 import { buildSectionPrintJobs, hasAnySimulatorAssignment } from '@/lib/printer-routing';
+import { getSectionPrintImageCaptureKey } from '@/lib/section-print-image-capture';
 import { enqueuePreparedPrintJobs, processReadyPendingPrintJobs, waitForPrintJobs } from '@/lib/print-queue';
 import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
@@ -356,10 +357,22 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
         order: freshOrder,
         details: `jobs=${jobs.length}`,
       });
-      const capturedJobs: Array<{ image: PrinterImageSource; previewUri: string | null; label: string; printer: NonNullable<ReturnType<typeof buildSectionPrintJobs>[number]['printer']> | null }> = [];
+      const capturedJobs: Array<{ image: PrinterImageSource; previewUri: string | null; label: string; printer: NonNullable<ReturnType<typeof buildSectionPrintJobs>[number]['printer']> | null; captureKey: string }> = [];
 
       for (let index = 0; index < jobs.length; index += 1) {
         const job = jobs[index];
+        const captureKey = getSectionPrintImageCaptureKey(job, job.printer ? getPrinterDriver(job.printer) : 'simulator');
+        const reusedCapture = job.printMode === 'combine'
+          ? capturedJobs.find((capturedJob) => capturedJob.captureKey === captureKey)
+          : null;
+        if (reusedCapture) {
+          capturedJobs.push({ ...reusedCapture, label: job.label, printer: job.printer, captureKey });
+          logOrderEvent('info', 'print', 'Reused combined receipt image for auto-print job', {
+            order: freshOrder,
+            details: `job=${job.label} source=${reusedCapture.label}`,
+          });
+          continue;
+        }
         const jobStartedAt = Date.now();
         if (effectiveSettings.printerReceiptMode === 'text' && job.printer && !isSimulatorPrinter(job.printer)) {
           if (!effectiveSettings.printerEnabled) throw new Error('Auto-print is enabled, but no printer is selected.');
@@ -441,6 +454,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
             previewUri: uri,
             label: job.label,
             printer: job.printer,
+            captureKey,
           });
         } else {
           const captureStartedAt = Date.now();
@@ -455,6 +469,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
             previewUri,
             label: job.label,
             printer: job.printer,
+            captureKey,
           });
         }
       }

@@ -33,8 +33,9 @@ import { OrderDetailModal } from '@/components/OrderDetailModal';
 import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
 import { CashTenderModal } from '@/components/CashTenderModal';
 import { useOrderActions } from '@/hooks/useOrderActions';
-import { formatPrinterError, isSimulatorPrinter, type SavedPrinter } from '@/lib/escpos-printer';
+import { formatPrinterError, getPrinterDriver, isSimulatorPrinter, type SavedPrinter } from '@/lib/escpos-printer';
 import { buildSectionPrintJobs, hasAnySimulatorAssignment } from '@/lib/printer-routing';
+import { getSectionPrintImageCaptureKey } from '@/lib/section-print-image-capture';
 import { captureReceiptForPrinter, captureReceiptPreview, type PrinterImageSource } from '@/lib/printer-image';
 import { enqueuePreparedPrintJobs, waitForPrintJobs } from '@/lib/print-queue';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
@@ -375,9 +376,21 @@ export default function LiveOrdersScreen() {
       }
 
       const jobs = buildSectionPrintJobs(s, freshOrder);
-      const capturedJobs: Array<{ image: PrinterImageSource; previewUri: string | null; label: string; printer: NonNullable<ReturnType<typeof buildSectionPrintJobs>[number]['printer']> | null }> = [];
+      const capturedJobs: Array<{ image: PrinterImageSource; previewUri: string | null; label: string; printer: NonNullable<ReturnType<typeof buildSectionPrintJobs>[number]['printer']> | null; captureKey: string }> = [];
       for (let index = 0; index < jobs.length; index += 1) {
         const job = jobs[index];
+        const captureKey = getSectionPrintImageCaptureKey(job, job.printer ? getPrinterDriver(job.printer) : 'simulator');
+        const reusedCapture = job.printMode === 'combine'
+          ? capturedJobs.find((capturedJob) => capturedJob.captureKey === captureKey)
+          : null;
+        if (reusedCapture) {
+          capturedJobs.push({ ...reusedCapture, label: job.label, printer: job.printer, captureKey });
+          logOrderEvent('info', 'print', 'Reused combined receipt image for routed print job', {
+            order: freshOrder,
+            details: `job=${job.label} source=${reusedCapture.label}`,
+          });
+          continue;
+        }
         const jobStartedAt = Date.now();
         setTempPrintTicketIndex(job.onlyTicketIndex ?? 0);
         setTempPrintDuplicateBySections(job.duplicateBySections);
@@ -431,7 +444,7 @@ export default function LiveOrdersScreen() {
             order: freshOrder,
             details: `job=${job.label} capture=${formatDurationMs(captureStartedAt)} width=${targetDots * scale}`,
           });
-          capturedJobs.push({ image: { kind: 'uri', uri }, previewUri: uri, label: job.label, printer: job.printer });
+          capturedJobs.push({ image: { kind: 'uri', uri }, previewUri: uri, label: job.label, printer: job.printer, captureKey });
         } else {
           const captureStartedAt = Date.now();
           const image = await captureReceiptForPrinter(receiptRef, job.printer, targetDots * scale, s.printerHighQuality);
@@ -440,7 +453,7 @@ export default function LiveOrdersScreen() {
             order: freshOrder,
             details: `job=${job.label} capture=${formatDurationMs(captureStartedAt)} printer=${job.printer.deviceName} driver=${job.printer.driver ?? 'epsonSdk'}`,
           });
-          capturedJobs.push({ image, previewUri, label: job.label, printer: job.printer });
+          capturedJobs.push({ image, previewUri, label: job.label, printer: job.printer, captureKey });
         }
       }
 

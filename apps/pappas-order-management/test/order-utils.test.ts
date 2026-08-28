@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Order, OrderItemAddon } from '@my-small-business/types';
-import { formatOrderPaymentMethod, getPaymentStatType, getReceiptHeader, groupAddons } from '../utils/orderUtils';
+import { buildKitchenReceiptCopies, formatOrderPaymentMethod, getPaymentStatType, getReceiptHeader, groupAddons } from '../utils/orderUtils';
 
 function makeOrder(overrides: Partial<Order> = {}): Order {
   return {
@@ -67,6 +67,21 @@ test('keeps same-name add-ons with different prices separate', () => {
   assert.deepEqual(grouped, [
     { name: 'Fried', group: 'Fish choice 1', price: 0, quantity: 1 },
     { name: 'Fried', group: 'Fish choice 2', price: 1.5, quantity: 1 },
+  ]);
+});
+
+test('prints mixed-section items once in every unique section without a combined section ticket', () => {
+  const copies = buildKitchenReceiptCopies([
+    { id: 'fried-only', section: 'Fried' },
+    { id: 'mixed', section: 'Grill, Fried' },
+  ]);
+
+  assert.deepEqual(copies.map((copy) => ({
+    sectionName: copy.sections[0]?.sectionName,
+    itemIds: copy.sections[0]?.items.map((item) => item.id),
+  })), [
+    { sectionName: 'FRIED', itemIds: ['fried-only', 'mixed'] },
+    { sectionName: 'GRILL', itemIds: ['mixed'] },
   ]);
 });
 
