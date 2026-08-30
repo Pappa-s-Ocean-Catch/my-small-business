@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Image, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Image, RefreshControl, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Appbar, Button, Card, Checkbox, Chip, HelperText, Searchbar, SegmentedButtons, Surface, Text, TextInput } from 'react-native-paper';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { Customer, getRecentCustomers, searchCustomers } from '@/lib/customers';
 import { generateMarketingCampaign, generateMarketingImage, sendMarketingCampaign, type MarketingChannel } from '@/lib/marketing';
 import { matchesContactFilter, type ContactFilters } from '@/lib/marketing-contact-filter';
+import { compareMarketingPriority } from '@/lib/marketing-priority';
 import { BRAND_COLORS } from '@/utils/brand';
 
 type MarketingCustomer = Customer & {
@@ -15,7 +16,7 @@ type MarketingCustomer = Customer & {
   lastMarketingSmsSentAt?: string | null;
 };
 
-type SortOption = 'last-order' | 'last-email' | 'last-sms' | 'total-orders';
+type SortOption = 'marketing-priority' | 'last-order' | 'last-email' | 'last-sms' | 'total-orders';
 type SortDirection = 'asc' | 'desc';
 
 type CustomerRow = {
@@ -53,6 +54,9 @@ function sortCustomerRows(rows: CustomerRow[], sortOption: SortOption, sortDirec
   };
 
   const sorted = [...rows].sort((a, b) => {
+    if (sortOption === 'marketing-priority') {
+      return compareMarketingPriority(a.customer, b.customer);
+    }
     if (sortOption === 'last-email') {
       return getTime(a.customer.lastMarketingEmailSentAt) - getTime(b.customer.lastMarketingEmailSentAt);
     }
@@ -81,50 +85,78 @@ function CustomerTable({
   emptyText: string;
   onToggleCustomer: (customer: MarketingCustomer) => void;
 }) {
+  const { width, height } = useWindowDimensions();
+  const isPhonePortrait = width < 600 && height >= width;
+
   return (
     <View style={styles.dualListColumn}>
       <Text variant="titleSmall" style={styles.columnTitle}>{title}</Text>
       {rows.length === 0 ? <Text style={styles.emptyColumnText}>{emptyText}</Text> : null}
-      <View style={styles.tableHeader}>
-        <Text style={[styles.tableHeaderText, styles.colName]}>Customer</Text>
-        <Text style={[styles.tableHeaderText, styles.colOrders]}>Orders</Text>
-        <Text style={[styles.tableHeaderText, styles.colDate]}>Last Order</Text>
-        <Text style={[styles.tableHeaderText, styles.colDate]}>Email</Text>
-        <Text style={[styles.tableHeaderText, styles.colDate]}>SMS</Text>
-        <Text style={[styles.tableHeaderText, styles.colAction]}>Action</Text>
-      </View>
+      {!isPhonePortrait ? (
+        <View style={styles.tableHeader}>
+          <Text style={[styles.tableHeaderText, styles.colName]}>Customer</Text>
+          <Text style={[styles.tableHeaderText, styles.colOrders]}>Orders</Text>
+          <Text style={[styles.tableHeaderText, styles.colDate]}>Last Order</Text>
+          <Text style={[styles.tableHeaderText, styles.colDate]}>SMS</Text>
+          <Text style={[styles.tableHeaderText, styles.colDate]}>Email</Text>
+          <Text style={[styles.tableHeaderText, styles.colAction]}>Action</Text>
+        </View>
+      ) : null}
 
       {rows.map(({ customer, listKey }) => (
         <View
           key={selected ? `${listKey}-selected` : listKey}
-          style={[styles.tableRow, selected ? styles.selectedListItem : null]}
+          style={[styles.tableRow, isPhonePortrait ? styles.mobileTableRow : null, selected ? styles.selectedListItem : null]}
         >
-          <View style={styles.colName}>
-            <View style={styles.checkboxCell}>
-              <Checkbox status={selected ? 'checked' : 'unchecked'} disabled={!customer.profileId} />
-              <View style={styles.customerCell}>
-                <Text numberOfLines={1} style={styles.tablePrimaryText}>{customer.name || 'Customer'}</Text>
-                <Text numberOfLines={1} style={styles.tableSecondaryText}>{customer.email || customer.phone || 'No contact'}</Text>
+          {isPhonePortrait ? (
+            <>
+              <View style={styles.mobileCustomerRow}>
+                <Checkbox status={selected ? 'checked' : 'unchecked'} disabled={!customer.profileId} />
+                <View style={styles.mobileCustomerCell}>
+                  <Text numberOfLines={1} style={styles.tablePrimaryText}>{customer.name || 'Customer'}</Text>
+                  <Text numberOfLines={1} style={styles.tableSecondaryText}>{customer.email || customer.phone || 'No contact'}</Text>
+                </View>
+                {selected ? (
+                  <Button compact mode="contained-tonal" onPress={() => onToggleCustomer(customer)}>Remove</Button>
+                ) : customer.optInMarketing === false ? (
+                  <Chip compact>Opted out</Chip>
+                ) : (
+                  <Button compact mode="contained" disabled={!customer.profileId} onPress={() => onToggleCustomer(customer)}>Add</Button>
+                )}
               </View>
-            </View>
-          </View>
-          <Text style={[styles.tableCellText, styles.colOrders]}>{customer.totalOrders || 0}</Text>
-          <Text style={[styles.tableCellText, styles.colDate]}>{formatDateLabel(customer.lastOrderDate)}</Text>
-          <Text style={[styles.tableCellText, styles.colDate]}>{formatDateLabel(customer.lastMarketingEmailSentAt)}</Text>
-          <Text style={[styles.tableCellText, styles.colDate]}>{formatDateLabel(customer.lastMarketingSmsSentAt)}</Text>
-          <View style={styles.colAction}>
-            {selected ? (
-              <Button compact mode="contained-tonal" onPress={() => onToggleCustomer(customer)}>
-                Remove
-              </Button>
-            ) : customer.optInMarketing === false ? (
-              <Chip compact>Opted out</Chip>
-            ) : (
-              <Button compact mode="contained" disabled={!customer.profileId} onPress={() => onToggleCustomer(customer)}>
-                Add
-              </Button>
-            )}
-          </View>
+              <View style={styles.mobileStatsRow}>
+                <Text style={styles.mobileStatText}>Orders: {customer.totalOrders || 0}</Text>
+                <Text style={styles.mobileStatText}>Last order: {formatDateLabel(customer.lastOrderDate)}</Text>
+                <Text style={styles.mobileStatText}>SMS: {formatDateLabel(customer.lastMarketingSmsSentAt)}</Text>
+                <Text style={styles.mobileStatText}>Email: {formatDateLabel(customer.lastMarketingEmailSentAt)}</Text>
+              </View>
+            </>
+          ) : (
+            <>
+              <View style={styles.colName}>
+                <View style={styles.checkboxCell}>
+                  <Checkbox status={selected ? 'checked' : 'unchecked'} disabled={!customer.profileId} />
+                  <View style={styles.customerCell}>
+                    <Text numberOfLines={1} style={styles.tablePrimaryText}>{customer.name || 'Customer'}</Text>
+                    <Text numberOfLines={1} style={styles.tableSecondaryText}>{customer.email || customer.phone || 'No contact'}</Text>
+                  </View>
+                </View>
+              </View>
+              <Text style={[styles.tableCellText, styles.colOrders]}>{customer.totalOrders || 0}</Text>
+              <Text style={[styles.tableCellText, styles.colDate]}>{formatDateLabel(customer.lastOrderDate)}</Text>
+              <Text style={[styles.tableCellText, styles.colDate]}>{formatDateLabel(customer.lastMarketingSmsSentAt)}</Text>
+              <Text style={[styles.tableCellText, styles.colDate]}>{formatDateLabel(customer.lastMarketingEmailSentAt)}</Text>
+              <View style={styles.colAction}>
+                {selected ? (
+                  <Button compact mode="contained-tonal" onPress={() => onToggleCustomer(customer)}>Remove</Button>
+                ) : customer.optInMarketing === false ? (
+                  <Chip compact>Opted out</Chip>
+                ) : (
+                  <Button compact mode="contained" disabled={!customer.profileId} onPress={() => onToggleCustomer(customer)}>Add</Button>
+                )}
+              </View>
+            </>
+          )}
         </View>
       ))}
     </View>
@@ -133,12 +165,14 @@ function CustomerTable({
 
 export default function MarketingScreen() {
   const navigation = useNavigation<DrawerNavigationProp<any>>();
+  const { width, height } = useWindowDimensions();
+  const isPhonePortrait = width < 600 && height >= width;
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [allCustomers, setAllCustomers] = useState<MarketingCustomer[]>([]);
   const [selectedCustomers, setSelectedCustomers] = useState<Map<string, MarketingCustomer>>(new Map());
   const [contactFilters, setContactFilters] = useState<ContactFilters>({ email: false, phone: false });
-  const [sortOption, setSortOption] = useState<SortOption>('last-order');
+  const [sortOption, setSortOption] = useState<SortOption>('marketing-priority');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -401,14 +435,14 @@ export default function MarketingScreen() {
       >
         <Surface style={styles.panel} elevation={1}>
           <Text variant="titleMedium" style={styles.panelTitle}>Campaign</Text>
-          <View style={styles.row}>
+          <View style={[styles.row, isPhonePortrait ? styles.mobileStack : null]}>
             <TextInput
               mode="outlined"
               label="Discount %"
               value={discountPercentage}
               onChangeText={setDiscountPercentage}
               keyboardType="number-pad"
-              style={styles.discountInput}
+              style={[styles.discountInput, isPhonePortrait ? styles.mobileFullWidth : null]}
             />
             <Button mode="contained" onPress={handleGenerateContent} loading={generatingContent} disabled={generatingContent}>
               Generate Copy
@@ -478,26 +512,28 @@ export default function MarketingScreen() {
             value={sortOption}
             onValueChange={(value) => setSortOption(value as SortOption)}
             buttons={[
-              { value: 'last-order', label: 'Last order' },
-              { value: 'last-email', label: 'Last email' },
-              { value: 'last-sms', label: 'Last SMS' },
-              { value: 'total-orders', label: 'Total orders' },
+              { value: 'marketing-priority', label: isPhonePortrait ? 'Priority' : 'Marketing priority' },
+              { value: 'last-sms', label: 'SMS' },
+              { value: 'last-email', label: isPhonePortrait ? 'Email' : 'Last email' },
+              { value: 'total-orders', label: isPhonePortrait ? 'Orders' : 'Total orders' },
             ]}
             style={styles.segmented}
           />
 
-          <View style={styles.sortDirectionRow}>
-            <Text style={styles.sortDirectionLabel}>Direction</Text>
-            <SegmentedButtons
-              value={sortDirection}
-              onValueChange={(value) => setSortDirection(value as SortDirection)}
-              buttons={[
-                { value: 'asc', label: 'Asc' },
-                { value: 'desc', label: 'Desc' },
-              ]}
-              style={styles.sortDirectionButtons}
-            />
-          </View>
+          {sortOption !== 'marketing-priority' ? (
+            <View style={styles.sortDirectionRow}>
+              <Text style={styles.sortDirectionLabel}>Direction</Text>
+              <SegmentedButtons
+                value={sortDirection}
+                onValueChange={(value) => setSortDirection(value as SortDirection)}
+                buttons={[
+                  { value: 'asc', label: 'Asc' },
+                  { value: 'desc', label: 'Desc' },
+                ]}
+                style={styles.sortDirectionButtons}
+              />
+            </View>
+          ) : null}
 
           <View style={styles.selectionSummaryRow}>
             <Button
@@ -557,13 +593,13 @@ export default function MarketingScreen() {
         {error ? <HelperText type="error" visible>{error}</HelperText> : null}
         {resultMessage ? <HelperText type="info" visible>{resultMessage}</HelperText> : null}
 
-        <View style={styles.sendActions}>
+        <View style={[styles.sendActions, isPhonePortrait ? styles.mobileStack : null]}>
           <Button
             mode="contained"
             onPress={() => handleSend('email')}
             loading={sendingChannel === 'email'}
             disabled={sendingChannel !== null || selectedCount === 0 || !subject || !emailBody}
-            style={[styles.sendButton, styles.sendButtonHalf]}
+            style={[styles.sendButton, styles.sendButtonHalf, isPhonePortrait ? styles.mobileFullWidth : null]}
           >
             Send Email
           </Button>
@@ -572,7 +608,7 @@ export default function MarketingScreen() {
             onPress={() => handleSend('sms')}
             loading={sendingChannel === 'sms'}
             disabled={sendingChannel !== null || selectedCount === 0 || !smsBody}
-            style={[styles.sendButton, styles.sendButtonHalf]}
+            style={[styles.sendButton, styles.sendButtonHalf, isPhonePortrait ? styles.mobileFullWidth : null]}
           >
             Send SMS
           </Button>
@@ -611,6 +647,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     flexWrap: 'wrap',
+  },
+  mobileStack: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+  },
+  mobileFullWidth: {
+    alignSelf: 'stretch',
+    flex: 0,
+    width: '100%',
   },
   discountInput: {
     minWidth: 110,
@@ -740,6 +785,12 @@ const styles = StyleSheet.create({
     gap: 8,
     flexWrap: 'wrap',
   },
+  mobileTableRow: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: 10,
+    paddingVertical: 12,
+  },
   checkboxCell: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -748,6 +799,25 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     flexBasis: 160,
+  },
+  mobileCustomerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  mobileCustomerCell: {
+    flex: 1,
+    minWidth: 0,
+  },
+  mobileStatsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingLeft: 48,
+  },
+  mobileStatText: {
+    color: '#475569',
+    fontSize: 12,
   },
   tablePrimaryText: {
     fontSize: 13,
