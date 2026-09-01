@@ -7,6 +7,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   Alert,
+  useWindowDimensions,
 } from 'react-native';
 import {
   Button as PaperButton,
@@ -50,6 +51,12 @@ import {
   createPrintDebugSessionId,
   type KitchenPrintDebugContext,
 } from '@/lib/print-debug-footer';
+import {
+  getLiveOrderCardRailWidth,
+  shouldUseCompactLiveOrderCards,
+  shouldUseLiveOrderCardRail,
+  shouldUseVerticalLiveOrderCards,
+} from '@/lib/live-orders-layout';
 
 const RECEIPT_REF_WAIT_MS = 120;
 const RECEIPT_REF_MAX_ATTEMPTS = 8;
@@ -57,6 +64,7 @@ const RECEIPT_RENDER_SETTLE_MS = 300;
 const RECEIPT_RENDER_FRAME_COUNT = 2;
 
 export default function PreOrdersScreen() {
+  const { width, height } = useWindowDimensions();
   const router = useRouter();
   const navigation = useNavigation<DrawerNavigationProp<any>>();
   const [refreshing, setRefreshing] = useState(false);
@@ -83,6 +91,21 @@ export default function PreOrdersScreen() {
   const appSettingsRef = useRef(appSettings);
   const printDeviceIdRef = useRef<string | null>(null);
   const orderPrintStates = usePrinterAutomationStore((state) => state.orderPrintStates);
+  const isVerticalCardLayout = shouldUseVerticalLiveOrderCards(
+    appSettings.liveOrderCardLayout === 'vertical',
+    width,
+  );
+  const useVerticalCardRail = shouldUseLiveOrderCardRail(
+    appSettings.liveOrderCardLayout === 'vertical',
+    width,
+    height,
+  );
+  const liveOrderCardWidth = getLiveOrderCardRailWidth(width, height);
+  const useCompactVerticalCards = shouldUseCompactLiveOrderCards(
+    appSettings.liveOrderCardLayout === 'vertical',
+    width,
+    height,
+  );
 
   const waitForReceiptTemplateRef = useCallback(async () => {
     for (let attempt = 0; attempt < RECEIPT_REF_MAX_ATTEMPTS; attempt++) {
@@ -493,12 +516,18 @@ export default function PreOrdersScreen() {
 
       <FlatList
         data={orders}
+        horizontal={useVerticalCardRail}
+        showsHorizontalScrollIndicator={false}
+        ItemSeparatorComponent={useVerticalCardRail ? () => <View style={styles.cardRailSeparator} /> : undefined}
         renderItem={({ item }) => (
           <LiveOrderListItem
             order={item}
             printState={orderPrintStates[item.id] || null}
             nowMs={nowMs}
             updatingStatus={updatingStatus}
+            layout={isVerticalCardLayout ? 'vertical' : 'horizontal'}
+            compact={useCompactVerticalCards}
+            cardWidth={useVerticalCardRail ? liveOrderCardWidth : undefined}
             onOrderPress={handleOrderPress}
             onCustomerPress={handleCustomerPress}
             onPrintPress={(order, printer) => void quickPrintOrder(order, printer)}
@@ -510,7 +539,7 @@ export default function PreOrdersScreen() {
         )}
         keyExtractor={(item) => item.id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, useCompactVerticalCards ? styles.listContentCompact : null]}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>No pre-orders found</Text>
@@ -591,6 +620,8 @@ const styles = StyleSheet.create({
   countText: { fontSize: 14, color: '#6b7280', fontWeight: '600' },
   refreshButton: { borderRadius: 8 },
   listContent: { padding: 16 },
+  listContentCompact: { padding: 12 },
+  cardRailSeparator: { width: 12 },
   emptyContainer: { flex: 1, alignItems: 'center', marginTop: 100 },
   emptyText: { fontSize: 16, color: '#6b7280' },
   hiddenReceiptContainer: {

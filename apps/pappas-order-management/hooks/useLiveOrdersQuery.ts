@@ -1,14 +1,16 @@
 import { useQuery } from '@tanstack/react-query';
-import { getAllOrders } from '@/lib/orders';
+import { getOpenOrderCandidates, getOrdersByIds } from '@/lib/orders';
 import type { Order } from '@my-small-business/types';
-import { isScheduledPreOrder } from '@/utils/orderUtils';
 import {
   getLiveOrderEligibility,
   getLiveOrderQueryRange,
-  getScheduledOrderAutomationRange,
-  isLiveOrder,
-  isOnTheWayOrder,
 } from '@/lib/live-order-window';
+import {
+  getAutoPrintableScheduledOrderCandidateIds,
+  getLiveOrderCandidateIds,
+  getOnTheWayOrderCandidateIds,
+  getPreOrderCandidateIds,
+} from '@/lib/open-order-candidates';
 
 export const LIVE_ORDERS_QUERY_KEY = ['live-orders'] as const;
 export const ON_THE_WAY_ORDERS_QUERY_KEY = ['on-the-way-orders'] as const;
@@ -20,10 +22,10 @@ export type LiveOrderFetchDiagnostics = {
   deviceNow: string;
   sourcePickupUntil: string;
   fetchedCount: number;
+  hydratedCount: number;
   liveCount: number;
   orders: Array<{
     id: string;
-    orderNumber: string;
     status: Order['order_status'];
     paymentStatus: Order['payment_status'];
     scheduledPickupAt: string | null;
@@ -41,10 +43,6 @@ function sortLiveOrders(orders: Order[]): Order[] {
   });
 }
 
-function isPreOrder(order: Order): boolean {
-  return isScheduledPreOrder(order);
-}
-
 function sortPreOrders(orders: Order[]): Order[] {
   return [...orders].sort((a, b) => {
     const timeA = new Date(a.scheduled_pickup_at || a.created_at).getTime();
@@ -58,9 +56,8 @@ async function fetchLiveOrderResult(nowMs: number = Date.now()): Promise<{
   diagnostics: LiveOrderFetchDiagnostics;
 }> {
   const range = getLiveOrderQueryRange(nowMs);
-  const result = await getAllOrders({
-    live_pickup_until: range.until,
-  });
+  const candidateStartedAt = Date.now();
+  const result = await getOpenOrderCandidates(nowMs);
 
   if (result.error) {
     throw new Error(result.error);
@@ -68,9 +65,19 @@ async function fetchLiveOrderResult(nowMs: number = Date.now()): Promise<{
 
   const candidates = result.data || [];
   const decisions = candidates.map((order) => ({ order, eligibility: getLiveOrderEligibility(order, nowMs) }));
-  const orders = sortLiveOrders(decisions
-    .filter(({ eligibility }) => eligibility.isLive)
-    .map(({ order }) => order));
+  const liveOrderIds = getLiveOrderCandidateIds(candidates, nowMs);
+  const hydrationStartedAt = Date.now();
+  const hydrated = await getOrdersByIds(liveOrderIds);
+  if (hydrated.error) throw new Error(hydrated.error);
+  const orders = sortLiveOrders(hydrated.data || []);
+
+  console.info('[live-orders-query]', {
+    candidateDurationMs: hydrationStartedAt - candidateStartedAt,
+    hydrationDurationMs: Date.now() - hydrationStartedAt,
+    candidateCount: candidates.length,
+    eligibleCount: liveOrderIds.length,
+    hydratedCount: orders.length,
+  });
 
   return {
     orders,
@@ -78,10 +85,10 @@ async function fetchLiveOrderResult(nowMs: number = Date.now()): Promise<{
       deviceNow: new Date(nowMs).toISOString(),
       sourcePickupUntil: range.until,
       fetchedCount: candidates.length,
+      hydratedCount: orders.length,
       liveCount: orders.length,
       orders: decisions.slice(0, 100).map(({ order, eligibility }) => ({
         id: order.id,
-        orderNumber: order.order_number,
         status: order.order_status,
         paymentStatus: order.payment_status,
         scheduledPickupAt: order.scheduled_pickup_at,
@@ -102,45 +109,55 @@ export async function fetchLiveOrderDiagnostics(): Promise<LiveOrderFetchDiagnos
 }
 
 export async function fetchOnTheWayOrders(): Promise<Order[]> {
-  const result = await getAllOrders({ status: 'on_the_way' });
+  const result = await getOpenOrderCandidates();
 
   if (result.error) {
     throw new Error(result.error);
   }
 
-  return sortLiveOrders((result.data || []).filter(isOnTheWayOrder));
+  const hydrated = await getOrdersByIds(getOnTheWayOrderCandidateIds(result.data || []));
+  if (hydrated.error) throw new Error(hydrated.error);
+  return sortLiveOrders(hydrated.data || []);
 }
 
 export async function fetchScheduledOrdersInAutomationWindow(nowMs: number = Date.now()): Promise<Order[]> {
-  const range = getScheduledOrderAutomationRange(nowMs);
-  const result = await getAllOrders({
-    scheduled_pickup_since: range.from,
-    scheduled_pickup_until: range.until,
-  });
+  const result = await getOpenOrderCandidates(nowMs);
 
   if (result.error) {
     throw new Error(result.error);
   }
 
-  return sortLiveOrders((result.data || []).filter((order) => isLiveOrder(order, nowMs)));
+  const hydrated = await getOrdersByIds(getAutoPrintableScheduledOrderCandidateIds(result.data || [], nowMs));
+  if (hydrated.error) throw new Error(hydrated.error);
+  return sortLiveOrders(hydrated.data || []);
+}
+
+async function fetchPreOrderCountAt(nowMs: number): Promise<number> {
+  const result = await getOpenOrderCandidates(nowMs);
+  if (result.error) {
+    throw new Error(result.error);
+  }
+  return getPreOrderCandidateIds(result.data || [], nowMs).length;
 }
 
 export async function fetchPreOrderCount(): Promise<number> {
-  const result = await getAllOrders();
+  return fetchPreOrderCountAt(Date.now());
+}
+
+async function fetchPreOrdersAt(nowMs: number): Promise<Order[]> {
+  const result = await getOpenOrderCandidates(nowMs);
+
   if (result.error) {
     throw new Error(result.error);
   }
-  return (result.data || []).filter(isPreOrder).length;
+
+  const hydrated = await getOrdersByIds(getPreOrderCandidateIds(result.data || [], nowMs));
+  if (hydrated.error) throw new Error(hydrated.error);
+  return sortPreOrders(hydrated.data || []);
 }
 
 export async function fetchPreOrders(): Promise<Order[]> {
-  const result = await getAllOrders();
-
-  if (result.error) {
-    throw new Error(result.error);
-  }
-
-  return sortPreOrders((result.data || []).filter(isPreOrder));
+  return fetchPreOrdersAt(Date.now());
 }
 
 export function useLiveOrdersQuery() {

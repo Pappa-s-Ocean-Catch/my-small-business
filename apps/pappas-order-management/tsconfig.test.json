@@ -22,6 +22,8 @@
     "utils/pay-by-link.ts",
     "utils/customer-profile.ts",
     "lib/live-order-window.ts",
+    "lib/open-order-candidates.ts",
+    "lib/orders.ts",
     "lib/order-payment-status.ts",
     "lib/about-updates.ts",
     "lib/app-memory.ts",
@@ -43,6 +45,7 @@
     "lib/raw-tcp-native.ts",
     "lib/responsive.ts",
     "lib/live-orders-layout.ts",
+    "hooks/useLiveOrdersQuery.ts",
     "lib/instore-customer-receipt.ts",
     "lib/order-list-sync.ts",
     "stores/posCatalogCacheStore.ts",
@@ -52,6 +55,8 @@
     "test/report-periods.test.ts",
     "test/customer-profile.test.ts",
     "test/customer-summary.test.ts",
+    "test/open-order-candidates.test.ts",
+    "test/pre-orders-layout.test.ts",
     "types/**/*.ts",
     "../../libs/types/**/*.ts"
   ]

@@ -8,6 +8,11 @@ import {
   findMarketplaceOrderIdByExternalId,
   type MarketplaceProvider,
 } from './marketplace-pos-order';
+import {
+  getOpenOrderCandidateRange,
+  getUniqueOrderIds,
+  type OpenOrderCandidate,
+} from './open-order-candidates';
 
 type OrderRow = Omit<Order, 'items'> & {
   items?: never;
@@ -233,6 +238,55 @@ export async function getAllOrders(filters?: {
     return {
       data: null,
       error: error instanceof Error ? error.message : 'Failed to fetch orders',
+    };
+  }
+}
+
+export async function getOpenOrderCandidates(
+  nowMs: number = Date.now(),
+): Promise<{ data: OpenOrderCandidate[] | null; error: string | null }> {
+  try {
+    const { since } = getOpenOrderCandidateRange(nowMs);
+    const { data, error } = await supabase
+      .from('orders')
+      .select('id, created_at, scheduled_pickup_at, order_status, payment_status')
+      .gte('created_at', since)
+      .neq('order_status', 'completed')
+      .neq('order_status', 'cancelled')
+      .neq('order_status', 'refunded')
+      .neq('order_status', 'pending_online_payment')
+      .neq('payment_status', 'refunded')
+      .order('created_at', { ascending: false });
+
+    if (error) return { data: null, error: error.message };
+    return { data: (data || []) as OpenOrderCandidate[], error: null };
+  } catch (error) {
+    return {
+      data: null,
+      error: error instanceof Error ? error.message : 'Failed to fetch open order candidates',
+    };
+  }
+}
+
+export async function getOrdersByIds(ids: string[]): Promise<{ data: Order[] | null; error: string | null }> {
+  const uniqueIds = getUniqueOrderIds(ids);
+  if (uniqueIds.length === 0) return { data: [], error: null };
+
+  try {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*, order_items(*, order_item_addons(*))')
+      .in('id', uniqueIds);
+
+    if (error) return { data: null, error: error.message };
+    return {
+      data: (data || []).map((row) => mapEmbeddedOrder(row as OrderWithEmbeddedItemsRow)),
+      error: null,
+    };
+  } catch (error) {
+    return {
+      data: null,
+      error: error instanceof Error ? error.message : 'Failed to fetch order details',
     };
   }
 }
