@@ -13,6 +13,7 @@ import {
   getUniqueOrderIds,
   type OpenOrderCandidate,
 } from './open-order-candidates';
+import { fetchAllPages } from './report-data';
 
 type OrderRow = Omit<Order, 'items'> & {
   items?: never;
@@ -171,67 +172,47 @@ export async function getAllOrders(filters?: {
   live_pickup_until?: string;
 }): Promise<{ data: Order[] | null; error: string | null }> {
   try {
-    let query = supabase
-      .from('orders')
-      .select('*, order_items(*, order_item_addons(*))')
-      .order('created_at', { ascending: false });
+    const result = await fetchAllPages(async (from, to) => {
+      let query = supabase
+        .from('orders')
+        .select('*, order_items(*, order_item_addons(*))')
+        .order('created_at', { ascending: false });
 
+      if (filters?.status && filters.status !== 'all') {
+        query = query.eq('order_status', filters.status);
+      } else if (!filters?.status || filters.status === 'all') {
+        query = query.neq('order_status', 'pending_online_payment');
+      }
 
-    if (filters?.status && filters.status !== 'all') {
-      query = query.eq('order_status', filters.status);
-    } else if (!filters?.status || filters.status === 'all') {
-      // Exclude pending_online_payment from live orders
-      query = query.neq('order_status', 'pending_online_payment');
-    }
+      if (filters?.payment_status && filters.payment_status !== 'all') query = query.eq('payment_status', filters.payment_status);
+      if (filters?.scheduled_pickup_since) query = query.gte('scheduled_pickup_at', filters.scheduled_pickup_since);
+      if (filters?.scheduled_pickup_until) query = query.lte('scheduled_pickup_at', filters.scheduled_pickup_until);
+      if (filters?.live_pickup_until) query = query.or(`scheduled_pickup_at.is.null,scheduled_pickup_at.lte.${filters.live_pickup_until}`);
 
-    if (filters?.payment_status && filters.payment_status !== 'all') {
-      query = query.eq('payment_status', filters.payment_status);
-    }
+      if (filters?.since && filters?.until) {
+        query = query.gte('created_at', filters.since).lte('created_at', filters.until);
+      } else if (filters?.since) {
+        query = query.gte('created_at', filters.since);
+      } else if (filters?.until) {
+        query = query.lte('created_at', filters.until);
+      } else if (filters?.date) {
+        const startDate = new Date(filters.date);
+        startDate.setHours(0, 0, 0, 0);
+        const endDate = new Date(filters.date);
+        endDate.setHours(23, 59, 59, 999);
+        query = query.gte('created_at', startDate.toISOString()).lte('created_at', endDate.toISOString());
+      }
 
-    if (filters?.scheduled_pickup_since) {
-      query = query.gte('scheduled_pickup_at', filters.scheduled_pickup_since);
-    }
+      const { data, error } = await query.range(from, to);
+      return { data: data as unknown as OrderWithEmbeddedItemsRow[] | null, error: error?.message || null };
+    });
 
-    if (filters?.scheduled_pickup_until) {
-      query = query.lte('scheduled_pickup_at', filters.scheduled_pickup_until);
-    }
-
-    if (filters?.live_pickup_until) {
-      query = query.or(
-        `scheduled_pickup_at.is.null,scheduled_pickup_at.lte.${filters.live_pickup_until}`,
-      );
-    }
-
-    if (filters?.since && filters?.until) {
-      query = query
-        .gte('created_at', filters.since)
-        .lte('created_at', filters.until);
-    } else if (filters?.since) {
-      query = query.gte('created_at', filters.since);
-    } else if (filters?.until) {
-      query = query.lte('created_at', filters.until);
-    } else if (filters?.date) {
-      const startDate = new Date(filters.date);
-      startDate.setHours(0, 0, 0, 0);
-      const endDate = new Date(filters.date);
-      endDate.setHours(23, 59, 59, 999);
-
-      query = query
-        .gte('created_at', startDate.toISOString())
-        .lte('created_at', endDate.toISOString());
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      return { data: null, error: error.message };
-    }
-
-    if (!data) {
+    if (result.error) return { data: null, error: result.error };
+    if (!result.data) {
       return { data: [], error: null };
     }
 
-    const mapped = (data as unknown as OrderWithEmbeddedItemsRow[]).map(mapEmbeddedOrder);
+    const mapped = result.data.map(mapEmbeddedOrder);
     return { data: mapped, error: null };
   } catch (error) {
     console.error('Error fetching orders:', error);

@@ -27,6 +27,8 @@ import { captureReceiptForPrinter, captureReceiptPreview } from '@/lib/printer-i
 import { escposPrintOrderImage, formatPrinterError, isSimulatorPrinter, type SavedPrinter } from '@/lib/escpos-printer';
 import { buildReportPrintSnapshot, REPORT_RECEIPT_WIDTH } from '@/lib/report-printing';
 import { clampRollingDays, getRollingReportRanges } from '@/lib/report-periods';
+import { buildDailyReportBreakdown } from '@/lib/report-daily-breakdown';
+import { formatDateInMelbourne, getTimeInMelbourne, toMelbourneRangeBoundaryIso } from '@/lib/report-timezone';
 import { DEFAULT_APP_SETTINGS } from '@/lib/settings';
 import { getAllOrders } from '@/lib/orders';
 import {
@@ -34,7 +36,7 @@ import {
   getOrderGrossSales,
   isMarketplaceSalesOrder,
 } from '@/lib/marketplace-pos-import';
-import { formatDateToLocalISO, getOrderChannelLabel, getPaymentStatLabel, getTodayDateString } from '@/utils/orderUtils';
+import { formatDateToLocalISO, getOrderChannelLabel, getPaymentStatLabel } from '@/utils/orderUtils';
 
 type CompareMode = 'lastWeek' | 'lastMonth' | 'lastYear' | 'custom';
 type ReportType = 'daily' | 'weekly' | 'monthly' | 'rolling';
@@ -139,13 +141,6 @@ const endOfMonth = (dateString: string) => {
   return formatDateToLocalISO(date);
 };
 
-const toRangeBoundaryIso = (dateString: string, boundary: 'start' | 'end') => {
-  const date = parseLocalDate(dateString);
-  if (boundary === 'start') date.setHours(0, 0, 0, 0);
-  else date.setHours(23, 59, 59, 999);
-  return date.toISOString();
-};
-
 const formatDisplayDate = (dateString: string) => (
   parseLocalDate(dateString).toLocaleDateString('en-AU', {
     weekday: 'short',
@@ -224,9 +219,9 @@ const buildDailyBuckets = (orders: Order[]): ChartBucket[] => {
 
   getPaidSalesOrders(orders).forEach((order) => {
     const created = new Date(order.created_at);
-    const hour = created.getHours();
+    const { hour, minute } = getTimeInMelbourne(created);
     if (hour < REPORT_START_HOUR || hour > REPORT_END_HOUR) return;
-    const index = (hour - REPORT_START_HOUR) * 2 + (created.getMinutes() >= 30 ? 1 : 0);
+    const index = (hour - REPORT_START_HOUR) * 2 + (minute >= 30 ? 1 : 0);
     if (!buckets[index]) return;
     buckets[index].total += Number(getOrderGrossSales(order)) || 0;
   });
@@ -246,7 +241,7 @@ const buildRangeBuckets = (orders: Order[], range: DateRange, formatter: (dateSt
   }
 
   getPaidSalesOrders(orders).forEach((order) => {
-    const dayKey = formatDateToLocalISO(new Date(order.created_at));
+    const dayKey = formatDateInMelbourne(new Date(order.created_at));
     if (!totals.has(dayKey)) return;
     totals.set(dayKey, (totals.get(dayKey) || 0) + (Number(getOrderGrossSales(order)) || 0));
   });
@@ -381,22 +376,23 @@ export default function ReportScreen() {
   const storeInfo = useStoreInfo();
   const [selectedReport, setSelectedReport] = useState<ReportType>('daily');
   const [rollingDays, setRollingDays] = useState(15);
-  const [selectedDate, setSelectedDate] = useState(getTodayDateString());
+  const reportToday = formatDateInMelbourne(new Date());
+  const [selectedDate, setSelectedDate] = useState(reportToday);
   const [compareMode, setCompareMode] = useState<CompareMode>('lastWeek');
-  const [customCompareDate, setCustomCompareDate] = useState(addDate(getTodayDateString(), -7, 'day'));
+  const [customCompareDate, setCustomCompareDate] = useState(addDate(reportToday, -7, 'day'));
   const [currentOrders, setCurrentOrders] = useState<Order[]>([]);
   const [compareOrders, setCompareOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState<'current' | 'custom' | null>(null);
-  const [draftDate, setDraftDate] = useState<Date>(parseLocalDate(getTodayDateString()));
+  const [draftDate, setDraftDate] = useState<Date>(parseLocalDate(reportToday));
   const [showPrinterPicker, setShowPrinterPicker] = useState(false);
   const [isPrintingReport, setIsPrintingReport] = useState(false);
   const [showReportSimulator, setShowReportSimulator] = useState(false);
   const [reportPreviewUri, setReportPreviewUri] = useState<string | null>(null);
   const [tileInfo, setTileInfo] = useState<ReportTile | null>(null);
 
-  const rollingRanges = useMemo(() => getRollingReportRanges(getTodayDateString(), rollingDays), [rollingDays]);
+  const rollingRanges = useMemo(() => getRollingReportRanges(reportToday, rollingDays), [reportToday, rollingDays]);
   const currentRange = useMemo(() => selectedReport === 'rolling' ? rollingRanges.current : getRangeForReport(selectedReport, selectedDate), [rollingRanges.current, selectedDate, selectedReport]);
 
   const compareRange = useMemo(
@@ -417,13 +413,13 @@ export default function ReportScreen() {
 
       const [current, compare] = await Promise.all([
         getAllOrders({
-          since: toRangeBoundaryIso(currentRange.start, 'start'),
-          until: toRangeBoundaryIso(currentRange.end, 'end'),
+          since: toMelbourneRangeBoundaryIso(currentRange.start, 'start'),
+          until: toMelbourneRangeBoundaryIso(currentRange.end, 'end'),
           payment_status: 'paid',
         }),
         getAllOrders({
-          since: toRangeBoundaryIso(compareRange.start, 'start'),
-          until: toRangeBoundaryIso(compareRange.end, 'end'),
+          since: toMelbourneRangeBoundaryIso(compareRange.start, 'start'),
+          until: toMelbourneRangeBoundaryIso(compareRange.end, 'end'),
           payment_status: 'paid',
         }),
       ]);
@@ -504,9 +500,15 @@ export default function ReportScreen() {
     () => (
       selectedReport === 'daily'
         ? []
-        : buildBreakdown(currentOrders, (order) => formatShortDay(formatDateToLocalISO(new Date(order.created_at))))
+        : buildDailyReportBreakdown({
+          range: currentRange,
+          orders: currentSalesOrders,
+          getDayKey: (order) => formatDateInMelbourne(new Date(order.created_at)),
+          getTotal: getOrderGrossSales,
+          formatLabel: formatShortDay,
+        })
     ),
-    [currentOrders, selectedReport]
+    [currentRange, currentSalesOrders, selectedReport]
   );
 
   const compareSummaryLabel = useMemo(() => {
