@@ -113,7 +113,7 @@ test('matches a stored marketplace ID using its trimmed identity', () => {
   ], 'UE-123'), 'match');
 });
 
-test('imports a new marketplace detail through savePosOrder exactly once', async () => {
+test('imports a new marketplace detail with its provider customer profile', async () => {
   const saveCalls: Array<{ orderPayload: Record<string, unknown>; items: Array<Record<string, unknown>> }> = [];
   const savedOrder = { ...existingOrder, id: 'pos-new', order_status: 'ready' } as Order;
 
@@ -132,6 +132,14 @@ test('imports a new marketplace detail through savePosOrder exactly once', async
     },
     updateMarketplaceOrder: async () => {
       throw new Error('new imports must not update an existing order');
+    },
+    resolveMarketplaceCustomer: async (input: unknown) => {
+      assert.deepEqual(input, {
+        provider: 'uber_eats',
+        externalCustomerId: 'uber-eater-42',
+        customerName: 'Alex Customer',
+      });
+      return { data: { id: 'customer-profile-42' }, error: null };
     },
     loadCatalog: async () => ({
       products: [{
@@ -180,6 +188,7 @@ test('imports a new marketplace detail through savePosOrder exactly once', async
 
   const result = await service.importMarketplaceOrder({
     ...detail,
+    marketplaceCustomerId: 'uber-eater-42',
     // The detail response's order UUID is not the workflow UUID required by
     // Uber's detail endpoints. The workflow UUID is carried from the list
     // request that loaded this detail.
@@ -194,6 +203,8 @@ test('imports a new marketplace detail through savePosOrder exactly once', async
   assert.equal(saveCalls[0].orderPayload.marketplace_gross_sales, 25);
   assert.equal(saveCalls[0].orderPayload.marketplace_gross_payout, 18.5);
   assert.equal(saveCalls[0].orderPayload.external_order_number, 'UE-123');
+  assert.equal(saveCalls[0].orderPayload.user_id, 'customer-profile-42');
+  assert.equal(saveCalls[0].orderPayload.customer_phone, '');
   assert.equal(saveCalls[0].orderPayload.marketplace_workflow_uuid, 'workflow-ue-123-live');
   assert.deepEqual(saveCalls[0].items[0].removed_ingredients, ['Tomato']);
   assert.equal((saveCalls[0].items[0].addons as unknown[]).length, 1);

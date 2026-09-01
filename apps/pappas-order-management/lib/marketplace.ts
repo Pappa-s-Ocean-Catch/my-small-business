@@ -110,6 +110,7 @@ export type MarketplaceOrderDetail = {
   requestedAt: number;
   completedAtTimestamp: number | null;
   customerName: string;
+  marketplaceCustomerId?: string | null;
   customerPhone: string | null;
   customerAddress: string | null;
   courierName: string | null;

@@ -696,7 +696,6 @@ export async function savePosOrder(
 ): Promise<{ data: Order | null; error: string | null }> {
   try {
     const normalizedOrderPayload = normalizeOrderOptions(orderPayload);
-    const finalOrderStatus = normalizedOrderPayload.order_status;
     const receiptClaimToken =
       shouldGenerateReceiptClaimToken(normalizedOrderPayload)
         ? generateReceiptClaimToken()
@@ -708,67 +707,20 @@ export async function savePosOrder(
       existingReceiptClaimToken: normalizedOrderPayload.receipt_claim_token ?? null,
       generatedReceiptClaimToken: receiptClaimToken,
     });
-    const { data: orderData, error: orderError } = await supabase
-      .from('orders')
-      .insert({
+    const { data: orderId, error: orderError } = await supabase.rpc('create_pos_order_atomic', {
+      p_order: {
         ...normalizedOrderPayload,
         receipt_claim_token: receiptClaimToken,
-        order_status: 'pending_online_payment',
-      })
-      .select()
-      .single();
+      },
+      p_items: items,
+    });
 
-    if (orderError) {
+    if (orderError || !orderId) {
       if (isMarketplaceImportDuplicateError(orderError)) {
         throw new Error('This marketplace order has already been added to POS.');
       }
-      throw new Error(orderError.message);
+      throw new Error(orderError?.message || 'Failed to save POS order.');
     }
-    const orderId = orderData.id;
-
-    for (const item of items) {
-      const { addons, order_item_addons, id, order_id, created_at, ...itemData } = item as any;
-      const { data: insertedItem, error: itemError } = await supabase
-        .from('order_items')
-        .insert({
-          ...itemData,
-          override_price: itemData.override_price ?? null,
-          order_id: orderId,
-        })
-        .select()
-        .single();
-
-      if (itemError) throw new Error(itemError.message);
-      const itemId = insertedItem.id;
-
-      if (addons && addons.length > 0) {
-        const addonsToInsert = addons.map((addon: any) => ({
-          order_item_id: itemId,
-          addon_group_id: addon.addon_group_id,
-          addon_group_name: addon.addon_group_name,
-          addon_item_id: addon.addon_item_id,
-          addon_item_name: addon.addon_item_name,
-          addon_item_price: addon.addon_item_price,
-          section: addon.section ?? null,
-        }));
-        
-        const { error: addonError } = await supabase
-          .from('order_item_addons')
-          .insert(addonsToInsert);
-
-        if (addonError) throw new Error(addonError.message);
-      }
-    }
-
-    const { error: finalStatusError } = await supabase
-      .from('orders')
-      .update({
-        order_status: finalOrderStatus,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', orderId);
-
-    if (finalStatusError) throw new Error(finalStatusError.message);
 
     return getOrder(orderId);
   } catch (error) {

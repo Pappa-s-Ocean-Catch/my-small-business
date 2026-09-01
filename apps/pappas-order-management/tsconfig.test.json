@@ -31,6 +31,7 @@
     "lib/report-printing.ts",
     "lib/report-periods.ts",
     "lib/marketplace-pos-order.ts",
+    "lib/marketplace-customers.ts",
     "lib/marketplace-resolver-groups.ts",
     "lib/marketplace-sync.ts",
     "lib/marketplace-sync-window.ts",
@@ -50,6 +51,7 @@
     "test/report-printing.test.ts",
     "test/report-periods.test.ts",
     "test/customer-profile.test.ts",
+    "test/customer-summary.test.ts",
     "types/**/*.ts",
     "../../libs/types/**/*.ts"
   ]

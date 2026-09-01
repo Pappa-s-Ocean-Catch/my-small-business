@@ -29,6 +29,7 @@ type MarketplaceOrderDetail = {
   workflowUuid?: string;
   requestedAt: number;
   customerName: string;
+  marketplaceCustomerId?: string | null;
   totalAmount: number | null;
   netPayout: string;
   subtotalAmount: number | null;
@@ -178,6 +179,11 @@ export type MarketplacePosOrderDependencies = {
     externalName: string;
     parentExternalName?: string;
   }) => Promise<void>;
+  resolveMarketplaceCustomer?: (input: {
+    provider: MarketplaceProvider;
+    externalCustomerId: string;
+    customerName: string;
+  }) => Promise<{ data: { id: string } | null; error: string | null }>;
   createLocalId: () => string;
   now: () => Date;
 };
@@ -636,11 +642,30 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
           : '',
       ].filter(Boolean).join('\n');
 
+      const externalCustomerId = detail.marketplaceCustomerId?.trim();
+      let marketplaceCustomerProfileId: string | null = null;
+      if (externalCustomerId && dependencies.resolveMarketplaceCustomer) {
+        const customerResult = await dependencies.resolveMarketplaceCustomer({
+          provider: detail.provider,
+          externalCustomerId,
+          customerName: draft.customerName,
+        });
+        if (customerResult.data) {
+          marketplaceCustomerProfileId = customerResult.data.id;
+        } else if (customerResult.error) {
+          console.warn('[marketplace] customer identity was not linked', {
+            provider: detail.provider,
+            externalOrderNumber,
+            error: customerResult.error,
+          });
+        }
+      }
+
       const orderPayload: MarketplaceOrderPayload = {
         created_at: draft.requestedAt.toISOString(),
-        user_id: null,
+        user_id: marketplaceCustomerProfileId,
         customer_email: '',
-        customer_phone: externalOrderNumber,
+        customer_phone: '',
         customer_name: draft.customerName || draft.metadata.source,
         payment_method: 'store',
         order_channel: 'third_party',
@@ -907,6 +932,10 @@ const defaultDependencies: MarketplacePosOrderDependencies = {
         last_seen_at: new Date().toISOString(),
       });
     if (insertError) console.warn('Marketplace unmatched insert failed', insertError);
+  },
+  resolveMarketplaceCustomer: async (input) => {
+    const { resolveMarketplaceCustomer } = require('./marketplace-customers');
+    return resolveMarketplaceCustomer(input);
   },
   createLocalId: () => `pos-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   now: () => new Date(),

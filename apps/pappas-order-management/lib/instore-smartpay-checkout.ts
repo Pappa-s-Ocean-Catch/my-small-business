@@ -11,6 +11,36 @@ export type PendingInstoreOrderRequest = {
   items: PosOrderItems;
 };
 
+export type SmartpayCheckoutProgressStage = 'creating_order' | 'awaiting_terminal' | 'settling_payment';
+
+export function getSmartpayCheckoutProgress(
+  stage: SmartpayCheckoutProgressStage,
+  order: Order | null,
+): { title: string; message: string; orderNumber: string | null } {
+  const orderNumber = getSmartpayDisplayOrderNumber(order);
+
+  switch (stage) {
+    case 'creating_order':
+      return {
+        title: 'Preparing SmartPay payment',
+        message: 'Creating order…',
+        orderNumber,
+      };
+    case 'settling_payment':
+      return {
+        title: 'Saving SmartPay payment',
+        message: 'Payment approved. Saving order…',
+        orderNumber,
+      };
+    case 'awaiting_terminal':
+      return {
+        title: 'SmartPay payment',
+        message: 'Follow the prompts on the terminal. This screen will unlock when SmartPay returns the result.',
+        orderNumber,
+      };
+  }
+}
+
 export function getSmartpayDisplayOrderNumber(order: Order | null): string | null {
   if (!order) return null;
   return order.order_number.replace(/^ORD-/, '');

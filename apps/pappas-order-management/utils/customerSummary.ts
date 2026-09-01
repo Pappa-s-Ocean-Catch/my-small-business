@@ -34,16 +34,22 @@ export interface CustomerSummary {
     rewardHistory: CustomerRewardHistoryItem[];
 }
 
-export async function fetchCustomerSummary({ email, phone }: { email?: string; phone?: string }): Promise<CustomerSummary | null> {
-    if (!email && !phone) return null;
-    const orFilter = [];
-    if (email) orFilter.push(`customer_email.eq.${email}`);
-    if (phone) orFilter.push(`customer_phone.eq.${phone}`);
-    const { data: orders, error } = await supabase
+export async function fetchCustomerSummary({ email, phone, profileId }: { email?: string; phone?: string; profileId?: string }): Promise<CustomerSummary | null> {
+    const normalizedProfileId = profileId?.trim() || undefined;
+    if (!normalizedProfileId && !email && !phone) return null;
+    let ordersQuery = supabase
         .from('orders')
         .select('*')
-        .or(orFilter.join(','))
         .order('created_at', { ascending: true });
+    if (normalizedProfileId) {
+        ordersQuery = ordersQuery.eq('user_id', normalizedProfileId);
+    } else {
+        const orFilter = [];
+        if (email) orFilter.push(`customer_email.eq.${email}`);
+        if (phone) orFilter.push(`customer_phone.eq.${phone}`);
+        ordersQuery = ordersQuery.or(orFilter.join(','));
+    }
+    const { data: orders, error } = await ordersQuery;
     if (error) {
         throw new Error(error.message);
     }
@@ -59,8 +65,8 @@ export async function fetchCustomerSummary({ email, phone }: { email?: string; p
     const rowEmail = (orders[0].customer_email ?? '').trim();
     const rowPhone = (orders[0].customer_phone ?? '').trim();
     let rewardPoints = 0;
-    let profileId: string | undefined = undefined;
-    if (rowEmail || rowPhone) {
+    let resolvedProfileId: string | undefined = normalizedProfileId;
+    if (!resolvedProfileId && (rowEmail || rowPhone)) {
         let summaryQuery = supabase.from('customer_summary').select('rewardPoints, profileId');
         if (rowEmail) {
             summaryQuery = summaryQuery.eq('email', rowEmail);
@@ -73,7 +79,7 @@ export async function fetchCustomerSummary({ email, phone }: { email?: string; p
         }
         const raw = (summaryRows as any[] | null)?.[0]?.rewardPoints;
         rewardPoints = Number(raw ?? 0);
-        profileId = (summaryRows as any[] | null)?.[0]?.profileId;
+        resolvedProfileId = (summaryRows as any[] | null)?.[0]?.profileId;
     }
     const orderList = orders.map((o: Order) => ({
         id: o.id,
@@ -84,11 +90,11 @@ export async function fetchCustomerSummary({ email, phone }: { email?: string; p
     }));
 
     let rewardHistory: CustomerRewardHistoryItem[] = [];
-    if (profileId) {
+    if (resolvedProfileId) {
         const { data: rewardRows, error: rewardError } = await supabase
             .from('reward_point_transactions')
             .select('id, order_id, transaction_type, points, points_balance_after, description, metadata, created_at')
-            .eq('user_id', profileId)
+            .eq('user_id', resolvedProfileId)
             .order('created_at', { ascending: false })
             .limit(25);
 
@@ -111,7 +117,7 @@ export async function fetchCustomerSummary({ email, phone }: { email?: string; p
     }
 
     return {
-        profileId,
+        profileId: resolvedProfileId,
         name,
         email: orders[0].customer_email,
         phone: orders[0].customer_phone,

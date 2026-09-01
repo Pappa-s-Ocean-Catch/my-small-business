@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { adaptUberHistory } from '../src/uber-eats-adapter';
+import { adaptUberDetail, adaptUberHistory } from '../src/uber-eats-adapter';
 import { adaptDoorDashActive, adaptDoorDashDetail, adaptDoorDashHistory } from '../src/doordash-adapter';
 
 test('Uber adapter converts Uber history rows without relying on DoorDash fields', () => {
@@ -43,6 +43,23 @@ test('DoorDash detail preserves the UTC instant used when creating a POS order',
   }, 'delivery-3');
 
   assert.equal(detail.requestedAt, Date.parse('2026-08-26T09:03:08.000Z'));
+});
+
+test('marketplace detail adapters expose only provider-scoped customer IDs', () => {
+  const uber = adaptUberDetail({
+    orderId: 'UE-2',
+    orderUUID: 'uber-order-2',
+    eater: { uuid: 'uber-eater-2', name: 'Uber customer' },
+  }, 'uber-workflow-2');
+  const doordash = adaptDoorDashDetail({
+    orderId: 'DD-2',
+    deliveryUuid: 'doordash-order-2',
+    consumer: { consumerId: 'doordash-consumer-2', informalName: 'DoorDash customer' },
+  }, 'doordash-workflow-2');
+
+  assert.equal(uber.marketplaceCustomerId, 'uber-eater-2');
+  assert.equal(doordash.marketplaceCustomerId, 'doordash-consumer-2');
+  assert.notEqual(uber.marketplaceCustomerId, doordash.marketplaceCustomerId);
 });
 
 test('DoorDash active adapter preserves the prior active-order display mapping', () => {

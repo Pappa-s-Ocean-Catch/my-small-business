@@ -38,7 +38,7 @@ export default function CustomersScreen() {
   const [savingCustomer, setSavingCustomer] = useState(false);
   
   const [showCustomerModal, setShowCustomerModal] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState<{ email?: string; phone?: string } | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<{ email?: string; phone?: string; profileId?: string } | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
@@ -151,13 +151,13 @@ export default function CustomersScreen() {
   };
 
   const handleCustomerPress = (customer: Customer) => {
-    setSelectedCustomer({ email: customer.email, phone: customer.phone });
+    setSelectedCustomer({ email: customer.email, phone: customer.phone, profileId: customer.profileId || customer.id });
     setShowCustomerModal(true);
   };
 
   const handleCustomerPressFromOrder = (order: Order) => {
     setShowOrderModal(false);
-    setSelectedCustomer({ email: order.customer_email, phone: order.customer_phone });
+    setSelectedCustomer({ email: order.customer_email, phone: order.customer_phone, profileId: order.user_id || undefined });
     setShowCustomerModal(true);
   };
 
@@ -194,7 +194,7 @@ export default function CustomersScreen() {
         Alert.alert('Saved', 'Customer added. You can enter another one now.');
       } else {
         setShowAddCustomerModal(false);
-        setSelectedCustomer({ email: result.data.email, phone: result.data.phone });
+        setSelectedCustomer({ email: result.data.email, phone: result.data.phone, profileId: result.data.id });
         setShowCustomerModal(true);
         Alert.alert('Saved', 'Customer added successfully.');
       }
@@ -231,6 +231,7 @@ export default function CustomersScreen() {
           visible={showCustomerModal}
           email={selectedCustomer.email}
           phone={selectedCustomer.phone}
+          profileId={selectedCustomer.profileId}
           onClose={() => setShowCustomerModal(false)}
           onOrderPress={handleOpenOrderFromCustomerModal}
           allowRewardAdjustments={canAdjustRewardPoints}

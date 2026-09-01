@@ -101,6 +101,7 @@ export function buildKitchenReceiptDocument(order: Order, options: KitchenReceip
   const orderNotes = getOrderNotes(order);
   const promotion = getOrderPromotionSummary(order);
   const rewardPointsBalance = Number((order as Order & { reward_points_balance?: number | null }).reward_points_balance ?? 0);
+  const externalOrderReference = order.external_order_number?.trim();
 
   tickets.forEach((ticket, ticketIndex) => {
     if (ticketIndex > 0) nodes.push({ type: 'feed', lines: 3 });
@@ -114,6 +115,7 @@ export function buildKitchenReceiptDocument(order: Order, options: KitchenReceip
     }
     addText(nodes, createdDate, { align: 'center' });
     addText(nodes, order.payment_method?.toUpperCase() || '', { align: 'center' });
+    if (externalOrderReference) addText(nodes, `ORDER ID: ${externalOrderReference}`, centerBold);
 
     const customerName = order.customer_name || order.customer_email || '';
     if (customerName || order.customer_phone) {

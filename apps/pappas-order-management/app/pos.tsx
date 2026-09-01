@@ -51,6 +51,7 @@ import {
   getPendingInstoreOrderLockMessage,
   getPendingInstorePaymentPlan,
   getPendingInstoreRewardPoints,
+  type SmartpayCheckoutProgressStage,
   getSmartpayDisplayOrderNumber,
   settlePendingInstorePayment,
 } from '../lib/instore-smartpay-checkout';
@@ -290,6 +291,7 @@ export default function PosScreen() {
   const [creatingOrder, setCreatingOrder] = useState(false);
   const [smartpayPreparing, setSmartpayPreparing] = useState(false);
   const [smartpayProcessing, setSmartpayProcessing] = useState(false);
+  const [smartpayProgressStage, setSmartpayProgressStage] = useState<SmartpayCheckoutProgressStage | null>(null);
   const [smartpayDialogMinimized, setSmartpayDialogMinimized] = useState(false);
   const [pendingInstoreSmartpayOrder, setPendingInstoreSmartpayOrder] = useState<Order | null>(null);
   const [smartpayApprovedOrderId, setSmartpayApprovedOrderId] = useState<string | null>(null);
@@ -2094,6 +2096,9 @@ export default function PosScreen() {
     let pendingOrderForAttempt = pendingInstoreSmartpayOrder;
 
     setSmartpayPreparing(true);
+    setSmartpayProcessing(true);
+    setSmartpayProgressStage(pendingOrderForAttempt ? 'awaiting_terminal' : 'creating_order');
+    setSmartpayDialogMinimized(false);
     try {
       setCreatingOrder(true);
       let pendingOrder = pendingOrderForAttempt;
@@ -2186,13 +2191,14 @@ export default function PosScreen() {
       setCreatingOrder(false);
       setSmartpayPreparing(false);
       setSmartpayDialogMinimized(false);
-      setSmartpayProcessing(true);
+      setSmartpayProgressStage('awaiting_terminal');
       if (paymentPlan.shouldStartTerminal) {
         await processSmartpayCardPayment(pendingOrder.total);
         terminalApproved = true;
         setSmartpayApprovedOrderId(pendingOrder.id);
       }
 
+      setSmartpayProgressStage('settling_payment');
       const settledOrder = await settlePendingInstorePayment(
         { updatePaymentStatus },
         pendingOrder.id,
@@ -2223,6 +2229,7 @@ export default function PosScreen() {
       setCreatingOrder(false);
       setSmartpayPreparing(false);
       setSmartpayProcessing(false);
+      setSmartpayProgressStage(null);
       setSmartpayDialogMinimized(false);
     }
   };
@@ -2232,7 +2239,7 @@ export default function PosScreen() {
 
     Alert.alert(
       'Minimize SmartPay payment?',
-      'Payment polling will continue in the background. Use the payment button in the header to reopen this screen.',
+      'Order creation or payment polling will continue in the background. Use the payment button in the header to reopen this screen.',
       [
         { text: 'Keep waiting', style: 'cancel' },
         { text: 'Minimize', onPress: () => setSmartpayDialogMinimized(true) },
@@ -3302,6 +3309,7 @@ export default function PosScreen() {
         onConfirmCashTender={handleCashTenderConfirm}
         smartpayProcessing={smartpayProcessing}
         smartpayOrderNumber={getSmartpayDisplayOrderNumber(pendingInstoreSmartpayOrder)}
+        smartpayProgressStage={smartpayProgressStage}
         smartpayDialogMinimized={smartpayDialogMinimized}
         confirmDismissSmartpayLock={confirmDismissSmartpayLock}
         saltOptionDialogVisible={saltOptionDialogVisible}

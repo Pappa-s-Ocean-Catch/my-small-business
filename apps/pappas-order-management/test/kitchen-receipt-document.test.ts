@@ -151,6 +151,18 @@ test('uses a large marketplace name instead of receipt dividers for delivery tex
   assert.doesNotMatch(text, /---|\.\.\./);
 });
 
+test('prints the marketplace order reference without treating it as a customer phone', () => {
+  const text = documentText(makeOrder({
+    order_channel: 'third_party',
+    delivery_partner_name: 'Uber Eats',
+    external_order_number: 'UE-123',
+    customer_name: 'Marketplace customer',
+    customer_phone: '',
+  }));
+
+  assert.match(text, /ORDER ID: UE-123/);
+});
+
 test('formats the receipt time without seconds using uppercase AM or PM', () => {
   const document = buildKitchenReceiptDocument(makeOrder(), {
     paperWidth: '80mm', duplicateBySections: false, printDebugContext: null,

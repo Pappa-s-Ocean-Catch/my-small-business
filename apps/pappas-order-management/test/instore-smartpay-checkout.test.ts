@@ -7,6 +7,7 @@ import {
   getPendingInstorePaymentPlan,
   getPendingInstoreRewardPoints,
   getPendingInstoreOrderLockMessage,
+  getSmartpayCheckoutProgress,
   getSmartpayDisplayOrderNumber,
   settlePendingInstorePayment,
   type PendingInstoreOrderRequest,
@@ -102,6 +103,26 @@ const request: PendingInstoreOrderRequest = {
 test('returns the friendly ticket number only for a persisted SmartPay order', () => {
   assert.equal(getSmartpayDisplayOrderNumber(makeOrder()), '123');
   assert.equal(getSmartpayDisplayOrderNumber(null), null);
+});
+
+test('keeps the payment dialog responsive while the order is being persisted', () => {
+  assert.deepEqual(
+    getSmartpayCheckoutProgress('creating_order', null),
+    {
+      title: 'Preparing SmartPay payment',
+      message: 'Creating order…',
+      orderNumber: null,
+    },
+  );
+
+  assert.deepEqual(
+    getSmartpayCheckoutProgress('awaiting_terminal', makeOrder()),
+    {
+      title: 'SmartPay payment',
+      message: 'Follow the prompts on the terminal. This screen will unlock when SmartPay returns the result.',
+      orderNumber: '123',
+    },
+  );
 });
 
 test('retries settlement without starting another terminal purchase after approval', () => {

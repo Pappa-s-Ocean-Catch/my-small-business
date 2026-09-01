@@ -7,6 +7,10 @@ import { findCustomerById, findCustomerByEmail, type Customer } from '../../lib/
 import { CashTenderModal } from '../CashTenderModal';
 import { styles } from './pos.styles';
 import type { CashTenderMode, PosInstorePaymentChoice, SaleProduct } from '../../app/pos.types';
+import {
+  getSmartpayCheckoutProgress,
+  type SmartpayCheckoutProgressStage,
+} from '../../lib/instore-smartpay-checkout';
 
 type Props = {
   cashTenderMode: CashTenderMode | null;
@@ -17,6 +21,7 @@ type Props = {
   onConfirmCashTender: () => void;
   smartpayProcessing: boolean;
   smartpayOrderNumber: string | null;
+  smartpayProgressStage: SmartpayCheckoutProgressStage | null;
   smartpayDialogMinimized: boolean;
   confirmDismissSmartpayLock: () => void;
   saltOptionDialogVisible: boolean;
@@ -56,6 +61,7 @@ export function PosDialogs({
   onConfirmCashTender,
   smartpayProcessing,
   smartpayOrderNumber,
+  smartpayProgressStage,
   smartpayDialogMinimized,
   confirmDismissSmartpayLock,
   saltOptionDialogVisible,
@@ -95,6 +101,10 @@ export function PosDialogs({
     discountAmount: number;
     linkedCustomer: Customer | null;
   } | null>(null);
+  const smartpayProgress = getSmartpayCheckoutProgress(
+    smartpayProgressStage ?? 'awaiting_terminal',
+    null,
+  );
 
   useEffect(() => {
     if (!discountDialogVisible) return;
@@ -177,10 +187,10 @@ export function PosDialogs({
           onDismiss={confirmDismissSmartpayLock}
           style={styles.smartpayDialog}
         >
-          <Dialog.Title>SmartPay payment</Dialog.Title>
+          <Dialog.Title>{smartpayProgress.title}</Dialog.Title>
           <Dialog.Content>
             <Text style={styles.smartpayDialogText}>
-              Follow the prompts on the terminal. This screen will unlock when Smartpay returns the result.
+              {smartpayProgress.message}
             </Text>
             {smartpayOrderNumber && (
               <Text style={styles.smartpayDialogText}>Order #{smartpayOrderNumber}</Text>

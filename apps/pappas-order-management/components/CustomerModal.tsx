@@ -58,6 +58,7 @@ function rewardHistoryTone(type: string) {
 export function CustomerModal({
   email,
   phone,
+  profileId,
   visible,
   onClose,
   onOrderPress,
@@ -66,6 +67,7 @@ export function CustomerModal({
 }: {
   email?: string;
   phone?: string;
+  profileId?: string;
   visible: boolean;
   onClose: () => void;
   onOrderPress: (orderId: string) => void;
@@ -132,7 +134,7 @@ export function CustomerModal({
     setPointsReason('');
 
     try {
-      const data = await fetchCustomerSummary({ email, phone });
+      const data = await fetchCustomerSummary({ email, phone, profileId });
       setCustomer(data);
       if (!data) setError('No customer data found for this contact.');
     } catch {
@@ -145,7 +147,7 @@ export function CustomerModal({
   useEffect(() => {
     if (!visible) return;
     void loadCustomer();
-  }, [email, phone, visible]);
+  }, [email, phone, profileId, visible]);
 
   useEffect(() => {
     if (customer) {
