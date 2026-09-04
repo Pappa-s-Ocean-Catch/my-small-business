@@ -5,8 +5,10 @@ import { createOrderListSync, ORDER_LIST_SYNC_QUERY_KEYS } from '../lib/order-li
 
 test('coalesces realtime signals into one refresh', async () => {
   let calls = 0;
-  const sync = createOrderListSync(() => {
+  let signalCount = 0;
+  const sync = createOrderListSync((count) => {
     calls += 1;
+    signalCount = count;
   }, 5);
 
   sync.notify();
@@ -16,6 +18,7 @@ test('coalesces realtime signals into one refresh', async () => {
   await new Promise((resolve) => setTimeout(resolve, 10));
 
   assert.equal(calls, 1);
+  assert.equal(signalCount, 3);
   sync.dispose();
 });
 

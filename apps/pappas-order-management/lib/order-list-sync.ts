@@ -5,23 +5,29 @@ export const ORDER_LIST_SYNC_QUERY_KEYS = [
   ['pre-orders'],
 ] as const;
 
-export function createOrderListSync(onFlush: () => void, delayMs = 250) {
+export function createOrderListSync(onFlush: (signalCount: number) => void, delayMs = 250) {
   let timer: ReturnType<typeof setTimeout> | null = null;
   let disposed = false;
+  let signalCount = 0;
 
   return {
     notify() {
-      if (disposed || timer) return;
+      if (disposed) return;
+      signalCount += 1;
+      if (timer) return;
 
       timer = setTimeout(() => {
         timer = null;
-        if (!disposed) onFlush();
+        const flushedSignalCount = signalCount;
+        signalCount = 0;
+        if (!disposed) onFlush(flushedSignalCount);
       }, delayMs);
     },
     dispose() {
       disposed = true;
       if (timer) clearTimeout(timer);
       timer = null;
+      signalCount = 0;
     },
   };
 }

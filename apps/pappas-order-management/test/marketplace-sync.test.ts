@@ -63,6 +63,25 @@ function detail(provider: 'uber_eats' | 'doordash', orderId: string) {
   };
 }
 
+test('reports the duration of a completed marketplace poll', async () => {
+  const durations: number[] = [];
+  const coordinator = createMarketplaceSyncCoordinator({
+    getActiveOrders: async (provider) => activeResult(provider, []),
+    getOrderDetail: async () => {
+      throw new Error('empty active lists must not load details');
+    },
+    importMarketplaceOrder: async () => ({ order: null, created: false, error: null }),
+    getOpenMarketplaceOrdersForHistory: async () => ({ data: [], error: null }),
+    syncMarketplaceOrderStatus: async () => ({ order: null, error: null }),
+    onPollComplete: (durationMs) => durations.push(durationMs),
+  });
+
+  await coordinator.poll();
+
+  assert.equal(durations.length, 1);
+  assert.ok(durations[0] >= 0);
+});
+
 test('starts with an immediate poll and schedules the next polls every 30 seconds', async () => {
   const scheduled: Array<{ callback: () => void; delayMs: number }> = [];
   const cleared: unknown[] = [];

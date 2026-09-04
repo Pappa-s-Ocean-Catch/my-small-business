@@ -51,6 +51,7 @@
     "hooks/useLiveOrdersQuery.ts",
     "lib/instore-customer-receipt.ts",
     "lib/order-list-sync.ts",
+    "lib/performance-trace.ts",
     "stores/posCatalogCacheStore.ts",
     "lib/print-job-priority.ts",
     "test/pay-by-link.test.ts",
@@ -63,6 +64,7 @@
     "test/customer-summary.test.ts",
     "test/open-order-candidates.test.ts",
     "test/pre-orders-layout.test.ts",
+    "test/performance-trace.test.ts",
     "types/**/*.ts",
     "../../libs/types/**/*.ts"
   ]

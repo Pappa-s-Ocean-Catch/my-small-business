@@ -18,6 +18,7 @@ import { PrinterAutomationProvider } from '@/providers/PrinterAutomationProvider
 import { AppSettingsProvider } from '@/providers/AppSettingsProvider';
 import { MarketplaceSyncGate } from '@/providers/MarketplaceSyncGate';
 import { OrderListSyncProvider } from '@/providers/OrderListSyncProvider';
+import { PerformanceTraceProvider } from '@/providers/PerformanceTraceProvider';
 import {
   registerExpoPushDeviceForStaff,
   subscribeToNewOrderNotificationResponses,
@@ -107,6 +108,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <QueryClientProvider client={appQueryClient}>
+        <PerformanceTraceProvider>
         <OrderListSyncProvider>
           <PaperProvider theme={MD3LightTheme}>
             <AppSettingsProvider>
@@ -134,6 +136,7 @@ export default function RootLayout() {
             </AppSettingsProvider>
           </PaperProvider>
         </OrderListSyncProvider>
+        </PerformanceTraceProvider>
       </QueryClientProvider>
     </GestureHandlerRootView>
   );

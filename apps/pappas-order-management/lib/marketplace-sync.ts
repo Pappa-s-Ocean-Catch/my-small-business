@@ -72,6 +72,7 @@ type MarketplaceSyncDependencies<Detail, SyncedOrder> = {
   logError?: (message: string, error: unknown) => void;
   onProviderPollSuccess?: (provider: MarketplaceProvider) => void;
   onProviderPollFailure?: (provider: MarketplaceProvider, error: unknown) => void;
+  onPollComplete?: (durationMs: number) => void;
   canPoll?: () => boolean;
   intervalMs?: number;
   setInterval?: (callback: () => void, delayMs: number) => unknown;
@@ -250,6 +251,7 @@ export function createMarketplaceSyncCoordinator<Detail, SyncedOrder>(
     if (inFlight || dependencies.canPoll?.() === false) return;
 
     inFlight = true;
+    const startedAtMs = Date.now();
     try {
       const openOrdersPromise = dependencies.getOpenMarketplaceOrdersForHistory()
         .then((result) => {
@@ -267,6 +269,7 @@ export function createMarketplaceSyncCoordinator<Detail, SyncedOrder>(
       )));
     } finally {
       inFlight = false;
+      dependencies.onPollComplete?.(Date.now() - startedAtMs);
     }
   };
 

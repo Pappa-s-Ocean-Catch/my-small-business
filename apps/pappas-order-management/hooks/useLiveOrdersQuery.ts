@@ -11,6 +11,8 @@ import {
   getOnTheWayOrderCandidateIds,
   getPreOrderCandidateIds,
 } from '@/lib/open-order-candidates';
+import { formatPerformanceDuration, isSlowOperation } from '@/lib/performance-trace';
+import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
 
 export const LIVE_ORDERS_QUERY_KEY = ['live-orders'] as const;
 export const ON_THE_WAY_ORDERS_QUERY_KEY = ['on-the-way-orders'] as const;
@@ -78,6 +80,25 @@ async function fetchLiveOrderResult(nowMs: number = Date.now()): Promise<{
     eligibleCount: liveOrderIds.length,
     hydratedCount: orders.length,
   });
+
+  const candidateDurationMs = hydrationStartedAt - candidateStartedAt;
+  const hydrationDurationMs = Date.now() - hydrationStartedAt;
+  const totalDurationMs = candidateDurationMs + hydrationDurationMs;
+  if (isSlowOperation(totalDurationMs)) {
+    usePrinterAutomationStore.getState().addJournalEntry({
+      level: 'decision',
+      scope: 'performance',
+      message: 'Live Orders reload was slow',
+      details: [
+        `total=${formatPerformanceDuration(totalDurationMs)}`,
+        `candidate=${formatPerformanceDuration(candidateDurationMs)}`,
+        `hydrate=${formatPerformanceDuration(hydrationDurationMs)}`,
+        `candidates=${candidates.length}`,
+        `eligible=${liveOrderIds.length}`,
+        `hydrated=${orders.length}`,
+      ].join(' '),
+    });
+  }
 
   return {
     orders,

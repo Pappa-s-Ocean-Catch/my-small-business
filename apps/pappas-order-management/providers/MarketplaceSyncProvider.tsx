@@ -16,6 +16,7 @@ import { MarketplaceSyncAlertBanner } from '@/components/MarketplaceSyncAlertBan
 import { marketplaceSyncAlertStore } from '@/stores/marketplaceSyncAlertStore';
 import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
 import type { MarketplaceSyncWindow } from '@/lib/marketplace-sync-window';
+import { formatPerformanceDuration, isSlowOperation } from '@/lib/performance-trace';
 
 type MarketplaceSyncProviderProps = PropsWithChildren<{
   enabled: boolean;
@@ -46,7 +47,7 @@ export function MarketplaceSyncProvider({
     intervalMs,
     logError: (message, error) => {
       usePrinterAutomationStore.getState().addJournalEntry({
-        level: 'error',
+        level: 'decision',
         scope: 'marketplace-sync',
         message,
         details: `reason=${marketplaceSyncErrorDetails(error)}`,
@@ -55,6 +56,15 @@ export function MarketplaceSyncProvider({
     },
     onProviderPollSuccess: (provider) => marketplaceSyncAlertStore.getState().clear(provider),
     onProviderPollFailure: (provider) => marketplaceSyncAlertStore.getState().reportFailure(provider),
+    onPollComplete: (durationMs) => {
+      if (!isSlowOperation(durationMs)) return;
+      usePrinterAutomationStore.getState().addJournalEntry({
+        level: 'error',
+        scope: 'performance',
+        message: 'Marketplace sync poll was slow',
+        details: `duration=${formatPerformanceDuration(durationMs)}`,
+      });
+    },
   }), [intervalMs, syncWindow.endTime, syncWindow.startTime]);
 
   useEffect(() => {
