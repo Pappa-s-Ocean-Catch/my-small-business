@@ -19,9 +19,11 @@ import {
   type KitchenPrintDebugContext,
 } from '../lib/print-debug-footer';
 import { getOrderPrintIntegrityWarning } from '../lib/order-print-integrity';
+import { formatSuccessfulOrderCount } from '../utils/customer-order-count';
 
 interface ReceiptTemplateProps {
   order: Order;
+  successfulOrderCount?: number;
   width?: number;
   printSource?: string;
   showTicketCounter?: boolean;
@@ -32,6 +34,7 @@ interface ReceiptTemplateProps {
 
 export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
   order,
+  successfulOrderCount,
   width = 576,
   printSource,
   showTicketCounter = false,
@@ -128,6 +131,9 @@ export const ReceiptTemplate: React.FC<ReceiptTemplateProps> = ({
             <View style={styles.customerSection}>
               <Text style={styles.customerLargeBoldText}>{order.customer_name || order.customer_email}</Text>
               {order.customer_phone && <Text style={styles.customerLargeBoldText}>{order.customer_phone}</Text>}
+              {successfulOrderCount != null && (
+                <Text style={styles.customerNormalText}>Customer orders: {formatSuccessfulOrderCount(successfulOrderCount)}</Text>
+              )}
               {order.order_type === 'delivery' && order.delivery_address_line1 && (
                 <View style={styles.deliveryContainer}>
                   <Text style={styles.customerNormalText}>Delivery Address:</Text>

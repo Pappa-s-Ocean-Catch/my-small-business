@@ -31,6 +31,7 @@ import { DEFAULT_APP_SETTINGS } from '@/lib/settings';
 import { useAppSettingsQuery } from '@/hooks/useAppSettingsQuery';
 import { useOrderActions } from '@/hooks/useOrderActions';
 import { getTodayDateString, formatDateToLocalISO, getPaymentStatType } from '@/utils/orderUtils';
+import { useCustomerOrderCounts } from '@/hooks/useCustomerOrderCounts';
 
 export default function HistoryScreen() {
   const { width, height } = useWindowDimensions();
@@ -53,6 +54,7 @@ export default function HistoryScreen() {
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<'all' | 'card' | 'cash' | 'marketplace'>('all');
   const [orderMethodFilter, setOrderMethodFilter] = useState<string>('all');
   const { data: appSettings = DEFAULT_APP_SETTINGS } = useAppSettingsQuery();
+  const { data: successfulOrderCounts } = useCustomerOrderCounts(orders);
 
   const loadOrders = async () => {
     try {
@@ -294,6 +296,7 @@ export default function HistoryScreen() {
         renderItem={({ item }) => (
           <HistoryOrderListItem
             order={item}
+            successfulOrderCount={successfulOrderCounts?.[item.id]}
             onOrderPress={(o) => { setSelectedOrder(o); setShowOrderModal(true); }}
             onCustomerPress={handleCustomerPress}
           />

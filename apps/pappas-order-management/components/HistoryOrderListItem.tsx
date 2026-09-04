@@ -9,12 +9,14 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 interface HistoryOrderListItemProps {
   order: Order;
+  successfulOrderCount?: number;
   onOrderPress: (order: Order) => void;
   onCustomerPress: (order: Order) => void;
 }
 
 export const HistoryOrderListItem: React.FC<HistoryOrderListItemProps> = ({
   order,
+  successfulOrderCount,
   onOrderPress,
   onCustomerPress,
 }) => {
@@ -51,6 +53,7 @@ export const HistoryOrderListItem: React.FC<HistoryOrderListItemProps> = ({
             <Text style={styles.customerName} numberOfLines={1}>
               {order.customer_name || order.customer_email}
             </Text>
+            {successfulOrderCount != null ? <Text style={styles.customerOrderCount}>{successfulOrderCount} successful orders</Text> : null}
           </TouchableOpacity>
 
           <View style={styles.statusContainer}>
@@ -106,6 +109,7 @@ export const HistoryOrderListItem: React.FC<HistoryOrderListItemProps> = ({
             <Text style={styles.customerName} numberOfLines={1}>
               {order.customer_name || order.customer_email}
             </Text>
+            {successfulOrderCount != null ? <Text style={styles.customerOrderCount}>{successfulOrderCount} successful orders</Text> : null}
           </TouchableOpacity>
           <Text style={styles.orderTime}>{new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
         </View>
@@ -186,6 +190,11 @@ const styles = StyleSheet.create({
     color: '#10b981',
     fontWeight: '600',
     flex: 1,
+  },
+  customerOrderCount: {
+    fontSize: 11,
+    color: '#64748b',
+    fontWeight: '600',
   },
   statusContainer: {
     width: 100,

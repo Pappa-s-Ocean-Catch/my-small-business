@@ -22,6 +22,7 @@ type LiveOrderCardLayout = 'horizontal' | 'vertical';
 
 interface LiveOrderListItemProps {
   order: Order;
+  successfulOrderCount?: number;
   nowMs: number;
   updatingStatus: string | null;
   onOrderPress: (order: Order) => void;
@@ -42,6 +43,7 @@ interface LiveOrderListItemProps {
 
 export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
   order,
+  successfulOrderCount,
   nowMs,
   updatingStatus,
   onOrderPress,
@@ -232,6 +234,9 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
                 <Text style={styles.verticalCustomerName} numberOfLines={1}>
                   {order.customer_name || order.customer_email}
                 </Text>
+                {successfulOrderCount != null ? (
+                  <Text style={styles.customerOrderCount}>{successfulOrderCount} successful orders</Text>
+                ) : null}
               </TouchableOpacity>
             </View>
             <View style={[styles.elapsedPill, styles.verticalElapsedPill, { backgroundColor: elapsedColor }]}>
@@ -361,6 +366,9 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
                 <Text style={styles.customerName} numberOfLines={1}>
                   {order.customer_name || order.customer_email}
                 </Text>
+                {successfulOrderCount != null ? (
+                  <Text style={styles.customerOrderCount}>{successfulOrderCount} successful orders</Text>
+                ) : null}
               </TouchableOpacity>
               <Text style={styles.metaDot}>•</Text>
               <Text style={styles.orderType} numberOfLines={1}>
@@ -538,6 +546,11 @@ const styles = StyleSheet.create({
     fontSize: 17,
     color: '#0f766e',
     fontWeight: '700',
+  },
+  customerOrderCount: {
+    fontSize: 12,
+    color: '#64748b',
+    fontWeight: '600',
   },
   metaDot: {
     color: '#9ca3af',

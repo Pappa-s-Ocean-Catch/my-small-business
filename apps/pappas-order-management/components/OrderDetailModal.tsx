@@ -51,6 +51,7 @@ import {
   syncMarketplaceOrderOnDemand,
 } from '@/lib/marketplace-sync';
 import { syncMarketplaceOrderStatus } from '@/lib/marketplace-pos-order';
+import { useCustomerOrderCounts } from '@/hooks/useCustomerOrderCounts';
 
 interface OrderDetailModalProps {
   visible: boolean;
@@ -125,6 +126,8 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const [isMarketplaceSyncing, setIsMarketplaceSyncing] = React.useState(false);
   const [pendingOrderAction, setPendingOrderAction] = React.useState<'cancel' | 'cash' | 'card' | null>(null);
   const order = refreshedOrder?.id === orderProp?.id ? refreshedOrder : orderProp;
+  const { data: successfulOrderCounts } = useCustomerOrderCounts(order ? [order] : []);
+  const successfulOrderCount = order ? successfulOrderCounts?.[order.id] : undefined;
   const receiptRef = React.useRef(null);
   const customerReceiptRef = React.useRef(null);
   const orderPrintState = usePrinterAutomationStore((state) => (
@@ -563,10 +566,11 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     onPress={() => onCustomerPress(order)}
                     hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   >
-                    <Text style={styles.customerName}>{order.customer_name || 'N/A'}</Text>
+                  <Text style={styles.customerName}>{order.customer_name || 'N/A'}</Text>
                   </TouchableOpacity>
                   {!!order.customer_email && <Text style={styles.contactText}>{order.customer_email}</Text>}
                   {!!order.customer_phone && <Text style={styles.contactText}>{order.customer_phone}</Text>}
+                  {successfulOrderCount != null ? <Text style={styles.successfulOrderCount}>{successfulOrderCount} successful orders</Text> : null}
                 </Card.Content>
               </Card>
 
@@ -885,6 +889,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               <View ref={receiptRef} collapsable={false}>
                 <ReceiptTemplate
                   order={printPreviewOrder || order}
+                  successfulOrderCount={successfulOrderCount}
                   width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
                   printSource="order-detail-modal:capture"
                   showTicketCounter={hasAnySimulatorAssignment(appSettings)}
@@ -1026,6 +1031,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontSize: 16, fontWeight: '800', color: '#24364d' },
   customerName: { fontSize: 18, fontWeight: 'bold', color: '#111827', marginBottom: 4 },
+  successfulOrderCount: { fontSize: 14, fontWeight: '600', color: '#475569', marginTop: 6 },
   contactText: { fontSize: 14, color: '#4b5563', marginBottom: 2 },
   itemRow: { paddingVertical: 10 },
   optionRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10 },

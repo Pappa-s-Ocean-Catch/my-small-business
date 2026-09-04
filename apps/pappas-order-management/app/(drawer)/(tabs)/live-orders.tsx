@@ -63,6 +63,7 @@ import {
   useLiveOrdersQuery,
   usePreOrderCountQuery,
 } from '@/hooks/useLiveOrdersQuery';
+import { useCustomerOrderCounts } from '@/hooks/useCustomerOrderCounts';
 
 type TimeoutHandle = ReturnType<typeof setTimeout>;
 const RECEIPT_RENDER_SETTLE_MS = 300;
@@ -114,6 +115,7 @@ export default function LiveOrdersScreen() {
     isFetching: isFetchingOrders,
     dataUpdatedAt,
   } = useLiveOrdersQuery();
+  const { data: successfulOrderCounts } = useCustomerOrderCounts(orders);
   const { data: preOrderCount = 0 } = usePreOrderCountQuery();
   const { data: appSettings = DEFAULT_APP_SETTINGS } = useAppSettingsQuery();
   const loadError = liveOrdersError instanceof Error ? liveOrdersError.message : null;
@@ -880,6 +882,7 @@ export default function LiveOrdersScreen() {
         renderItem={({ item: order }) => (
           <LiveOrderListItem
             order={order}
+            successfulOrderCount={successfulOrderCounts?.[order.id]}
             printState={orderPrintStates[order.id] || null}
             nowMs={nowMs}
             updatingStatus={updatingStatus}
@@ -972,6 +975,7 @@ export default function LiveOrdersScreen() {
             ) : (
               <ReceiptTemplate
                 order={tempPrintingOrder}
+                successfulOrderCount={successfulOrderCounts?.[tempPrintingOrder.id]}
                 width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
                 printSource={tempPrintSource || undefined}
                 showTicketCounter={hasAnySimulatorAssignment(appSettings)}

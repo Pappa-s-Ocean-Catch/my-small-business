@@ -35,6 +35,7 @@ import { useOrderActions } from '@/hooks/useOrderActions';
 import { DEFAULT_APP_SETTINGS, loadAppSettings } from '@/lib/settings';
 import { useAppSettingsQuery } from '@/hooks/useAppSettingsQuery';
 import { PRE_ORDERS_QUERY_KEY, usePreOrdersQuery } from '@/hooks/useLiveOrdersQuery';
+import { useCustomerOrderCounts } from '@/hooks/useCustomerOrderCounts';
 import { captureReceiptForPrinter, captureReceiptPreview, type PrinterImageSource } from '@/lib/printer-image';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
 import { buildKitchenReceiptDocument } from '@/lib/kitchen-receipt-document';
@@ -88,6 +89,7 @@ export default function PreOrdersScreen() {
     isLoading: loading,
     refetch: refetchOrders,
   } = usePreOrdersQuery();
+  const { data: successfulOrderCounts } = useCustomerOrderCounts(orders);
   const appSettingsRef = useRef(appSettings);
   const printDeviceIdRef = useRef<string | null>(null);
   const orderPrintStates = usePrinterAutomationStore((state) => state.orderPrintStates);
@@ -522,6 +524,7 @@ export default function PreOrdersScreen() {
         renderItem={({ item }) => (
           <LiveOrderListItem
             order={item}
+            successfulOrderCount={successfulOrderCounts?.[item.id]}
             printState={orderPrintStates[item.id] || null}
             nowMs={nowMs}
             updatingStatus={updatingStatus}
@@ -588,6 +591,7 @@ export default function PreOrdersScreen() {
               ) : (
                 <ReceiptTemplate
                   order={tempPrintingOrder}
+                  successfulOrderCount={successfulOrderCounts?.[tempPrintingOrder.id]}
                   width={appSettings.printerPaperWidth === '58mm' ? 384 : 576}
                   printSource={tempPrintSource || undefined}
                   showTicketCounter={hasAnySimulatorAssignment(appSettings)}
