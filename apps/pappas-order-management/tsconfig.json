@@ -11,6 +11,9 @@
       ],
       "@my-small-business/marketplace": [
         "../../libs/marketplace"
+      ],
+      "@my-small-business/caller-id-listener": [
+        "../../libs/caller-id-listener"
       ]
     }
   },

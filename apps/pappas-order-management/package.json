@@ -29,6 +29,7 @@
   "dependencies": {
     "@expo/metro-runtime": "^6.1.2",
     "@my-small-business/app-memory": "workspace:*",
+    "@my-small-business/caller-id-listener": "workspace:*",
     "@my-small-business/marketplace": "workspace:*",
     "@my-small-business/native-raw-tcp-printer": "workspace:*",
     "@my-small-business/types": "workspace:*",

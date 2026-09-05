@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["CallerIdListenerModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.calleridlistener.CallerIdListenerModule"]
+  }
+}

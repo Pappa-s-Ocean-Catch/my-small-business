@@ -35,7 +35,9 @@ import {
   buildMarketplacePosOrderDraft,
   type MarketplaceImportMetadata,
 } from '../lib/marketplace-pos-order';
+import { CallerIdAppbarAction } from '@/components/pos/CallerIdAppbarAction';
 import { PosCartPane } from '../components/pos/PosCartPane';
+import { useCallerId } from '@/providers/CallerIdListenerProvider';
 import { PosDialogs } from '../components/pos/PosDialogs';
 import { PosMenuPane } from '../components/pos/PosMenuPane';
 import type { PosCheckoutTab } from '../components/pos/PosCheckoutPanel';
@@ -252,7 +254,11 @@ export default function PosScreen() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const { width, height } = useWindowDimensions();
-  const params = useLocalSearchParams<{ orderId?: string | string[] }>();
+  const params = useLocalSearchParams<{ 
+    orderId?: string | string[]; 
+    incomingCallPhone?: string | string[];
+    incomingCallName?: string | string[];
+  }>();
   const rawOrderId = params.orderId;
   const orderId = Array.isArray(rawOrderId) ? rawOrderId[0] : rawOrderId;
   const [categories, setCategories] = useState<SaleCategory[]>([]);
@@ -280,6 +286,7 @@ export default function PosScreen() {
   const [loadingAddons, setLoadingAddons] = useState(false);
   const [noteItemId, setNoteItemId] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState('');
+  const { acceptedCall, clearAcceptedCall } = useCallerId();
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -1008,11 +1015,27 @@ export default function PosScreen() {
     setSelectedCustomer(customer);
     setCustomerPhone(customer.phone ?? '');
     setCustomerName(customer.name ?? '');
-    setRewardPointsToUse(0);
-    setRewardPointsValue(0);
+
+    // Force hide lookup/found feedback to not distract once selected
     setCustomerLookupError(null);
     setCustomerLookupStatus('found');
   }, []);
+
+  // Handle Caller ID auto-fill via route params
+  useEffect(() => {
+    const phoneParam = Array.isArray(params.incomingCallPhone) ? params.incomingCallPhone[0] : params.incomingCallPhone;
+    const nameParam = Array.isArray(params.incomingCallName) ? params.incomingCallName[0] : params.incomingCallName;
+    
+    if (phoneParam) {
+      setCustomerPhone(phoneParam);
+      if (nameParam) {
+        setCustomerName(nameParam);
+      }
+      
+      // Clear the param so it doesn't re-trigger if we clear customer manually
+      router.setParams({ incomingCallPhone: '', incomingCallName: '' });
+    }
+  }, [params.incomingCallPhone, params.incomingCallName, router]);
 
   const handleClearCustomer = useCallback(() => {
     setSelectedCustomer(null);
@@ -2819,7 +2842,18 @@ export default function PosScreen() {
 
     <View style={styles.container}>
       <Appbar.Header style={styles.header}>
-        <Appbar.Content title={orderId ? 'Edit Order' : 'Take Order'} titleStyle={styles.headerTitle} />
+        <Appbar.Content 
+          title={(() => {
+            if (customerPhone) {
+              if (customerName) {
+                return `Order for ${customerName} - ${customerPhone}`;
+              }
+              return `Order for - ${customerPhone}`;
+            }
+            return orderId ? 'Edit Order' : 'Take Order';
+          })()} 
+          titleStyle={styles.headerTitle} 
+        />
         {smartpayProcessing && smartpayDialogMinimized ? (
           <Appbar.Action
             icon="credit-card-wireless-outline"
@@ -2828,6 +2862,7 @@ export default function PosScreen() {
             accessibilityLabel="Resume SmartPay payment"
           />
         ) : null}
+        <CallerIdAppbarAction />
         <Appbar.Action icon="magnify" onPress={openSearch} iconColor="#fff" accessibilityLabel="Search items" />
         <Appbar.Action icon="view-grid-plus-outline" onPress={openLayoutSettings} iconColor="#fff" accessibilityLabel="POS layout settings" />
         <Appbar.Action icon="home" onPress={goHome} iconColor="#fff" accessibilityLabel="Back home" />

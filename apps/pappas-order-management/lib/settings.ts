@@ -139,6 +139,11 @@ export type AppSettings = {
     marketplaceSyncEndTime: string;
     marketplaceFetchMode: MarketplaceFetchMode;
 
+    // Caller ID Listener
+    callerIdEnabled: boolean;
+    callerIdPort: number;
+    callerIdDisplaySeconds: number;
+
     // Kitchen printer (ESC/POS)
     printerEnabled: boolean;
     printerAutoPrint: boolean;
@@ -208,6 +213,10 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     marketplaceSyncStartTime: '11:00',
     marketplaceSyncEndTime: '20:30',
     marketplaceFetchMode: 'api',
+
+    callerIdEnabled: false,
+    callerIdPort: 5060,
+    callerIdDisplaySeconds: 8,
 
     printerEnabled: false,
     printerAutoPrint: true,
@@ -286,6 +295,22 @@ export async function loadAppSettings(): Promise<AppSettings> {
         });
         const marketplaceFetchMode = (parsed as any)?.marketplaceFetchMode === 'local' ? 'local' : 'api';
 
+        const callerIdEnabled = typeof (parsed as any)?.callerIdEnabled === 'boolean'
+            ? (parsed as any).callerIdEnabled
+            : DEFAULT_APP_SETTINGS.callerIdEnabled;
+            
+        const callerIdPort = clampInt(
+            typeof (parsed as any)?.callerIdPort === 'number' ? (parsed as any).callerIdPort : DEFAULT_APP_SETTINGS.callerIdPort,
+            1,
+            65535
+        );
+        
+        const callerIdDisplaySeconds = clampInt(
+            typeof (parsed as any)?.callerIdDisplaySeconds === 'number' ? (parsed as any).callerIdDisplaySeconds : DEFAULT_APP_SETTINGS.callerIdDisplaySeconds,
+            2,
+            60
+        );
+
         const printerEnabled = typeof (parsed as any)?.printerEnabled === 'boolean'
             ? (parsed as any).printerEnabled
             : DEFAULT_APP_SETTINGS.printerEnabled;
@@ -346,6 +371,10 @@ export async function loadAppSettings(): Promise<AppSettings> {
             marketplaceSyncEndTime: marketplaceSyncWindow.endTime,
             marketplaceFetchMode,
 
+            callerIdEnabled,
+            callerIdPort,
+            callerIdDisplaySeconds,
+
             printerEnabled,
             printerAutoPrint,
             ...instoreCustomerReceiptSettings,
@@ -391,6 +420,10 @@ export async function saveAppSettings(settings: AppSettings): Promise<void> {
         marketplaceSyncStartTime: marketplaceSyncWindow.startTime,
         marketplaceSyncEndTime: marketplaceSyncWindow.endTime,
         marketplaceFetchMode: settings.marketplaceFetchMode === 'local' ? 'local' : 'api',
+
+        callerIdEnabled: !!settings.callerIdEnabled,
+        callerIdPort: clampInt(settings.callerIdPort, 1, 65535),
+        callerIdDisplaySeconds: clampInt(settings.callerIdDisplaySeconds, 2, 60),
 
         printerEnabled: !!settings.printerEnabled,
         printerAutoPrint: !!settings.printerAutoPrint,

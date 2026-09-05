@@ -23,6 +23,7 @@ import {
   registerExpoPushDeviceForStaff,
   subscribeToNewOrderNotificationResponses,
 } from '@/lib/expo-push-notifications';
+import { CallerIdListenerProvider } from '@/providers/CallerIdListenerProvider';
 
 export default function RootLayout() {
   const router = useRouter();
@@ -113,25 +114,27 @@ export default function RootLayout() {
           <PaperProvider theme={MD3LightTheme}>
             <AppSettingsProvider>
               <MarketplaceSyncGate authenticated={authenticatedStaffAccess}>
-                <PrinterAutomationProvider>
-                  <Stack screenOptions={{ headerShown: false }}>
-                    <Stack.Screen name="login" />
-                    <Stack.Screen name="(drawer)" />
-                    <Stack.Screen
-                      name="order-detail"
-                      options={{
-                        presentation: 'fullScreenModal',
-                        animation: 'slide_from_bottom',
-                      }}
-                    />
-                    <Stack.Screen name="marketplace-resolver" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
-                    <Stack.Screen name="pos-layout-settings" />
-                    <Stack.Screen name="POS-intergation" />
-                  </Stack>
-                  <StatusBar hidden />
-                  <OfflineAttentionOverlay appName="Pappas Order" />
-                  <PendingOnlinePaymentsOverlay />
-                </PrinterAutomationProvider>
+                <CallerIdListenerProvider authenticated={authenticatedStaffAccess}>
+                  <PrinterAutomationProvider>
+                    <Stack screenOptions={{ headerShown: false }}>
+                      <Stack.Screen name="login" />
+                      <Stack.Screen name="(drawer)" />
+                      <Stack.Screen
+                        name="order-detail"
+                        options={{
+                          presentation: 'fullScreenModal',
+                          animation: 'slide_from_bottom',
+                        }}
+                      />
+                      <Stack.Screen name="marketplace-resolver" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
+                      <Stack.Screen name="pos-layout-settings" />
+                      <Stack.Screen name="POS-intergation" />
+                    </Stack>
+                    <StatusBar hidden />
+                    <OfflineAttentionOverlay appName="Pappas Order" />
+                    <PendingOnlinePaymentsOverlay />
+                  </PrinterAutomationProvider>
+                </CallerIdListenerProvider>
               </MarketplaceSyncGate>
             </AppSettingsProvider>
           </PaperProvider>

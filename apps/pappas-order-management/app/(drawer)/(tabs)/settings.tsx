@@ -35,7 +35,7 @@ import { DEFAULT_STORE_INFO, fetchStoreInfo, saveStoreInfo, type StoreInfo } fro
 import { invalidateLocalMarketplaceSession } from '@/lib/marketplace-local-session';
 import { pickSettingsBackup, writeSavedSettingsBackupFile } from '@/lib/settings-backup-device';
 
-type SettingsDialogKey = 'refresh' | 'sound' | 'printer' | 'liveOrders' | 'marketplace' | 'printDiagnostics' | 'journal' | 'storeInfo' | null;
+type SettingsDialogKey = 'refresh' | 'sound' | 'printer' | 'liveOrders' | 'marketplace' | 'printDiagnostics' | 'journal' | 'storeInfo' | 'callerId' | null;
 
 const SETTINGS_MODAL_TITLES: Record<Exclude<SettingsDialogKey, null>, string> = {
     refresh: 'Refresh interval',
@@ -46,6 +46,7 @@ const SETTINGS_MODAL_TITLES: Record<Exclude<SettingsDialogKey, null>, string> = 
     printDiagnostics: 'Print diagnostics',
     journal: 'Journal',
     storeInfo: 'Store information',
+    callerId: 'Caller ID listener',
 };
 
 export default function SettingsScreen() {
@@ -65,6 +66,9 @@ export default function SettingsScreen() {
     const [marketplaceSyncStartTime, setMarketplaceSyncStartTime] = useState(DEFAULT_APP_SETTINGS.marketplaceSyncStartTime);
     const [marketplaceSyncEndTime, setMarketplaceSyncEndTime] = useState(DEFAULT_APP_SETTINGS.marketplaceSyncEndTime);
     const [marketplaceFetchMode, setMarketplaceFetchMode] = useState<'api' | 'local'>(DEFAULT_APP_SETTINGS.marketplaceFetchMode);
+    const [callerIdEnabled, setCallerIdEnabled] = useState(DEFAULT_APP_SETTINGS.callerIdEnabled);
+    const [callerIdPortText, setCallerIdPortText] = useState(String(DEFAULT_APP_SETTINGS.callerIdPort));
+    const [callerIdDisplaySecondsText, setCallerIdDisplaySecondsText] = useState(String(DEFAULT_APP_SETTINGS.callerIdDisplaySeconds));
     const [registerName, setRegisterName] = useState(DEFAULT_APP_SETTINGS.registerName);
     const [printerDebugFooter, setPrinterDebugFooter] = useState(DEFAULT_APP_SETTINGS.printerDebugFooter);
 
@@ -111,6 +115,9 @@ export default function SettingsScreen() {
         setMarketplaceSyncStartTime(currentSettings.marketplaceSyncStartTime);
         setMarketplaceSyncEndTime(currentSettings.marketplaceSyncEndTime);
         setMarketplaceFetchMode(currentSettings.marketplaceFetchMode);
+        setCallerIdEnabled(currentSettings.callerIdEnabled);
+        setCallerIdPortText(String(currentSettings.callerIdPort));
+        setCallerIdDisplaySecondsText(String(currentSettings.callerIdDisplaySeconds));
         setRegisterName(currentSettings.registerName);
         setPrinterDebugFooter(currentSettings.printerDebugFooter);
 
@@ -169,6 +176,7 @@ export default function SettingsScreen() {
     const liveOrdersSummary = liveOrderCardLayout === 'vertical'
         ? 'Vertical cards with horizontal scrolling'
         : 'Full-width horizontal rows';
+    const callerIdSummary = callerIdEnabled ? `Port ${callerIdPortText}` : 'Disabled';
     const printerSummary = !printerEnabled
         ? printerSectionAssignments.some((assignment) => {
             const printer = printerSaved.find((item) => item.target === assignment.printerTarget) || null;
@@ -563,6 +571,8 @@ export default function SettingsScreen() {
             DEFAULT_APP_SETTINGS.marketplaceSyncIntervalSec
         );
         const soundRepeatCount = parseIntOr(repeatCountText, DEFAULT_APP_SETTINGS.soundRepeatCount);
+        const callerIdPort = parseIntOr(callerIdPortText, DEFAULT_APP_SETTINGS.callerIdPort);
+        const callerIdDisplaySeconds = parseIntOr(callerIdDisplaySecondsText, DEFAULT_APP_SETTINGS.callerIdDisplaySeconds);
         const printerDelayPrintSec = parseIntOr(printerDelayPrintSecText, DEFAULT_APP_SETTINGS.printerDelayPrintSec);
 
         if (refreshIntervalSec < 5 || refreshIntervalSec > 600) {
@@ -598,7 +608,7 @@ export default function SettingsScreen() {
         const normalizedAssignments = printerSectionAssignments.map((assignment) => ({
             ...assignment,
             sectionName: assignment.isDefault ? 'Default' : assignment.sectionName.trim(),
-            template: assignment.template === 'customer-copy' ? 'customer-copy' : 'kitchen',
+            template: (assignment.template === 'customer-copy' ? 'customer-copy' : 'kitchen') as 'customer-copy' | 'kitchen',
             enabledFromTime: normalizeTimeInput(assignment.enabledFromTime),
             enabledToTime: normalizeTimeInput(assignment.enabledToTime),
         }));
@@ -655,6 +665,9 @@ export default function SettingsScreen() {
                 marketplaceSyncStartTime,
                 marketplaceSyncEndTime,
                 marketplaceFetchMode,
+                callerIdEnabled,
+                callerIdPort,
+                callerIdDisplaySeconds,
                 printerEnabled,
                 printerAutoPrint,
                 instoreCustomerReceiptAutoPrintEnabled,
@@ -795,6 +808,12 @@ export default function SettingsScreen() {
                     onPress={() => setActiveDialog('marketplace')}
                 />
                 <SettingsActionTile
+                    title="Caller ID listener"
+                    description={callerIdSummary}
+                    icon="phone-in-talk-outline"
+                    onPress={() => setActiveDialog('callerId')}
+                />
+                <SettingsActionTile
                     title="Kitchen printer"
                     description={printerSummary}
                     icon="printer"
@@ -883,6 +902,38 @@ export default function SettingsScreen() {
                             style={styles.input}
                         />
                         <Text style={styles.helper}>Min 5, max 600.</Text>
+                            </>
+                        )}
+
+                        {activeDialog === 'callerId' && (
+                            <>
+                                <View style={styles.switchRow}>
+                                    <Text style={styles.label}>Enable caller ID listener</Text>
+                                    <Switch value={callerIdEnabled} onValueChange={setCallerIdEnabled} />
+                                </View>
+                                <Text style={styles.panelDescription}>
+                                    Listen for SIP UDP INVITEs on this device to display caller ID.
+                                </Text>
+
+                                <TextInput
+                                    mode="outlined"
+                                    label="UDP Port"
+                                    value={callerIdPortText}
+                                    onChangeText={setCallerIdPortText}
+                                    keyboardType="number-pad"
+                                    style={styles.input}
+                                />
+                                <Text style={styles.helper}>Usually 5060.</Text>
+
+                                <TextInput
+                                    mode="outlined"
+                                    label="Display duration (seconds)"
+                                    value={callerIdDisplaySecondsText}
+                                    onChangeText={setCallerIdDisplaySecondsText}
+                                    keyboardType="number-pad"
+                                    style={styles.input}
+                                />
+                                <Text style={styles.helper}>How long the notification stays on screen.</Text>
                             </>
                         )}
 
