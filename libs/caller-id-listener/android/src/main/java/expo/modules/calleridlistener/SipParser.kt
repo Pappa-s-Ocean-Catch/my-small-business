@@ -101,4 +101,45 @@ object SipParser {
         val lower = number.lowercase()
         return lower == "anonymous" || lower == "private" || lower == "restricted" || lower == "unknown"
     }
+
+    fun buildResponse(statusCode: String, requestContent: String): String? {
+        val lines = requestContent.split("\r\n", "\n")
+        if (lines.isEmpty()) return null
+        
+        val vias = mutableListOf<String>()
+        var from = ""
+        var to = ""
+        var callId = ""
+        var cseq = ""
+        
+        for (line in lines) {
+            val lower = line.lowercase()
+            if (lower.startsWith("via:")) vias.add(line)
+            else if (lower.startsWith("from:") && from.isEmpty()) from = line
+            else if (lower.startsWith("to:") && to.isEmpty()) to = line
+            else if (lower.startsWith("call-id:") && callId.isEmpty()) callId = line
+            else if (lower.startsWith("cseq:") && cseq.isEmpty()) cseq = line
+        }
+        
+        if (vias.isEmpty() || from.isEmpty() || to.isEmpty() || callId.isEmpty() || cseq.isEmpty()) {
+            return null
+        }
+        
+        if (!to.lowercase().contains("tag=")) {
+            to += ";tag=pos-listener"
+        }
+        
+        val sb = java.lang.StringBuilder()
+        sb.append("SIP/2.0 ").append(statusCode).append("\r\n")
+        for (via in vias) {
+            sb.append(via).append("\r\n")
+        }
+        sb.append(from).append("\r\n")
+        sb.append(to).append("\r\n")
+        sb.append(callId).append("\r\n")
+        sb.append(cseq).append("\r\n")
+        sb.append("Content-Length: 0\r\n\r\n")
+        
+        return sb.toString()
+    }
 }

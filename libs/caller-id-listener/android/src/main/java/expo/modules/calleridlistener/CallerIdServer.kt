@@ -48,7 +48,7 @@ class CallerIdServer(
                     }
                     
                     val content = String(packet.data, 0, packet.length, Charsets.UTF_8)
-                    handleDatagram(content)
+                    handleDatagram(content, packet)
                 }
             } catch (e: CancellationException) {
                 // Job cancelled, ignore
@@ -77,8 +77,28 @@ class CallerIdServer(
         }
     }
 
-    private fun handleDatagram(content: String) {
+    private fun handleDatagram(content: String, packet: DatagramPacket) {
         onRawPacket(content)
+        val isInvite = content.trim().startsWith("INVITE")
+        
+        if (isInvite) {
+            // Send 100 Trying
+            val response100 = SipParser.buildResponse("100 Trying", content)
+            if (response100 != null) {
+                val data100 = response100.toByteArray(Charsets.UTF_8)
+                val outPacket100 = DatagramPacket(data100, data100.size, packet.address, packet.port)
+                try { socket?.send(outPacket100) } catch (e: Exception) {}
+                
+                // Send 180 Ringing
+                val response180 = SipParser.buildResponse("180 Ringing", content)
+                if (response180 != null) {
+                    val data180 = response180.toByteArray(Charsets.UTF_8)
+                    val outPacket180 = DatagramPacket(data180, data180.size, packet.address, packet.port)
+                    try { socket?.send(outPacket180) } catch (e: Exception) {}
+                }
+            }
+        }
+
         val result = SipParser.parse(content) ?: return
         
         val now = System.currentTimeMillis()

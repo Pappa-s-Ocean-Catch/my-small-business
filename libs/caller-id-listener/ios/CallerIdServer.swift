@@ -75,16 +75,39 @@ class CallerIdServer {
     private func receive(on connection: NWConnection) {
         connection.receiveMessage { [weak self] content, context, isComplete, error in
             if let data = content, let text = String(data: data, encoding: .utf8) {
-                self?.handleDatagram(text)
+                self?.handleDatagram(text, connection: connection)
+            } else {
+                connection.cancel()
             }
-            // Close the connection since UDP is stateless and we only care about the packet
-            connection.cancel()
         }
     }
     
-    private func handleDatagram(_ content: String) {
+    private func handleDatagram(_ content: String, connection: NWConnection) {
         DispatchQueue.main.async {
             self.onRawPacket(content)
+        }
+        let isInvite = content.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("INVITE")
+        
+        if isInvite {
+            // Send 100 Trying
+            if let response100 = SipParser.buildResponse(statusCode: "100 Trying", requestContent: content),
+               let data100 = response100.data(using: .utf8) {
+                connection.send(content: data100, completion: .contentProcessed({ _ in
+                    // Send 180 Ringing
+                    if let response180 = SipParser.buildResponse(statusCode: "180 Ringing", requestContent: content),
+                       let data180 = response180.data(using: .utf8) {
+                        connection.send(content: data180, completion: .contentProcessed({ _ in
+                            connection.cancel()
+                        }))
+                    } else {
+                        connection.cancel()
+                    }
+                }))
+            } else {
+                connection.cancel()
+            }
+        } else {
+            connection.cancel()
         }
         guard let result = SipParser.parse(datagramContent: content) else { return }
         

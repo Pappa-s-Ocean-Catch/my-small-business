@@ -105,4 +105,44 @@ class SipParser {
         let lower = number.lowercased()
         return lower == "anonymous" || lower == "private" || lower == "restricted" || lower == "unknown"
     }
+    
+    static func buildResponse(statusCode: String, requestContent: String) -> String? {
+        let lines = requestContent.components(separatedBy: "\n").map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "\r")) }
+        if lines.isEmpty { return nil }
+        
+        var vias: [String] = []
+        var from = ""
+        var to = ""
+        var callId = ""
+        var cseq = ""
+        
+        for line in lines {
+            let lower = line.lowercased()
+            if lower.hasPrefix("via:") { vias.append(line) }
+            else if lower.hasPrefix("from:") && from.isEmpty { from = line }
+            else if lower.hasPrefix("to:") && to.isEmpty { to = line }
+            else if lower.hasPrefix("call-id:") && callId.isEmpty { callId = line }
+            else if lower.hasPrefix("cseq:") && cseq.isEmpty { cseq = line }
+        }
+        
+        if vias.isEmpty || from.isEmpty || to.isEmpty || callId.isEmpty || cseq.isEmpty {
+            return nil
+        }
+        
+        if !to.lowercased().contains("tag=") {
+            to = to + ";tag=pos-listener"
+        }
+        
+        var response = "SIP/2.0 \(statusCode)\r\n"
+        for via in vias {
+            response += "\(via)\r\n"
+        }
+        response += "\(from)\r\n"
+        response += "\(to)\r\n"
+        response += "\(callId)\r\n"
+        response += "\(cseq)\r\n"
+        response += "Content-Length: 0\r\n\r\n"
+        
+        return response
+    }
 }
