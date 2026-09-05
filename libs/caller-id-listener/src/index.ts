@@ -83,3 +83,16 @@ export function addStatusListener(
   // Return a dummy subscription
   return { remove: () => {} } as Subscription;
 }
+
+/**
+ * Subscribes to raw UDP packet events for debugging.
+ */
+export function addRawPacketListener(
+  listener: (event: { content: string }) => void
+): Subscription {
+  if (emitter) {
+    return emitter.addListener('CallerIdRawPacket', listener);
+  }
+  // Return a dummy subscription
+  return { remove: () => {} } as Subscription;
+}

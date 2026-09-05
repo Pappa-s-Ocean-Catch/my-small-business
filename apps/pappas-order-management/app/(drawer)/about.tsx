@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import Constants from 'expo-constants';
 import * as Updates from 'expo-updates';
 import { Appbar, Button, Card, List, Text } from 'react-native-paper';
+import NetInfo from '@react-native-community/netinfo';
 import { getNativeAppMemory } from '@my-small-business/app-memory';
 import { BRAND_COLORS } from '@/utils/brand';
 
@@ -95,6 +96,17 @@ export default function AboutScreen() {
     EXPO_PUBLIC_GIT_SHA: process.env.EXPO_PUBLIC_GIT_SHA,
   }, Constants.expoConfig?.version ?? Constants.nativeAppVersion ?? 'Unknown');
   const updateDetails = getUpdateDetails();
+  const [ipAddress, setIpAddress] = useState<string | null>(null);
+
+  useEffect(() => {
+    NetInfo.fetch().then(state => {
+      // @ts-ignore - details shape depends on type, but ipAddress is commonly available on wifi/ethernet
+      const ip = state.details?.ipAddress;
+      if (ip) {
+        setIpAddress(ip);
+      }
+    });
+  }, []);
 
   const showResult = (result: UpdateResult) => {
     const { title, message } = resultMessage(result);
@@ -167,6 +179,13 @@ export default function AboutScreen() {
           <List.Item title="Revision" description={metadata.gitSha} left={(props) => <List.Icon {...props} icon="source-branch" />} />
           {updateDetails.updateId ? <List.Item title="Update ID" description={updateDetails.updateId} left={(props) => <List.Icon {...props} icon="identifier" />} /> : null}
           {updateDetails.channel ? <List.Item title="Update channel" description={updateDetails.channel} left={(props) => <List.Icon {...props} icon="broadcast" />} /> : null}
+        </Card>
+
+        <Card>
+          <Card.Content>
+            <Text variant="titleMedium">Network</Text>
+          </Card.Content>
+          <List.Item title="Local IP Address" description={ipAddress || 'Unknown / Not connected'} left={(props) => <List.Icon {...props} icon="wifi" />} />
         </Card>
 
         <Card>

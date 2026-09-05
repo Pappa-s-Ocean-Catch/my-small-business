@@ -5,6 +5,7 @@ class CallerIdServer {
     private var listener: NWListener?
     private let onIncomingCall: (String, String) -> Void
     private let onStatusChange: (String, Int?, String?) -> Void
+    private let onRawPacket: (String) -> Void
     
     // Call-ID cache for deduplication. Value is expiration timestamp.
     private var callIdCache: [String: TimeInterval] = [:]
@@ -13,9 +14,11 @@ class CallerIdServer {
     private let maxCacheSize = 1000
     
     init(onIncomingCall: @escaping (String, String) -> Void,
-         onStatusChange: @escaping (String, Int?, String?) -> Void) {
+         onStatusChange: @escaping (String, Int?, String?) -> Void,
+         onRawPacket: @escaping (String) -> Void) {
         self.onIncomingCall = onIncomingCall
         self.onStatusChange = onStatusChange
+        self.onRawPacket = onRawPacket
     }
     
     func start(port: UInt16) {
@@ -80,6 +83,9 @@ class CallerIdServer {
     }
     
     private func handleDatagram(_ content: String) {
+        DispatchQueue.main.async {
+            self.onRawPacket(content)
+        }
         guard let result = SipParser.parse(datagramContent: content) else { return }
         
         cacheQueue.async { [weak self] in

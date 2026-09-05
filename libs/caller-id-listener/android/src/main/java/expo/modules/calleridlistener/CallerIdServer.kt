@@ -8,7 +8,8 @@ import java.util.concurrent.ConcurrentHashMap
 
 class CallerIdServer(
     private val onIncomingCall: (String, String) -> Unit,
-    private val onStatusChange: (String, Int?, String?) -> Unit
+    private val onStatusChange: (String, Int?, String?) -> Unit,
+    private val onRawPacket: (String) -> Unit
 ) {
     private var job: Job? = null
     private var socket: DatagramSocket? = null
@@ -77,6 +78,7 @@ class CallerIdServer(
     }
 
     private fun handleDatagram(content: String) {
+        onRawPacket(content)
         val result = SipParser.parse(content) ?: return
         
         val now = System.currentTimeMillis()

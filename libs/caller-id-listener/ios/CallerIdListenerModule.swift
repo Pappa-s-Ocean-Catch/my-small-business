@@ -8,7 +8,7 @@ public class CallerIdListenerModule: Module {
   public func definition() -> ModuleDefinition {
     Name("CallerIdListener")
 
-    Events("CallerIdIncomingCall", "CallerIdListenerStatus")
+    Events("CallerIdIncomingCall", "CallerIdListenerStatus", "CallerIdRawPacket")
 
     OnCreate {
       self.server = CallerIdServer(
@@ -31,6 +31,9 @@ public class CallerIdListenerModule: Module {
           
           if state == "listening" { self?.isRunning = true }
           if state == "stopped" || state == "error" { self?.isRunning = false }
+        },
+        onRawPacket: { [weak self] content in
+          self?.sendEvent("CallerIdRawPacket", ["content": content])
         }
       )
     }

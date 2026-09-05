@@ -13,7 +13,7 @@ class CallerIdListenerModule : Module() {
     override fun definition() = ModuleDefinition {
         Name("CallerIdListener")
 
-        Events("CallerIdIncomingCall", "CallerIdListenerStatus")
+        Events("CallerIdIncomingCall", "CallerIdListenerStatus", "CallerIdRawPacket")
 
         OnCreate {
             server = CallerIdServer(
@@ -36,6 +36,12 @@ class CallerIdListenerModule : Module() {
                     sendEvent("CallerIdListenerStatus", payload)
                     if (state == "listening") isRunning = true
                     if (state == "stopped" || state == "error") isRunning = false
+                },
+                onRawPacket = { content ->
+                    val payload = Bundle().apply {
+                        putString("content", content)
+                    }
+                    sendEvent("CallerIdRawPacket", payload)
                 }
             )
         }

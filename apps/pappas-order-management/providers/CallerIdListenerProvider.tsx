@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { useAppSettingsQuery } from '@/hooks/useAppSettingsQuery';
 import { DEFAULT_APP_SETTINGS } from '@/lib/settings';
 import { searchCustomers } from '@/lib/customers';
+import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
 import * as CallerIdListener from '@my-small-business/caller-id-listener';
 import type { CallerIdListenerStatus, CallerIdIncomingCall } from '@my-small-business/caller-id-listener';
 
@@ -88,9 +89,21 @@ export const CallerIdListenerProvider: React.FC<{ children: React.ReactNode; aut
       }, settings.callerIdDisplaySeconds * 1000);
     });
 
+    const rawSub = CallerIdListener.addRawPacketListener((event: { content: string }) => {
+      usePrinterAutomationStore.getState().addJournalEntry({
+        title: 'Caller ID Packet Received',
+        message: event.content,
+        level: 'info',
+      });
+      console.log('--- CALLER ID RAW UDP PACKET RECEIVED ---');
+      console.log(event.content);
+      console.log('-----------------------------------------');
+    });
+
     return () => {
       statusSub.remove();
       callSub.remove();
+      rawSub.remove();
       if (dismissTimer.current) {
         clearTimeout(dismissTimer.current);
       }
