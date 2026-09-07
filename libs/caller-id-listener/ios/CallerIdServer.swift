@@ -12,6 +12,7 @@ class CallerIdServer {
     private let cacheQueue = DispatchQueue(label: "com.mysmallbusiness.callerid.cache")
     private let ttlSeconds: TimeInterval = 5 * 60 // 5 minutes
     private let maxCacheSize = 1000
+    private var currentSipResponses: [String] = []
     
     init(onIncomingCall: @escaping (String, String) -> Void,
          onStatusChange: @escaping (String, Int?, String?) -> Void,
@@ -21,7 +22,8 @@ class CallerIdServer {
         self.onRawPacket = onRawPacket
     }
     
-    func start(port: UInt16) {
+    func start(port: UInt16, sipResponses: [String] = []) {
+        self.currentSipResponses = sipResponses
         if listener?.state == .ready && listener?.port?.rawValue == port {
             return // Already running on this port
         }
@@ -86,24 +88,20 @@ class CallerIdServer {
         DispatchQueue.main.async {
             self.onRawPacket(content)
         }
+        
         let isInvite = content.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("INVITE")
         
-        if isInvite {
-            // Send 100 Trying
-            if let response100 = SipParser.buildResponse(statusCode: "100 Trying", requestContent: content),
-               let data100 = response100.data(using: .utf8) {
-                connection.send(content: data100, completion: .contentProcessed({ _ in
-                    // Send 180 Ringing
-                    if let response180 = SipParser.buildResponse(statusCode: "180 Ringing", requestContent: content),
-                       let data180 = response180.data(using: .utf8) {
-                        connection.send(content: data180, completion: .contentProcessed({ _ in
-                            connection.cancel()
-                        }))
-                    } else {
-                        connection.cancel()
-                    }
-                }))
-            } else {
+        if isInvite && !self.currentSipResponses.isEmpty {
+            for responseString in self.currentSipResponses {
+                if let sipResponse = SipParser.buildResponse(statusCode: responseString, requestContent: content),
+                   let data = sipResponse.data(using: .utf8) {
+                    connection.send(content: data, completion: .contentProcessed({ _ in
+                        // We do not cancel here, wait for the loop to finish.
+                    }))
+                }
+            }
+            // Delay closing slightly to allow packets to send
+            DispatchQueue.global().asyncAfter(deadline: .now() + 0.1) {
                 connection.cancel()
             }
         } else {

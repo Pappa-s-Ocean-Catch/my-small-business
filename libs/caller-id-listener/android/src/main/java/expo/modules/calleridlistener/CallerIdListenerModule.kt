@@ -52,10 +52,10 @@ class CallerIdListenerModule : Module() {
             isRunning = false
         }
 
-        Function("start") { port: Int? ->
+        Function("start") { port: Int?, sipResponses: List<String>? ->
             val bindPort = port ?: 5060
             currentPort = bindPort
-            server?.start(bindPort)
+            server?.start(bindPort, sipResponses ?: emptyList())
         }
 
         Function("stop") {

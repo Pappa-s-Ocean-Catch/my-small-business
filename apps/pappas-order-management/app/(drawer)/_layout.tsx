@@ -109,6 +109,15 @@ export default function DrawerLayout() {
         }}
       />
       <Drawer.Screen
+        name="call-history"
+        options={{
+          drawerLabel: 'Call History',
+          drawerIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="phone-log" color={color} size={size} />
+          ),
+        }}
+      />
+      <Drawer.Screen
         name="about"
         options={{
           drawerLabel: 'About',

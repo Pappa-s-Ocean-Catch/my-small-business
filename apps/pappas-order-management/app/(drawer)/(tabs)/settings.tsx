@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, View } from 'react-native';
-import { Appbar, Button, Switch, Text, TextInput } from 'react-native-paper';
+import { Appbar, Button, Switch, Text, TextInput, Chip } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { DEFAULT_APP_SETTINGS, type PrinterSectionAssignment } from '@/lib/settings';
@@ -69,6 +69,7 @@ export default function SettingsScreen() {
     const [callerIdEnabled, setCallerIdEnabled] = useState(DEFAULT_APP_SETTINGS.callerIdEnabled);
     const [callerIdPortText, setCallerIdPortText] = useState(String(DEFAULT_APP_SETTINGS.callerIdPort));
     const [callerIdDisplaySecondsText, setCallerIdDisplaySecondsText] = useState(String(DEFAULT_APP_SETTINGS.callerIdDisplaySeconds));
+    const [callerIdSipResponsesText, setCallerIdSipResponsesText] = useState(DEFAULT_APP_SETTINGS.callerIdSipResponses.join(', '));
     const [registerName, setRegisterName] = useState(DEFAULT_APP_SETTINGS.registerName);
     const [printerDebugFooter, setPrinterDebugFooter] = useState(DEFAULT_APP_SETTINGS.printerDebugFooter);
 
@@ -118,6 +119,7 @@ export default function SettingsScreen() {
         setCallerIdEnabled(currentSettings.callerIdEnabled);
         setCallerIdPortText(String(currentSettings.callerIdPort));
         setCallerIdDisplaySecondsText(String(currentSettings.callerIdDisplaySeconds));
+        setCallerIdSipResponsesText(currentSettings.callerIdSipResponses.join(', '));
         setRegisterName(currentSettings.registerName);
         setPrinterDebugFooter(currentSettings.printerDebugFooter);
 
@@ -573,6 +575,7 @@ export default function SettingsScreen() {
         const soundRepeatCount = parseIntOr(repeatCountText, DEFAULT_APP_SETTINGS.soundRepeatCount);
         const callerIdPort = parseIntOr(callerIdPortText, DEFAULT_APP_SETTINGS.callerIdPort);
         const callerIdDisplaySeconds = parseIntOr(callerIdDisplaySecondsText, DEFAULT_APP_SETTINGS.callerIdDisplaySeconds);
+        const callerIdSipResponses = callerIdSipResponsesText.split(',').map(s => s.trim()).filter(s => s.length > 0);
         const printerDelayPrintSec = parseIntOr(printerDelayPrintSecText, DEFAULT_APP_SETTINGS.printerDelayPrintSec);
 
         if (refreshIntervalSec < 5 || refreshIntervalSec > 600) {
@@ -668,6 +671,7 @@ export default function SettingsScreen() {
                 callerIdEnabled,
                 callerIdPort,
                 callerIdDisplaySeconds,
+                callerIdSipResponses,
                 printerEnabled,
                 printerAutoPrint,
                 instoreCustomerReceiptAutoPrintEnabled,
@@ -934,6 +938,37 @@ export default function SettingsScreen() {
                                     style={styles.input}
                                 />
                                 <Text style={styles.helper}>How long the notification stays on screen.</Text>
+
+                                <TextInput
+                                    mode="outlined"
+                                    label="SIP Responses (comma separated)"
+                                    value={callerIdSipResponsesText}
+                                    onChangeText={setCallerIdSipResponsesText}
+                                    style={styles.input}
+                                    autoCapitalize="none"
+                                    placeholder="e.g. 100 Trying, 180 Ringing"
+                                />
+                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                                    {[
+                                        { label: 'None', value: '' },
+                                        { label: 'Trying', value: '100 Trying' },
+                                        { label: 'Ringing', value: '180 Ringing' },
+                                        { label: 'Trying + Ringing', value: '100 Trying, 180 Ringing' },
+                                        { label: 'OK', value: '200 OK' },
+                                        { label: 'Trying + OK', value: '100 Trying, 200 OK' },
+                                        { label: 'Busy (486)', value: '486 Busy Here' },
+                                        { label: 'Unavailable (480)', value: '480 Temporarily Unavailable' },
+                                    ].map((preset, idx) => (
+                                        <Chip
+                                            key={idx}
+                                            mode="outlined"
+                                            compact
+                                            onPress={() => setCallerIdSipResponsesText(preset.value)}
+                                        >
+                                            {preset.label}
+                                        </Chip>
+                                    ))}
+                                </View>
                             </>
                         )}
 

@@ -143,6 +143,7 @@ export type AppSettings = {
     callerIdEnabled: boolean;
     callerIdPort: number;
     callerIdDisplaySeconds: number;
+    callerIdSipResponses: string[];
 
     // Kitchen printer (ESC/POS)
     printerEnabled: boolean;
@@ -217,6 +218,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     callerIdEnabled: false,
     callerIdPort: 5060,
     callerIdDisplaySeconds: 8,
+    callerIdSipResponses: ['100 Trying'],
 
     printerEnabled: false,
     printerAutoPrint: true,
@@ -311,6 +313,10 @@ export async function loadAppSettings(): Promise<AppSettings> {
             60
         );
 
+        const callerIdSipResponses = Array.isArray((parsed as any)?.callerIdSipResponses)
+            ? (parsed as any).callerIdSipResponses
+            : DEFAULT_APP_SETTINGS.callerIdSipResponses;
+
         const printerEnabled = typeof (parsed as any)?.printerEnabled === 'boolean'
             ? (parsed as any).printerEnabled
             : DEFAULT_APP_SETTINGS.printerEnabled;
@@ -374,6 +380,7 @@ export async function loadAppSettings(): Promise<AppSettings> {
             callerIdEnabled,
             callerIdPort,
             callerIdDisplaySeconds,
+            callerIdSipResponses,
 
             printerEnabled,
             printerAutoPrint,
@@ -424,6 +431,7 @@ export async function saveAppSettings(settings: AppSettings): Promise<void> {
         callerIdEnabled: !!settings.callerIdEnabled,
         callerIdPort: clampInt(settings.callerIdPort, 1, 65535),
         callerIdDisplaySeconds: clampInt(settings.callerIdDisplaySeconds, 2, 60),
+        callerIdSipResponses: Array.isArray(settings.callerIdSipResponses) ? settings.callerIdSipResponses : ['100 Trying'],
 
         printerEnabled: !!settings.printerEnabled,
         printerAutoPrint: !!settings.printerAutoPrint,

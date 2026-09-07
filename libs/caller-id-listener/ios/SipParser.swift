@@ -116,7 +116,8 @@ class SipParser {
         var callId = ""
         var cseq = ""
         
-        for line in lines {
+        for rawLine in lines {
+            let line = rawLine.replacingOccurrences(of: "\r", with: "").replacingOccurrences(of: "\n", with: "")
             let lower = line.lowercased()
             if lower.hasPrefix("via:") { vias.append(line) }
             else if lower.hasPrefix("from:") && from.isEmpty { from = line }
@@ -129,8 +130,8 @@ class SipParser {
             return nil
         }
         
-        if !to.lowercased().contains("tag=") {
-            to = to + ";tag=pos-listener"
+        if !statusCode.hasPrefix("100") && !to.lowercased().contains("tag=") {
+            to += ";tag=pos-listener"
         }
         
         var response = "SIP/2.0 \(statusCode)\r\n"
@@ -141,6 +142,7 @@ class SipParser {
         response += "\(to)\r\n"
         response += "\(callId)\r\n"
         response += "\(cseq)\r\n"
+        response += "Contact: <sip:pos-listener@127.0.0.1:5060>\r\n"
         response += "Content-Length: 0\r\n\r\n"
         
         return response

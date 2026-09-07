@@ -20,8 +20,11 @@ class CallerIdServer(
     private val TTL_MS = 5 * 60 * 1000L // 5 minutes
     private val MAX_CACHE_SIZE = 1000
 
+    private var currentSipResponses: List<String> = emptyList()
+
     @Synchronized
-    fun start(port: Int) {
+    fun start(port: Int, sipResponses: List<String> = emptyList()) {
+        currentSipResponses = sipResponses
         if (job?.isActive == true && socket?.localPort == port) {
             return // Already running on this port
         }
@@ -81,20 +84,14 @@ class CallerIdServer(
         onRawPacket(content)
         val isInvite = content.trim().startsWith("INVITE")
         
-        if (isInvite) {
-            // Send 100 Trying
-            val response100 = SipParser.buildResponse("100 Trying", content)
-            if (response100 != null) {
-                val data100 = response100.toByteArray(Charsets.UTF_8)
-                val outPacket100 = DatagramPacket(data100, data100.size, packet.address, packet.port)
-                try { socket?.send(outPacket100) } catch (e: Exception) {}
-                
-                // Send 180 Ringing
-                val response180 = SipParser.buildResponse("180 Ringing", content)
-                if (response180 != null) {
-                    val data180 = response180.toByteArray(Charsets.UTF_8)
-                    val outPacket180 = DatagramPacket(data180, data180.size, packet.address, packet.port)
-                    try { socket?.send(outPacket180) } catch (e: Exception) {}
+        // Send the configured SIP responses
+        if (isInvite && currentSipResponses.isNotEmpty()) {
+            for (responseString in currentSipResponses) {
+                val sipResponse = SipParser.buildResponse(responseString, content)
+                if (sipResponse != null) {
+                    val data = sipResponse.toByteArray(Charsets.UTF_8)
+                    val outPacket = DatagramPacket(data, data.size, packet.address, packet.port)
+                    try { socket?.send(outPacket) } catch (e: Exception) {}
                 }
             }
         }

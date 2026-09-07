@@ -1025,17 +1025,26 @@ export default function PosScreen() {
   useEffect(() => {
     const phoneParam = Array.isArray(params.incomingCallPhone) ? params.incomingCallPhone[0] : params.incomingCallPhone;
     const nameParam = Array.isArray(params.incomingCallName) ? params.incomingCallName[0] : params.incomingCallName;
+    const customerIdParam = Array.isArray(params.incomingCallCustomerId) ? params.incomingCallCustomerId[0] : params.incomingCallCustomerId;
     
     if (phoneParam) {
       setCustomerPhone(phoneParam);
       if (nameParam) {
         setCustomerName(nameParam);
       }
+      if (customerIdParam) {
+        setSelectedCustomer({ 
+          id: customerIdParam, 
+          phone: phoneParam, 
+          name: nameParam || 'Unknown' 
+        } as Customer);
+        setCustomerLookupStatus('found');
+      }
       
       // Clear the param so it doesn't re-trigger if we clear customer manually
-      router.setParams({ incomingCallPhone: '', incomingCallName: '' });
+      router.setParams({ incomingCallPhone: '', incomingCallName: '', incomingCallCustomerId: '' });
     }
-  }, [params.incomingCallPhone, params.incomingCallName, router]);
+  }, [params.incomingCallPhone, params.incomingCallName, params.incomingCallCustomerId, router]);
 
   const handleClearCustomer = useCallback(() => {
     setSelectedCustomer(null);

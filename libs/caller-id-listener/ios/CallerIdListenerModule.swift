@@ -44,9 +44,9 @@ public class CallerIdListenerModule: Module {
       self.isRunning = false
     }
     
-    Function("start") { (port: Int?) in
-      let bindPort = port ?? 5060
-      self.server?.start(port: UInt16(bindPort))
+    Function("start") { (port: Int?, sipResponses: [String]?) in
+      let bindPort = UInt16(port ?? 5060)
+      self.server?.start(port: bindPort, sipResponses: sipResponses ?? [])
     }
     
     Function("stop") {

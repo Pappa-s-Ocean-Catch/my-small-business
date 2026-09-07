@@ -29,11 +29,12 @@ try {
 }
 
 /**
- * Starts the caller ID listener on the specified port (default 5060).
+ * Starts the caller ID listener on the specified port (default 5060)
+ * with an optional array of SIP responses to send back on INVITE.
  */
-export function start(port: number = 5060): void {
+export function start(port: number = 5060, sipResponses: string[] = ["100 Trying"]): void {
   if (CallerIdListenerModule?.start) {
-    CallerIdListenerModule.start(port);
+    CallerIdListenerModule.start(port, sipResponses);
   } else {
     console.warn('CallerIdListener.start called but native module is unavailable');
   }

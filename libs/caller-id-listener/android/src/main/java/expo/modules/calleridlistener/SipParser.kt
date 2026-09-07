@@ -112,7 +112,8 @@ object SipParser {
         var callId = ""
         var cseq = ""
         
-        for (line in lines) {
+        for (rawLine in lines) {
+            val line = rawLine.replace("\r", "").replace("\n", "")
             val lower = line.lowercase()
             if (lower.startsWith("via:")) vias.add(line)
             else if (lower.startsWith("from:") && from.isEmpty()) from = line
@@ -125,7 +126,7 @@ object SipParser {
             return null
         }
         
-        if (!to.lowercase().contains("tag=")) {
+        if (!statusCode.startsWith("100") && !to.lowercase().contains("tag=")) {
             to += ";tag=pos-listener"
         }
         
@@ -138,6 +139,7 @@ object SipParser {
         sb.append(to).append("\r\n")
         sb.append(callId).append("\r\n")
         sb.append(cseq).append("\r\n")
+        sb.append("Contact: <sip:pos-listener@127.0.0.1:5060>\r\n")
         sb.append("Content-Length: 0\r\n\r\n")
         
         return sb.toString()
