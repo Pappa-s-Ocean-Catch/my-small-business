@@ -43,6 +43,7 @@ import { buildKitchenReceiptDocument } from '@/lib/kitchen-receipt-document';
 import { CustomerReceiptTemplate } from '@/components/CustomerReceiptTemplate';
 import { JournalLogsModal } from '@/components/PrintLogsModal';
 import { isScheduledPreOrder } from '@/utils/orderUtils';
+import { isLiveOrder } from '@/lib/live-order-window';
 import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
 import { JOURNAL_LOGS_ENABLED } from '@/lib/journal-config';
 import { getPrintDeviceId } from '@/lib/print-device';
@@ -61,6 +62,7 @@ import {
 import {
   LIVE_ORDERS_QUERY_KEY,
   useLiveOrdersQuery,
+  useOnTheWayOrdersQuery,
   usePreOrderCountQuery,
 } from '@/hooks/useLiveOrdersQuery';
 import { useCustomerOrderCounts } from '@/hooks/useCustomerOrderCounts';
@@ -115,6 +117,8 @@ export default function LiveOrdersScreen() {
     isFetching: isFetchingOrders,
     dataUpdatedAt,
   } = useLiveOrdersQuery();
+  // Keep completion polling alive before the lazily mounted delivery tab is opened.
+  useOnTheWayOrdersQuery();
   const { data: successfulOrderCounts } = useCustomerOrderCounts(orders);
   const { data: preOrderCount = 0 } = usePreOrderCountQuery();
   const { data: appSettings = DEFAULT_APP_SETTINGS } = useAppSettingsQuery();
@@ -172,7 +176,7 @@ export default function LiveOrdersScreen() {
       if (updatedOrders.length > 0) {
         const updatedById = new Map(updatedOrders.map((order) => [order.id, order]));
         queryClient.setQueryData<Order[]>(LIVE_ORDERS_QUERY_KEY, (prev = []) => (
-          prev.map((order) => updatedById.get(order.id) || order)
+          prev.map((order) => updatedById.get(order.id) || order).filter((order) => isLiveOrder(order))
         ));
 
         if (selectedOrder) {
@@ -673,7 +677,7 @@ export default function LiveOrdersScreen() {
 
       if (result.data) {
         queryClient.setQueryData<Order[]>(LIVE_ORDERS_QUERY_KEY, (prev = []) => (
-          prev.map((item) => (item.id === result.data!.id ? result.data! : item))
+          prev.map((item) => (item.id === result.data!.id ? result.data! : item)).filter((item) => isLiveOrder(item))
         ));
         if (selectedOrder?.id === result.data.id) {
           setSelectedOrder(result.data);

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@my-small-business/supabase/server';
 import { getShipdayPayloadHash } from '@/lib/shipday-event-dedupe';
+import { getShipdayOrderStatusUpdate, mapShipdayStatus } from '@/lib/shipday-order-status';
+import type { Order } from '@my-small-business/types';
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
@@ -20,8 +22,8 @@ function collectValues(
 
   if (typeof value === 'object') {
     for (const [key, nested] of Object.entries(value)) {
-      if (keyNames.has(key) && typeof nested === 'string' && nested.trim()) {
-        found.push(nested.trim());
+      if (keyNames.has(key) && (typeof nested === 'string' || typeof nested === 'number') && String(nested).trim()) {
+        found.push(String(nested).trim());
       }
       collectValues(nested as JsonValue, keyNames, found);
     }
@@ -33,40 +35,6 @@ function collectValues(
 function firstMatch(body: JsonValue | undefined, keys: string[]): string | null {
   const values = collectValues(body, new Set(keys));
   return values.length > 0 ? values[0] : null;
-}
-
-function mapShipdayStatus(rawStatus: string | null, rawEventType: string | null): string | null {
-  const status = `${rawStatus || ''} ${rawEventType || ''}`.toLowerCase();
-
-  if (!status.trim()) return null;
-  if (status.includes('deliver')) return 'delivered';
-  if (
-    status.includes('picked_up') ||
-    status.includes('picked up') ||
-    status.includes('pickup complete') ||
-    status.includes('in_transit') ||
-    status.includes('in transit') ||
-    status.includes('picked') ||
-    status.includes('transit') ||
-    status.includes('inflight') ||
-    status.includes('enroute') ||
-    status.includes('on_the_way') ||
-    status.includes('on the way')
-  ) {
-    return 'inflight';
-  }
-  if (
-    status.includes('assign') ||
-    status.includes('accept') ||
-    status.includes('driver') ||
-    status.includes('dispatch') ||
-    status.includes('scheduled')
-  ) {
-    return 'assigned';
-  }
-  if (status.includes('cancel')) return 'cancelled';
-  if (status.includes('fail')) return 'failed';
-  return 'pending';
 }
 
 function isAuthorized(request: Request): boolean {
@@ -99,14 +67,18 @@ export async function POST(request: Request) {
 
   const supabase = await createServiceRoleClient();
 
-  const externalDeliveryId = firstMatch(body, ['orderId', 'deliveryId', 'id']);
+  const root = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
+  // The webhook also contains company/carrier/customer IDs and statuses.
+  const externalDeliveryId = firstMatch(root.order, ['id', 'orderId'])
+    ?? firstMatch(root, ['orderId', 'deliveryId']);
   const externalOrderNumber = firstMatch(body, [
     'orderNumber',
     'order_number',
     'externalOrderId',
     'external_order_id',
   ]);
-  const rawStatus = firstMatch(body, ['status', 'deliveryStatus', 'orderStatus']);
+  const rawStatus = typeof root.order_status === 'string' ? root.order_status
+    : firstMatch(body, ['orderState', 'status', 'deliveryStatus', 'orderStatus']);
   const rawEventType = firstMatch(body, ['eventType', 'type', 'event', 'action']);
   const trackingUrl = firstMatch(body, ['trackingUrl', 'tracking_url']);
   const driverName = firstMatch(body, ['driverName', 'dasherName', 'courierName']);
@@ -117,33 +89,38 @@ export async function POST(request: Request) {
 
   let orderId: string | null = null;
   let matchedOrderStatus: string | null = null;
+  let matchedOrder: Pick<Order, 'order_status' | 'payment_status'> | null = null;
 
   if (externalDeliveryId) {
     const { data } = await supabase
       .from('orders')
-      .select('id, delivery_status')
+      .select('id, delivery_status, order_status, payment_status')
       .eq('delivery_provider_id', externalDeliveryId)
       .maybeSingle();
     if (data) {
       orderId = data.id;
       matchedOrderStatus = data.delivery_status;
+      matchedOrder = data;
     }
   }
 
   if (!orderId && externalOrderNumber) {
     const { data } = await supabase
       .from('orders')
-      .select('id, delivery_status')
+      .select('id, delivery_status, order_status, payment_status')
       .eq('order_number', externalOrderNumber)
       .maybeSingle();
     if (data) {
       orderId = data.id;
       matchedOrderStatus = data.delivery_status;
+      matchedOrder = data;
     }
   }
 
   const normalizedStatus = mapShipdayStatus(rawStatus, rawEventType) ?? matchedOrderStatus ?? 'pending';
   const payloadHash = getShipdayPayloadHash(body);
+  const orderStatusUpdate = matchedOrder ? getShipdayOrderStatusUpdate(matchedOrder, normalizedStatus) : null;
+  let duplicatePayload = false;
 
   if (orderId || externalDeliveryId) {
     let duplicateQuery = supabase
@@ -162,7 +139,8 @@ export async function POST(request: Request) {
 
     const { data: latestMatchingEvent } = await duplicateQuery.maybeSingle();
 
-    if (latestMatchingEvent) {
+    duplicatePayload = Boolean(latestMatchingEvent);
+    if (duplicatePayload && !orderStatusUpdate) {
       return NextResponse.json({
         success: true,
         skippedDuplicatePayload: true,
@@ -178,38 +156,49 @@ export async function POST(request: Request) {
     const updatePayload: Record<string, string | null> = {
       delivery_status: normalizedStatus,
     };
+    if (orderStatusUpdate) updatePayload.order_status = orderStatusUpdate;
 
-    if (externalDeliveryId) {
+    if (!duplicatePayload && externalDeliveryId) {
       updatePayload.delivery_provider_id = externalDeliveryId;
     }
-    if (trackingUrl) {
+    if (!duplicatePayload && trackingUrl) {
       updatePayload.delivery_tracking_url = trackingUrl;
     }
-    if (driverName) {
+    if (!duplicatePayload && driverName) {
       updatePayload.delivery_driver_name = driverName;
     }
-    if (driverPhone) {
+    if (!duplicatePayload && driverPhone) {
       updatePayload.delivery_driver_phone = driverPhone;
     }
-    if (driverPin) {
+    if (!duplicatePayload && driverPin) {
       updatePayload.delivery_driver_pin = driverPin;
     }
-    if (vehicleInfo) {
+    if (!duplicatePayload && vehicleInfo) {
       updatePayload.delivery_vehicle_info = vehicleInfo;
     }
 
-    const { error: updateError } = await supabase
+    let updateQuery = supabase
       .from('orders')
       .update(updatePayload)
       .eq('id', orderId);
+    if (matchedOrder) {
+      updateQuery = updateQuery
+        .eq('order_status', matchedOrder.order_status)
+        .eq('payment_status', matchedOrder.payment_status);
+    }
+    const { data: savedOrder, error: updateError } = await updateQuery.select('id').maybeSingle();
 
     if (updateError) {
       console.error('[Shipday Webhook] Failed to update order:', updateError);
       return NextResponse.json({ error: 'Failed to update order' }, { status: 500 });
     }
+    if (!savedOrder) {
+      // Do not acknowledge or deduplicate an event whose conditional write lost a race.
+      return NextResponse.json({ error: 'Order changed during delivery sync; retry this event' }, { status: 503 });
+    }
   }
 
-  const { error: eventError } = await supabase.from('order_events').insert({
+  const { error: eventError } = duplicatePayload ? { error: null } : await supabase.from('order_events').insert({
     order_id: orderId,
     source: 'shipday',
     event_type: rawEventType || 'status_update',
@@ -228,6 +217,7 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     success: true,
+    skippedDuplicatePayload: duplicatePayload,
     matched_order_id: orderId,
     external_delivery_id: externalDeliveryId,
     external_order_number: externalOrderNumber,

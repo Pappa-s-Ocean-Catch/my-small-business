@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
-import { getOpenOrderCandidates, getOrdersByIds } from '@/lib/orders';
+import { getOpenOrderCandidates, getOrdersByIds, refreshDeliveryStatus } from '@/lib/orders';
 import type { Order } from '@my-small-business/types';
 import {
   getLiveOrderEligibility,
   getLiveOrderQueryRange,
+  isOnTheWayOrder,
 } from '@/lib/live-order-window';
 import {
   getAutoPrintableScheduledOrderCandidateIds,
@@ -138,7 +139,14 @@ export async function fetchOnTheWayOrders(): Promise<Order[]> {
 
   const hydrated = await getOrdersByIds(getOnTheWayOrderCandidateIds(result.data || []));
   if (hydrated.error) throw new Error(hydrated.error);
-  return sortLiveOrders(hydrated.data || []);
+  // These deliveries no longer participate in the Live Orders Shipday poll.
+  const refreshed = await Promise.all((hydrated.data || []).map(async (order) => {
+    if (!isOnTheWayOrder(order) || order.order_type !== 'delivery' || !order.delivery_provider_id) return order;
+    const result = await refreshDeliveryStatus(order.id);
+    if (result.error) console.warn('[on-the-way-query] Delivery refresh failed', { orderId: order.id, error: result.error });
+    return result.data || order;
+  }));
+  return sortLiveOrders(refreshed.filter(isOnTheWayOrder));
 }
 
 export async function fetchScheduledOrdersInAutomationWindow(nowMs: number = Date.now()): Promise<Order[]> {
@@ -194,6 +202,7 @@ export function useOnTheWayOrdersQuery() {
   return useQuery({
     queryKey: ON_THE_WAY_ORDERS_QUERY_KEY,
     queryFn: fetchOnTheWayOrders,
+    refetchInterval: LIVE_ORDER_ELIGIBILITY_REFRESH_MS,
   });
 }
 

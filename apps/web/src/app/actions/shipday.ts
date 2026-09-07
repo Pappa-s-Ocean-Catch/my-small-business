@@ -4,6 +4,7 @@ import { getShipdayClient } from '@my-small-business/shipday';
 import { createServiceRoleClient } from '@my-small-business/supabase/server';
 import type { Order } from '@my-small-business/types';
 import { getShipdayPayloadHash } from '@/lib/shipday-event-dedupe';
+import { getShipdayOrderStatusUpdate, mapShipdayStatus } from '@/lib/shipday-order-status';
 
 export async function createShipdayOrder(orderId: string) {
   try {
@@ -197,40 +198,6 @@ export async function markShipdayOrderReady(orderId: string) {
   }
 }
 
-function mapShipdayStatus(rawStatus: string | null | undefined): string {
-  const status = (rawStatus || '').toLowerCase();
-
-  if (!status.trim()) return 'pending';
-  if (status.includes('deliver')) return 'delivered';
-  if (
-    status.includes('picked_up') ||
-    status.includes('picked up') ||
-    status.includes('pickup complete') ||
-    status.includes('in_transit') ||
-    status.includes('in transit') ||
-    status.includes('picked') ||
-    status.includes('transit') ||
-    status.includes('inflight') ||
-    status.includes('enroute') ||
-    status.includes('on_the_way') ||
-    status.includes('on the way')
-  ) {
-    return 'inflight';
-  }
-  if (
-    status.includes('assign') ||
-    status.includes('accept') ||
-    status.includes('driver') ||
-    status.includes('dispatch') ||
-    status.includes('scheduled')
-  ) {
-    return 'assigned';
-  }
-  if (status.includes('cancel')) return 'cancelled';
-  if (status.includes('fail')) return 'failed';
-  return 'pending';
-}
-
 export async function refreshShipdayOrderStatus(orderId: string) {
   try {
     const supabase = await createServiceRoleClient();
@@ -254,8 +221,9 @@ export async function refreshShipdayOrderStatus(orderId: string) {
     }
 
     const client = getShipdayClient();
-    const res = await client.getDeliveryStatus(String(order.delivery_provider_id));
-    const normalizedStatus = mapShipdayStatus(res.status);
+    const res = await client.getDeliveryStatus(String(order.delivery_provider_id), order.order_number);
+    const normalizedStatus = mapShipdayStatus(res.status) ?? order.delivery_status ?? 'pending';
+    const orderStatusUpdate = getShipdayOrderStatusUpdate(order, normalizedStatus);
     const payloadHash = getShipdayPayloadHash((res.raw ?? {
       delivery_id: res.delivery_id,
       order_number: res.order_number || null,
@@ -278,7 +246,7 @@ export async function refreshShipdayOrderStatus(orderId: string) {
       .limit(1)
       .maybeSingle();
 
-    if (latestMatchingEvent) {
+    if (latestMatchingEvent && !orderStatusUpdate) {
       return {
         success: true,
         skippedDuplicatePayload: true,
@@ -289,7 +257,8 @@ export async function refreshShipdayOrderStatus(orderId: string) {
       };
     }
 
-    const updatePayload: Record<string, string | null> = {
+    // A repeated payload can still repair orders left behind by older sync code.
+    const updatePayload: Record<string, string | null> = latestMatchingEvent ? { delivery_status: normalizedStatus } : {
       delivery_status: normalizedStatus,
       delivery_tracking_url: res.tracking_url || order.delivery_tracking_url || null,
       delivery_driver_name: res.driver_name || null,
@@ -297,27 +266,29 @@ export async function refreshShipdayOrderStatus(orderId: string) {
       delivery_driver_pin: res.driver_pin || null,
       delivery_vehicle_info: res.vehicle_info || null,
     };
+    if (orderStatusUpdate) updatePayload.order_status = orderStatusUpdate;
 
-    const outOfSync =
-      order.delivery_status !== updatePayload.delivery_status ||
-      (order.delivery_tracking_url || null) !== updatePayload.delivery_tracking_url ||
-      (order.delivery_driver_name || null) !== updatePayload.delivery_driver_name ||
-      (order.delivery_driver_phone || null) !== updatePayload.delivery_driver_phone ||
-      (order.delivery_driver_pin || null) !== updatePayload.delivery_driver_pin ||
-      (order.delivery_vehicle_info || null) !== updatePayload.delivery_vehicle_info;
+    const outOfSync = Object.entries(updatePayload).some(([key, value]) => (order[key] || null) !== value);
 
     if (outOfSync) {
-      const { error: updateError } = await supabase
+      const { data: savedOrder, error: updateError } = await supabase
         .from('orders')
         .update(updatePayload)
-        .eq('id', order.id);
+        .eq('id', order.id)
+        .eq('order_status', order.order_status)
+        .eq('payment_status', order.payment_status)
+        .select('id')
+        .maybeSingle();
 
       if (updateError) {
         return { success: false, error: updateError.message };
       }
+      if (!savedOrder) {
+        return { success: false, error: 'Order changed during delivery sync; retry the refresh' };
+      }
     }
 
-    await supabase.from('order_events').insert({
+    if (!latestMatchingEvent) await supabase.from('order_events').insert({
       order_id: order.id,
       source: 'shipday',
       event_type: 'status_refresh',
@@ -341,9 +312,10 @@ export async function refreshShipdayOrderStatus(orderId: string) {
 
     return {
       success: true,
+      skippedDuplicatePayload: Boolean(latestMatchingEvent),
       synced: outOfSync,
       status: normalizedStatus,
-      trackingUrl: updatePayload.delivery_tracking_url,
+      trackingUrl: updatePayload.delivery_tracking_url || order.delivery_tracking_url || null,
       order: updatedOrder || order,
     };
   } catch (error) {

@@ -399,19 +399,28 @@ class ShipdayClient {
     }
   }
 
-  async getDeliveryStatus(deliveryId: string): Promise<DeliveryStatusResponse> {
+  async getDeliveryStatus(deliveryId: string, orderNumber: string): Promise<DeliveryStatusResponse> {
     const shipdayOrderId = Number(deliveryId);
     if (!Number.isFinite(shipdayOrderId) || shipdayOrderId <= 0) {
       throw new Error('Invalid Shipday delivery id');
     }
 
     try {
-      const response = await this.sdk.orderService.getOrderDetails(shipdayOrderId);
-      const responseBody = response && typeof response === 'object' ? response : {};
+      if (!orderNumber?.trim()) throw new Error('Order number missing for Shipday status lookup');
+      // This SDK endpoint is keyed by merchant order number, not Shipday order ID.
+      const response = await this.sdk.orderService.getOrderDetails(orderNumber);
+      const matches = Array.isArray(response) ? response : [response];
+      const responseBody = matches.find((entry) => entry && String(entry.orderId ?? entry.id) === String(shipdayOrderId));
+      if (!responseBody) throw new Error('Linked Shipday delivery not found in order status response');
+      const status = responseBody.orderStatus?.orderState
+        || responseBody.orderState || responseBody.deliveryStatus
+        || (typeof responseBody.orderStatus === 'string' ? responseBody.orderStatus : null)
+        || responseBody.status;
+      if (typeof status !== 'string' || !status.trim()) throw new Error('Shipday response is missing the order status');
       return {
         delivery_id: firstMatch(responseBody as JsonLike, ['orderId', 'id']) || String(shipdayOrderId),
         order_number: firstMatch(responseBody as JsonLike, ['orderNumber', 'order_number', 'externalOrderId', 'external_order_id']),
-        status: firstMatch(responseBody as JsonLike, ['status', 'deliveryStatus', 'orderStatus', 'state']),
+        status,
         tracking_url: firstMatch(responseBody as JsonLike, ['trackingUrl', 'tracking_url', 'trackingLink', 'tracking_link']),
         driver_name: firstMatch(responseBody as JsonLike, ['driverName', 'dasherName', 'courierName', 'name']),
         driver_phone: firstMatch(responseBody as JsonLike, ['driverPhone', 'dasherPhone', 'courierPhone', 'phoneNumber', 'phone_number']),
