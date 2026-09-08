@@ -193,8 +193,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Failed to update order' }, { status: 500 });
     }
     if (!savedOrder) {
-      // Do not acknowledge or deduplicate an event whose conditional write lost a race.
       return NextResponse.json({ error: 'Order changed during delivery sync; retry this event' }, { status: 503 });
+    }
+  }
+
+  // Add webhook state recording for standalone requests
+  if (externalOrderNumber) {
+    const drUpdatePayload: Record<string, string> = {};
+    if (!duplicatePayload && externalDeliveryId) {
+      drUpdatePayload.shipday_order_id = externalDeliveryId;
+    }
+    if (!duplicatePayload && trackingUrl) {
+      drUpdatePayload.tracking_url = trackingUrl;
+    }
+    
+    if (Object.keys(drUpdatePayload).length > 0) {
+      await supabase.from('delivery_requests')
+        .update(drUpdatePayload)
+        .eq('reference', externalOrderNumber);
     }
   }
 

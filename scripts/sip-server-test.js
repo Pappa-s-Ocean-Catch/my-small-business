@@ -9,10 +9,10 @@ const PORT = 5060;
 // const SIP_RESPONSES = ["100 Trying"];
 // const SIP_RESPONSES = ["486 Busy Here"];
 // const SIP_RESPONSES = ["480 Temporarily Unavailable"];
-const SIP_RESPONSES = ["503 Dead Server"];
+const SIP_RESPONSES = ["100 Trying"];
 
 // Delay in milliseconds before sending the response (e.g. 30000 for 30s)
-const DELAY_MS = 30000;
+const DELAY_MS = 0;
 
 server.on('error', (err) => {
   console.log(`Server error:\n${err.stack}`);
