@@ -39,6 +39,7 @@ interface LiveOrderListItemProps {
   compact?: boolean;
   cardWidth?: number;
   printState?: OrderPrintState | null;
+  previewItemsLimit?: number;
 }
 
 export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
@@ -60,6 +61,7 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
   compact = false,
   cardWidth,
   printState = null,
+  previewItemsLimit = 3,
 }) => {
   const { width, height } = useWindowDimensions();
   const isPhoneLayout = isCompactPhoneWidth(width);
@@ -100,7 +102,7 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
     order.order_status !== 'completed' &&
     order.order_status !== 'cancelled';
 
-  const previewItems = (order.items || []).slice(0, 3);
+  const previewItems = (order.items || []).slice(0, previewItemsLimit);
   const extraItemCount = Math.max(0, (order.items?.length || 0) - previewItems.length);
   const pickupLabel = order.scheduled_pickup_at
     ? `PICKUP ${new Date(order.scheduled_pickup_at).toLocaleString([], {
@@ -455,6 +457,8 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   verticalOrderCardRail: {
+    flex: 1,
+    alignSelf: 'stretch',
     minHeight: 470,
     marginRight: 0,
   },
@@ -485,6 +489,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   verticalHeader: {
+    flexShrink: 0,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
@@ -598,6 +603,7 @@ const styles = StyleSheet.create({
     color: '#374151',
   },
   verticalChipRow: {
+    flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
@@ -653,6 +659,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Courier',
   },
   verticalMetaGrid: {
+    flexShrink: 0,
     marginTop: 18,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -741,6 +748,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   verticalFooter: {
+    flexShrink: 0,
     marginTop: 18,
     paddingTop: 16,
     borderTopWidth: 1,

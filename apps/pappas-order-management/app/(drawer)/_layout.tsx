@@ -91,6 +91,15 @@ export default function DrawerLayout() {
         }}
       />
       <Drawer.Screen
+        name="delivery-management"
+        options={{
+          drawerLabel: 'Deliveries',
+          drawerIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="truck-delivery-outline" color={color} size={size} />
+          ),
+        }}
+      />
+      <Drawer.Screen
         name="report"
         options={{
           drawerLabel: 'Report',

@@ -732,7 +732,7 @@ export default function LiveOrdersScreen() {
     width,
     height,
   );
-  const liveOrderCardWidth = getLiveOrderCardRailWidth(width, height);
+  const liveOrderCardWidth = getLiveOrderCardRailWidth(width, height, appSettings.liveOrderCardsPerScreen);
   const useCompactVerticalCards = shouldUseCompactLiveOrderCards(
     appSettings.liveOrderCardLayout === 'vertical',
     width,
@@ -880,6 +880,7 @@ export default function LiveOrdersScreen() {
       </Surface>
 
       <FlatList
+        style={{ flex: 1 }}
         data={filteredOrders}
         horizontal={useVerticalCardRail}
         ItemSeparatorComponent={useVerticalCardRail ? () => <View style={styles.cardRailSeparator} /> : undefined}
@@ -893,6 +894,7 @@ export default function LiveOrdersScreen() {
             layout={isVerticalCardLayout ? 'vertical' : 'horizontal'}
             compact={useCompactVerticalCards}
             cardWidth={useVerticalCardRail ? liveOrderCardWidth : undefined}
+            previewItemsLimit={appSettings.liveOrderCardPreviewItems}
             onOrderPress={handleOrderPress}
             onCustomerPress={handleCustomerPress}
             onPrintPress={(order, printer) => void quickPrintOrder(order, printer)}
@@ -1112,7 +1114,7 @@ const styles = StyleSheet.create({
   filterCountSelected: { backgroundColor: 'rgba(255,255,255,0.18)' },
   filterCountText: { color: '#374151', fontSize: 11, fontWeight: '900' },
   filterCountTextSelected: { color: '#fff' },
-  listContent: { padding: 12, paddingBottom: 20 },
+  listContent: { flexGrow: 1, alignItems: 'stretch', padding: 12, paddingBottom: 20 },
   listContentCompact: { padding: 8, paddingBottom: 8 },
   cardRailSeparator: { width: 12 },
   emptyContainer: { flex: 1, alignItems: 'center', marginTop: 100 },

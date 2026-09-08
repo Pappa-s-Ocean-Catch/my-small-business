@@ -133,6 +133,8 @@ export type AppSettings = {
     soundId: SoundId;
     soundRepeatCount: number;
     liveOrderCardLayout: 'horizontal' | 'vertical';
+    liveOrderCardsPerScreen: 3 | 4;
+    liveOrderCardPreviewItems: number;
     marketplaceAutoSyncEnabled: boolean;
     marketplaceSyncIntervalSec: number;
     marketplaceSyncStartTime: string;
@@ -209,6 +211,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     soundId: 'so-proud-notification',
     soundRepeatCount: 3,
     liveOrderCardLayout: 'vertical',
+    liveOrderCardsPerScreen: 4,
+    liveOrderCardPreviewItems: 3,
     marketplaceAutoSyncEnabled: true,
     marketplaceSyncIntervalSec: DEFAULT_MARKETPLACE_SYNC_INTERVAL_SEC,
     marketplaceSyncStartTime: '11:00',
@@ -285,6 +289,8 @@ export async function loadAppSettings(): Promise<AppSettings> {
         const liveOrderCardLayout = (parsed as any)?.liveOrderCardLayout === 'horizontal'
             ? 'horizontal'
             : 'vertical';
+        const liveOrderCardsPerScreen = (parsed as any)?.liveOrderCardsPerScreen === 3 ? 3 : 4;
+        const liveOrderCardPreviewItems = typeof (parsed as any)?.liveOrderCardPreviewItems === 'number' ? (parsed as any).liveOrderCardPreviewItems : 3;
         const marketplaceAutoSyncEnabled = typeof (parsed as any)?.marketplaceAutoSyncEnabled === 'boolean'
             ? (parsed as any).marketplaceAutoSyncEnabled
             : DEFAULT_APP_SETTINGS.marketplaceAutoSyncEnabled;
@@ -371,6 +377,8 @@ export async function loadAppSettings(): Promise<AppSettings> {
             soundId,
             soundRepeatCount,
             liveOrderCardLayout,
+            liveOrderCardsPerScreen,
+            liveOrderCardPreviewItems,
             marketplaceAutoSyncEnabled,
             marketplaceSyncIntervalSec,
             marketplaceSyncStartTime: marketplaceSyncWindow.startTime,
@@ -422,6 +430,8 @@ export async function saveAppSettings(settings: AppSettings): Promise<void> {
         soundId: settings.soundId,
         soundRepeatCount: clampInt(settings.soundRepeatCount, 1, 10),
         liveOrderCardLayout: settings.liveOrderCardLayout === 'horizontal' ? 'horizontal' : 'vertical',
+        liveOrderCardsPerScreen: settings.liveOrderCardsPerScreen === 3 ? 3 : 4,
+        liveOrderCardPreviewItems: settings.liveOrderCardPreviewItems || 3,
         marketplaceAutoSyncEnabled: settings.marketplaceAutoSyncEnabled !== false,
         marketplaceSyncIntervalSec: normalizeMarketplaceSyncIntervalSec(settings.marketplaceSyncIntervalSec),
         marketplaceSyncStartTime: marketplaceSyncWindow.startTime,

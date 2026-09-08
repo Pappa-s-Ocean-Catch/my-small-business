@@ -102,7 +102,7 @@ export default function PreOrdersScreen() {
     width,
     height,
   );
-  const liveOrderCardWidth = getLiveOrderCardRailWidth(width, height);
+  const liveOrderCardWidth = getLiveOrderCardRailWidth(width, height, appSettings.liveOrderCardsPerScreen);
   const useCompactVerticalCards = shouldUseCompactLiveOrderCards(
     appSettings.liveOrderCardLayout === 'vertical',
     width,
@@ -531,6 +531,7 @@ export default function PreOrdersScreen() {
             layout={isVerticalCardLayout ? 'vertical' : 'horizontal'}
             compact={useCompactVerticalCards}
             cardWidth={useVerticalCardRail ? liveOrderCardWidth : undefined}
+            previewItemsLimit={appSettings.liveOrderCardPreviewItems}
             onOrderPress={handleOrderPress}
             onCustomerPress={handleCustomerPress}
             onPrintPress={(order, printer) => void quickPrintOrder(order, printer)}
@@ -623,7 +624,7 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   countText: { fontSize: 14, color: '#6b7280', fontWeight: '600' },
   refreshButton: { borderRadius: 8 },
-  listContent: { padding: 16 },
+  listContent: { flexGrow: 1, alignItems: 'stretch', padding: 16 },
   listContentCompact: { padding: 12 },
   cardRailSeparator: { width: 12 },
   emptyContainer: { flex: 1, alignItems: 'center', marginTop: 100 },

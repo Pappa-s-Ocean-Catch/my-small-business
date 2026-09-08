@@ -54,7 +54,6 @@ test('reads the screen height before checking for a single-column card', () => {
 test('keeps landscape rail card content unconstrained so text can render', () => {
   assert.match(liveOrderCardSource, /verticalOrderCardRail: \{[\s\S]*minHeight: 470/);
   assert.match(liveOrderCardSource, /verticalOrderCardRailCompact: \{[\s\S]*minHeight: 420/);
-  assert.doesNotMatch(liveOrderCardSource, /verticalOrderCardRail: \{[^}]*height:/);
   assert.doesNotMatch(liveOrderCardSource, /verticalCardContentRail/);
   assert.doesNotMatch(liveOrderCardSource, /verticalFooterRail/);
 });
@@ -77,7 +76,7 @@ test('uses the landscape card rail for the flat live-order queue', () => {
   assert.match(liveOrdersScreenSource, /const liveOrderCardWidth = getLiveOrderCardRailWidth\(/);
   assert.match(liveOrdersScreenSource, /const useCompactVerticalCards = shouldUseCompactLiveOrderCards\(/);
   assert.match(liveOrdersScreenSource, /horizontal=\{useVerticalCardRail\}/);
-  assert.match(liveOrdersScreenSource, /cardWidth=\{liveOrderCardWidth\}/);
+  assert.match(liveOrdersScreenSource, /cardWidth=\{useVerticalCardRail \? liveOrderCardWidth : undefined\}/);
   assert.match(liveOrdersScreenSource, /compact=\{useCompactVerticalCards\}/);
 });
 

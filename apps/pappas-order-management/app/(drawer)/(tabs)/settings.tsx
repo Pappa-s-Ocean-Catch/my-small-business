@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Modal, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Modal, ScrollView, StyleSheet, View, Platform } from 'react-native';
 import { Appbar, Button, Switch, Text, TextInput, Chip } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { DEFAULT_APP_SETTINGS, type PrinterSectionAssignment } from '@/lib/settings';
+import { DrawerToggleButton } from '@react-navigation/drawer';
 import { playNewOrderSound, SOUND_OPTIONS, type SoundId } from '@/lib/sounds';
 import { PRINT_SECTION_OPTIONS } from '@/utils/orderUtils';
 import { BRAND_COLORS } from '@/utils/brand';
@@ -61,6 +62,8 @@ export default function SettingsScreen() {
     const [soundId, setSoundId] = useState<SoundId>(DEFAULT_APP_SETTINGS.soundId);
     const [repeatCountText, setRepeatCountText] = useState(String(DEFAULT_APP_SETTINGS.soundRepeatCount));
     const [liveOrderCardLayout, setLiveOrderCardLayout] = useState<'horizontal' | 'vertical'>(DEFAULT_APP_SETTINGS.liveOrderCardLayout);
+    const [liveOrderCardsPerScreen, setLiveOrderCardsPerScreen] = useState<3 | 4>(DEFAULT_APP_SETTINGS.liveOrderCardsPerScreen);
+    const [liveOrderCardPreviewItems, setLiveOrderCardPreviewItems] = useState(DEFAULT_APP_SETTINGS.liveOrderCardPreviewItems);
     const [marketplaceAutoSyncEnabled, setMarketplaceAutoSyncEnabled] = useState(DEFAULT_APP_SETTINGS.marketplaceAutoSyncEnabled);
     const [marketplaceSyncIntervalSecText, setMarketplaceSyncIntervalSecText] = useState(String(DEFAULT_APP_SETTINGS.marketplaceSyncIntervalSec));
     const [marketplaceSyncStartTime, setMarketplaceSyncStartTime] = useState(DEFAULT_APP_SETTINGS.marketplaceSyncStartTime);
@@ -111,6 +114,8 @@ export default function SettingsScreen() {
         setSoundId(currentSettings.soundId);
         setRepeatCountText(String(currentSettings.soundRepeatCount));
         setLiveOrderCardLayout(currentSettings.liveOrderCardLayout);
+        setLiveOrderCardsPerScreen(currentSettings.liveOrderCardsPerScreen);
+        setLiveOrderCardPreviewItems(currentSettings.liveOrderCardPreviewItems);
         setMarketplaceAutoSyncEnabled(currentSettings.marketplaceAutoSyncEnabled);
         setMarketplaceSyncIntervalSecText(String(currentSettings.marketplaceSyncIntervalSec));
         setMarketplaceSyncStartTime(currentSettings.marketplaceSyncStartTime);
@@ -176,8 +181,8 @@ export default function SettingsScreen() {
     const refreshSummary = `Every ${refreshIntervalSecText} seconds`;
     const soundSummary = soundEnabled ? `${selectedSoundLabel} • ${repeatCountText} plays` : 'Disabled';
     const liveOrdersSummary = liveOrderCardLayout === 'vertical'
-        ? 'Vertical cards with horizontal scrolling'
-        : 'Full-width horizontal rows';
+        ? `Vertical (${liveOrderCardsPerScreen} cards)`
+        : 'Horizontal';
     const callerIdSummary = callerIdEnabled ? `Port ${callerIdPortText}` : 'Disabled';
     const printerSummary = !printerEnabled
         ? printerSectionAssignments.some((assignment) => {
@@ -663,6 +668,8 @@ export default function SettingsScreen() {
                 soundId,
                 soundRepeatCount,
                 liveOrderCardLayout,
+                liveOrderCardsPerScreen,
+                liveOrderCardPreviewItems,
                 marketplaceAutoSyncEnabled,
                 marketplaceSyncIntervalSec,
                 marketplaceSyncStartTime,
@@ -753,7 +760,8 @@ export default function SettingsScreen() {
     return (
         <View style={styles.screen}>
             <Appbar.Header style={styles.settingsHeader}>
-                <Appbar.BackAction onPress={() => router.push('/live-orders')} iconColor="#fff" />
+                {Platform.OS !== 'web' && <DrawerToggleButton tintColor="#fff" />}
+                <Appbar.BackAction onPress={() => router.push('/')} iconColor="#fff" />
                 <Appbar.Content title="Settings" titleStyle={styles.settingsHeaderTitle} />
             </Appbar.Header>
             <ScrollView contentContainerStyle={styles.container}>
@@ -1020,6 +1028,43 @@ export default function SettingsScreen() {
                             </Button>
                         </View>
                         <Text style={styles.helper}>Vertical uses compact queue cards with horizontal scrolling. Horizontal keeps the full-width row list.</Text>
+                        
+                        {liveOrderCardLayout === 'vertical' && (
+                            <>
+                                <Text style={[styles.label, { marginTop: 16 }]}>Cards per screen (Landscape)</Text>
+                                <View style={styles.buttonGroup}>
+                                    <Button
+                                        mode={liveOrderCardsPerScreen === 3 ? 'contained' : 'outlined'}
+                                        onPress={() => setLiveOrderCardsPerScreen(3)}
+                                        style={styles.flexButton}
+                                    >
+                                        3 Cards
+                                    </Button>
+                                    <Button
+                                        mode={liveOrderCardsPerScreen === 4 ? 'contained' : 'outlined'}
+                                        onPress={() => setLiveOrderCardsPerScreen(4)}
+                                        style={styles.flexButton}
+                                    >
+                                        4 Cards
+                                    </Button>
+                                </View>
+                            </>
+                        )}
+                        
+                        <Text style={[styles.label, { marginTop: 16 }]}>Items to preview</Text>
+                        <View style={styles.buttonGroup}>
+                            {[3, 5, 8, 12].map((num) => (
+                                <Button
+                                    key={num}
+                                    mode={liveOrderCardPreviewItems === num ? 'contained' : 'outlined'}
+                                    onPress={() => setLiveOrderCardPreviewItems(num)}
+                                    style={styles.flexButton}
+                                >
+                                    {num}
+                                </Button>
+                            ))}
+                        </View>
+                        <Text style={styles.helper}>Number of items shown on the card before truncating.</Text>
                             </>
                         )}
 
