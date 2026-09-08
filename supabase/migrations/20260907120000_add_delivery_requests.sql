@@ -32,4 +32,4 @@ CREATE POLICY delivery_requests_staff_select ON public.delivery_requests
 CREATE TRIGGER set_delivery_requests_updated_at
 BEFORE UPDATE ON public.delivery_requests
 FOR EACH ROW
-EXECUTE FUNCTION trigger_set_timestamp();
+EXECUTE FUNCTION public.update_updated_at_column();
