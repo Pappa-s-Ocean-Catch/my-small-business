@@ -258,6 +258,7 @@ export default function PosScreen() {
     orderId?: string | string[]; 
     incomingCallPhone?: string | string[];
     incomingCallName?: string | string[];
+    incomingCallCustomerId?: string | string[];
   }>();
   const rawOrderId = params.orderId;
   const orderId = Array.isArray(rawOrderId) ? rawOrderId[0] : rawOrderId;

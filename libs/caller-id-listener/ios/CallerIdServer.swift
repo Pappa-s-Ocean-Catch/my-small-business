@@ -89,7 +89,9 @@ class CallerIdServer {
             self.onRawPacket(content)
         }
         
-        let isInvite = content.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("INVITE")
+        let trimmedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        let isInvite = trimmedContent.hasPrefix("INVITE")
+        let isCancel = trimmedContent.hasPrefix("CANCEL")
         
         if isInvite && !self.currentSipResponses.isEmpty {
             for responseString in self.currentSipResponses {
@@ -101,6 +103,14 @@ class CallerIdServer {
                 }
             }
             // Delay closing slightly to allow packets to send
+            DispatchQueue.global().asyncAfter(deadline: .now() + 0.1) {
+                connection.cancel()
+            }
+        } else if isCancel {
+            if let sipResponse = SipParser.buildResponse(statusCode: "200 OK", requestContent: content),
+               let data = sipResponse.data(using: .utf8) {
+                connection.send(content: data, completion: .contentProcessed({ _ in }))
+            }
             DispatchQueue.global().asyncAfter(deadline: .now() + 0.1) {
                 connection.cancel()
             }

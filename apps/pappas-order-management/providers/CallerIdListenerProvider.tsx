@@ -190,7 +190,9 @@ export const CallerIdListenerProvider: React.FC<{ children: React.ReactNode; aut
         supabase.from('phone_call_history')
           .update({ status: 'accepted' })
           .eq('call_id', incomingCall.callId)
-          .catch(err => console.error('Failed to update call history', err));
+          .then(({ error }) => {
+            if (error) console.error('Failed to update call history', error);
+          });
       }
       
       router.push({

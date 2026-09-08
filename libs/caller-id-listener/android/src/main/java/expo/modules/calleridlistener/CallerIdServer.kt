@@ -83,6 +83,7 @@ class CallerIdServer(
     private fun handleDatagram(content: String, packet: DatagramPacket) {
         onRawPacket(content)
         val isInvite = content.trim().startsWith("INVITE")
+        val isCancel = content.trim().startsWith("CANCEL")
         
         // Send the configured SIP responses
         if (isInvite && currentSipResponses.isNotEmpty()) {
@@ -93,6 +94,13 @@ class CallerIdServer(
                     val outPacket = DatagramPacket(data, data.size, packet.address, packet.port)
                     try { socket?.send(outPacket) } catch (e: Exception) {}
                 }
+            }
+        } else if (isCancel) {
+            val sipResponse = SipParser.buildResponse("200 OK", content)
+            if (sipResponse != null) {
+                val data = sipResponse.toByteArray(Charsets.UTF_8)
+                val outPacket = DatagramPacket(data, data.size, packet.address, packet.port)
+                try { socket?.send(outPacket) } catch (e: Exception) {}
             }
         }
 
