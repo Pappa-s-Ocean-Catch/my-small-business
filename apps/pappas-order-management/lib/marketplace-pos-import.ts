@@ -181,16 +181,11 @@ export function buildChannelFinancialBreakdown(
       continue;
     }
 
-    if (order.marketplace_gross_payout == null) {
-      channel.grossPayout = null;
-      channel.commission = null;
-      channel.netSales = null;
-      continue;
-    }
+    const payout = order.marketplace_gross_payout ?? roundCurrency(grossSales * 0.7);
 
     if (channel.grossPayout == null || channel.commission == null || channel.netSales == null) continue;
 
-    channel.grossPayout = roundCurrency(channel.grossPayout + order.marketplace_gross_payout);
+    channel.grossPayout = roundCurrency(channel.grossPayout + payout);
     channel.commission = roundCurrency(channel.grossSales - channel.grossPayout);
     channel.netSales = roundCurrency(channel.grossPayout * 0.9);
   }

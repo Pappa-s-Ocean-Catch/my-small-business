@@ -280,7 +280,7 @@ const buildChartData = (buckets: ChartBucket[]): lineDataItem[] => (
       dataPointLabelComponent: bucket.total > 0
         ? () => <Text style={styles.dataPointLabel}>{money(bucket.total)}</Text>
         : undefined,
-      dataPointLabelShiftX: -18,
+      dataPointLabelShiftX: index === 0 ? 0 : index === buckets.length - 1 ? -36 : -18,
       dataPointLabelShiftY: -12,
       dataPointLabelWidth: 48,
       labelComponent: () => (
@@ -495,6 +495,25 @@ export default function ReportScreen() {
     () => buildChannelFinancialBreakdown(currentOrders),
     [currentOrders]
   );
+
+  const compareChannelFinancials = useMemo(
+    () => buildChannelFinancialBreakdown(compareOrders),
+    [compareOrders]
+  );
+
+  const currentNetSales = useMemo(() => {
+    return channelFinancials.reduce((sum, channel) => {
+      return sum + (channel.netSales || 0);
+    }, 0);
+  }, [channelFinancials]);
+
+  const compareNetSales = useMemo(() => {
+    return compareChannelFinancials.reduce((sum, channel) => {
+      return sum + (channel.netSales || 0);
+    }, 0);
+  }, [compareChannelFinancials]);
+
+  const netDifference = (currentNetSales != null && compareNetSales != null) ? currentNetSales - compareNetSales : null;
 
   const dailyBreakdown = useMemo(
     () => (
@@ -738,6 +757,15 @@ export default function ReportScreen() {
               <View style={[styles.statBox, isPhoneLayout ? styles.statBoxPhone : null, styles.statBoxSales]}>
                 <Text style={styles.statLabel}>Gross sales</Text>
                 <Text style={styles.statValue}>{money(currentTotal)}</Text>
+              </View>
+              <View style={[styles.statBox, isPhoneLayout ? styles.statBoxPhone : null, styles.statBoxNet]}>
+                <Text style={styles.statLabel}>Net sales</Text>
+                <Text style={styles.statValue}>{currentNetSales == null ? 'N/A' : money(currentNetSales)}</Text>
+                {netDifference != null && (
+                  <Text style={styles.statSubtext}>
+                    Vs {compareSummaryLabel} {netDifference >= 0 ? '+' : ''}{money(netDifference)}
+                  </Text>
+                )}
               </View>
               <View style={[styles.statBox, isPhoneLayout ? styles.statBoxPhone : null, styles.statBoxOrders]}>
                 <Text style={styles.statLabel}>Paid orders</Text>
@@ -1015,6 +1043,7 @@ const styles = StyleSheet.create({
     flexBasis: '47%',
   },
   statBoxSales: { backgroundColor: '#eff6ff', borderLeftColor: '#2563eb' },
+  statBoxNet: { backgroundColor: '#faf5ff', borderLeftColor: '#9333ea' },
   statBoxOrders: { backgroundColor: '#f0fdf4', borderLeftColor: '#16a34a' },
   statBoxAverage: { backgroundColor: '#fff7ed', borderLeftColor: '#f97316' },
   statBoxPositive: { backgroundColor: '#ecfdf5', borderLeftColor: '#059669' },
