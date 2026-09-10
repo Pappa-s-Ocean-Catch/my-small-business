@@ -144,4 +144,100 @@ object SipParser {
         
         return sb.toString()
     }
+    
+    fun buildBye(inviteContent: String): String? {
+        val lines = inviteContent.split("\r\n", "\n")
+        if (lines.isEmpty()) return null
+        
+        val requestLine = lines[0]
+        val parts = requestLine.split(" ")
+        if (parts.size < 3) return null
+        val requestUri = parts[1]
+        
+        var from = ""
+        var to = ""
+        var callId = ""
+        var cseqNumber = 1
+        var via = ""
+        
+        for (rawLine in lines) {
+            val line = rawLine.replace("\r", "").replace("\n", "")
+            val lower = line.lowercase()
+            if (lower.startsWith("via:") && via.isEmpty()) via = line
+            else if (lower.startsWith("from:") && from.isEmpty()) from = line
+            else if (lower.startsWith("to:") && to.isEmpty()) to = line
+            else if (lower.startsWith("call-id:") && callId.isEmpty()) callId = line
+            else if (lower.startsWith("cseq:")) {
+                val cseqParts = line.split(" ")
+                if (cseqParts.size >= 2) {
+                    cseqNumber = cseqParts[1].toIntOrNull() ?: 1
+                }
+            }
+        }
+        
+        if (from.isEmpty() || to.isEmpty() || callId.isEmpty()) return null
+        
+        val newFrom = to.replace("To:", "From:", ignoreCase = true) + ";tag=pos-listener"
+        val newTo = from.replace("From:", "To:", ignoreCase = true)
+        val newCseq = "CSeq: ${cseqNumber + 1} BYE"
+        
+        val sb = StringBuilder()
+        sb.append("BYE $requestUri SIP/2.0\r\n")
+        if (via.isNotEmpty()) sb.append("$via\r\n")
+        sb.append("$newFrom\r\n")
+        sb.append("$newTo\r\n")
+        sb.append("$callId\r\n")
+        sb.append("$newCseq\r\n")
+        sb.append("Max-Forwards: 70\r\n")
+        sb.append("Content-Length: 0\r\n\r\n")
+        
+        return sb.toString()
+    }
+
+    fun build200OkWithSdp(requestContent: String, sdpBody: String): String? {
+        val lines = requestContent.split("\r\n", "\n")
+        if (lines.isEmpty()) return null
+        
+        val vias = mutableListOf<String>()
+        var from = ""
+        var to = ""
+        var callId = ""
+        var cseq = ""
+        
+        for (rawLine in lines) {
+            val line = rawLine.replace("\r", "").replace("\n", "")
+            val lower = line.lowercase()
+            if (lower.startsWith("via:")) vias.add(line)
+            else if (lower.startsWith("from:") && from.isEmpty()) from = line
+            else if (lower.startsWith("to:") && to.isEmpty()) to = line
+            else if (lower.startsWith("call-id:") && callId.isEmpty()) callId = line
+            else if (lower.startsWith("cseq:") && cseq.isEmpty()) cseq = line
+        }
+        
+        if (vias.isEmpty() || from.isEmpty() || to.isEmpty() || callId.isEmpty() || cseq.isEmpty()) {
+            return null
+        }
+        
+        if (!to.lowercase().contains("tag=")) {
+            to += ";tag=pos-listener"
+        }
+        
+        val sb = java.lang.StringBuilder()
+        sb.append("SIP/2.0 200 OK\r\n")
+        for (via in vias) {
+            sb.append(via).append("\r\n")
+        }
+        sb.append(from).append("\r\n")
+        sb.append(to).append("\r\n")
+        sb.append(callId).append("\r\n")
+        sb.append(cseq).append("\r\n")
+        sb.append("Contact: <sip:pos-listener@127.0.0.1:5060>\r\n")
+        sb.append("Content-Type: application/sdp\r\n")
+        
+        val sdpBytesLength = sdpBody.toByteArray(Charsets.UTF_8).size
+        sb.append("Content-Length: ").append(sdpBytesLength).append("\r\n\r\n")
+        sb.append(sdpBody)
+        
+        return sb.toString()
+    }
 }

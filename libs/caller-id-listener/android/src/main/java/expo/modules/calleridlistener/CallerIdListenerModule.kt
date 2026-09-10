@@ -13,7 +13,7 @@ class CallerIdListenerModule : Module() {
     override fun definition() = ModuleDefinition {
         Name("CallerIdListener")
 
-        Events("CallerIdIncomingCall", "CallerIdListenerStatus", "CallerIdRawPacket")
+        Events("CallerIdIncomingCall", "CallerIdListenerStatus", "CallerIdRawPacket", "CallerIdAITranscript", "CallerIdAIToolCall", "CallerIdError")
 
         OnCreate {
             server = CallerIdServer(
@@ -42,6 +42,29 @@ class CallerIdListenerModule : Module() {
                         putString("content", content)
                     }
                     sendEvent("CallerIdRawPacket", payload)
+                },
+                onAITranscript = { callId, role, text ->
+                    val payload = Bundle().apply {
+                        putString("callId", callId)
+                        putString("role", role)
+                        putString("text", text)
+                    }
+                    sendEvent("CallerIdAITranscript", payload)
+                },
+                onAIToolCall = { callId, toolCallId, name, arguments ->
+                    val payload = Bundle().apply {
+                        putString("callId", callId)
+                        putString("toolCallId", toolCallId)
+                        putString("name", name)
+                        putString("arguments", arguments)
+                    }
+                    sendEvent("CallerIdAIToolCall", payload)
+                },
+                onError = { message ->
+                    val payload = Bundle().apply {
+                        putString("message", message)
+                    }
+                    sendEvent("CallerIdError", payload)
                 }
             )
         }
@@ -52,15 +75,23 @@ class CallerIdListenerModule : Module() {
             isRunning = false
         }
 
-        Function("start") { port: Int?, sipResponses: List<String>? ->
+        Function("start") { port: Int?, sipResponses: List<String>?, aiCallAssistantEnabled: Boolean?, ephemeralToken: String?, fallbackNumber: String? ->
             val bindPort = port ?: 5060
             currentPort = bindPort
-            server?.start(bindPort, sipResponses ?: emptyList())
+            server?.start(bindPort, sipResponses ?: emptyList(), aiCallAssistantEnabled ?: false, ephemeralToken, fallbackNumber)
         }
 
         Function("stop") {
             server?.stop()
             isRunning = false
+        }
+        
+        Function("sendAIToolOutput") { callId: String, toolCallId: String, output: String ->
+            server?.sendToolOutput(callId, toolCallId, output)
+        }
+
+        Function("endCall") { callId: String ->
+            server?.endCall(callId)
         }
 
         Function("isRunning") {

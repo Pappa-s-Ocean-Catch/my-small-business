@@ -143,6 +143,8 @@ export type AppSettings = {
 
     // Caller ID Listener
     callerIdEnabled: boolean;
+    aiCallAssistantEnabled: boolean;
+    fallbackNumber: string;
     callerIdPort: number;
     callerIdDisplaySeconds: number;
     callerIdSipResponses: string[];
@@ -220,6 +222,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     marketplaceFetchMode: 'api',
 
     callerIdEnabled: false,
+    aiCallAssistantEnabled: false,
+    fallbackNumber: '1-800-555-0199',
     callerIdPort: 5060,
     callerIdDisplaySeconds: 8,
     callerIdSipResponses: ['100 Trying'],
@@ -307,6 +311,14 @@ export async function loadAppSettings(): Promise<AppSettings> {
             ? (parsed as any).callerIdEnabled
             : DEFAULT_APP_SETTINGS.callerIdEnabled;
             
+        const aiCallAssistantEnabled = typeof (parsed as any)?.aiCallAssistantEnabled === 'boolean'
+            ? (parsed as any).aiCallAssistantEnabled
+            : DEFAULT_APP_SETTINGS.aiCallAssistantEnabled;
+            
+        const fallbackNumber = typeof (parsed as any)?.fallbackNumber === 'string'
+            ? (parsed as any).fallbackNumber
+            : DEFAULT_APP_SETTINGS.fallbackNumber;
+            
         const callerIdPort = clampInt(
             typeof (parsed as any)?.callerIdPort === 'number' ? (parsed as any).callerIdPort : DEFAULT_APP_SETTINGS.callerIdPort,
             1,
@@ -386,6 +398,8 @@ export async function loadAppSettings(): Promise<AppSettings> {
             marketplaceFetchMode,
 
             callerIdEnabled,
+            aiCallAssistantEnabled,
+            fallbackNumber,
             callerIdPort,
             callerIdDisplaySeconds,
             callerIdSipResponses,
@@ -439,6 +453,8 @@ export async function saveAppSettings(settings: AppSettings): Promise<void> {
         marketplaceFetchMode: settings.marketplaceFetchMode === 'local' ? 'local' : 'api',
 
         callerIdEnabled: !!settings.callerIdEnabled,
+        aiCallAssistantEnabled: !!settings.aiCallAssistantEnabled,
+        fallbackNumber: settings.fallbackNumber || '1-800-555-0199',
         callerIdPort: clampInt(settings.callerIdPort, 1, 65535),
         callerIdDisplaySeconds: clampInt(settings.callerIdDisplaySeconds, 2, 60),
         callerIdSipResponses: Array.isArray(settings.callerIdSipResponses) ? settings.callerIdSipResponses : ['100 Trying'],

@@ -147,4 +147,109 @@ class SipParser {
         
         return response
     }
+
+    static func build200OkWithSdp(requestContent: String, sdpBody: String) -> String? {
+        let lines = requestContent.components(separatedBy: .newlines)
+        if lines.isEmpty { return nil }
+        
+        var vias: [String] = []
+        var from = ""
+        var to = ""
+        var callId = ""
+        var cseq = ""
+        
+        for rawLine in lines {
+            let line = rawLine.trimmingCharacters(in: CharacterSet(charactersIn: "\r\n"))
+            let lower = line.lowercased()
+            if lower.hasPrefix("via:") { vias.append(line) }
+            else if lower.hasPrefix("from:") && from.isEmpty { from = line }
+            else if lower.hasPrefix("to:") && to.isEmpty { to = line }
+            else if lower.hasPrefix("call-id:") && callId.isEmpty { callId = line }
+            else if lower.hasPrefix("cseq:") && cseq.isEmpty { cseq = line }
+        }
+        
+        if vias.isEmpty || from.isEmpty || to.isEmpty || callId.isEmpty || cseq.isEmpty {
+            return nil
+        }
+        
+        if !to.lowercased().contains("tag=") {
+            to += ";tag=pos-listener"
+        }
+        
+        var sb: [String] = []
+        sb.append("SIP/2.0 200 OK\r\n")
+        for via in vias {
+            sb.append(via + "\r\n")
+        }
+        sb.append(from + "\r\n")
+        sb.append(to + "\r\n")
+        sb.append(callId + "\r\n")
+        sb.append(cseq + "\r\n")
+        sb.append("Contact: <sip:pos-listener@127.0.0.1:5060>\r\n")
+        sb.append("Content-Type: application/sdp\r\n")
+        
+        let sdpBytesLength = sdpBody.data(using: .utf8)?.count ?? 0
+        sb.append("Content-Length: \(sdpBytesLength)\r\n\r\n")
+        sb.append(sdpBody)
+        
+        return sb.joined(separator: "")
+    }
+    
+    static func buildBye(requestContent: String) -> String? {
+        let lines = requestContent.components(separatedBy: .newlines)
+        if lines.isEmpty { return nil }
+        
+        let requestLine = lines[0]
+        let parts = requestLine.split(separator: " ")
+        if parts.count < 3 { return nil }
+        let requestUri = String(parts[1])
+        
+        var from = ""
+        var to = ""
+        var callId = ""
+        var cseqNumber = 1
+        var via = ""
+        
+        for rawLine in lines {
+            let line = rawLine.trimmingCharacters(in: CharacterSet(charactersIn: "\r\n"))
+            let lower = line.lowercased()
+            if lower.hasPrefix("via:") && via.isEmpty { via = line }
+            else if lower.hasPrefix("from:") && from.isEmpty { from = line }
+            else if lower.hasPrefix("to:") && to.isEmpty { to = line }
+            else if lower.hasPrefix("call-id:") && callId.isEmpty { callId = line }
+            else if lower.hasPrefix("cseq:") {
+                let cseqParts = line.components(separatedBy: " ")
+                if cseqParts.count >= 2, let num = Int(cseqParts[1]) {
+                    cseqNumber = num
+                }
+            }
+        }
+        
+        if from.isEmpty || to.isEmpty || callId.isEmpty { return nil }
+        
+        // Ensure "To" in original becomes "From" in BYE, and "From" becomes "To"
+        var newFrom = ""
+        if let toRange = to.range(of: "To:", options: .caseInsensitive) {
+            newFrom = to.replacingCharacters(in: toRange, with: "From:") + ";tag=pos-listener"
+        }
+        
+        var newTo = ""
+        if let fromRange = from.range(of: "From:", options: .caseInsensitive) {
+            newTo = from.replacingCharacters(in: fromRange, with: "To:")
+        }
+        
+        let newCseq = "CSeq: \(cseqNumber + 1) BYE"
+        
+        var sb: [String] = []
+        sb.append("BYE \(requestUri) SIP/2.0\r\n")
+        if !via.isEmpty { sb.append("\(via)\r\n") }
+        sb.append("\(newFrom)\r\n")
+        sb.append("\(newTo)\r\n")
+        sb.append("\(callId)\r\n")
+        sb.append("\(newCseq)\r\n")
+        sb.append("Max-Forwards: 70\r\n")
+        sb.append("Content-Length: 0\r\n\r\n")
+        
+        return sb.joined(separator: "")
+    }
 }

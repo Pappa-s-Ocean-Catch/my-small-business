@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, FlatList, RefreshControl, Alert } from 'react-native';
+import { View, StyleSheet, FlatList, RefreshControl, Alert, TouchableOpacity } from 'react-native';
 import { Appbar, useTheme, Surface, Text, IconButton, Chip, SegmentedButtons } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { useNavigation } from '@react-navigation/native';
@@ -7,6 +7,7 @@ import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { supabase } from '@/lib/supabase';
 import { format, startOfDay, endOfDay, subDays } from 'date-fns';
 import { BRAND_COLORS } from '@/utils/brand';
+import { CustomerModal } from '@/components/CustomerModal';
 
 type CallHistoryRecord = {
   id: string;
@@ -24,7 +25,8 @@ export default function CallHistoryScreen() {
   const navigation = useNavigation<DrawerNavigationProp<any>>();
   const [calls, setCalls] = useState<CallHistoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dateFilter, setDateFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState('today');
+  const [selectedCustomer, setSelectedCustomer] = useState<{ id?: string, phone: string } | null>(null);
 
   const fetchHistory = async () => {
     setLoading(true);
@@ -129,9 +131,17 @@ export default function CallHistoryScreen() {
             />
           </View>
           <View style={styles.textContainer}>
-            <Text style={styles.callerNumber}>
-              {item.caller_number}
-            </Text>
+            {item.customer_id ? (
+              <TouchableOpacity onPress={() => setSelectedCustomer({ id: item.customer_id || undefined, phone: item.caller_number })}>
+                <Text style={[styles.callerNumber, styles.linkText]}>
+                  {item.caller_number}
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.callerNumber}>
+                {item.caller_number}
+              </Text>
+            )}
             {item.caller_name ? (
               <Text style={styles.callerName}>{item.caller_name}</Text>
             ) : null}
@@ -198,6 +208,16 @@ export default function CallHistoryScreen() {
           ) : null
         }
       />
+
+      <CustomerModal
+        visible={!!selectedCustomer}
+        profileId={selectedCustomer?.id}
+        phone={selectedCustomer?.phone}
+        onClose={() => setSelectedCustomer(null)}
+        onOrderPress={(orderId) => {
+          setSelectedCustomer(null);
+        }}
+      />
     </View>
   );
 }
@@ -243,6 +263,10 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
+  },
+  linkText: {
+    color: '#2563eb',
+    textDecorationLine: 'underline',
   },
   callerName: {
     fontSize: 14,

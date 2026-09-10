@@ -70,6 +70,7 @@ export default function SettingsScreen() {
     const [marketplaceSyncEndTime, setMarketplaceSyncEndTime] = useState(DEFAULT_APP_SETTINGS.marketplaceSyncEndTime);
     const [marketplaceFetchMode, setMarketplaceFetchMode] = useState<'api' | 'local'>(DEFAULT_APP_SETTINGS.marketplaceFetchMode);
     const [callerIdEnabled, setCallerIdEnabled] = useState(DEFAULT_APP_SETTINGS.callerIdEnabled);
+    const [aiCallAssistantEnabled, setAiCallAssistantEnabled] = useState(DEFAULT_APP_SETTINGS.aiCallAssistantEnabled);
     const [callerIdPortText, setCallerIdPortText] = useState(String(DEFAULT_APP_SETTINGS.callerIdPort));
     const [callerIdDisplaySecondsText, setCallerIdDisplaySecondsText] = useState(String(DEFAULT_APP_SETTINGS.callerIdDisplaySeconds));
     const [callerIdSipResponsesText, setCallerIdSipResponsesText] = useState(DEFAULT_APP_SETTINGS.callerIdSipResponses.join(', '));
@@ -122,6 +123,7 @@ export default function SettingsScreen() {
         setMarketplaceSyncEndTime(currentSettings.marketplaceSyncEndTime);
         setMarketplaceFetchMode(currentSettings.marketplaceFetchMode);
         setCallerIdEnabled(currentSettings.callerIdEnabled);
+        setAiCallAssistantEnabled(currentSettings.aiCallAssistantEnabled);
         setCallerIdPortText(String(currentSettings.callerIdPort));
         setCallerIdDisplaySecondsText(String(currentSettings.callerIdDisplaySeconds));
         setCallerIdSipResponsesText(currentSettings.callerIdSipResponses.join(', '));
@@ -676,6 +678,7 @@ export default function SettingsScreen() {
                 marketplaceSyncEndTime,
                 marketplaceFetchMode,
                 callerIdEnabled,
+                aiCallAssistantEnabled,
                 callerIdPort,
                 callerIdDisplaySeconds,
                 callerIdSipResponses,
@@ -925,6 +928,18 @@ export default function SettingsScreen() {
                                 </View>
                                 <Text style={styles.panelDescription}>
                                     Listen for SIP UDP INVITEs on this device to display caller ID.
+                                </Text>
+
+                                <View style={[styles.switchRow, { marginTop: 16 }]}>
+                                    <Text style={styles.label}>Enable AI Call Assistant</Text>
+                                    <Switch
+                                        value={aiCallAssistantEnabled}
+                                        onValueChange={setAiCallAssistantEnabled}
+                                        disabled={!callerIdEnabled}
+                                    />
+                                </View>
+                                <Text style={styles.panelDescription}>
+                                    Bridge incoming calls to the OpenAI Realtime API so the AI agent can take orders. Requires Caller ID listener to be enabled.
                                 </Text>
 
                                 <TextInput

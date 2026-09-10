@@ -9,7 +9,10 @@ import java.util.concurrent.ConcurrentHashMap
 class CallerIdServer(
     private val onIncomingCall: (String, String) -> Unit,
     private val onStatusChange: (String, Int?, String?) -> Unit,
-    private val onRawPacket: (String) -> Unit
+    private val onRawPacket: (String) -> Unit,
+    private val onAITranscript: (String, String, String) -> Unit,
+    private val onAIToolCall: (String, String, String, String) -> Unit,
+    private val onError: (String) -> Unit
 ) {
     private var job: Job? = null
     private var socket: DatagramSocket? = null
@@ -21,10 +24,17 @@ class CallerIdServer(
     private val MAX_CACHE_SIZE = 1000
 
     private var currentSipResponses: List<String> = emptyList()
+    private var aiCallAssistantEnabled: Boolean = false
+    private var ephemeralToken: String? = null
+    private var fallbackNumber: String? = null
+    private val activeSessions = ConcurrentHashMap<String, CallSession>()
 
     @Synchronized
-    fun start(port: Int, sipResponses: List<String> = emptyList()) {
+    fun start(port: Int, sipResponses: List<String> = emptyList(), aiCallAssistantEnabled: Boolean = false, ephemeralToken: String? = null, fallbackNumber: String? = null) {
         currentSipResponses = sipResponses
+        this.aiCallAssistantEnabled = aiCallAssistantEnabled
+        this.ephemeralToken = ephemeralToken
+        this.fallbackNumber = fallbackNumber
         if (job?.isActive == true && socket?.localPort == port) {
             return // Already running on this port
         }
@@ -78,14 +88,70 @@ class CallerIdServer(
         } finally {
             socket = null
         }
+        activeSessions.values.forEach { it.stop() }
+        activeSessions.clear()
     }
 
     private fun handleDatagram(content: String, packet: DatagramPacket) {
         onRawPacket(content)
         val isInvite = content.trim().startsWith("INVITE")
         val isCancel = content.trim().startsWith("CANCEL")
+        val isBye = content.trim().startsWith("BYE")
+        val isAck = content.trim().startsWith("ACK")
         
-        // Send the configured SIP responses
+        if (aiCallAssistantEnabled && ephemeralToken != null) {
+            val parseResult = SipParser.parse(content) ?: return
+            val callId = parseResult.callId
+            val callerNumber = parseResult.callerNumber
+            
+            val session = activeSessions.getOrPut(callId) {
+                CallSession(callId, callerNumber, ephemeralToken!!, fallbackNumber, onAITranscript, onAIToolCall, onError) { state ->
+                    if (state == "TERMINATED") activeSessions.remove(callId)
+                }
+            }
+
+            if (isInvite) {
+                session.initialInviteContent = content
+                session.remoteSipIp = packet.address
+                session.remoteSipPort = packet.port
+                
+                session.parseSdp(content)
+                session.startRtpAndRealtime()
+                
+                val localPort = session.getLocalRtpPort()
+                // Provide simple SDP for G.711 PCMU
+                val sdp = "v=0\r\n" +
+                          "o=- 0 0 IN IP4 0.0.0.0\r\n" +
+                          "s=session\r\n" +
+                          "c=IN IP4 0.0.0.0\r\n" +
+                          "t=0 0\r\n" +
+                          "m=audio $localPort RTP/AVP 0\r\n" +
+                          "a=rtpmap:0 PCMU/8000\r\n"
+                          
+                val okResponse = SipParser.build200OkWithSdp(content, sdp)
+                if (okResponse != null) {
+                    val data = okResponse.toByteArray(Charsets.UTF_8)
+                    try { socket?.send(DatagramPacket(data, data.size, packet.address, packet.port)) } catch (e: Exception) {}
+                }
+            } else if (isCancel || isBye) {
+                session.stop()
+                val okResponse = SipParser.buildResponse("200 OK", content)
+                if (okResponse != null) {
+                    val data = okResponse.toByteArray(Charsets.UTF_8)
+                    try { socket?.send(DatagramPacket(data, data.size, packet.address, packet.port)) } catch (e: Exception) {}
+                }
+            } else if (isAck) {
+                // Connection established
+            }
+            
+            // Still invoke onIncomingCall so RN knows about it
+            if (isInvite) {
+                onIncomingCall(callerNumber, callId)
+            }
+            return
+        }
+
+        // Send the configured SIP responses (Non-AI fallback behavior)
         if (isInvite && currentSipResponses.isNotEmpty()) {
             for (responseString in currentSipResponses) {
                 val sipResponse = SipParser.buildResponse(responseString, content)
@@ -126,6 +192,28 @@ class CallerIdServer(
         }
         
         onIncomingCall(result.callerNumber, callId)
+    }
+
+    fun sendToolOutput(callId: String, toolCallId: String, output: String) {
+        activeSessions[callId]?.sendToolOutput(toolCallId, output)
+    }
+    
+    fun endCall(callId: String) {
+        val session = activeSessions[callId] ?: return
+        val inviteContent = session.initialInviteContent
+        val remoteIp = session.remoteSipIp
+        val remotePort = session.remoteSipPort
+        
+        if (inviteContent.isNotEmpty() && remoteIp != null) {
+            val byeRequest = SipParser.buildBye(inviteContent)
+            if (byeRequest != null) {
+                val data = byeRequest.toByteArray(Charsets.UTF_8)
+                try { socket?.send(DatagramPacket(data, data.size, remoteIp, remotePort)) } catch (e: Exception) {}
+            }
+        }
+        
+        session.stop()
+        activeSessions.remove(callId)
     }
     
     private fun pruneCache(now: Long) {

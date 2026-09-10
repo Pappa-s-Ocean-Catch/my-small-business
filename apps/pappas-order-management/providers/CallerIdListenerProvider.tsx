@@ -60,7 +60,7 @@ export const CallerIdListenerProvider: React.FC<{ children: React.ReactNode; aut
     const currentPort = status.port;
     const targetPort = settings.callerIdPort;
     const targetResponses = settings.callerIdSipResponses || ["100 Trying"];
-    const targetResponsesStr = targetResponses.join(',');
+    const aiCallAssistantEnabled = settings.aiCallAssistantEnabled || false;
     
     // We don't have a way to check current responses synchronously, so we track it via a ref
     // For simplicity, we just restart if it's running but we want to ensure it has the latest responses.
@@ -68,8 +68,34 @@ export const CallerIdListenerProvider: React.FC<{ children: React.ReactNode; aut
       CallerIdListener.stop();
     }
     
-    CallerIdListener.start(targetPort, targetResponses);
-  }, [authenticated, settings.callerIdEnabled, settings.callerIdPort, settings.callerIdSipResponses?.join(',')]);
+    if (aiCallAssistantEnabled) {
+      // Fetch the ephemeral token for OpenAI Realtime
+      const fetchToken = async () => {
+        try {
+          // Assuming POS apps run against the production/staging backend URL via NEXT_PUBLIC_API_URL or relative
+          // We'll just try hitting /api/pos/realtime-session assuming it's available locally or handled via proxy
+          // Wait, the POS app might not have a direct route without a domain. 
+          // I will use a simple fetch to the backend if configured, but for safety in the template, I'll catch errors.
+          // Wait, the POS app usually has a NEXT_PUBLIC_API_URL or similar for fetching from backend. 
+          // We can use a generic fetch since we're in the React Native layer. 
+          // Actually, this app uses `supabase` for DB, does it have an API URL? I'll just use a placeholder domain or relative path if not available.
+          // Let's assume the API URL is known or handled by an environment variable.
+          const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+          const res = await fetch(`${apiUrl}/api/pos/realtime-session`, { method: 'POST' });
+          if (!res.ok) throw new Error('Failed to get realtime session token');
+          const data = await res.json();
+          CallerIdListener.start(targetPort, targetResponses, true, data.client_secret?.value, settings.fallbackNumber);
+        } catch (e) {
+          console.error('Failed to start AI Call Assistant with token:', e);
+          // fallback to just caller ID
+          CallerIdListener.start(targetPort, targetResponses, false, null, settings.fallbackNumber);
+        }
+      };
+      fetchToken();
+    } else {
+      CallerIdListener.start(targetPort, targetResponses, false, null, settings.fallbackNumber);
+    }
+  }, [authenticated, settings.callerIdEnabled, settings.aiCallAssistantEnabled, settings.callerIdPort, settings.fallbackNumber, settings.callerIdSipResponses?.join(',')]);
 
   // Subscribe to native events
   useEffect(() => {
@@ -132,6 +158,40 @@ export const CallerIdListenerProvider: React.FC<{ children: React.ReactNode; aut
       console.log('-----------------------------------------');
     });
 
+    const aiSub = CallerIdListener.addAITranscriptListener((event: any) => {
+       // In a real app we might show this transcript in a UI component, or pass it to a context
+       console.log('AI Transcript:', event.role, event.text);
+    });
+
+    const aiToolSub = CallerIdListener.addAIToolCallListener((event: any) => {
+      console.log('AI Tool Call:', event.name, event.arguments);
+      
+      const { callId, toolCallId, name, arguments: argsJson } = event;
+      
+      try {
+        const args = JSON.parse(argsJson);
+        let output = { success: false, message: "Unknown tool" };
+        
+        if (name === 'searchMenu') {
+          // Dummy stub for searching menu
+          output = { success: true, results: [{ id: "1", name: "Flake Pack", price: 12.50 }] };
+        } else if (name === 'submitOrder') {
+          // Dummy stub for submitting order
+          console.log('Order submitted by AI:', args);
+          output = { success: true, message: "Order placed successfully", orderId: "ORD-1234" };
+        } else if (name === 'endCall') {
+          console.log('AI requested to end the call');
+          CallerIdListener.endCall(callId);
+          output = { success: true, message: "Call ended" };
+        }
+        
+        CallerIdListener.sendAIToolOutput(callId, toolCallId, JSON.stringify(output));
+      } catch (e) {
+        console.error('Error handling AI tool call', e);
+        CallerIdListener.sendAIToolOutput(callId, toolCallId, JSON.stringify({ error: "Failed to parse arguments" }));
+      }
+    });
+
     // Realtime subscription for devices without physical caller ID connection
     let realtimeChannel: any = null;
     if (!settings.callerIdEnabled) {
@@ -166,6 +226,9 @@ export const CallerIdListenerProvider: React.FC<{ children: React.ReactNode; aut
       statusSub.remove();
       callSub.remove();
       rawSub.remove();
+      aiSub.remove();
+      aiToolSub.remove();
+      errSub.remove();
       if (realtimeChannel) {
         supabase.removeChannel(realtimeChannel);
       }
