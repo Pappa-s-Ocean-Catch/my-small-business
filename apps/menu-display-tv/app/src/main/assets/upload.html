@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Upload menus · Pappas Ocean Catch Menu</title>
+<style>
+:root{color-scheme:dark;font:16px system-ui,sans-serif;background:#101a23;color:#f3f6f8}*{box-sizing:border-box}body{margin:0;padding:32px 20px}main{max-width:620px;margin:5vh auto}small{color:#8ddfbe;letter-spacing:.12em}h1{font-size:clamp(30px,6vw,44px);line-height:1.12}p{color:#b8c5d1;line-height:1.6}form,#checking{background:#1c2b37;padding:24px;border-radius:16px;margin-top:32px}label{display:block;margin:0 0 10px;font-weight:600}input{display:block;width:100%;padding:14px;border:1px solid #758998;border-radius:8px;background:#101a23;color:#fff;font:inherit;margin-bottom:24px}input[type=file]{font-size:14px}button{width:100%;min-height:50px;border:0;border-radius:8px;background:#8ddfbe;color:#101a23;font:600 17px system-ui;cursor:pointer}button:disabled{opacity:.5;cursor:wait}:focus-visible{outline:3px solid #fff;outline-offset:4px}#status{white-space:pre-line;overflow-wrap:anywhere}progress{width:100%;margin-top:20px;accent-color:#8ddfbe}.hint{font-size:14px}footer{margin-top:24px;color:#b8c5d1;font-size:14px}
+fieldset{border:0;padding:0;margin:0;min-width:0}fieldset:disabled{opacity:.45}h2{font-size:22px;margin-top:0}.paired{color:#8ddfbe}#pair-status,#status{white-space:pre-line;overflow-wrap:anywhere}
+</style>
+<main><small>PAPPAS OCEAN CATCH MENU / LOCAL UPLOAD</small><h1>Your next menu.<br>Ready for the big screen.</h1><p>Upload images directly to this TV. Once saved, your menus display even without an internet connection.</p>
+<div id="checking" role="status" aria-live="polite">Checking pairing with TV…</div>
+<form id="pair" hidden><h2>1. Pair with TV</h2><label for="code">Pairing code shown on the TV</label><input id="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="off" required placeholder="6-digit code">
+<button id="pair-button">Pair with TV</button><p id="pair-status" role="status" aria-live="polite">Enter the code to confirm your connection before uploading.</p></form>
+<form id="upload" hidden><h2>2. Upload images</h2><fieldset id="upload-fields" disabled><label for="files">Menu images</label><input id="files" type="file" accept="image/jpeg,image/png,image/webp" multiple required><p class="hint">JPG, PNG or WebP · Up to 20 MiB and 50 megapixels each.<br>For a 4K screen, use a 3840 × 2160 landscape image.</p>
+<button id="submit">Upload to TV</button></fieldset><progress id="progress" max="100" value="0" hidden aria-label="Upload progress"></progress><p id="status" role="status" aria-live="polite">Pair with the TV to unlock uploads.</p></form>
+<footer>Keep Pappas Ocean Catch Menu open on the TV. Both devices must be on the same local network.</footer></main>
+<script>
+const form=document.getElementById('upload'),button=document.getElementById('submit'),status=document.getElementById('status'),progress=document.getElementById('progress');
+const pairForm=document.getElementById('pair'),pairButton=document.getElementById('pair-button'),pairStatus=document.getElementById('pair-status'),codeInput=document.getElementById('code'),uploadFields=document.getElementById('upload-fields');
+const checking=document.getElementById('checking');
+const pairingStorageKey='menu-display-pairing-code';
+function savedPairing(){try{return localStorage.getItem(pairingStorageKey)||'';}catch{return '';}}
+function rememberPairing(code){try{if(code)localStorage.setItem(pairingStorageKey,code);else localStorage.removeItem(pairingStorageKey);}catch{}}
+let pairedCode=null;
+function resetPairing(message){rememberPairing(null);checking.hidden=true;pairForm.hidden=false;form.hidden=true;pairedCode=null;uploadFields.disabled=true;status.textContent='Pair with the TV to unlock uploads.';pairStatus.className='';pairStatus.textContent=message;pairButton.textContent='Pair with TV';}
+codeInput.addEventListener('input',()=>resetPairing('Code changed. Pair again to confirm your connection.'));
+async function checkPairing(code,onLoad=false){
+ pairedCode=null;pairForm.hidden=true;form.hidden=true;checking.hidden=false;uploadFields.disabled=true;
+ pairButton.disabled=true;codeInput.disabled=true;
+ const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),10000);
+ try{
+  const response=await fetch('/pair',{method:'POST',headers:{'X-Pairing-Code':code},signal:controller.signal});
+  const message=await response.text();
+  if(!response.ok){
+   if(onLoad&&response.status===401)throw new Error(code?'Pairing expired. Enter the current code shown on the TV.':'Enter the code shown on the TV to pair.');
+   throw new Error(message||'Pairing failed. Try again.');
+  }
+  pairedCode=code;rememberPairing(code);checking.hidden=true;pairForm.hidden=true;form.hidden=false;uploadFields.disabled=false;pairStatus.className='paired';pairStatus.textContent='✓ Paired with TV. You can now upload images.';status.textContent='✓ Paired with TV. Choose your menu images below.';document.getElementById('files').focus();
+ }catch(error){
+  if(onLoad)codeInput.value='';
+  resetPairing(error.name==='AbortError'?'TV did not respond. Check the connection and try again.':error.message==='Failed to fetch'?'Cannot reach the TV. Keep the app open and check your network.':error.message);
+ }finally{clearTimeout(timer);pairButton.disabled=false;codeInput.disabled=false;if(!pairedCode)codeInput.focus();}
+}
+pairForm.addEventListener('submit',async e=>{
+ e.preventDefault();const code=codeInput.value.trim();
+ if(!/^\d{6}$/.test(code)){resetPairing('Enter the six-digit code shown on the TV.');return;}
+ await checkPairing(code);
+});
+function upload(file,code,index,total){return new Promise((resolve,reject)=>{
+ const xhr=new XMLHttpRequest();xhr.open('POST','/upload');xhr.timeout=120000;xhr.setRequestHeader('X-Pairing-Code',code);xhr.setRequestHeader('X-Filename',encodeURIComponent(file.name));xhr.setRequestHeader('Content-Type','application/octet-stream');
+ xhr.upload.onprogress=e=>{if(e.lengthComputable){progress.value=e.loaded/e.total*100;status.textContent=`Uploading ${index} of ${total}: ${file.name} (${Math.round(progress.value)}%)`;}};
+ xhr.onload=()=>{if(xhr.status===200)resolve(xhr.responseText);else{if(xhr.status===401)resetPairing('Pairing expired. Enter the current TV code and pair again.');reject(new Error(xhr.responseText||'Upload failed'));}};
+ xhr.onerror=()=>{resetPairing('Connection lost. Pair again after reconnecting.');reject(new Error('Connection lost. Check the TV is open and on the same network.'));};
+ xhr.ontimeout=()=>{resetPairing('Connection timed out. Pair again to check the connection.');reject(new Error('Upload timed out. Check the network and retry.'));};xhr.send(file);
+});}
+form.addEventListener('submit',async e=>{
+ e.preventDefault();if(!pairedCode){status.textContent='Complete step 1: pair with the TV first.';return;}
+ const files=Array.from(document.getElementById('files').files);const code=pairedCode;
+ if(!files.length){status.textContent='Choose at least one image.';return;}
+ if(files.some(f=>f.size===0||f.size>20*1024*1024)){status.textContent='Each image must be between 1 byte and 20 MiB.';return;}
+ button.disabled=true;pairButton.disabled=true;codeInput.disabled=true;document.getElementById('files').disabled=true;progress.hidden=false;let completed=0;
+ try{for(const file of files){await upload(file,code,completed+1,files.length);completed++;}status.textContent=`${completed} image${completed===1?'':'s'} uploaded. Open the TV library to choose an image or create a slideshow.`;document.getElementById('files').value='';}
+ catch(error){status.textContent=`${completed} of ${files.length} uploaded. ${error.message} Retry only the remaining files.`;}
+ finally{button.disabled=false;pairButton.disabled=false;codeInput.disabled=false;document.getElementById('files').disabled=false;progress.hidden=true;}
+});
+checkPairing(savedPairing(),true);
+</script></html>
