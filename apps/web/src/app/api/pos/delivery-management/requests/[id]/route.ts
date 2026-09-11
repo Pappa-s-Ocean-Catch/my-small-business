@@ -3,7 +3,8 @@ import { authenticateStaffApiRequest } from '@/lib/staff-api-auth';
 import { reconcileDeliveryRequest } from '@/lib/delivery-booking';
 import { deliveryRepo, deliveryProvider } from '@/lib/delivery-management';
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
+  const params = await context.params;
   const auth = await authenticateStaffApiRequest(request);
   if ('error' in auth) {
     return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });

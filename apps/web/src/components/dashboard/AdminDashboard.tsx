@@ -160,6 +160,21 @@ export function AdminDashboard({ businessStats }: AdminDashboardProps) {
             </div>
           </div>
         </Link>
+
+        <Link 
+          href="/admin/tv-menu" 
+          className="bg-white dark:bg-neutral-800 rounded-xl p-6 border border-gray-200 dark:border-neutral-700 hover:shadow-lg transition-shadow group"
+        >
+          <div className="flex items-center gap-4">
+            <svg className="w-8 h-8 text-pink-600 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+            <div>
+              <h3 className="font-semibold text-gray-900 dark:text-white">TV Menu</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Manage display images</p>
+            </div>
+          </div>
+        </Link>
       </div>
 
       {/* Alerts - Product Level */}
