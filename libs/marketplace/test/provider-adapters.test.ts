@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { adaptUberDetail, adaptUberHistory } from '../src/uber-eats-adapter';
+import { adaptUberActive, adaptUberDetail, adaptUberHistory } from '../src/uber-eats-adapter';
 import { adaptDoorDashActive, adaptDoorDashDetail, adaptDoorDashHistory } from '../src/doordash-adapter';
 
 test('Uber adapter converts Uber history rows without relying on DoorDash fields', () => {
@@ -65,4 +65,22 @@ test('marketplace detail adapters expose only provider-scoped customer IDs', () 
 test('DoorDash active adapter preserves the prior active-order display mapping', () => {
   const result = adaptDoorDashActive({ orders: [{ orderId: 'DD-1', deliveryUuid: 'delivery-1', pickupTime: 'pickup', deliveryTime: 'delivery', orderSubStatus: { display: 'On the way' }, orderStatusDisplay: 'Confirmed', orderExperience: 'ignored' }] });
   assert.deepEqual(result.orders, [{ orderId: 'DD-1', workflowUuid: 'delivery-1', orderUuid: 'delivery-1', customerName: 'Customer', salesTotal: '', requestedAt: 'pickup', courierName: '', fulfillmentType: '', orderChannel: 'DoorDash', status: 'Confirmed', statusDescription: 'On the way' }]);
+});
+
+test('Uber active adapter retains a detail-capable order without a display order ID', () => {
+  const result = adaptUberActive({
+    data: { rows: [{ workflowUuid: 'uber-workflow-fallback', orderUuid: 'uber-order-fallback' }] },
+  });
+
+  assert.equal(result.orders.length, 1);
+  assert.equal(result.orders[0].orderId, 'uber-workflow-fallback');
+});
+
+test('DoorDash active adapter retains a detail-capable order without a display order ID', () => {
+  const result = adaptDoorDashActive({
+    orders: [{ deliveryUuid: 'doordash-workflow-fallback' }],
+  });
+
+  assert.equal(result.orders.length, 1);
+  assert.equal(result.orders[0].orderId, 'doordash-workflow-fallback');
 });

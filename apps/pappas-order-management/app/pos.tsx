@@ -1663,6 +1663,11 @@ export default function PosScreen() {
 
   const openCartItemEditor = (item: PosCartItem) => {
     if (preventPendingCartEdit()) return;
+    if (!item.product_id) {
+      setNoteItemId(item.id);
+      setNoteDraft(item.comment ?? '');
+      return;
+    }
     setQuickListVisible(false);
 
     const catalogProduct = [...products, ...searchProducts, ...topSellers].find((product) => product.id === item.product_id);

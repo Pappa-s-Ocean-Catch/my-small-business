@@ -68,7 +68,14 @@ function OrderConfirmationContent() {
   useEffect(() => {
     const fetchItemLikes = async () => {
       if (!order || !user?.id || !Array.isArray(order.items) || order.items.length === 0) return;
-      const itemIds = order.items.map((item: any) => item.product_id).join(',');
+      const itemIds = order.items
+        .map((item) => item.product_id)
+        .filter((itemId): itemId is string => Boolean(itemId))
+        .join(',');
+      if (!itemIds) {
+        setItemLikes({});
+        return;
+      }
       try {
         const response = await fetch(`/api/social-activity/getItemLikes?userId=${user.id}&itemIds=${itemIds}`);
         const result = await response.json();
@@ -556,22 +563,26 @@ function OrderConfirmationContent() {
                         <div className="font-medium text-gray-900 dark:text-white">{item.product_name}</div>
                         <div className="text-xs text-gray-500 dark:text-gray-400">Qty: {item.quantity}</div>
                       </div>
-                      <button
-                        className={`flex items-center gap-1 px-2 py-1 rounded ${itemLikes[item.product_id] === true ? 'bg-green-600 text-white' : 'bg-gray-200 dark:bg-neutral-800 text-gray-700 dark:text-gray-100'}`}
-                        onClick={() => handleLikeItem(item.product_id, true)}
-                        type="button"
-                        aria-label="Like"
-                      >
-                        <FaThumbsUp />
-                      </button>
-                      <button
-                        className={`flex items-center gap-1 px-2 py-1 rounded ${itemLikes[item.product_id] === false ? 'bg-red-600 text-white' : 'bg-gray-200 dark:bg-neutral-800 text-gray-700 dark:text-gray-100'}`}
-                        onClick={() => handleLikeItem(item.product_id, false)}
-                        type="button"
-                        aria-label="Dislike"
-                      >
-                        <FaThumbsDown />
-                      </button>
+                      {item.product_id && (
+                        <>
+                          <button
+                            className={`flex items-center gap-1 px-2 py-1 rounded ${itemLikes[item.product_id] === true ? 'bg-green-600 text-white' : 'bg-gray-200 dark:bg-neutral-800 text-gray-700 dark:text-gray-100'}`}
+                            onClick={() => handleLikeItem(item.product_id as string, true)}
+                            type="button"
+                            aria-label="Like"
+                          >
+                            <FaThumbsUp />
+                          </button>
+                          <button
+                            className={`flex items-center gap-1 px-2 py-1 rounded ${itemLikes[item.product_id] === false ? 'bg-red-600 text-white' : 'bg-gray-200 dark:bg-neutral-800 text-gray-700 dark:text-gray-100'}`}
+                            onClick={() => handleLikeItem(item.product_id as string, false)}
+                            type="button"
+                            aria-label="Dislike"
+                          >
+                            <FaThumbsDown />
+                          </button>
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1000,22 +1011,26 @@ function OrderConfirmationContent() {
                         <div className="font-medium text-gray-900 dark:text-white">{item.product_name}</div>
                         <div className="text-xs text-gray-500 dark:text-gray-400">Qty: {item.quantity}</div>
                       </div>
-                      <button
-                        className={`flex items-center gap-1 px-2 py-1 rounded ${itemLikes[item.product_id] === true ? 'bg-green-600 text-white' : 'bg-gray-200 dark:bg-neutral-800 text-gray-700 dark:text-gray-100'}`}
-                        onClick={() => handleLikeItem(item.product_id, true)}
-                        type="button"
-                        aria-label="Like"
-                      >
-                        <FaThumbsUp />
-                      </button>
-                      <button
-                        className={`flex items-center gap-1 px-2 py-1 rounded ${itemLikes[item.product_id] === false ? 'bg-red-600 text-white' : 'bg-gray-200 dark:bg-neutral-800 text-gray-700 dark:text-gray-100'}`}
-                        onClick={() => handleLikeItem(item.product_id, false)}
-                        type="button"
-                        aria-label="Dislike"
-                      >
-                        <FaThumbsDown />
-                      </button>
+                      {item.product_id && (
+                        <>
+                          <button
+                            className={`flex items-center gap-1 px-2 py-1 rounded ${itemLikes[item.product_id] === true ? 'bg-green-600 text-white' : 'bg-gray-200 dark:bg-neutral-800 text-gray-700 dark:text-gray-100'}`}
+                            onClick={() => handleLikeItem(item.product_id as string, true)}
+                            type="button"
+                            aria-label="Like"
+                          >
+                            <FaThumbsUp />
+                          </button>
+                          <button
+                            className={`flex items-center gap-1 px-2 py-1 rounded ${itemLikes[item.product_id] === false ? 'bg-red-600 text-white' : 'bg-gray-200 dark:bg-neutral-800 text-gray-700 dark:text-gray-100'}`}
+                            onClick={() => handleLikeItem(item.product_id as string, false)}
+                            type="button"
+                            aria-label="Dislike"
+                          >
+                            <FaThumbsDown />
+                          </button>
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>

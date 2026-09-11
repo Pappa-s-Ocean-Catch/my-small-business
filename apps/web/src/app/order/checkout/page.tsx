@@ -128,16 +128,16 @@ function mapPhoneAuthError(errorMessage: string): string {
 
 // Utility to compare two arrays of items for equality (ignoring order)
 function areItemsEqual(
-  cartItems: Array<{ product_id?: string; id?: string; quantity: number }>,
-  orderItems: Array<{ product_id?: string; id?: string; quantity: number }>,
+  cartItems: Array<{ product_id?: string | null; id?: string; quantity: number }>,
+  orderItems: Array<{ product_id?: string | null; id?: string; quantity: number }>,
 ) {
   if (cartItems.length !== orderItems.length) return false;
   // Compare by product_id, quantity, and add-ons (if needed)
   const normalize = (
-    items: Array<{ product_id?: string; id?: string; quantity: number }>,
+    items: Array<{ product_id?: string | null; id?: string; quantity: number }>,
   ) =>
     items
-      .map((item: { product_id?: string; id?: string; quantity: number }) => ({
+      .map((item: { product_id?: string | null; id?: string; quantity: number }) => ({
         product_id: item.product_id || item.id,
         quantity: item.quantity,
         // Optionally add more fields for stricter match

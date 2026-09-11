@@ -5,6 +5,7 @@ import type { Order } from '@my-small-business/types';
 import {
   createMarketplacePosOrderService,
   findMarketplaceOrderIdByExternalId,
+  type MarketplacePosOrderDependencies,
 } from '../lib/marketplace-pos-order';
 
 type MarketplaceOrderDetailInput = Parameters<
@@ -62,6 +63,57 @@ const choicesGroupMapping = {
   internal_entity_id: 'extras',
   is_active: true,
 };
+
+const burgerProduct = {
+  id: 'burger',
+  name: 'Classic Burger',
+  description: 'Beef burger',
+  section: 'Grilled',
+  search_term: null,
+  sale_price: 20,
+  image_url: null,
+  sale_category_id: 'mains',
+  sub_category_id: null,
+  sort_order: 1,
+  is_active: true,
+};
+
+function createFailOpenService(overrides: Partial<MarketplacePosOrderDependencies> = {}) {
+  const saveCalls: Array<{
+    orderPayload: Record<string, unknown>;
+    items: Array<Record<string, unknown>>;
+  }> = [];
+  const service = createMarketplacePosOrderService({
+    findMarketplaceOrder: async () => ({ data: null, error: null }),
+    savePosOrder: async (orderPayload, items) => {
+      saveCalls.push({
+        orderPayload: orderPayload as unknown as Record<string, unknown>,
+        items: items as unknown as Array<Record<string, unknown>>,
+      });
+      return { data: { ...existingOrder, id: 'pos-fail-open' } as Order, error: null };
+    },
+    updateMarketplaceOrder: async () => {
+      throw new Error('a new order must not enter the update path');
+    },
+    loadCatalog: async () => ({
+      products: [burgerProduct],
+      categories: [{ id: 'mains', section: 'Grilled' }],
+    }),
+    loadMappings: async () => [choicesGroupMapping],
+    loadProductCustomizations: async () => ({
+      groups: [{
+        id: 'extras', name: 'Extras', is_required: false, multiple_choice: true,
+        display_order: 1, items: [],
+      }],
+      removableIngredients: [],
+    }),
+    recordUnmatchedName: async () => undefined,
+    createLocalId: () => 'local-fail-open',
+    now: () => new Date('2026-09-11T00:00:00.000Z'),
+    ...overrides,
+  });
+  return { service, saveCalls };
+}
 
 type MarketplaceUpdateCall = {
   orderId: string;
@@ -333,7 +385,7 @@ test('uses an explicit No Salt add-on mapping before removal processing', async 
   assert.equal(addons[0].addon_item_name, 'No Salt Light');
 });
 
-test('does not create an order when required customization data fails to load', async () => {
+test('creates an order with item notes when customization data reports an error', async () => {
   let saveCalls = 0;
   const service = createMarketplacePosOrderService({
     findMarketplaceOrder: async () => ({ data: null, error: null }),
@@ -373,9 +425,9 @@ test('does not create an order when required customization data fails to load', 
 
   const result = await service.importMarketplaceOrder(detail);
 
-  assert.equal(result.created, false);
-  assert.equal(result.error, 'Marketplace customizations unavailable');
-  assert.equal(saveCalls, 0);
+  assert.equal(result.created, true);
+  assert.equal(result.error, null);
+  assert.equal(saveCalls, 1);
 });
 
 test('imports a matched product and retains an unmatched add-on as a note', async () => {
@@ -453,8 +505,186 @@ test('records unmatched add-on quantity and price in the product note', async ()
     }],
   });
 
-  assert.deepEqual(draft.unresolvedIssues, []);
-  assert.equal(draft.cartItems[0].comment, 'Cut in half\nAdd-on: Extra Cheese (+$2.00)');
+  assert.deepEqual(draft.unresolvedIssues, [{
+    kind: 'addon',
+    externalName: 'Extra Cheese',
+    mappingExternalName: 'Extra Cheese',
+    parentExternalName: 'Classic Burger',
+    marketplacePrice: '$2.00',
+    marketplaceGroupName: 'Choices',
+  }]);
+  assert.equal(draft.cartItems[0].comment, 'Cut in half\nAdd-on [Choices]: Extra Cheese (+$2.00)');
+});
+
+test('imports an unconfigured removal as parent item and order notes', async () => {
+  const { service, saveCalls } = createFailOpenService();
+
+  const result = await service.importMarketplaceOrder({
+    ...detail,
+    items: [{
+      ...detail.items[0],
+      specialInstructions: '',
+      customizations: [{
+        name: 'Choices',
+        options: [{ name: 'No tomato', quantity: 1, price: null }],
+      }],
+    }],
+  });
+
+  assert.equal(result.created, true);
+  assert.equal(result.error, null);
+  assert.equal(saveCalls.length, 1);
+  assert.equal(saveCalls[0].items[0].comment, 'Add-on [Choices]: No tomato');
+  assert.match(String(saveCalls[0].orderPayload.special_instructions), /Classic Burger: No tomato/);
+});
+
+test('creates printable fallback rows for every unmatched marketplace product', async () => {
+  const { service, saveCalls } = createFailOpenService({
+    loadCatalog: async () => ({ products: [burgerProduct], categories: [] }),
+    loadMappings: async () => [],
+  });
+
+  const result = await service.importMarketplaceOrder({
+    ...detail,
+    items: [{
+      name: 'Mystery Family Pack',
+      price: '$31.50',
+      quantity: 2,
+      specialInstructions: 'Pack separately',
+      customizations: [{
+        name: 'Sauces',
+        options: [{ name: 'House sauce', quantity: 3, price: '$1.25' }],
+      }],
+    }],
+  });
+
+  assert.equal(result.created, true);
+  assert.equal(saveCalls.length, 1);
+  assert.deepEqual(saveCalls[0].items[0], {
+    product_id: null,
+    product_name: 'Mystery Family Pack',
+    product_description: 'Unmatched Uber Eats marketplace item',
+    product_image_url: null,
+    base_price: 31.5,
+    override_price: 31.5,
+    quantity: 2,
+    subtotal: 31.5,
+    section: null,
+    removed_ingredients: [],
+    comment: 'UNMATCHED POS ITEM — verify before preparing\nPack separately\nAdd-on [Sauces]: 3x House sauce (+$1.25)',
+    addons: [],
+  });
+  assert.match(String(saveCalls[0].orderPayload.special_instructions), /2x Mystery Family Pack \(\$31\.50\)/);
+  assert.match(String(saveCalls[0].orderPayload.special_instructions), /Pack separately/);
+  assert.match(String(saveCalls[0].orderPayload.special_instructions), /Add-on \[Sauces\]: 3x House sauce \(\+\$1\.25\)/);
+});
+
+test('creates a printable placeholder when provider detail contains no items', async () => {
+  const { service, saveCalls } = createFailOpenService();
+
+  const result = await service.importMarketplaceOrder({ ...detail, items: [] });
+
+  assert.equal(result.created, true);
+  assert.equal(saveCalls[0].items.length, 1);
+  assert.equal(saveCalls[0].items[0].product_id, null);
+  assert.equal(saveCalls[0].items[0].product_name, 'UNRESOLVED MARKETPLACE ORDER');
+  assert.match(String(saveCalls[0].items[0].comment), /provider returned no item lines/i);
+});
+
+test('uses provider subtotal for an empty discounted order placeholder', async () => {
+  const { service, saveCalls } = createFailOpenService();
+
+  const result = await service.importMarketplaceOrder({
+    ...detail,
+    items: [],
+    subtotalAmount: 30,
+    discountAmount: 5,
+    totalAmount: 25,
+  });
+
+  assert.equal(result.created, true);
+  assert.equal(saveCalls[0].items[0].subtotal, 30);
+  assert.equal(saveCalls[0].orderPayload.subtotal, 30);
+  assert.equal(saveCalls[0].orderPayload.promotion_discount, 5);
+  assert.equal(saveCalls[0].orderPayload.total, 25);
+});
+
+test('preserves provider items when catalogue and mapping reads fail', async () => {
+  const { service, saveCalls } = createFailOpenService({
+    loadCatalog: async () => { throw new Error('catalogue offline'); },
+    loadMappings: async () => { throw new Error('mapping offline'); },
+  });
+
+  const result = await service.importMarketplaceOrder(detail);
+
+  assert.equal(result.created, true);
+  assert.equal(saveCalls[0].items[0].product_id, null);
+  assert.match(String(saveCalls[0].orderPayload.special_instructions), /POS catalogue unavailable: catalogue offline/);
+  assert.match(String(saveCalls[0].orderPayload.special_instructions), /Marketplace mappings unavailable: mapping offline/);
+});
+
+test('keeps a matched product when customization data cannot be loaded', async () => {
+  const { service, saveCalls } = createFailOpenService({
+    loadProductCustomizations: async () => { throw new Error('customizations offline'); },
+  });
+
+  const result = await service.importMarketplaceOrder(detail);
+
+  assert.equal(result.created, true);
+  assert.equal(saveCalls[0].items[0].product_id, 'burger');
+  assert.match(String(saveCalls[0].items[0].comment), /Customization data unavailable: customizations offline/);
+  assert.match(String(saveCalls[0].items[0].comment), /Add-on \[Choices\]: Extra Cheese \(\+\$2\.00\)/);
+  assert.match(String(saveCalls[0].items[0].comment), /Add-on \[Choices\]: No Tomato/);
+});
+
+test('does not map a stale product alias to an unrelated catalogue item', async () => {
+  const { service, saveCalls } = createFailOpenService({
+    loadMappings: async () => [{
+      provider: 'uber_eats', entity_type: 'product', external_name: 'Mystery Family Pack',
+      normalized_external_name: 'mystery family pack', internal_name: 'Deleted Product',
+      internal_entity_id: 'deleted-id', is_active: true,
+    }],
+  });
+
+  const result = await service.importMarketplaceOrder({
+    ...detail,
+    items: [{ ...detail.items[0], name: 'Mystery Family Pack' }],
+  });
+
+  assert.equal(result.created, true);
+  assert.equal(saveCalls[0].items[0].product_id, null);
+  assert.equal(saveCalls[0].items[0].product_name, 'Mystery Family Pack');
+});
+
+test('relies on atomic uniqueness when the advisory duplicate lookup fails', async () => {
+  const { service, saveCalls } = createFailOpenService({
+    findMarketplaceOrder: async () => ({ data: null, error: 'lookup unavailable' }),
+  });
+
+  const result = await service.importMarketplaceOrder(detail);
+
+  assert.equal(result.created, true);
+  assert.equal(saveCalls.length, 1);
+});
+
+test('uses workflow identity when the marketplace display order ID is absent', async () => {
+  const seenExternalIds: string[] = [];
+  const { service, saveCalls } = createFailOpenService({
+    findMarketplaceOrder: async (_provider, externalOrderId) => {
+      seenExternalIds.push(externalOrderId);
+      return { data: null, error: null };
+    },
+  });
+
+  const result = await service.importMarketplaceOrder({
+    ...detail,
+    orderId: '',
+    workflowUuid: 'workflow-fallback-123',
+  });
+
+  assert.equal(result.created, true);
+  assert.deepEqual(seenExternalIds, ['workflow-fallback-123']);
+  assert.equal(saveCalls[0].orderPayload.external_order_number, 'workflow-fallback-123');
 });
 
 test('updates only order_status when the provider and trimmed ID already exist', async () => {

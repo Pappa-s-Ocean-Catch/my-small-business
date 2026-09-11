@@ -138,6 +138,7 @@ export type MarketplacePosOrderDraft = {
   unmatchedProducts: string[];
   unmatchedOptions: string[];
   unresolvedIssues: MarketplaceResolutionIssue[];
+  resolutionNotes: string[];
 };
 
 export type MarketplaceResolutionIssue = {
@@ -313,33 +314,62 @@ function buildMarketplacePromotion(discountAmount: number) {
   }];
 }
 
-function formatUnmatchedMarketplaceAddon(option: MarketplaceOrderDetailItemOption): string {
+function formatMarketplaceOptionNote(
+  groupName: string,
+  option: MarketplaceOrderDetailItemOption
+): string {
   const quantity = Math.max(1, option.quantity || 1);
   const quantityPrefix = quantity > 1 ? `${quantity}x ` : '';
   const price = parseMarketplaceMoney(option.price);
-  return `Add-on: ${quantityPrefix}${option.name}${price == null ? '' : ` (+$${price.toFixed(2)})`}`;
+  return `Add-on [${groupName.trim() || 'Options'}]: ${quantityPrefix}${option.name}${price == null ? '' : ` (+$${price.toFixed(2)})`}`;
+}
+
+function formatMarketplaceItemSummary(item: MarketplaceOrderDetail['items'][number]): string {
+  const quantity = Math.max(1, item.quantity || 1);
+  const price = parseMarketplaceMoney(item.price);
+  return `${quantity}x ${item.name}${price == null ? '' : ` ($${price.toFixed(2)})`}`;
+}
+
+function getMarketplaceOrderIdentity(detail: MarketplaceOrderDetail): string {
+  return detail.orderId.trim()
+    || detail.workflowUuid?.trim()
+    || detail.orderUUID.trim();
+}
+
+function getResolutionError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export function createMarketplacePosOrderService(dependencies: MarketplacePosOrderDependencies) {
   const buildMarketplacePosOrderDraft = async (
     detail: MarketplaceOrderDetail
   ): Promise<MarketplacePosOrderDraft> => {
-    const externalOrderNumber = detail.orderId.trim();
+    const providerReturnedItemLines = detail.items.length > 0;
+    const externalOrderNumber = getMarketplaceOrderIdentity(detail);
     if (!externalOrderNumber) {
-      throw new Error('Marketplace order ID is required.');
+      throw new Error('Marketplace order identity is required.');
     }
 
-    const [catalog, marketplaceMappings] = await Promise.all([
+    const resolutionNotes: string[] = [];
+    const [catalogResult, mappingsResult] = await Promise.allSettled([
       dependencies.loadCatalog(),
       dependencies.loadMappings(detail.provider),
     ]);
-
-    if (catalog.error) throw new Error(catalog.error);
-    const { products, categories } = catalog;
-
-    if (products.length === 0) {
-      throw new Error('Could not load the POS catalog to build this marketplace order.');
+    const catalog = catalogResult.status === 'fulfilled'
+      ? catalogResult.value
+      : { products: [], categories: [], error: getResolutionError(catalogResult.reason) };
+    const marketplaceMappings = mappingsResult.status === 'fulfilled'
+      ? mappingsResult.value
+      : [];
+    if (catalog.error) {
+      resolutionNotes.push(`POS catalogue unavailable: ${catalog.error}`);
+    } else if (catalog.products.length === 0) {
+      resolutionNotes.push('POS catalogue contained no active products.');
     }
+    if (mappingsResult.status === 'rejected') {
+      resolutionNotes.push(`Marketplace mappings unavailable: ${getResolutionError(mappingsResult.reason)}`);
+    }
+    const { products, categories } = catalog;
 
     const cartItems: PosCartItem[] = [];
     const unmatchedProducts: string[] = [];
@@ -355,9 +385,11 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
 
       let matchedProduct: SaleProduct | null = null;
       if (productAlias) {
+        const aliasNameMatch = findBestInternalNameMatch(products, productAlias.internal_name);
         matchedProduct = products.find((product) => product.id === productAlias.internal_entity_id)
-          ?? findBestInternalNameMatch(products, productAlias.internal_name)?.candidate
-          ?? null;
+          ?? (aliasNameMatch && aliasNameMatch.score >= MARKETPLACE_MATCH_THRESHOLD
+            ? aliasNameMatch.candidate
+            : null);
       } else {
         const bestProductMatch = products
           .map((product) => ({ product, score: getNameSimilarity(item.name, product.name) }))
@@ -368,7 +400,16 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
       }
 
       if (!matchedProduct) {
-        unmatchedProducts.push(item.name);
+        const itemSummary = formatMarketplaceItemSummary(item);
+        const optionNotes = item.customizations.flatMap((customization) => (
+          customization.options.map((option) => formatMarketplaceOptionNote(customization.name, option))
+        ));
+        unmatchedProducts.push(itemSummary);
+        resolutionNotes.push([
+          `Unmatched item detail: ${itemSummary}`,
+          item.specialInstructions.trim(),
+          ...optionNotes,
+        ].filter(Boolean).join('\n'));
         unresolvedIssues.push({
           kind: 'product', externalName: item.name, mappingExternalName: item.name,
           parentExternalName: '', marketplacePrice: item.price,
@@ -378,14 +419,44 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
           entityType: 'product',
           externalName: item.name,
         });
+        const itemPrice = parseMarketplaceMoney(item.price);
+        cartItems.push({
+          id: dependencies.createLocalId(),
+          order_id: '',
+          product_id: null,
+          product_name: item.name,
+          product_description: `Unmatched ${getMarketplaceSource(detail.provider)} marketplace item`,
+          product_image_url: null,
+          base_price: itemPrice ?? 0,
+          override_price: itemPrice,
+          quantity: Math.max(1, item.quantity || 1),
+          subtotal: itemPrice ?? 0,
+          section: null,
+          removed_ingredients: [],
+          comment: [
+            'UNMATCHED POS ITEM — verify before preparing',
+            item.specialInstructions.trim(),
+            ...optionNotes,
+          ].filter(Boolean).join('\n'),
+          created_at: dependencies.now().toISOString(),
+          addons: [],
+        });
         continue;
       }
 
-      const customizationData = await dependencies.loadProductCustomizations(matchedProduct.id);
-      if (customizationData.error) throw new Error(customizationData.error);
+      let customizationWarning = '';
+      let customizationData: Awaited<ReturnType<MarketplacePosOrderDependencies['loadProductCustomizations']>>;
+      try {
+        customizationData = await dependencies.loadProductCustomizations(matchedProduct.id);
+        if (customizationData.error) throw new Error(customizationData.error);
+      } catch (error) {
+        customizationWarning = `Customization data unavailable: ${getResolutionError(error)}`;
+        resolutionNotes.push(`${item.name}: ${customizationWarning}`);
+        customizationData = { groups: [], removableIngredients: [] };
+      }
       const addons: OrderItemAddon[] = [];
       const removedIngredients: string[] = [];
-      const unmatchedAddonNotes: string[] = [];
+      const unmatchedAddonNotes: string[] = customizationWarning ? [customizationWarning] : [];
 
       item.customizations.forEach((customization) => {
         const groupAliases = marketplaceMappings.filter((mapping) => (
@@ -447,9 +518,11 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
           }
 
           unmatchedOptions.push(`${item.name}: ${option.name}`);
+          unmatchedAddonNotes.push(formatMarketplaceOptionNote(customization.name, option));
           unresolvedIssues.push({
             kind: 'ingredient', externalName: option.name, mappingExternalName: removalCandidate,
             parentExternalName: item.name, marketplacePrice: option.price,
+            marketplaceGroupName: customization.name,
           });
           void dependencies.recordUnmatchedName({
             provider: detail.provider,
@@ -468,7 +541,13 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
           : optionMatches[0] ?? null);
 
         if (!bestOptionMatch || (!addonAlias && bestOptionMatch.score < MARKETPLACE_MATCH_THRESHOLD) || (!posGroup && !exactOptionMatch)) {
-          unmatchedAddonNotes.push(formatUnmatchedMarketplaceAddon(option));
+          unmatchedOptions.push(`${item.name}: ${option.name}`);
+          unmatchedAddonNotes.push(formatMarketplaceOptionNote(customization.name, option));
+          unresolvedIssues.push({
+            kind: 'addon', externalName: option.name, mappingExternalName: option.name,
+            parentExternalName: item.name, marketplacePrice: option.price,
+            marketplaceGroupName: customization.name,
+          });
           void dependencies.recordUnmatchedName({
             provider: detail.provider,
             entityType: 'addon',
@@ -526,12 +605,37 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
       });
     }
 
+    if (cartItems.length === 0) {
+      const emptyDetailNote = `${getMarketplaceSource(detail.provider)} provider returned no item lines.`;
+      const placeholderSubtotal = detail.subtotalAmount ?? detail.totalAmount ?? 0;
+      resolutionNotes.push(emptyDetailNote);
+      cartItems.push({
+        id: dependencies.createLocalId(),
+        order_id: '',
+        product_id: null,
+        product_name: 'UNRESOLVED MARKETPLACE ORDER',
+        product_description: `${getMarketplaceSource(detail.provider)} marketplace order without item detail`,
+        product_image_url: null,
+        base_price: placeholderSubtotal,
+        override_price: placeholderSubtotal,
+        quantity: 1,
+        subtotal: placeholderSubtotal,
+        section: null,
+        removed_ingredients: [],
+        comment: `UNMATCHED POS ITEM — verify before preparing\n${emptyDetailNote}`,
+        created_at: dependencies.now().toISOString(),
+        addons: [],
+      });
+    }
+
     const requestedAt = new Date(detail.requestedAt);
     return {
       cartItems,
       customerName: detail.customerName || '',
       requestedAt: Number.isFinite(requestedAt.getTime()) ? requestedAt : dependencies.now(),
-      discountAmount: getMarketplaceImportDiscountAmount(detail),
+      discountAmount: providerReturnedItemLines
+        ? getMarketplaceImportDiscountAmount(detail)
+        : Math.max(0, detail.discountAmount),
       metadata: {
         source: getMarketplaceSource(detail.provider),
         externalOrderNumber,
@@ -546,6 +650,7 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
       unmatchedProducts,
       unmatchedOptions,
       unresolvedIssues,
+      resolutionNotes,
     };
   };
 
@@ -593,14 +698,18 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
     detail: MarketplaceOrderDetail
   ): Promise<{ order: Order | null; created: boolean; error: string | null }> => {
     try {
-      const externalOrderNumber = detail.orderId.trim();
+      const externalOrderNumber = getMarketplaceOrderIdentity(detail);
       if (!externalOrderNumber) {
-        return { order: null, created: false, error: 'Marketplace order ID is required.' };
+        return { order: null, created: false, error: 'Marketplace order identity is required.' };
       }
 
       const existing = await dependencies.findMarketplaceOrder(detail.provider, externalOrderNumber);
       if (existing.error) {
-        return { order: null, created: false, error: existing.error };
+        console.warn('[marketplace] duplicate lookup failed; atomic save will enforce uniqueness', {
+          provider: detail.provider,
+          externalOrderNumber,
+          error: existing.error,
+        });
       }
       if (existing.data) {
         const synced = await updateExistingMarketplaceOrder(existing.data, detail);
@@ -608,27 +717,6 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
       }
 
       const draft = await buildMarketplacePosOrderDraft(detail);
-      if (draft.cartItems.length === 0) {
-        return {
-          order: null,
-          created: false,
-          error: `None of the ${draft.metadata.source} items matched the POS catalog.`,
-        };
-      }
-
-      if (draft.unmatchedProducts.length > 0 || draft.unmatchedOptions.length > 0) {
-        const unmatchedProducts = draft.unmatchedProducts.length > 0
-          ? draft.unmatchedProducts.join(', ')
-          : 'none';
-        const unmatchedOptions = draft.unmatchedOptions.length > 0
-          ? draft.unmatchedOptions.join(', ')
-          : 'none';
-        return {
-          order: null,
-          created: false,
-          error: `Marketplace order needs manual review before import. Unmatched products: ${unmatchedProducts}. Unmatched options: ${unmatchedOptions}.`,
-        };
-      }
 
       const subtotal = draft.cartItems.reduce((sum, item) => sum + item.subtotal, 0);
       const discountAmount = Math.max(0, Math.min(subtotal, draft.discountAmount));
@@ -640,6 +728,7 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
         draft.unmatchedOptions.length > 0
           ? `Check modifiers: ${draft.unmatchedOptions.join(', ')}`
           : '',
+        ...draft.resolutionNotes,
       ].filter(Boolean).join('\n');
 
       const externalCustomerId = detail.marketplaceCustomerId?.trim();

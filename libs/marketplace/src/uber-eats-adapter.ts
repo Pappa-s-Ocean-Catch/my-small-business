@@ -13,7 +13,7 @@ function timestamp(value: unknown) { if (typeof value === 'number') return value
 export function adaptUberActive(payload: { data?: { rows?: UberRow[]; orders?: UberRow[]; activeOrders?: UberRow[]; paginationResult?: { nextCursor?: string } } }) {
   const providerRows = payload.data?.rows || payload.data?.orders || payload.data?.activeOrders || [];
   const orders: MarketplaceActiveOrder[] = providerRows.map((order) => ({
-    orderId: order.orderId || '', workflowUuid: order.workflowUuid || order.workflowUUID || '', orderUuid: order.orderUuid || order.orderUUID || '',
+    orderId: order.orderId || order.workflowUuid || order.workflowUUID || order.orderUuid || order.orderUUID || '', workflowUuid: order.workflowUuid || order.workflowUUID || '', orderUuid: order.orderUuid || order.orderUUID || '',
     customerName: order.eater?.name || order.customer?.name || 'Customer', salesTotal: order.salesTotal || '', requestedAt: order.requestedAt || '', courierName: order.courierName || '', fulfillmentType: order.fulfillmentType || '', orderChannel: order.orderChannel || '', status: order.orderTag || order.orderCategory || order.issueType || 'Active', statusDescription: order.deliveryTimeLocal || order.estimatedReadyTimeLocal || '',
   })).filter((order) => order.orderId && order.workflowUuid);
   return { orders, providerRows: providerRows.length, nextCursor: payload.data?.paginationResult?.nextCursor || null };

@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins { id("com.android.application"); id("org.jetbrains.kotlin.android") }
 android {
     namespace = "com.pappas.menudisplay"
@@ -9,7 +11,14 @@ android {
         versionCode = 2
         versionName = "0.2.0"
         
-        val apiUrl = System.getenv("MENU_DISCOVERY_API_URL") ?: project.findProperty("MENU_DISCOVERY_API_URL") as? String ?: "https://ocean-catch.vercel.app/api/tv-menus"
+        val tvConfigFile = file("../tv.config")
+        var configUrl: String? = null
+        if (tvConfigFile.exists()) {
+            val props = Properties()
+            tvConfigFile.inputStream().use { props.load(it) }
+            configUrl = props.getProperty("MENU_DISCOVERY_API_URL")?.trim('"', '\'')
+        }
+        val apiUrl = configUrl ?: System.getenv("MENU_DISCOVERY_API_URL") ?: project.findProperty("MENU_DISCOVERY_API_URL") as? String ?: "https://ocean-catch.vercel.app/api/tv-menus"
         buildConfigField("String", "MENU_DISCOVERY_API_URL", "\"${apiUrl}\"")
     }
     compileOptions {

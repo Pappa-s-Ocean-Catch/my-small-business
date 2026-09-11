@@ -99,6 +99,11 @@ export default function OrderHistoryPage() {
       return;
     }
 
+    if (order.items.some((item) => !item.product_id)) {
+      setError('This marketplace order contains an item that is not linked to the menu and cannot be reordered online.');
+      return;
+    }
+
     setReorderingOrderId(order.id);
     try {
       // Clear current cart
@@ -106,6 +111,8 @@ export default function OrderHistoryPage() {
 
       // Add all items from the order to the cart
       for (const orderItem of order.items) {
+        if (!orderItem.product_id) continue;
+
         // Group addons by addon_group_id
         const addonsByGroup = new Map<string, Array<{
           id: string;
@@ -361,7 +368,8 @@ export default function OrderHistoryPage() {
                         </button>
                         <button
                           onClick={e => { e.preventDefault(); handleReorder(order); }}
-                          disabled={reorderingOrderId === order.id}
+                          disabled={reorderingOrderId === order.id || order.items?.some((item) => !item.product_id)}
+                          title={order.items?.some((item) => !item.product_id) ? 'This order contains an item that is not linked to the online menu' : 'Reorder'}
                           className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
                         >
                           {reorderingOrderId === order.id ? (
@@ -386,13 +394,17 @@ export default function OrderHistoryPage() {
                             <div className="flex-1">
                               <p className="font-medium text-gray-900 dark:text-white">
                                 {item.quantity}x{' '}
-                                <Link
-                                  href={`/order/product/${item.product_id}`}
-                                  className="text-blue-600 dark:text-blue-400 hover:underline"
-                                  title={`View details for ${item.product_name}`}
-                                >
-                                  {item.product_name}
-                                </Link>
+                                {item.product_id ? (
+                                  <Link
+                                    href={`/order/product/${item.product_id}`}
+                                    className="text-blue-600 dark:text-blue-400 hover:underline"
+                                    title={`View details for ${item.product_name}`}
+                                  >
+                                    {item.product_name}
+                                  </Link>
+                                ) : (
+                                  <span>{item.product_name}</span>
+                                )}
                               </p>
                               {item.comment && (
                                 <p className="text-gray-600 dark:text-gray-400 text-xs mt-1">

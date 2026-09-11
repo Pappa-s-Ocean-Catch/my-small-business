@@ -134,6 +134,7 @@ export function findSelectedFreeItemPromotion(params: {
   for (const promotion of promotions) {
     if (!isFreeItemPromotion(promotion)) continue;
     if (!appliesToCart(promotion, cartSubtotal)) continue;
+    if (!selectedItem.product_id) continue;
     if (!(promotion.product_ids || []).includes(selectedItem.product_id)) continue;
 
     const quantity = Math.max(1, Number(selectedItem.quantity) || 1);

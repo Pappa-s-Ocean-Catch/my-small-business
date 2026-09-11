@@ -4,6 +4,8 @@ import { Text, Button, Card, ActivityIndicator, IconButton, Switch, useTheme, Ap
 import { supabase } from '@/lib/supabase';
 import * as DocumentPicker from 'expo-document-picker';
 import { Stack, useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
+import { DrawerNavigationProp } from '@react-navigation/drawer';
 
 type TVMenu = {
   id: string;
@@ -204,13 +206,15 @@ export default function TVMenuScreen() {
     </Card>
   );
 
+  const navigation = useNavigation<DrawerNavigationProp<any>>();
+
   return (
-    <View style={styles.container}>
-      <Stack.Screen options={{ title: 'TV Menu Management', headerShown: true }} />
-      <Appbar.Header>
-        <Appbar.BackAction onPress={() => router.back()} />
-        <Appbar.Content title="TV Menu Management" />
+    <>
+      <Appbar.Header style={{ backgroundColor: theme.colors.primary }}>
+        <Appbar.Action icon="menu" onPress={() => navigation.openDrawer()} iconColor="#fff" />
+        <Appbar.Content title="TV Menu Management" titleStyle={{ color: '#fff' }} />
       </Appbar.Header>
+      <View style={styles.container}>
       
       <View style={styles.header}>
         <Button
@@ -237,6 +241,7 @@ export default function TVMenuScreen() {
         />
       )}
     </View>
+    </>
   );
 }
 
