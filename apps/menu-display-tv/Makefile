@@ -84,7 +84,7 @@ deploy-debug: build-debug connect
 			target="$$target:$(TV_PORT)"; \
 		fi; \
 		echo "Deploying debug APK to $$target..."; \
-		adb -s $$target install -r $(DEBUG_APK); \
+		adb -s $$target install -t -d -r $(DEBUG_APK); \
 	done
 
 deploy\:release: deploy-release
@@ -103,7 +103,7 @@ deploy-release: build-release connect
 			exit 1; \
 		fi; \
 		echo "Deploying release APK ($$apk_to_install) to $$target..."; \
-		adb -s $$target install -r $$apk_to_install; \
+		adb -s $$target install -t -d -r $$apk_to_install; \
 	done
 
 launch: connect
