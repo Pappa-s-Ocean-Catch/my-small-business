@@ -11,6 +11,9 @@ TV_IPS ?= $(TV_IP)
 PACKAGE_NAME ?= com.pappas.menudisplay
 MAIN_ACTIVITY ?= $(PACKAGE_NAME)/.MainActivity
 
+# Export variables to make them available to Gradle
+export MENU_DISCOVERY_API_URL
+
 GRADLE ?= unset ANDROID_PREFS_ROOT; ./gradlew
 
 DEBUG_APK ?= app/build/outputs/apk/debug/app-debug.apk

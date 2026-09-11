@@ -135,6 +135,15 @@ export default function DrawerLayout() {
           ),
         }}
       />
+      <Drawer.Screen
+        name="tv-menu"
+        options={{
+          drawerLabel: 'TV Menu',
+          drawerIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="television" color={color} size={size} />
+          ),
+        }}
+      />
     </Drawer>
   );
 }

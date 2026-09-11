@@ -135,6 +135,7 @@ class MainActivity : Activity() {
         val content = page("Your menu library", "${items.size} images · ${"%.1f".format(total)} / 500 MiB · Saved on this TV", "library")
         val actions = row()
         actions.addView(button("Upload images") { uploads() })
+        actions.addView(button("Sync from Cloud") { syncCloud() })
         actions.addView(button("Create slideshow") {
             val saved = store.state()
             editorIds = saved.ids.toMutableList(); editorSeconds = saved.seconds; editor()
@@ -176,6 +177,64 @@ class MainActivity : Activity() {
         }
         actions.getChildAt(0).requestFocus()
     }
+    private fun syncCloud() {
+        toast("Syncing cloud menu...")
+        val apiUrl = BuildConfig.MENU_DISCOVERY_API_URL
+        if (apiUrl.isBlank()) {
+            toast("Cloud menu API not configured")
+            return
+        }
+        io.execute {
+            try {
+                val url = java.net.URL(apiUrl)
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = "GET"
+                if (conn.responseCode != 200) throw Exception("Server returned ${conn.responseCode}")
+                val jsonText = conn.inputStream.bufferedReader().use { it.readText() }
+                val json = org.json.JSONObject(jsonText)
+                if (!json.optBoolean("success", false)) throw Exception("API error")
+                val menus = json.getJSONArray("menus")
+                val cloudIds = mutableListOf<String>()
+                
+                for (i in 0 until menus.length()) {
+                    val m = menus.getJSONObject(i)
+                    val id = m.getString("id")
+                    val name = m.getString("name")
+                    val imageUrl = m.getString("url")
+                    cloudIds.add(id)
+                    
+                    val existing = store.list().find { it.id == id }
+                    if (existing == null) {
+                        main.post { toast("Downloading: $name") }
+                        val imgUrl = java.net.URL(imageUrl)
+                        val imgConn = imgUrl.openConnection() as java.net.HttpURLConnection
+                        imgConn.requestMethod = "GET"
+                        val length = imgConn.contentLengthLong
+                        store.upload(imgConn.inputStream, length, name, id)
+                    } else if (existing.name != name) {
+                        store.rename(id, name)
+                    }
+                }
+                
+                val currentIds = store.list().map { it.id }.toSet()
+                for (id in currentIds) {
+                    if (!cloudIds.contains(id)) {
+                        store.delete(id)
+                    }
+                }
+                
+                store.saveState(DisplayState(cloudIds, 10, true))
+                
+                main.post {
+                    toast("Cloud sync complete")
+                    library()
+                }
+            } catch (e: Exception) {
+                main.post { toast("Cloud sync failed: ${e.message}") }
+            }
+        }
+    }
+
     private fun loadThumbnail(id: String, view: ImageView) {
         val token = generation
         io.execute {

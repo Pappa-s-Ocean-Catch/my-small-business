@@ -8,10 +8,17 @@ android {
         targetSdk = 34
         versionCode = 2
         versionName = "0.2.0"
+        
+        val apiUrl = System.getenv("MENU_DISCOVERY_API_URL") ?: project.findProperty("MENU_DISCOVERY_API_URL") as? String ?: "https://ocean-catch.vercel.app/api/tv-menus"
+        buildConfigField("String", "MENU_DISCOVERY_API_URL", "\"${apiUrl}\"")
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+    
+    buildFeatures {
+        buildConfig = true
     }
     
     signingConfigs {

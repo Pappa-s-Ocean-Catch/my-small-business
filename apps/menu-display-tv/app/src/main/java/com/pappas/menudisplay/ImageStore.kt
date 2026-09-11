@@ -69,24 +69,30 @@ class ImageStore(context: Context) {
         file(id).delete()
     }
     private val uploadLock = Any()
-    fun upload(input: InputStream, length: Long, name: String): String = synchronized(uploadLock) {
+    fun upload(input: InputStream, length: Long, name: String, cloudId: String? = null): String = synchronized(uploadLock) {
         val snapshot = list()
-        require(length in 1..LocalHttpServer.MAX_UPLOAD) { "Image must be at most 20 MiB" }
+        require(length <= LocalHttpServer.MAX_UPLOAD) { "Image must be at most 20 MiB" }
+        val estimatedLength = if (length > 0) length else 5L * 1024 * 1024 // Assume 5MB if unknown
         require(snapshot.size < 200) { "Library is full (200 images). Delete an image first." }
-        require(snapshot.sumOf { it.bytes } + length <= 500L * 1024 * 1024 && dir.usableSpace > length + 10L * 1024 * 1024) { "Not enough storage. Delete images and retry." }
-        val id = UUID.randomUUID().toString()
+        require(snapshot.sumOf { it.bytes } + estimatedLength <= 500L * 1024 * 1024 && dir.usableSpace > estimatedLength + 10L * 1024 * 1024) { "Not enough storage. Delete images and retry." }
+        val id = cloudId ?: UUID.randomUUID().toString()
         val temp = File(dir, "$id.upload")
+        var actualLength = 0L
         try {
             temp.outputStream().use { out ->
                 val buffer = ByteArray(64 * 1024)
-                var remaining = length
-                while (remaining > 0) {
-                    val count = input.read(buffer, 0, minOf(buffer.size.toLong(), remaining).toInt())
-                    require(count > 0) { "Upload was interrupted" }
+                var totalRead = 0L
+                while (true) {
+                    val toRead = if (length > 0) minOf(buffer.size.toLong(), length - totalRead).toInt() else buffer.size
+                    if (toRead <= 0) break
+                    val count = input.read(buffer, 0, toRead)
+                    if (count < 0) break
                     out.write(buffer, 0, count)
-                    remaining -= count
+                    totalRead += count
                 }
+                if (length > 0) require(totalRead == length) { "Upload was interrupted" }
                 out.fd.sync()
+                actualLength = totalRead
             }
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeFile(temp.path, bounds)
@@ -98,7 +104,7 @@ class ImageStore(context: Context) {
             check(temp.renameTo(file(id))) { "Could not save image" }
             val clean = name.substringAfterLast('/').substringAfterLast('\\').filter { !it.isISOControl() }.trim().take(100).ifBlank { "Menu image" }
             synchronized(this) {
-                val next = images + MenuImage(id, clean, length)
+                val next = images.filter { it.id != id } + MenuImage(id, clean, actualLength)
                 try { persist(next, display) } catch (e: Exception) { file(id).delete(); throw e }
                 images = next.toMutableList()
             }

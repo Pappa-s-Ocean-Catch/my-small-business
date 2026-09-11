@@ -9,3 +9,6 @@
 
 # Custom ADB Port (default: 5555)
 # TV_PORT=5555
+
+# Cloud Menu Discovery API URL
+# MENU_DISCOVERY_API_URL=https://your-domain.com/api/tv-menus
