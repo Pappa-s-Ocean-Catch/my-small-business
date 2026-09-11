@@ -24,7 +24,7 @@
 ### Task 1: Nullable marketplace item identity
 
 **Files:**
-- Create: `supabase/migrations/20260911120000_allow_unmatched_marketplace_order_items.sql`
+- Create: `supabase/migrations/20260911140000_allow_unmatched_marketplace_order_items.sql`
 - Modify: `libs/types/order.ts`
 - Modify: `apps/pappas-order-management/app/pos.tsx`
 
