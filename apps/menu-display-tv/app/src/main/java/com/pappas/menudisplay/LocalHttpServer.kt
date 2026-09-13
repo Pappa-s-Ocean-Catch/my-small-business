@@ -10,7 +10,8 @@ class LocalHttpServer(
     private val code: String,
     private val page: ByteArray,
     private val upload: (InputStream, Long, String) -> String,
-    private val changed: () -> Unit
+    private val changed: () -> Unit,
+    private val queueUpdate: (String) -> Unit = {}
 ) : Closeable {
     companion object { const val MAX_UPLOAD = 20L * 1024 * 1024 }
     private var listener: ServerSocket? = null
@@ -81,6 +82,21 @@ class LocalHttpServer(
                 if (headers["origin"] != null && headers["origin"] != "http://$host") throw HttpError(403, "Cross-origin access denied")
                 if (request[0] == "GET" && request[1] == "/") {
                     respond(socket, 200, page, "text/html; charset=utf-8")
+                    return
+                }
+                if (request[0] == "POST" && request[1] == "/api/queue") {
+                    val length = headers["content-length"]?.toIntOrNull() ?: 0
+                    if (length > 0 && length < 1024 * 1024) {
+                        val body = ByteArray(length)
+                        var read = 0
+                        while (read < length) {
+                            val r = input.read(body, read, length - read)
+                            if (r < 0) break
+                            read += r
+                        }
+                        queueUpdate(String(body, Charsets.UTF_8))
+                    }
+                    respond(socket, 200, "{\"status\":\"ok\"}".toByteArray(), "application/json")
                     return
                 }
                 if (request[0] != "POST" || request[1] !in setOf("/upload", "/pair")) throw HttpError(404, "Not found")

@@ -149,7 +149,7 @@ export const CallerIdListenerProvider: React.FC<{ children: React.ReactNode; aut
 
     const rawSub = CallerIdListener.addRawPacketListener((event: { content: string }) => {
       usePrinterAutomationStore.getState().addJournalEntry({
-        title: 'Caller ID Packet Received',
+        scope: 'Caller ID Packet Received',
         message: event.content,
         level: 'info',
       });
@@ -190,6 +190,10 @@ export const CallerIdListenerProvider: React.FC<{ children: React.ReactNode; aut
         console.error('Error handling AI tool call', e);
         CallerIdListener.sendAIToolOutput(callId, toolCallId, JSON.stringify({ error: "Failed to parse arguments" }));
       }
+    });
+
+    const errSub = CallerIdListener.addErrorListener((event: { message: string }) => {
+      console.error('Caller ID Error:', event.message);
     });
 
     // Realtime subscription for devices without physical caller ID connection

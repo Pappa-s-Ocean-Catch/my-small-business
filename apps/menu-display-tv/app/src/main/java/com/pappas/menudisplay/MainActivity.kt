@@ -5,6 +5,7 @@ import android.app.AlertDialog
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Typeface
@@ -12,6 +13,7 @@ import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.StateListDrawable
 import android.view.*
 import android.widget.*
+import org.json.JSONObject
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.MultiFormatWriter
 import java.net.Inet4Address
@@ -40,6 +42,8 @@ class MainActivity : Activity() {
     private var editorIds = mutableListOf<String>()
     private var editorSeconds = 10
     private var uploadStatus: TextView? = null
+    private var queueOverlayView: LinearLayout? = null
+    private var queueData = JSONObject()
     private val tick = Runnable { step(1) }
     private val bg = Color.rgb(16, 26, 35)
     private val panel = Color.rgb(28, 43, 55)
@@ -80,12 +84,19 @@ class MainActivity : Activity() {
     private fun startServer() {
         pairing = (100000 + SecureRandom().nextInt(900000)).toString()
         try {
-            server = LocalHttpServer(pairing, assets.open("upload.html").use { it.readBytes() }, store::upload) {
+            server = LocalHttpServer(pairing, assets.open("upload.html").use { it.readBytes() }, store::upload, {
                 main.post {
                     if (active) {
                         if (screen == "library") library()
                         if (screen == "upload") uploadStatus?.text = "Upload received. Open the library to display your new menu."
                     }
+                }
+            }) { json ->
+                main.post {
+                    try {
+                        queueData = JSONObject(json)
+                        updateQueueUI()
+                    } catch (e: Exception) {}
                 }
             }.apply { start() }
             serverError = null
@@ -119,7 +130,7 @@ class MainActivity : Activity() {
     }
     private fun page(title: String, subtitle: String, name: String): LinearLayout {
         generation++; screen = name; main.removeCallbacks(tick); immersive()
-        playbackView = null; playbackBitmap = null
+        playbackView = null; playbackBitmap = null; queueOverlayView = null
         thumbnails.clear() // ImageViews detach below; let Android safely release their bitmaps.
         val content = column().apply { setPadding(dp(40), dp(24), dp(40), dp(24)); setBackgroundColor(bg) }
         content.addView(text("PAPPAS OCEAN CATCH MENU", 13f, mint))
@@ -136,6 +147,7 @@ class MainActivity : Activity() {
         val actions = row()
         actions.addView(button("Upload images") { uploads() })
         actions.addView(button("Sync from Cloud") { syncCloud() })
+        actions.addView(button("Display settings") { displaySettings() })
         actions.addView(button("Create slideshow") {
             val saved = store.state()
             editorIds = saved.ids.toMutableList(); editorSeconds = saved.seconds; editor()
@@ -398,11 +410,113 @@ class MainActivity : Activity() {
         }
         generation++; screen = "playback"; playback = state.copy(ids = ids); index = 0; paused = false
         main.removeCallbacks(tick); thumbnails.clear(); immersive()
-        playbackView = ImageView(this).apply { scaleType = ImageView.ScaleType.FIT_CENTER; setBackgroundColor(Color.BLACK) }
-        setContentView(playbackView)
+        
+        val frame = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
+        playbackView = ImageView(this).apply { scaleType = ImageView.ScaleType.FIT_CENTER }
+        frame.addView(playbackView, FrameLayout.LayoutParams(-1, -1))
+        
+        val prefs = getSharedPreferences("prefs", Context.MODE_PRIVATE)
+        if (prefs.getBoolean("clock", false)) {
+            val clock = TextClock(this).apply {
+                format12Hour = "h:mm a"
+                format24Hour = "HH:mm"
+                textSize = 48f
+                setTextColor(Color.WHITE)
+                setShadowLayer(8f, 0f, 4f, Color.BLACK)
+                alpha = prefs.getInt("clock_opacity", 100) / 100f
+            }
+            val lp = FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.END).apply {
+                setMargins(dp(32), dp(32), dp(32), dp(32))
+            }
+            frame.addView(clock, lp)
+        }
+        
+        if (prefs.getBoolean("queue", false)) {
+            queueOverlayView = column().apply {
+                setBackgroundColor(Color.argb(220, 0, 0, 0))
+                alpha = prefs.getInt("queue_opacity", 100) / 100f
+                setPadding(dp(24), dp(24), dp(24), dp(24))
+            }
+            frame.addView(queueOverlayView, FrameLayout.LayoutParams(dp(320), -1, Gravity.START))
+            updateQueueUI()
+        }
+        
+        setContentView(frame)
         loadSlide()
         toast(if (state.slideshow) "OK: pause / resume · Left / right: change image · Back: library" else "Back: library")
     }
+
+    private fun updateQueueUI() {
+        val qv = queueOverlayView ?: return
+        qv.removeAllViews()
+        qv.addView(text("ORDER QUEUE", 24f, mint).apply { 
+            setTypeface(null, Typeface.BOLD)
+            setPadding(0, 0, 0, dp(24))
+        })
+        
+        val ready = queueData.optJSONArray("ready")
+        if (ready != null && ready.length() > 0) {
+            qv.addView(text("Ready to pick up", 20f, Color.WHITE).apply { setPadding(0, 0, 0, dp(4)) })
+            val readyText = (0 until ready.length()).map { ready.getString(it) }.joinToString(", ")
+            qv.addView(text(readyText, 48f, Color.GREEN).apply { 
+                setTypeface(null, Typeface.BOLD)
+                setPadding(0, 0, 0, dp(24))
+            })
+        }
+        
+        val prep = queueData.optJSONArray("preparing")
+        if (prep != null && prep.length() > 0) {
+            qv.addView(text("Preparing", 20f, Color.WHITE).apply { setPadding(0, 0, 0, dp(4)) })
+            val prepText = (0 until prep.length()).map { prep.getString(it) }.joinToString(", ")
+            qv.addView(text(prepText, 32f, Color.LTGRAY).apply { 
+                setTypeface(null, Typeface.BOLD)
+            })
+        }
+    }
+
+    private fun displaySettings() {
+        val prefs = getSharedPreferences("prefs", Context.MODE_PRIVATE)
+        val content = page("Display Settings", "Configure overlays shown over the menu.", "settings")
+        val actions = row()
+        actions.addView(button("Back to library") { library() })
+        content.addView(actions)
+        
+        content.addView(text("Clock Overlay", 22f).apply { setPadding(0, dp(24), 0, dp(8)) })
+        val clockRow = row()
+        val cEnabled = prefs.getBoolean("clock", false)
+        clockRow.addView(button(if (cEnabled) "Clock: ON" else "Clock: OFF") {
+            prefs.edit().putBoolean("clock", !cEnabled).apply()
+            displaySettings()
+        })
+        val cOpacity = prefs.getInt("clock_opacity", 100)
+        clockRow.addView(button("Opacity: $cOpacity%") {
+            val next = if (cOpacity <= 25) 100 else cOpacity - 25
+            prefs.edit().putInt("clock_opacity", next).apply()
+            displaySettings()
+        }.apply { isEnabled = cEnabled })
+        content.addView(clockRow)
+        
+        content.addView(text("Queue Overlay", 22f).apply { setPadding(0, dp(24), 0, dp(8)) })
+        val queueRow = row()
+        val qEnabled = prefs.getBoolean("queue", false)
+        queueRow.addView(button(if (qEnabled) "Queue: ON" else "Queue: OFF") {
+            prefs.edit().putBoolean("queue", !qEnabled).apply()
+            displaySettings()
+        })
+        val qOpacity = prefs.getInt("queue_opacity", 100)
+        queueRow.addView(button("Opacity: $qOpacity%") {
+            val next = if (qOpacity <= 25) 100 else qOpacity - 25
+            prefs.edit().putInt("queue_opacity", next).apply()
+            displaySettings()
+        }.apply { isEnabled = qEnabled })
+        content.addView(queueRow)
+        
+        content.addView(text("To update the queue, send a POST request to http://TV_IP:${server?.port ?: 8787}/api/queue", 18f, mint).apply { setPadding(0, dp(32), 0, dp(4)) })
+        content.addView(text("Example payload:\n{\"preparing\": [\"20\", \"21\"], \"ready\": [\"22\"]}", 16f, muted))
+        
+        actions.getChildAt(0).requestFocus()
+    }
+
     private fun loadSlide() {
         if (screen != "playback" || playback.ids.isEmpty()) return
         main.removeCallbacks(tick)
