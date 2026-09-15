@@ -36,12 +36,9 @@ export default function LoginPage() {
         const redirectPath = typeof window !== 'undefined'
           ? new URLSearchParams(window.location.search).get('redirect')
           : null;
+        
         if (redirectPath) {
           router.push(redirectPath);
-        } else if (profile?.role_slug === 'admin') {
-          router.push('/admin');
-        } else if (profile?.role_slug === 'staff') {
-          router.push('/staff');
         } else {
           router.push('/');
         }
@@ -113,13 +110,10 @@ export default function LoginPage() {
           const redirectPath = typeof window !== 'undefined'
             ? new URLSearchParams(window.location.search).get('redirect')
             : null;
+          
           setTimeout(() => {
             if (redirectPath) {
               router.push(redirectPath);
-            } else if (profile?.role_slug === 'admin') {
-              router.push('/admin');
-            } else if (profile?.role_slug === 'staff') {
-              router.push('/staff');
             } else {
               router.push('/');
             }

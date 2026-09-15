@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import { AppHeader } from "@/components/AppHeader";
+import { RoleGuard } from "@/components/RoleGuard";
 import { SnackbarProvider } from "@/components/Snackbar";
 import { CartProvider } from "@/contexts/CartContext";
 import { ToastContainer } from 'react-toastify';
@@ -90,7 +91,9 @@ export default function RootLayout({
         <AppHeader />
         <SnackbarProvider>
           <CartProvider>
-            <main>{children}</main>
+            <RoleGuard>
+              <main>{children}</main>
+            </RoleGuard>
           </CartProvider>
           <ToastContainer position="top-right" autoClose={3500} hideProgressBar theme="colored" aria-label="Notifications" />
         </SnackbarProvider>
