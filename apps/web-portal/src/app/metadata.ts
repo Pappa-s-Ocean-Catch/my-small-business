@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://pappasfishnchips.com.au";
-const siteName = "Pappa's Ocean Catch";
-const description = "Fresh fish and chips takeaway in Melton. Order online or call (03) 9743 8150. Traditional batter, hand-cut chips, and the freshest seafood daily.";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3001";
+const siteName = "Pappa's Ocean Catch Admin Portal";
+const description = "Administrative portal for Pappa's Ocean Catch staff and management.";
 
 export const homeMetadata: Metadata = {
-  title: `${siteName} | Fresh Fish and Chips Takeaway in Melton`,
+  title: `${siteName}`,
   description,
   icons: {
     icon: [

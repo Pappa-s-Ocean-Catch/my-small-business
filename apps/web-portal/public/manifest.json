@@ -1,7 +1,7 @@
 {
-    "name": "Pappas Ocean Catch",
-    "short_name": "Pappas",
-    "description": "Order food from Pappas Ocean Catch.",
+    "name": "Pappas Admin Portal",
+    "short_name": "Admin",
+    "description": "Admin Portal for Pappas Ocean Catch.",
     "start_url": "/",
     "display": "standalone",
     "background_color": "#ffffff",
