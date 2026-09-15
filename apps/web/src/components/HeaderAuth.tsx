@@ -117,7 +117,8 @@ export function HeaderAuth() {
         title="Sign Out"
         message="Are you sure you want to sign out? You will need to sign in again to access your account."
         confirmText="Sign Out"
-        variant="danger"
+        variant="friendly"
+        icon={FaSignOutAlt}
       />
     </div>
   );

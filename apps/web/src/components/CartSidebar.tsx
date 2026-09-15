@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FaShoppingCart, FaTimes, FaPlus, FaMinus, FaTrash, FaChevronRight, FaEdit, FaComment, FaGift } from 'react-icons/fa';
+import { FaShoppingCart, FaTimes, FaPlus, FaMinus, FaTrash, FaTrashAlt, FaChevronRight, FaEdit, FaComment, FaGift } from 'react-icons/fa';
 import { Icon } from '@/components/Icon';
 import { useCart } from '@/contexts/CartContext';
 import type { CartItem } from '@/contexts/CartContext';
@@ -419,7 +419,8 @@ export function CartSidebar({ hideFloatBubble = false }: { hideFloatBubble?: boo
         message={`Are you sure you want to remove "${items.find(item => item.id === itemToRemove)?.name || 'this item'}" from your cart?`}
         confirmText="Remove"
         cancelText="Cancel"
-        variant="warning"
+        variant="friendly"
+        icon={FaTrashAlt}
       />
     </>
   );
