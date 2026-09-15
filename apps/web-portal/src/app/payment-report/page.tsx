@@ -133,7 +133,7 @@ export default function PaymentReportPage() {
         .gte("holiday_date", dateRange.start.toISOString().split('T')[0])
         .lte("holiday_date", dateRange.end.toISOString().split('T')[0])
         .eq("is_active", true),
-      fetch('/api/brand-settings').then(res => res.json()),
+      fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/brand-settings`).then(res => res.json()),
       supabase
         .from("wage_payments")
         .select("staff_id")

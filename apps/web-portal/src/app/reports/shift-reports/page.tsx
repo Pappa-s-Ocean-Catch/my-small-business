@@ -126,7 +126,7 @@ export default function ReportsPage() {
       supabase.from("staff_rates").select("*"),
       supabase.from("shifts").select("id, staff_id, start_time, end_time, notes, non_billable_hours, section_id"),
       supabase.from("sections").select("id, name, description, color, active, sort_order").eq("active", true).order("sort_order"),
-      fetch('/api/brand-settings').then(res => res.json())
+      fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/brand-settings`).then(res => res.json())
     ]);
 
     setStaff(staffData || []);

@@ -87,7 +87,7 @@ export default function WagesReportPage() {
           .gte("holiday_date", weekStart.toISOString().split('T')[0])
           .lte("holiday_date", weekEnd.toISOString().split('T')[0])
           .eq("is_active", true),
-        fetch('/api/brand-settings').then(res => res.json())
+        fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/brand-settings`).then(res => res.json())
       ]);
 
       if (staffErr) throw new Error(staffErr.message);

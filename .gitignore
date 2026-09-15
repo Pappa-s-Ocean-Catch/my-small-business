@@ -48,3 +48,4 @@ libs/*.js
 data.json
 **/.gradle/*
 .agents
+.vercel
