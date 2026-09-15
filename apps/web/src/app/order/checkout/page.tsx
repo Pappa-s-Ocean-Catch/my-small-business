@@ -6,7 +6,7 @@ import { LiveOrderTracker } from "@/components/LiveOrderTracker";
 import { getSupabaseClient } from "@my-small-business/supabase/client";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/contexts/CartContext";
-import { OrderHeader } from "@/components/OrderHeader";
+
 import { createOrder, type OrderInput } from "@/app/actions/orders";
 import { createShipdayOrder } from "@/app/actions/shipday";
 import type { Order, OrderItem } from "@my-small-business/types/order";
@@ -1969,7 +1969,6 @@ export default function CheckoutPage() {
           </div>
         </div>
       )}
-      <OrderHeader />
       <LiveOrderTracker userId={userId} />
 
       {/* Duplicate Order Modal */}

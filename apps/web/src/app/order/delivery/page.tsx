@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DeliveryAddressForm, type DeliveryAddressInput } from '@/components/DeliveryAddressForm';
-import { OrderHeader } from '@/components/OrderHeader';
+
 import { Icon } from '@/components/Icon';
 import {
   FaArrowRight,
@@ -71,7 +71,7 @@ export default function DeliveryEntryPage() {
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.12),_transparent_35%),linear-gradient(180deg,#f8fafc_0%,#ecfdf5_100%)] pb-12 dark:bg-neutral-950">
-      <OrderHeader />
+
 
       <main className="mx-auto max-w-5xl px-2 md:px-4 py-2 md:py-12">
         <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">

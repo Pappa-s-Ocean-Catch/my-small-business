@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OrderHeader } from '@/components/OrderHeader';
+
 import { getCustomerOrders } from '@/app/actions/orders';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { useCart } from '@/contexts/CartContext';
@@ -268,7 +268,7 @@ export default function OrderHistoryPage() {
   if (loading) {
     return (
       <>
-        <OrderHeader />
+
         <div className="min-h-screen bg-gray-50 dark:bg-neutral-900">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div className="flex items-center justify-center min-h-[400px]">
@@ -286,7 +286,7 @@ export default function OrderHistoryPage() {
   if (error) {
     return (
       <>
-        <OrderHeader />
+
         <div className="min-h-screen bg-gray-50 dark:bg-neutral-900">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
@@ -299,8 +299,7 @@ export default function OrderHistoryPage() {
   }
 
   return (
-    <>
-      <OrderHeader />
+
       <div className="min-h-screen bg-gray-50 dark:bg-neutral-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="mb-6">
@@ -447,6 +446,5 @@ export default function OrderHistoryPage() {
           )}
         </div>
       </div>
-    </>
   );
 }

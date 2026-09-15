@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { useCart } from '@/contexts/CartContext';
 import { ItemCustomizationModal } from '@/components/ItemCustomizationModal';
 import { CartSidebar } from '@/components/CartSidebar';
-import { OrderHeader } from '@/components/OrderHeader';
+
 import { getTopSellingProducts, getFeaturedProducts } from '@/app/actions/top-sellers';
 import { getActivePromotions } from '@/app/actions/promotions';
 import { useFeatureFlag } from '@/hooks/useFeatureFlag';
@@ -623,8 +623,7 @@ function OrderPageContent() {
       </div>
     }>
       <div className="min-h-screen bg-gray-50 dark:bg-neutral-900 pb-24">
-        {/* Navigation Header */}
-        <OrderHeader />
+
 
         {/* Page Header */}
         <div className="bg-white dark:bg-neutral-800 shadow-sm border-b border-gray-200 dark:border-neutral-700">

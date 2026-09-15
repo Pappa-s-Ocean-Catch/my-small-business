@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { DynamicHeader } from "@/components/DynamicHeader";
 import { AppHeader } from "@/components/AppHeader";
 import { SnackbarProvider } from "@/components/Snackbar";
 import { CartProvider } from "@/contexts/CartContext";
@@ -91,7 +90,6 @@ export default function RootLayout({
         <AppHeader />
         <SnackbarProvider>
           <CartProvider>
-            <DynamicHeader />
             <main>{children}</main>
           </CartProvider>
           <ToastContainer position="top-right" autoClose={3500} hideProgressBar theme="colored" aria-label="Notifications" />

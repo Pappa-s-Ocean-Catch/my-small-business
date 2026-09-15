@@ -6,7 +6,7 @@ import { getSupabaseClient } from '@my-small-business/supabase/client';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/contexts/CartContext';
 import type { CartItem } from '@/contexts/CartContext';
-import { OrderHeader } from '@/components/OrderHeader';
+
 import { ItemCustomizationModal } from '@/components/ItemCustomizationModal';
 import { OrderTypeSelector, type OrderType } from '@/components/OrderTypeSelector';
 import { DeliveryAddressForm, type DeliveryAddressInput } from '@/components/DeliveryAddressForm';
@@ -493,8 +493,7 @@ export default function OrderSummaryPage() {
       {/* Live Order Tracker at the very top */}
       <LiveOrderTracker userId={userId} />
 
-      {/* Navigation Header */}
-      <OrderHeader />
+
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Page Header */}

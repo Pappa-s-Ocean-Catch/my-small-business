@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { OrderHeader } from '@/components/OrderHeader';
+
 import { getUserRewardPoints, getUserRewardPointTransactions, getRewardPointsSettings } from '@/app/actions/reward-points';
 import type { UserRewardPoints, RewardPointTransaction } from '@/app/actions/reward-points';
 import { FaGift, FaArrowUp, FaArrowDown, FaClock, FaShoppingCart } from 'react-icons/fa';
@@ -88,7 +88,7 @@ export default function RewardsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-neutral-900">
-      <OrderHeader />
+
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-6">

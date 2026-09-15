@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { getActivePromotions } from '@/app/actions/promotions';
 import { getPromotionDetailsCopy, getPromotionDisplayTitle, isFreeItemPromotion, promotionLabel } from '@/lib/promotions';
-import { OrderHeader } from '@/components/OrderHeader';
+
 import { createServiceRoleClient } from '@my-small-business/supabase/server';
 
 export const metadata = {
@@ -53,7 +53,7 @@ export default async function PublicPromotionsPage() {
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.12),transparent_28%),linear-gradient(180deg,#fff7ed_0%,#ffffff_40%,#f8fafc_100%)]">
-      <OrderHeader />
+
       <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
         <div className="max-w-3xl">
           <div className="inline-flex items-center rounded-full bg-emerald-100 px-4 py-2 text-xs font-bold uppercase tracking-[0.35em] text-emerald-700">

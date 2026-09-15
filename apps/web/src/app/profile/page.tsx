@@ -7,7 +7,7 @@ import { toast } from "react-toastify";
 import { FaEye, FaEyeSlash } from "react-icons/fa6";
 import { FaUser, FaEnvelope, FaShieldAlt } from "react-icons/fa";
 import { Icon } from "@/components/Icon";
-import { OrderHeader } from "@/components/OrderHeader";
+
 import { hasPasswordLogin } from "@/lib/password-auth";
 
 interface Profile {
@@ -168,7 +168,7 @@ export default function ProfilePage() {
   if (loading) {
     return (
       <>
-        <OrderHeader />
+
         <div className="min-h-[80vh] flex items-center justify-center">
           <LoadingSpinner size="lg" />
         </div>
@@ -179,7 +179,7 @@ export default function ProfilePage() {
   if (!profile) {
     return (
       <>
-        <OrderHeader />
+
         <div className="min-h-[80vh] flex items-center justify-center">
           <div className="text-center">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
@@ -196,7 +196,7 @@ export default function ProfilePage() {
 
   return (
     <>
-      <OrderHeader />
+
       <div className="min-h-[80vh] p-6 max-w-4xl mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">

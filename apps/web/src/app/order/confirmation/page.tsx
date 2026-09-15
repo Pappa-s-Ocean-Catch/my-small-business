@@ -8,7 +8,7 @@ import { ImageUpload } from '@/components/ImageUpload';
 import { likeItem, getOrderReviews } from '@/app/actions/social-activity';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { OrderHeader } from '@/components/OrderHeader';
+
 import { getOrder, getOrderByNumber } from '@/app/actions/orders';
 import { getOrderRewardPoints, type OrderRewardPointsSummary } from '@/app/actions/reward-points';
 import { useCart } from '@/contexts/CartContext';
@@ -496,8 +496,7 @@ function OrderConfirmationContent() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-neutral-900">
 
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-      <OrderHeader />
+
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-2 md:py-8">
         {/* Success Header */}
         <div className="text-center mb-2 md:mb-8">
