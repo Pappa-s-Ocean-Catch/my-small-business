@@ -1,10 +1,43 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+const allowedOrigins = [
+  'https://pappasfishnchips.com.au',
+  'https://www.pappasfishnchips.com.au',
+  'https://app.pappasfishnchips.com.au',
+  'http://localhost:3000',
+  'http://localhost:3001'
+]
+
 export async function middleware(request: NextRequest) {
+  const origin = request.headers.get('origin') ?? ''
+  
+  // Allow explicitly listed origins, or any Vercel preview URLs
+  const isAllowedOrigin = allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')
+
+  // 1. Handle Preflight (OPTIONS) requests immediately
+  if (request.method === 'OPTIONS') {
+    const preflightHeaders = new Headers()
+    if (isAllowedOrigin) {
+      preflightHeaders.set('Access-Control-Allow-Origin', origin)
+    }
+    preflightHeaders.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH')
+    preflightHeaders.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-requested-with')
+    preflightHeaders.set('Access-Control-Allow-Credentials', 'true')
+    return new NextResponse(null, { status: 200, headers: preflightHeaders })
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   })
+
+  // 2. Set CORS headers on the actual response
+  if (isAllowedOrigin) {
+    supabaseResponse.headers.set('Access-Control-Allow-Origin', origin)
+    supabaseResponse.headers.set('Access-Control-Allow-Credentials', 'true')
+    supabaseResponse.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH')
+    supabaseResponse.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-requested-with')
+  }
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,9 +49,19 @@ export async function middleware(request: NextRequest) {
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({
-            request,
-          })
+          // IMPORTANT: we must preserve our custom headers when recreating the response
+          const newResponse = NextResponse.next({ request })
+          
+          // Copy CORS headers over to the new response
+          if (isAllowedOrigin) {
+            newResponse.headers.set('Access-Control-Allow-Origin', origin)
+            newResponse.headers.set('Access-Control-Allow-Credentials', 'true')
+            newResponse.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH')
+            newResponse.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-requested-with')
+          }
+          
+          supabaseResponse = newResponse
+          
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           )
@@ -26,10 +69,6 @@ export async function middleware(request: NextRequest) {
       },
     }
   )
-
-  // IMPORTANT: Avoid writing any logic between createServerClient and
-  // supabase.auth.getUser(). A simple mistake could make it very hard to debug
-  // issues with users being randomly logged out.
 
   const {
     data: { user },
@@ -43,14 +82,6 @@ export async function middleware(request: NextRequest) {
   } catch (e) {
     // best-effort; ignore
   }
-
-  // IMPORTANT: You *must* return the supabaseResponse object as it is. If you're
-  // creating a new response object with NextResponse.next() make sure to:
-  // 1. Pass the request in it, like so:
-  //    const myNewResponse = NextResponse.next({ request })
-  // 2. Copy over the cookies, like so:
-  //    myNewResponse.cookies.setAll(supabaseResponse.cookies.getAll())
-  // 3. Change the myNewResponse object instead of the supabaseResponse object
 
   return supabaseResponse
 }
