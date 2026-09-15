@@ -128,7 +128,7 @@ export default function StaffPage() {
 
   // Function to send invitation
   const sendInvitation = async (email: string) => {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/invitations/send', { 
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/invitations/send`, { 
       method: 'POST', 
       headers: { 'Content-Type': 'application/json' }, 
       body: JSON.stringify({ email }) 

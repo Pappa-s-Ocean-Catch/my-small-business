@@ -398,7 +398,7 @@ export default function OrdersPage() {
         return;
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/pos/orders/status-email', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/pos/orders/status-email`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

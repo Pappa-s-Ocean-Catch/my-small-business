@@ -96,7 +96,7 @@ export default function GoogleBusinessProfileSync() {
   const handleConnect = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/google-business/auth');
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/google-business/auth`);
       const data = await response.json();
       
       if (data.authUrl) {
@@ -133,7 +133,7 @@ export default function GoogleBusinessProfileSync() {
       setLoading(true);
       setSyncStatus(prev => ({ ...prev, status: 'syncing' }));
       
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/google-business/sync-products', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/google-business/sync-products`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -177,7 +177,7 @@ export default function GoogleBusinessProfileSync() {
       setLoading(true);
       setSyncStatus(prev => ({ ...prev, status: 'syncing' }));
       
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/google-business/sync-categories', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/google-business/sync-categories`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

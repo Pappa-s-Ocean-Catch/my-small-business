@@ -194,7 +194,7 @@ export default function SuppliersPage() {
         setSavingCreds(false);
         return;
       }
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/suppliers/save-credentials', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/suppliers/save-credentials`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
