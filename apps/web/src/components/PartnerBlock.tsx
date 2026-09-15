@@ -48,17 +48,7 @@ const partners: Partner[] = [
             total: "200+",
             link: "https://www.doordash.com/store/pappa's-ocean-catch-melton-25864570/97468946/",
         },
-    },
-    {
-        name: "Foodhub",
-        logo: "/partners/Foodhub-logo.png",
-        url: "https://pappasoceancatch-ea.com.au/",
-        rating: {
-            average: "4.9",
-            total: "90+",
-            link: "https://pappasoceancatch-ea.com.au/",
-        },
-    },
+    }
 ];
 
 export const PartnerBlock: React.FC = () => (
