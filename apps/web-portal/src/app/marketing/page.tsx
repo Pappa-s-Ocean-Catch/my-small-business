@@ -129,7 +129,7 @@ export default function AdminMarketingPage() {
           email: c.email!,
         }));
 
-      const res = await fetch('/api/marketing/send', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/marketing/send', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -183,7 +183,7 @@ export default function AdminMarketingPage() {
           email: c.email!
         }));
 
-      const res = await fetch('/api/marketing/send', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/marketing/send', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -357,7 +357,7 @@ export default function AdminMarketingPage() {
                         const selectedCustomers = customers
                           .filter(c => c.profileId && selectedIds.has(c.profileId) && c.optInMarketing)
                           .map(c => ({ id: c.profileId!, name: c.name || 'Valued Customer', email: c.email! }));
-                        const res = await fetch('/api/marketing/generate', {
+                        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/marketing/generate', {
                           method: 'POST',
                           headers: {
                             'Content-Type': 'application/json',

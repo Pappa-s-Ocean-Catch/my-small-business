@@ -296,7 +296,7 @@ export default function PlannerPage() {
       const prompt = generateAIPrompt(staff, sections, weekStart);
       
       // Call AI API
-      const aiResponse = await fetch('/api/ai/generate-assignments', {
+      const aiResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/ai/generate-assignments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt })

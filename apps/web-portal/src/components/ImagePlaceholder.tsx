@@ -50,7 +50,7 @@ export function ImagePlaceholder({
       }
 
       // Generate image with default settings
-      const response = await fetch('/api/ai/generate-image', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/ai/generate-image', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -90,7 +90,7 @@ export function ImagePlaceholder({
       formData.append('file', compressedFile);
       formData.append('type', 'sale_product');
 
-      const uploadResponse = await fetch('/api/upload', {
+      const uploadResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/upload', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,

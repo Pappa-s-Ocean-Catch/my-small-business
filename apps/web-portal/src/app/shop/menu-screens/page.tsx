@@ -248,7 +248,7 @@ export default function MenuScreensBuilderPage() {
         JSON.stringify(productList, null, 2)
       ].join('\n');
 
-      const res = await fetch('/api/ai/generate-image', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/ai/generate-image', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

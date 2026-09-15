@@ -172,7 +172,7 @@ export default function IncomeExpenseImportPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setError("Not authenticated"); setImporting(false); return; }
 
-      const res = await fetch("/api/income-expense/import/smartpay", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/income-expense/import/smartpay", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ currentUserId: user.id, rows }),

@@ -79,7 +79,7 @@ export default function GoogleBusinessProfileSync() {
 
   const fetchLocations = async (authTokens: any): Promise<void> => { // eslint-disable-line @typescript-eslint/no-explicit-any
     try {
-      const response = await fetch(`/api/google-business/locations?tokens=${encodeURIComponent(JSON.stringify(authTokens))}`);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/google-business/locations?tokens=${encodeURIComponent(JSON.stringify(authTokens))}`);
       const data = await response.json();
       
       if (data.success && data.locations?.locations) {
@@ -96,7 +96,7 @@ export default function GoogleBusinessProfileSync() {
   const handleConnect = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/google-business/auth');
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/google-business/auth');
       const data = await response.json();
       
       if (data.authUrl) {
@@ -133,7 +133,7 @@ export default function GoogleBusinessProfileSync() {
       setLoading(true);
       setSyncStatus(prev => ({ ...prev, status: 'syncing' }));
       
-      const response = await fetch('/api/google-business/sync-products', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/google-business/sync-products', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -177,7 +177,7 @@ export default function GoogleBusinessProfileSync() {
       setLoading(true);
       setSyncStatus(prev => ({ ...prev, status: 'syncing' }));
       
-      const response = await fetch('/api/google-business/sync-categories', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/google-business/sync-categories', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

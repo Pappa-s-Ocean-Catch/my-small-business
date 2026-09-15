@@ -89,7 +89,7 @@ export function TransactionModal({ isOpen, onClose, onSave, transaction, categor
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch('/api/upload', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/upload', {
         method: 'POST',
         body: formData,
       });

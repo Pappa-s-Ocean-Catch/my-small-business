@@ -62,7 +62,7 @@ export default function OrdersPage() {
 
       console.log('📋 Client-side: Fetching orders with params:', Object.fromEntries(params));
       
-      const response = await fetch(`/api/tryposhub/orders?${params.toString()}`);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/tryposhub/orders?${params.toString()}`);
       
       if (!response.ok) {
         const errorData = await response.json();

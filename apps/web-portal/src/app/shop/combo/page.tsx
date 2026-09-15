@@ -110,7 +110,7 @@ export default function ComboBuilderPage() {
         peopleCount: form.groupType === 'friends' || form.groupType === 'custom' ? (form.peopleCount || undefined) : undefined,
       };
 
-      const res = await fetch('/api/ai/generate-combo', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/ai/generate-combo', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

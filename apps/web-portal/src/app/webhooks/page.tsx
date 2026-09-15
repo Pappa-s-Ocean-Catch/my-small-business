@@ -118,7 +118,7 @@ export default function WebhooksPage() {
       // If we have auth values, save them to Doppler first
       let secretRef = null;
       if ((form.auth_header_name && form.auth_header_value) || (form.auth_query_name && form.auth_query_value)) {
-        const response = await fetch('/api/webhooks/save-secret', {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/webhooks/save-secret', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -360,7 +360,7 @@ export default function WebhooksPage() {
                           <button
                             onClick={async () => {
                               try {
-                                const resp = await fetch(`/api/webhooks/${encodeURIComponent(webhook.id)}`);
+                                const resp = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/webhooks/${encodeURIComponent(webhook.id)}`);
                                 const data = await resp.json();
                                 let url: string | undefined = data.copy_url;
                                 if (!url) {
