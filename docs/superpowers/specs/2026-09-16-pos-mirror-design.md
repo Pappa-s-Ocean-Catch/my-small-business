@@ -14,13 +14,14 @@ The first release includes:
 - the existing Supabase email/password sign-in flow;
 - the existing staff-or-admin authorization rule;
 - local configuration of the mother POS Register ID;
-- a full-screen active-cart and idle display;
+- a full-screen active-cart display;
+- configurable image or current-queue idle modes;
 - a Supabase table, RLS policies, and Realtime publication;
 - non-blocking cart publication from `apps/pappas-order-management`;
 - reset after successful checkout and explicit cart clearing;
 - focused tests for payloads, synchronization, settings, and lifecycle behavior.
 
-The first release does not include web support, remote device management, pairing by QR code, multiple registers on one mirror, customer interaction, advertising rotation, or the final idle artwork. The idle screen will use a replaceable branded placeholder until the final image is supplied.
+The first release does not include web support, remote device management, pairing by QR code, multiple registers on one mirror, customer interaction, advertising rotation, estimated completion times, or the final idle artwork. Image mode and an empty queue will use a replaceable branded placeholder until the final image is supplied.
 
 ## Existing Register Identity
 
@@ -111,9 +112,26 @@ On launch, the app restores the Supabase session and applies the same staff-or-a
 - Authorized with no configured Register ID: open mirror settings.
 - Authorized with a configured Register ID: open the display and connect to that row.
 
-The login screen uses email and password. The settings screen stores a trimmed Register ID in AsyncStorage, allows it to be changed, and offers sign-out. A missing row is valid and means the display is waiting for the mother POS to publish its first snapshot.
+The login screen uses email and password. The settings screen stores a trimmed Register ID and an `image` or `queue` idle-mode selection in AsyncStorage, allows both to be changed, and offers sign-out. A missing row is valid and means the display is waiting for the mother POS to publish its first snapshot.
 
 The display first subscribes, then fetches and reconciles the current row so an update that occurs during startup is not overwritten by an older fetch result. Snapshot `updatedAt` values are used to retain the newest valid state. On Realtime channel reconnection, the app fetches the row again.
+
+## Idle Modes
+
+An active, valid cart snapshot always takes visual priority. Idle mode applies only when `current_order` is `{}` or when the configured register has not published a cart yet.
+
+The mirror settings screen offers two idle modes:
+
+- `Image` shows the branded image or the initial placeholder.
+- `Current Queue` shows all store-wide orders currently eligible for the existing Live Orders queue, independent of the configured Register ID and sales channel.
+
+Queue mode reuses the existing open-order and live-window semantics rather than introducing a second definition of an active order. It excludes completed, cancelled, refunded, `on_the_way`, and `pending_online_payment` orders, as well as scheduled orders that are still outside the current Live Orders window. The remaining orders are sorted oldest first by scheduled pickup time or creation time.
+
+Each queue entry exposes only the public order number and a customer-readable status, for example `#12 — Preparing` or `#15 — Ready`. It must not expose customer names, phone numbers, email addresses, delivery addresses, payment details, item details, staff notes, marketplace identifiers, or database IDs. The first release does not calculate or display a promised wait time.
+
+Queue mode performs a minimal initial query for only the fields needed to determine eligibility, order, number, and status. It subscribes to the existing `order_sync_state` Realtime signal and refetches the minimal queue after a signal or channel reconnection. The migration will ensure both `staff` and `admin` roles can select this synchronization row. Updates are debounced so a multi-row order transaction does not cause a burst of queue fetches.
+
+When no eligible orders exist, Queue mode falls back to the same branded image/welcome presentation as Image mode. During temporary disconnection, the mirror retains the last valid queue and shows a discreet reconnecting indicator.
 
 ## Customer-Facing UI
 
@@ -128,15 +146,15 @@ The active state contains:
 - a visually dominant final total;
 - high contrast, large touch-independent typography, and safe-area handling.
 
-The idle state contains a branded placeholder, welcome message, and reserved image area that can later be replaced by the supplied artwork without changing synchronization logic.
+Image mode and the empty-queue state contain a branded placeholder, welcome message, and reserved image area that can later be replaced by the supplied artwork without changing synchronization logic.
 
 An unobtrusive settings control, or a deliberate long-press target, allows staff to leave display mode. Settings access must not visually compete with order information.
 
 Connection status behavior:
 
 - Initial loading uses a neutral loading state.
-- A missing row shows “Waiting for this register”.
-- During temporary disconnection, the last valid snapshot remains visible with a discreet reconnecting banner.
+- A missing register row is treated as an empty cart. The configured idle mode remains visible, with a discreet “Waiting for this register” setup indicator.
+- During temporary disconnection, the last valid cart or queue remains visible with a discreet reconnecting banner.
 - Authentication loss returns to login.
 - Invalid snapshot data shows the idle presentation plus a non-sensitive configuration warning.
 
@@ -150,6 +168,8 @@ The new app will use small modules with clear boundaries:
 - local mirror-settings load/save/validation;
 - pure snapshot parsing and validation;
 - a subscription coordinator that combines initial fetch, filtered Realtime updates, reconnection fetches, and cleanup;
+- a minimal, privacy-safe queue query and Live Orders eligibility mapper;
+- a queue synchronization coordinator driven by `order_sync_state`;
 - presentational idle and active-order components.
 
 Shared business contracts that genuinely serve both apps may live in a small workspace library or an app-independent module. Native app configuration and UI remain inside each app. The existing Next.js-oriented `@my-small-business/supabase` package is not reused for React Native because it depends on browser/server clients and Next.js.
@@ -166,8 +186,11 @@ Automated coverage will include:
 - initial fetch and Realtime race ordering;
 - reconnect fetch and subscription cleanup;
 - Register ID trimming and persistence;
+- idle-mode persistence and active-cart precedence;
+- queue eligibility, oldest-first ordering, status labels, and privacy-safe field selection;
+- queue initial fetch, debounced sync-signal refresh, reconnect fetch, and empty fallback;
 - authentication and role gating structure;
-- SQL assertions for schema, RLS roles, and Realtime publication;
+- SQL assertions for schema, mirror-state RLS roles, queue synchronization access, and Realtime publication;
 - POS explicit clear and successful-checkout reset hooks, including the Smartpay pending-order boundary.
 
 Verification will run the new app's focused unit tests, TypeScript checks, Expo configuration checks, relevant mother POS focused tests, SQL tests when local Supabase/PostgreSQL is available, and `git diff --check`.
@@ -181,9 +204,14 @@ Simulator/build checks do not prove kiosk presentation, safe-area behavior, text
 - `apps/pos-mirror` launches on iOS and Android and has no web target or web script.
 - Staff/admin users can sign in; other users cannot access mirror data.
 - The configured Register ID persists across restarts and can be changed or cleared.
+- The configured Image or Current Queue idle mode persists across restarts.
 - A new mirror fetches the current cart and then reflects later cart edits without manual refresh.
 - Only changes for the configured Register ID affect the display.
 - The active display shows item names, quantities, prices, item count, discounts, and total from a validated versioned snapshot.
+- An active cart overrides either idle mode.
+- Current Queue mode shows all store-wide Live Orders, oldest first, with only order number and customer-readable status.
+- Current Queue mode excludes closed, refunded, on-the-way, pending-online-payment, and not-yet-live scheduled orders.
+- An empty queue falls back to the image/welcome presentation.
 - Explicit cart clearing returns the mirror to idle.
 - A completed checkout returns the mirror to idle, while a failed checkout or a temporary Smartpay pending-order save does not.
 - Mirror synchronization failures never prevent core POS operations.
