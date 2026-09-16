@@ -162,7 +162,7 @@ export default function CheckoutPage() {
     );
     if (canceled === "true" && orderId) {
       // Call API to delete order if status is pending_online_payment
-      fetch(`/api/orders/${orderId}`, { method: "DELETE" })
+      fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/orders/${orderId}`, { method: "DELETE" })
         .then(async (res) => {
           if (!res.ok) {
             throw new Error('Failed to cancel pending online order');
@@ -835,7 +835,7 @@ export default function CheckoutPage() {
     if (method === 'store' && typeof window !== 'undefined') {
       const pendingOrderId = window.localStorage.getItem('checkout:lastOrderId');
       if (pendingOrderId) {
-        void fetch(`/api/orders/${pendingOrderId}`, { method: 'DELETE' })
+        void fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/orders/${pendingOrderId}`, { method: 'DELETE' })
           .then((response) => {
             if (response.ok) {
               window.localStorage.removeItem('checkout:lastOrderId');
@@ -1656,7 +1656,7 @@ export default function CheckoutPage() {
       // For delivery, re-verify quote before creating order
       if (orderType === 'delivery') {
         try {
-          const qRes = await fetch('/api/delivery/quote', {
+          const qRes = await fetch((process.env.NEXT_PUBLIC_API_URL || '') + '/api/delivery/quote', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1800,7 +1800,7 @@ export default function CheckoutPage() {
         const checkoutData = await checkoutResponse.json();
         if (!checkoutResponse.ok || !checkoutData.url) {
           setIsRedirecting(false);
-          const cancelResponse = await fetch(`/api/orders/${result.data.id}`, { method: 'DELETE' });
+          const cancelResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/orders/${result.data.id}`, { method: 'DELETE' });
           if (cancelResponse.ok && typeof window !== 'undefined') {
             window.localStorage.removeItem('checkout:lastOrderId');
           }

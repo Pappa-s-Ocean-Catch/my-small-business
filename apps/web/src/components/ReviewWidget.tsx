@@ -24,7 +24,7 @@ export const ReviewWidget: React.FC<ReviewWidgetProps> = ({ productId, className
     const fetchReviews = async (pageNum = 1) => {
         setLoading(true);
         try {
-            const res = await fetch(`/api/social-activity/getItemReviews?itemId=${productId}&limit=${PAGE_SIZE}&page=${pageNum}`);
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/social-activity/getItemReviews?itemId=${productId}&limit=${PAGE_SIZE}&page=${pageNum}`);
             const data = await res.json();
             if (res.ok) {
                 if (pageNum === 1) {

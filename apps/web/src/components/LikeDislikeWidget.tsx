@@ -19,7 +19,7 @@ export const LikeDislikeWidget: React.FC<LikeDislikeWidgetProps> = ({ productId,
         const fetchCounts = async () => {
             setLoading(true);
             try {
-                const res = await fetch(`/api/social-activity/getItemLikesCount?itemId=${productId}`);
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/social-activity/getItemLikesCount?itemId=${productId}`);
                 const data = await res.json();
                 if (res.ok) {
                     setLikes(data.likes || 0);

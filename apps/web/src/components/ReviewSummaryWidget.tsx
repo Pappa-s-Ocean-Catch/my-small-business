@@ -10,7 +10,7 @@ export const ReviewSummaryWidget: React.FC<ReviewSummaryWidgetProps> = ({ scroll
     const [count, setCount] = useState(0);
 
     useEffect(() => {
-        fetch('/api/public-reviews?page=1&limit=1')
+        fetch((process.env.NEXT_PUBLIC_API_URL || '') + '/api/public-reviews?page=1&limit=1')
             .then(res => res.json())
             .then(data => {
                 setAvg(data.avg || 0);

@@ -25,7 +25,7 @@ export const PublicReviewBlock: React.FC = () => {
 
     useEffect(() => {
         setLoading(true);
-        fetch(`/api/public-reviews?page=${page}&limit=${PAGE_SIZE}`)
+        fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/public-reviews?page=${page}&limit=${PAGE_SIZE}`)
             .then(res => res.json())
             .then(data => {
                 if (page === 1) {

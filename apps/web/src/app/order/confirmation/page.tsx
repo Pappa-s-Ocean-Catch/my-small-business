@@ -77,7 +77,7 @@ function OrderConfirmationContent() {
         return;
       }
       try {
-        const response = await fetch(`/api/social-activity/getItemLikes?userId=${user.id}&itemIds=${itemIds}`);
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/social-activity/getItemLikes?userId=${user.id}&itemIds=${itemIds}`);
         const result = await response.json();
         if (response.ok && result.itemLikes) {
           setItemLikes(result.itemLikes);
@@ -100,7 +100,7 @@ function OrderConfirmationContent() {
     setItemLikes(prev => ({ ...prev, [itemId]: isLike }));
     try {
       console.debug('[OrderConfirmation] Like/dislike API call', { userId: user.id, itemId, isLike });
-      const response = await fetch('/api/social-activity/likeItem', {
+      const response = await fetch((process.env.NEXT_PUBLIC_API_URL || '') + '/api/social-activity/likeItem', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user.id, itemId, isLike })
@@ -123,7 +123,7 @@ function OrderConfirmationContent() {
     }
     setSubmittingReview(true);
     try {
-      const response = await fetch('/api/social-activity/addOrderReview', {
+      const response = await fetch((process.env.NEXT_PUBLIC_API_URL || '') + '/api/social-activity/addOrderReview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -168,7 +168,7 @@ function OrderConfirmationContent() {
       }
       try {
         console.debug('[OrderConfirmation] Fetching order reviews for order', order.id);
-        const response = await fetch(`/api/social-activity/getOrderReviews?orderId=${order.id}`);
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/social-activity/getOrderReviews?orderId=${order.id}`);
         const result = await response.json();
         if (!response.ok) {
           console.error('[OrderConfirmation] getOrderReviews API error', result.error);
@@ -253,7 +253,7 @@ function OrderConfirmationContent() {
         // If we have session_id and order_id from Stripe redirect, verify payment first
         if (sessionId && orderId) {
           try {
-            const verifyResponse = await fetch('/api/payments/verify-session', {
+            const verifyResponse = await fetch((process.env.NEXT_PUBLIC_API_URL || '') + '/api/payments/verify-session', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ sessionId, orderId })

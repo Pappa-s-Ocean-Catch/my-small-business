@@ -370,7 +370,7 @@ export default function OrderSummaryPage() {
     setQuoteError(null);
 
     try {
-      const response = await fetch('/api/delivery/quote', {
+      const response = await fetch((process.env.NEXT_PUBLIC_API_URL || '') + '/api/delivery/quote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
