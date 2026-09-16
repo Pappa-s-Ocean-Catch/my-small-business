@@ -444,23 +444,6 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
     // Fetch complete order with items
     const completeOrder = await getOrder(order.id);
 
-    // Only send order placed email if order is accepted (in-store) or payment is successful (online)
-    if (completeOrder.data) {
-      const status = completeOrder.data.order_status;
-      if (status === 'pending' || status === 'confirmed') {
-        try {
-          console.log('[createOrder] About to send order placed email for order:', completeOrder.data.order_number, completeOrder.data.customer_email, 'status:', status);
-          // Dynamically import to avoid circular dependency at module load
-          const { sendOrderPlacedEmail } = await import('@/app/actions/email');
-          const emailResult = await sendOrderPlacedEmail(completeOrder.data);
-          console.log('[createOrder] sendOrderPlacedEmail result:', emailResult);
-        } catch (emailErr) {
-          console.error('[createOrder] Failed to send order placed email:', emailErr);
-        }
-      } else {
-        console.log('[createOrder] Skipping order placed email for order:', completeOrder.data.order_number, 'status:', status);
-      }
-    }
     if (completeOrder.data) {
       const posthog = getPostHogClient();
       posthog.capture({

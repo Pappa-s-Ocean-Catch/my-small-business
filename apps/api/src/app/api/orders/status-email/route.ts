@@ -1,8 +1,7 @@
 'use server';
 
 import { NextResponse } from 'next/server';
-import { createServiceRoleClient } from '@my-small-business/supabase/server';
-import type { Order } from '@my-small-business/types';
+import { getOrder } from '@/app/actions/orders';
 import { sendOrderPlacedEmail } from '@/app/actions/email';
 import { isPublicStatusEmailStatus } from '@/lib/pos-status-email';
 
@@ -16,22 +15,17 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: false, error: 'orderId and a placed status are required' }, { status: 400 });
         }
 
-        const supabase = await createServiceRoleClient();
-        const { data: order, error } = await supabase
-            .from('orders')
-            .select('*')
-            .eq('id', orderId)
-            .single();
+        const orderResult = await getOrder(orderId);
 
-        if (error || !order) {
-            console.error('[status-email] Failed to load order:', error);
+        if (orderResult.error || !orderResult.data) {
+            console.error('[status-email] Failed to load order:', orderResult.error);
             return NextResponse.json(
-                { success: false, error: error?.message || 'Order not found' },
+                { success: false, error: orderResult.error || 'Order not found' },
                 { status: 404 },
             );
         }
 
-        const emailResult = await sendOrderPlacedEmail(order as Order);
+        const emailResult = await sendOrderPlacedEmail(orderResult.data);
 
         if (!emailResult.success) {
             return NextResponse.json(
