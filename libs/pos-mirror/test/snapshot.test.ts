@@ -103,6 +103,64 @@ test('accepts a valid V1 snapshot', () => {
   assert.deepEqual(parseMirrorOrderSnapshot(value), value);
 });
 
+test('normalizes every parsed currency field to two decimal places', () => {
+  const value = {
+    version: 1,
+    updatedAt: '2026-09-16T00:00:00.000Z',
+    itemCount: 1,
+    items: [{ id: 'line-1', name: 'Fish Pack', quantity: 1, unitPrice: 1.005, lineTotal: 2.675 }],
+    subtotal: 3.335,
+    discount: 0.105,
+    total: 3.225,
+  };
+
+  assert.deepEqual(parseMirrorOrderSnapshot(value), {
+    ...value,
+    items: [{ ...value.items[0], unitPrice: 1.01, lineTotal: 2.68 }],
+    subtotal: 3.34,
+    discount: 0.11,
+    total: 3.23,
+  });
+});
+
+test('rejects currency outside the safe cent range instead of changing it by cents', () => {
+  const unsafeCurrency = 100_000_000_000_000;
+
+  assert.throws(() => buildMirrorOrderSnapshot({
+    items: [{
+      id: 'line-1',
+      name: 'Fish Pack',
+      quantity: 1,
+      unitPrice: unsafeCurrency,
+      lineTotal: unsafeCurrency,
+    }],
+    subtotal: unsafeCurrency,
+    discount: 0,
+    total: unsafeCurrency,
+  }, fixedNow), /supported currency range/);
+
+  const base = {
+    version: 1,
+    updatedAt: '2026-09-16T00:00:00.000Z',
+    itemCount: 1,
+    items: [{ id: 'line-1', name: 'Fish Pack', quantity: 1, unitPrice: 10, lineTotal: 10 }],
+    subtotal: 10,
+    discount: 0,
+    total: 10,
+  };
+  const unsafeSnapshots = [
+    { ...base, items: [{ ...base.items[0], unitPrice: unsafeCurrency }] },
+    { ...base, items: [{ ...base.items[0], lineTotal: unsafeCurrency }] },
+    { ...base, subtotal: unsafeCurrency },
+    { ...base, discount: unsafeCurrency },
+    { ...base, total: unsafeCurrency },
+  ];
+
+  for (const snapshot of unsafeSnapshots) {
+    assert.equal(parseMirrorOrderSnapshot(snapshot), null);
+  }
+});
+
 test('rejects unsupported versions and non-finite or inconsistent snapshots', () => {
   const base = {
     version: 1,

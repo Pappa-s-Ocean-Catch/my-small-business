@@ -63,3 +63,11 @@ test('accepts a future request after a rejected write', async () => {
 
   assert.deepEqual(writes, ['fails', 'recovers']);
 });
+
+test('flush rejects when a write rejects without a reason', async () => {
+  const queue = createLatestWriteQueue(async () => Promise.reject());
+
+  queue.request('fails');
+
+  await assert.rejects(queue.flush());
+});

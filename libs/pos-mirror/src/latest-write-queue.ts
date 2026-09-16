@@ -10,6 +10,7 @@ export function createLatestWriteQueue<T>(write: (value: T) => Promise<void>): L
 
   const drain = async (): Promise<void> => {
     let firstError: unknown;
+    let hasFirstError = false;
 
     while (hasPendingValue) {
       const value = pendingValue;
@@ -18,11 +19,14 @@ export function createLatestWriteQueue<T>(write: (value: T) => Promise<void>): L
       try {
         await write(value);
       } catch (error) {
-        firstError ??= error;
+        if (!hasFirstError) {
+          firstError = error;
+          hasFirstError = true;
+        }
       }
     }
 
-    if (firstError !== undefined) {
+    if (hasFirstError) {
       throw firstError;
     }
   };
