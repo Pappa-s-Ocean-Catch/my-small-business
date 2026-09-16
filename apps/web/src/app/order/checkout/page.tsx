@@ -1733,7 +1733,7 @@ export default function CheckoutPage() {
         // Create Stripe Checkout Session
         setIsRedirecting(true);
         const checkoutResponse = await fetch(
-          "/api/payments/create-checkout-session",
+          (process.env.NEXT_PUBLIC_API_URL || '') + "/api/payments/create-checkout-session",
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1782,7 +1782,7 @@ export default function CheckoutPage() {
       });
       // Only send order placed email for in-store payments
       if (paymentMethod === "store") {
-        fetch("/api/orders/status-email", {
+        fetch((process.env.NEXT_PUBLIC_API_URL || '') + "/api/orders/status-email", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ orderId: result.data.id, status: "placed" }),
