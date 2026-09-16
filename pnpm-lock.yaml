@@ -897,6 +897,15 @@ importers:
         specifier: ~3.0.29
         version: 3.0.29(react-native@0.81.5(@babel/core@7.28.6)(@types/react@19.2.8)(react@19.2.3))(react@19.2.3)
 
+  libs/pos-mirror:
+    devDependencies:
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.29
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+
   libs/shipday:
     dependencies:
       shipday:
