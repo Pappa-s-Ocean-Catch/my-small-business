@@ -437,8 +437,10 @@ function OrderConfirmationContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-neutral-900 p-4">
         <LoadingSpinner size="lg" />
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mt-6 mb-2">Verifying your order...</h2>
+        <p className="text-gray-500 dark:text-gray-400 text-center max-w-sm">Please do not close or refresh this page while we confirm your payment securely.</p>
       </div>
     );
   }
