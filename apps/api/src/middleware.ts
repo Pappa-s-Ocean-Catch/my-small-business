@@ -6,14 +6,14 @@ const allowedOrigins = [
   'https://www.pappasfishnchips.com.au',
   'https://app.pappasfishnchips.com.au',
   'http://localhost:3000',
-  'http://localhost:3001',
   'https://localhost:3000',
+  'http://localhost:3001',
   'https://localhost:3001'
 ]
 
 export async function middleware(request: NextRequest) {
   const origin = request.headers.get('origin') ?? ''
-  
+
   // Allow explicitly listed origins, or any Vercel preview URLs
   const isAllowedOrigin = allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')
 
@@ -53,7 +53,7 @@ export async function middleware(request: NextRequest) {
           cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
           // IMPORTANT: we must preserve our custom headers when recreating the response
           const newResponse = NextResponse.next({ request })
-          
+
           // Copy CORS headers over to the new response
           if (isAllowedOrigin) {
             newResponse.headers.set('Access-Control-Allow-Origin', origin)
@@ -61,9 +61,9 @@ export async function middleware(request: NextRequest) {
             newResponse.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH')
             newResponse.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-requested-with')
           }
-          
+
           supabaseResponse = newResponse
-          
+
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           )
