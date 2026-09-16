@@ -5,6 +5,7 @@ import Stripe from 'stripe';
 import { getPostHogClient } from '@/lib/posthog-server';
 import { calculateServiceFee } from '@/lib/payment-fees';
 import { createPaymentLinkAlias } from '@/lib/payment-link-alias';
+import { createServiceRoleClient } from '@my-small-business/supabase/server';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 
@@ -77,14 +78,33 @@ export async function POST(request: Request) {
       && normalizePhone(body.customerPhone) === normalizePhone(testPhoneNumber)
     );
 
-    // Calculate service fee (on amount after discounts)
-    const rewardPointsDiscount = body.rewardPointsDiscount || 0;
+    // Fetch the order from the database to securely calculate totals instead of trusting the client payload
+    const supabase = await createServiceRoleClient();
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .select('subtotal, tax, delivery_fee, promotion_discount, reward_points_value, order_type')
+      .eq('id', body.orderId)
+      .single();
+
+    if (orderError || !order) {
+      return NextResponse.json({ error: 'Order not found or invalid' }, { status: 404 });
+    }
+
+    // Calculate service fee (on amount after discounts) using verified DB values
+    const rewardPointsDiscount = Number(order.reward_points_value || 0);
+    const promotionDiscount = Number(order.promotion_discount || 0);
+    const subtotal = Number(order.subtotal || 0);
+    const tax = Number(order.tax || 0);
+    const deliveryFee = Number(order.delivery_fee || 0);
+    const orderType = order.order_type as 'pickup' | 'delivery' | null;
+
     const { orderBaseAmount, serviceFee, totalAmount } = calculateServiceFee({
-      subtotal: body.subtotal,
-      tax: body.tax,
-      deliveryFee: body.deliveryFee,
+      subtotal,
+      tax,
+      deliveryFee,
       rewardPointsDiscount,
-      orderType: body.orderType ?? null,
+      promotionDiscount,
+      orderType,
     });
     const payableAmount = isTestPhoneMatch
       ? STRIPE_MINIMUM_AMOUNT_AUD

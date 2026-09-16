@@ -8,6 +8,7 @@ interface CalculateFeesBody {
   tax?: number;
   deliveryFee?: number;
   rewardPointsDiscount?: number;
+  promotionDiscount?: number;
   orderType?: 'pickup' | 'delivery' | null;
 }
 
@@ -19,12 +20,14 @@ export async function POST(request: Request) {
     const tax = Number(body.tax ?? 0);
     const deliveryFee = Number(body.deliveryFee ?? 0);
     const rewardPointsDiscount = Number(body.rewardPointsDiscount ?? 0);
+    const promotionDiscount = Number(body.promotionDiscount ?? 0);
 
     const result = calculateServiceFee({
       subtotal,
       tax,
       deliveryFee,
       rewardPointsDiscount,
+      promotionDiscount,
       orderType: body.orderType ?? null,
     });
 
