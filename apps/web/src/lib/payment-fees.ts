@@ -8,6 +8,7 @@ export function calculateServiceFee({
   deliveryFee,
   rewardPointsDiscount = 0,
   promotionDiscount = 0,
+  couponDiscount = 0,
   orderType,
 }: {
   subtotal: number;
@@ -15,9 +16,10 @@ export function calculateServiceFee({
   deliveryFee: number;
   rewardPointsDiscount?: number;
   promotionDiscount?: number;
+  couponDiscount?: number;
   orderType?: 'pickup' | 'delivery' | null;
 }) {
-  const orderBaseAmount = Math.max(0, subtotal + tax - rewardPointsDiscount - promotionDiscount);
+  const orderBaseAmount = Math.max(0, subtotal + tax - rewardPointsDiscount - promotionDiscount - couponDiscount);
   const totalForFeeCalculation = Math.max(0, orderBaseAmount + deliveryFee);
 
   let serviceFee = totalForFeeCalculation * STRIPE_PERCENT_FEE + STRIPE_FIXED_FEE;

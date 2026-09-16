@@ -82,7 +82,7 @@ export async function POST(request: Request) {
     const supabase = await createServiceRoleClient();
     const { data: order, error: orderError } = await supabase
       .from('orders')
-      .select('subtotal, tax, delivery_fee, promotion_discount, reward_points_value, order_type')
+      .select('subtotal, tax, delivery_fee, promotion_discount, coupon_discount, reward_points_value, order_type')
       .eq('id', body.orderId)
       .single();
 
@@ -93,6 +93,7 @@ export async function POST(request: Request) {
     // Calculate service fee (on amount after discounts) using verified DB values
     const rewardPointsDiscount = Number(order.reward_points_value || 0);
     const promotionDiscount = Number(order.promotion_discount || 0);
+    const couponDiscount = Number(order.coupon_discount || 0);
     const subtotal = Number(order.subtotal || 0);
     const tax = Number(order.tax || 0);
     const deliveryFee = Number(order.delivery_fee || 0);
@@ -104,6 +105,7 @@ export async function POST(request: Request) {
       deliveryFee,
       rewardPointsDiscount,
       promotionDiscount,
+      couponDiscount,
       orderType,
     });
     const payableAmount = isTestPhoneMatch

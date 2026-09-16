@@ -9,6 +9,7 @@ interface CalculateFeesBody {
   deliveryFee?: number;
   rewardPointsDiscount?: number;
   promotionDiscount?: number;
+  couponDiscount?: number;
   orderType?: 'pickup' | 'delivery' | null;
 }
 
@@ -21,6 +22,7 @@ export async function POST(request: Request) {
     const deliveryFee = Number(body.deliveryFee ?? 0);
     const rewardPointsDiscount = Number(body.rewardPointsDiscount ?? 0);
     const promotionDiscount = Number(body.promotionDiscount ?? 0);
+    const couponDiscount = Number(body.couponDiscount ?? 0);
 
     const result = calculateServiceFee({
       subtotal,
@@ -28,6 +30,7 @@ export async function POST(request: Request) {
       deliveryFee,
       rewardPointsDiscount,
       promotionDiscount,
+      couponDiscount,
       orderType: body.orderType ?? null,
     });
 
