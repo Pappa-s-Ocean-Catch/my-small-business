@@ -90,7 +90,8 @@ export function ImageUpload({
         return;
       }
 
-      const response = await fetch("/api/upload", {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+      const response = await fetch(`${apiUrl}/api/upload`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -150,7 +151,8 @@ export function ImageUpload({
         } = await supabase.auth.getSession();
 
         if (session?.access_token) {
-          const response = await fetch("/api/upload", {
+          const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+          const response = await fetch(`${apiUrl}/api/upload`, {
             method: "DELETE",
             headers: {
               "Content-Type": "application/json",
@@ -210,7 +212,8 @@ export function ImageUpload({
         return;
       }
 
-      const response = await fetch("/api/upload/migrate-vercel-to-bunny", {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+      const response = await fetch(`${apiUrl}/api/upload/migrate-vercel-to-bunny`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

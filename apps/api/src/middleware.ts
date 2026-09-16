@@ -6,7 +6,9 @@ const allowedOrigins = [
   'https://www.pappasfishnchips.com.au',
   'https://app.pappasfishnchips.com.au',
   'http://localhost:3000',
-  'http://localhost:3001'
+  'http://localhost:3001',
+  'https://localhost:3000',
+  'https://localhost:3001'
 ]
 
 export async function middleware(request: NextRequest) {
