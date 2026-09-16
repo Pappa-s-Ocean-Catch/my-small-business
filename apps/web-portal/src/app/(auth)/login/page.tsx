@@ -38,11 +38,11 @@ export default function LoginPage() {
             ? new URLSearchParams(window.location.search).get('redirect')
             : null;
           if (redirectPath) {
-            router.push(redirectPath);
+            window.location.href = redirectPath;
           } else if (profile?.role_slug === 'admin') {
-            router.push('/');
+            window.location.href = '/';
           } else {
-            router.push('/staff');
+            window.location.href = '/staff';
           }
         } else {
           // Customer role not allowed in admin portal
@@ -129,11 +129,11 @@ export default function LoginPage() {
               : null;
             setTimeout(() => {
               if (redirectPath) {
-                router.push(redirectPath);
+                window.location.href = redirectPath;
               } else if (profile?.role_slug === 'admin') {
-                router.push('/');
+                window.location.href = '/';
               } else {
-                router.push('/staff');
+                window.location.href = '/staff';
               }
             }, 1000);
           } else {
@@ -142,7 +142,7 @@ export default function LoginPage() {
           }
         } else {
           setTimeout(() => {
-            router.push('/');
+            window.location.href = '/';
           }, 1000);
         }
       }

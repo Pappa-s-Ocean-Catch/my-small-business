@@ -38,9 +38,9 @@ export default function LoginPage() {
           : null;
         
         if (redirectPath) {
-          router.push(redirectPath);
+          window.location.href = redirectPath;
         } else {
-          router.push('/');
+          window.location.href = '/';
         }
       }
     };
@@ -113,14 +113,14 @@ export default function LoginPage() {
           
           setTimeout(() => {
             if (redirectPath) {
-              router.push(redirectPath);
+              window.location.href = redirectPath;
             } else {
-              router.push('/');
+              window.location.href = '/';
             }
           }, 1000);
         } else {
           setTimeout(() => {
-            router.push('/');
+            window.location.href = '/';
           }, 1000);
         }
       }

@@ -81,7 +81,7 @@ function AuthCallbackContent() {
               setStatus('success');
               setMessage('Authentication successful! Redirecting...');
               setTimeout(() => {
-                router.push('/');
+                window.location.href = '/';
               }, 1500);
               return;
             }
@@ -109,7 +109,7 @@ function AuthCallbackContent() {
               } else {
                 console.log('🔄 [AuthCallback] Redirecting to home (default)');
               }
-              router.push(targetPath);
+              window.location.href = targetPath;
             }, 1500);
             return;
           } else {
@@ -157,7 +157,7 @@ function AuthCallbackContent() {
           } else {
             console.log('🔄 [AuthCallback] Redirecting authenticated user to home (default)');
           }
-          router.push(targetPath);
+          window.location.href = targetPath;
         }, 1500);
 
       } catch (err) {
