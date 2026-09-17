@@ -13,6 +13,7 @@
   "include": [
     "src/lib/mirror-settings.ts",
     "src/lib/login-layout.ts",
+    "src/lib/mirror-register-options.ts",
     "src/lib/reconcile.ts",
     "src/lib/display-state.ts",
     "src/lib/customer-queue.ts",
