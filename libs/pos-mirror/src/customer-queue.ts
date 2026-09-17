@@ -33,6 +33,12 @@ function getScheduledPickupMs(candidate: CustomerQueueCandidate): number | null 
   return Number.isFinite(pickupMs) ? pickupMs : null;
 }
 
+function getCustomerOrderNumber(orderNumber: string): string {
+  const trimmed = orderNumber.trim();
+  const finalGroup = trimmed.split('-').at(-1)?.trim();
+  return finalGroup || trimmed;
+}
+
 export function buildCustomerQueue(
   candidates: readonly CustomerQueueCandidate[],
   nowMs: number = Date.now(),
@@ -50,7 +56,7 @@ export function buildCustomerQueue(
       }
 
       return [{
-        orderNumber: candidate.order_number,
+        orderNumber: getCustomerOrderNumber(candidate.order_number),
         status,
         sortAt: scheduledPickupMs === null
           ? candidate.created_at

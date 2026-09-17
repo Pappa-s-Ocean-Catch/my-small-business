@@ -61,9 +61,9 @@ test('sorts oldest first by scheduled pickup time or creation time', () => {
   ], nowMs);
 
   assert.deepEqual(queue.map((entry) => entry.orderNumber), [
-    'asap-oldest',
-    'scheduled-earlier',
-    'scheduled-later',
+    'oldest',
+    'earlier',
+    'later',
   ]);
 });
 
@@ -79,9 +79,18 @@ test('projects only public queue fields', () => {
   const queue = buildCustomerQueue([privateCandidate], nowMs);
 
   assert.deepEqual(queue, [{
-    orderNumber: 'ORD-PRIVATE',
+    orderNumber: 'PRIVATE',
     status: 'Pending',
     sortAt: '2026-09-16T09:00:00.000Z',
   }]);
   assert.deepEqual(Object.keys(queue[0]).sort(), ['orderNumber', 'sortAt', 'status']);
+});
+
+test('uses only the final order-number group for customer queue entries', () => {
+  const queue = buildCustomerQueue([
+    candidate({ order_number: 'ORD-20260917-001' }),
+    candidate({ order_number: 'ORD-10', created_at: '2026-09-16T09:01:00.000Z' }),
+  ], nowMs);
+
+  assert.deepEqual(queue.map((entry) => entry.orderNumber), ['001', '10']);
 });
