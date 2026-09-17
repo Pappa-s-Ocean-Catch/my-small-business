@@ -14,5 +14,5 @@ export function reconcileSnapshot(
   if (!parsed) return current;
   if (!current) return parsed;
 
-  return Date.parse(parsed.updatedAt) >= Date.parse(current.updatedAt) ? parsed : current;
+  return Date.parse(parsed.updatedAt) > Date.parse(current.updatedAt) ? parsed : current;
 }

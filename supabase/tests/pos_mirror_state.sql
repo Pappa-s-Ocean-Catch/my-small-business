@@ -35,8 +35,8 @@ SELECT is((SELECT current_order FROM public.pos_mirror_state WHERE register_id =
 
 SELECT lives_ok(
   $$
-    INSERT INTO public.pos_mirror_state (register_id, current_order)
-    VALUES ('test-register', '{"actor":"staff"}'::jsonb)
+    INSERT INTO public.pos_mirror_state (register_id, register_name, current_order)
+    VALUES ('test-register', 'Test Register', '{"actor":"staff"}'::jsonb)
     ON CONFLICT (register_id) DO UPDATE
     SET current_order = EXCLUDED.current_order
   $$,

@@ -1598,6 +1598,7 @@ export default function PosScreen() {
     comment: comment.trim() || null,
     created_at: new Date().toISOString(),
     addons,
+    pos_updated_at: Date.now(),
   });
 
   const getPosCartItemDisplayName = useCallback((item: PosCartItem) => (
@@ -1607,13 +1608,28 @@ export default function PosScreen() {
   ), [freeItemPromotion, selectedFreeItemId]);
 
   const mirrorCartInput = useMemo(() => ({
-    items: cartItems.map((item) => ({
-      id: item.id,
-      name: getPosCartItemDisplayName(item),
-      quantity: item.quantity,
-      unitPrice: Number((item.subtotal / Math.max(item.quantity, 1)).toFixed(2)),
-      lineTotal: item.subtotal,
-    })),
+    items: [...cartItems]
+      .sort((a, b) => (b.pos_updated_at || 0) - (a.pos_updated_at || 0))
+      .map((item) => {
+        const customizations: { label: string }[] = [];
+        if (item.addons && item.addons.length > 0) {
+          item.addons.forEach(a => customizations.push({ label: a.addon_item_name }));
+        }
+        if (item.removed_ingredients && item.removed_ingredients.length > 0) {
+          item.removed_ingredients.forEach(ri => customizations.push({ label: `No ${ri}` }));
+        }
+        if (item.comment) {
+          customizations.push({ label: `Note: ${item.comment}` });
+        }
+        return {
+          id: item.id,
+          name: getPosCartItemDisplayName(item),
+          quantity: item.quantity,
+          unitPrice: Number((item.subtotal / Math.max(item.quantity, 1)).toFixed(2)),
+          lineTotal: item.subtotal,
+          customizations: customizations.length > 0 ? customizations : undefined,
+        };
+      }),
     subtotal: totals.subtotal,
     discount: discountAmount + freeItemDiscountAmount + rewardPointsValue,
     total: totals.total,
@@ -1627,6 +1643,12 @@ export default function PosScreen() {
     totals.total,
   ]);
   const { clearMirrorAfterCheckout } = usePosMirrorPublisher(mirrorCartInput);
+
+  useEffect(() => {
+    return () => {
+      void clearMirrorAfterCheckout();
+    };
+  }, [clearMirrorAfterCheckout]);
 
   const handleSelectFreeItem = useCallback((product: SaleProduct) => {
     if (preventPendingCartEdit()) return;
@@ -1764,6 +1786,7 @@ export default function PosScreen() {
         removed_ingredients: removedIngredients,
         override_price: null,
         subtotal: (selectedProduct.sale_price + addonTotal(addons)) * item.quantity,
+        pos_updated_at: Date.now(),
       };
     }));
   };
@@ -1794,7 +1817,7 @@ export default function PosScreen() {
     const normalizedNote = noteDraft.trim();
     setCartItems((prev) => prev.map((item) => (
       item.id === noteItemId
-        ? { ...item, comment: normalizedNote || null }
+        ? { ...item, comment: normalizedNote || null, pos_updated_at: Date.now() }
         : item
     )));
     closeNoteEditor();
@@ -1920,6 +1943,7 @@ export default function PosScreen() {
           quantity: nextQuantity,
           override_price: null,
           subtotal: (item.base_price + addonTotal(item.addons || [])) * nextQuantity,
+          pos_updated_at: Date.now(),
         };
       })
       .filter((item): item is PosCartItem => Boolean(item)));

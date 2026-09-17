@@ -4,6 +4,7 @@ export type MirrorOrderLine = {
   quantity: number;
   unitPrice: number;
   lineTotal: number;
+  customizations?: { label: string }[];
 };
 
 export type MirrorCartInput = {
@@ -62,6 +63,11 @@ function normalizeLine(line: MirrorOrderLine): MirrorOrderLine {
     quantity: assertQuantity(line.quantity),
     unitPrice: normalizeCurrency(line.unitPrice, 'unitPrice'),
     lineTotal: normalizeCurrency(line.lineTotal, 'lineTotal'),
+    customizations: Array.isArray(line.customizations)
+      ? line.customizations
+        .map(c => typeof c === 'object' && c !== null && 'label' in c && typeof c.label === 'string' ? { label: assertNonEmptyString(c.label, 'customization.label') } : null)
+        .filter((c): c is { label: string } => c !== null)
+      : undefined,
   };
 }
 
@@ -133,6 +139,11 @@ function parseLine(value: unknown): MirrorOrderLine | null {
     quantity: value.quantity as number,
     unitPrice,
     lineTotal,
+    customizations: Array.isArray((value as any).customizations)
+      ? ((value as any).customizations as unknown[])
+        .map(c => isRecord(c) && typeof c.label === 'string' && c.label.trim() ? { label: c.label.trim() } : null)
+        .filter((c): c is { label: string } => c !== null)
+      : undefined,
   };
 }
 

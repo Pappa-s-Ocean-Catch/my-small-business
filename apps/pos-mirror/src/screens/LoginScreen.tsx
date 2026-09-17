@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { canAccessPosMirror } from '../lib/auth';
 import { getLoginLayout } from '../lib/login-layout';
 import { supabase } from '../lib/supabase';
-import { colors, spacing } from '../theme';
+import { colors, radius, spacing } from '../theme';
 
 export function LoginScreen() {
   const { width, height } = useWindowDimensions();
@@ -74,9 +74,9 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   keyboard: { flex: 1 },
   scrollContent: { flexGrow: 1, alignItems: 'center' },
-  card: { width: '100%', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 20 },
+  card: { width: '100%', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg },
   title: { color: colors.text, fontWeight: '800', marginBottom: spacing.sm },
   subtitle: { color: colors.mutedText, lineHeight: 24, marginBottom: spacing.lg },
   input: { marginBottom: spacing.sm, backgroundColor: colors.surface },
-  button: { minHeight: 48 },
+  button: { minHeight: 48, borderRadius: radius.md },
 });

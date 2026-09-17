@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { PaperProvider, Text } from 'react-native-paper';
+import { MD3LightTheme as DefaultTheme, PaperProvider, Text } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import type { Session } from '@supabase/supabase-js';
 
@@ -63,9 +63,25 @@ export default function App() {
     setState('login');
   };
 
+  const theme = {
+    ...DefaultTheme,
+    colors: {
+      ...DefaultTheme.colors,
+      primary: colors.primary,
+      onPrimary: colors.primaryOn,
+      background: colors.background,
+      surface: colors.surface,
+      surfaceVariant: colors.surfaceMuted,
+      onSurface: colors.text,
+      onSurfaceVariant: colors.mutedText,
+      error: colors.warning,
+      outline: colors.border,
+    },
+  };
+
   return (
     <SafeAreaProvider>
-      <PaperProvider>
+      <PaperProvider theme={theme}>
         {state === 'loading' && <LoadingScreen />}
         {state === 'login' && <LoginScreen />}
         {state === 'settings' && <SettingsScreen initialSettings={settings} onSave={handleSaveSettings} onSignOut={signOut} onCancel={settings.registerId ? () => setState('display') : undefined} />}

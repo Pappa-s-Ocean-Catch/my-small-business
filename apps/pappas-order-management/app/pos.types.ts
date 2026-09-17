@@ -56,6 +56,7 @@ export type RemovableIngredient = {
 export type PosCartItem = OrderItem & {
   id: string;
   addons: OrderItemAddon[];
+  pos_updated_at: number;
 };
 
 export type PosPaymentChoice = 'card' | 'cash' | 'no_pay';

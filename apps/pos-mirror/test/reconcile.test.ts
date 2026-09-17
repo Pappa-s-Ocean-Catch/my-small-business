@@ -30,3 +30,7 @@ test('keeps the current snapshot when an incoming payload is invalid', () => {
 test('treats the exact empty object as an idle cart', () => {
   assert.equal(reconcileSnapshot(olderSnapshot, {}), null);
 });
+
+test('retains the mounted snapshot when a duplicate realtime payload arrives', () => {
+  assert.equal(reconcileSnapshot(olderSnapshot, { ...olderSnapshot }), olderSnapshot);
+});

@@ -5,7 +5,7 @@ import {
   type MirrorCartInput,
 } from '@my-small-business/pos-mirror';
 
-import { loadSmartpayRegisterId } from '../lib/smartpay';
+import { loadSmartpayPairingSettings } from '../lib/smartpay';
 import { supabase } from '../lib/supabase';
 import {
   createPosMirrorPublisherStore,
@@ -23,7 +23,10 @@ export function usePosMirrorPublisher(input: MirrorCartInput): {
 
   if (!publisherRef.current) {
     publisherRef.current = publisherStore.getOrCreate({
-      loadRegisterId: loadSmartpayRegisterId,
+      loadRegister: async () => {
+        const settings = await loadSmartpayPairingSettings();
+        return { id: settings.posRegisterId, name: settings.posRegisterName };
+      },
       upsert: async (row) => {
         const { error } = await supabase
           .from('pos_mirror_state')

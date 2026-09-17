@@ -8,6 +8,7 @@ export type PosMirrorOrder = MirrorOrderSnapshotV1 | EmptyMirrorOrder;
 
 export type PosMirrorRow = {
   register_id: string;
+  register_name?: string;
   current_order: PosMirrorOrder;
 };
 
@@ -18,7 +19,7 @@ export type PosMirrorPublisher = {
 };
 
 export type CreatePosMirrorPublisherOptions = {
-  loadRegisterId: () => Promise<string>;
+  loadRegister: () => Promise<{ id: string; name: string }>;
   upsert: (row: PosMirrorRow) => Promise<void>;
   debounceMs: number;
   logError?: (message: string, error: unknown) => void;
@@ -33,36 +34,37 @@ const registerSuffix = (registerId: string | null): string => (
 );
 
 export function createPosMirrorPublisher({
-  loadRegisterId,
+  loadRegister,
   upsert,
   debounceMs,
   logError = (message, error) => console.warn(message, error),
 }: CreatePosMirrorPublisherOptions): PosMirrorPublisher {
-  let registerIdPromise: Promise<string> | null = null;
+  let registerPromise: Promise<{ id: string; name: string }> | null = null;
   let lastRegisterId: string | null = null;
   let scheduledSnapshot: PosMirrorOrder | null = null;
   let hasScheduledSnapshot = false;
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-  const getRegisterId = (): Promise<string> => {
-    if (registerIdPromise) return registerIdPromise;
+  const getRegister = (): Promise<{ id: string; name: string }> => {
+    if (registerPromise) return registerPromise;
 
-    const currentLoad = loadRegisterId();
-    registerIdPromise = currentLoad;
-    void currentLoad.then((registerId) => {
-      lastRegisterId = registerId;
+    const currentLoad = loadRegister();
+    registerPromise = currentLoad;
+    void currentLoad.then((register) => {
+      lastRegisterId = register.id;
     }).catch(() => {
-      if (registerIdPromise === currentLoad) registerIdPromise = null;
+      if (registerPromise === currentLoad) registerPromise = null;
     });
     return currentLoad;
   };
 
   const queue = createLatestWriteQueue<PosMirrorOrder>(async (currentOrder) => {
     try {
-      const registerId = await getRegisterId();
-      lastRegisterId = registerId;
+      const register = await getRegister();
+      lastRegisterId = register.id;
       await upsert({
-        register_id: registerId,
+        register_id: register.id,
+        register_name: register.name,
         current_order: currentOrder,
       });
     } catch (error) {
