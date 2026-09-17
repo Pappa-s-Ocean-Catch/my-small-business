@@ -14,13 +14,18 @@ export type PosMirrorRow = {
 export type PosMirrorPublisher = {
   schedule(snapshot: PosMirrorOrder): void;
   flush(): Promise<void>;
+  flushBestEffort(): void;
 };
 
-type CreatePosMirrorPublisherOptions = {
+export type CreatePosMirrorPublisherOptions = {
   loadRegisterId: () => Promise<string>;
   upsert: (row: PosMirrorRow) => Promise<void>;
   debounceMs: number;
   logError?: (message: string, error: unknown) => void;
+};
+
+export type PosMirrorPublisherStore = {
+  getOrCreate(options: CreatePosMirrorPublisherOptions): PosMirrorPublisher;
 };
 
 const registerSuffix = (registerId: string | null): string => (
@@ -76,6 +81,20 @@ export function createPosMirrorPublisher({
     queue.request(snapshot);
   };
 
+  const flush = async (): Promise<void> => {
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+      debounceTimer = null;
+    }
+    enqueueScheduledSnapshot();
+
+    try {
+      await queue.flush();
+    } catch {
+      // Mirror availability must never affect checkout or other POS work.
+    }
+  };
+
   return {
     schedule(snapshot): void {
       scheduledSnapshot = snapshot;
@@ -84,18 +103,21 @@ export function createPosMirrorPublisher({
       debounceTimer = setTimeout(enqueueScheduledSnapshot, debounceMs);
     },
 
-    async flush(): Promise<void> {
-      if (debounceTimer) {
-        clearTimeout(debounceTimer);
-        debounceTimer = null;
-      }
-      enqueueScheduledSnapshot();
+    flush,
 
-      try {
-        await queue.flush();
-      } catch {
-        // Mirror availability must never affect checkout or other POS work.
-      }
+    flushBestEffort(): void {
+      void flush();
+    },
+  };
+}
+
+export function createPosMirrorPublisherStore(): PosMirrorPublisherStore {
+  let publisher: PosMirrorPublisher | null = null;
+
+  return {
+    getOrCreate(options): PosMirrorPublisher {
+      if (!publisher) publisher = createPosMirrorPublisher(options);
+      return publisher;
     },
   };
 }

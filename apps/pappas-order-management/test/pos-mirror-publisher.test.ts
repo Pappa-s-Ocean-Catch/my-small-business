@@ -4,7 +4,10 @@ import { resolve } from 'node:path';
 import test from 'node:test';
 
 import type { EmptyMirrorOrder, MirrorOrderSnapshotV1 } from '@my-small-business/pos-mirror';
-import { createPosMirrorPublisher } from '../lib/pos-mirror-publisher';
+import {
+  createPosMirrorPublisher,
+  createPosMirrorPublisherStore,
+} from '../lib/pos-mirror-publisher';
 
 const snapshotA: MirrorOrderSnapshotV1 = {
   version: 1,
@@ -135,6 +138,75 @@ test('logs only a short register suffix when a mirror write fails', async () => 
   assert.equal(messages.length, 1);
   assert.match(messages[0], /5678/);
   assert.doesNotMatch(messages[0], /register-secret-12345678/);
+});
+
+test('starts a checkout clear without waiting for a stalled mirror write', async () => {
+  const firstWrite = { release: null as (() => void) | null };
+  const rows: MirrorRow[] = [];
+  const publisher = createPosMirrorPublisher({
+    loadRegisterId: async () => 'register-1',
+    upsert: async (row) => {
+      rows.push(row);
+      if (rows.length === 1) {
+        await new Promise<void>((resolve) => { firstWrite.release = resolve; });
+      }
+    },
+    debounceMs: 10,
+  });
+
+  publisher.schedule(snapshotA);
+  const stalledFlush = publisher.flush();
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+  publisher.schedule({});
+  publisher.flushBestEffort();
+  await Promise.resolve();
+
+  assert.deepEqual(rows, [{ register_id: 'register-1', current_order: snapshotA }]);
+  assert.notEqual(firstWrite.release, null);
+
+  const release = firstWrite.release;
+  assert.ok(release);
+  release();
+  await stalledFlush;
+  await publisher.flush();
+  assert.deepEqual(rows, [
+    { register_id: 'register-1', current_order: snapshotA },
+    { register_id: 'register-1', current_order: {} },
+  ]);
+});
+
+test('shares one queue across POS screen instances so the newest clear wins', async () => {
+  const firstWrite = { release: null as (() => void) | null };
+  const rows: MirrorRow[] = [];
+  const store = createPosMirrorPublisherStore();
+  const options = {
+    loadRegisterId: async () => 'register-1',
+    upsert: async (row: MirrorRow) => {
+      rows.push(row);
+      if (rows.length === 1) {
+        await new Promise<void>((resolve) => { firstWrite.release = resolve; });
+      }
+    },
+    debounceMs: 10,
+  };
+
+  const firstScreenPublisher = store.getOrCreate(options);
+  firstScreenPublisher.schedule(snapshotA);
+  const firstFlush = firstScreenPublisher.flush();
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+  const nextScreenPublisher = store.getOrCreate(options);
+  assert.equal(nextScreenPublisher, firstScreenPublisher);
+  nextScreenPublisher.schedule({});
+  nextScreenPublisher.flushBestEffort();
+
+  const release = firstWrite.release;
+  assert.ok(release);
+  release();
+  await firstFlush;
+  await nextScreenPublisher.flush();
+  assert.deepEqual(rows.map((row) => row.current_order), [snapshotA, {}]);
 });
 
 const posSourcePath = process.cwd().endsWith('apps/pappas-order-management')

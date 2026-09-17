@@ -24,7 +24,8 @@
     "build:release:ios": "dotenv -e release.env -- expo run:ios --configuration Release",
     "release:android:production": "dotenv -e release.env -- node scripts/run-with-build-metadata.mjs eas build --platform android --profile production --local --output app-release.apk",
     "update:android:production": "dotenv -e release.env -- node scripts/run-with-build-metadata.mjs eas update --channel production --environment production --platform android",
-    "test:unit": "rm -rf dist-test && tsc -p tsconfig.test.json && node --test dist-test/apps/pappas-order-management/test/**/*.test.js"
+    "test:unit": "rm -rf dist-test && tsc -p tsconfig.test.json && node --test dist-test/apps/pappas-order-management/test/**/*.test.js",
+    "test:pos-mirror": "rm -rf dist-test && node scripts/test-pos-mirror-publisher.mjs"
   },
   "dependencies": {
     "@expo/metro-runtime": "^6.1.2",

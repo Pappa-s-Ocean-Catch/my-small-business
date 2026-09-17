@@ -8,11 +8,12 @@ import {
 import { loadSmartpayRegisterId } from '../lib/smartpay';
 import { supabase } from '../lib/supabase';
 import {
-  createPosMirrorPublisher,
+  createPosMirrorPublisherStore,
   type PosMirrorPublisher,
 } from '../lib/pos-mirror-publisher';
 
 const POS_MIRROR_DEBOUNCE_MS = 150;
+const publisherStore = createPosMirrorPublisherStore();
 
 export function usePosMirrorPublisher(input: MirrorCartInput): {
   publishCurrentCart: () => Promise<void>;
@@ -21,7 +22,7 @@ export function usePosMirrorPublisher(input: MirrorCartInput): {
   const publisherRef = useRef<PosMirrorPublisher | null>(null);
 
   if (!publisherRef.current) {
-    publisherRef.current = createPosMirrorPublisher({
+    publisherRef.current = publisherStore.getOrCreate({
       loadRegisterId: loadSmartpayRegisterId,
       upsert: async (row) => {
         const { error } = await supabase
@@ -55,7 +56,7 @@ export function usePosMirrorPublisher(input: MirrorCartInput): {
 
   const clearMirrorAfterCheckout = useCallback(async (): Promise<void> => {
     publisher.schedule({});
-    await publisher.flush();
+    publisher.flushBestEffort();
   }, [publisher]);
 
   return { publishCurrentCart, clearMirrorAfterCheckout };
