@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist-test",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2022",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": [
+    "src/lib/mirror-settings.ts",
+    "src/lib/reconcile.ts",
+    "src/lib/display-state.ts",
+    "src/lib/customer-queue.ts",
+    "test/**/*.test.ts"
+  ],
+  "exclude": []
+}

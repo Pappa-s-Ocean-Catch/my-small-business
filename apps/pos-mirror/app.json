@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "POS Mirror",
+    "slug": "pos-mirror",
+    "platforms": ["ios", "android"],
+    "version": "1.0.0",
+    "orientation": "landscape",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.pappas.posmirror"
+    },
+    "android": {
+      "package": "com.pappas.posmirror",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    }
+  }
+}

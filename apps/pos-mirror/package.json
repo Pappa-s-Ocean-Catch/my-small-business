@@ -1,0 +1,30 @@
+{
+  "name": "pos-mirror",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@my-small-business/pos-mirror": "workspace:*",
+    "@react-native-async-storage/async-storage": "^2.2.0",
+    "@supabase/supabase-js": "^2.57.4",
+    "expo": "~54.0.0",
+    "expo-keep-awake": "~55.0.4",
+    "expo-status-bar": "~3.0.9",
+    "expo-system-ui": "^6.0.9",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-paper": "^5.14.5",
+    "react-native-safe-area-context": "~5.6.0"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.10",
+    "typescript": "^5.3.3"
+  },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "type-check": "tsc -p tsconfig.json --noEmit",
+    "test:unit": "rm -rf dist-test && node scripts/test-unit.mjs"
+  },
+  "private": true
+}
