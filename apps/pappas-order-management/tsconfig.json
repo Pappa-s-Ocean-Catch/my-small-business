@@ -12,6 +12,9 @@
       "@my-small-business/marketplace": [
         "../../libs/marketplace"
       ],
+      "@my-small-business/pos-mirror": [
+        "../../libs/pos-mirror"
+      ],
       "@my-small-business/caller-id-listener": [
         "../../libs/caller-id-listener"
       ]

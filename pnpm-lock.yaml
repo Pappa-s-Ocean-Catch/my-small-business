@@ -323,6 +323,9 @@ importers:
       '@my-small-business/native-raw-tcp-printer':
         specifier: workspace:*
         version: link:../../libs/native-raw-tcp-printer
+      '@my-small-business/pos-mirror':
+        specifier: workspace:*
+        version: link:../../libs/pos-mirror
       '@my-small-business/types':
         specifier: workspace:*
         version: link:../../libs/types

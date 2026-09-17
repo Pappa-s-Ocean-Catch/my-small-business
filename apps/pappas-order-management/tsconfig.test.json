@@ -53,6 +53,7 @@
     "lib/instore-customer-receipt.ts",
     "lib/order-list-sync.ts",
     "lib/performance-trace.ts",
+    "lib/pos-mirror-publisher.ts",
     "stores/posCatalogCacheStore.ts",
     "lib/print-job-priority.ts",
     "test/pay-by-link.test.ts",
@@ -67,7 +68,9 @@
     "test/open-order-candidates.test.ts",
     "test/pre-orders-layout.test.ts",
     "test/performance-trace.test.ts",
+    "test/pos-mirror-publisher.test.ts",
     "types/**/*.ts",
-    "../../libs/types/**/*.ts"
+    "../../libs/types/**/*.ts",
+    "../../libs/pos-mirror/**/*.ts"
   ]
 }

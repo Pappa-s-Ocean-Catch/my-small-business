@@ -46,6 +46,7 @@ import { useMarketplacePosDraftStore } from '../stores/marketplacePosDraftStore'
 import { styles } from '../components/pos/pos.styles';
 import { isCompactPhoneWidth } from '../lib/responsive';
 import { LIVE_ORDERS_QUERY_KEY } from '../hooks/useLiveOrdersQuery';
+import { usePosMirrorPublisher } from '../hooks/usePosMirrorPublisher';
 import { posCatalogCacheStore } from '../stores/posCatalogCacheStore';
 import { useInstoreCustomerReceiptPrint } from '../providers/instoreCustomerReceiptPrintContext';
 import {
@@ -1605,6 +1606,28 @@ export default function PosScreen() {
       : item.product_name
   ), [freeItemPromotion, selectedFreeItemId]);
 
+  const mirrorCartInput = useMemo(() => ({
+    items: cartItems.map((item) => ({
+      id: item.id,
+      name: getPosCartItemDisplayName(item),
+      quantity: item.quantity,
+      unitPrice: Number((item.subtotal / Math.max(item.quantity, 1)).toFixed(2)),
+      lineTotal: item.subtotal,
+    })),
+    subtotal: totals.subtotal,
+    discount: discountAmount + freeItemDiscountAmount + rewardPointsValue,
+    total: totals.total,
+  }), [
+    cartItems,
+    discountAmount,
+    freeItemDiscountAmount,
+    getPosCartItemDisplayName,
+    rewardPointsValue,
+    totals.subtotal,
+    totals.total,
+  ]);
+  const { clearMirrorAfterCheckout } = usePosMirrorPublisher(mirrorCartInput);
+
   const handleSelectFreeItem = useCallback((product: SaleProduct) => {
     if (preventPendingCartEdit()) return;
     if (selectedFreeItemId) {
@@ -2098,6 +2121,7 @@ export default function PosScreen() {
     if (isEditingExistingOrder) {
       await queryClient.refetchQueries({ queryKey: LIVE_ORDERS_QUERY_KEY });
     }
+    await clearMirrorAfterCheckout();
     router.back();
     } catch (error) {
       console.error('Checkout failed', error);
@@ -2254,6 +2278,7 @@ export default function PosScreen() {
       setPendingInstoreSmartpayOrder(null);
       setSmartpayApprovedOrderId(null);
       invalidateTopSellers();
+      await clearMirrorAfterCheckout();
       router.back();
     } catch (error) {
       console.error('SmartPay instore payment failed', error);
@@ -2347,6 +2372,7 @@ export default function PosScreen() {
         setPendingInstoreSmartpayOrder(null);
         setSmartpayApprovedOrderId(null);
         invalidateTopSellers();
+        await clearMirrorAfterCheckout();
         router.back();
       } catch (error) {
         Alert.alert('Instore Order', error instanceof Error ? error.message : 'Failed to settle in-store payment.');
@@ -2463,6 +2489,7 @@ export default function PosScreen() {
       );
     }
     invalidateTopSellers();
+    await clearMirrorAfterCheckout();
     resetPosForNextOrder();
     router.back();
     } catch (error) {
@@ -2572,6 +2599,7 @@ export default function PosScreen() {
       setThirdPartyCustomerName('');
       setMarketplaceImportMetadata(null);
       invalidateTopSellers();
+      await clearMirrorAfterCheckout();
       router.back();
     } finally {
       setCreatingOrder(false);
@@ -2741,6 +2769,7 @@ export default function PosScreen() {
           })),
         })),
       });
+      await clearMirrorAfterCheckout();
       resetPosForNextOrder();
     } catch (error) {
       console.error('Delivery checkout failed', error);
@@ -2759,6 +2788,7 @@ export default function PosScreen() {
     orderSpecialInstructions,
     cartItems,
     buildCheckoutLineItems,
+    clearMirrorAfterCheckout,
     discountAmount,
     freeItemDiscountAmount,
     getPosCartItemDisplayName,
