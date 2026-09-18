@@ -10,10 +10,11 @@ export function getMarketplaceExtensionCorsHeaders(
 ): Record<string, string> {
   const allowedOrigins = (configuredOrigins || '')
     .split(',')
-    .map((value) => value.trim())
+    .map((value) => value.trim().replace(/\/$/, ''))
     .filter(Boolean);
 
-  if (!origin || !allowedOrigins.includes(origin)) return {};
+  const cleanOrigin = origin?.replace(/\/$/, '');
+  if (!cleanOrigin || !allowedOrigins.includes(cleanOrigin)) return {};
 
   return {
     'Access-Control-Allow-Origin': origin,
