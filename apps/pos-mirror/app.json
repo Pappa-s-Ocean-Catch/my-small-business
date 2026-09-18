@@ -18,6 +18,9 @@
         "foregroundImage": "./assets/icon.png"
       },
       "predictiveBackGestureEnabled": false
-    }
+    },
+    "plugins": [
+      "./plugins/withAndroidFullscreen"
+    ]
   }
 }

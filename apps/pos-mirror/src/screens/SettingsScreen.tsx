@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, View, useWindowDimensions, Image } from 'react-native';
 import { Button, RadioButton, Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
+import { documentDirectory, copyAsync } from 'expo-file-system/legacy';
 
 import type { MirrorSettings } from '../lib/mirror-settings';
 import { listMirrorRegisterIds } from '../lib/mirror-registers';
@@ -18,6 +20,7 @@ export function SettingsScreen({ initialSettings, onSave, onSignOut, onCancel }:
   const { width } = useWindowDimensions();
   const [registerId, setRegisterId] = useState(initialSettings.registerId);
   const [idleMode, setIdleMode] = useState(initialSettings.idleMode);
+  const [idleImageUri, setIdleImageUri] = useState(initialSettings.idleImageUri);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [registerIds, setRegisterIds] = useState<{ id: string; name: string }[]>([]);
@@ -50,11 +53,30 @@ export function SettingsScreen({ initialSettings, onSave, onSignOut, onCancel }:
     setSaving(true);
     setError(null);
     try {
-      await onSave({ registerId: normalizedRegisterId, idleMode });
+      await onSave({ registerId: normalizedRegisterId, idleMode, idleImageUri });
     } catch {
       setError('Could not save this display configuration. Please try again.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const pickImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 1,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const sourceUri = result.assets[0].uri;
+        const filename = sourceUri.split('/').pop() || 'idle-artwork.jpg';
+        const destUri = (documentDirectory || '') + filename;
+        await copyAsync({ from: sourceUri, to: destUri });
+        setIdleImageUri(destUri);
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Could not select the image. Please try again.');
     }
   };
 
@@ -85,7 +107,30 @@ export function SettingsScreen({ initialSettings, onSave, onSignOut, onCancel }:
           {!registersLoading && registerId && !registerIds.some(r => r.id === registerId) && <Text style={styles.error}>The saved register is no longer available. Choose one from the list.</Text>}
           <Text variant="titleMedium" style={styles.sectionTitle}>When this register is idle</Text>
           <RadioButton.Group value={idleMode} onValueChange={(value) => setIdleMode(value === 'queue' ? 'queue' : 'image')}>
-            <View style={styles.choice}><RadioButton value="image" /><View style={styles.choiceText}><Text variant="titleMedium">Welcome image</Text><Text variant="bodyMedium">Show the branded idle display. Final artwork can be added later.</Text></View></View>
+            <View style={styles.choice}>
+              <RadioButton value="image" />
+              <View style={styles.choiceText}>
+                <Text variant="titleMedium">Welcome image</Text>
+                <Text variant="bodyMedium">Show the branded idle display.</Text>
+                {idleMode === 'image' && (
+                  <View style={styles.imagePickerContainer}>
+                    {idleImageUri ? (
+                      <View style={styles.imagePreviewContainer}>
+                        <Image source={{ uri: idleImageUri }} style={styles.imagePreview} />
+                        <View style={styles.imagePickerActions}>
+                          <Button mode="outlined" compact onPress={pickImage}>Change Photo</Button>
+                          <Button mode="text" compact textColor={colors.warning} onPress={() => setIdleImageUri(undefined)}>Reset to Default</Button>
+                        </View>
+                      </View>
+                    ) : (
+                      <Button mode="outlined" icon="image-plus" compact onPress={pickImage} style={styles.pickImageButton}>
+                        Upload Custom Artwork
+                      </Button>
+                    )}
+                  </View>
+                )}
+              </View>
+            </View>
             <View style={styles.choice}><RadioButton value="queue" /><View style={styles.choiceText}><Text variant="titleMedium">Current queue</Text><Text variant="bodyMedium">Show all current order numbers and customer-readable statuses.</Text></View></View>
           </RadioButton.Group>
           {error && <Text accessibilityLiveRegion="polite" style={styles.error}>{error}</Text>}
@@ -116,4 +161,9 @@ const styles = StyleSheet.create({
   actions: { gap: spacing.sm, marginTop: spacing.lg },
   primaryButton: { minHeight: 48, borderRadius: radius.md },
   secondaryButton: { minHeight: 48, borderRadius: radius.md },
+  imagePickerContainer: { marginTop: spacing.sm },
+  pickImageButton: { alignSelf: 'flex-start' },
+  imagePreviewContainer: { gap: spacing.sm, marginTop: spacing.xs },
+  imagePreview: { width: 160, height: 90, borderRadius: radius.md, backgroundColor: colors.border },
+  imagePickerActions: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center' },
 });

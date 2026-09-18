@@ -1,20 +1,42 @@
 const PRE_ORDER_LEAD_MINUTES = 30;
 const PRE_ORDER_LEAD_MS = PRE_ORDER_LEAD_MINUTES * 60 * 1000;
 
+export type QueueOrderItemAddon = {
+  id: string;
+  addon_item_name: string;
+  addon_item_price: number;
+};
+
+export type QueueOrderItem = {
+  id: string;
+  product_name: string;
+  quantity: number;
+  subtotal: number;
+  order_item_addons: QueueOrderItemAddon[];
+};
+
 export type CustomerQueueCandidate = {
+  id: string;
   order_number: string;
   created_at: string;
   scheduled_pickup_at: string | null;
   order_status: string;
   payment_status: string;
+  customer_name: string | null;
+  total: number;
+  order_items: QueueOrderItem[];
 };
 
 export type CustomerQueueStatus = 'Pending' | 'Confirmed' | 'Preparing' | 'Ready';
 
 export type CustomerQueueEntry = {
+  id: string;
   orderNumber: string;
   status: CustomerQueueStatus;
   sortAt: string;
+  customerName: string | null;
+  total: number;
+  items: QueueOrderItem[];
 };
 
 const CUSTOMER_STATUS_BY_ORDER_STATUS: Readonly<Record<string, CustomerQueueStatus>> = {
@@ -56,11 +78,15 @@ export function buildCustomerQueue(
       }
 
       return [{
+        id: candidate.id,
         orderNumber: getCustomerOrderNumber(candidate.order_number),
         status,
         sortAt: scheduledPickupMs === null
           ? candidate.created_at
           : candidate.scheduled_pickup_at as string,
+        customerName: candidate.customer_name || null,
+        total: candidate.total || 0,
+        items: candidate.order_items || [],
       }];
     })
     .sort((left, right) => Date.parse(left.sortAt) - Date.parse(right.sortAt));

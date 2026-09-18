@@ -1,7 +1,7 @@
 import { buildCustomerQueue, type CustomerQueueCandidate, type CustomerQueueEntry } from '@my-small-business/pos-mirror';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-export const CUSTOMER_QUEUE_SELECT = 'order_number,created_at,scheduled_pickup_at,order_status,payment_status';
+export const CUSTOMER_QUEUE_SELECT = 'id,order_number,created_at,scheduled_pickup_at,order_status,payment_status,customer_name,total,order_items(id,product_name,quantity,subtotal,order_item_addons(id,addon_item_name,addon_item_price))';
 const OPEN_ORDER_LOOKBACK_DAYS = 14;
 
 export function getOpenOrderLookbackStart(nowMs: number = Date.now()): string {

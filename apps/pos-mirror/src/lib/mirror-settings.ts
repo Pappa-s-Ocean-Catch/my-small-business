@@ -3,6 +3,7 @@ export type IdleMode = 'image' | 'queue';
 export type MirrorSettings = {
   registerId: string;
   idleMode: IdleMode;
+  idleImageUri?: string;
 };
 
 export const DEFAULT_MIRROR_SETTINGS: MirrorSettings = {
@@ -23,5 +24,6 @@ export function normalizeMirrorSettings(value: unknown): MirrorSettings {
   return {
     registerId: getString(candidate.registerId),
     idleMode: candidate.idleMode === 'queue' ? 'queue' : 'image',
+    idleImageUri: typeof candidate.idleImageUri === 'string' && candidate.idleImageUri ? candidate.idleImageUri : undefined,
   };
 }

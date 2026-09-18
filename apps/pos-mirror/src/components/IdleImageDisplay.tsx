@@ -1,9 +1,6 @@
-import { Pressable, StyleSheet, View } from 'react-native';
-import { Text } from 'react-native-paper';
+import { Pressable, StyleSheet, View, Image } from 'react-native';
 
-import { colors, spacing } from '../theme';
-
-export function IdleImageDisplay({ onOpenSettings }: { onOpenSettings: () => void }) {
+export function IdleImageDisplay({ onOpenSettings, imageUri }: { onOpenSettings: () => void; imageUri?: string }) {
   return (
     <Pressable
       style={styles.container}
@@ -12,21 +9,16 @@ export function IdleImageDisplay({ onOpenSettings }: { onOpenSettings: () => voi
       accessibilityRole="button"
       accessibilityLabel="Welcome display. Long press to open settings."
     >
-      <View style={styles.content}>
-        <Text variant="displaySmall" style={styles.brand}>Pappas</Text>
-        <Text variant="headlineMedium" style={styles.welcome}>Thanks for visiting</Text>
-        <Text variant="titleLarge" style={styles.detail}>Your order will appear here</Text>
-      </View>
-      <Text variant="bodyMedium" style={styles.replaceHint}>Idle artwork can be replaced from the app assets when supplied.</Text>
+      {imageUri ? (
+        <Image source={{ uri: imageUri }} style={styles.image} resizeMode="cover" />
+      ) : (
+        <Image source={require('../../assets/idle-artwork.jpg')} style={styles.image} resizeMode="cover" />
+      )}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.accent, padding: spacing.lg },
-  content: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  brand: { color: colors.surfaceMuted, fontWeight: '800', letterSpacing: 3, marginBottom: spacing.lg },
-  welcome: { color: colors.primaryOn, fontWeight: '800', textAlign: 'center' },
-  detail: { color: colors.surfaceMuted, textAlign: 'center', marginTop: spacing.md },
-  replaceHint: { color: colors.surface, opacity: 0.8, textAlign: 'center' },
+  container: { flex: 1, backgroundColor: '#000' },
+  image: { width: '100%', height: '100%' },
 });
