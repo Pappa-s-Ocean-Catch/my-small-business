@@ -17,7 +17,7 @@ export function getMarketplaceExtensionCorsHeaders(
   if (!cleanOrigin || !allowedOrigins.includes(cleanOrigin)) return {};
 
   return {
-    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Origin': cleanOrigin,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, X-Marketplace-Sync-Key',
     'Access-Control-Max-Age': '600',
