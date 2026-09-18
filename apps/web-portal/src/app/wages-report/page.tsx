@@ -218,7 +218,7 @@ export default function WagesReportPage() {
       }
     }
 
-    const rows = Object.values(staffMap);
+    const rows = Object.values(staffMap).filter(row => row.totalHours > 0);
     rows.sort((a, b) => a.staff.name.localeCompare(b.staff.name));
     return rows;
   }, [staff, staffRates, shifts, daysOfWeek, instructions, holidays, getBaseRateForDate]);

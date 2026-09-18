@@ -348,10 +348,22 @@ export default function PosScreen() {
     if (!lockMessage) return false;
     Alert.alert(
       'Order already saved',
-      lockMessage,
+      `${lockMessage}\n\nWould you like to edit this order instead?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Edit Order',
+          onPress: () => {
+            if (pendingInstoreSmartpayOrder?.id) {
+              setPendingInstoreSmartpayOrder(null);
+              router.replace(`/pos?orderId=${pendingInstoreSmartpayOrder.id}`);
+            }
+          },
+        },
+      ]
     );
     return true;
-  }, [pendingInstoreSmartpayOrder]);
+  }, [pendingInstoreSmartpayOrder, router]);
 
   const preventPendingIndependentCheckout = useCallback(() => {
     const lockMessage = getPendingInstoreOrderLockMessage(pendingInstoreSmartpayOrder);

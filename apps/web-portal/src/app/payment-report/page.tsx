@@ -126,7 +126,11 @@ export default function PaymentReportPage() {
     const [{ data: staffData }, { data: ratesData }, { data: shiftData }, { data: holidayData }, brandSettingsResponse, { data: wagePaymentData }] = await Promise.all([
       supabase.from("staff").select("id, name, email, applies_public_holiday_rules"),
       supabase.from("staff_rates").select("*"),
-      supabase.from("shifts").select("id, staff_id, start_time, end_time, notes, non_billable_hours, section_id"),
+      supabase
+        .from("shifts")
+        .select("id, staff_id, start_time, end_time, notes, non_billable_hours, section_id")
+        .gte("start_time", dateRange.start.toISOString())
+        .lte("start_time", dateRange.end.toISOString()),
       supabase
         .from("public_holidays")
         .select("holiday_date, markup_percentage, markup_amount")
@@ -1059,7 +1063,9 @@ export default function PaymentReportPage() {
                     </td>
                   </tr>
                 ) : (
-                  staff.map((s) => {
+                  staff
+                    .filter((s) => reportData.some(r => r.staffName === s.name))
+                    .map((s) => {
                     const row = reportData.find(r => r.staffName === s.name);
                     const details = expandedStaffId === s.id ? getStaffDailyDetails(s.id) : [];
                     return (
