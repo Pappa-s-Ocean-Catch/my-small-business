@@ -24,6 +24,7 @@ class PlaybackActivityTest {
             val activity = controller.get()
             assertTrue(activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON != 0)
             activity.onBackPressed()
+            org.robolectric.shadows.ShadowLooper.idleMainLooper()
             assertEquals(0, activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         } finally { controller.pause().stop().destroy() }
     }

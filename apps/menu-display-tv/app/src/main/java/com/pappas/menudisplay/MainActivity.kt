@@ -16,6 +16,12 @@ import android.widget.*
 import org.json.JSONObject
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.MultiFormatWriter
+import com.pappas.menudisplay.effects.AnimationEngine
+import com.pappas.menudisplay.effects.registerBasicTransitions
+import com.pappas.menudisplay.effects.registerCinematicMotions
+import com.pappas.menudisplay.effects.registerMaskTransitions
+import com.pappas.menudisplay.effects.register3DTransitions
+import com.pappas.menudisplay.effects.registerShaderTransitions
 import java.net.Inet4Address
 import java.net.NetworkInterface
 import java.security.SecureRandom
@@ -33,14 +39,13 @@ class MainActivity : Activity() {
     @Volatile private var generation = 0
     private var libraryPage = 0
     private var active = false
-    private var playback = DisplayState(emptyList())
+    private var playback = DisplayState(emptyList<PlaylistItem>())
     private var index = 0
     private var paused = false
     private var playbackView: ImageView? = null
     private var playbackBitmap: Bitmap? = null
     private val thumbnails = mutableListOf<Bitmap>()
-    private var editorIds = mutableListOf<String>()
-    private var editorSeconds = 10
+    private var editorItems = mutableListOf<PlaylistItem>()
     private var uploadStatus: TextView? = null
     private var queueOverlayView: LinearLayout? = null
     private var queueData = JSONObject()
@@ -60,6 +65,12 @@ class MainActivity : Activity() {
         playback = store.state()
         if (playback.ids.isNotEmpty()) showPlayback(playback, persist = false) else library()
         store.recoveryMessage?.let { toast(it) }
+
+        registerBasicTransitions()
+        registerCinematicMotions()
+        registerMaskTransitions()
+        register3DTransitions()
+        registerShaderTransitions()
     }
     override fun onStart() {
         super.onStart()
@@ -150,7 +161,7 @@ class MainActivity : Activity() {
         actions.addView(button("Display settings") { displaySettings() })
         actions.addView(button("Create slideshow") {
             val saved = store.state()
-            editorIds = saved.ids.toMutableList(); editorSeconds = saved.seconds; editor()
+            editorItems = saved.items.toMutableList(); editor()
         })
         val saved = store.state()
         if (saved.ids.isNotEmpty()) actions.addView(button("Resume display") { showPlayback(saved) })
@@ -322,8 +333,6 @@ class MainActivity : Activity() {
         val listener = server
         val code = pairing
         val error = serverError
-        // Network enumeration and QR encoding must not delay the first screen frame.
-        // Separate from image I/O so queued thumbnails cannot delay this screen either.
         uploadWorker.execute {
             if (token != generation) return@execute
             val addresses = if (listener != null) addresses() else emptyList()
@@ -368,52 +377,117 @@ class MainActivity : Activity() {
         body.addView(steps, LinearLayout.LayoutParams(0, -2, 1f))
         content.addView(body)
     }
+
+    private fun previewSlide(position: Int) {
+        val item = editorItems[position]
+        val prevItem = if (position > 0) editorItems[position - 1] else (if (editorItems.size > 1) editorItems.last() else item)
+        
+        val metrics = resources.displayMetrics
+        io.execute {
+            val bmpNew = store.decode(item.id, metrics.widthPixels, metrics.heightPixels)
+            val bmpOld = if (prevItem.id != item.id) store.decode(prevItem.id, metrics.widthPixels, metrics.heightPixels) else null
+            
+            main.post {
+                if (isDestroyed) { bmpNew?.recycle(); bmpOld?.recycle(); return@post }
+                
+                val overlay = FrameLayout(this@MainActivity).apply { setBackgroundColor(Color.BLACK) }
+                val oldView = ImageView(this@MainActivity).apply { 
+                    scaleType = ImageView.ScaleType.FIT_CENTER
+                    if (bmpOld != null) setImageBitmap(bmpOld) else setBackgroundColor(Color.DKGRAY)
+                }
+                val newView = ImageView(this@MainActivity).apply { 
+                    scaleType = ImageView.ScaleType.FIT_CENTER
+                    if (bmpNew != null) setImageBitmap(bmpNew) else setBackgroundColor(Color.GRAY)
+                }
+                
+                overlay.addView(oldView, FrameLayout.LayoutParams(-1, -1))
+                addContentView(overlay, ViewGroup.LayoutParams(-1, -1))
+                
+                val duration = 1000L
+                AnimationEngine.playTransition(item.animation, overlay, oldView, newView, duration) {
+                    if (item.cinematic != "None") {
+                        AnimationEngine.playCinematic(item.cinematic, newView, 3000L)
+                    }
+                    main.postDelayed({
+                        (overlay.parent as? ViewGroup)?.removeView(overlay)
+                        bmpNew?.recycle()
+                        bmpOld?.recycle()
+                    }, 3000L)
+                }
+            }
+        }
+    }
+
     private fun editor(focusId: String? = null) {
         val items = store.list()
-        editorIds = Playlist.reconcile(editorIds, items.map { it.id }.toSet()).toMutableList()
-        val content = page("Build your slideshow", "Add images below. Use Move up / down to set the display order.", "editor")
+        val validIds = Playlist.reconcile(editorItems.map { it.id }, items.map { it.id }.toSet())
+        editorItems = editorItems.filter { it.id in validIds }.toMutableList()
+        val content = page("Build your slideshow", "Add images below. Set time and animation for each.", "editor")
         val actions = row()
-        actions.addView(button("Play slideshow (${editorIds.size})") {
-            if (editorIds.isEmpty()) toast("Add at least one image")
-            else showPlayback(DisplayState(editorIds.toList(), editorSeconds, true))
-        })
-        actions.addView(button("Interval: ${editorSeconds}s") {
-            val values = listOf(5, 10, 15, 30, 60)
-            AlertDialog.Builder(this).setTitle("Time per image").setSingleChoiceItems(values.map { "$it seconds" }.toTypedArray(), values.indexOf(editorSeconds)) { dialog, position ->
-                editorSeconds = values[position]; dialog.dismiss(); editor()
-            }.show()
+        actions.addView(button("Play slideshow (${editorItems.size})") {
+            if (editorItems.isEmpty()) toast("Add at least one image")
+            else showPlayback(DisplayState(editorItems.toList(), true))
         })
         actions.addView(button("Back to library") { library() })
         content.addView(actions)
         var focus: View? = null
-        editorIds.toList().forEachIndexed { position, id ->
+        editorItems.toList().forEachIndexed { position, item ->
             val line = row()
-            line.addView(text("${position + 1}. ${items.first { it.id == id }.name}", 17f).apply { maxLines = 2 }, LinearLayout.LayoutParams(0, -2, 1f))
-            val up = button("Move up") { if (position > 0) { java.util.Collections.swap(editorIds, position, position - 1); editor(id) } }
+            line.addView(text("${position + 1}. ${items.first { it.id == item.id }.name}", 17f).apply { maxLines = 1 }, LinearLayout.LayoutParams(0, -2, 1f))
+            line.addView(button("${item.seconds}s") {
+                val values = listOf(5, 10, 15, 30, 60)
+                AlertDialog.Builder(this).setTitle("Time for this image").setSingleChoiceItems(values.map { "$it seconds" }.toTypedArray(), values.indexOf(item.seconds).coerceAtLeast(0)) { dialog, pos ->
+                    editorItems[position] = item.copy(seconds = values[pos])
+                    dialog.dismiss(); editor(item.id)
+                }.show()
+            })
+            line.addView(button(item.animation) {
+                val anims = AnimationEngine.getTransitions().toTypedArray()
+                AlertDialog.Builder(this).setTitle("Transition").setSingleChoiceItems(anims, anims.indexOf(item.animation).coerceAtLeast(0)) { dialog, pos ->
+                    editorItems[position] = item.copy(animation = anims[pos])
+                    dialog.dismiss(); editor(item.id)
+                }.show()
+            })
+            line.addView(button(if (item.cinematic == "None") "Motion: None" else item.cinematic) {
+                val cin = (listOf("None") + AnimationEngine.getCinematics()).toTypedArray()
+                AlertDialog.Builder(this).setTitle("Cinematic Motion").setSingleChoiceItems(cin, cin.indexOf(item.cinematic).coerceAtLeast(0)) { dialog, pos ->
+                    editorItems[position] = item.copy(cinematic = cin[pos])
+                    dialog.dismiss(); editor(item.id)
+                }.show()
+            })
+            line.addView(button("Preview") { previewSlide(position) })
+            val up = button("Up") { if (position > 0) { java.util.Collections.swap(editorItems, position, position - 1); editor(item.id) } }
             up.isEnabled = position > 0; line.addView(up)
-            line.addView(button("Move down") { if (position < editorIds.lastIndex) { java.util.Collections.swap(editorIds, position, position + 1); editor(id) } }.apply { isEnabled = position < editorIds.lastIndex })
-            val remove = button("Remove") { editorIds.remove(id); editor() }; line.addView(remove)
-            if (id == focusId) focus = if (up.isEnabled) up else remove
+            val down = button("Down") { if (position < editorItems.lastIndex) { java.util.Collections.swap(editorItems, position, position + 1); editor(item.id) } }
+            down.isEnabled = position < editorItems.lastIndex; line.addView(down)
+            val remove = button("X") { editorItems.removeAt(position); editor() }; line.addView(remove)
+            if (item.id == focusId) focus = if (up.isEnabled) up else remove
             content.addView(line)
         }
         content.addView(text("Available images", 22f))
-        items.filter { it.id !in editorIds }.forEach { item -> content.addView(button("+  ${item.name}") { editorIds.add(item.id); editor(item.id) }) }
+        items.filter { it.id !in editorItems.map { i -> i.id } }.forEach { item -> content.addView(button("+  ${item.name}") { editorItems.add(PlaylistItem(item.id)); editor(item.id) }) }
         if (items.isEmpty()) content.addView(text("Upload images from the library first.", 18f, muted))
         (focus ?: actions.getChildAt(0)).requestFocus()
     }
+
+    private var imageContainer: FrameLayout? = null
+
     private fun showPlayback(state: DisplayState, persist: Boolean = true) {
-        val ids = Playlist.reconcile(state.ids, store.list().map { it.id }.toSet())
-        if (ids.isEmpty()) { library(); return }
+        val validIds = Playlist.reconcile(state.ids, store.list().map { it.id }.toSet())
+        val validItems = state.items.filter { it.id in validIds }
+        if (validItems.isEmpty()) { library(); return }
         if (persist) {
-            mutate({ store.saveState(state.copy(ids = ids)) }) { showPlayback(state.copy(ids = ids), false) }
+            val updatedState = state.copy(items = validItems)
+            mutate({ store.saveState(updatedState) }) { showPlayback(updatedState, false) }
             return
         }
-        generation++; screen = "playback"; playback = state.copy(ids = ids); index = 0; paused = false
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        generation++; screen = "playback"; playback = state.copy(items = validItems); index = 0; paused = false
         main.removeCallbacks(tick); thumbnails.clear(); immersive()
         
         val frame = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
-        playbackView = ImageView(this).apply { scaleType = ImageView.ScaleType.FIT_CENTER }
-        frame.addView(playbackView, FrameLayout.LayoutParams(-1, -1))
+        imageContainer = FrameLayout(this)
+        frame.addView(imageContainer, FrameLayout.LayoutParams(-1, -1))
         
         val prefs = getSharedPreferences("prefs", Context.MODE_PRIVATE)
         if (prefs.getBoolean("clock", false)) {
@@ -518,17 +592,46 @@ class MainActivity : Activity() {
     }
 
     private fun loadSlide() {
-        if (screen != "playback" || playback.ids.isEmpty()) return
+        if (screen != "playback" || playback.items.isEmpty()) return
         main.removeCallbacks(tick)
         val token = ++generation
-        val id = playback.ids[index]
+        val item = playback.items[index]
         val metrics = resources.displayMetrics
         io.execute {
-            val bitmap = store.decode(id, metrics.widthPixels, metrics.heightPixels)
+            val bitmap = store.decode(item.id, metrics.widthPixels, metrics.heightPixels)
             main.post {
                 if (token != generation || screen != "playback" || isDestroyed) { bitmap?.recycle(); return@post }
                 if (bitmap != null) {
-                    playbackView?.setImageBitmap(bitmap)
+                    val container = imageContainer
+                    if (container != null) {
+                        val childrenToAnimate = mutableListOf<View>()
+                        for (i in 0 until container.childCount) {
+                            childrenToAnimate.add(container.getChildAt(i))
+                        }
+                        
+                        val newView = ImageView(this@MainActivity).apply {
+                            scaleType = ImageView.ScaleType.FIT_CENTER
+                            setImageBitmap(bitmap)
+                        }
+                        
+                        val duration = 750L
+                        if (childrenToAnimate.isNotEmpty()) {
+                            val oldView = childrenToAnimate.first()
+                            for (v in childrenToAnimate) { if (v != oldView) container.removeView(v) }
+                            oldView.animate().cancel()
+                            
+                            AnimationEngine.playTransition(item.animation, container, oldView, newView, duration) {
+                                // Transition complete
+                            }
+                        } else {
+                            container.addView(newView, FrameLayout.LayoutParams(-1, -1))
+                        }
+                        
+                        // Start cinematic motion if requested
+                        if (item.cinematic != "None") {
+                            AnimationEngine.playCinematic(item.cinematic, newView, item.seconds * 1000L)
+                        }
+                    }
                     playbackBitmap = bitmap
                 } else {
                     toast("Cannot display this image. Remove it from the library and upload it again.")
@@ -540,12 +643,14 @@ class MainActivity : Activity() {
     }
     private fun schedule() {
         main.removeCallbacks(tick)
-        if (active && screen == "playback" && playback.slideshow && playback.ids.size > 1 && !paused)
-            main.postDelayed(tick, playback.seconds * 1000L)
+        if (active && screen == "playback" && playback.slideshow && playback.items.size > 1 && !paused) {
+            val item = playback.items[index]
+            main.postDelayed(tick, item.seconds * 1000L)
+        }
     }
     private fun step(direction: Int) {
         if (screen != "playback") return
-        index = Playlist.next(index, direction, playback.ids.size); loadSlide()
+        index = Playlist.next(index, direction, playback.items.size); loadSlide()
     }
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (screen == "playback") {
@@ -562,6 +667,6 @@ class MainActivity : Activity() {
     }
     @Deprecated("TV remote Back navigation")
     override fun onBackPressed() { navigateBack() }
-    private fun navigateBack() { if (screen != "library") library() else finish() }
+    private fun navigateBack() { if (screen != "library") { window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); library() } else finish() }
     private fun toast(message: String) { if (!isDestroyed) Toast.makeText(this, message, Toast.LENGTH_LONG).show() }
 }

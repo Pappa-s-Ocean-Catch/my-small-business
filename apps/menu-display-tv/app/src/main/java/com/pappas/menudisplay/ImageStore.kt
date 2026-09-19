@@ -12,13 +12,18 @@ import java.io.*
 import java.util.UUID
 
 data class MenuImage(val id: String, val name: String, val bytes: Long)
-data class DisplayState(val ids: List<String>, val seconds: Int = 10, val slideshow: Boolean = false)
+data class PlaylistItem(val id: String, val seconds: Int = 10, val animation: String = "Fade", val cinematic: String = "None")
+data class DisplayState(val items: List<PlaylistItem>, val slideshow: Boolean = false) {
+    constructor(ids: List<String>, seconds: Int = 10, slideshow: Boolean = false) : this(ids.map { PlaylistItem(it, seconds, "Fade", "None") }, slideshow)
+    val ids: List<String> get() = items.map { it.id }
+    val seconds: Int get() = items.firstOrNull()?.seconds ?: 10
+}
 
 class ImageStore(context: Context) {
     private val dir = File(context.filesDir, "menus").apply { mkdirs() }
     private val catalog = AtomicFile(File(dir, "catalog.json"))
     private var images = mutableListOf<MenuImage>()
-    private var display = DisplayState(emptyList())
+    private var display = DisplayState(emptyList<PlaylistItem>())
     var recoveryMessage: String? = null
         private set
 
@@ -33,9 +38,22 @@ class ImageStore(context: Context) {
                     if (validId(id) && file(id).exists()) images.add(MenuImage(id, item.getString("name"), file(id).length()))
                 }
                 val state = json.optJSONObject("display")
-                val ids = state?.optJSONArray("ids") ?: JSONArray()
-                display = DisplayState(Playlist.reconcile((0 until ids.length()).map { ids.getString(it) }, images.map { it.id }.toSet()),
-                    (state?.optInt("seconds", 10) ?: 10).coerceIn(5, 60), state?.optBoolean("slideshow") ?: false)
+                val itemsArray = state?.optJSONArray("items")
+                val itemsList = mutableListOf<PlaylistItem>()
+                if (itemsArray != null) {
+                    for (j in 0 until itemsArray.length()) {
+                        val it = itemsArray.getJSONObject(j)
+                        itemsList.add(PlaylistItem(it.getString("id"), it.optInt("seconds", 10), it.optString("animation", "Fade"), it.optString("cinematic", "None")))
+                    }
+                } else {
+                    val ids = state?.optJSONArray("ids") ?: JSONArray()
+                    val globalSeconds = state?.optInt("seconds", 10) ?: 10
+                    for (j in 0 until ids.length()) {
+                        itemsList.add(PlaylistItem(ids.getString(j), globalSeconds, "Fade", "None"))
+                    }
+                }
+                val validIds = Playlist.reconcile(itemsList.map { it.id }, images.map { it.id }.toSet())
+                display = DisplayState(itemsList.filter { it.id in validIds }, state?.optBoolean("slideshow") ?: false)
             } catch (_: Exception) {
                 // Recover files without overwriting or discarding the user's images.
                 images = dir.listFiles().orEmpty().filter { validId(it.name) }.map { MenuImage(it.name, "Recovered menu", it.length()) }.toMutableList()
@@ -47,9 +65,10 @@ class ImageStore(context: Context) {
     private fun validId(id: String) = runCatching { UUID.fromString(id).toString() == id }.getOrDefault(false)
     fun file(id: String): File { require(validId(id)); return File(dir, id) }
     @Synchronized fun list(): List<MenuImage> = images.toList()
-    @Synchronized fun state(): DisplayState = display.copy(ids = display.ids.toList())
+    @Synchronized fun state(): DisplayState = display.copy(items = display.items.toList())
     @Synchronized fun saveState(state: DisplayState) {
-        val next = state.copy(ids = Playlist.reconcile(state.ids, images.map { it.id }.toSet()), seconds = state.seconds.coerceIn(5, 60))
+        val validIds = Playlist.reconcile(state.ids, images.map { it.id }.toSet())
+        val next = state.copy(items = state.items.filter { it.id in validIds })
         persist(images, next)
         display = next
     }
@@ -62,7 +81,7 @@ class ImageStore(context: Context) {
     }
     @Synchronized fun delete(id: String) {
         val next = images.filter { it.id != id }
-        val state = display.copy(ids = display.ids.filter { it != id })
+        val state = display.copy(items = display.items.filter { it.id != id })
         persist(next, state)
         images = next.toMutableList()
         display = state
@@ -141,8 +160,9 @@ class ImageStore(context: Context) {
         } catch (_: OutOfMemoryError) { null }
     }
     private fun persist(items: List<MenuImage>, state: DisplayState) {
+        val jsonItems = JSONArray().apply { state.items.forEach { put(JSONObject().put("id", it.id).put("seconds", it.seconds).put("animation", it.animation).put("cinematic", it.cinematic)) } }
         val json = JSONObject().put("images", JSONArray().apply { items.forEach { put(JSONObject().put("id", it.id).put("name", it.name).put("bytes", it.bytes)) } })
-            .put("display", JSONObject().put("ids", JSONArray(state.ids)).put("seconds", state.seconds).put("slideshow", state.slideshow))
+            .put("display", JSONObject().put("ids", JSONArray(state.ids)).put("seconds", state.seconds).put("items", jsonItems).put("slideshow", state.slideshow))
         val stream = catalog.startWrite()
         try { stream.write(json.toString().toByteArray()); catalog.finishWrite(stream) }
         catch (e: Exception) { catalog.failWrite(stream); throw e }

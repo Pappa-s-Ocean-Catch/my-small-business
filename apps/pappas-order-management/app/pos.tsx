@@ -2113,7 +2113,7 @@ export default function PosScreen() {
     } as any;
 
     const result = orderId
-      ? await updatePosOrder(orderId, cartItems.map((item) => ({
+      ? await updatePosOrder(orderId, cartItems.map(({ pos_updated_at, ...item }) => ({
         ...item,
         product_name: getPosCartItemDisplayName(item),
       })), totals, {
@@ -2134,7 +2134,7 @@ export default function PosScreen() {
         reward_points_used: rewardPointsToUse || null,
         reward_points_value: rewardPointsValue || null,
       })
-      : await savePosOrder(orderPayload, cartItems.map((item) => ({
+      : await savePosOrder(orderPayload, cartItems.map(({ pos_updated_at, ...item }) => ({
         ...item,
         product_name: getPosCartItemDisplayName(item),
       })));
@@ -2270,7 +2270,7 @@ export default function PosScreen() {
         const pendingResult = await createOrReusePendingInstoreOrder({ savePosOrder }, {
           existingOrder: null,
           orderPayload,
-          items: cartItems.map((item) => ({
+          items: cartItems.map(({ pos_updated_at, ...item }) => ({
             ...item,
             product_name: getPosCartItemDisplayName(item),
           })),
@@ -2491,7 +2491,7 @@ export default function PosScreen() {
       scheduled_pickup_at: null,
     } as any;
 
-    const result = await savePosOrder(orderPayload, cartItems.map((item) => ({
+    const result = await savePosOrder(orderPayload, cartItems.map(({ pos_updated_at, ...item }) => ({
       ...item,
       product_name: getPosCartItemDisplayName(item),
     })));
@@ -2621,7 +2621,7 @@ export default function PosScreen() {
         scheduled_pickup_at: null,
       } as any;
 
-      const result = await savePosOrder(orderPayload, cartItems.map((item) => ({
+      const result = await savePosOrder(orderPayload, cartItems.map(({ pos_updated_at, ...item }) => ({
         ...item,
         product_name: getPosCartItemDisplayName(item),
       })));
@@ -2733,7 +2733,7 @@ export default function PosScreen() {
         scheduled_pickup_at: null,
       } as any;
 
-      const saveResult = await savePosOrder(orderPayload, cartItems.map((item) => ({
+      const saveResult = await savePosOrder(orderPayload, cartItems.map(({ pos_updated_at, ...item }) => ({
         ...item,
         product_name: getPosCartItemDisplayName(item),
       })));
