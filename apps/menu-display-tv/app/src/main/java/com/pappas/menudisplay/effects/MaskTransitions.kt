@@ -41,6 +41,9 @@ abstract class MaskTransitionEffect(override val name: String) : TransitionEffec
     abstract fun drawMask(canvas: Canvas, progress: Float, width: Int, height: Int)
 
     override fun play(container: FrameLayout, oldView: View, newView: View, duration: Long, onComplete: () -> Unit) {
+        if (newView.parent != null) {
+            (newView.parent as android.view.ViewGroup).removeView(newView)
+        }
         val wrapper = MaskedWrapper(container.context, newView)
         wrapper.clipPathProvider = { canvas, progress, w, h -> drawMask(canvas, progress, w, h) }
         
@@ -54,8 +57,13 @@ abstract class MaskTransitionEffect(override val name: String) : TransitionEffec
         animator.addListener(object : android.animation.AnimatorListenerAdapter() {
             override fun onAnimationEnd(animation: android.animation.Animator) {
                 // Unwrap: remove newView from wrapper, add back to container
+                val index = container.indexOfChild(wrapper)
                 wrapper.removeView(newView)
-                container.addView(newView, container.indexOfChild(wrapper), FrameLayout.LayoutParams(-1, -1))
+                if (index >= 0) {
+                    container.addView(newView, index, FrameLayout.LayoutParams(-1, -1))
+                } else {
+                    container.addView(newView, FrameLayout.LayoutParams(-1, -1))
+                }
                 container.removeView(wrapper)
                 
                 container.removeView(oldView)

@@ -6,8 +6,8 @@
 
 # Configuration defaults
 TV_PORT ?= 5555
-TV_IP ?= 192.168.1.100
-TV_IPS ?= $(TV_IP)
+TV_IPS ?= 192.168.0.14 192.168.0.15
+TV_IP ?= 192.168.0.14
 PACKAGE_NAME ?= com.pappas.menudisplay
 MAIN_ACTIVITY ?= $(PACKAGE_NAME)/.MainActivity
 

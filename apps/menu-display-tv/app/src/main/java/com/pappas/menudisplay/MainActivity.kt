@@ -154,7 +154,14 @@ class MainActivity : Activity() {
     private fun library() {
         val items = store.list()
         val total = items.sumOf { it.bytes } / (1024.0 * 1024.0)
-        val content = page("Your menu library", "${items.size} images · ${"%.1f".format(total)} / 500 MiB · Saved on this TV", "library")
+        val cloudCount = items.count { it.source == ImageSource.CLOUD }
+        val localCount = items.count { it.source == ImageSource.LOCAL }
+        val subtitle = if (items.isNotEmpty()) {
+            "${items.size} images ($cloudCount cloud, $localCount local) · ${"%.1f".format(total)} / 500 MiB · Saved on this TV"
+        } else {
+            "0 images · 0.0 / 500 MiB · Saved on this TV"
+        }
+        val content = page("Your menu library", subtitle, "library")
         val actions = row()
         actions.addView(button("Upload images") { uploads() })
         actions.addView(button("Sync from Cloud") { syncCloud() })
@@ -191,6 +198,15 @@ class MainActivity : Activity() {
                 }
                 val image = ImageView(this).apply { scaleType = ImageView.ScaleType.FIT_CENTER; setBackgroundColor(Color.BLACK) }
                 card.addView(image, LinearLayout.LayoutParams(-1, dp(125)))
+                val badgeColor = if (item.source == ImageSource.CLOUD) mint else Color.rgb(100, 160, 220)
+                val badgeText = if (item.source == ImageSource.CLOUD) "CLOUD" else "LOCAL"
+                card.addView(TextView(this).apply {
+                    text = badgeText
+                    textSize = 10f
+                    setTextColor(badgeColor)
+                    typeface = Typeface.DEFAULT_BOLD
+                    setPadding(0, dp(4), 0, dp(2))
+                })
                 card.addView(text(item.name, 16f).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END })
                 cards.addView(card)
                 loadThumbnail(item.id, image)
@@ -233,20 +249,32 @@ class MainActivity : Activity() {
                         val imgConn = imgUrl.openConnection() as java.net.HttpURLConnection
                         imgConn.requestMethod = "GET"
                         val length = imgConn.contentLengthLong
-                        store.upload(imgConn.inputStream, length, name, id)
+                        store.upload(imgConn.inputStream, length, name, id, ImageSource.CLOUD)
                     } else if (existing.name != name) {
                         store.rename(id, name)
                     }
                 }
                 
-                val currentIds = store.list().map { it.id }.toSet()
-                for (id in currentIds) {
+                // ONLY delete obsolete cloud images! Never delete local uploads.
+                val currentCloudIds = store.list(ImageSource.CLOUD).map { it.id }.toSet()
+                for (id in currentCloudIds) {
                     if (!cloudIds.contains(id)) {
                         store.delete(id)
                     }
                 }
                 
-                store.saveState(DisplayState(cloudIds, 10, true))
+                // Update slideshow state: preserve any local items in the active playlist
+                val currentState = store.state()
+                val currentLocalItems = currentState.items.filter { item ->
+                    store.list(ImageSource.LOCAL).any { it.id == item.id }
+                }
+                val newCloudItems = cloudIds.map { PlaylistItem(it, 10, "Fade", "None") }
+                val updatedPlaylist = if (currentLocalItems.isEmpty()) {
+                    newCloudItems
+                } else {
+                    currentLocalItems + newCloudItems
+                }
+                store.saveState(DisplayState(updatedPlaylist, true))
                 
                 main.post {
                     toast("Cloud sync complete")
@@ -620,6 +648,7 @@ class MainActivity : Activity() {
                             for (v in childrenToAnimate) { if (v != oldView) container.removeView(v) }
                             oldView.animate().cancel()
                             
+                            container.addView(newView, 0, FrameLayout.LayoutParams(-1, -1))
                             AnimationEngine.playTransition(item.animation, container, oldView, newView, duration) {
                                 // Transition complete
                             }

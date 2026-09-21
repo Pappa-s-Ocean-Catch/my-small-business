@@ -68,4 +68,52 @@ class ImageStoreTest {
         assertEquals(setOf(a,b), store.list().map { it.id }.toSet())
         assertNotNull(store.recoveryMessage)
     }
+    @Test fun legacyFilesMigrateToLocalDirectory() {
+        val store = ImageStore(context)
+        val localA = File(context.filesDir, "menus/local/$a")
+        val localB = File(context.filesDir, "menus/local/$b")
+        assertTrue("Legacy file 'a' should be migrated to menus/local/", localA.exists())
+        assertTrue("Legacy file 'b' should be migrated to menus/local/", localB.exists())
+        assertFalse("Legacy file 'a' should no longer be in root menus/", File(context.filesDir, "menus/$a").exists())
+        assertEquals(ImageSource.LOCAL, store.list().first { it.id == a }.source)
+    }
+    @Test fun localAndCloudStoredInSeparateFoldersAndSameNameAllowed() {
+        val localId = "00000000-0000-0000-0000-000000000010"
+        val cloudId = "00000000-0000-0000-0000-000000000020"
+        
+        val localFile = File(context.filesDir, "menus/local/$localId").apply { parentFile?.mkdirs(); writeText("local-content") }
+        val cloudFile = File(context.filesDir, "menus/cloud/$cloudId").apply { parentFile?.mkdirs(); writeText("cloud-content") }
+        
+        File(context.filesDir, "menus/catalog.json").writeText(
+            """{"images":[{"id":"$localId","name":"Specials Menu","source":"local"},{"id":"$cloudId","name":"Specials Menu","source":"cloud"}],"display":{"ids":["$localId","$cloudId"]}}"""
+        )
+        
+        val store = ImageStore(context)
+        val localItems = store.list(ImageSource.LOCAL)
+        val cloudItems = store.list(ImageSource.CLOUD)
+        
+        assertEquals(1, localItems.size)
+        assertEquals(1, cloudItems.size)
+        assertEquals("Specials Menu", localItems.single().name)
+        assertEquals("Specials Menu", cloudItems.single().name)
+        assertEquals(ImageSource.LOCAL, localItems.single().source)
+        assertEquals(ImageSource.CLOUD, cloudItems.single().source)
+        
+        // Assert file locations
+        assertEquals(localFile.canonicalPath, store.file(localId).canonicalPath)
+        assertEquals(cloudFile.canonicalPath, store.file(cloudId).canonicalPath)
+        
+        // Deleting the cloud image leaves the local file intact
+        store.delete(cloudId)
+        assertFalse("Cloud file should be deleted", cloudFile.exists())
+        assertTrue("Local file must still exist", localFile.exists())
+        assertTrue(store.list(ImageSource.LOCAL).any { it.id == localId })
+        assertTrue(store.list(ImageSource.CLOUD).isEmpty())
+        
+        // Reopen store to verify persistence
+        val reopened = ImageStore(context)
+        assertEquals(1, reopened.list().size)
+        assertEquals(localId, reopened.list().single().id)
+        assertEquals(ImageSource.LOCAL, reopened.list().single().source)
+    }
 }
