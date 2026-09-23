@@ -226,39 +226,12 @@ export async function recordCouponRedemption(params: {
 }): Promise<{ success: boolean; error: string | null }> {
   const { couponId, orderId, userId } = params;
   try {
-    // 1. Insert redemption
-    const { error: redemptionError } = await supabase
-      .from('coupon_redemptions')
-      .insert({
-        coupon_id: couponId,
-        order_id: orderId,
-        user_id: userId ?? null,
-      });
-
-    if (redemptionError) {
-      console.warn('Error inserting coupon redemption record:', redemptionError.message);
-    }
-
-    // 2. Increment usage_count
-    const { data: coupon } = await supabase
-      .from('coupons')
-      .select('usage_count')
-      .eq('id', couponId)
-      .single();
-
-    const currentCount = Number(coupon?.usage_count ?? 0);
-    const { error: updateError } = await supabase
-      .from('coupons')
-      .update({
-        usage_count: currentCount + 1,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', couponId);
-
-    if (updateError) {
-      console.warn('Error updating coupon usage_count:', updateError.message);
-    }
-
+    const { error } = await supabase.rpc('record_pos_coupon_redemption_atomic', {
+      p_coupon_id: couponId,
+      p_order_id: orderId,
+      p_user_id: userId ?? null,
+    });
+    if (error) return { success: false, error: error.message };
     return { success: true, error: null };
   } catch (err: any) {
     console.error('Error recording coupon redemption:', err);

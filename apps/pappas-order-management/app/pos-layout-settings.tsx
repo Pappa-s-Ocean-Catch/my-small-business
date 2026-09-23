@@ -1,14 +1,13 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Appbar, Button, Checkbox, Dialog, IconButton, Menu, Portal, TextInput } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import ColorPicker, { BrightnessSlider, HueSlider, Panel1, Preview } from 'reanimated-color-picker';
-import { supabase } from '@/lib/supabase';
+import { usePosCatalog } from '@/providers/PosCatalogProvider';
 import { BRAND_COLORS } from '@/utils/brand';
 import {
   DEFAULT_POS_BUTTON_COLOR,
   DEFAULT_POS_QUICK_ORDER_NOTES,
-  fetchPosLayouts,
   PosLayoutCategory,
   PosLayoutData,
   PosLayoutRecord,
@@ -85,6 +84,7 @@ const moveItemToIndex = <T,>(items: T[], index: number, targetIndex: number) => 
 };
 
 export default function PosLayoutSettingsScreen() {
+  const { snapshot: catalog, refresh: refreshCatalog } = usePosCatalog();
   const router = useRouter();
   const [categories, setCategories] = useState<SaleCategory[]>([]);
   const [products, setProducts] = useState<SaleProduct[]>([]);
@@ -111,6 +111,7 @@ export default function PosLayoutSettingsScreen() {
     apply: (color: string) => void;
   } | null>(null);
   const [customColorDraft, setCustomColorDraft] = useState('#111827');
+  const initializedCatalog = useRef(false);
 
   const topLevelCategories = useMemo(
     () => categories.filter((category) => !category.parent_category_id),
@@ -258,7 +259,7 @@ export default function PosLayoutSettingsScreen() {
 
     const syncedExistingCategories = sourceLayout.categories
       .map(syncCategory)
-      .filter((category) => category.sourceCategoryIds.some((categoryId) => (
+      .filter((category) => (category.sourceCategoryIds || [category.categoryId]).some((categoryId) => (
         nextCategories.some((sourceCategory) => sourceCategory.id === categoryId)
       )));
 
@@ -276,30 +277,12 @@ export default function PosLayoutSettingsScreen() {
 
   const loadData = async () => {
     setLoading(true);
-    const [categoryResult, productResult, layoutResult] = await Promise.all([
-      supabase
-        .from('sale_categories')
-        .select('id, name, sort_order, parent_category_id')
-        .eq('is_active', true)
-        .order('sort_order', { ascending: true }),
-      supabase
-        .from('sale_products')
-        .select('id, name, sale_price, sale_category_id, sub_category_id, sort_order')
-        .eq('is_active', true)
-        .order('sort_order', { ascending: true }),
-      fetchPosLayouts(),
-    ]);
-
+    if (!catalog) return;
     setLoading(false);
-    if (categoryResult.error || productResult.error || layoutResult.error) {
-      Alert.alert('POS layout', categoryResult.error?.message || productResult.error?.message || layoutResult.error || 'Could not load layout data.');
-      return;
-    }
-
-    const nextCategories = (categoryResult.data || []) as SaleCategory[];
-    const nextProducts = (productResult.data || []) as SaleProduct[];
-    const nextLayouts = layoutResult.data || [];
-    const preferred = nextLayouts.find((item) => item.is_default) || nextLayouts[0] || null;
+    const nextCategories = catalog.categories as SaleCategory[];
+    const nextProducts = catalog.products as SaleProduct[];
+    const nextLayouts = catalog.layouts;
+    const preferred = catalog.preferredLayout;
     const nextLayout = syncLayoutWithCatalog(preferred?.layout || buildDefaultLayout(nextCategories, nextProducts), nextCategories, nextProducts);
 
     setCategories(nextCategories);
@@ -313,8 +296,11 @@ export default function PosLayoutSettingsScreen() {
   };
 
   useEffect(() => {
-    void loadData();
-  }, []);
+    if (catalog && !initializedCatalog.current) {
+      initializedCatalog.current = true;
+      void loadData();
+    }
+  }, [catalog]);
 
   const selectLayout = (selected: PosLayoutRecord) => {
     const syncedLayout = syncLayoutWithCatalog(selected.layout, categories, products);
@@ -510,7 +496,8 @@ export default function PosLayoutSettingsScreen() {
     }
 
     Alert.alert('POS layout', 'Layout saved.');
-    await loadData();
+    initializedCatalog.current = false;
+    await refreshCatalog('manual');
   };
 
   const handleUseLayout = async () => {
@@ -520,6 +507,7 @@ export default function PosLayoutSettingsScreen() {
     }
 
     await setSelectedPosLayoutId(layoutId);
+    await refreshCatalog('selection');
     router.back();
   };
 

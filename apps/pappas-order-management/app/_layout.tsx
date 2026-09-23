@@ -24,6 +24,7 @@ import {
   subscribeToNewOrderNotificationResponses,
 } from '@/lib/expo-push-notifications';
 import { CallerIdListenerProvider } from '@/providers/CallerIdListenerProvider';
+import { PosCatalogProvider } from '@/providers/PosCatalogProvider';
 
 export default function RootLayout() {
   const router = useRouter();
@@ -113,6 +114,7 @@ export default function RootLayout() {
         <OrderListSyncProvider>
           <PaperProvider theme={MD3LightTheme}>
             <AppSettingsProvider>
+              <PosCatalogProvider authenticated={authenticatedStaffAccess}>
               <MarketplaceSyncGate authenticated={authenticatedStaffAccess}>
                 <CallerIdListenerProvider authenticated={authenticatedStaffAccess}>
                   <PrinterAutomationProvider>
@@ -136,6 +138,7 @@ export default function RootLayout() {
                   </PrinterAutomationProvider>
                 </CallerIdListenerProvider>
               </MarketplaceSyncGate>
+              </PosCatalogProvider>
             </AppSettingsProvider>
           </PaperProvider>
         </OrderListSyncProvider>

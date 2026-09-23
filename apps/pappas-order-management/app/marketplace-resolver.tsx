@@ -8,6 +8,7 @@ import { buildMarketplacePosOrderDraft, type MarketplaceResolutionIssue } from '
 import { groupResolverAddonTargets, type ResolverAddonChoice } from '@/lib/marketplace-resolver-groups';
 import { useMarketplacePosDraftStore } from '@/stores/marketplacePosDraftStore';
 import { BRAND_COLORS } from '@/utils/brand';
+import { usePosCatalog } from '@/providers/PosCatalogProvider';
 
 type ResolverTarget = { id: string; name: string; detail?: string } & Partial<ResolverAddonChoice>;
 
@@ -31,6 +32,7 @@ function formatResolverError(cause: unknown, fallback: string) {
 }
 
 export default function MarketplaceResolverScreen() {
+  const { snapshot: catalog } = usePosCatalog();
   const router = useRouter();
   const marketplaceDraft = useMarketplacePosDraftStore((state) => state.draft);
   const setMarketplacePosDraft = useMarketplacePosDraftStore((state) => state.setDraft);
@@ -52,11 +54,10 @@ export default function MarketplaceResolverScreen() {
   const resolverIssue = currentIssue ?? editIssue;
 
   const loadTargets = useCallback(async (issue: MarketplaceResolutionIssue) => {
+    if (!catalog) throw new Error('POS catalogue is still loading. Please retry shortly.');
     if (issue.kind === 'product') {
-      const { data, error: queryError } = await supabase
-        .from('sale_products').select('id, name, sale_price').eq('is_active', true).order('name');
-      if (queryError) throw new Error(queryError.message);
-      return (data || []).map((row: any) => ({ id: row.id, name: row.name, detail: `$${Number(row.sale_price || 0).toFixed(2)}` }));
+      return [...catalog.products].sort((a, b) => a.name.localeCompare(b.name))
+        .map((row) => ({ id: row.id, name: row.name, detail: `$${Number(row.sale_price || 0).toFixed(2)}` }));
     }
 
     let productId: string | null = null;
@@ -75,41 +76,21 @@ export default function MarketplaceResolverScreen() {
     if (!productId) throw new Error('This modifier needs its parent marketplace product mapped first.');
 
     if (issue.kind === 'addon_group') {
-      const { data, error: queryError } = await supabase
-        .from('sale_product_addon_groups').select('addon_groups(id, name)').eq('sale_product_id', productId);
-      if (queryError) throw new Error(queryError.message);
-      return (data || []).flatMap((row: any) => {
-        const group = Array.isArray(row.addon_groups) ? row.addon_groups[0] : row.addon_groups;
-        return group ? [{ id: group.id, name: group.name }] : [];
-      });
+      return (catalog.customizations.get(productId)?.groups || []).map((group) => ({ id: group.id, name: group.name }));
     }
 
     if (issue.kind === 'addon') {
-      const { data, error: queryError } = await supabase
-        .from('sale_product_addon_groups')
-        .select('addon_groups(id, name, addon_items(id, name, extra_price, is_active))')
-        .eq('sale_product_id', productId);
-      if (queryError) throw new Error(queryError.message);
-      return (data || []).flatMap((row: any) => {
-        const group = Array.isArray(row.addon_groups) ? row.addon_groups[0] : row.addon_groups;
-        return (group?.addon_items || []).filter((item: any) => item.is_active !== false).map((item: any) => ({
+      return (catalog.customizations.get(productId)?.groups || []).flatMap((group) => {
+        return group.items.map((item) => ({
           id: item.id, name: item.name, groupId: group.id, groupName: group.name,
           extraPrice: Number(item.extra_price || 0),
         }));
       });
     }
 
-    const { data, error: queryError } = await supabase
-      .from('sale_product_ingredients')
-      .select('id, products!product_id(name)')
-      .eq('sale_product_id', productId)
-      .eq('customer_can_remove', true);
-    if (queryError) throw new Error(queryError.message);
-    return (data || []).map((row: any) => {
-      const ref = Array.isArray(row.products) ? row.products[0] : row.products;
-      return { id: row.id, name: ref?.name || 'Unknown ingredient' };
-    });
-  }, [mappingEdit, marketplaceDraft]);
+    return (catalog.customizations.get(productId)?.removableIngredients || [])
+      .map((ingredient) => ({ id: ingredient.id, name: ingredient.ingredient_name }));
+  }, [catalog, mappingEdit, marketplaceDraft]);
 
   const refresh = useCallback(async () => {
     if (!marketplaceDraft && !editIssue) return;

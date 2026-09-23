@@ -867,26 +867,11 @@ const defaultDependencies: MarketplacePosOrderDependencies = {
     return updateMarketplaceOrderStatus(orderId, update.order_status);
   },
   loadCatalog: async () => {
-    const { supabase } = require('./supabase');
-    const [productResult, categoryResult] = await Promise.all([
-      supabase
-        .from('sale_products')
-        .select('id, name, description, section, search_term, sale_price, image_url, sale_category_id, sub_category_id, sort_order, is_active')
-        .eq('is_active', true)
-        .order('name', { ascending: true }),
-      supabase
-        .from('sale_categories')
-        .select('id, section')
-        .eq('is_active', true),
-    ]);
-
-    if (productResult.error) throw new Error(productResult.error.message);
-    if (categoryResult.error) throw new Error(categoryResult.error.message);
-
-    return {
-      products: (productResult.data || []) as SaleProduct[],
-      categories: (categoryResult.data || []) as MarketplaceCategorySection[],
-    };
+    const { posCatalog } = require('../providers/PosCatalogProvider');
+    if (!posCatalog.getState().snapshot) await posCatalog.refresh('startup');
+    const snapshot = posCatalog.getState().snapshot;
+    if (!snapshot) throw new Error(posCatalog.getState().error || 'POS catalogue is still loading');
+    return { products: snapshot.products, categories: snapshot.categories };
   },
   loadMappings: async (provider) => {
     const { supabase } = require('./supabase');
@@ -902,79 +887,11 @@ const defaultDependencies: MarketplacePosOrderDependencies = {
     return (data || []) as MarketplaceMappingRecord[];
   },
   loadProductCustomizations: async (productId) => {
-    const { supabase } = require('./supabase');
-    const [addonResult, ingredientResult] = await Promise.all([
-      supabase
-        .from('sale_product_addon_groups')
-        .select(`
-          addon_group_id,
-          display_order,
-          addon_groups (
-            id,
-            name,
-            is_required,
-            multiple_choice,
-            addon_items (
-              id,
-              addon_group_id,
-              name,
-              extra_price,
-              section,
-              sort_order,
-              is_active
-            )
-          )
-        `)
-        .eq('sale_product_id', productId)
-        .order('display_order', { ascending: true }),
-      supabase
-        .from('sale_product_ingredients')
-        .select('id, customer_can_remove, products!product_id(name)')
-        .eq('sale_product_id', productId)
-        .eq('customer_can_remove', true)
-        .order('id', { ascending: true }),
-    ]);
-
-    const groups: AddonGroup[] = ((addonResult.data || []) as any[]).flatMap((row) => {
-      const group = Array.isArray(row.addon_groups) ? row.addon_groups[0] : row.addon_groups;
-      if (!group) return [];
-      return [{
-        id: group.id,
-        name: group.name,
-        is_required: Boolean(group.is_required),
-        multiple_choice: Boolean(group.multiple_choice),
-        display_order: row.display_order ?? null,
-        items: (group.addon_items || [])
-          .filter((item: any) => item.is_active !== false)
-          .map((item: any) => ({
-            id: item.id,
-            addon_group_id: item.addon_group_id,
-            name: item.name,
-            extra_price: Number(item.extra_price || 0),
-            section: item.section ?? null,
-            sort_order: item.sort_order ?? null,
-            is_active: item.is_active ?? true,
-          })),
-      }];
-    });
-
-    const removableIngredients: RemovableIngredient[] = ((ingredientResult.data || []) as Array<{
-      id: string;
-      customer_can_remove: boolean;
-      products: { name?: string } | { name?: string }[] | null;
-    }>).map((row) => {
-      const productRef = Array.isArray(row.products) ? row.products[0] : row.products;
-      return {
-        id: row.id,
-        ingredient_name: productRef?.name?.trim() || 'Unknown ingredient',
-        customer_can_remove: row.customer_can_remove,
-      };
-    });
-
-    if (addonResult.error) throw new Error(addonResult.error.message);
-    if (ingredientResult.error) throw new Error(ingredientResult.error.message);
-
-    return { groups, removableIngredients };
+    const { posCatalog } = require('../providers/PosCatalogProvider');
+    if (!posCatalog.getState().snapshot) await posCatalog.refresh('startup');
+    const snapshot = posCatalog.getState().snapshot;
+    if (!snapshot) throw new Error(posCatalog.getState().error || 'POS catalogue is still loading');
+    return snapshot.customizations.get(productId) || { groups: [], removableIngredients: [] };
   },
   recordUnmatchedName: async (input) => {
     const normalizedExternalName = normalizeMarketplaceName(input.externalName);

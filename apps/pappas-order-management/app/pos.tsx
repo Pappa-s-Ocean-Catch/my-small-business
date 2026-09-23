@@ -19,7 +19,6 @@ import {
 import {
   DEFAULT_POS_BUTTON_COLOR,
   DEFAULT_POS_QUICK_ORDER_NOTES,
-  fetchPreferredPosLayout,
   PosLayoutData,
 } from '../lib/pos-layouts';
 import { formatKitchenSectionValue, getOrderNotes, getOrderOptions, isScheduledPreOrder } from '../utils/orderUtils';
@@ -48,6 +47,9 @@ import { isCompactPhoneWidth } from '../lib/responsive';
 import { LIVE_ORDERS_QUERY_KEY } from '../hooks/useLiveOrdersQuery';
 import { usePosMirrorPublisher } from '../hooks/usePosMirrorPublisher';
 import { posCatalogCacheStore } from '../stores/posCatalogCacheStore';
+import { usePosCatalog } from '../providers/PosCatalogProvider';
+import { productsForCategories } from '../lib/pos-catalog-snapshot';
+import { runPosPostSaveMutations } from '../lib/pos-post-save-operations';
 import { useInstoreCustomerReceiptPrint } from '../providers/instoreCustomerReceiptPrintContext';
 import {
   createOrReusePendingInstoreOrder,
@@ -91,7 +93,6 @@ const cartItemHasCustomizations = (item: Pick<OrderItem, 'addons' | 'removed_ing
   || Boolean(item.comment)
 );
 
-const POS_CACHE_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
 const PRODUCT_TILE_PALETTE = [
   { backgroundColor: '#fff7ed', borderColor: '#fed7aa', priceColor: '#c2410c' },
   { backgroundColor: '#ecfdf5', borderColor: '#bbf7d0', priceColor: '#047857' },
@@ -251,6 +252,7 @@ const getDiscountConfigFromOrder = (order: Order | null): PosDiscountConfig => {
 };
 
 export default function PosScreen() {
+  const { snapshot: catalog, status: catalogStatus, error: catalogError, refresh: refreshCatalog } = usePosCatalog();
   const { printInstoreCustomerReceipt, printInstoreInstantTicket } = useInstoreCustomerReceiptPrint();
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -269,11 +271,10 @@ export default function PosScreen() {
   const [products, setProducts] = useState<SaleProduct[]>([]);
   const [topSellers, setTopSellers] = useState<TopSellerProduct[]>([]);
   const [cartItems, setCartItems] = useState<PosCartItem[]>([]);
-  const [loadingProducts, setLoadingProducts] = useState(false);
-  const [loadingSearchProducts, setLoadingSearchProducts] = useState(false);
+  const loadingProducts = false;
+  const loadingSearchProducts = false;
   const [loadingTopSellers, setLoadingTopSellers] = useState(false);
   const [topSellerRefreshKey, setTopSellerRefreshKey] = useState(0);
-  const [customizableProductIds, setCustomizableProductIds] = useState<Set<string>>(new Set());
   const [menuLevel, setMenuLevel] = useState<'groups' | 'subgroups' | 'items' | 'addons' | 'checkout' | 'search' | 'quick-list'>('groups');
   const [searchQuery, setSearchQuery] = useState('');
   const [instorePaymentDialogVisible, setInstorePaymentDialogVisible] = useState(false);
@@ -285,7 +286,7 @@ export default function PosScreen() {
   const [editorSelectedIds, setEditorSelectedIds] = useState<Record<string, boolean>>({});
   const [editorRemovableIngredients, setEditorRemovableIngredients] = useState<RemovableIngredient[]>([]);
   const [editorRemovedIngredientIds, setEditorRemovedIngredientIds] = useState<Record<string, boolean>>({});
-  const [loadingAddons, setLoadingAddons] = useState(false);
+  const loadingAddons = false;
   const [noteItemId, setNoteItemId] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState('');
   const { acceptedCall, clearAcceptedCall } = useCallerId();
@@ -329,6 +330,7 @@ export default function PosScreen() {
   const [discountConfig, setDiscountConfig] = useState<PosDiscountConfig>(EMPTY_DISCOUNT);
   const [quickListReturnLevel, setQuickListReturnLevel] = useState<'groups' | 'subgroups' | 'items' | 'addons' | 'checkout' | 'search'>('groups');
   const [activePromotions, setActivePromotions] = useState<PosPromotion[]>([]);
+  const [promotionClock, setPromotionClock] = useState(0);
   const [promotionsLoaded, setPromotionsLoaded] = useState(false);
   const [selectedFreeItemId, setSelectedFreeItemId] = useState<string | null>(null);
   const [freeItemDialogVisible, setFreeItemDialogVisible] = useState(false);
@@ -392,41 +394,21 @@ export default function PosScreen() {
   }, []);
 
   useEffect(() => {
-    const loadPromotions = async () => {
-      const { data, error } = await supabase
-        .from('promotions')
-        .select('*, promotion_products(sale_product_id)')
-        .eq('is_active', true)
-        .order('priority', { ascending: false });
-
-      if (error) {
-        console.warn('POS promotions load failed', error);
-        setPromotionsLoaded(true);
-        return;
-      }
-
-      const nextPromotions: PosPromotion[] = (data || [])
-        .map((row: any) => ({
-          ...row,
-          discount_value: Number(row.discount_value ?? 0),
-          min_product_price: row.min_product_price != null ? Number(row.min_product_price) : null,
-          min_cart_subtotal: row.min_cart_subtotal != null ? Number(row.min_cart_subtotal) : null,
-          priority: Number(row.priority ?? 0),
-          product_ids: (row.promotion_products || []).map((pp: any) => String(pp.sale_product_id)),
-        }))
-        .filter((promotion: PosPromotion) => isPromotionActiveNow(promotion));
-
-      setActivePromotions(nextPromotions);
-      setPromotionsLoaded(true);
-    };
-
-    void loadPromotions();
-  }, []);
+    if (!catalog) return;
+    setCategories(catalog.categories);
+    setSearchProducts(catalog.products);
+    setPosLayout(catalog.preferredLayout?.layout ?? null);
+  }, [catalog]);
 
   useEffect(() => {
-    posCatalogCacheStore.getState().pruneExpired();
-    const sweepTimer = setInterval(() => posCatalogCacheStore.getState().pruneExpired(), POS_CACHE_SWEEP_INTERVAL_MS);
-    return () => clearInterval(sweepTimer);
+    if (!catalog) return;
+    setActivePromotions(catalog.promotions.filter((promotion) => isPromotionActiveNow(promotion)));
+    setPromotionsLoaded(true);
+  }, [catalog, promotionClock]);
+
+  useEffect(() => {
+    const timer = setInterval(() => setPromotionClock((value) => value + 1), 60_000);
+    return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -435,48 +417,10 @@ export default function PosScreen() {
     }
   }, [cartItems.length]);
 
-  useEffect(() => {
-    const fetchCategories = async () => {
-      const cachedCategories = posCatalogCacheStore.getState().getCategories();
-      if (cachedCategories) {
-        setCategories(cachedCategories);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('sale_categories')
-        .select('id, name, section, sort_order, is_active, parent_category_id')
-        .eq('is_active', true)
-        .order('sort_order', { ascending: true });
-
-      if (error) {
-        Alert.alert('POS', error.message);
-        return;
-      }
-
-      const nextCategories = (data || []) as SaleCategory[];
-      posCatalogCacheStore.getState().setCategories(nextCategories);
-      setCategories(nextCategories);
-    };
-
-    void fetchCategories();
-  }, []);
-
-  const loadPreferredLayout = useCallback(async () => {
-    const { data, error } = await fetchPreferredPosLayout();
-    if (error) {
-      console.warn('POS layout load failed', error);
-      return;
-    }
-
-    setPosLayout(data?.layout ?? null);
-  }, []);
-
   useFocusEffect(
     useCallback(() => {
-      void loadPreferredLayout();
       isSmartpayPaired().then(setSmartpayPaired).catch(() => setSmartpayPaired(false));
-    }, [loadPreferredLayout])
+    }, [])
   );
 
   const topLevelCategories = useMemo(
@@ -609,21 +553,41 @@ export default function PosScreen() {
   };
 
   useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleTopSellerRefresh = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => { timer = null; invalidateTopSellers(); }, 250);
+    };
     const channel = supabase
       .channel('pos-top-sellers-refresh')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, invalidateTopSellers)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'order_items' }, invalidateTopSellers)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, scheduleTopSellerRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, scheduleTopSellerRefresh)
       .subscribe();
 
     return () => {
+      if (timer) clearTimeout(timer);
       void supabase.removeChannel(channel);
     };
   }, []);
 
+  useEffect(() => {
+    let day = new Date().toDateString();
+    const timer = setInterval(() => {
+      const nextDay = new Date().toDateString();
+      if (nextDay !== day) { day = nextDay; invalidateTopSellers(); }
+    }, 60_000);
+    return () => clearInterval(timer);
+  }, []);
+
   const loadTopSellersToday = async () => {
+    if (!catalog) return;
     const cachedTopSellers = posCatalogCacheStore.getState().getTopSellers();
     if (cachedTopSellers) {
-      setTopSellers(cachedTopSellers);
+      const current = cachedTopSellers.flatMap((seller) => {
+        const product = catalog?.productsById.get(seller.id);
+        return product ? [{ ...product, total_quantity_sold: seller.total_quantity_sold, total_orders: seller.total_orders }] : [];
+      });
+      setTopSellers(current);
       return;
     }
 
@@ -662,24 +626,13 @@ export default function PosScreen() {
       .map(([productId]) => productId);
 
     if (rankedProductIds.length === 0) {
-      posCatalogCacheStore.getState().setTopSellers([]);
+      posCatalogCacheStore.getState().setTopSellers([], Math.max(1, end.getTime() - Date.now()));
       setTopSellers([]);
       setLoadingTopSellers(false);
       return;
     }
 
-    const { data: productsData, error: productsError } = await supabase
-      .from('sale_products')
-      .select('id, name, description, section, search_term, sale_price, image_url, sale_category_id, sub_category_id, sort_order, is_active')
-      .in('id', rankedProductIds)
-      .eq('is_active', true);
-
-    if (productsError) {
-      setLoadingTopSellers(false);
-      return;
-    }
-
-    const productsById = new Map((productsData || []).map((product: any) => [product.id, product as SaleProduct]));
+    const productsById = catalog?.productsById ?? new Map<string, SaleProduct>();
     const nextTopSellers = rankedProductIds
       .map((productId) => {
         const product = productsById.get(productId);
@@ -693,55 +646,16 @@ export default function PosScreen() {
       })
       .filter((product): product is TopSellerProduct => Boolean(product));
 
-    posCatalogCacheStore.getState().setTopSellers(nextTopSellers);
+    posCatalogCacheStore.getState().setTopSellers(nextTopSellers, Math.max(1, end.getTime() - Date.now()));
     setTopSellers(nextTopSellers);
     setLoadingTopSellers(false);
-    void loadCustomizationAvailability(nextTopSellers.map((product) => product.id));
   };
 
   useEffect(() => {
     if (menuLevel === 'groups') {
       void loadTopSellersToday();
     }
-  }, [menuLevel, topSellerRefreshKey]);
-
-  const loadSearchProducts = useCallback(async () => {
-    const cachedProducts = posCatalogCacheStore.getState().getAllProducts();
-    if (cachedProducts) {
-      setSearchProducts(cachedProducts);
-      void loadCustomizationAvailability(cachedProducts.map((product) => product.id));
-      return;
-    }
-
-    setLoadingSearchProducts(true);
-    const { data, error } = await supabase
-      .from('sale_products')
-      .select('id, name, description, section, search_term, sale_price, image_url, sale_category_id, sub_category_id, sort_order, is_active')
-      .eq('is_active', true)
-      .order('name', { ascending: true });
-
-    setLoadingSearchProducts(false);
-    if (error) {
-      Alert.alert('Search', error.message);
-      return;
-    }
-
-    const nextProducts = (data || []) as SaleProduct[];
-    posCatalogCacheStore.getState().setAllProducts(nextProducts);
-    setSearchProducts(nextProducts);
-    void loadCustomizationAvailability(nextProducts.map((product) => product.id));
-  }, []);
-
-  useEffect(() => {
-    if (menuLevel === 'search') {
-      void loadSearchProducts();
-    }
-  }, [loadSearchProducts, menuLevel]);
-
-  useEffect(() => {
-    if (!posLayout) return;
-    void loadSearchProducts();
-  }, [loadSearchProducts, posLayout]);
+  }, [catalog, menuLevel, topSellerRefreshKey]);
 
   const searchResults = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -758,9 +672,7 @@ export default function PosScreen() {
   const quickAccessProducts = useMemo(() => {
     if (!posLayout) return [];
 
-    const catalogProducts = searchProducts.length > 0
-      ? searchProducts
-      : posCatalogCacheStore.getState().getAllProducts() ?? [];
+    const catalogProducts = searchProducts;
     if (catalogProducts.length === 0) return [];
 
     const productsById = new Map(catalogProducts.map((product) => [product.id, product]));
@@ -780,7 +692,7 @@ export default function PosScreen() {
   useEffect(() => {
     if (!selectedCatId || menuLevel !== 'items') return;
 
-    const fetchProducts = async () => {
+    const selectProducts = () => {
       const categoryIds = selectedParentCatId
         ? [selectedCatId]
         : categoryIdsForLayoutGroup(activeLayoutCategory, selectedCatId);
@@ -788,36 +700,13 @@ export default function PosScreen() {
         setProducts([]);
         return;
       }
-      const cacheKey = categoryIds.sort().join(',');
-      const cachedProducts = posCatalogCacheStore.getState().getProductsByCategory(cacheKey);
-
-      if (cachedProducts) {
-        setProducts(cachedProducts);
-        void loadCustomizationAvailability(cachedProducts.map((product) => product.id));
-        return;
-      }
-
-      setLoadingProducts(true);
-      const { data, error } = await supabase
-        .from('sale_products')
-        .select('id, name, description, section, search_term, sale_price, image_url, sale_category_id, sub_category_id, sort_order, is_active')
-        .eq('is_active', true)
-        .or(`sale_category_id.in.(${categoryIds.join(',')}),sub_category_id.in.(${categoryIds.join(',')})`)
-        .order('sort_order', { ascending: true });
-
-      setLoadingProducts(false);
-      if (error) {
-        Alert.alert('Products', error.message);
-        return;
-      }
-      const nextProducts = (data || []) as SaleProduct[];
-      posCatalogCacheStore.getState().setProductsByCategory(cacheKey, nextProducts);
+      if (!catalog) return;
+      const nextProducts = productsForCategories(catalog, categoryIds);
       setProducts(nextProducts);
-      void loadCustomizationAvailability(nextProducts.map((product) => product.id));
     };
 
-    void fetchProducts();
-  }, [activeLayoutCategory, categoryIdsForLayoutGroup, menuLevel, selectedCatId, selectedParentCatId]);
+    selectProducts();
+  }, [catalog, activeLayoutCategory, categoryIdsForLayoutGroup, menuLevel, selectedCatId, selectedParentCatId]);
 
   useEffect(() => {
     const loadOrder = async () => {
@@ -1266,30 +1155,11 @@ export default function PosScreen() {
 
   useEffect(() => {
     const eligibleIds = Array.from(new Set(unlockedFreeItemPromotion?.product_ids || []));
-    if (eligibleIds.length === 0) {
-      setEligibleFreeItemProducts([]);
-      return;
-    }
-
-    const loadEligibleProducts = async () => {
-      const { data, error } = await supabase
-        .from('sale_products')
-        .select('id, name, description, section, search_term, sale_price, image_url, sale_category_id, sub_category_id, sort_order, is_active')
-        .in('id', eligibleIds)
-        .eq('is_active', true)
-        .order('name', { ascending: true });
-
-      if (error) {
-        console.warn('POS eligible free items load failed', error);
-        setEligibleFreeItemProducts([]);
-        return;
-      }
-
-      setEligibleFreeItemProducts((data || []) as SaleProduct[]);
-    };
-
-    void loadEligibleProducts();
-  }, [unlockedFreeItemPromotion]);
+    setEligibleFreeItemProducts(eligibleIds.flatMap((id) => {
+      const product = catalog?.productsById.get(id);
+      return product ? [product] : [];
+    }).sort((a, b) => a.name.localeCompare(b.name)));
+  }, [unlockedFreeItemPromotion, catalog]);
 
   useEffect(() => {
     if (!promotionsLoaded || !selectedFreeItemId) return;
@@ -1314,197 +1184,34 @@ export default function PosScreen() {
     [editorRemovableIngredients, editorRemovedIngredientIds]
   );
 
-  const loadCustomizationAvailability = async (productIds: string[]) => {
-    if (productIds.length === 0) {
-      setCustomizableProductIds(new Set());
-      return;
-    }
-
-    const uniqueProductIds = Array.from(new Set(productIds));
-    const missingProductIds = uniqueProductIds.filter((productId) => {
-      const fullCustomization = posCatalogCacheStore.getState().getCustomization(productId);
-      if (fullCustomization) {
-        posCatalogCacheStore.getState().setCustomizationAvailability(
-          productId,
-          fullCustomization.groups.length > 0 || fullCustomization.removableIngredients.length > 0
-        );
-        return false;
-      }
-      return posCatalogCacheStore.getState().getCustomizationAvailability(productId) === null;
-    });
-
-    if (missingProductIds.length === 0) {
-      setCustomizableProductIds(new Set(uniqueProductIds.filter((productId) => (
-        posCatalogCacheStore.getState().getCustomizationAvailability(productId)
-      ))));
-      return;
-    }
-
-    const [addonResult, ingredientResult] = await Promise.all([
-      supabase
-        .from('sale_product_addon_groups')
-        .select('sale_product_id')
-        .in('sale_product_id', missingProductIds),
-      supabase
-        .from('sale_product_ingredients')
-        .select('sale_product_id')
-        .in('sale_product_id', missingProductIds)
-        .eq('customer_can_remove', true),
-    ]);
-
-    if (addonResult.error || ingredientResult.error) {
-      setCustomizableProductIds(new Set(uniqueProductIds.filter((productId) => (
-        posCatalogCacheStore.getState().getCustomizationAvailability(productId)
-      ))));
-      return;
-    }
-
-    const customizableIds = new Set([
-      ...((addonResult.data || []) as Array<{ sale_product_id: string }>).map((row) => row.sale_product_id),
-      ...((ingredientResult.data || []) as Array<{ sale_product_id: string }>).map((row) => row.sale_product_id),
-    ]);
-
-    missingProductIds.forEach((productId) => {
-      posCatalogCacheStore.getState().setCustomizationAvailability(productId, customizableIds.has(productId));
-    });
-
-    setCustomizableProductIds(new Set(uniqueProductIds.filter((productId) => (
-      posCatalogCacheStore.getState().getCustomizationAvailability(productId)
-    ))));
-  };
-
-  const productHasCustomization = async (productId: string) => {
-    const fullCustomization = posCatalogCacheStore.getState().getCustomization(productId);
-    if (fullCustomization) {
-      return fullCustomization.groups.length > 0 || fullCustomization.removableIngredients.length > 0;
-    }
-
-    const cachedAvailability = posCatalogCacheStore.getState().getCustomizationAvailability(productId);
-    if (cachedAvailability !== null) {
-      return cachedAvailability;
-    }
-
-    await loadCustomizationAvailability([productId]);
-    return posCatalogCacheStore.getState().getCustomizationAvailability(productId) ?? false;
-  };
-
   const loadCustomizations = async (
     productId: string,
     selectedAddons: OrderItemAddon[],
     selectedRemovedIngredientsForItem: string[]
-  ): Promise<{ groups: AddonGroup[]; removableIngredients: RemovableIngredient[] }> => {
-    const applyCustomizationData = (customizations: CustomizationData) => {
-      setEditorAddonGroups(customizations.groups);
-      setEditorRemovableIngredients(customizations.removableIngredients);
-      setEditorRemovedIngredientIds(
-        customizations.removableIngredients.reduce<Record<string, boolean>>((acc, ingredient) => {
-          if (selectedRemovedIngredientsForItem.includes(ingredient.ingredient_name)) {
-            acc[ingredient.id] = true;
-          }
-          return acc;
-        }, {})
-      );
-    };
-
-    setEditorSelectedIds(
-      selectedAddons.reduce<Record<string, boolean>>((acc, addon) => {
-        acc[addon.addon_item_id] = true;
-        return acc;
-      }, {})
-    );
-
-    const cachedCustomizations = posCatalogCacheStore.getState().getCustomization(productId);
-    if (cachedCustomizations) {
-      setLoadingAddons(false);
-      applyCustomizationData(cachedCustomizations);
-      return cachedCustomizations;
-    }
-
-    setLoadingAddons(true);
-    const [addonResult, ingredientResult] = await Promise.all([
-      supabase
-        .from('sale_product_addon_groups')
-        .select(`
-        addon_group_id,
-        display_order,
-        addon_groups (
-          id,
-          name,
-          is_required,
-          multiple_choice,
-          addon_items (
-            id,
-            addon_group_id,
-            name,
-            extra_price,
-            section,
-            sort_order,
-            is_active
-          )
-        )
-      `)
-        .eq('sale_product_id', productId)
-        .order('display_order', { ascending: true }),
-      supabase
-        .from('sale_product_ingredients')
-        .select('id, customer_can_remove, products!product_id(name)')
-        .eq('sale_product_id', productId)
-        .eq('customer_can_remove', true),
-    ]);
-
-    setLoadingAddons(false);
-    if (addonResult.error) {
-      Alert.alert('Add-ons', addonResult.error.message);
-      setEditorAddonGroups([]);
-      return { groups: [], removableIngredients: [] };
-    }
-    if (ingredientResult.error) {
-      Alert.alert('Ingredients', ingredientResult.error.message);
-      setEditorRemovableIngredients([]);
-      return { groups: [], removableIngredients: [] };
-    }
-
-    const groups = (addonResult.data || [])
-      .map((row: any) => {
-        const group = Array.isArray(row.addon_groups) ? row.addon_groups[0] : row.addon_groups;
-        if (!group) return null;
-        return {
-          id: group.id,
-          name: group.name,
-          is_required: Boolean(group.is_required),
-          multiple_choice: Boolean(group.multiple_choice),
-          display_order: row.display_order ?? null,
-          items: ((group.addon_items || []) as AddonItem[])
-            .filter((item) => item.is_active !== false)
-            .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name)),
-        };
-      })
-      .filter((group): group is AddonGroup => Boolean(group));
-
-    const removableIngredients = ((ingredientResult.data || []) as Array<{
-      id: string;
-      customer_can_remove: boolean;
-      products: { name?: string } | { name?: string }[] | null;
-    }>).map((row) => {
-      const productRef = Array.isArray(row.products) ? row.products[0] : row.products;
-      return {
-        id: row.id,
-        ingredient_name: productRef?.name?.trim() || 'Unknown ingredient',
-        customer_can_remove: row.customer_can_remove,
-      };
-    });
-
-    const customizations = { groups, removableIngredients };
-    posCatalogCacheStore.getState().setCustomization(productId, customizations);
-    posCatalogCacheStore.getState().setCustomizationAvailability(
-      productId,
-      groups.length > 0 || removableIngredients.length > 0
-    );
-    applyCustomizationData(customizations);
-
+  ): Promise<CustomizationData> => {
+    const customizations = catalog?.customizations.get(productId) ?? { groups: [], removableIngredients: [] };
+    setEditorAddonGroups(customizations.groups);
+    setEditorRemovableIngredients(customizations.removableIngredients);
+    setEditorSelectedIds(Object.fromEntries(selectedAddons.map((addon) => [addon.addon_item_id, true])));
+    setEditorRemovedIngredientIds(Object.fromEntries(
+      customizations.removableIngredients.map((ingredient) => [
+        ingredient.id,
+        selectedRemovedIngredientsForItem.includes(ingredient.ingredient_name),
+      ])
+    ));
     return customizations;
   };
 
+  useEffect(() => {
+    if (!catalog || !selectedProduct) return;
+    const latest = catalog.productsById.get(selectedProduct.id);
+    if (latest && latest !== selectedProduct) setSelectedProduct(latest);
+    const latestOptions = catalog.customizations.get(selectedProduct.id);
+    if (latestOptions) {
+      setEditorAddonGroups(latestOptions.groups);
+      setEditorRemovableIngredients(latestOptions.removableIngredients);
+    }
+  }, [catalog]);
   const openCategory = (categoryId: string) => {
     const layoutCategory = posLayout?.categories.find((category) => category.categoryId === categoryId) ?? null;
     const sourceCategoryIds = layoutCategory?.sourceCategoryIds?.length
@@ -1518,7 +1225,6 @@ export default function PosScreen() {
       setSelectedParentCatId(categoryId);
       setSelectedCatId(null);
       setProducts([]);
-      setCustomizableProductIds(new Set());
       setMenuLevel('subgroups');
       return;
     }
@@ -1526,14 +1232,12 @@ export default function PosScreen() {
     setSelectedParentCatId(null);
     setSelectedCatId(categoryId);
     setProducts([]);
-    setCustomizableProductIds(new Set());
     setMenuLevel('items');
   };
 
   const openSubcategory = (categoryId: string) => {
     setSelectedCatId(categoryId);
     setProducts([]);
-    setCustomizableProductIds(new Set());
     setMenuLevel('items');
   };
 
@@ -1549,7 +1253,6 @@ export default function PosScreen() {
     setSelectedParentCatId(null);
     setSelectedCatId(null);
     setProducts([]);
-    setCustomizableProductIds(new Set());
   };
 
   const backToSubgroups = () => {
@@ -1560,7 +1263,6 @@ export default function PosScreen() {
     setMenuLevel('subgroups');
     setSelectedCatId(null);
     setProducts([]);
-    setCustomizableProductIds(new Set());
   };
 
   const backToItems = () => {
@@ -1703,9 +1405,7 @@ export default function PosScreen() {
 
     if (
       (!options.skipCustomization || hasCustomizedCopy)
-      && (customizableProductIds.has(product.id)
-        || await productHasCustomization(product.id)
-      )
+      && catalog?.customizableIds.has(product.id)
     ) {
       setQuickListVisible(false);
       setSelectedProduct(product);
@@ -1916,7 +1616,6 @@ export default function PosScreen() {
     setSelectedParentCatId(null);
     setSelectedCatId(null);
     setProducts([]);
-    setCustomizableProductIds(new Set());
   }, []);
 
   const handleThirdPartySourceChange = (value: PosThirdPartySource) => {
@@ -2144,14 +1843,15 @@ export default function PosScreen() {
       return;
     }
     if (result.data?.id) {
-      if (discountConfig.kind === 'coupon' && discountConfig.couponId) {
-        await recordCouponRedemption({
-          couponId: discountConfig.couponId,
-          orderId: result.data.id,
-          userId: customerId || null,
-        });
-      }
-      await applyRewardPointsForSavedOrder(result.data.id, customerId);
+      const savedOrderId = result.data.id;
+      const failures = await runPosPostSaveMutations({
+        coupon: discountConfig.kind === 'coupon' && discountConfig.couponId ? async () => {
+          const redemption = await recordCouponRedemption({ couponId: discountConfig.couponId, orderId: savedOrderId, userId: customerId || null });
+          if (!redemption.success) throw new Error(redemption.error || 'Coupon redemption failed');
+        } : undefined,
+        rewards: () => applyRewardPointsForSavedOrder(savedOrderId, customerId),
+      });
+      if (failures.length) Alert.alert('Order saved', `Some post-save updates failed: ${failures.join('; ')}`);
     }
     invalidateTopSellers();
     if (isEditingExistingOrder) {
@@ -2501,19 +2201,20 @@ export default function PosScreen() {
       return;
     }
 
-    if (discountConfig.kind === 'coupon' && discountConfig.couponId) {
-      await recordCouponRedemption({
-        couponId: discountConfig.couponId,
-        orderId: result.data.id,
-        userId: customerId || null,
-      });
-    }
+    const postSave = runPosPostSaveMutations({
+      coupon: discountConfig.kind === 'coupon' && discountConfig.couponId ? async () => {
+        const redemption = await recordCouponRedemption({ couponId: discountConfig.couponId, orderId: result.data!.id, userId: customerId || null });
+        if (!redemption.success) throw new Error(redemption.error || 'Coupon redemption failed');
+      } : undefined,
+      rewards: () => applyRewardPointsForSavedOrder(result.data!.id, customerId),
+    });
 
     try {
       if (paymentStatus === 'paid') {
         await printInstoreInstantTicket(result.data);
       }
-      await applyRewardPointsForSavedOrder(result.data.id, customerId);
+      const failures = await postSave;
+      if (failures.length) Alert.alert('Order saved', `Some post-save updates failed: ${failures.join('; ')}`);
       if (paymentStatus === 'paid') {
         await printInstoreCustomerReceipt(result.data);
       }
@@ -2919,6 +2620,21 @@ export default function PosScreen() {
   const addonSelectionCount = selectedEditorAddons.length + selectedRemovedIngredients.length;
   const addonSelectionTotal = addonTotal(selectedEditorAddons);
 
+  if (!catalog) {
+    return (
+      <View style={styles.container}>
+        <Appbar.Header style={styles.header}>
+          <Appbar.Content title="Take Order" titleStyle={styles.headerTitle} />
+          <Appbar.Action icon="home" onPress={goHome} iconColor="#fff" accessibilityLabel="Back home" />
+        </Appbar.Header>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <Text>{catalogStatus === 'error' ? `Catalogue unavailable: ${catalogError}` : 'Loading POS catalogue…'}</Text>
+          {catalogStatus === 'error' && <TouchableOpacity onPress={() => void refreshCatalog('manual')} accessibilityRole="button"><Text>Retry catalogue load</Text></TouchableOpacity>}
+        </View>
+      </View>
+    );
+  }
+
   return (
 
     <View style={styles.container}>
@@ -2944,10 +2660,12 @@ export default function PosScreen() {
           />
         ) : null}
         <CallerIdAppbarAction />
+        <Appbar.Action icon="refresh" onPress={() => void refreshCatalog('manual')} disabled={catalogStatus === 'refreshing'} iconColor="#fff" accessibilityLabel="Refresh POS catalogue" />
         <Appbar.Action icon="magnify" onPress={openSearch} iconColor="#fff" accessibilityLabel="Search items" />
         <Appbar.Action icon="view-grid-plus-outline" onPress={openLayoutSettings} iconColor="#fff" accessibilityLabel="POS layout settings" />
         <Appbar.Action icon="home" onPress={goHome} iconColor="#fff" accessibilityLabel="Back home" />
       </Appbar.Header>
+      {catalogError && <Text style={{ padding: 8, backgroundColor: '#fff7ed', color: '#9a3412' }}>Catalogue refresh failed. Using the last loaded menu. Tap Refresh to retry.</Text>}
 
       {isPhoneLayout && (
         <View style={styles.phoneNavContainer}>

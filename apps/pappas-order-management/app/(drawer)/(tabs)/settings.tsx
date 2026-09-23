@@ -30,7 +30,7 @@ import { SettingsSectionCard } from '@/components/settings/SettingsSectionCard';
 import { useAppSettingsQuery } from '@/hooks/useAppSettingsQuery';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
-import { posCatalogCacheStore } from '@/stores/posCatalogCacheStore';
+import { posCatalog } from '@/providers/PosCatalogProvider';
 import { JOURNAL_LOGS_ENABLED } from '@/lib/journal-config';
 import { DEFAULT_STORE_INFO, fetchStoreInfo, saveStoreInfo, type StoreInfo } from '@/lib/store-info';
 import { invalidateLocalMarketplaceSession } from '@/lib/marketplace-local-session';
@@ -275,16 +275,16 @@ export default function SettingsScreen() {
 
     const handleClearPosCache = () => {
         Alert.alert(
-            'Clear POS cache?',
-            'This removes cached categories, products, and customizations. They will refresh the next time you use POS. This keeps you signed in and does not change your settings.',
+            'Refresh POS catalogue?',
+            'Reload categories, products, customizations, promotions, and layouts now. Your current menu remains available while refreshing.',
             [
                 { text: 'Cancel', style: 'cancel' },
                 {
-                    text: 'Clear POS cache',
-                    style: 'destructive',
-                    onPress: () => {
-                        posCatalogCacheStore.getState().clear();
-                        Alert.alert('POS cache cleared', 'Product data will refresh when you next open POS.');
+                    text: 'Refresh catalogue',
+                    onPress: async () => {
+                        await posCatalog.refresh('manual');
+                        const error = posCatalog.getState().error;
+                        Alert.alert(error ? 'Catalogue refresh failed' : 'Catalogue refreshed', error ?? 'The POS menu is up to date.');
                     },
                 },
             ]
@@ -847,8 +847,8 @@ export default function SettingsScreen() {
                 description="Manage transient POS data and settings backups for this tablet."
             >
                 <SettingsActionTile
-                    title="Clear POS cache"
-                    description="Remove cached categories, products, and customizations"
+                    title="Refresh POS catalogue"
+                    description="Reload products, options, promotions, and layouts"
                     icon="database-remove-outline"
                     onPress={handleClearPosCache}
                 />
