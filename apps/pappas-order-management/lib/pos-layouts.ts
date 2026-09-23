@@ -20,6 +20,7 @@ export type PosLayoutCategory = {
 export type PosLayoutData = {
   version: 1;
   quickOrderNotes?: string[];
+  quickItemNotes?: string[];
   categories: PosLayoutCategory[];
 };
 
@@ -30,6 +31,13 @@ export const DEFAULT_POS_QUICK_ORDER_NOTES = [
   'No salt at all',
   'Extra Salt',
   'Extra chicken salt',
+];
+
+export const DEFAULT_POS_QUICK_ITEM_NOTES = [
+  'Cut in half',
+  'Pack separately',
+  'Extra sauce',
+  'No salt',
 ];
 
 export type PosLayoutRecord = {
@@ -53,6 +61,11 @@ export const normalizePosLayout = (layout: unknown): PosLayoutData => {
         .filter((note): note is string => typeof note === 'string' && note.trim().length > 0)
         .map((note) => note.trim())
       : DEFAULT_POS_QUICK_ORDER_NOTES,
+    quickItemNotes: Array.isArray(candidate?.quickItemNotes)
+      ? candidate.quickItemNotes
+        .filter((note): note is string => typeof note === 'string' && note.trim().length > 0)
+        .map((note) => note.trim())
+      : DEFAULT_POS_QUICK_ITEM_NOTES,
     categories: Array.isArray(candidate?.categories)
       ? candidate.categories
         .filter((category): category is PosLayoutCategory => Boolean(category?.categoryId))

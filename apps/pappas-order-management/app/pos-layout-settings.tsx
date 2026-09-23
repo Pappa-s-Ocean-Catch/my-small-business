@@ -7,6 +7,7 @@ import { usePosCatalog } from '@/providers/PosCatalogProvider';
 import { BRAND_COLORS } from '@/utils/brand';
 import {
   DEFAULT_POS_BUTTON_COLOR,
+  DEFAULT_POS_QUICK_ITEM_NOTES,
   DEFAULT_POS_QUICK_ORDER_NOTES,
   PosLayoutCategory,
   PosLayoutData,
@@ -95,6 +96,7 @@ export default function PosLayoutSettingsScreen() {
   const [layout, setLayout] = useState<PosLayoutData>({
     version: 1,
     quickOrderNotes: DEFAULT_POS_QUICK_ORDER_NOTES,
+    quickItemNotes: DEFAULT_POS_QUICK_ITEM_NOTES,
     categories: [],
   });
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
@@ -145,6 +147,7 @@ export default function PosLayoutSettingsScreen() {
   const selectedLayoutCategory = layoutGroupViews.find((category) => category.categoryId === selectedCategoryId) ?? null;
   const selectedCategoryName = selectedLayoutCategory?.displayName ?? 'Items';
   const quickOrderNotesText = (layout.quickOrderNotes?.length ? layout.quickOrderNotes : DEFAULT_POS_QUICK_ORDER_NOTES).join('\n');
+  const quickItemNotesText = (layout.quickItemNotes?.length ? layout.quickItemNotes : DEFAULT_POS_QUICK_ITEM_NOTES).join('\n');
 
   const categoryProducts = useMemo(() => {
     if (!selectedLayoutCategory) return [];
@@ -177,6 +180,7 @@ export default function PosLayoutSettingsScreen() {
     return {
       version: 1,
       quickOrderNotes: DEFAULT_POS_QUICK_ORDER_NOTES,
+      quickItemNotes: DEFAULT_POS_QUICK_ITEM_NOTES,
       categories: topCategories.map((category) => {
         const childCategoryIds = nextCategories
           .filter((child) => child.parent_category_id === category.id)
@@ -271,6 +275,9 @@ export default function PosLayoutSettingsScreen() {
       quickOrderNotes: sourceLayout.quickOrderNotes?.length
         ? sourceLayout.quickOrderNotes
         : DEFAULT_POS_QUICK_ORDER_NOTES,
+      quickItemNotes: sourceLayout.quickItemNotes?.length
+        ? sourceLayout.quickItemNotes
+        : DEFAULT_POS_QUICK_ITEM_NOTES,
       categories: [...syncedExistingCategories, ...missingDefaultCategories],
     };
   };
@@ -344,6 +351,17 @@ export default function PosLayoutSettingsScreen() {
     setLayout((current) => ({
       ...current,
       quickOrderNotes: notes,
+    }));
+  };
+
+  const updateQuickItemNotes = (text: string) => {
+    const notes = text
+      .split(/\r?\n/)
+      .map((note) => note.trim())
+      .filter(Boolean);
+    setLayout((current) => ({
+      ...current,
+      quickItemNotes: notes,
     }));
   };
 
@@ -668,6 +686,16 @@ export default function PosLayoutSettingsScreen() {
               style={[styles.input, styles.multilineInput]}
             />
             <Text style={styles.helperText}>One option per line. These appear in POS and print as order notes.</Text>
+            <TextInput
+              label="Quick item notes"
+              mode="outlined"
+              value={quickItemNotesText}
+              onChangeText={updateQuickItemNotes}
+              multiline
+              numberOfLines={4}
+              style={[styles.input, styles.multilineInput]}
+            />
+            <Text style={styles.helperText}>One option per line. These appear as shortcuts in the Item note dialog.</Text>
             <View style={styles.actionRow}>
               <Button mode="contained" icon="content-save" onPress={handleSave} loading={saving} disabled={saving} style={styles.actionButton}>
                 Save

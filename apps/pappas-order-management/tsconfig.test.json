@@ -54,6 +54,7 @@
     "lib/order-list-sync.ts",
     "lib/performance-trace.ts",
     "lib/pos-mirror-publisher.ts",
+    "lib/addon-selection.ts",
     "stores/posCatalogCacheStore.ts",
     "lib/print-job-priority.ts",
     "test/pay-by-link.test.ts",

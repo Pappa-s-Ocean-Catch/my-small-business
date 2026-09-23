@@ -3,6 +3,7 @@ import { FlatList, Text, TouchableOpacity, View } from 'react-native';
 import { Button, Divider, IconButton } from 'react-native-paper';
 import { styles } from './pos.styles';
 import { getFriendlyOrderNumber } from '../../utils/orderNumber';
+import { groupAddons } from '../../utils/orderUtils';
 import type {
   PosCartItem,
 } from '../../app/pos.types';
@@ -220,10 +221,10 @@ export function PosCartPane({
                     </View>
                   </View>
                   <View style={styles.cartItemDetails}>
-                    {item.addons?.map((addon) => (
-                      <Text key={`${item.id}-addon-${addon.addon_item_id}`} style={styles.cartItemMeta} numberOfLines={1}>
-                        + {addon.addon_item_name}
-                        {addon.addon_item_price > 0 ? ` $${addon.addon_item_price.toFixed(2)}` : ''}
+                    {groupAddons(item.addons || []).map((addon, addonIndex) => (
+                      <Text key={`${item.id}-addon-${addonIndex}`} style={styles.cartItemMeta} numberOfLines={1}>
+                        {addon.quantity > 1 ? `${addon.quantity}x ` : '+ '}{addon.name}
+                        {addon.price > 0 ? ` $${addon.price.toFixed(2)}` : ''}
                       </Text>
                     ))}
                     {item.removed_ingredients?.map((ingredient) => (

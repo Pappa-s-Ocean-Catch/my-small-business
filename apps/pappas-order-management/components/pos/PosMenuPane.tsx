@@ -68,8 +68,8 @@ type Props = {
   toggleRemovedIngredient: (ingredientId: string) => void;
   editorAddonGroups: AddonGroup[];
   loadingAddons: boolean;
-  editorSelectedIds: Record<string, boolean>;
-  toggleAddon: (group: AddonGroup, item: AddonGroup['items'][number]) => void;
+  editorAddonQuantities: Record<string, number>;
+  changeAddonQuantity: (group: AddonGroup, item: AddonGroup['items'][number], delta: number) => void;
   addonGroupPalette: (groupId: string) => { backgroundColor: string; borderColor: string; labelColor: string };
   addonSelectionCount: number;
   addonSelectionTotal: number;
@@ -183,8 +183,8 @@ export function PosMenuPane(props: Props) {
     toggleRemovedIngredient,
     editorAddonGroups,
     loadingAddons,
-    editorSelectedIds,
-    toggleAddon,
+    editorAddonQuantities,
+    changeAddonQuantity,
     addonGroupPalette,
     addonSelectionCount,
     addonSelectionTotal,
@@ -527,13 +527,10 @@ export function PosMenuPane(props: Props) {
                     </Text>
                     <View style={styles.optionGrid}>
                       {group.items.map((item) => {
-                        const selected = Boolean(editorSelectedIds[item.id]);
-                        return (
-                          <TouchableOpacity
-                            key={item.id}
-                            style={[styles.optionButton, { width: addonOptionWidth }, selected && styles.optionButtonSelected]}
-                            onPress={() => toggleAddon(group, item)}
-                          >
+                        const quantity = editorAddonQuantities[item.id] || 0;
+                        const selected = quantity > 0;
+                        const optionContent = (
+                          <>
                             <Text style={[styles.optionText, selected && styles.optionTextSelected]} numberOfLines={2}>
                               {item.name}
                             </Text>
@@ -542,6 +539,47 @@ export function PosMenuPane(props: Props) {
                                 +${item.extra_price.toFixed(2)}
                               </Text>
                             )}
+                          </>
+                        );
+
+                        if (group.multiple_choice && selected) {
+                          return (
+                            <View key={item.id} style={[styles.optionButton, styles.optionButtonSelected, styles.quantityOption, { width: addonOptionWidth }]}>
+                              {optionContent}
+                              <View style={styles.addonQuantityControls}>
+                                <TouchableOpacity
+                                  accessibilityRole="button"
+                                  accessibilityLabel={`Remove one ${item.name}`}
+                                  hitSlop={4}
+                                  onPress={() => changeAddonQuantity(group, item, -1)}
+                                  style={styles.addonQuantityButton}
+                                >
+                                  <Text style={styles.addonQuantityButtonText}>−</Text>
+                                </TouchableOpacity>
+                                <Text accessibilityLabel={`${quantity} ${item.name}`} style={styles.addonQuantityValue}>{quantity}</Text>
+                                <TouchableOpacity
+                                  accessibilityRole="button"
+                                  accessibilityLabel={`Add one ${item.name}`}
+                                  hitSlop={4}
+                                  onPress={() => changeAddonQuantity(group, item, 1)}
+                                  style={styles.addonQuantityButton}
+                                >
+                                  <Text style={styles.addonQuantityButtonText}>+</Text>
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                          );
+                        }
+
+                        return (
+                          <TouchableOpacity
+                            key={item.id}
+                            accessibilityRole="button"
+                            accessibilityLabel={selected ? `Remove ${item.name}` : `Add ${item.name}`}
+                            style={[styles.optionButton, { width: addonOptionWidth }, selected && styles.optionButtonSelected]}
+                            onPress={() => changeAddonQuantity(group, item, selected ? -1 : 1)}
+                          >
+                            {optionContent}
                           </TouchableOpacity>
                         );
                       })}

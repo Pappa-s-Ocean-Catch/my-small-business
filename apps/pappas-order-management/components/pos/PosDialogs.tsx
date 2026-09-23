@@ -6,6 +6,7 @@ import { getCouponsList, validateCouponCode, type Coupon } from '../../lib/coupo
 import { findCustomerById, findCustomerByEmail, type Customer } from '../../lib/customers';
 import { CashTenderModal } from '../CashTenderModal';
 import { styles } from './pos.styles';
+import { hasNotePreset, toggleNotePreset } from '../../lib/note-presets';
 import type { CashTenderMode, PosInstorePaymentChoice, SaleProduct } from '../../app/pos.types';
 import {
   getSmartpayCheckoutProgress,
@@ -29,6 +30,7 @@ type Props = {
   quickOrderNotes: string[];
   quickOrderNote: string | null;
   setQuickOrderNote: (value: string | null) => void;
+  quickItemNotes: string[];
   noteItemId: string | null;
   closeNoteEditor: () => void;
   noteDraft: string;
@@ -69,6 +71,7 @@ export function PosDialogs({
   quickOrderNotes,
   quickOrderNote,
   setQuickOrderNote,
+  quickItemNotes,
   noteItemId,
   closeNoteEditor,
   noteDraft,
@@ -245,6 +248,26 @@ export function PosDialogs({
         <Dialog visible={Boolean(noteItemId)} onDismiss={closeNoteEditor} style={styles.noteDialog}>
           <Dialog.Title>Item note</Dialog.Title>
           <Dialog.Content>
+            {quickItemNotes.length > 0 && (
+              <View style={styles.itemNotePresetLinks}>
+                {quickItemNotes.map((note) => {
+                  const selected = hasNotePreset(noteDraft, note);
+                  return (
+                    <TouchableOpacity
+                      key={note}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${selected ? 'Remove' : 'Add'} note: ${note}`}
+                      style={styles.itemNotePresetLink}
+                      onPress={() => setNoteDraft(toggleNotePreset(noteDraft, note))}
+                    >
+                      <Text style={[styles.itemNotePresetLinkText, selected && styles.itemNotePresetLinkTextSelected]} numberOfLines={1}>
+                        {selected ? `✓ ${note}` : note}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
             <TextInput
               label="Note"
               mode="outlined"

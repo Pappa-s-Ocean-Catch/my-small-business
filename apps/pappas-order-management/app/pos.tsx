@@ -18,6 +18,7 @@ import {
 } from '../lib/delivery';
 import {
   DEFAULT_POS_BUTTON_COLOR,
+  DEFAULT_POS_QUICK_ITEM_NOTES,
   DEFAULT_POS_QUICK_ORDER_NOTES,
   PosLayoutData,
 } from '../lib/pos-layouts';
@@ -50,6 +51,12 @@ import { posCatalogCacheStore } from '../stores/posCatalogCacheStore';
 import { usePosCatalog } from '../providers/PosCatalogProvider';
 import { productsForCategories } from '../lib/pos-catalog-snapshot';
 import { runPosPostSaveMutations } from '../lib/pos-post-save-operations';
+import {
+  addonQuantitiesFromAddons,
+  buildAddonsFromQuantities,
+  changeAddonQuantity as changeSelectionQuantity,
+  type AddonQuantities,
+} from '../lib/addon-selection';
 import { useInstoreCustomerReceiptPrint } from '../providers/instoreCustomerReceiptPrintContext';
 import {
   createOrReusePendingInstoreOrder,
@@ -283,7 +290,7 @@ export default function PosScreen() {
   const [selectedProduct, setSelectedProduct] = useState<SaleProduct | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editorAddonGroups, setEditorAddonGroups] = useState<AddonGroup[]>([]);
-  const [editorSelectedIds, setEditorSelectedIds] = useState<Record<string, boolean>>({});
+  const [editorAddonQuantities, setEditorAddonQuantities] = useState<AddonQuantities>({});
   const [editorRemovableIngredients, setEditorRemovableIngredients] = useState<RemovableIngredient[]>([]);
   const [editorRemovedIngredientIds, setEditorRemovedIngredientIds] = useState<Record<string, boolean>>({});
   const loadingAddons = false;
@@ -525,6 +532,10 @@ export default function PosScreen() {
   const quickOrderNotes = useMemo(() => {
     const layoutNotes = posLayout?.quickOrderNotes?.filter((note) => note.trim().length > 0);
     return layoutNotes && layoutNotes.length > 0 ? layoutNotes : DEFAULT_POS_QUICK_ORDER_NOTES;
+  }, [posLayout]);
+  const quickItemNotes = useMemo(() => {
+    const layoutNotes = posLayout?.quickItemNotes?.filter((note) => note.trim().length > 0);
+    return layoutNotes && layoutNotes.length > 0 ? layoutNotes : DEFAULT_POS_QUICK_ITEM_NOTES;
   }, [posLayout]);
 
   const orderOptions = useMemo(() => (
@@ -995,36 +1006,9 @@ export default function PosScreen() {
     }
   }, [rewardPointsToUse]);
 
-  const buildAddonsFromSelection = (
-    groups: AddonGroup[],
-    selectedIds: Record<string, boolean>
-  ) => {
-    const addons: OrderItemAddon[] = [];
-    for (const group of groups) {
-      for (const item of group.items) {
-        if (!selectedIds[item.id]) continue;
-        addons.push({
-          id: `pos-addon-${item.id}`,
-          order_item_id: '',
-          addon_group_id: group.id,
-          addon_group_name: group.name,
-          addon_item_id: item.id,
-          addon_item_name: item.name,
-          addon_item_price: item.extra_price,
-          section: item.section ?? null,
-          created_at: new Date().toISOString(),
-          is_required: group.is_required,
-          display_order: item.sort_order ?? undefined,
-          display_group_order: group.display_order ?? undefined,
-        });
-      }
-    }
-    return addons;
-  };
-
   const selectedEditorAddons = useMemo(() => {
-    return buildAddonsFromSelection(editorAddonGroups, editorSelectedIds);
-  }, [editorAddonGroups, editorSelectedIds]);
+    return buildAddonsFromQuantities(editorAddonGroups, editorAddonQuantities);
+  }, [editorAddonGroups, editorAddonQuantities]);
 
   const discountAmount = useMemo(
     () => getDiscountAmount(discountConfig, cartItems.reduce((sum, item) => sum + item.subtotal, 0)),
@@ -1192,7 +1176,7 @@ export default function PosScreen() {
     const customizations = catalog?.customizations.get(productId) ?? { groups: [], removableIngredients: [] };
     setEditorAddonGroups(customizations.groups);
     setEditorRemovableIngredients(customizations.removableIngredients);
-    setEditorSelectedIds(Object.fromEntries(selectedAddons.map((addon) => [addon.addon_item_id, true])));
+    setEditorAddonQuantities(addonQuantitiesFromAddons(selectedAddons));
     setEditorRemovedIngredientIds(Object.fromEntries(
       customizations.removableIngredients.map((ingredient) => [
         ingredient.id,
@@ -1270,7 +1254,7 @@ export default function PosScreen() {
     setSelectedProduct(null);
     setEditingItemId(null);
     setEditorAddonGroups([]);
-    setEditorSelectedIds({});
+    setEditorAddonQuantities({});
     setEditorRemovableIngredients([]);
     setEditorRemovedIngredientIds({});
   };
@@ -1283,7 +1267,7 @@ export default function PosScreen() {
     setSelectedProduct(null);
     setEditingItemId(null);
     setEditorAddonGroups([]);
-    setEditorSelectedIds({});
+    setEditorAddonQuantities({});
     setEditorRemovableIngredients([]);
     setEditorRemovedIngredientIds({});
   };
@@ -1608,7 +1592,7 @@ export default function PosScreen() {
     setSelectedProduct(null);
     setEditingItemId(null);
     setEditorAddonGroups([]);
-    setEditorSelectedIds({});
+    setEditorAddonQuantities({});
     setEditorRemovableIngredients([]);
     setEditorRemovedIngredientIds({});
     setSearchQuery('');
@@ -1660,19 +1644,10 @@ export default function PosScreen() {
       .filter((item): item is PosCartItem => Boolean(item)));
   };
 
-  const toggleAddon = (group: AddonGroup, item: AddonItem) => {
-    setEditorSelectedIds((prev) => {
-      let next: Record<string, boolean>;
-      if (group.multiple_choice) {
-        next = { ...prev, [item.id]: !prev[item.id] };
-      } else {
-        next = { ...prev };
-        for (const groupItem of group.items) {
-          delete next[groupItem.id];
-        }
-        if (!prev[item.id]) next[item.id] = true;
-      }
-      const nextAddons = buildAddonsFromSelection(editorAddonGroups, next);
+  const changeEditorAddonQuantity = (group: AddonGroup, item: AddonItem, delta: number) => {
+    setEditorAddonQuantities((prev) => {
+      const next = changeSelectionQuantity(prev, group, item, delta);
+      const nextAddons = buildAddonsFromQuantities(editorAddonGroups, next);
       applyEditorSelections(nextAddons, selectedRemovedIngredients);
       return next;
     });
@@ -2758,8 +2733,8 @@ export default function PosScreen() {
                   toggleRemovedIngredient={toggleRemovedIngredient}
                   editorAddonGroups={editorAddonGroups}
                   loadingAddons={loadingAddons}
-                  editorSelectedIds={editorSelectedIds}
-                  toggleAddon={toggleAddon}
+                  editorAddonQuantities={editorAddonQuantities}
+                  changeAddonQuantity={changeEditorAddonQuantity}
                   addonGroupPalette={addonGroupPalette}
                   addonSelectionCount={addonSelectionCount}
                   addonSelectionTotal={addonSelectionTotal}
@@ -2907,8 +2882,8 @@ export default function PosScreen() {
                 toggleRemovedIngredient={toggleRemovedIngredient}
                 editorAddonGroups={editorAddonGroups}
                 loadingAddons={loadingAddons}
-                editorSelectedIds={editorSelectedIds}
-                toggleAddon={toggleAddon}
+                editorAddonQuantities={editorAddonQuantities}
+                changeAddonQuantity={changeEditorAddonQuantity}
                 addonGroupPalette={addonGroupPalette}
                 addonSelectionCount={addonSelectionCount}
                 addonSelectionTotal={addonSelectionTotal}
@@ -3025,8 +3000,8 @@ export default function PosScreen() {
                 toggleRemovedIngredient={toggleRemovedIngredient}
                 editorAddonGroups={editorAddonGroups}
                 loadingAddons={loadingAddons}
-                editorSelectedIds={editorSelectedIds}
-                toggleAddon={toggleAddon}
+                editorAddonQuantities={editorAddonQuantities}
+                changeAddonQuantity={changeEditorAddonQuantity}
                 addonGroupPalette={addonGroupPalette}
                 addonSelectionCount={addonSelectionCount}
                 addonSelectionTotal={addonSelectionTotal}
@@ -3151,6 +3126,7 @@ export default function PosScreen() {
         quickOrderNotes={quickOrderNotes}
         quickOrderNote={quickOrderNote}
         setQuickOrderNote={setQuickOrderNote}
+        quickItemNotes={quickItemNotes}
         noteItemId={noteItemId}
         closeNoteEditor={closeNoteEditor}
         noteDraft={noteDraft}

@@ -33,3 +33,10 @@ test('visually separates cart controls from the item list', () => {
   assert.match(cartStylesSource, /cartHeader: \{[^}]*borderBottomWidth: 1/);
   assert.match(cartStylesSource, /cartHeader: \{[^}]*borderBottomColor: '#e5e7eb'/);
 });
+
+test('groups repeated add-ons before rendering cart metadata', () => {
+  assert.match(cartPaneSource, /import \{ groupAddons \} from '..\/..\/utils\/orderUtils';/);
+  assert.match(cartPaneSource, /groupAddons\(item\.addons \|\| \[\]\)\.map\(\(addon, addonIndex\)/);
+  assert.match(cartPaneSource, /key=\{`\$\{item\.id\}-addon-\$\{addonIndex\}`\}/);
+  assert.match(cartPaneSource, /addon\.quantity > 1 \? `\$\{addon\.quantity\}x ` : '\+ '/);
+});
