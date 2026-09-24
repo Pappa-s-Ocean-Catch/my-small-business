@@ -17,9 +17,14 @@ import { Icon } from '@/components/Icon';
 import { LazyImage } from '@/components/LazyImage';
 import type { CartAddonGroup } from '@/contexts/CartContext';
 import { getPromotionDetailsCopy, pickBestProductPromotion, promotionLabel, type PromotionWithProducts } from '@/lib/promotions';
+import { splitTopSellers } from '@/lib/top-sellers-presentation';
 import type { StoreHours } from '@my-small-business/types';
 import { buildDefaultStoreHours, isStoreOpenNow } from '@/lib/store-hours';
 import { toast } from 'react-toastify';
+
+// Hallmark · component: top-sellers · genre: playful · theme: coastal-market
+// states: default · hover · focus · active · loading · empty
+// pre-emit critique: P4 H5 E4 S5 R4 V4
 import dynamic from 'next/dynamic';
 import { Suspense } from 'react';
 import posthog from 'posthog-js';
@@ -159,7 +164,7 @@ function OrderPageContent() {
           .order('sort_order');
         if (categoriesResult.data) setCategories(categoriesResult.data);
         // Top sellers
-        const topSellersRes = await getTopSellingProducts(20);
+        const topSellersRes = await getTopSellingProducts(12);
         if (topSellersRes.data) setTopSellers(topSellersRes.data);
         // Promotions
         const promoRes = await getActivePromotions();
@@ -262,7 +267,7 @@ function OrderPageContent() {
           .select('id, name, parent_category_id, sort_order')
           .eq('is_active', true)
           .order('sort_order'),
-        getTopSellingProducts(20),
+        getTopSellingProducts(12),
         getFeaturedProducts()
       ]);
 
@@ -358,6 +363,7 @@ function OrderPageContent() {
   }, [categories]);
 
   const topSellerIds = useMemo(() => new Set(topSellers.map(p => p.id)), [topSellers]);
+  const { featured: featuredTopSellers, remaining: remainingTopSellers } = useMemo(() => splitTopSellers(topSellers), [topSellers]);
   const featuredIds = useMemo(() => new Set(featuredProducts.map(p => p.id)), [featuredProducts]);
 
   const searchResults = useMemo(() => {
@@ -448,7 +454,7 @@ function OrderPageContent() {
     setCustomizingProduct(product);
   };
 
-  const ProductCard = ({ product }: { product: MenuProduct }) => {
+  const ProductCard = ({ product, className = '' }: { product: MenuProduct; className?: string }) => {
     const isTopSeller = topSellerIds.has(product.id);
     const isFeatured = featuredIds.has(product.id);
     const slug = product.slug?.trim();
@@ -466,7 +472,7 @@ function OrderPageContent() {
     return (
       <div
         key={product.id}
-        className="bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-700 overflow-hidden hover:shadow-md transition-shadow relative cursor-pointer"
+        className={`flex h-full flex-col bg-white dark:bg-neutral-800 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-700 overflow-hidden hover:shadow-md transition-shadow relative cursor-pointer ${className}`}
         role="link"
         tabIndex={0}
         onClick={() => {
@@ -528,7 +534,7 @@ function OrderPageContent() {
           <ReviewWidget productId={product.id} debug />
         </div>
 
-        <div className="p-4">
+        <div className="flex-1 p-4">
           <div className="flex items-start justify-between gap-3">
             <h3 className="font-semibold text-gray-900 dark:text-white leading-tight">
               {product.name}
@@ -823,23 +829,29 @@ function OrderPageContent() {
               )}
 
               {/* Top sellers section */}
-              {topSellers.length > 0 && (
-                <section>
-                  <div className="flex items-end justify-between gap-4 mb-4">
+              {featuredTopSellers.length > 0 && (
+                <section className="overflow-hidden rounded-3xl bg-slate-950 p-4 text-white shadow-lg sm:p-6">
+                  <div className="flex items-end justify-between gap-4 mb-5">
                     <div>
-                      <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                        <Icon icon={FaFire} className="text-orange-500" />
-                        Popular right now
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-amber-300">Fresh from today&apos;s orders</p>
+                      <h2 className="mt-2 text-2xl font-bold text-white flex items-center gap-2">
+                        <Icon icon={FaFire} className="text-amber-300" />
+                        Top sellers today
                       </h2>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        The most ordered items recently.
-                      </p>
+                      <p className="mt-1 text-sm text-slate-300">The top three fill the feature column; more favourites continue alongside.</p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {topSellers.slice(0, 12).map(product => (
-                      <ProductCard key={product.id} product={product} />
-                    ))}
+                    <div className="grid gap-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+                    <div className="grid grid-rows-3 gap-3 lg:h-full">
+                      {featuredTopSellers.map((product, index) => (
+                        <div key={product.id} className="relative min-h-0 overflow-hidden rounded-2xl bg-white p-1 shadow-sm"><span className="absolute left-3 top-3 z-10 rounded-full bg-amber-300 px-2.5 py-1 text-xs font-black text-slate-950">#{index + 1}</span><ProductCard product={product} className="h-full" /></div>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      {remainingTopSellers.map((product, index) => (
+                        <div key={product.id} className="relative rounded-2xl bg-white p-1 shadow-sm"><span className="absolute left-4 top-4 z-10 rounded-full bg-slate-950 px-2.5 py-1 text-xs font-bold text-white">#{index + 4}</span><ProductCard product={product} /></div>
+                      ))}
+                    </div>
                   </div>
                 </section>
               )}

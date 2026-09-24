@@ -18,6 +18,12 @@ export type UpdatesClient = {
   reloadAsync(): Promise<void>;
 };
 
+type ReloadFailureHandler = (result: Extract<UpdateResult, { kind: 'failed' }>) => void;
+type ReloadHandlers = {
+  onStarted?: () => void;
+  onFailure?: ReloadFailureHandler;
+};
+
 type PublicEnv = Record<string, string | undefined>;
 
 function metadataValue(value: string | undefined): string {
@@ -38,7 +44,20 @@ export function getBuildMetadata(env: PublicEnv, appVersion: string): BuildMetad
   };
 }
 
-export async function checkAndApplyUpdate(client: UpdatesClient): Promise<UpdateResult> {
+function initiateReload(client: UpdatesClient, handlers?: ReloadHandlers): void {
+  handlers?.onStarted?.();
+
+  // Expo schedules the native reload after this call resolves. Do not await it or
+  // run UI cleanup in that continuation: the native runtime may already be gone.
+  void client.reloadAsync().catch((error) => {
+    handlers?.onFailure?.({ kind: 'failed', message: errorMessage(error) });
+  });
+}
+
+export async function checkAndApplyUpdate(
+  client: UpdatesClient,
+  reloadHandlers?: ReloadHandlers,
+): Promise<UpdateResult> {
   if (!client.isEnabled) {
     return { kind: 'unavailable' };
   }
@@ -50,18 +69,19 @@ export async function checkAndApplyUpdate(client: UpdatesClient): Promise<Update
     }
 
     await client.fetchUpdateAsync();
-    await client.reloadAsync();
+    initiateReload(client, reloadHandlers);
     return { kind: 'applied' };
   } catch (error) {
     return { kind: 'failed', message: errorMessage(error) };
   }
 }
 
-export async function restartApp(client: UpdatesClient): Promise<UpdateResult> {
-  try {
-    await client.reloadAsync();
-    return { kind: 'restarted' };
-  } catch (error) {
-    return { kind: 'failed', message: errorMessage(error) };
+export function restartApp(client: UpdatesClient, reloadHandlers?: ReloadHandlers): UpdateResult {
+  if (!client.isEnabled) {
+    return { kind: 'unavailable' };
   }
+
+  initiateReload(client, reloadHandlers);
+
+  return { kind: 'restarted' };
 }

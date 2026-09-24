@@ -589,7 +589,7 @@ export default function SettingsScreen() {
             Alert.alert('Invalid refresh interval', 'Please enter a value between 5 and 600 seconds.');
             return;
         }
-        if (marketplaceSyncIntervalSec < 15 || marketplaceSyncIntervalSec > 600) {
+        if (marketplaceSyncIntervalSec < 5 || marketplaceSyncIntervalSec > 600) {
             Alert.alert('Invalid marketplace polling interval', 'Please enter a value between 15 and 600 seconds.');
             return;
         }
@@ -769,907 +769,907 @@ export default function SettingsScreen() {
             </Appbar.Header>
             <ScrollView contentContainerStyle={styles.container}>
 
-            <SettingsSectionCard
-                title="Catalog"
-                description="Manage categories, products, layouts, and add-ons in smaller focused tools."
-            >
-                <SettingsActionTile title="Store information" description={storeInfo.shopName} icon="storefront-outline" onPress={() => setActiveDialog('storeInfo')} />
-                <SettingsActionTile
-                    title="Menu management"
-                    description="Products, categories, and pricing"
-                    icon="silverware-fork-knife"
-                    onPress={() => router.push('/menu-management')}
-                />
-                <SettingsActionTile
-                    title="Add-ons management"
-                    description="Modifier groups and add-on items"
-                    icon="shape-outline"
-                    onPress={() => router.push('/addons-management')}
-                />
-                <SettingsActionTile
-                    title="POS layout"
-                    description="Category groups, colors, and button order"
-                    icon="view-dashboard-outline"
-                    onPress={() => router.push('/pos-layout-settings')}
-                />
-            </SettingsSectionCard>
+                <SettingsSectionCard
+                    title="Catalog"
+                    description="Manage categories, products, layouts, and add-ons in smaller focused tools."
+                >
+                    <SettingsActionTile title="Store information" description={storeInfo.shopName} icon="storefront-outline" onPress={() => setActiveDialog('storeInfo')} />
+                    <SettingsActionTile
+                        title="Menu management"
+                        description="Products, categories, and pricing"
+                        icon="silverware-fork-knife"
+                        onPress={() => router.push('/menu-management')}
+                    />
+                    <SettingsActionTile
+                        title="Add-ons management"
+                        description="Modifier groups and add-on items"
+                        icon="shape-outline"
+                        onPress={() => router.push('/addons-management')}
+                    />
+                    <SettingsActionTile
+                        title="POS layout"
+                        description="Category groups, colors, and button order"
+                        icon="view-dashboard-outline"
+                        onPress={() => router.push('/pos-layout-settings')}
+                    />
+                </SettingsSectionCard>
 
-            <SettingsSectionCard
-                title="Register"
-                description="Core behavior for refresh, order sounds, and kitchen printer automation."
-            >
-                <SettingsActionTile
-                    title="Refresh interval"
-                    description={refreshSummary}
-                    icon="refresh"
-                    onPress={() => setActiveDialog('refresh')}
-                />
-                <SettingsActionTile
-                    title="Order sound"
-                    description={soundSummary}
-                    icon="volume-high"
-                    onPress={() => setActiveDialog('sound')}
-                />
-                <SettingsActionTile
-                    title="Live order cards"
-                    description={liveOrdersSummary}
-                    icon="view-carousel-outline"
-                    onPress={() => setActiveDialog('liveOrders')}
-                />
-                <SettingsActionTile
-                    title="Marketplace auto-sync"
-                    description={marketplaceAutoSyncEnabled ? 'Enabled on this tablet' : 'Disabled on this tablet'}
-                    icon="sync"
-                    onPress={() => setActiveDialog('marketplace')}
-                />
-                <SettingsActionTile
-                    title="Caller ID listener"
-                    description={callerIdSummary}
-                    icon="phone-in-talk-outline"
-                    onPress={() => setActiveDialog('callerId')}
-                />
-                <SettingsActionTile
-                    title="Kitchen printer"
-                    description={printerSummary}
-                    icon="printer"
-                    onPress={() => setActiveDialog('printer')}
-                />
-                <SettingsActionTile
-                    title="Print diagnostics"
-                    description={printerDebugFooter ? 'Diagnostic footer enabled' : 'Diagnostic footer disabled'}
-                    icon="text-box-search-outline"
-                    onPress={() => setActiveDialog('printDiagnostics')}
-                />
-            </SettingsSectionCard>
+                <SettingsSectionCard
+                    title="Register"
+                    description="Core behavior for refresh, order sounds, and kitchen printer automation."
+                >
+                    <SettingsActionTile
+                        title="Refresh interval"
+                        description={refreshSummary}
+                        icon="refresh"
+                        onPress={() => setActiveDialog('refresh')}
+                    />
+                    <SettingsActionTile
+                        title="Order sound"
+                        description={soundSummary}
+                        icon="volume-high"
+                        onPress={() => setActiveDialog('sound')}
+                    />
+                    <SettingsActionTile
+                        title="Live order cards"
+                        description={liveOrdersSummary}
+                        icon="view-carousel-outline"
+                        onPress={() => setActiveDialog('liveOrders')}
+                    />
+                    <SettingsActionTile
+                        title="Marketplace auto-sync"
+                        description={marketplaceAutoSyncEnabled ? 'Enabled on this tablet' : 'Disabled on this tablet'}
+                        icon="sync"
+                        onPress={() => setActiveDialog('marketplace')}
+                    />
+                    <SettingsActionTile
+                        title="Caller ID listener"
+                        description={callerIdSummary}
+                        icon="phone-in-talk-outline"
+                        onPress={() => setActiveDialog('callerId')}
+                    />
+                    <SettingsActionTile
+                        title="Kitchen printer"
+                        description={printerSummary}
+                        icon="printer"
+                        onPress={() => setActiveDialog('printer')}
+                    />
+                    <SettingsActionTile
+                        title="Print diagnostics"
+                        description={printerDebugFooter ? 'Diagnostic footer enabled' : 'Diagnostic footer disabled'}
+                        icon="text-box-search-outline"
+                        onPress={() => setActiveDialog('printDiagnostics')}
+                    />
+                </SettingsSectionCard>
 
-            <SettingsSectionCard
-                title="Storage"
-                description="Manage transient POS data and settings backups for this tablet."
-            >
-                <SettingsActionTile
-                    title="Refresh POS catalogue"
-                    description="Reload products, options, promotions, and layouts"
-                    icon="database-remove-outline"
-                    onPress={handleClearPosCache}
-                />
-                <SettingsActionTile
-                    title="Export POS settings"
-                    description="Save this tablet’s settings as a JSON backup"
-                    icon="file-export-outline"
-                    onPress={handleExportSettings}
-                />
-                <SettingsActionTile
-                    title="Import POS settings"
-                    description="Restore a previously exported settings backup"
-                    icon="file-import-outline"
-                    onPress={handleImportSettings}
-                />
-            </SettingsSectionCard>
+                <SettingsSectionCard
+                    title="Storage"
+                    description="Manage transient POS data and settings backups for this tablet."
+                >
+                    <SettingsActionTile
+                        title="Refresh POS catalogue"
+                        description="Reload products, options, promotions, and layouts"
+                        icon="database-remove-outline"
+                        onPress={handleClearPosCache}
+                    />
+                    <SettingsActionTile
+                        title="Export POS settings"
+                        description="Save this tablet’s settings as a JSON backup"
+                        icon="file-export-outline"
+                        onPress={handleExportSettings}
+                    />
+                    <SettingsActionTile
+                        title="Import POS settings"
+                        description="Restore a previously exported settings backup"
+                        icon="file-import-outline"
+                        onPress={handleImportSettings}
+                    />
+                </SettingsSectionCard>
 
-            <SettingsSectionCard
-                title="Integrations"
-                description="Connect this POS register to payment terminals and external services."
-            >
-                <SettingsActionTile
-                    title="Smartpay POS pairing"
-                    description="Manage payment terminal connection"
-                    icon="credit-card-outline"
-                    onPress={() => router.push('/POS-intergation')}
-                />
-            </SettingsSectionCard>
+                <SettingsSectionCard
+                    title="Integrations"
+                    description="Connect this POS register to payment terminals and external services."
+                >
+                    <SettingsActionTile
+                        title="Smartpay POS pairing"
+                        description="Manage payment terminal connection"
+                        icon="credit-card-outline"
+                        onPress={() => router.push('/POS-intergation')}
+                    />
+                </SettingsSectionCard>
 
-            <Button
-                mode="contained"
-                loading={saving}
-                disabled={saving}
-                onPress={handleSave}
-                style={styles.saveButton}
-                contentStyle={styles.saveButtonContent}
-            >
-                Save
-            </Button>
+                <Button
+                    mode="contained"
+                    loading={saving}
+                    disabled={saving}
+                    onPress={handleSave}
+                    style={styles.saveButton}
+                    contentStyle={styles.saveButtonContent}
+                >
+                    Save
+                </Button>
 
-            <Text style={styles.footer}>More settings coming later.</Text>
+                <Text style={styles.footer}>More settings coming later.</Text>
 
-            <Modal
-                visible={activeDialog !== null}
-                animationType="slide"
-                presentationStyle="fullScreen"
-                onRequestClose={() => setActiveDialog(null)}
-            >
-                <View style={styles.modalScreen}>
-                    <Appbar.Header style={styles.modalHeader}>
-                        <Appbar.BackAction onPress={() => setActiveDialog(null)} iconColor="#fff" />
-                        <Appbar.Content
-                            title={activeDialog ? SETTINGS_MODAL_TITLES[activeDialog] : 'Settings'}
-                            titleStyle={styles.modalHeaderTitle}
-                        />
-                    </Appbar.Header>
-                    <ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
-                        {activeDialog === 'refresh' && (
-                            <>
-                        <TextInput
-                            mode="outlined"
-                            label="Refresh interval (seconds)"
-                            value={refreshIntervalSecText}
-                            onChangeText={setRefreshIntervalSecText}
-                            keyboardType="number-pad"
-                            style={styles.input}
-                        />
-                        <Text style={styles.helper}>Min 5, max 600.</Text>
-                            </>
-                        )}
-
-                        {activeDialog === 'callerId' && (
-                            <>
-                                <View style={styles.switchRow}>
-                                    <Text style={styles.label}>Enable caller ID listener</Text>
-                                    <Switch value={callerIdEnabled} onValueChange={setCallerIdEnabled} />
-                                </View>
-                                <Text style={styles.panelDescription}>
-                                    Listen for SIP UDP INVITEs on this device to display caller ID.
-                                </Text>
-
-                                <View style={[styles.switchRow, { marginTop: 16 }]}>
-                                    <Text style={styles.label}>Enable AI Call Assistant</Text>
-                                    <Switch
-                                        value={aiCallAssistantEnabled}
-                                        onValueChange={setAiCallAssistantEnabled}
-                                        disabled={!callerIdEnabled}
+                <Modal
+                    visible={activeDialog !== null}
+                    animationType="slide"
+                    presentationStyle="fullScreen"
+                    onRequestClose={() => setActiveDialog(null)}
+                >
+                    <View style={styles.modalScreen}>
+                        <Appbar.Header style={styles.modalHeader}>
+                            <Appbar.BackAction onPress={() => setActiveDialog(null)} iconColor="#fff" />
+                            <Appbar.Content
+                                title={activeDialog ? SETTINGS_MODAL_TITLES[activeDialog] : 'Settings'}
+                                titleStyle={styles.modalHeaderTitle}
+                            />
+                        </Appbar.Header>
+                        <ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
+                            {activeDialog === 'refresh' && (
+                                <>
+                                    <TextInput
+                                        mode="outlined"
+                                        label="Refresh interval (seconds)"
+                                        value={refreshIntervalSecText}
+                                        onChangeText={setRefreshIntervalSecText}
+                                        keyboardType="number-pad"
+                                        style={styles.input}
                                     />
-                                </View>
-                                <Text style={styles.panelDescription}>
-                                    Bridge incoming calls to the OpenAI Realtime API so the AI agent can take orders. Requires Caller ID listener to be enabled.
-                                </Text>
-
-                                <TextInput
-                                    mode="outlined"
-                                    label="UDP Port"
-                                    value={callerIdPortText}
-                                    onChangeText={setCallerIdPortText}
-                                    keyboardType="number-pad"
-                                    style={styles.input}
-                                />
-                                <Text style={styles.helper}>Usually 5060.</Text>
-
-                                <TextInput
-                                    mode="outlined"
-                                    label="Display duration (seconds)"
-                                    value={callerIdDisplaySecondsText}
-                                    onChangeText={setCallerIdDisplaySecondsText}
-                                    keyboardType="number-pad"
-                                    style={styles.input}
-                                />
-                                <Text style={styles.helper}>How long the notification stays on screen.</Text>
-
-                                <TextInput
-                                    mode="outlined"
-                                    label="SIP Responses (comma separated)"
-                                    value={callerIdSipResponsesText}
-                                    onChangeText={setCallerIdSipResponsesText}
-                                    style={styles.input}
-                                    autoCapitalize="none"
-                                    placeholder="e.g. 100 Trying, 180 Ringing"
-                                />
-                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
-                                    {[
-                                        { label: 'None', value: '' },
-                                        { label: 'Trying', value: '100 Trying' },
-                                        { label: 'Ringing', value: '180 Ringing' },
-                                        { label: 'Trying + Ringing', value: '100 Trying, 180 Ringing' },
-                                        { label: 'OK', value: '200 OK' },
-                                        { label: 'Trying + OK', value: '100 Trying, 200 OK' },
-                                        { label: 'Busy (486)', value: '486 Busy Here' },
-                                        { label: 'Unavailable (480)', value: '480 Temporarily Unavailable' },
-                                    ].map((preset, idx) => (
-                                        <Chip
-                                            key={idx}
-                                            mode="outlined"
-                                            compact
-                                            onPress={() => setCallerIdSipResponsesText(preset.value)}
-                                        >
-                                            {preset.label}
-                                        </Chip>
-                                    ))}
-                                </View>
-                            </>
-                        )}
-
-                        {activeDialog === 'sound' && (
-                            <>
-                        <View style={styles.switchRow}>
-                            <Text style={styles.label}>Sound notifications</Text>
-                            <Switch value={soundEnabled} onValueChange={setSoundEnabled} />
-                        </View>
-
-                        <Button mode="outlined" onPress={openSoundPicker} style={styles.selectButton}>
-                            {selectedSoundLabel}
-                        </Button>
-                        <Text style={styles.helper}>Tap to change.</Text>
-
-                        <TextInput
-                            mode="outlined"
-                            label="Play times"
-                            value={repeatCountText}
-                            onChangeText={setRepeatCountText}
-                            keyboardType="number-pad"
-                            style={styles.input}
-                        />
-                        <Text style={styles.helper}>1 to 10 with a 2 second gap between plays.</Text>
-
-                        <Button mode="contained-tonal" onPress={handlePreview} style={styles.previewButton}>
-                            Preview sound
-                        </Button>
-                            </>
-                        )}
-
-                        {activeDialog === 'liveOrders' && (
-                            <>
-                        <Text style={styles.label}>Display mode</Text>
-                        <View style={styles.buttonGroup}>
-                            <Button
-                                mode={liveOrderCardLayout === 'vertical' ? 'contained' : 'outlined'}
-                                onPress={() => setLiveOrderCardLayout('vertical')}
-                                style={styles.flexButton}
-                            >
-                                Vertical
-                            </Button>
-                            <Button
-                                mode={liveOrderCardLayout === 'horizontal' ? 'contained' : 'outlined'}
-                                onPress={() => setLiveOrderCardLayout('horizontal')}
-                                style={styles.flexButton}
-                            >
-                                Horizontal
-                            </Button>
-                        </View>
-                        <Text style={styles.helper}>Vertical uses compact queue cards with horizontal scrolling. Horizontal keeps the full-width row list.</Text>
-                        
-                        {liveOrderCardLayout === 'vertical' && (
-                            <>
-                                <Text style={[styles.label, { marginTop: 16 }]}>Cards per screen (Landscape)</Text>
-                                <View style={styles.buttonGroup}>
-                                    <Button
-                                        mode={liveOrderCardsPerScreen === 3 ? 'contained' : 'outlined'}
-                                        onPress={() => setLiveOrderCardsPerScreen(3)}
-                                        style={styles.flexButton}
-                                    >
-                                        3 Cards
-                                    </Button>
-                                    <Button
-                                        mode={liveOrderCardsPerScreen === 4 ? 'contained' : 'outlined'}
-                                        onPress={() => setLiveOrderCardsPerScreen(4)}
-                                        style={styles.flexButton}
-                                    >
-                                        4 Cards
-                                    </Button>
-                                </View>
-                            </>
-                        )}
-                        
-                        <Text style={[styles.label, { marginTop: 16 }]}>Items to preview</Text>
-                        <View style={styles.buttonGroup}>
-                            {[3, 5, 8, 12].map((num) => (
-                                <Button
-                                    key={num}
-                                    mode={liveOrderCardPreviewItems === num ? 'contained' : 'outlined'}
-                                    onPress={() => setLiveOrderCardPreviewItems(num)}
-                                    style={styles.flexButton}
-                                >
-                                    {num}
-                                </Button>
-                            ))}
-                        </View>
-                        <Text style={styles.helper}>Number of items shown on the card before truncating.</Text>
-                            </>
-                        )}
-
-                        {activeDialog === 'marketplace' && (
-                            <>
-                                <View style={styles.switchRow}>
-                                    <Text style={styles.label}>Marketplace auto-sync</Text>
-                                    <Switch value={marketplaceAutoSyncEnabled} onValueChange={setMarketplaceAutoSyncEnabled} />
-                                </View>
-                                <Text style={styles.helper}>
-                                    Automatically checks Uber Eats and DoorDash on this tablet. Manual marketplace refresh and status updates remain available.
-                                </Text>
-                                <TextInput
-                                    mode="outlined"
-                                    label="Marketplace polling interval (seconds)"
-                                    value={marketplaceSyncIntervalSecText}
-                                    onChangeText={setMarketplaceSyncIntervalSecText}
-                                    keyboardType="number-pad"
-                                    style={styles.input}
-                                />
-                                <Text style={styles.helper}>
-                                    Checks in the background every 15 to 600 seconds. The default is 30 seconds and applies immediately after saving.
-                                </Text>
-                                <TextInput
-                                    mode="outlined"
-                                    label="Marketplace sync start time"
-                                    value={marketplaceSyncStartTime}
-                                    onChangeText={setMarketplaceSyncStartTime}
-                                    placeholder="11:00"
-                                    style={styles.input}
-                                />
-                                <TextInput
-                                    mode="outlined"
-                                    label="Marketplace sync end time"
-                                    value={marketplaceSyncEndTime}
-                                    onChangeText={setMarketplaceSyncEndTime}
-                                    placeholder="20:30"
-                                    style={styles.input}
-                                />
-                                <Text style={styles.helper}>
-                                    Uses Melbourne time. Auto-sync runs from the start time up to, but not including, the end time. Manual refresh remains available anytime.
-                                </Text>
-                                <Text style={styles.label}>Marketplace request mode</Text>
-                                <View style={styles.segmentedButtons}>
-                                    <Button
-                                        mode={marketplaceFetchMode === 'api' ? 'contained' : 'outlined'}
-                                        onPress={() => setMarketplaceFetchMode('api')}
-                                        style={styles.segmentedButton}
-                                    >
-                                        API (recommended)
-                                    </Button>
-                                    <Button
-                                        mode={marketplaceFetchMode === 'local' ? 'contained' : 'outlined'}
-                                        onPress={() => setMarketplaceFetchMode('local')}
-                                        style={styles.segmentedButton}
-                                    >
-                                        Local tablet
-                                    </Button>
-                                </View>
-                                <Text style={styles.helper}>
-                                    API sends provider requests through the web API. Local tablet sends provider requests directly from this tablet after fetching a session held in memory for up to one hour.
-                                </Text>
-                            </>
-                        )}
-
-                        {activeDialog === 'printDiagnostics' && (
-                            <>
-                                <TextInput
-                                    mode="outlined"
-                                    label="Register name"
-                                    value={registerName}
-                                    onChangeText={setRegisterName}
-                                    autoCapitalize="words"
-                                    style={styles.input}
-                                />
-                                <Text style={styles.helper}>Optional name used to identify this POS register in diagnostic output.</Text>
-
-                                <View style={[styles.switchRow, { marginTop: 16 }]}>
-                                    <Text style={styles.label}>Print diagnostic footer</Text>
-                                    <Switch value={printerDebugFooter} onValueChange={setPrinterDebugFooter} />
-                                </View>
-                                <Text style={styles.helper}>Adds diagnostic details to kitchen tickets. Leave off during normal service.</Text>
-                            </>
-                        )}
-
-                        {activeDialog === 'storeInfo' && (
-                            <>
-                                {([['shopName', 'Shop name'], ['legalName', 'Legal company name'], ['abn', 'ABN'], ['addressLine1', 'Address line 1'], ['addressLine2', 'Address line 2'], ['phone', 'Phone'], ['website', 'Website'], ['logoUrl', 'Logo URL'], ['openingHours', 'Opening hours']] as Array<[keyof StoreInfo, string]>).map(([key, label]) => (
-                                    <TextInput key={key} mode="outlined" label={label} value={storeInfo[key]} onChangeText={(value) => setStoreInfo((current) => ({ ...current, [key]: value }))} style={styles.input} />
-                                ))}
-                                <Text style={styles.helper}>This shared information syncs to all online POS registers. Opening hours are stored for future use and are not printed on receipts.</Text>
-                                <Button mode="contained" loading={saving} disabled={saving || !storeInfo.shopName.trim()} onPress={async () => { try { setSaving(true); setStoreInfo(await saveStoreInfo({ ...storeInfo, shopName: storeInfo.shopName.trim() })); Alert.alert('Saved', 'Store information updated for all registers.'); } catch (error) { Alert.alert('Save failed', error instanceof Error ? error.message : 'Unable to update store information.'); } finally { setSaving(false); } }} style={styles.previewButton}>Save store information</Button>
-                            </>
-                        )}
-
-                        {activeDialog === 'printer' && (
-                            <>
-                            <View style={styles.switchRow}>
-                                <Text style={styles.label}>Enable Epson printer</Text>
-                                <Switch value={printerEnabled} onValueChange={setPrinterEnabled} />
-                            </View>
-
-                            <Button
-                                mode="outlined"
-                                onPress={() => void handleStartDiscovery()}
-                                disabled={isDiscovering}
-                                style={styles.selectButton}
-                            >
-                                {isDiscovering ? 'Discovering…' : 'Discover printers'}
-                            </Button>
-
-                            {isDiscovering && (
-                                <Button mode="text" onPress={stop} style={styles.selectButton}>
-                                    Stop discovery
-                                </Button>
+                                    <Text style={styles.helper}>Min 5, max 600.</Text>
+                                </>
                             )}
 
-                            <View style={styles.panelCard}>
-                                <View style={styles.panelHeader}>
-                                    <Text style={styles.panelTitle}>Add printer manually</Text>
-                                    <Text style={styles.panelDescription}>Create a network or simulator printer entry without discovery.</Text>
-                                </View>
-                                <View style={styles.buttonGroup}>
-                                    <Button
-                                        mode={manualPrinterDriver === 'rawTcp' ? 'contained' : 'outlined'}
-                                        onPress={() => setManualPrinterDriver('rawTcp')}
-                                        style={styles.flexButton}
-                                    >
-                                        TCP Raw
-                                    </Button>
-                                    <Button
-                                        mode={manualPrinterDriver === 'simulator' ? 'contained' : 'outlined'}
-                                        onPress={() => setManualPrinterDriver('simulator')}
-                                        style={styles.flexButton}
-                                    >
-                                        Simulator
-                                    </Button>
-                                </View>
-                                {manualPrinterDriver === 'rawTcp' ? (
-                                    <>
-                                <TextInput
-                                    mode="outlined"
-                                    label="Printer IP address"
-                                    value={manualPrinterIp}
-                                    onChangeText={setManualPrinterIp}
-                                    autoCapitalize="none"
-                                    autoCorrect={false}
-                                    keyboardType="decimal-pad"
-                                    placeholder="192.168.1.50"
-                                    style={styles.input}
-                                />
-                                <TextInput
-                                    mode="outlined"
-                                    label="Printer port"
-                                    value={manualPrinterPortText}
-                                    onChangeText={setManualPrinterPortText}
-                                    keyboardType="number-pad"
-                                    placeholder={String(DEFAULT_MANUAL_PRINTER_PORT)}
-                                    style={styles.input}
-                                />
-                                <TextInput
-                                    mode="outlined"
-                                    label="Printer name (optional)"
-                                    value={manualPrinterName}
-                                    onChangeText={setManualPrinterName}
-                                    autoCapitalize="words"
-                                    style={styles.input}
-                                />
-                                <Text style={styles.helper}>Use this when discovery misses a network printer. Port defaults to 9100, which is the usual raw TCP printer port.</Text>
-                                    </>
-                                ) : (
-                                    <>
-                                <TextInput
-                                    mode="outlined"
-                                    label="Simulator name"
-                                    value={manualPrinterName}
-                                    onChangeText={setManualPrinterName}
-                                    autoCapitalize="words"
-                                    placeholder={DEFAULT_SIMULATOR_PRINTER_NAME}
-                                    style={styles.input}
-                                />
-                                <Text style={styles.helper}>Virtual printers open the receipt in the in-app simulator instead of sending it to physical hardware.</Text>
-                                    </>
-                                )}
-                                <View style={styles.buttonGroup}>
-                                    <Button mode="contained-tonal" onPress={handleManualPrinterAdd} style={styles.flexButton}>
-                                        {editingManualPrinterTarget ? 'Update printer' : 'Add printer'}
-                                    </Button>
-                                    {editingManualPrinterTarget ? (
-                                        <Button mode="text" onPress={resetManualPrinterForm} style={styles.flexButton}>
-                                            Cancel edit
-                                        </Button>
-                                    ) : null}
-                                </View>
-                            </View>
-
-                            {printers.length > 0 && (
-                                <View style={styles.panelCard}>
-                                    <View style={styles.panelHeader}>
-                                        <Text style={styles.panelTitle}>Discovered printers</Text>
-                                        <Text style={styles.panelDescription}>Printers found on the network that can be added or used to update saved devices.</Text>
+                            {activeDialog === 'callerId' && (
+                                <>
+                                    <View style={styles.switchRow}>
+                                        <Text style={styles.label}>Enable caller ID listener</Text>
+                                        <Switch value={callerIdEnabled} onValueChange={setCallerIdEnabled} />
                                     </View>
-                                    {discoveredPrinterMatches.map(({ printer: p, matchedSaved, isSelected, needsReplacement }) => (
-                                        <View key={p.target} style={styles.printerCard}>
-                                            <View style={styles.printerDetails}>
-                                                <Text style={styles.printerName}>{p.deviceName}</Text>
-                                                <Text style={styles.printerMeta}>
-                                                    {p.ipAddress || p.macAddress || p.bdAddress || p.target}
-                                                </Text>
-                                                {matchedSaved ? (
-                                                    <Text style={styles.helper}>
-                                                        {needsReplacement
-                                                            ? `Matches saved printer. Old address: ${matchedSaved.ipAddress || matchedSaved.target}`
-                                                            : 'Already saved'}
-                                                    </Text>
-                                                ) : (
-                                                    <Text style={styles.helper}>New printer</Text>
-                                                )}
-                                            </View>
-                                            <View style={styles.printerActions}>
-                                                <Button
-                                                    mode={matchedSaved ? (isSelected ? 'contained' : 'outlined') : 'contained-tonal'}
-                                                    onPress={() => void addDiscoveredPrinter(p, { replaceExisting: needsReplacement })}
-                                                >
-                                                    {needsReplacement ? 'Replace saved' : matchedSaved ? (isSelected ? 'Saved' : 'Update saved') : 'Add'}
-                                                </Button>
-                                            </View>
-                                        </View>
-                                    ))}
-                                </View>
+                                    <Text style={styles.panelDescription}>
+                                        Listen for SIP UDP INVITEs on this device to display caller ID.
+                                    </Text>
+
+                                    <View style={[styles.switchRow, { marginTop: 16 }]}>
+                                        <Text style={styles.label}>Enable AI Call Assistant</Text>
+                                        <Switch
+                                            value={aiCallAssistantEnabled}
+                                            onValueChange={setAiCallAssistantEnabled}
+                                            disabled={!callerIdEnabled}
+                                        />
+                                    </View>
+                                    <Text style={styles.panelDescription}>
+                                        Bridge incoming calls to the OpenAI Realtime API so the AI agent can take orders. Requires Caller ID listener to be enabled.
+                                    </Text>
+
+                                    <TextInput
+                                        mode="outlined"
+                                        label="UDP Port"
+                                        value={callerIdPortText}
+                                        onChangeText={setCallerIdPortText}
+                                        keyboardType="number-pad"
+                                        style={styles.input}
+                                    />
+                                    <Text style={styles.helper}>Usually 5060.</Text>
+
+                                    <TextInput
+                                        mode="outlined"
+                                        label="Display duration (seconds)"
+                                        value={callerIdDisplaySecondsText}
+                                        onChangeText={setCallerIdDisplaySecondsText}
+                                        keyboardType="number-pad"
+                                        style={styles.input}
+                                    />
+                                    <Text style={styles.helper}>How long the notification stays on screen.</Text>
+
+                                    <TextInput
+                                        mode="outlined"
+                                        label="SIP Responses (comma separated)"
+                                        value={callerIdSipResponsesText}
+                                        onChangeText={setCallerIdSipResponsesText}
+                                        style={styles.input}
+                                        autoCapitalize="none"
+                                        placeholder="e.g. 100 Trying, 180 Ringing"
+                                    />
+                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                                        {[
+                                            { label: 'None', value: '' },
+                                            { label: 'Trying', value: '100 Trying' },
+                                            { label: 'Ringing', value: '180 Ringing' },
+                                            { label: 'Trying + Ringing', value: '100 Trying, 180 Ringing' },
+                                            { label: 'OK', value: '200 OK' },
+                                            { label: 'Trying + OK', value: '100 Trying, 200 OK' },
+                                            { label: 'Busy (486)', value: '486 Busy Here' },
+                                            { label: 'Unavailable (480)', value: '480 Temporarily Unavailable' },
+                                        ].map((preset, idx) => (
+                                            <Chip
+                                                key={idx}
+                                                mode="outlined"
+                                                compact
+                                                onPress={() => setCallerIdSipResponsesText(preset.value)}
+                                            >
+                                                {preset.label}
+                                            </Chip>
+                                        ))}
+                                    </View>
+                                </>
                             )}
 
-                            <View style={styles.panelCard}>
-                                <View style={styles.panelHeader}>
-                                    <Text style={styles.panelTitle}>Saved printers</Text>
-                                    <Text style={styles.panelDescription}>Choose the default printer for routed image print jobs.</Text>
-                                </View>
-                                {printerSaved.length === 0 ? (
-                                    <Text style={styles.helper}>No printers saved yet. Use discovery or add one manually above.</Text>
-                                ) : (
-                                    printerSaved.map((p) => {
-                                        const isSelected = p.target === printerSelectedTarget;
-                                        return (
-                                            <View key={p.target} style={[styles.printerCard, styles.savedPrinterCard, isSelected ? styles.selectedPrinterCard : null]}>
-                                                <View style={styles.printerDetails}>
-                                                    <View style={styles.printerHeaderRow}>
-                                                        <Text style={styles.printerName}>{p.deviceName}</Text>
-                                                        <View style={[styles.printerBadge, isSelected ? styles.printerBadgeDefault : styles.printerBadgeSaved]}>
-                                                            <Text style={styles.printerBadgeText}>{isSelected ? 'Default' : 'Saved'}</Text>
-                                                        </View>
-                                                    </View>
-                                                    <Text style={styles.printerMeta}>
-                                                        {p.ipAddress ? `${p.ipAddress}:${p.port ?? DEFAULT_MANUAL_PRINTER_PORT}` : (p.macAddress || p.bdAddress || p.target)}
-                                                    </Text>
-                                                    <Text style={styles.helper}>
-                                                        {isSimulatorPrinter(p)
-                                                            ? 'Virtual simulator printer'
-                                                            : p.ipAddress
-                                                            ? `Network printer${(p.port ?? DEFAULT_MANUAL_PRINTER_PORT) === DEFAULT_MANUAL_PRINTER_PORT ? ' • port 9100' : ` • port ${p.port}`}`
-                                                            : 'Discovered printer'}
-                                                    </Text>
-                                                </View>
-                                                <View style={[styles.printerActions, styles.savedPrinterActions]}>
-                                                    <Button
-                                                        mode={isSelected ? 'contained' : 'outlined'}
-                                                        onPress={() => {
-                                                            setPrinterSelectedTarget(p.target);
-                                                            updatePrinterAssignmentTarget(defaultPrinterAssignmentId, p.target);
-                                                        }}
-                                                    >
-                                                        {isSelected ? 'Default' : 'Set default'}
-                                                    </Button>
-                                                    {p.driver === 'rawTcp' || p.driver === 'simulator' ? (
-                                                        <Button
-                                                            mode="text"
-                                                            onPress={() => startEditingManualPrinter(p)}
-                                                        >
-                                                            Edit
-                                                        </Button>
-                                                    ) : null}
-                                                    <Button mode="text" onPress={() => removeSavedPrinter(p.target)}>
-                                                        Remove
-                                                    </Button>
-                                                </View>
-                                            </View>
-                                        );
-                                    })
-                                )}
-                            </View>
+                            {activeDialog === 'sound' && (
+                                <>
+                                    <View style={styles.switchRow}>
+                                        <Text style={styles.label}>Sound notifications</Text>
+                                        <Switch value={soundEnabled} onValueChange={setSoundEnabled} />
+                                    </View>
 
-                            <View style={styles.panelCard}>
-                                <View style={styles.panelHeader}>
-                                    <Text style={styles.panelTitle}>Section printers</Text>
-                                    <Text style={styles.panelDescription}>Each rule is separated below. Default is the fallback. `Customer Copy` can be routed as its own receipt job.</Text>
-                                </View>
-                                {printerSectionAssignments.map((assignment, index) => {
-                                    const assignmentPrinter = printerSaved.find((printer) => printer.target === assignment.printerTarget) || null;
-                                    return (
-                                        <View key={assignment.id}>
-                                            <View style={styles.assignmentCard}>
-                                                <View style={styles.assignmentHeader}>
-                                                    <Text style={styles.assignmentTitle}>
-                                                        {assignment.isDefault ? 'Default route' : assignment.sectionName || `Section rule ${index + 1}`}
-                                                    </Text>
-                                                    <Text style={styles.assignmentSummary}>
-                                                        {assignmentPrinter?.deviceName || 'No printer selected'}
-                                                    </Text>
-                                                </View>
-                                                {assignment.isDefault ? (
-                                                    <TextInput
-                                                        mode="outlined"
-                                                        label="Default section"
-                                                        value="Default"
-                                                        disabled
-                                                        style={styles.input}
-                                                    />
-                                                ) : (
-                                                    <Button
-                                                        mode="outlined"
-                                                        style={styles.selectButton}
-                                                        onPress={() => Alert.alert(
-                                                            'Select section',
-                                                            undefined,
-                                                            [
-                                                                ...PRINT_SECTION_OPTIONS.map((section) => ({
-                                                                    text: section,
-                                                                    onPress: () => updatePrinterAssignmentSection(assignment.id, section),
-                                                                })),
-                                                                { text: 'Cancel', style: 'cancel' as const },
-                                                            ]
-                                                        )}
-                                                    >
-                                                        {assignment.sectionName || 'Select section'}
-                                                    </Button>
-                                                )}
+                                    <Button mode="outlined" onPress={openSoundPicker} style={styles.selectButton}>
+                                        {selectedSoundLabel}
+                                    </Button>
+                                    <Text style={styles.helper}>Tap to change.</Text>
+
+                                    <TextInput
+                                        mode="outlined"
+                                        label="Play times"
+                                        value={repeatCountText}
+                                        onChangeText={setRepeatCountText}
+                                        keyboardType="number-pad"
+                                        style={styles.input}
+                                    />
+                                    <Text style={styles.helper}>1 to 10 with a 2 second gap between plays.</Text>
+
+                                    <Button mode="contained-tonal" onPress={handlePreview} style={styles.previewButton}>
+                                        Preview sound
+                                    </Button>
+                                </>
+                            )}
+
+                            {activeDialog === 'liveOrders' && (
+                                <>
+                                    <Text style={styles.label}>Display mode</Text>
+                                    <View style={styles.buttonGroup}>
+                                        <Button
+                                            mode={liveOrderCardLayout === 'vertical' ? 'contained' : 'outlined'}
+                                            onPress={() => setLiveOrderCardLayout('vertical')}
+                                            style={styles.flexButton}
+                                        >
+                                            Vertical
+                                        </Button>
+                                        <Button
+                                            mode={liveOrderCardLayout === 'horizontal' ? 'contained' : 'outlined'}
+                                            onPress={() => setLiveOrderCardLayout('horizontal')}
+                                            style={styles.flexButton}
+                                        >
+                                            Horizontal
+                                        </Button>
+                                    </View>
+                                    <Text style={styles.helper}>Vertical uses compact queue cards with horizontal scrolling. Horizontal keeps the full-width row list.</Text>
+
+                                    {liveOrderCardLayout === 'vertical' && (
+                                        <>
+                                            <Text style={[styles.label, { marginTop: 16 }]}>Cards per screen (Landscape)</Text>
+                                            <View style={styles.buttonGroup}>
                                                 <Button
-                                                    mode="outlined"
-                                                    style={styles.selectButton}
-                                                    onPress={() => Alert.alert(
-                                                        assignment.isDefault ? 'Choose default printer' : `Choose printer for ${assignment.sectionName || 'this section'}`,
-                                                        undefined,
-                                                        [
-                                                            ...printerSaved.map((printer) => ({
-                                                                text: printer.deviceName,
-                                                                onPress: () => updatePrinterAssignmentTarget(assignment.id, printer.target),
-                                                            })),
-                                                            { text: 'Clear', onPress: () => updatePrinterAssignmentTarget(assignment.id, null) },
-                                                            { text: 'Cancel', style: 'cancel' as const },
-                                                        ]
-                                                    )}
+                                                    mode={liveOrderCardsPerScreen === 3 ? 'contained' : 'outlined'}
+                                                    onPress={() => setLiveOrderCardsPerScreen(3)}
+                                                    style={styles.flexButton}
                                                 >
-                                                    {assignmentPrinter?.deviceName || (assignment.isDefault ? 'Select default printer' : 'No printer (skip)')}
+                                                    3 Cards
                                                 </Button>
-                                                <View style={styles.assignmentDivider} />
-                                                <Text style={[styles.label, styles.assignmentSubLabel]}>Print mode</Text>
-                                                <View style={styles.buttonGroup}>
-                                                    <Button
-                                                        mode={(assignment.printMode || 'combine') === 'combine' ? 'contained' : 'outlined'}
-                                                        onPress={() => updatePrinterAssignmentPrintMode(assignment.id, 'combine')}
-                                                        style={styles.flexButton}
-                                                    >
-                                                        Combine
-                                                    </Button>
-                                                    <Button
-                                                        mode={assignment.printMode === 'separate' ? 'contained' : 'outlined'}
-                                                        onPress={() => updatePrinterAssignmentPrintMode(assignment.id, 'separate')}
-                                                        style={styles.flexButton}
-                                                    >
-                                                        Separate
-                                                    </Button>
-                                                </View>
-                                                <Text style={[styles.label, styles.assignmentSubLabel]}>Template</Text>
-                                                <View style={styles.buttonGroup}>
-                                                    <Button
-                                                        mode={(assignment.template || 'kitchen') === 'kitchen' ? 'contained' : 'outlined'}
-                                                        onPress={() => updatePrinterAssignmentTemplate(assignment.id, 'kitchen')}
-                                                        style={styles.flexButton}
-                                                    >
-                                                        Kitchen
-                                                    </Button>
-                                                    <Button
-                                                        mode={assignment.template === 'customer-copy' ? 'contained' : 'outlined'}
-                                                        onPress={() => updatePrinterAssignmentTemplate(assignment.id, 'customer-copy')}
-                                                        style={styles.flexButton}
-                                                    >
-                                                        Customer Copy
-                                                    </Button>
-                                                </View>
-                                                <Text style={[styles.label, styles.assignmentSubLabel]}>Enabled time window</Text>
-                                                <View style={styles.buttonGroup}>
-                                                    <TextInput
-                                                        mode="outlined"
-                                                        label="From"
-                                                        value={assignment.enabledFromTime || ''}
-                                                        onChangeText={(value) => updatePrinterAssignmentTimeWindow(assignment.id, 'enabledFromTime', value)}
-                                                        placeholder="17:00"
-                                                        style={[styles.input, styles.flexButton]}
-                                                    />
-                                                    <TextInput
-                                                        mode="outlined"
-                                                        label="To"
-                                                        value={assignment.enabledToTime || ''}
-                                                        onChangeText={(value) => updatePrinterAssignmentTimeWindow(assignment.id, 'enabledToTime', value)}
-                                                        placeholder="20:00"
-                                                        style={[styles.input, styles.flexButton]}
-                                                    />
-                                                </View>
-                                                <Text style={styles.helper}>Leave both blank to always print. Use 24-hour time like 17:00 to 20:00.</Text>
-                                                {!assignment.isDefault && (
-                                                    <Button mode="text" onPress={() => removePrinterSectionAssignment(assignment.id)}>
-                                                        Remove section rule
-                                                    </Button>
-                                                )}
+                                                <Button
+                                                    mode={liveOrderCardsPerScreen === 4 ? 'contained' : 'outlined'}
+                                                    onPress={() => setLiveOrderCardsPerScreen(4)}
+                                                    style={styles.flexButton}
+                                                >
+                                                    4 Cards
+                                                </Button>
                                             </View>
-                                            {index < printerSectionAssignments.length - 1 ? <View style={styles.ruleDivider} /> : null}
-                                        </View>
-                                    );
-                                })}
-                                <Button mode="contained-tonal" onPress={addPrinterSectionAssignment} style={styles.previewButton}>
-                                    Add section printer
-                                </Button>
-                            </View>
+                                        </>
+                                    )}
 
-                            <View style={styles.panelCard}>
-                                <View style={styles.panelHeader}>
-                                    <Text style={styles.panelTitle}>Print behavior</Text>
-                                    <Text style={styles.panelDescription}>Control auto print timing, paper width, image quality, and test output.</Text>
-                                </View>
-                                <View style={styles.switchRow}>
-                                    <Text style={styles.label}>Auto print new orders</Text>
-                                    <Switch value={printerAutoPrint} onValueChange={setPrinterAutoPrint} disabled={!hasPrinterCapability} />
-                                </View>
+                                    <Text style={[styles.label, { marginTop: 16 }]}>Items to preview</Text>
+                                    <View style={styles.buttonGroup}>
+                                        {[3, 5, 8, 12].map((num) => (
+                                            <Button
+                                                key={num}
+                                                mode={liveOrderCardPreviewItems === num ? 'contained' : 'outlined'}
+                                                onPress={() => setLiveOrderCardPreviewItems(num)}
+                                                style={styles.flexButton}
+                                            >
+                                                {num}
+                                            </Button>
+                                        ))}
+                                    </View>
+                                    <Text style={styles.helper}>Number of items shown on the card before truncating.</Text>
+                                </>
+                            )}
 
-                                <TextInput
-                                    mode="outlined"
-                                    label="Auto-print delay (seconds)"
-                                    value={printerDelayPrintSecText}
-                                    onChangeText={setPrinterDelayPrintSecText}
-                                    keyboardType="number-pad"
-                                    style={styles.input}
-                                    disabled={!hasPrinterCapability || !printerAutoPrint}
-                                />
-                                <Text style={styles.helper}>Wait before printing a new order (0 to 120).</Text>
-
-                                <View style={styles.separator} />
-                                <Text style={styles.label}>In-store customer receipt</Text>
-                                <Text style={styles.helper}>Print one combined customer receipt first for new paid in-store Cash, Card, or SmartPay orders only.</Text>
-                                <View style={styles.switchRow}>
-                                    <Text style={styles.label}>Enable automatic receipt</Text>
-                                    <Switch value={instoreCustomerReceiptAutoPrintEnabled} onValueChange={setInstoreCustomerReceiptAutoPrintEnabled} disabled={!hasPrinterCapability} />
-                                </View>
-                                <Text style={[styles.label, styles.assignmentSubLabel]}>Receipt printer</Text>
-                                <View style={styles.buttonGroup}>
-                                    {printerSaved.map((printer) => (
-                                        <Button key={printer.target} mode={instoreCustomerReceiptPrinterTarget === printer.target ? 'contained' : 'outlined'} onPress={() => setInstoreCustomerReceiptPrinterTarget(printer.target)} style={styles.flexButton} disabled={!hasPrinterCapability}>
-                                            {printer.deviceName}
+                            {activeDialog === 'marketplace' && (
+                                <>
+                                    <View style={styles.switchRow}>
+                                        <Text style={styles.label}>Marketplace auto-sync</Text>
+                                        <Switch value={marketplaceAutoSyncEnabled} onValueChange={setMarketplaceAutoSyncEnabled} />
+                                    </View>
+                                    <Text style={styles.helper}>
+                                        Automatically checks Uber Eats and DoorDash on this tablet. Manual marketplace refresh and status updates remain available.
+                                    </Text>
+                                    <TextInput
+                                        mode="outlined"
+                                        label="Marketplace polling interval (seconds)"
+                                        value={marketplaceSyncIntervalSecText}
+                                        onChangeText={setMarketplaceSyncIntervalSecText}
+                                        keyboardType="number-pad"
+                                        style={styles.input}
+                                    />
+                                    <Text style={styles.helper}>
+                                        Checks in the background every 15 to 600 seconds. The default is 30 seconds and applies immediately after saving.
+                                    </Text>
+                                    <TextInput
+                                        mode="outlined"
+                                        label="Marketplace sync start time"
+                                        value={marketplaceSyncStartTime}
+                                        onChangeText={setMarketplaceSyncStartTime}
+                                        placeholder="11:00"
+                                        style={styles.input}
+                                    />
+                                    <TextInput
+                                        mode="outlined"
+                                        label="Marketplace sync end time"
+                                        value={marketplaceSyncEndTime}
+                                        onChangeText={setMarketplaceSyncEndTime}
+                                        placeholder="20:30"
+                                        style={styles.input}
+                                    />
+                                    <Text style={styles.helper}>
+                                        Uses Melbourne time. Auto-sync runs from the start time up to, but not including, the end time. Manual refresh remains available anytime.
+                                    </Text>
+                                    <Text style={styles.label}>Marketplace request mode</Text>
+                                    <View style={styles.segmentedButtons}>
+                                        <Button
+                                            mode={marketplaceFetchMode === 'api' ? 'contained' : 'outlined'}
+                                            onPress={() => setMarketplaceFetchMode('api')}
+                                            style={styles.segmentedButton}
+                                        >
+                                            API (recommended)
                                         </Button>
-                                    ))}
-                                </View>
-                                {printerSaved.length === 0 ? <Text style={styles.helper}>Add a saved printer before enabling automatic customer receipts.</Text> : null}
-                                <View style={styles.buttonGroup}>
-                                    <TextInput mode="outlined" label="From" value={instoreCustomerReceiptEnabledFromTime} onChangeText={setInstoreCustomerReceiptEnabledFromTime} placeholder="17:00" style={[styles.input, styles.flexButton]} disabled={!instoreCustomerReceiptAutoPrintEnabled} />
-                                    <TextInput mode="outlined" label="To" value={instoreCustomerReceiptEnabledToTime} onChangeText={setInstoreCustomerReceiptEnabledToTime} placeholder="20:00" style={[styles.input, styles.flexButton]} disabled={!instoreCustomerReceiptAutoPrintEnabled} />
-                                </View>
-                                <Text style={styles.helper}>Leave both blank to always print. Uses 24-hour time and supports overnight windows.</Text>
-
-                                <View style={styles.separator} />
-
-                                <Text style={styles.label}>In-store instant ticket</Text>
-                                <Text style={styles.helper}>Print a compact, text-only ticket for eligible paid in-store orders. A physical printer is required.</Text>
-                                <View style={styles.switchRow}>
-                                    <Text style={styles.label}>Enable instant ticket</Text>
-                                    <Switch value={instoreInstantTicketEnabled} onValueChange={setInstoreInstantTicketEnabled} disabled={!hasInstantTicketPrinterCapability} />
-                                </View>
-                                <Text style={[styles.label, styles.assignmentSubLabel]}>Ticket printer</Text>
-                                <View style={styles.buttonGroup}>
-                                    {savedPhysicalPrinters.map((printer) => (
-                                        <Button key={printer.target} mode={instoreInstantTicketPrinterTarget === printer.target ? 'contained' : 'outlined'} onPress={() => setInstoreInstantTicketPrinterTarget(printer.target)} style={styles.flexButton} disabled={!hasInstantTicketPrinterCapability}>
-                                            {printer.deviceName}
+                                        <Button
+                                            mode={marketplaceFetchMode === 'local' ? 'contained' : 'outlined'}
+                                            onPress={() => setMarketplaceFetchMode('local')}
+                                            style={styles.segmentedButton}
+                                        >
+                                            Local tablet
                                         </Button>
+                                    </View>
+                                    <Text style={styles.helper}>
+                                        API sends provider requests through the web API. Local tablet sends provider requests directly from this tablet after fetching a session held in memory for up to one hour.
+                                    </Text>
+                                </>
+                            )}
+
+                            {activeDialog === 'printDiagnostics' && (
+                                <>
+                                    <TextInput
+                                        mode="outlined"
+                                        label="Register name"
+                                        value={registerName}
+                                        onChangeText={setRegisterName}
+                                        autoCapitalize="words"
+                                        style={styles.input}
+                                    />
+                                    <Text style={styles.helper}>Optional name used to identify this POS register in diagnostic output.</Text>
+
+                                    <View style={[styles.switchRow, { marginTop: 16 }]}>
+                                        <Text style={styles.label}>Print diagnostic footer</Text>
+                                        <Switch value={printerDebugFooter} onValueChange={setPrinterDebugFooter} />
+                                    </View>
+                                    <Text style={styles.helper}>Adds diagnostic details to kitchen tickets. Leave off during normal service.</Text>
+                                </>
+                            )}
+
+                            {activeDialog === 'storeInfo' && (
+                                <>
+                                    {([['shopName', 'Shop name'], ['legalName', 'Legal company name'], ['abn', 'ABN'], ['addressLine1', 'Address line 1'], ['addressLine2', 'Address line 2'], ['phone', 'Phone'], ['website', 'Website'], ['logoUrl', 'Logo URL'], ['openingHours', 'Opening hours']] as Array<[keyof StoreInfo, string]>).map(([key, label]) => (
+                                        <TextInput key={key} mode="outlined" label={label} value={storeInfo[key]} onChangeText={(value) => setStoreInfo((current) => ({ ...current, [key]: value }))} style={styles.input} />
                                     ))}
-                                </View>
-                                {savedPhysicalPrinters.length === 0 ? <Text style={styles.helper}>Add and enable a physical saved printer before enabling instant tickets.</Text> : null}
+                                    <Text style={styles.helper}>This shared information syncs to all online POS registers. Opening hours are stored for future use and are not printed on receipts.</Text>
+                                    <Button mode="contained" loading={saving} disabled={saving || !storeInfo.shopName.trim()} onPress={async () => { try { setSaving(true); setStoreInfo(await saveStoreInfo({ ...storeInfo, shopName: storeInfo.shopName.trim() })); Alert.alert('Saved', 'Store information updated for all registers.'); } catch (error) { Alert.alert('Save failed', error instanceof Error ? error.message : 'Unable to update store information.'); } finally { setSaving(false); } }} style={styles.previewButton}>Save store information</Button>
+                                </>
+                            )}
 
-                                <View style={styles.separator} />
+                            {activeDialog === 'printer' && (
+                                <>
+                                    <View style={styles.switchRow}>
+                                        <Text style={styles.label}>Enable Epson printer</Text>
+                                        <Switch value={printerEnabled} onValueChange={setPrinterEnabled} />
+                                    </View>
 
-                                <Text style={styles.label}>Paper & quality</Text>
-                                <View style={styles.buttonGroup}>
-                                <Button
-                                    mode={printerPaperWidth === '80mm' ? 'contained' : 'outlined'}
-                                    onPress={() => setPrinterPaperWidth('80mm')}
-                                    style={styles.flexButton}
-                                >
-                                    80mm
-                                </Button>
-                                <Button
-                                    mode={printerPaperWidth === '58mm' ? 'contained' : 'outlined'}
-                                    onPress={() => setPrinterPaperWidth('58mm')}
-                                    style={styles.flexButton}
-                                >
-                                    58mm
-                                </Button>
-                                </View>
-                                <Text style={styles.helper}>Choose your paper width. 80mm is standard.</Text>
-
-                                <Text style={[styles.label, { marginTop: 12 }]}>Kitchen receipt mode</Text>
-                                <View style={styles.buttonGroup}>
-                                    <Button mode={printerReceiptMode === 'text' ? 'contained' : 'outlined'} onPress={() => setPrinterReceiptMode('text')} style={styles.flexButton}>Text</Button>
-                                    <Button mode={printerReceiptMode === 'image' ? 'contained' : 'outlined'} onPress={() => setPrinterReceiptMode('image')} style={styles.flexButton}>Image</Button>
-                                </View>
-                                <Text style={styles.helper}>Text printing is faster; Image preserves the current captured receipt layout.</Text>
-
-                                <View style={[styles.switchRow, { marginTop: 12 }]}>
-                                    <Text style={styles.label}>High quality capture (2x DPI)</Text>
-                                    <Switch value={printerHighQuality} onValueChange={setPrinterHighQuality} />
-                                </View>
-                                <Text style={styles.helper}>
-                                    Improves sharpness on higher-end thermal printers by capturing at 2x resolution.
-                                </Text>
-
-                                {JOURNAL_LOGS_ENABLED ? (
-                                    <>
                                     <Button
                                         mode="outlined"
-                                        icon="text-box-search-outline"
-                                        onPress={() => setActiveDialog('journal')}
-                                        style={styles.previewButton}
+                                        onPress={() => void handleStartDiscovery()}
+                                        disabled={isDiscovering}
+                                        style={styles.selectButton}
                                     >
-                                        View journal
+                                        {isDiscovering ? 'Discovering…' : 'Discover printers'}
                                     </Button>
-                                    <Text style={styles.helper}>{recentJournalLabel}</Text>
-                                    </>
-                                ) : null}
-                            </View>
-                            </>
-                        )}
 
-                        {activeDialog === 'journal' && JOURNAL_LOGS_ENABLED && (
-                            <>
-                            <View style={styles.logsHeaderRow}>
-                                <Text style={styles.helper}>
-                                    Review recent journal events for this device. Newest entries appear first.
-                                </Text>
-                                <Button
-                                    mode="text"
-                                    icon="delete-outline"
-                                    onPress={handleClearJournal}
-                                    disabled={journalEntries.length === 0}
-                                >
-                                    Clear journal
-                                </Button>
-                            </View>
+                                    {isDiscovering && (
+                                        <Button mode="text" onPress={stop} style={styles.selectButton}>
+                                            Stop discovery
+                                        </Button>
+                                    )}
 
-                            {journalEntries.length === 0 ? (
-                                <View style={styles.logsEmptyState}>
-                                    <Text style={styles.label}>No journal entries yet.</Text>
-                                    <Text style={styles.helper}>Run a test print or wait for the next kitchen workflow event to populate this list.</Text>
-                                </View>
-                            ) : (
-                                journalEntries.map((entry) => (
-                                    <View key={entry.id} style={styles.logCard}>
-                                        <View style={styles.logCardHeader}>
-                                            <View style={[styles.logLevelBadge, logLevelBadgeStyles[entry.level]]}>
-                                                <Text style={styles.logLevelBadgeText}>{entry.level.toUpperCase()}</Text>
-                                            </View>
-                                            <Text style={styles.logTimestamp}>{new Date(entry.timestamp).toLocaleString()}</Text>
+                                    <View style={styles.panelCard}>
+                                        <View style={styles.panelHeader}>
+                                            <Text style={styles.panelTitle}>Add printer manually</Text>
+                                            <Text style={styles.panelDescription}>Create a network or simulator printer entry without discovery.</Text>
                                         </View>
-                                        <Text style={styles.logScope}>{entry.scope}</Text>
-                                        <Text style={styles.logMessage}>{entry.message}</Text>
-                                        {entry.orderNumber || entry.orderId ? (
-                                            <Text style={styles.logMeta}>
-                                                Order: {entry.orderNumber || entry.orderId}
-                                            </Text>
-                                        ) : null}
-                                        {entry.details ? (
-                                            <Text style={styles.logDetails}>{entry.details}</Text>
+                                        <View style={styles.buttonGroup}>
+                                            <Button
+                                                mode={manualPrinterDriver === 'rawTcp' ? 'contained' : 'outlined'}
+                                                onPress={() => setManualPrinterDriver('rawTcp')}
+                                                style={styles.flexButton}
+                                            >
+                                                TCP Raw
+                                            </Button>
+                                            <Button
+                                                mode={manualPrinterDriver === 'simulator' ? 'contained' : 'outlined'}
+                                                onPress={() => setManualPrinterDriver('simulator')}
+                                                style={styles.flexButton}
+                                            >
+                                                Simulator
+                                            </Button>
+                                        </View>
+                                        {manualPrinterDriver === 'rawTcp' ? (
+                                            <>
+                                                <TextInput
+                                                    mode="outlined"
+                                                    label="Printer IP address"
+                                                    value={manualPrinterIp}
+                                                    onChangeText={setManualPrinterIp}
+                                                    autoCapitalize="none"
+                                                    autoCorrect={false}
+                                                    keyboardType="decimal-pad"
+                                                    placeholder="192.168.1.50"
+                                                    style={styles.input}
+                                                />
+                                                <TextInput
+                                                    mode="outlined"
+                                                    label="Printer port"
+                                                    value={manualPrinterPortText}
+                                                    onChangeText={setManualPrinterPortText}
+                                                    keyboardType="number-pad"
+                                                    placeholder={String(DEFAULT_MANUAL_PRINTER_PORT)}
+                                                    style={styles.input}
+                                                />
+                                                <TextInput
+                                                    mode="outlined"
+                                                    label="Printer name (optional)"
+                                                    value={manualPrinterName}
+                                                    onChangeText={setManualPrinterName}
+                                                    autoCapitalize="words"
+                                                    style={styles.input}
+                                                />
+                                                <Text style={styles.helper}>Use this when discovery misses a network printer. Port defaults to 9100, which is the usual raw TCP printer port.</Text>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <TextInput
+                                                    mode="outlined"
+                                                    label="Simulator name"
+                                                    value={manualPrinterName}
+                                                    onChangeText={setManualPrinterName}
+                                                    autoCapitalize="words"
+                                                    placeholder={DEFAULT_SIMULATOR_PRINTER_NAME}
+                                                    style={styles.input}
+                                                />
+                                                <Text style={styles.helper}>Virtual printers open the receipt in the in-app simulator instead of sending it to physical hardware.</Text>
+                                            </>
+                                        )}
+                                        <View style={styles.buttonGroup}>
+                                            <Button mode="contained-tonal" onPress={handleManualPrinterAdd} style={styles.flexButton}>
+                                                {editingManualPrinterTarget ? 'Update printer' : 'Add printer'}
+                                            </Button>
+                                            {editingManualPrinterTarget ? (
+                                                <Button mode="text" onPress={resetManualPrinterForm} style={styles.flexButton}>
+                                                    Cancel edit
+                                                </Button>
+                                            ) : null}
+                                        </View>
+                                    </View>
+
+                                    {printers.length > 0 && (
+                                        <View style={styles.panelCard}>
+                                            <View style={styles.panelHeader}>
+                                                <Text style={styles.panelTitle}>Discovered printers</Text>
+                                                <Text style={styles.panelDescription}>Printers found on the network that can be added or used to update saved devices.</Text>
+                                            </View>
+                                            {discoveredPrinterMatches.map(({ printer: p, matchedSaved, isSelected, needsReplacement }) => (
+                                                <View key={p.target} style={styles.printerCard}>
+                                                    <View style={styles.printerDetails}>
+                                                        <Text style={styles.printerName}>{p.deviceName}</Text>
+                                                        <Text style={styles.printerMeta}>
+                                                            {p.ipAddress || p.macAddress || p.bdAddress || p.target}
+                                                        </Text>
+                                                        {matchedSaved ? (
+                                                            <Text style={styles.helper}>
+                                                                {needsReplacement
+                                                                    ? `Matches saved printer. Old address: ${matchedSaved.ipAddress || matchedSaved.target}`
+                                                                    : 'Already saved'}
+                                                            </Text>
+                                                        ) : (
+                                                            <Text style={styles.helper}>New printer</Text>
+                                                        )}
+                                                    </View>
+                                                    <View style={styles.printerActions}>
+                                                        <Button
+                                                            mode={matchedSaved ? (isSelected ? 'contained' : 'outlined') : 'contained-tonal'}
+                                                            onPress={() => void addDiscoveredPrinter(p, { replaceExisting: needsReplacement })}
+                                                        >
+                                                            {needsReplacement ? 'Replace saved' : matchedSaved ? (isSelected ? 'Saved' : 'Update saved') : 'Add'}
+                                                        </Button>
+                                                    </View>
+                                                </View>
+                                            ))}
+                                        </View>
+                                    )}
+
+                                    <View style={styles.panelCard}>
+                                        <View style={styles.panelHeader}>
+                                            <Text style={styles.panelTitle}>Saved printers</Text>
+                                            <Text style={styles.panelDescription}>Choose the default printer for routed image print jobs.</Text>
+                                        </View>
+                                        {printerSaved.length === 0 ? (
+                                            <Text style={styles.helper}>No printers saved yet. Use discovery or add one manually above.</Text>
+                                        ) : (
+                                            printerSaved.map((p) => {
+                                                const isSelected = p.target === printerSelectedTarget;
+                                                return (
+                                                    <View key={p.target} style={[styles.printerCard, styles.savedPrinterCard, isSelected ? styles.selectedPrinterCard : null]}>
+                                                        <View style={styles.printerDetails}>
+                                                            <View style={styles.printerHeaderRow}>
+                                                                <Text style={styles.printerName}>{p.deviceName}</Text>
+                                                                <View style={[styles.printerBadge, isSelected ? styles.printerBadgeDefault : styles.printerBadgeSaved]}>
+                                                                    <Text style={styles.printerBadgeText}>{isSelected ? 'Default' : 'Saved'}</Text>
+                                                                </View>
+                                                            </View>
+                                                            <Text style={styles.printerMeta}>
+                                                                {p.ipAddress ? `${p.ipAddress}:${p.port ?? DEFAULT_MANUAL_PRINTER_PORT}` : (p.macAddress || p.bdAddress || p.target)}
+                                                            </Text>
+                                                            <Text style={styles.helper}>
+                                                                {isSimulatorPrinter(p)
+                                                                    ? 'Virtual simulator printer'
+                                                                    : p.ipAddress
+                                                                        ? `Network printer${(p.port ?? DEFAULT_MANUAL_PRINTER_PORT) === DEFAULT_MANUAL_PRINTER_PORT ? ' • port 9100' : ` • port ${p.port}`}`
+                                                                        : 'Discovered printer'}
+                                                            </Text>
+                                                        </View>
+                                                        <View style={[styles.printerActions, styles.savedPrinterActions]}>
+                                                            <Button
+                                                                mode={isSelected ? 'contained' : 'outlined'}
+                                                                onPress={() => {
+                                                                    setPrinterSelectedTarget(p.target);
+                                                                    updatePrinterAssignmentTarget(defaultPrinterAssignmentId, p.target);
+                                                                }}
+                                                            >
+                                                                {isSelected ? 'Default' : 'Set default'}
+                                                            </Button>
+                                                            {p.driver === 'rawTcp' || p.driver === 'simulator' ? (
+                                                                <Button
+                                                                    mode="text"
+                                                                    onPress={() => startEditingManualPrinter(p)}
+                                                                >
+                                                                    Edit
+                                                                </Button>
+                                                            ) : null}
+                                                            <Button mode="text" onPress={() => removeSavedPrinter(p.target)}>
+                                                                Remove
+                                                            </Button>
+                                                        </View>
+                                                    </View>
+                                                );
+                                            })
+                                        )}
+                                    </View>
+
+                                    <View style={styles.panelCard}>
+                                        <View style={styles.panelHeader}>
+                                            <Text style={styles.panelTitle}>Section printers</Text>
+                                            <Text style={styles.panelDescription}>Each rule is separated below. Default is the fallback. `Customer Copy` can be routed as its own receipt job.</Text>
+                                        </View>
+                                        {printerSectionAssignments.map((assignment, index) => {
+                                            const assignmentPrinter = printerSaved.find((printer) => printer.target === assignment.printerTarget) || null;
+                                            return (
+                                                <View key={assignment.id}>
+                                                    <View style={styles.assignmentCard}>
+                                                        <View style={styles.assignmentHeader}>
+                                                            <Text style={styles.assignmentTitle}>
+                                                                {assignment.isDefault ? 'Default route' : assignment.sectionName || `Section rule ${index + 1}`}
+                                                            </Text>
+                                                            <Text style={styles.assignmentSummary}>
+                                                                {assignmentPrinter?.deviceName || 'No printer selected'}
+                                                            </Text>
+                                                        </View>
+                                                        {assignment.isDefault ? (
+                                                            <TextInput
+                                                                mode="outlined"
+                                                                label="Default section"
+                                                                value="Default"
+                                                                disabled
+                                                                style={styles.input}
+                                                            />
+                                                        ) : (
+                                                            <Button
+                                                                mode="outlined"
+                                                                style={styles.selectButton}
+                                                                onPress={() => Alert.alert(
+                                                                    'Select section',
+                                                                    undefined,
+                                                                    [
+                                                                        ...PRINT_SECTION_OPTIONS.map((section) => ({
+                                                                            text: section,
+                                                                            onPress: () => updatePrinterAssignmentSection(assignment.id, section),
+                                                                        })),
+                                                                        { text: 'Cancel', style: 'cancel' as const },
+                                                                    ]
+                                                                )}
+                                                            >
+                                                                {assignment.sectionName || 'Select section'}
+                                                            </Button>
+                                                        )}
+                                                        <Button
+                                                            mode="outlined"
+                                                            style={styles.selectButton}
+                                                            onPress={() => Alert.alert(
+                                                                assignment.isDefault ? 'Choose default printer' : `Choose printer for ${assignment.sectionName || 'this section'}`,
+                                                                undefined,
+                                                                [
+                                                                    ...printerSaved.map((printer) => ({
+                                                                        text: printer.deviceName,
+                                                                        onPress: () => updatePrinterAssignmentTarget(assignment.id, printer.target),
+                                                                    })),
+                                                                    { text: 'Clear', onPress: () => updatePrinterAssignmentTarget(assignment.id, null) },
+                                                                    { text: 'Cancel', style: 'cancel' as const },
+                                                                ]
+                                                            )}
+                                                        >
+                                                            {assignmentPrinter?.deviceName || (assignment.isDefault ? 'Select default printer' : 'No printer (skip)')}
+                                                        </Button>
+                                                        <View style={styles.assignmentDivider} />
+                                                        <Text style={[styles.label, styles.assignmentSubLabel]}>Print mode</Text>
+                                                        <View style={styles.buttonGroup}>
+                                                            <Button
+                                                                mode={(assignment.printMode || 'combine') === 'combine' ? 'contained' : 'outlined'}
+                                                                onPress={() => updatePrinterAssignmentPrintMode(assignment.id, 'combine')}
+                                                                style={styles.flexButton}
+                                                            >
+                                                                Combine
+                                                            </Button>
+                                                            <Button
+                                                                mode={assignment.printMode === 'separate' ? 'contained' : 'outlined'}
+                                                                onPress={() => updatePrinterAssignmentPrintMode(assignment.id, 'separate')}
+                                                                style={styles.flexButton}
+                                                            >
+                                                                Separate
+                                                            </Button>
+                                                        </View>
+                                                        <Text style={[styles.label, styles.assignmentSubLabel]}>Template</Text>
+                                                        <View style={styles.buttonGroup}>
+                                                            <Button
+                                                                mode={(assignment.template || 'kitchen') === 'kitchen' ? 'contained' : 'outlined'}
+                                                                onPress={() => updatePrinterAssignmentTemplate(assignment.id, 'kitchen')}
+                                                                style={styles.flexButton}
+                                                            >
+                                                                Kitchen
+                                                            </Button>
+                                                            <Button
+                                                                mode={assignment.template === 'customer-copy' ? 'contained' : 'outlined'}
+                                                                onPress={() => updatePrinterAssignmentTemplate(assignment.id, 'customer-copy')}
+                                                                style={styles.flexButton}
+                                                            >
+                                                                Customer Copy
+                                                            </Button>
+                                                        </View>
+                                                        <Text style={[styles.label, styles.assignmentSubLabel]}>Enabled time window</Text>
+                                                        <View style={styles.buttonGroup}>
+                                                            <TextInput
+                                                                mode="outlined"
+                                                                label="From"
+                                                                value={assignment.enabledFromTime || ''}
+                                                                onChangeText={(value) => updatePrinterAssignmentTimeWindow(assignment.id, 'enabledFromTime', value)}
+                                                                placeholder="17:00"
+                                                                style={[styles.input, styles.flexButton]}
+                                                            />
+                                                            <TextInput
+                                                                mode="outlined"
+                                                                label="To"
+                                                                value={assignment.enabledToTime || ''}
+                                                                onChangeText={(value) => updatePrinterAssignmentTimeWindow(assignment.id, 'enabledToTime', value)}
+                                                                placeholder="20:00"
+                                                                style={[styles.input, styles.flexButton]}
+                                                            />
+                                                        </View>
+                                                        <Text style={styles.helper}>Leave both blank to always print. Use 24-hour time like 17:00 to 20:00.</Text>
+                                                        {!assignment.isDefault && (
+                                                            <Button mode="text" onPress={() => removePrinterSectionAssignment(assignment.id)}>
+                                                                Remove section rule
+                                                            </Button>
+                                                        )}
+                                                    </View>
+                                                    {index < printerSectionAssignments.length - 1 ? <View style={styles.ruleDivider} /> : null}
+                                                </View>
+                                            );
+                                        })}
+                                        <Button mode="contained-tonal" onPress={addPrinterSectionAssignment} style={styles.previewButton}>
+                                            Add section printer
+                                        </Button>
+                                    </View>
+
+                                    <View style={styles.panelCard}>
+                                        <View style={styles.panelHeader}>
+                                            <Text style={styles.panelTitle}>Print behavior</Text>
+                                            <Text style={styles.panelDescription}>Control auto print timing, paper width, image quality, and test output.</Text>
+                                        </View>
+                                        <View style={styles.switchRow}>
+                                            <Text style={styles.label}>Auto print new orders</Text>
+                                            <Switch value={printerAutoPrint} onValueChange={setPrinterAutoPrint} disabled={!hasPrinterCapability} />
+                                        </View>
+
+                                        <TextInput
+                                            mode="outlined"
+                                            label="Auto-print delay (seconds)"
+                                            value={printerDelayPrintSecText}
+                                            onChangeText={setPrinterDelayPrintSecText}
+                                            keyboardType="number-pad"
+                                            style={styles.input}
+                                            disabled={!hasPrinterCapability || !printerAutoPrint}
+                                        />
+                                        <Text style={styles.helper}>Wait before printing a new order (0 to 120).</Text>
+
+                                        <View style={styles.separator} />
+                                        <Text style={styles.label}>In-store customer receipt</Text>
+                                        <Text style={styles.helper}>Print one combined customer receipt first for new paid in-store Cash, Card, or SmartPay orders only.</Text>
+                                        <View style={styles.switchRow}>
+                                            <Text style={styles.label}>Enable automatic receipt</Text>
+                                            <Switch value={instoreCustomerReceiptAutoPrintEnabled} onValueChange={setInstoreCustomerReceiptAutoPrintEnabled} disabled={!hasPrinterCapability} />
+                                        </View>
+                                        <Text style={[styles.label, styles.assignmentSubLabel]}>Receipt printer</Text>
+                                        <View style={styles.buttonGroup}>
+                                            {printerSaved.map((printer) => (
+                                                <Button key={printer.target} mode={instoreCustomerReceiptPrinterTarget === printer.target ? 'contained' : 'outlined'} onPress={() => setInstoreCustomerReceiptPrinterTarget(printer.target)} style={styles.flexButton} disabled={!hasPrinterCapability}>
+                                                    {printer.deviceName}
+                                                </Button>
+                                            ))}
+                                        </View>
+                                        {printerSaved.length === 0 ? <Text style={styles.helper}>Add a saved printer before enabling automatic customer receipts.</Text> : null}
+                                        <View style={styles.buttonGroup}>
+                                            <TextInput mode="outlined" label="From" value={instoreCustomerReceiptEnabledFromTime} onChangeText={setInstoreCustomerReceiptEnabledFromTime} placeholder="17:00" style={[styles.input, styles.flexButton]} disabled={!instoreCustomerReceiptAutoPrintEnabled} />
+                                            <TextInput mode="outlined" label="To" value={instoreCustomerReceiptEnabledToTime} onChangeText={setInstoreCustomerReceiptEnabledToTime} placeholder="20:00" style={[styles.input, styles.flexButton]} disabled={!instoreCustomerReceiptAutoPrintEnabled} />
+                                        </View>
+                                        <Text style={styles.helper}>Leave both blank to always print. Uses 24-hour time and supports overnight windows.</Text>
+
+                                        <View style={styles.separator} />
+
+                                        <Text style={styles.label}>In-store instant ticket</Text>
+                                        <Text style={styles.helper}>Print a compact, text-only ticket for eligible paid in-store orders. A physical printer is required.</Text>
+                                        <View style={styles.switchRow}>
+                                            <Text style={styles.label}>Enable instant ticket</Text>
+                                            <Switch value={instoreInstantTicketEnabled} onValueChange={setInstoreInstantTicketEnabled} disabled={!hasInstantTicketPrinterCapability} />
+                                        </View>
+                                        <Text style={[styles.label, styles.assignmentSubLabel]}>Ticket printer</Text>
+                                        <View style={styles.buttonGroup}>
+                                            {savedPhysicalPrinters.map((printer) => (
+                                                <Button key={printer.target} mode={instoreInstantTicketPrinterTarget === printer.target ? 'contained' : 'outlined'} onPress={() => setInstoreInstantTicketPrinterTarget(printer.target)} style={styles.flexButton} disabled={!hasInstantTicketPrinterCapability}>
+                                                    {printer.deviceName}
+                                                </Button>
+                                            ))}
+                                        </View>
+                                        {savedPhysicalPrinters.length === 0 ? <Text style={styles.helper}>Add and enable a physical saved printer before enabling instant tickets.</Text> : null}
+
+                                        <View style={styles.separator} />
+
+                                        <Text style={styles.label}>Paper & quality</Text>
+                                        <View style={styles.buttonGroup}>
+                                            <Button
+                                                mode={printerPaperWidth === '80mm' ? 'contained' : 'outlined'}
+                                                onPress={() => setPrinterPaperWidth('80mm')}
+                                                style={styles.flexButton}
+                                            >
+                                                80mm
+                                            </Button>
+                                            <Button
+                                                mode={printerPaperWidth === '58mm' ? 'contained' : 'outlined'}
+                                                onPress={() => setPrinterPaperWidth('58mm')}
+                                                style={styles.flexButton}
+                                            >
+                                                58mm
+                                            </Button>
+                                        </View>
+                                        <Text style={styles.helper}>Choose your paper width. 80mm is standard.</Text>
+
+                                        <Text style={[styles.label, { marginTop: 12 }]}>Kitchen receipt mode</Text>
+                                        <View style={styles.buttonGroup}>
+                                            <Button mode={printerReceiptMode === 'text' ? 'contained' : 'outlined'} onPress={() => setPrinterReceiptMode('text')} style={styles.flexButton}>Text</Button>
+                                            <Button mode={printerReceiptMode === 'image' ? 'contained' : 'outlined'} onPress={() => setPrinterReceiptMode('image')} style={styles.flexButton}>Image</Button>
+                                        </View>
+                                        <Text style={styles.helper}>Text printing is faster; Image preserves the current captured receipt layout.</Text>
+
+                                        <View style={[styles.switchRow, { marginTop: 12 }]}>
+                                            <Text style={styles.label}>High quality capture (2x DPI)</Text>
+                                            <Switch value={printerHighQuality} onValueChange={setPrinterHighQuality} />
+                                        </View>
+                                        <Text style={styles.helper}>
+                                            Improves sharpness on higher-end thermal printers by capturing at 2x resolution.
+                                        </Text>
+
+                                        {JOURNAL_LOGS_ENABLED ? (
+                                            <>
+                                                <Button
+                                                    mode="outlined"
+                                                    icon="text-box-search-outline"
+                                                    onPress={() => setActiveDialog('journal')}
+                                                    style={styles.previewButton}
+                                                >
+                                                    View journal
+                                                </Button>
+                                                <Text style={styles.helper}>{recentJournalLabel}</Text>
+                                            </>
                                         ) : null}
                                     </View>
-                                ))
+                                </>
                             )}
-                            </>
-                        )}
-                    </ScrollView>
-                    <View style={styles.modalFooter}>
-                        <Button mode="text" onPress={() => setActiveDialog(null)}>
-                            Done
-                        </Button>
+
+                            {activeDialog === 'journal' && JOURNAL_LOGS_ENABLED && (
+                                <>
+                                    <View style={styles.logsHeaderRow}>
+                                        <Text style={styles.helper}>
+                                            Review recent journal events for this device. Newest entries appear first.
+                                        </Text>
+                                        <Button
+                                            mode="text"
+                                            icon="delete-outline"
+                                            onPress={handleClearJournal}
+                                            disabled={journalEntries.length === 0}
+                                        >
+                                            Clear journal
+                                        </Button>
+                                    </View>
+
+                                    {journalEntries.length === 0 ? (
+                                        <View style={styles.logsEmptyState}>
+                                            <Text style={styles.label}>No journal entries yet.</Text>
+                                            <Text style={styles.helper}>Run a test print or wait for the next kitchen workflow event to populate this list.</Text>
+                                        </View>
+                                    ) : (
+                                        journalEntries.map((entry) => (
+                                            <View key={entry.id} style={styles.logCard}>
+                                                <View style={styles.logCardHeader}>
+                                                    <View style={[styles.logLevelBadge, logLevelBadgeStyles[entry.level]]}>
+                                                        <Text style={styles.logLevelBadgeText}>{entry.level.toUpperCase()}</Text>
+                                                    </View>
+                                                    <Text style={styles.logTimestamp}>{new Date(entry.timestamp).toLocaleString()}</Text>
+                                                </View>
+                                                <Text style={styles.logScope}>{entry.scope}</Text>
+                                                <Text style={styles.logMessage}>{entry.message}</Text>
+                                                {entry.orderNumber || entry.orderId ? (
+                                                    <Text style={styles.logMeta}>
+                                                        Order: {entry.orderNumber || entry.orderId}
+                                                    </Text>
+                                                ) : null}
+                                                {entry.details ? (
+                                                    <Text style={styles.logDetails}>{entry.details}</Text>
+                                                ) : null}
+                                            </View>
+                                        ))
+                                    )}
+                                </>
+                            )}
+                        </ScrollView>
+                        <View style={styles.modalFooter}>
+                            <Button mode="text" onPress={() => setActiveDialog(null)}>
+                                Done
+                            </Button>
+                        </View>
                     </View>
-                </View>
-            </Modal>
+                </Modal>
             </ScrollView>
         </View>
     );

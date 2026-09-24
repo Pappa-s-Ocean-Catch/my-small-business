@@ -51,6 +51,8 @@ import { posCatalogCacheStore } from '../stores/posCatalogCacheStore';
 import { usePosCatalog } from '../providers/PosCatalogProvider';
 import { productsForCategories } from '../lib/pos-catalog-snapshot';
 import { runPosPostSaveMutations } from '../lib/pos-post-save-operations';
+import { getMelbourneTodayRange, rankTopSellers } from '../lib/pos-top-sellers';
+import { formatDateInMelbourne } from '../lib/report-timezone';
 import {
   addonQuantitiesFromAddons,
   buildAddonsFromQuantities,
@@ -582,9 +584,9 @@ export default function PosScreen() {
   }, []);
 
   useEffect(() => {
-    let day = new Date().toDateString();
+    let day = formatDateInMelbourne(new Date());
     const timer = setInterval(() => {
-      const nextDay = new Date().toDateString();
+      const nextDay = formatDateInMelbourne(new Date());
       if (nextDay !== day) { day = nextDay; invalidateTopSellers(); }
     }, 60_000);
     return () => clearInterval(timer);
@@ -604,60 +606,52 @@ export default function PosScreen() {
 
     setLoadingTopSellers(true);
 
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 1);
+    const { startIso, endIso } = getMelbourneTodayRange(new Date());
+    const cacheTtl = Math.max(1, new Date(endIso).getTime() - Date.now());
 
     const { data: orderItems, error: orderItemsError } = await supabase
       .from('order_items')
       .select('product_id, quantity, order_id, orders!inner(created_at, order_status)')
       .not('product_id', 'is', null)
-      .gte('orders.created_at', start.toISOString())
-      .lt('orders.created_at', end.toISOString());
+      .gte('orders.created_at', startIso)
+      .lt('orders.created_at', endIso);
 
     if (orderItemsError) {
       setLoadingTopSellers(false);
       return;
     }
 
-    const salesByProduct = new Map<string, { quantity: number; orderIds: Set<string> }>();
-    (orderItems || []).forEach((item: any) => {
+    const rankedSales = rankTopSellers((orderItems || []).map((item: any) => {
       const order = Array.isArray(item.orders) ? item.orders[0] : item.orders;
-      if (!item.product_id || order?.order_status === 'cancelled') return;
-      const current = salesByProduct.get(item.product_id) || { quantity: 0, orderIds: new Set<string>() };
-      current.quantity += Number(item.quantity || 1);
-      if (item.order_id) current.orderIds.add(item.order_id);
-      salesByProduct.set(item.product_id, current);
-    });
+      return {
+        productId: item.product_id,
+        quantity: item.quantity,
+        orderId: item.order_id,
+        orderStatus: order?.order_status ?? null,
+      };
+    }));
 
-    const rankedProductIds = Array.from(salesByProduct.entries())
-      .sort((a, b) => b[1].quantity - a[1].quantity)
-      .slice(0, 8)
-      .map(([productId]) => productId);
-
-    if (rankedProductIds.length === 0) {
-      posCatalogCacheStore.getState().setTopSellers([], Math.max(1, end.getTime() - Date.now()));
+    if (rankedSales.length === 0) {
+      posCatalogCacheStore.getState().setTopSellers([], cacheTtl);
       setTopSellers([]);
       setLoadingTopSellers(false);
       return;
     }
 
     const productsById = catalog?.productsById ?? new Map<string, SaleProduct>();
-    const nextTopSellers = rankedProductIds
-      .map((productId) => {
-        const product = productsById.get(productId);
-        const sales = salesByProduct.get(productId);
+    const nextTopSellers = rankedSales
+      .map((sales) => {
+        const product = productsById.get(sales.productId);
         if (!product || !sales) return null;
         return {
           ...product,
-          total_quantity_sold: sales.quantity,
-          total_orders: sales.orderIds.size,
+          total_quantity_sold: sales.quantitySold,
+          total_orders: sales.orderCount,
         };
       })
       .filter((product): product is TopSellerProduct => Boolean(product));
 
-    posCatalogCacheStore.getState().setTopSellers(nextTopSellers, Math.max(1, end.getTime() - Date.now()));
+    posCatalogCacheStore.getState().setTopSellers(nextTopSellers, cacheTtl);
     setTopSellers(nextTopSellers);
     setLoadingTopSellers(false);
   };

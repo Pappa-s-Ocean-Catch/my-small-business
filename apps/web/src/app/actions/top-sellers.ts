@@ -1,6 +1,7 @@
 "use server";
 
 import { createServiceRoleClient } from "@my-small-business/supabase/server";
+import { getMelbourneTodayRange, rankTodayTopSellers, TODAY_TOP_SELLERS_LIMIT } from "@/lib/todays-top-sellers";
 
 export interface TopSellerProduct {
   id: string;
@@ -20,23 +21,22 @@ export interface TopSellerProduct {
  * Get top selling products based on order_items
  * Returns products sorted by total quantity sold
  */
-export async function getTopSellingProducts(limit: number = 20): Promise<{
+export async function getTopSellingProducts(limit: number = TODAY_TOP_SELLERS_LIMIT): Promise<{
   data: TopSellerProduct[] | null;
   error: string | null
 }> {
   try {
     const supabase = await createServiceRoleClient();
 
-    // Get date 7 days ago
-    const now = new Date();
-    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const sevenDaysAgoISO = sevenDaysAgo.toISOString();
+    const { startIso, endIso } = getMelbourneTodayRange(new Date());
 
-    // Get all order items from orders in the last 7 days
+    // Fetch only today's order items; customer pages receive only aggregated, product-level results.
     const { data: orderItems, error: orderItemsError } = await supabase
       .from('order_items')
-      .select('product_id, quantity, order_id, orders(created_at)')
-      .not('product_id', 'is', null);
+      .select('product_id, quantity, order_id, orders!inner(created_at, order_status)')
+      .not('product_id', 'is', null)
+      .gte('orders.created_at', startIso)
+      .lt('orders.created_at', endIso);
 
     if (orderItemsError) {
       console.error('Error fetching order items:', orderItemsError);
@@ -47,41 +47,18 @@ export async function getTopSellingProducts(limit: number = 20): Promise<{
       return { data: [], error: null };
     }
 
-    // Filter order items to only those with order.created_at in last 7 days
-    const recentOrderItems = orderItems.filter((item: any) => {
-      const createdAt = item.orders?.created_at;
-      return createdAt && createdAt >= sevenDaysAgoISO;
-    });
-
-    // Aggregate sales data by product
-    const productSalesMap = new Map<string, {
-      productId: string;
-      totalQuantity: number;
-      orderIds: Set<string>;
-    }>();
-
-    recentOrderItems.forEach((item: any) => {
-      if (!item.product_id) return;
-
-      const productId = item.product_id;
-
-      if (!productSalesMap.has(productId)) {
-        productSalesMap.set(productId, {
-          productId,
-          totalQuantity: 0,
-          orderIds: new Set()
-        });
-      }
-
-      const salesData = productSalesMap.get(productId)!;
-      salesData.totalQuantity += item.quantity || 1;
-      if (item.order_id) {
-        salesData.orderIds.add(item.order_id);
-      }
-    });
+    const rankedSales = rankTodayTopSellers(orderItems.map((item: any) => {
+      const order = Array.isArray(item.orders) ? item.orders[0] : item.orders;
+      return {
+        productId: item.product_id,
+        quantity: item.quantity,
+        orderId: item.order_id,
+        orderStatus: order?.order_status ?? null,
+      };
+    }));
 
     // Get product details for top selling products
-    const productIds = Array.from(productSalesMap.keys());
+    const productIds = rankedSales.map((sale) => sale.productId);
     if (productIds.length === 0) {
       return { data: [], error: null };
     }
@@ -99,7 +76,7 @@ export async function getTopSellingProducts(limit: number = 20): Promise<{
     // Combine sales data with product details
     const topSellingProducts: TopSellerProduct[] = (products || [])
       .map(product => {
-        const salesData = productSalesMap.get(product.id);
+        const salesData = rankedSales.find((sale) => sale.productId === product.id);
         if (!salesData) return null;
 
         return {
@@ -112,12 +89,12 @@ export async function getTopSellingProducts(limit: number = 20): Promise<{
           image_url: product.image_url,
           sale_category_id: product.sale_category_id,
           sub_category_id: product.sub_category_id,
-          total_quantity_sold: salesData.totalQuantity,
-          total_orders: salesData.orderIds.size
+          total_quantity_sold: salesData.quantitySold,
+          total_orders: salesData.orderCount
         };
       })
       .filter((p): p is TopSellerProduct => p !== null)
-      .sort((a, b) => b.total_quantity_sold - a.total_quantity_sold)
+      .sort((a, b) => b.total_quantity_sold - a.total_quantity_sold || a.id.localeCompare(b.id))
       .slice(0, limit);
 
     return { data: topSellingProducts, error: null };

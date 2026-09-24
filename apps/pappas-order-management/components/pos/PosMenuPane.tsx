@@ -277,6 +277,7 @@ export function PosMenuPane(props: Props) {
             <View style={styles.topSellersHeader}>
               <View style={styles.topSellersHeaderText}>
                 <Text style={styles.topSellersTitle}>Top sellers today</Text>
+                <Text style={styles.topSellersSubtitle}>Most ordered items — tap to add</Text>
                 {loadingTopSellers && <Text style={styles.topSellersLoading}>Refreshing...</Text>}
               </View>
             </View>
@@ -287,10 +288,11 @@ export function PosMenuPane(props: Props) {
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.topSellersList}
-                renderItem={({ item }) => {
+                renderItem={({ item, index }) => {
                   const quickQuantity = quickQuantityForProduct(item.id);
                   return (
                     <TouchableOpacity style={styles.topSellerCard} onPress={() => void quickAddProduct(item)}>
+                      <Text style={styles.topSellerRank}>#{index + 1}</Text>
                       {quickQuantity > 0 && (
                         <View style={styles.topSellerQuantityBadge}>
                           <Text style={styles.productQuantityText}>{quickQuantity}</Text>

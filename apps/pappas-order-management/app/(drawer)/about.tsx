@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
@@ -89,6 +89,7 @@ function MemoryDistributionBar({ snapshot }: { snapshot: Extract<AppMemorySnapsh
 export default function AboutScreen() {
   const navigation = useNavigation<DrawerNavigationProp<any>>();
   const [active, setActive] = useState(false);
+  const restartRequested = useRef(false);
   const [memorySnapshot, setMemorySnapshot] = useState<AppMemorySnapshot | null>(null);
   const [memoryLoading, setMemoryLoading] = useState(false);
   const metadata = getBuildMetadata({
@@ -113,28 +114,43 @@ export default function AboutScreen() {
     Alert.alert(title, message);
   };
 
-  const handleRestart = async () => {
-    setActive(true);
-    try {
-      showResult(await restartApp(updatesClient));
-    } finally {
-      setActive(false);
+  const handleRestart = () => {
+    if (restartRequested.current) return;
+
+    restartRequested.current = true;
+    const result = restartApp(updatesClient, {
+      onFailure: (failure) => {
+        restartRequested.current = false;
+        showResult(failure);
+      },
+    });
+
+    if (result.kind !== 'restarted') {
+      restartRequested.current = false;
+      showResult(result);
     }
   };
 
   const confirmRestart = () => {
     Alert.alert('Restart app?', 'The app will restart immediately.', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Restart', style: 'destructive', onPress: () => void handleRestart() },
+      { text: 'Restart', style: 'destructive', onPress: handleRestart },
     ]);
   };
 
   const handleCheckForUpdate = async () => {
     setActive(true);
-    try {
-      showResult(await checkAndApplyUpdate(updatesClient));
-    } finally {
+    const result = await checkAndApplyUpdate(updatesClient, {
+      onStarted: () => setActive(false),
+      onFailure: (failure) => {
+        setActive(false);
+        showResult(failure);
+      },
+    });
+
+    if (result.kind !== 'applied') {
       setActive(false);
+      showResult(result);
     }
   };
 
@@ -163,7 +179,7 @@ export default function AboutScreen() {
         <Appbar.Content title="About" titleStyle={styles.appbarTitle} />
       </Appbar.Header>
       <ScrollView contentContainerStyle={styles.content}>
-        <Button mode="outlined" icon="restart" onPress={confirmRestart} disabled={active} loading={active}>
+        <Button mode="outlined" icon="restart" onPress={confirmRestart} disabled={active}>
           Restart app
         </Button>
         <Button mode="contained" icon="download" onPress={() => void handleCheckForUpdate()} disabled={active} loading={active}>

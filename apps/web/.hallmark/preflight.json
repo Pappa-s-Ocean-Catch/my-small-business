@@ -1,0 +1,10 @@
+{
+  "scannedAt": "2026-09-24",
+  "framework": "Next.js 16 with Tailwind CSS 4",
+  "fontStack": {
+    "nextFont": "Geist and Geist Mono",
+    "body": "Arial, Helvetica, sans-serif"
+  },
+  "palette": "Tailwind theme variables backed by white and slate global tokens",
+  "motion": "cut"
+}

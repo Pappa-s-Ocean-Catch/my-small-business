@@ -1,7 +1,7 @@
 "use client";
 
 import { PartnerBlock } from "@/components/PartnerBlock";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 
 import { getSupabaseClient } from "@my-small-business/supabase/client";
 import Link from "next/link";
@@ -11,12 +11,18 @@ import Image from "next/image";
 import { TypewriterText } from "@/components/TypewriterText";
 import { Hero } from "./components/Hero";
 import { getHomePromotions } from "@/app/actions/promotions";
+import { getTopSellingProducts, type TopSellerProduct } from "@/app/actions/top-sellers";
 import type { Promotion } from "@/lib/promotions";
 import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { PublicReviewBlock } from "@/components/PublicReviewBlock";
 import { ReviewSummaryWidget } from "@/components/ReviewSummaryWidget";
 import { AnnouncementModal } from "@/components/AnnouncementModal";
 import type { Announcement } from "@my-small-business/types";
+import { splitTopSellers } from "@/lib/top-sellers-presentation";
+
+// Hallmark · component: top-sellers · genre: playful · theme: coastal-market
+// states: default · hover · focus · active · loading · empty
+// pre-emit critique: P4 H5 E4 S5 R4 V4
 
 interface FeaturedProduct {
   id: string;
@@ -36,6 +42,7 @@ interface ContactFormData {
 
 export default function Home() {
   const [featuredProducts, setFeaturedProducts] = useState<FeaturedProduct[]>([]);
+  const [topSellers, setTopSellers] = useState<TopSellerProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -53,6 +60,10 @@ export default function Home() {
   // PWA install prompt state
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstall, setShowInstall] = useState(false);
+  const { featured: featuredTopSellers, remaining: remainingTopSellers } = useMemo(
+    () => splitTopSellers(topSellers),
+    [topSellers],
+  );
 
   // Check localStorage for dismiss flag
   useEffect(() => {
@@ -111,6 +122,9 @@ export default function Home() {
         } else {
           setFeaturedProducts(data || []);
         }
+
+        const topSellersResult = await getTopSellingProducts(12);
+        if (topSellersResult.data) setTopSellers(topSellersResult.data);
 
         const promoRes = await getHomePromotions();
         if (promoRes.data) setHomePromotions(promoRes.data);
@@ -365,6 +379,54 @@ export default function Home() {
                 <Icon icon={FaArrowRight} className="w-5 h-5" />
               </Link>
             </div>
+          </div>
+        </section>
+
+        <section className="bg-slate-950 px-4 py-16 text-white sm:py-20">
+          <div className="mx-auto max-w-7xl">
+            <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div className="max-w-xl">
+                <p className="text-sm font-bold uppercase tracking-[0.2em] text-amber-300">Fresh from today&apos;s orders</p>
+                <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Top Sellers Today</h2>
+                <p className="mt-3 text-base leading-7 text-slate-300">The crowd&apos;s favourites, ranked as the day unfolds.</p>
+              </div>
+              <Link href="/order" className="inline-flex min-h-11 items-center gap-2 self-start rounded-full border border-white/30 px-5 py-2.5 font-semibold text-white transition hover:border-amber-300 hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 sm:self-auto">
+                Start an order <Icon icon={FaArrowRight} className="h-4 w-4" />
+              </Link>
+            </div>
+
+            {loading ? (
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+                <div className="aspect-[16/10] animate-pulse rounded-3xl bg-slate-800" />
+                <div className="grid grid-cols-2 gap-3">{[...Array(6)].map((_, index) => <div key={index} className="aspect-[4/3] animate-pulse rounded-2xl bg-slate-800" />)}</div>
+              </div>
+            ) : featuredTopSellers.length > 0 ? (
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+                <div className="grid grid-rows-3 gap-3 lg:h-full">
+                  {featuredTopSellers.map((product, index) => (
+                    <Link key={product.id} href={`/order/product/${product.slug?.trim() ? product.slug.trim() : product.id}`} aria-label={`View ${product.name}, top seller number ${index + 1}`} className="group relative flex min-h-40 min-w-0 overflow-hidden rounded-2xl bg-slate-900 ring-1 ring-white/10 transition hover:ring-amber-300/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 lg:min-h-0">
+                      {product.image_url ? <Image src={product.image_url} alt={product.name} fill unoptimized className="object-cover transition duration-500 group-hover:scale-105" /> : <div className="absolute inset-0 flex items-center justify-center bg-slate-800"><Icon icon={FaUtensils} className="h-10 w-10 text-amber-300" /></div>}
+                      <div className="absolute inset-0 bg-gradient-to-r from-slate-950/95 via-slate-950/50 to-slate-950/10" />
+                      <div className="relative flex w-full items-end justify-between gap-3 p-4 sm:p-5">
+                        <div className="min-w-0"><span className="inline-flex rounded-full bg-amber-300 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-slate-950">Today&apos;s #{index + 1}</span><h3 className="mt-2 text-lg font-bold leading-tight text-white line-clamp-2 sm:text-xl">{product.name}</h3></div>
+                        <span className="shrink-0 text-base font-bold text-amber-300">${product.sale_price.toFixed(2)}</span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {remainingTopSellers.map((product, index) => (
+                    <Link key={product.id} href={`/order/product/${product.slug?.trim() ? product.slug.trim() : product.id}`} aria-label={`View ${product.name}, top seller number ${index + 4}`} className="group relative min-w-0 overflow-hidden rounded-2xl bg-slate-900 ring-1 ring-white/10 transition hover:-translate-y-0.5 hover:ring-amber-300/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950">
+                      <div className="relative aspect-[4/3] bg-slate-800">{product.image_url ? <Image src={product.image_url} alt={product.name} fill unoptimized className="object-cover transition duration-300 group-hover:scale-105" /> : <div className="flex h-full items-center justify-center"><Icon icon={FaUtensils} className="h-8 w-8 text-amber-300" /></div>}<span className="absolute left-2 top-2 rounded-full bg-slate-950/85 px-2 py-1 text-xs font-bold text-white">#{index + 4}</span></div>
+                      <div className="flex items-start justify-between gap-2 p-3"><h3 className="min-w-0 text-sm font-bold leading-5 text-white line-clamp-2">{product.name}</h3><span className="shrink-0 text-sm font-bold text-amber-300">${product.sale_price.toFixed(2)}</span></div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-3xl border border-dashed border-slate-600 bg-slate-900/60 px-6 py-12 text-center"><Icon icon={FaUtensils} className="mx-auto h-10 w-10 text-amber-300" /><p className="mt-4 font-semibold text-white">Today&apos;s favourites are still warming up.</p><Link href="/order" className="mt-4 inline-flex min-h-11 items-center rounded-full bg-amber-300 px-5 py-2.5 font-bold text-slate-950 transition hover:bg-amber-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950">Browse the menu</Link></div>
+            )}
           </div>
         </section>
 

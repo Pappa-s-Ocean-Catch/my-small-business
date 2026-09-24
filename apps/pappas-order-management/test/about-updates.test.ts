@@ -92,6 +92,39 @@ test('downloads then reloads only when an update is available', async () => {
   assert.deepEqual(calls, ['check', 'fetch', 'reload']);
 });
 
+test('applies a downloaded update without waiting for native reload completion', async () => {
+  let settled: unknown;
+  let reloadStarted = false;
+  const calls: string[] = [];
+
+  void checkAndApplyUpdate({
+    isEnabled: true,
+    async checkForUpdateAsync() {
+      calls.push('check');
+      return { isAvailable: true };
+    },
+    async fetchUpdateAsync() {
+      calls.push('fetch');
+    },
+    reloadAsync() {
+      calls.push('reload');
+      return new Promise<void>(() => {});
+    },
+  }, {
+    onStarted: () => {
+      reloadStarted = true;
+    },
+  }).then((result) => {
+    settled = result;
+  });
+
+  await new Promise<void>((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(calls, ['check', 'fetch', 'reload']);
+  assert.equal(reloadStarted, true);
+  assert.deepEqual(settled, { kind: 'applied' });
+});
+
 test('keeps the app running and returns the error when update work fails', async () => {
   const calls: string[] = [];
   const result = await checkAndApplyUpdate({
@@ -133,8 +166,9 @@ test('does not reload when downloading the available update fails', async () => 
   assert.deepEqual(calls, ['check', 'fetch']);
 });
 
-test('restartApp returns a failure instead of throwing when reloading fails', async () => {
-  const result = await restartApp({
+test('restartApp reports an initiation failure without leaving an unhandled rejection', async () => {
+  let reported: unknown;
+  const result = restartApp({
     isEnabled: true,
     async checkForUpdateAsync() {
       return { isAvailable: false };
@@ -143,21 +177,28 @@ test('restartApp returns a failure instead of throwing when reloading fails', as
     async reloadAsync() {
       throw new Error('Restart failed');
     },
+  }, {
+    onFailure: (failure) => {
+      reported = failure;
+    },
   });
 
-  assert.deepEqual(result, { kind: 'failed', message: 'Restart failed' });
+  assert.deepEqual(result, { kind: 'restarted' });
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.deepEqual(reported, { kind: 'failed', message: 'Restart failed' });
 });
 
-test('restartApp reloads the JavaScript app on explicit request', async () => {
+test('restartApp initiates the reload without waiting for it to settle', () => {
   const calls: string[] = [];
-  const result = await restartApp({
+  const result = restartApp({
     isEnabled: true,
     async checkForUpdateAsync() {
       return { isAvailable: false };
     },
     async fetchUpdateAsync() {},
-    async reloadAsync() {
+    reloadAsync() {
       calls.push('reload');
+      return new Promise<void>(() => {});
     },
   });
 
