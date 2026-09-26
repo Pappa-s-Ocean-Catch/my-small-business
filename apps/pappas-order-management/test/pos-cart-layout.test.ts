@@ -24,6 +24,14 @@ test('uses a compact update indicator instead of a current-order heading', () =>
   assert.match(cartPaneSource, /You are updating order/);
 });
 
+test('lets an edited order reopen checkout details before updating', () => {
+  assert.match(
+    cartPaneSource,
+    /\{orderId && \([\s\S]*?onPress=\{openCheckout\}[\s\S]*?Edit Checkout Details[\s\S]*?\)\}/,
+  );
+  assert.match(cartPaneSource, /\{orderId \? 'Update Order' : 'Checkout'\}/);
+});
+
 test('lets the salt selector fill the compact header row', () => {
   assert.match(cartStylesSource, /cartHeaderActions: \{[^}]*flex: 1/);
   assert.match(cartStylesSource, /cartSaltButton: \{[^}]*flex: 1/);

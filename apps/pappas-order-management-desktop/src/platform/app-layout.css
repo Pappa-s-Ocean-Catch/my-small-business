@@ -1,0 +1,173 @@
+.app-layout {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background: #f4f6f8;
+}
+
+.app-sidebar {
+  background: #111827;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  box-shadow: 2px 0 8px rgba(0,0,0,0.15);
+  z-index: 50;
+  transition: width 0.3s ease;
+}
+
+.app-sidebar.expanded {
+  width: 260px;
+}
+
+.app-sidebar.compact {
+  width: 72px;
+}
+
+.sidebar-header {
+  height: 72px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid #1f2937;
+  overflow: hidden;
+}
+
+.sidebar-toggle {
+  background: transparent;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+
+.sidebar-toggle:hover {
+  background: #1f2937;
+  color: white;
+}
+
+.brand-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  opacity: 1;
+  transition: opacity 0.2s;
+  white-space: nowrap;
+}
+
+.app-sidebar.compact .brand-wrap {
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  left: 64px;
+}
+
+.brand-logo {
+  width: 32px;
+  height: 32px;
+  background: #2563eb;
+  color: white;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 18px;
+}
+
+.brand-name {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: transparent;
+  color: #9ca3af;
+  border: none;
+  font-size: 15px;
+  font-weight: 700;
+  text-align: left;
+  transition: all 0.15s ease;
+  min-height: 48px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.nav-item:hover {
+  background: #1f2937;
+  color: white;
+}
+
+.nav-item.active {
+  background: #2563eb;
+  color: white;
+}
+
+.nav-icon {
+  font-size: 18px;
+  width: 24px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.nav-label {
+  opacity: 1;
+  transition: opacity 0.2s;
+}
+
+.app-sidebar.compact .nav-label {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.nav-divider {
+  height: 1px;
+  background: #1f2937;
+  margin: 12px 4px;
+}
+
+.sidebar-footer {
+  padding: 16px 12px;
+  border-top: 1px solid #1f2937;
+  overflow: hidden;
+}
+
+.nav-item.sign-out {
+  color: #fca5a5;
+}
+
+.nav-item.sign-out:hover {
+  background: #7f1d1d;
+  color: white;
+}
+
+.app-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}

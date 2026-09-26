@@ -7,7 +7,9 @@ export function getOrderAnnouncementDelayMs(
   order: OrderAnnouncementCandidate,
   printerDelayMs: number,
   nowMs: number = Date.now(),
-): number {
+  instoreOrderAutoPrintEnabled: boolean = true,
+): number | null {
+  if (order.order_channel === 'instore' && !instoreOrderAutoPrintEnabled) return null;
   if (order.order_channel === 'third_party') return printerDelayMs;
 
   const createdAtMs = new Date(order.created_at || '').getTime();

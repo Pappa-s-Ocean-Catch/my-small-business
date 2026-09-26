@@ -1,6 +1,8 @@
 import type { Order } from '@my-small-business/types';
 
 export type InstoreCustomerReceiptSettings = {
+  /** Whether this POS should handle automatic in-store printing locally. */
+  instoreOrderAutoPrintEnabled?: boolean;
   instoreCustomerReceiptAutoPrintEnabled: boolean;
   instoreCustomerReceiptPrinterTarget: string | null;
   instoreCustomerReceiptEnabledFromTime: string | null;
@@ -61,7 +63,8 @@ export function isInstoreCustomerReceiptAutoPrintEligible(
   now = new Date(),
 ): boolean {
   const paymentDetail = order.payment_method_detail?.trim().toLowerCase() || '';
-  return settings.instoreCustomerReceiptAutoPrintEnabled
+  return settings.instoreOrderAutoPrintEnabled !== false
+    && settings.instoreCustomerReceiptAutoPrintEnabled
     && !!settings.instoreCustomerReceiptPrinterTarget
     && order.order_channel === 'instore'
     && order.payment_status === 'paid'

@@ -152,6 +152,8 @@ export type AppSettings = {
     // Kitchen printer (ESC/POS)
     printerEnabled: boolean;
     printerAutoPrint: boolean;
+    /** Whether this POS handles automatic printing for in-store orders. */
+    instoreOrderAutoPrintEnabled: boolean;
     instoreCustomerReceiptAutoPrintEnabled: boolean;
     instoreCustomerReceiptPrinterTarget: string | null;
     instoreCustomerReceiptEnabledFromTime: string | null;
@@ -230,6 +232,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
 
     printerEnabled: false,
     printerAutoPrint: true,
+    instoreOrderAutoPrintEnabled: true,
     instoreCustomerReceiptAutoPrintEnabled: false,
     instoreCustomerReceiptPrinterTarget: null,
     instoreCustomerReceiptEnabledFromTime: null,
@@ -342,6 +345,9 @@ export async function loadAppSettings(): Promise<AppSettings> {
         const printerAutoPrint = typeof (parsed as any)?.printerAutoPrint === 'boolean'
             ? (parsed as any).printerAutoPrint
             : DEFAULT_APP_SETTINGS.printerAutoPrint;
+        const instoreOrderAutoPrintEnabled = typeof (parsed as any)?.instoreOrderAutoPrintEnabled === 'boolean'
+            ? (parsed as any).instoreOrderAutoPrintEnabled
+            : DEFAULT_APP_SETTINGS.instoreOrderAutoPrintEnabled;
         const instoreCustomerReceiptSettings = normalizeInstoreCustomerReceiptSettings(parsed);
         const instoreInstantTicketSettings = normalizeInstoreInstantTicketSettings(parsed);
 
@@ -406,6 +412,7 @@ export async function loadAppSettings(): Promise<AppSettings> {
 
             printerEnabled,
             printerAutoPrint,
+            instoreOrderAutoPrintEnabled,
             ...instoreCustomerReceiptSettings,
             ...instoreInstantTicketSettings,
 
@@ -461,6 +468,7 @@ export async function saveAppSettings(settings: AppSettings): Promise<void> {
 
         printerEnabled: !!settings.printerEnabled,
         printerAutoPrint: !!settings.printerAutoPrint,
+        instoreOrderAutoPrintEnabled: settings.instoreOrderAutoPrintEnabled !== false,
         ...instoreCustomerReceiptSettings,
         ...instoreInstantTicketSettings,
 

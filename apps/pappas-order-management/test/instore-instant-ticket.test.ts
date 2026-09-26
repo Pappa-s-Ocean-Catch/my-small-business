@@ -56,6 +56,17 @@ test('does not route a pending in-store payment to the instant-ticket printer', 
   );
 });
 
+test('does not route an in-store order locally when this POS defers in-store printing', () => {
+  assert.equal(
+    getInstoreInstantTicketPrintJob(makeOrder({ payment_status: 'paid' }), {
+      instoreInstantTicketEnabled: true,
+      instoreInstantTicketPrinterTarget: 'TCP:192.168.1.20',
+      instoreOrderAutoPrintEnabled: false,
+    } as any, ['TCP:192.168.1.20']),
+    null,
+  );
+});
+
 test('reports the exact instant ticket eligibility inputs for the print journal', () => {
   assert.equal(
     getInstoreInstantTicketDebugDetails(makeOrder({ order_channel: 'phone_pickup', payment_status: 'paid' }), {

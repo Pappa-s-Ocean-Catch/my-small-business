@@ -29,6 +29,24 @@ Thumbs.db
 # Build output
 dist/
 build/
+target/
+.vite/
+.cxx/
+DerivedData/
+*.tsbuildinfo
+*.xcuserstate
+*.xcworkspace/xcuserdata/
+
+# Native and desktop generated outputs
+**/android/.gradle/
+**/android/build/
+**/android/app/build/
+**/ios/build/
+**/src-tauri/target/
+**/src-tauri/gen/
+
+# Agent execution scratch space
+.superpowers/
 
 # Misc
 coverage/

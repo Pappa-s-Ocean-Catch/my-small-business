@@ -1,0 +1,16 @@
+{
+  "name": "@my-small-business/pos-domain",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "test": "rm -rf dist-test && tsc -p tsconfig.test.json && node --test dist-test/src/**/*.test.js",
+    "type-check": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.3"
+  }
+}

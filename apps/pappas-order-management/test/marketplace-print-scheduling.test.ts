@@ -22,3 +22,12 @@ test('keeps the original created-at scheduling behavior for non-marketplace orde
     4_000,
   );
 });
+
+test('does not schedule in-store printing on a POS configured to defer it', () => {
+  const nowMs = Date.parse('2026-08-10T08:00:00.000Z');
+
+  assert.equal(
+    (getOrderAnnouncementDelayMs as any)({ order_channel: 'instore', created_at: '2026-08-10T08:00:00.000Z' }, 3_000, nowMs, false),
+    null,
+  );
+});

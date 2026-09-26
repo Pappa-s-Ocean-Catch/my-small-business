@@ -71,3 +71,10 @@ test('builds one priority customer-copy job only when the configured printer is 
   });
   assert.equal(getInstoreCustomerReceiptPrintJob(makeOrder(), enabledSettings, [], new Date(2026, 7, 8, 18, 0, 0)), null);
 });
+
+test('does not route a customer receipt locally when this POS defers in-store printing', () => {
+  assert.equal(getInstoreCustomerReceiptPrintJob(makeOrder(), {
+    ...enabledSettings,
+    instoreOrderAutoPrintEnabled: false,
+  } as any, ['tcp:192.168.1.20:9100'], new Date(2026, 7, 8, 18, 0, 0)), null);
+});

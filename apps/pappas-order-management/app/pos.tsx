@@ -46,6 +46,7 @@ import { useMarketplacePosDraftStore } from '../stores/marketplacePosDraftStore'
 import { styles } from '../components/pos/pos.styles';
 import { isCompactPhoneWidth } from '../lib/responsive';
 import { LIVE_ORDERS_QUERY_KEY } from '../hooks/useLiveOrdersQuery';
+import { useAppSettingsQuery } from '../hooks/useAppSettingsQuery';
 import { usePosMirrorPublisher } from '../hooks/usePosMirrorPublisher';
 import { posCatalogCacheStore } from '../stores/posCatalogCacheStore';
 import { usePosCatalog } from '../providers/PosCatalogProvider';
@@ -262,6 +263,7 @@ const getDiscountConfigFromOrder = (order: Order | null): PosDiscountConfig => {
 
 export default function PosScreen() {
   const { snapshot: catalog, status: catalogStatus, error: catalogError, refresh: refreshCatalog } = usePosCatalog();
+  const { data: appSettings } = useAppSettingsQuery();
   const { printInstoreCustomerReceipt, printInstoreInstantTicket } = useInstoreCustomerReceiptPrint();
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -1973,13 +1975,17 @@ export default function PosScreen() {
       );
       const completedOrder = { ...pendingOrder, ...settledOrder, items: pendingOrder.items };
 
-      await printInstoreInstantTicket(completedOrder);
+      if (appSettings?.instoreOrderAutoPrintEnabled !== false) {
+        await printInstoreInstantTicket(completedOrder);
+      }
       await applyRewardPointsForSavedOrder(
         completedOrder.id,
         completedOrder.user_id,
         getPendingInstoreRewardPoints(completedOrder),
       );
-      await printInstoreCustomerReceipt(completedOrder);
+      if (appSettings?.instoreOrderAutoPrintEnabled !== false) {
+        await printInstoreCustomerReceipt(completedOrder);
+      }
       setPendingInstoreSmartpayOrder(null);
       setSmartpayApprovedOrderId(null);
       invalidateTopSellers();
@@ -2073,7 +2079,9 @@ export default function PosScreen() {
           completedOrder.user_id,
           getPendingInstoreRewardPoints(completedOrder),
         );
-        await printInstoreCustomerReceipt(completedOrder);
+        if (appSettings?.instoreOrderAutoPrintEnabled !== false) {
+          await printInstoreCustomerReceipt(completedOrder);
+        }
         setPendingInstoreSmartpayOrder(null);
         setSmartpayApprovedOrderId(null);
         invalidateTopSellers();
@@ -2180,12 +2188,16 @@ export default function PosScreen() {
 
     try {
       if (paymentStatus === 'paid') {
-        await printInstoreInstantTicket(result.data);
+        if (appSettings?.instoreOrderAutoPrintEnabled !== false) {
+          await printInstoreInstantTicket(result.data);
+        }
       }
       const failures = await postSave;
       if (failures.length) Alert.alert('Order saved', `Some post-save updates failed: ${failures.join('; ')}`);
       if (paymentStatus === 'paid') {
-        await printInstoreCustomerReceipt(result.data);
+        if (appSettings?.instoreOrderAutoPrintEnabled !== false) {
+          await printInstoreCustomerReceipt(result.data);
+        }
       }
     } catch (error) {
       console.error('Instore checkout post-save work failed', error);

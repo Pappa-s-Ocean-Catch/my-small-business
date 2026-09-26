@@ -2,6 +2,8 @@ import type { Order } from '@my-small-business/types';
 import { getFriendlyOrderNumber } from '../utils/orderNumber';
 
 export type InstoreInstantTicketSettings = {
+  /** Whether this POS should handle automatic in-store printing locally. */
+  instoreOrderAutoPrintEnabled?: boolean;
   instoreInstantTicketEnabled: boolean;
   instoreInstantTicketPrinterTarget: string | null;
 };
@@ -24,7 +26,8 @@ export function getInstoreInstantTicketPrintJob(
   savedTargets: string[],
 ): { printerTarget: string; priority: 'instant-ticket' } | null {
   const printerTarget = settings.instoreInstantTicketPrinterTarget;
-  if (!settings.instoreInstantTicketEnabled
+  if (settings.instoreOrderAutoPrintEnabled === false
+    || !settings.instoreInstantTicketEnabled
     || !printerTarget
     || order.order_channel !== 'instore'
     || order.payment_method !== 'store'

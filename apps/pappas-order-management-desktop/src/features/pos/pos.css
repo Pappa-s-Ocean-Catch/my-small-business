@@ -1,0 +1,42 @@
+.payment-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.payment-actions button { min-height: 52px; font-size: 16px; border-radius: 8px; }
+.payment-actions button:last-child { background: #047857; }
+.payment-actions button:disabled { opacity: 0.5; }
+
+.pos-dialog-backdrop {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100;
+}
+.pos-dialog {
+  background: #f4f6f8; border-radius: 12px; width: 680px; max-width: 95vw; max-height: 90vh;
+  display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+}
+.dialog-header {
+  padding: 16px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; background: white;
+}
+.dialog-header h2 { margin: 0; font-size: 20px; font-weight: 800; color: #111827; }
+.icon-button { background: #f3f4f6; border: none; font-size: 24px; cursor: pointer; color: #4b5563; min-height: 40px; min-width: 40px; border-radius: 20px; display: flex; align-items: center; justify-content: center; }
+.dialog-body { padding: 12px; overflow-y: auto; flex: 1; }
+.addon-group {
+  margin-bottom: 12px; border-radius: 8px; border: 1px solid #bfdbfe; background: #eff6ff; padding: 18px 10px 10px 10px; position: relative;
+}
+.addon-group h3 { margin: 0 0 12px 0; color: white; font-size: 13px; font-weight: 900; background: #1d4ed8; position: absolute; top: -9px; left: 10px; padding: 3px 10px; border-radius: 8px; display: flex; align-items: center; gap: 8px; }
+.addon-group.removable { border-color: #fecaca; background: #fff1f2; }
+.addon-group.removable h3 { background: #dc2626; }
+.required-badge { background: transparent; color: white; padding: 0; font-size: 13px; font-weight: 900; }
+.addon-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+.addon-button {
+  padding: 7px 8px; border: 1px solid #d1d5db; border-radius: 8px; background: white;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: pointer; min-height: 52px; min-width: 80px; flex-grow: 1;
+}
+.addon-button.selected { border-color: #1d4ed8; background: #2563eb; color: white; }
+.addon-button.removed { border-color: #b91c1c; background: #dc2626; color: white; }
+.addon-name { font-weight: 900; font-size: 13px; color: inherit; text-align: center; }
+.addon-button.selected .addon-name, .addon-button.removed .addon-name { color: white; }
+.addon-price { font-size: 12px; color: #6b7280; font-weight: 800; }
+.addon-button.selected .addon-price, .addon-button.removed .addon-price { color: rgba(255,255,255,0.8); }
+.notes-input { width: 100%; min-height: 84px; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; resize: vertical; background: white; font-family: inherit; font-size: 15px; }
+.dialog-footer {
+  padding: 16px; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; gap: 12px; background: white;
+}
+.dialog-footer button { padding: 0 24px; }

@@ -275,6 +275,20 @@ export function PosCartPane({
         </View>
       </View>
       <View style={styles.cartCheckoutActions}>
+        {orderId && (
+          <Button
+            mode="outlined"
+            icon="clipboard-text-outline"
+            compact
+            disabled={cartItems.length === 0 || creatingOrder || smartpayProcessing}
+            onPress={openCheckout}
+            style={styles.cartCheckoutActionButton}
+            contentStyle={styles.cartCheckoutActionButtonContent}
+            labelStyle={styles.cartCheckoutActionLabel}
+          >
+            Edit Checkout Details
+          </Button>
+        )}
         <Button
           mode="contained"
           icon={orderId ? 'content-save' : 'cash-register'}

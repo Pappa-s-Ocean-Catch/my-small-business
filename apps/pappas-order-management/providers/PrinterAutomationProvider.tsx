@@ -674,7 +674,19 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
     if (announcingOrderIdsRef.current.has(order.id)) return;
 
     const delayMs = getPrintDelayMs();
-    const dueInMs = getOrderAnnouncementDelayMs(order, delayMs);
+    const dueInMs = getOrderAnnouncementDelayMs(
+      order,
+      delayMs,
+      Date.now(),
+      appSettings.instoreOrderAutoPrintEnabled,
+    );
+    if (dueInMs == null) {
+      logOrderEvent('decision', 'scheduler', 'Skipped local in-store print workflow', {
+        order: { id: order.id },
+        details: 'This POS is configured to defer in-store orders to a printer-configured POS',
+      });
+      return;
+    }
 
     const timer = setTimeout(() => {
       pendingAnnouncementTimersRef.current.delete(order.id);
@@ -686,7 +698,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
       order: { id: order.id },
       details: `Due in ${dueInMs}ms (${order.order_channel === 'third_party' ? 'marketplace arrival' : 'order creation'})`,
     });
-  }, [fetchAndAnnounceOrder, getPrintDelayMs, logOrderEvent]);
+  }, [appSettings.instoreOrderAutoPrintEnabled, fetchAndAnnounceOrder, getPrintDelayMs, logOrderEvent]);
 
   const scanScheduledOrdersForAutoPrint = useCallback(async () => {
     try {
@@ -769,6 +781,15 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
             return;
           }
 
+          if ((payload.new as { order_channel?: string | null }).order_channel === 'instore'
+            && !appSettings.instoreOrderAutoPrintEnabled) {
+            logOrderEvent('decision', 'realtime', 'Skipped local in-store print workflow', {
+              order: { id: orderId, order_number: (payload.new as any)?.order_number ?? null },
+              details: 'This POS is configured to defer in-store orders to a printer-configured POS',
+            });
+            return;
+          }
+
           logOrderEvent('info', 'realtime', `Received ${payload.eventType.toLowerCase()} event`, {
             order: { id: orderId, order_number: (payload.new as any)?.order_number ?? null },
             details: `status ${(payload.old as any)?.order_status ?? '-'} -> ${(payload.new as any)?.order_status ?? '-'}, payment ${(payload.new as any)?.payment_status ?? '-'}`,
@@ -826,7 +847,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
         clearTimeout(preOrderNoticeTimeoutRef.current);
       }
     };
-  }, [logOrderEvent, playAttentionSoundForOrder, queryClient, scheduleOrderAnnouncement, setPreOrderSkipNotice]);
+  }, [appSettings.instoreOrderAutoPrintEnabled, logOrderEvent, playAttentionSoundForOrder, queryClient, scheduleOrderAnnouncement, setPreOrderSkipNotice]);
 
   return (
     <InstoreCustomerReceiptPrintContext.Provider value={{ printInstoreCustomerReceipt, printInstoreInstantTicket }}>

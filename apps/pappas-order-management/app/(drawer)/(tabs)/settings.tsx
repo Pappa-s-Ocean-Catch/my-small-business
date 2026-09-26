@@ -79,6 +79,7 @@ export default function SettingsScreen() {
 
     const [printerEnabled, setPrinterEnabled] = useState<boolean>(DEFAULT_APP_SETTINGS.printerEnabled);
     const [printerAutoPrint, setPrinterAutoPrint] = useState<boolean>(DEFAULT_APP_SETTINGS.printerAutoPrint);
+    const [instoreOrderAutoPrintEnabled, setInstoreOrderAutoPrintEnabled] = useState(DEFAULT_APP_SETTINGS.instoreOrderAutoPrintEnabled);
     const [instoreCustomerReceiptAutoPrintEnabled, setInstoreCustomerReceiptAutoPrintEnabled] = useState(DEFAULT_APP_SETTINGS.instoreCustomerReceiptAutoPrintEnabled);
     const [instoreCustomerReceiptPrinterTarget, setInstoreCustomerReceiptPrinterTarget] = useState<string | null>(DEFAULT_APP_SETTINGS.instoreCustomerReceiptPrinterTarget);
     const [instoreCustomerReceiptEnabledFromTime, setInstoreCustomerReceiptEnabledFromTime] = useState(DEFAULT_APP_SETTINGS.instoreCustomerReceiptEnabledFromTime || '');
@@ -132,6 +133,7 @@ export default function SettingsScreen() {
 
         setPrinterEnabled(currentSettings.printerEnabled);
         setPrinterAutoPrint(currentSettings.printerAutoPrint);
+        setInstoreOrderAutoPrintEnabled(currentSettings.instoreOrderAutoPrintEnabled);
         setInstoreCustomerReceiptAutoPrintEnabled(currentSettings.instoreCustomerReceiptAutoPrintEnabled);
         setInstoreCustomerReceiptPrinterTarget(currentSettings.instoreCustomerReceiptPrinterTarget);
         setInstoreCustomerReceiptEnabledFromTime(currentSettings.instoreCustomerReceiptEnabledFromTime || '');
@@ -684,6 +686,7 @@ export default function SettingsScreen() {
                 callerIdSipResponses,
                 printerEnabled,
                 printerAutoPrint,
+                instoreOrderAutoPrintEnabled,
                 instoreCustomerReceiptAutoPrintEnabled,
                 instoreCustomerReceiptPrinterTarget,
                 instoreCustomerReceiptEnabledFromTime: receiptFromTime,
@@ -1512,6 +1515,12 @@ export default function SettingsScreen() {
                                             <Text style={styles.label}>Auto print new orders</Text>
                                             <Switch value={printerAutoPrint} onValueChange={setPrinterAutoPrint} disabled={!hasPrinterCapability} />
                                         </View>
+
+                                        <View style={styles.switchRow}>
+                                            <Text style={styles.label}>Handle in-store printing on this POS</Text>
+                                            <Switch value={instoreOrderAutoPrintEnabled} onValueChange={setInstoreOrderAutoPrintEnabled} />
+                                        </View>
+                                        <Text style={styles.helper}>Turn off on a busy order-taking POS to let a printer-configured POS claim and print in-store orders. Other order channels keep their normal routing.</Text>
 
                                         <TextInput
                                             mode="outlined"
