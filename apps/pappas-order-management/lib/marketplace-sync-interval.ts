@@ -1,5 +1,5 @@
 export const DEFAULT_MARKETPLACE_SYNC_INTERVAL_SEC = 30;
-export const MIN_MARKETPLACE_SYNC_INTERVAL_SEC = 15;
+export const MIN_MARKETPLACE_SYNC_INTERVAL_SEC = 5;
 export const MAX_MARKETPLACE_SYNC_INTERVAL_SEC = 600;
 
 export function normalizeMarketplaceSyncIntervalSec(value: unknown): number {

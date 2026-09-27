@@ -11,8 +11,9 @@ test('defaults a device marketplace polling interval to 30 seconds', () => {
   assert.equal(normalizeMarketplaceSyncIntervalSec(undefined), 30);
 });
 
-test('keeps marketplace polling intervals within the supported 15 to 600 second range', () => {
-  assert.equal(normalizeMarketplaceSyncIntervalSec(5), 15);
+test('keeps marketplace polling intervals within the supported 5 to 600 second range', () => {
+  assert.equal(normalizeMarketplaceSyncIntervalSec(3), 5);
+  assert.equal(normalizeMarketplaceSyncIntervalSec(5), 5);
   assert.equal(normalizeMarketplaceSyncIntervalSec(90), 90);
   assert.equal(normalizeMarketplaceSyncIntervalSec(900), 600);
 });

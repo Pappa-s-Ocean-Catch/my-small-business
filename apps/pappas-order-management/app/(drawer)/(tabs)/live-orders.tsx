@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -732,12 +732,33 @@ export default function LiveOrdersScreen() {
     width,
     height,
   );
-  const liveOrderCardWidth = getLiveOrderCardRailWidth(width, height, appSettings.liveOrderCardsPerScreen);
+  const liveOrderCardWidth = getLiveOrderCardRailWidth(
+    width,
+    height,
+    appSettings.liveOrderCardsPerScreen,
+    filteredOrders.length,
+  );
   const useCompactVerticalCards = shouldUseCompactLiveOrderCards(
     appSettings.liveOrderCardLayout === 'vertical',
     width,
     height,
   );
+
+  const flatListRef = useRef<FlatList<Order>>(null);
+  const [scrollX, setScrollX] = useState(0);
+
+  const cardStep = liveOrderCardWidth + 12;
+  const firstPartiallyHiddenIndex = Math.floor((scrollX + width - 12) / cardStep);
+  const hiddenRightCount = useVerticalCardRail && filteredOrders.length > 0
+    ? Math.max(0, filteredOrders.length - firstPartiallyHiddenIndex)
+    : 0;
+
+  const handleScrollRight = useCallback(() => {
+    if (!flatListRef.current) return;
+    const nextOffset = scrollX + cardStep;
+    flatListRef.current.scrollToOffset({ offset: nextOffset, animated: true });
+  }, [scrollX, cardStep]);
+
   return (
     <View style={styles.container}>
 
@@ -880,9 +901,14 @@ export default function LiveOrdersScreen() {
       </Surface>
 
       <FlatList
+        ref={flatListRef}
         style={{ flex: 1 }}
         data={filteredOrders}
         horizontal={useVerticalCardRail}
+        onScroll={useVerticalCardRail ? (event) => {
+          setScrollX(event.nativeEvent.contentOffset.x);
+        } : undefined}
+        scrollEventThrottle={16}
         ItemSeparatorComponent={useVerticalCardRail ? () => <View style={styles.cardRailSeparator} /> : undefined}
         renderItem={({ item: order }) => (
           <LiveOrderListItem
@@ -938,6 +964,20 @@ export default function LiveOrdersScreen() {
           </View>
         }
       />
+
+      {hiddenRightCount > 0 && (
+        <TouchableOpacity
+          style={styles.moreOrdersFloatingBadge}
+          onPress={handleScrollRight}
+          activeOpacity={0.85}
+          accessibilityLabel={`${hiddenRightCount} more orders to the right, tap to scroll`}
+        >
+          <View style={styles.moreOrdersPill}>
+            <Text style={styles.moreOrdersPillText}>+{hiddenRightCount} more</Text>
+            <MaterialCommunityIcons name="chevron-right" size={18} color="#ffffff" />
+          </View>
+        </TouchableOpacity>
+      )}
 
       <OrderDetailModal
         visible={showOrderModal}
@@ -1160,5 +1200,33 @@ const styles = StyleSheet.create({
   smartpayAmount: { marginTop: 12, fontSize: 28, fontWeight: '900', color: '#111827' },
   snackbar: {
     backgroundColor: '#111827',
+  },
+  moreOrdersFloatingBadge: {
+    position: 'absolute',
+    right: 14,
+    bottom: 24,
+    zIndex: 90,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  moreOrdersPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0f172a',
+    borderWidth: 1,
+    borderColor: '#334155',
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    gap: 4,
+  },
+  moreOrdersPillText: {
+    color: '#f8fafc',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
 });

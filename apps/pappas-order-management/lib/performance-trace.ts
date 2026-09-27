@@ -1,4 +1,4 @@
-export const PERFORMANCE_SLOW_OPERATION_MS = 500;
+export const PERFORMANCE_SLOW_OPERATION_MS = 2000;
 
 export function getTimerDelayMs(expectedAtMs: number, actualAtMs: number): number {
   return Math.max(0, actualAtMs - expectedAtMs);

@@ -40,6 +40,19 @@ test('fits three landscape cards when the screen is wide enough and two when it 
   assert.equal(getLiveOrderCardRailWidth(800, 600), 382);
 });
 
+test('peeks the next card when more orders exist than fit on screen', () => {
+  // When 3 columns fit, but there are 4 orders, card width narrows slightly so 4th card peeks
+  const defaultWidth = getLiveOrderCardRailWidth(1024, 600, 3);
+  const peekWidth = getLiveOrderCardRailWidth(1024, 600, 3, 4);
+  assert.equal(defaultWidth, 325);
+  assert.equal(peekWidth, 303);
+  assert.ok(peekWidth < defaultWidth);
+
+  // When order count is less than or equal to column count, no peek
+  assert.equal(getLiveOrderCardRailWidth(1024, 600, 3, 3), 325);
+  assert.equal(getLiveOrderCardRailWidth(1024, 600, 3, 2), 325);
+});
+
 test('uses compact vertical cards on short landscape screens', () => {
   assert.equal(shouldUseCompactLiveOrderCards(true, 1024, 600), true);
   assert.equal(shouldUseCompactLiveOrderCards(true, 1024, 720), false);

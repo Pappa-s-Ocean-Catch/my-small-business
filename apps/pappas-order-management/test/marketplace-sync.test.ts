@@ -517,3 +517,119 @@ test('manual sync falls back from live detail to history and performs status-onl
   }]);
   assert.deepEqual(result, { order: { id: 'local-77' }, error: null });
 });
+
+test('schedules independent polling timers when providerConfig specifies distinct intervals', async () => {
+  const scheduled: Array<{ callback: () => void; delayMs: number }> = [];
+  const cleared: unknown[] = [];
+  const activeRequests: string[] = [];
+
+  const coordinator = createMarketplaceSyncCoordinator({
+    getActiveOrders: async (provider) => {
+      activeRequests.push(provider);
+      return activeResult(provider, []);
+    },
+    getOrderDetail: async () => {
+      throw new Error('empty active lists must not load details');
+    },
+    importMarketplaceOrder: async () => ({ order: null, created: false, error: null }),
+    getOpenMarketplaceOrdersForHistory: async () => ({ data: [], error: null }),
+    syncMarketplaceOrderStatus: async () => ({ order: null, error: null }),
+    logError: () => undefined,
+    providerConfig: {
+      doordash: { enabled: true, intervalMs: 15_000 },
+      uber_eats: { enabled: true, intervalMs: 60_000 },
+    },
+    setInterval: (callback, delayMs) => {
+      scheduled.push({ callback, delayMs });
+      return `timer-${delayMs}`;
+    },
+    clearInterval: (handle) => {
+      cleared.push(handle);
+    },
+  });
+
+  await coordinator.start();
+
+  assert.equal(scheduled.length, 2);
+  const delays = scheduled.map((s) => s.delayMs).sort((a, b) => a - b);
+  assert.deepEqual(delays, [15_000, 60_000]);
+
+  coordinator.stop();
+  assert.equal(cleared.length, 2);
+});
+
+test('allows disabling DoorDash or Uber Eats independently', async () => {
+  const scheduled: Array<{ callback: () => void; delayMs: number }> = [];
+  const polledProviders: string[] = [];
+
+  const coordinator = createMarketplaceSyncCoordinator({
+    getActiveOrders: async (provider) => {
+      polledProviders.push(provider);
+      return activeResult(provider, []);
+    },
+    getOrderDetail: async () => {
+      throw new Error('empty active lists must not load details');
+    },
+    importMarketplaceOrder: async () => ({ order: null, created: false, error: null }),
+    getOpenMarketplaceOrdersForHistory: async () => ({ data: [], error: null }),
+    syncMarketplaceOrderStatus: async () => ({ order: null, error: null }),
+    logError: () => undefined,
+    providerConfig: {
+      doordash: { enabled: true, intervalMs: 15_000 },
+      uber_eats: { enabled: false, intervalMs: 60_000 },
+    },
+    setInterval: (callback, delayMs) => {
+      scheduled.push({ callback, delayMs });
+      return `timer-${delayMs}`;
+    },
+    clearInterval: () => undefined,
+  });
+
+  await coordinator.start();
+
+  // Only DoorDash should be polled and scheduled
+  assert.equal(scheduled.length, 1);
+  assert.equal(scheduled[0].delayMs, 15_000);
+  assert.deepEqual(polledProviders, ['doordash']);
+
+  coordinator.stop();
+});
+
+test('ensures slow in-flight request on Uber Eats does not block DoorDash polling', async () => {
+  let resolveUber: (() => void) | null = null;
+  const uberPending = new Promise<void>((res) => { resolveUber = res; });
+  const polledProviders: string[] = [];
+
+  const coordinator = createMarketplaceSyncCoordinator({
+    getActiveOrders: async (provider) => {
+      polledProviders.push(provider);
+      if (provider === 'uber_eats') {
+        await uberPending;
+      }
+      return activeResult(provider, []);
+    },
+    getOrderDetail: async () => {
+      throw new Error('empty active lists must not load details');
+    },
+    importMarketplaceOrder: async () => ({ order: null, created: false, error: null }),
+    getOpenMarketplaceOrdersForHistory: async () => ({ data: [], error: null }),
+    syncMarketplaceOrderStatus: async () => ({ order: null, error: null }),
+    logError: () => undefined,
+    providerConfig: {
+      doordash: { enabled: true, intervalMs: 15_000 },
+      uber_eats: { enabled: true, intervalMs: 60_000 },
+    },
+  });
+
+  // Start polling Uber Eats (which will block)
+  const uberPoll = coordinator.poll('uber_eats');
+
+  // DoorDash should be able to poll immediately even though Uber Eats is in-flight
+  await coordinator.poll('doordash');
+  assert.ok(polledProviders.includes('doordash'));
+
+  // Clean up hanging Uber request
+  if (resolveUber) (resolveUber as () => void)();
+  await uberPoll;
+});
+

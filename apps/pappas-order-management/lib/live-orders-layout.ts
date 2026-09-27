@@ -16,10 +16,17 @@ export const getLiveOrderCardRailColumnCount = (width: number, height: number, c
   return width >= LANDSCAPE_TABLET_WIDTH ? cardsPerScreen : 2;
 };
 
-export const getLiveOrderCardRailWidth = (width: number, height: number, cardsPerScreen: number = 3) => {
+export const getLiveOrderCardRailWidth = (
+  width: number,
+  height: number,
+  cardsPerScreen: number = 3,
+  totalOrders?: number,
+) => {
   const columns = getLiveOrderCardRailColumnCount(width, height, cardsPerScreen);
+  const shouldPeek = typeof totalOrders === 'number' && totalOrders > columns;
+  const effectiveColumns = shouldPeek ? columns + 0.22 : columns;
   const gutters = LIVE_ORDER_CARD_RAIL_PADDING * 2 + LIVE_ORDER_CARD_RAIL_GAP * (columns - 1);
-  return Math.floor((width - gutters) / columns);
+  return Math.floor((width - gutters) / effectiveColumns);
 };
 
 export const shouldUseCompactLiveOrderCards = (

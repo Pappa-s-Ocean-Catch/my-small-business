@@ -41,6 +41,8 @@
     "lib/marketplace-resolver-groups.ts",
     "lib/marketplace-sync.ts",
     "lib/marketplace-sync-window.ts",
+    "lib/marketplace-sync-interval.ts",
+    "lib/marketplace-auto-sync-settings.ts",
     "lib/marketplace-print-scheduling.ts",
     "lib/promotion-summary.ts",
     "lib/pos-api-auth.ts",

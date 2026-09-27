@@ -349,16 +349,25 @@ export async function findMarketplaceOrder(
   }
 }
 
-export async function getOpenMarketplaceOrdersForHistory(): Promise<{
+export async function getOpenMarketplaceOrdersForHistory(targetProvider?: MarketplaceProvider): Promise<{
   data: OpenMarketplaceOrderForHistory[] | null;
   error: string | null;
 }> {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('orders')
       .select('id, delivery_partner_name, external_order_number, marketplace_workflow_uuid, order_status')
-      .eq('order_channel', 'third_party')
-      .in('delivery_partner_name', ['Uber Eats', 'DoorDash'])
+      .eq('order_channel', 'third_party');
+
+    if (targetProvider === 'uber_eats') {
+      query = query.eq('delivery_partner_name', 'Uber Eats');
+    } else if (targetProvider === 'doordash') {
+      query = query.eq('delivery_partner_name', 'DoorDash');
+    } else {
+      query = query.in('delivery_partner_name', ['Uber Eats', 'DoorDash']);
+    }
+
+    const { data, error } = await query
       .not('external_order_number', 'is', null)
       .not('marketplace_workflow_uuid', 'is', null)
       .neq('marketplace_workflow_uuid', '')

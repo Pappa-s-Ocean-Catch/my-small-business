@@ -66,6 +66,10 @@ export default function SettingsScreen() {
     const [liveOrderCardPreviewItems, setLiveOrderCardPreviewItems] = useState(DEFAULT_APP_SETTINGS.liveOrderCardPreviewItems);
     const [marketplaceAutoSyncEnabled, setMarketplaceAutoSyncEnabled] = useState(DEFAULT_APP_SETTINGS.marketplaceAutoSyncEnabled);
     const [marketplaceSyncIntervalSecText, setMarketplaceSyncIntervalSecText] = useState(String(DEFAULT_APP_SETTINGS.marketplaceSyncIntervalSec));
+    const [marketplaceDoorDashSyncEnabled, setMarketplaceDoorDashSyncEnabled] = useState(DEFAULT_APP_SETTINGS.marketplaceDoorDashSyncEnabled);
+    const [marketplaceDoorDashSyncIntervalSecText, setMarketplaceDoorDashSyncIntervalSecText] = useState(String(DEFAULT_APP_SETTINGS.marketplaceDoorDashSyncIntervalSec));
+    const [marketplaceUberSyncEnabled, setMarketplaceUberSyncEnabled] = useState(DEFAULT_APP_SETTINGS.marketplaceUberSyncEnabled);
+    const [marketplaceUberSyncIntervalSecText, setMarketplaceUberSyncIntervalSecText] = useState(String(DEFAULT_APP_SETTINGS.marketplaceUberSyncIntervalSec));
     const [marketplaceSyncStartTime, setMarketplaceSyncStartTime] = useState(DEFAULT_APP_SETTINGS.marketplaceSyncStartTime);
     const [marketplaceSyncEndTime, setMarketplaceSyncEndTime] = useState(DEFAULT_APP_SETTINGS.marketplaceSyncEndTime);
     const [marketplaceFetchMode, setMarketplaceFetchMode] = useState<'api' | 'local'>(DEFAULT_APP_SETTINGS.marketplaceFetchMode);
@@ -120,6 +124,10 @@ export default function SettingsScreen() {
         setLiveOrderCardPreviewItems(currentSettings.liveOrderCardPreviewItems);
         setMarketplaceAutoSyncEnabled(currentSettings.marketplaceAutoSyncEnabled);
         setMarketplaceSyncIntervalSecText(String(currentSettings.marketplaceSyncIntervalSec));
+        setMarketplaceDoorDashSyncEnabled(currentSettings.marketplaceDoorDashSyncEnabled);
+        setMarketplaceDoorDashSyncIntervalSecText(String(currentSettings.marketplaceDoorDashSyncIntervalSec));
+        setMarketplaceUberSyncEnabled(currentSettings.marketplaceUberSyncEnabled);
+        setMarketplaceUberSyncIntervalSecText(String(currentSettings.marketplaceUberSyncIntervalSec));
         setMarketplaceSyncStartTime(currentSettings.marketplaceSyncStartTime);
         setMarketplaceSyncEndTime(currentSettings.marketplaceSyncEndTime);
         setMarketplaceFetchMode(currentSettings.marketplaceFetchMode);
@@ -182,6 +190,16 @@ export default function SettingsScreen() {
         [printerSaved, printerSelectedTarget, printers]
     );
 
+    const marketplaceSummary = (() => {
+        const parts: string[] = [];
+        if (marketplaceDoorDashSyncEnabled) {
+            parts.push(`DoorDash (${marketplaceDoorDashSyncIntervalSecText || 30}s)`);
+        }
+        if (marketplaceUberSyncEnabled) {
+            parts.push(`Uber Eats (${marketplaceUberSyncIntervalSecText || 30}s)`);
+        }
+        return parts.length > 0 ? parts.join(', ') : 'Disabled on this tablet';
+    })();
     const refreshSummary = `Every ${refreshIntervalSecText} seconds`;
     const soundSummary = soundEnabled ? `${selectedSoundLabel} • ${repeatCountText} plays` : 'Disabled';
     const liveOrdersSummary = liveOrderCardLayout === 'vertical'
@@ -577,10 +595,16 @@ export default function SettingsScreen() {
 
     const handleSave = async () => {
         const refreshIntervalSec = parseIntOr(refreshIntervalSecText, DEFAULT_APP_SETTINGS.refreshIntervalSec);
-        const marketplaceSyncIntervalSec = parseIntOr(
-            marketplaceSyncIntervalSecText,
-            DEFAULT_APP_SETTINGS.marketplaceSyncIntervalSec
+        const marketplaceDoorDashSyncIntervalSec = parseIntOr(
+            marketplaceDoorDashSyncIntervalSecText,
+            DEFAULT_APP_SETTINGS.marketplaceDoorDashSyncIntervalSec
         );
+        const marketplaceUberSyncIntervalSec = parseIntOr(
+            marketplaceUberSyncIntervalSecText,
+            DEFAULT_APP_SETTINGS.marketplaceUberSyncIntervalSec
+        );
+        const resolvedMarketplaceAutoSyncEnabled = marketplaceDoorDashSyncEnabled || marketplaceUberSyncEnabled;
+        const resolvedMarketplaceSyncIntervalSec = Math.min(marketplaceDoorDashSyncIntervalSec, marketplaceUberSyncIntervalSec);
         const soundRepeatCount = parseIntOr(repeatCountText, DEFAULT_APP_SETTINGS.soundRepeatCount);
         const callerIdPort = parseIntOr(callerIdPortText, DEFAULT_APP_SETTINGS.callerIdPort);
         const callerIdDisplaySeconds = parseIntOr(callerIdDisplaySecondsText, DEFAULT_APP_SETTINGS.callerIdDisplaySeconds);
@@ -591,8 +615,12 @@ export default function SettingsScreen() {
             Alert.alert('Invalid refresh interval', 'Please enter a value between 5 and 600 seconds.');
             return;
         }
-        if (marketplaceSyncIntervalSec < 5 || marketplaceSyncIntervalSec > 600) {
-            Alert.alert('Invalid marketplace polling interval', 'Please enter a value between 15 and 600 seconds.');
+        if (marketplaceDoorDashSyncIntervalSec < 5 || marketplaceDoorDashSyncIntervalSec > 600) {
+            Alert.alert('Invalid DoorDash interval', 'Please enter a value between 5 and 600 seconds.');
+            return;
+        }
+        if (marketplaceUberSyncIntervalSec < 5 || marketplaceUberSyncIntervalSec > 600) {
+            Alert.alert('Invalid Uber Eats interval', 'Please enter a value between 5 and 600 seconds.');
             return;
         }
         const isValidMarketplaceSyncTime = (value: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
@@ -674,8 +702,12 @@ export default function SettingsScreen() {
                 liveOrderCardLayout,
                 liveOrderCardsPerScreen,
                 liveOrderCardPreviewItems,
-                marketplaceAutoSyncEnabled,
-                marketplaceSyncIntervalSec,
+                marketplaceAutoSyncEnabled: resolvedMarketplaceAutoSyncEnabled,
+                marketplaceSyncIntervalSec: resolvedMarketplaceSyncIntervalSec,
+                marketplaceDoorDashSyncEnabled,
+                marketplaceDoorDashSyncIntervalSec,
+                marketplaceUberSyncEnabled,
+                marketplaceUberSyncIntervalSec,
                 marketplaceSyncStartTime,
                 marketplaceSyncEndTime,
                 marketplaceFetchMode,
@@ -821,7 +853,7 @@ export default function SettingsScreen() {
                     />
                     <SettingsActionTile
                         title="Marketplace auto-sync"
-                        description={marketplaceAutoSyncEnabled ? 'Enabled on this tablet' : 'Disabled on this tablet'}
+                        description={marketplaceSummary}
                         icon="sync"
                         onPress={() => setActiveDialog('marketplace')}
                     />
@@ -1088,63 +1120,133 @@ export default function SettingsScreen() {
 
                             {activeDialog === 'marketplace' && (
                                 <>
-                                    <View style={styles.switchRow}>
-                                        <Text style={styles.label}>Marketplace auto-sync</Text>
-                                        <Switch value={marketplaceAutoSyncEnabled} onValueChange={setMarketplaceAutoSyncEnabled} />
+                                    <View style={styles.panelCard}>
+                                        <View style={styles.panelHeader}>
+                                            <View style={styles.switchRow}>
+                                                <Text style={styles.panelTitle}>DoorDash</Text>
+                                                <Switch
+                                                    value={marketplaceDoorDashSyncEnabled}
+                                                    onValueChange={setMarketplaceDoorDashSyncEnabled}
+                                                />
+                                            </View>
+                                            <Text style={styles.panelDescription}>
+                                                Automatically poll DoorDash orders on this tablet.
+                                            </Text>
+                                        </View>
+                                        <View style={styles.chipRow}>
+                                            {[5, 15, 30, 60, 120].map((interval) => (
+                                                <Chip
+                                                    key={interval}
+                                                    mode={marketplaceDoorDashSyncIntervalSecText === String(interval) ? 'flat' : 'outlined'}
+                                                    selected={marketplaceDoorDashSyncIntervalSecText === String(interval)}
+                                                    disabled={!marketplaceDoorDashSyncEnabled}
+                                                    onPress={() => setMarketplaceDoorDashSyncIntervalSecText(String(interval))}
+                                                >
+                                                    {interval}s
+                                                </Chip>
+                                            ))}
+                                        </View>
+                                        <TextInput
+                                            mode="outlined"
+                                            label="DoorDash polling interval (seconds)"
+                                            value={marketplaceDoorDashSyncIntervalSecText}
+                                            onChangeText={setMarketplaceDoorDashSyncIntervalSecText}
+                                            keyboardType="number-pad"
+                                            disabled={!marketplaceDoorDashSyncEnabled}
+                                            style={styles.input}
+                                        />
+                                        <Text style={styles.helper}>
+                                            Checks every 5 to 600 seconds. Default is 30s.
+                                        </Text>
                                     </View>
-                                    <Text style={styles.helper}>
-                                        Automatically checks Uber Eats and DoorDash on this tablet. Manual marketplace refresh and status updates remain available.
-                                    </Text>
-                                    <TextInput
-                                        mode="outlined"
-                                        label="Marketplace polling interval (seconds)"
-                                        value={marketplaceSyncIntervalSecText}
-                                        onChangeText={setMarketplaceSyncIntervalSecText}
-                                        keyboardType="number-pad"
-                                        style={styles.input}
-                                    />
-                                    <Text style={styles.helper}>
-                                        Checks in the background every 15 to 600 seconds. The default is 30 seconds and applies immediately after saving.
-                                    </Text>
-                                    <TextInput
-                                        mode="outlined"
-                                        label="Marketplace sync start time"
-                                        value={marketplaceSyncStartTime}
-                                        onChangeText={setMarketplaceSyncStartTime}
-                                        placeholder="11:00"
-                                        style={styles.input}
-                                    />
-                                    <TextInput
-                                        mode="outlined"
-                                        label="Marketplace sync end time"
-                                        value={marketplaceSyncEndTime}
-                                        onChangeText={setMarketplaceSyncEndTime}
-                                        placeholder="20:30"
-                                        style={styles.input}
-                                    />
-                                    <Text style={styles.helper}>
-                                        Uses Melbourne time. Auto-sync runs from the start time up to, but not including, the end time. Manual refresh remains available anytime.
-                                    </Text>
-                                    <Text style={styles.label}>Marketplace request mode</Text>
-                                    <View style={styles.segmentedButtons}>
-                                        <Button
-                                            mode={marketplaceFetchMode === 'api' ? 'contained' : 'outlined'}
-                                            onPress={() => setMarketplaceFetchMode('api')}
-                                            style={styles.segmentedButton}
-                                        >
-                                            API (recommended)
-                                        </Button>
-                                        <Button
-                                            mode={marketplaceFetchMode === 'local' ? 'contained' : 'outlined'}
-                                            onPress={() => setMarketplaceFetchMode('local')}
-                                            style={styles.segmentedButton}
-                                        >
-                                            Local tablet
-                                        </Button>
+
+                                    <View style={styles.panelCard}>
+                                        <View style={styles.panelHeader}>
+                                            <View style={styles.switchRow}>
+                                                <Text style={styles.panelTitle}>Uber Eats</Text>
+                                                <Switch
+                                                    value={marketplaceUberSyncEnabled}
+                                                    onValueChange={setMarketplaceUberSyncEnabled}
+                                                />
+                                            </View>
+                                            <Text style={styles.panelDescription}>
+                                                Automatically poll Uber Eats orders on this tablet.
+                                            </Text>
+                                        </View>
+                                        <View style={styles.chipRow}>
+                                            {[5, 15, 30, 60, 120].map((interval) => (
+                                                <Chip
+                                                    key={interval}
+                                                    mode={marketplaceUberSyncIntervalSecText === String(interval) ? 'flat' : 'outlined'}
+                                                    selected={marketplaceUberSyncIntervalSecText === String(interval)}
+                                                    disabled={!marketplaceUberSyncEnabled}
+                                                    onPress={() => setMarketplaceUberSyncIntervalSecText(String(interval))}
+                                                >
+                                                    {interval}s
+                                                </Chip>
+                                            ))}
+                                        </View>
+                                        <TextInput
+                                            mode="outlined"
+                                            label="Uber Eats polling interval (seconds)"
+                                            value={marketplaceUberSyncIntervalSecText}
+                                            onChangeText={setMarketplaceUberSyncIntervalSecText}
+                                            keyboardType="number-pad"
+                                            disabled={!marketplaceUberSyncEnabled}
+                                            style={styles.input}
+                                        />
+                                        <Text style={styles.helper}>
+                                            Checks every 5 to 600 seconds. Default is 30s.
+                                        </Text>
                                     </View>
-                                    <Text style={styles.helper}>
-                                        API sends provider requests through the web API. Local tablet sends provider requests directly from this tablet after fetching a session held in memory for up to one hour.
-                                    </Text>
+
+                                    <View style={styles.panelCard}>
+                                        <View style={styles.panelHeader}>
+                                            <Text style={styles.panelTitle}>Operating Hours & Mode</Text>
+                                            <Text style={styles.panelDescription}>
+                                                Applies to both marketplace providers.
+                                            </Text>
+                                        </View>
+                                        <TextInput
+                                            mode="outlined"
+                                            label="Marketplace sync start time"
+                                            value={marketplaceSyncStartTime}
+                                            onChangeText={setMarketplaceSyncStartTime}
+                                            placeholder="11:00"
+                                            style={styles.input}
+                                        />
+                                        <TextInput
+                                            mode="outlined"
+                                            label="Marketplace sync end time"
+                                            value={marketplaceSyncEndTime}
+                                            onChangeText={setMarketplaceSyncEndTime}
+                                            placeholder="20:30"
+                                            style={styles.input}
+                                        />
+                                        <Text style={styles.helper}>
+                                            Uses Melbourne time. Auto-sync runs from the start time up to, but not including, the end time. Manual refresh remains available anytime.
+                                        </Text>
+                                        <Text style={[styles.label, { marginTop: 12 }]}>Marketplace request mode</Text>
+                                        <View style={styles.segmentedButtons}>
+                                            <Button
+                                                mode={marketplaceFetchMode === 'api' ? 'contained' : 'outlined'}
+                                                onPress={() => setMarketplaceFetchMode('api')}
+                                                style={styles.segmentedButton}
+                                            >
+                                                API (recommended)
+                                            </Button>
+                                            <Button
+                                                mode={marketplaceFetchMode === 'local' ? 'contained' : 'outlined'}
+                                                onPress={() => setMarketplaceFetchMode('local')}
+                                                style={styles.segmentedButton}
+                                            >
+                                                Local tablet
+                                            </Button>
+                                        </View>
+                                        <Text style={styles.helper}>
+                                            API sends provider requests through the web API. Local tablet sends provider requests directly from this tablet after fetching a session held in memory for up to one hour.
+                                        </Text>
+                                    </View>
                                 </>
                             )}
 
@@ -1992,5 +2094,12 @@ const styles = StyleSheet.create({
     },
     segmentedButton: {
         flex: 1,
+    },
+    chipRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginTop: 8,
+        marginBottom: 8,
     },
 });

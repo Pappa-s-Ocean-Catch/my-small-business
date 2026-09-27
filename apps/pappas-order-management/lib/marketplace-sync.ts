@@ -45,6 +45,11 @@ type OpenMarketplaceOrderForHistory = {
   orderStatus: string;
 };
 
+export type MarketplaceProviderSyncConfig = {
+  enabled?: boolean;
+  intervalMs?: number;
+};
+
 type MarketplaceSyncDependencies<Detail, SyncedOrder> = {
   getActiveOrders: (
     provider: MarketplaceProvider,
@@ -60,7 +65,7 @@ type MarketplaceSyncDependencies<Detail, SyncedOrder> = {
   importMarketplaceOrder: (
     detail: Detail
   ) => Promise<MarketplaceImportResult>;
-  getOpenMarketplaceOrdersForHistory: () => Promise<{
+  getOpenMarketplaceOrdersForHistory: (provider?: MarketplaceProvider) => Promise<{
     data: OpenMarketplaceOrderForHistory[] | null;
     error: string | null;
   }>;
@@ -72,11 +77,15 @@ type MarketplaceSyncDependencies<Detail, SyncedOrder> = {
   logError?: (message: string, error: unknown) => void;
   onProviderPollSuccess?: (provider: MarketplaceProvider) => void;
   onProviderPollFailure?: (provider: MarketplaceProvider, error: unknown) => void;
-  onPollComplete?: (durationMs: number) => void;
-  canPoll?: () => boolean;
+  onPollComplete?: (durationMs: number, provider?: MarketplaceProvider) => void;
+  canPoll?: (provider?: MarketplaceProvider) => boolean;
   intervalMs?: number;
+  providerConfig?: Partial<Record<MarketplaceProvider, MarketplaceProviderSyncConfig>>;
   setInterval?: (callback: () => void, delayMs: number) => unknown;
   clearInterval?: (handle: unknown) => void;
+  setTimeout?: (callback: () => void, delayMs: number) => unknown;
+  clearTimeout?: (handle: unknown) => void;
+  now?: () => number;
 };
 
 type ManualMarketplaceSyncOrder = {
@@ -144,18 +153,49 @@ export function createMarketplaceSyncCoordinator<Detail, SyncedOrder>(
   const logError = dependencies.logError ?? ((message: string, error: unknown) => {
     console.error(message, error);
   });
-  const scheduleInterval = dependencies.setInterval ?? ((callback, delayMs) => (
-    globalThis.setInterval(callback, delayMs)
-  ));
-  const cancelInterval = dependencies.clearInterval ?? ((handle) => {
-    globalThis.clearInterval(handle as ReturnType<typeof globalThis.setInterval>);
-  });
-  const intervalMs = Number.isFinite(dependencies.intervalMs)
+  const now = dependencies.now ?? (() => Date.now());
+  const hasCustomInterval = Boolean(dependencies.setInterval && !dependencies.setTimeout);
+
+  const defaultIntervalMs = Number.isFinite(dependencies.intervalMs)
     ? Math.max(1_000, Math.trunc(dependencies.intervalMs!))
     : MARKETPLACE_SYNC_INTERVAL_MS;
 
-  let intervalHandle: unknown = null;
-  let inFlight = false;
+  const hasProviderConfig = Boolean(dependencies.providerConfig);
+
+  const inFlightByProvider: Record<MarketplaceProvider, boolean> = {
+    uber_eats: false,
+    doordash: false,
+  };
+  const timerHandleByProvider: Record<MarketplaceProvider, unknown> = {
+    uber_eats: null,
+    doordash: null,
+  };
+  const isRunningByProvider: Record<MarketplaceProvider, boolean> = {
+    uber_eats: false,
+    doordash: false,
+  };
+  const lastSuccessfulPollAtMs: Record<MarketplaceProvider, number> = {
+    uber_eats: 0,
+    doordash: 0,
+  };
+
+  let legacyIntervalHandle: unknown = null;
+  let legacyInFlight = false;
+  let legacyRunning = false;
+  let legacyLastSuccessfulPollAtMs = 0;
+
+  const isProviderEnabled = (provider: MarketplaceProvider) => {
+    if (!hasProviderConfig) return true;
+    return dependencies.providerConfig?.[provider]?.enabled !== false;
+  };
+
+  const getProviderIntervalMs = (provider: MarketplaceProvider) => {
+    const configured = dependencies.providerConfig?.[provider]?.intervalMs;
+    if (Number.isFinite(configured)) {
+      return Math.max(1_000, Math.trunc(configured!));
+    }
+    return defaultIntervalMs;
+  };
 
   const syncOrder = async (
     provider: MarketplaceProvider,
@@ -247,11 +287,66 @@ export function createMarketplaceSyncCoordinator<Detail, SyncedOrder>(
     }
   };
 
-  const poll = async () => {
-    if (inFlight || dependencies.canPoll?.() === false) return;
+  const pollProvider = async (
+    provider: MarketplaceProvider,
+    options?: { enforceCooldown?: boolean }
+  ) => {
+    if (!isProviderEnabled(provider)) return;
+    if (inFlightByProvider[provider] || dependencies.canPoll?.(provider) === false) return;
 
-    inFlight = true;
-    const startedAtMs = Date.now();
+    const interval = getProviderIntervalMs(provider);
+    if (options?.enforceCooldown && lastSuccessfulPollAtMs[provider] > 0) {
+      const elapsedSinceSuccess = now() - lastSuccessfulPollAtMs[provider];
+      if (elapsedSinceSuccess < interval) {
+        return;
+      }
+    }
+
+    inFlightByProvider[provider] = true;
+    const startedAtMs = now();
+    console.info('[marketplace-sync]', {
+      provider,
+      operation: 'poll-started',
+    });
+    try {
+      const openOrdersPromise = dependencies.getOpenMarketplaceOrdersForHistory(provider)
+        .then((result) => {
+          if (result.error) {
+            logError(`[marketplace-sync] ${provider} open marketplace orders failed`, result.error);
+          }
+          return (result.data ?? []).filter((order) => order.provider === provider);
+        })
+        .catch((error) => {
+          logError(`[marketplace-sync] ${provider} open marketplace orders failed`, error);
+          return [];
+        });
+
+      await syncProvider(provider, openOrdersPromise);
+      lastSuccessfulPollAtMs[provider] = now();
+    } finally {
+      inFlightByProvider[provider] = false;
+      const durationMs = now() - startedAtMs;
+      console.info('[marketplace-sync]', {
+        provider,
+        operation: 'poll-completed',
+        durationMs,
+      });
+      dependencies.onPollComplete?.(durationMs, provider);
+    }
+  };
+
+  const pollLegacy = async (options?: { enforceCooldown?: boolean }) => {
+    if (legacyInFlight || dependencies.canPoll?.() === false) return;
+
+    if (options?.enforceCooldown && legacyLastSuccessfulPollAtMs > 0) {
+      const elapsedSinceSuccess = now() - legacyLastSuccessfulPollAtMs;
+      if (elapsedSinceSuccess < defaultIntervalMs) {
+        return;
+      }
+    }
+
+    legacyInFlight = true;
+    const startedAtMs = now();
     try {
       const openOrdersPromise = dependencies.getOpenMarketplaceOrdersForHistory()
         .then((result) => {
@@ -267,27 +362,192 @@ export function createMarketplaceSyncCoordinator<Detail, SyncedOrder>(
       await Promise.all(MARKETPLACE_PROVIDERS.map((provider) => (
         syncProvider(provider, openOrdersPromise)
       )));
+      legacyLastSuccessfulPollAtMs = now();
     } finally {
-      inFlight = false;
-      dependencies.onPollComplete?.(Date.now() - startedAtMs);
+      legacyInFlight = false;
+      dependencies.onPollComplete?.(now() - startedAtMs);
     }
   };
 
-  const start = () => {
-    if (intervalHandle !== null) return Promise.resolve();
+  const poll = async (targetProvider?: MarketplaceProvider) => {
+    if (targetProvider) {
+      await pollProvider(targetProvider);
+      return;
+    }
 
-    const initialPoll = poll();
-    intervalHandle = scheduleInterval(() => {
-      void poll();
-    }, intervalMs);
+    if (!hasProviderConfig) {
+      await pollLegacy();
+      return;
+    }
+
+    const enabledProviders = MARKETPLACE_PROVIDERS.filter(isProviderEnabled);
+    await Promise.all(enabledProviders.map((provider) => pollProvider(provider)));
+  };
+
+  const scheduleNextProviderPoll = (provider: MarketplaceProvider, delayMs?: number) => {
+    if (!isRunningByProvider[provider] || !isProviderEnabled(provider)) return;
+
+    const interval = delayMs ?? getProviderIntervalMs(provider);
+    if (timerHandleByProvider[provider] !== null) {
+      const cancelFn = dependencies.clearTimeout ?? globalThis.clearTimeout;
+      cancelFn(timerHandleByProvider[provider] as any);
+      timerHandleByProvider[provider] = null;
+    }
+
+    const scheduleFn = dependencies.setTimeout ?? globalThis.setTimeout;
+    timerHandleByProvider[provider] = scheduleFn(async () => {
+      timerHandleByProvider[provider] = null;
+      if (!isRunningByProvider[provider] || !isProviderEnabled(provider)) return;
+      if (inFlightByProvider[provider]) {
+        scheduleNextProviderPoll(provider, 1_000);
+        return;
+      }
+
+      try {
+        await pollProvider(provider);
+      } finally {
+        if (isRunningByProvider[provider] && isProviderEnabled(provider)) {
+          scheduleNextProviderPoll(provider);
+        }
+      }
+    }, interval);
+  };
+
+  const startProvider = (provider: MarketplaceProvider) => {
+    if (isRunningByProvider[provider]) return Promise.resolve();
+    if (!isProviderEnabled(provider)) return Promise.resolve();
+
+    isRunningByProvider[provider] = true;
+    const interval = getProviderIntervalMs(provider);
+    const initialPoll = pollProvider(provider);
+
+    if (hasCustomInterval) {
+      timerHandleByProvider[provider] = dependencies.setInterval!(() => {
+        if (!isRunningByProvider[provider] || !isProviderEnabled(provider)) return;
+        if (inFlightByProvider[provider]) return;
+        void pollProvider(provider);
+      }, interval);
+    } else {
+      void initialPoll.finally(() => {
+        if (isRunningByProvider[provider] && isProviderEnabled(provider)) {
+          scheduleNextProviderPoll(provider);
+        }
+      });
+    }
+
     return initialPoll;
   };
 
-  const stop = () => {
-    if (intervalHandle === null) return;
-    cancelInterval(intervalHandle);
-    intervalHandle = null;
+  const stopProvider = (provider: MarketplaceProvider) => {
+    isRunningByProvider[provider] = false;
+    const handle = timerHandleByProvider[provider];
+    if (handle !== null) {
+      if (hasCustomInterval) {
+        dependencies.clearInterval?.(handle);
+      } else {
+        const cancelFn = dependencies.clearTimeout ?? globalThis.clearTimeout;
+        cancelFn(handle as any);
+      }
+      timerHandleByProvider[provider] = null;
+    }
   };
 
-  return { poll, start, stop };
+  const scheduleNextLegacyPoll = (delayMs = defaultIntervalMs) => {
+    if (!legacyRunning) return;
+    if (legacyIntervalHandle !== null) {
+      const cancelFn = dependencies.clearTimeout ?? globalThis.clearTimeout;
+      cancelFn(legacyIntervalHandle as any);
+      legacyIntervalHandle = null;
+    }
+
+    const scheduleFn = dependencies.setTimeout ?? globalThis.setTimeout;
+    legacyIntervalHandle = scheduleFn(async () => {
+      legacyIntervalHandle = null;
+      if (!legacyRunning) return;
+      if (legacyInFlight) {
+        scheduleNextLegacyPoll(1_000);
+        return;
+      }
+
+      try {
+        await pollLegacy();
+      } finally {
+        if (legacyRunning) {
+          scheduleNextLegacyPoll(defaultIntervalMs);
+        }
+      }
+    }, delayMs);
+  };
+
+  const startLegacy = () => {
+    if (legacyRunning) return Promise.resolve();
+    legacyRunning = true;
+    const initialPoll = pollLegacy();
+
+    if (hasCustomInterval) {
+      legacyIntervalHandle = dependencies.setInterval!(() => {
+        if (!legacyRunning || legacyInFlight) return;
+        void pollLegacy();
+      }, defaultIntervalMs);
+    } else {
+      void initialPoll.finally(() => {
+        if (legacyRunning) {
+          scheduleNextLegacyPoll(defaultIntervalMs);
+        }
+      });
+    }
+
+    return initialPoll;
+  };
+
+  const stopLegacy = () => {
+    legacyRunning = false;
+    if (legacyIntervalHandle !== null) {
+      if (hasCustomInterval) {
+        dependencies.clearInterval?.(legacyIntervalHandle);
+      } else {
+        const cancelFn = dependencies.clearTimeout ?? globalThis.clearTimeout;
+        cancelFn(legacyIntervalHandle as any);
+      }
+      legacyIntervalHandle = null;
+    }
+  };
+
+  const start = (targetProvider?: MarketplaceProvider) => {
+    if (targetProvider) {
+      return startProvider(targetProvider);
+    }
+
+    if (!hasProviderConfig) {
+      return startLegacy();
+    }
+
+    const enabledProviders = MARKETPLACE_PROVIDERS.filter(isProviderEnabled);
+    return Promise.all(enabledProviders.map(startProvider)).then(() => undefined);
+  };
+
+  const stop = (targetProvider?: MarketplaceProvider) => {
+    if (targetProvider) {
+      stopProvider(targetProvider);
+      return;
+    }
+
+    if (!hasProviderConfig) {
+      stopLegacy();
+      return;
+    }
+
+    MARKETPLACE_PROVIDERS.forEach(stopProvider);
+  };
+
+  const getLastSuccessfulPollAt = (provider?: MarketplaceProvider) => {
+    if (provider) return lastSuccessfulPollAtMs[provider] || null;
+    const timestamps = Object.values(lastSuccessfulPollAtMs).filter((t) => t > 0);
+    if (!hasProviderConfig && legacyLastSuccessfulPollAtMs > 0) {
+      timestamps.push(legacyLastSuccessfulPollAtMs);
+    }
+    return timestamps.length > 0 ? Math.max(...timestamps) : null;
+  };
+
+  return { poll, start, stop, getLastSuccessfulPollAt };
 }

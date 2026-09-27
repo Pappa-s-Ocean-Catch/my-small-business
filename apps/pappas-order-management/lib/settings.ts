@@ -5,6 +5,12 @@ import {
     normalizeMarketplaceSyncIntervalSec,
 } from '@/lib/marketplace-sync-interval';
 import { normalizeMarketplaceSyncWindow } from '@/lib/marketplace-sync-window';
+import {
+    DEFAULT_MARKETPLACE_AUTO_SYNC_SETTINGS,
+    normalizeMarketplaceAutoSyncSettings,
+    type MarketplaceAutoSyncSettings,
+    type MarketplaceFetchMode,
+} from './marketplace-auto-sync-settings';
 import { SOUND_OPTIONS, type SoundId } from './sounds';
 import {
     createSimulatorSavedPrinter,
@@ -123,9 +129,9 @@ function normalizePrinterSectionAssignments(
     return deduped;
 }
 
-export type MarketplaceFetchMode = 'api' | 'local';
+export type { MarketplaceFetchMode } from './marketplace-auto-sync-settings';
 
-export type AppSettings = {
+export type AppSettings = MarketplaceAutoSyncSettings & {
     /** Optional label displayed on printed diagnostic information for this device. */
     registerName: string;
     refreshIntervalSec: number;
@@ -135,11 +141,6 @@ export type AppSettings = {
     liveOrderCardLayout: 'horizontal' | 'vertical';
     liveOrderCardsPerScreen: 3 | 4;
     liveOrderCardPreviewItems: number;
-    marketplaceAutoSyncEnabled: boolean;
-    marketplaceSyncIntervalSec: number;
-    marketplaceSyncStartTime: string;
-    marketplaceSyncEndTime: string;
-    marketplaceFetchMode: MarketplaceFetchMode;
 
     // Caller ID Listener
     callerIdEnabled: boolean;
@@ -217,11 +218,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     liveOrderCardLayout: 'vertical',
     liveOrderCardsPerScreen: 4,
     liveOrderCardPreviewItems: 3,
-    marketplaceAutoSyncEnabled: true,
-    marketplaceSyncIntervalSec: DEFAULT_MARKETPLACE_SYNC_INTERVAL_SEC,
-    marketplaceSyncStartTime: '11:00',
-    marketplaceSyncEndTime: '20:30',
-    marketplaceFetchMode: 'api',
+    ...DEFAULT_MARKETPLACE_AUTO_SYNC_SETTINGS,
 
     callerIdEnabled: false,
     aiCallAssistantEnabled: false,
@@ -298,17 +295,7 @@ export async function loadAppSettings(): Promise<AppSettings> {
             : 'vertical';
         const liveOrderCardsPerScreen = (parsed as any)?.liveOrderCardsPerScreen === 3 ? 3 : 4;
         const liveOrderCardPreviewItems = typeof (parsed as any)?.liveOrderCardPreviewItems === 'number' ? (parsed as any).liveOrderCardPreviewItems : 3;
-        const marketplaceAutoSyncEnabled = typeof (parsed as any)?.marketplaceAutoSyncEnabled === 'boolean'
-            ? (parsed as any).marketplaceAutoSyncEnabled
-            : DEFAULT_APP_SETTINGS.marketplaceAutoSyncEnabled;
-        const marketplaceSyncIntervalSec = normalizeMarketplaceSyncIntervalSec(
-            parsed?.marketplaceSyncIntervalSec
-        );
-        const marketplaceSyncWindow = normalizeMarketplaceSyncWindow({
-            startTime: parsed?.marketplaceSyncStartTime,
-            endTime: parsed?.marketplaceSyncEndTime,
-        });
-        const marketplaceFetchMode = (parsed as any)?.marketplaceFetchMode === 'local' ? 'local' : 'api';
+        const marketplaceSettings = normalizeMarketplaceAutoSyncSettings(parsed);
 
         const callerIdEnabled = typeof (parsed as any)?.callerIdEnabled === 'boolean'
             ? (parsed as any).callerIdEnabled
@@ -397,11 +384,7 @@ export async function loadAppSettings(): Promise<AppSettings> {
             liveOrderCardLayout,
             liveOrderCardsPerScreen,
             liveOrderCardPreviewItems,
-            marketplaceAutoSyncEnabled,
-            marketplaceSyncIntervalSec,
-            marketplaceSyncStartTime: marketplaceSyncWindow.startTime,
-            marketplaceSyncEndTime: marketplaceSyncWindow.endTime,
-            marketplaceFetchMode,
+            ...marketplaceSettings,
 
             callerIdEnabled,
             aiCallAssistantEnabled,
@@ -453,11 +436,7 @@ export async function saveAppSettings(settings: AppSettings): Promise<void> {
         liveOrderCardLayout: settings.liveOrderCardLayout === 'horizontal' ? 'horizontal' : 'vertical',
         liveOrderCardsPerScreen: settings.liveOrderCardsPerScreen === 3 ? 3 : 4,
         liveOrderCardPreviewItems: settings.liveOrderCardPreviewItems || 3,
-        marketplaceAutoSyncEnabled: settings.marketplaceAutoSyncEnabled !== false,
-        marketplaceSyncIntervalSec: normalizeMarketplaceSyncIntervalSec(settings.marketplaceSyncIntervalSec),
-        marketplaceSyncStartTime: marketplaceSyncWindow.startTime,
-        marketplaceSyncEndTime: marketplaceSyncWindow.endTime,
-        marketplaceFetchMode: settings.marketplaceFetchMode === 'local' ? 'local' : 'api',
+        ...normalizeMarketplaceAutoSyncSettings(settings),
 
         callerIdEnabled: !!settings.callerIdEnabled,
         aiCallAssistantEnabled: !!settings.aiCallAssistantEnabled,

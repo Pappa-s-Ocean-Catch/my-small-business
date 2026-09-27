@@ -18,9 +18,16 @@ import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
 import type { MarketplaceSyncWindow } from '@/lib/marketplace-sync-window';
 import { formatPerformanceDuration, isSlowOperation } from '@/lib/performance-trace';
 
-type MarketplaceSyncProviderProps = PropsWithChildren<{
+type ProviderSyncOptions = {
   enabled: boolean;
   intervalMs: number;
+};
+
+type MarketplaceSyncProviderProps = PropsWithChildren<{
+  enabled?: boolean;
+  intervalMs?: number;
+  doorDash?: ProviderSyncOptions;
+  uberEats?: ProviderSyncOptions;
   syncWindow: MarketplaceSyncWindow;
 }>;
 
@@ -33,18 +40,38 @@ function marketplaceSyncErrorDetails(error: unknown) {
 
 export function MarketplaceSyncProvider({
   children,
-  enabled,
+  enabled = true,
   intervalMs,
+  doorDash,
+  uberEats,
   syncWindow,
 }: MarketplaceSyncProviderProps) {
+  const doorDashEnabled = doorDash ? doorDash.enabled : enabled;
+  const doorDashIntervalMs = doorDash?.intervalMs ?? intervalMs ?? 30_000;
+  const uberEatsEnabled = uberEats ? uberEats.enabled : enabled;
+  const uberEatsIntervalMs = uberEats?.intervalMs ?? intervalMs ?? 30_000;
+
   const coordinator = useMemo(() => createMarketplaceSyncCoordinator({
     getActiveOrders: (provider) => getMarketplaceActiveOrders(provider, undefined, 'auto-sync'),
     getOrderDetail: getMarketplaceOrderDetail,
     importMarketplaceOrder,
     getOpenMarketplaceOrdersForHistory,
     syncMarketplaceOrderStatus,
-    canPoll: () => isMarketplaceAutoSyncOpenAt(new Date(), syncWindow),
-    intervalMs,
+    canPoll: (provider) => {
+      if (provider === 'doordash' && !doorDashEnabled) return false;
+      if (provider === 'uber_eats' && !uberEatsEnabled) return false;
+      return isMarketplaceAutoSyncOpenAt(new Date(), syncWindow);
+    },
+    providerConfig: {
+      doordash: {
+        enabled: doorDashEnabled,
+        intervalMs: doorDashIntervalMs,
+      },
+      uber_eats: {
+        enabled: uberEatsEnabled,
+        intervalMs: uberEatsIntervalMs,
+      },
+    },
     logError: (message, error) => {
       usePrinterAutomationStore.getState().addJournalEntry({
         level: 'decision',
@@ -56,22 +83,36 @@ export function MarketplaceSyncProvider({
     },
     onProviderPollSuccess: (provider) => marketplaceSyncAlertStore.getState().clear(provider),
     onProviderPollFailure: (provider) => marketplaceSyncAlertStore.getState().reportFailure(provider),
-    onPollComplete: (durationMs) => {
+    onPollComplete: (durationMs, provider) => {
       if (!isSlowOperation(durationMs)) return;
       usePrinterAutomationStore.getState().addJournalEntry({
         level: 'error',
         scope: 'performance',
-        message: 'Marketplace sync poll was slow',
+        message: `Marketplace sync poll was slow (${provider || 'all'})`,
         details: `duration=${formatPerformanceDuration(durationMs)}`,
       });
     },
-  }), [intervalMs, syncWindow.endTime, syncWindow.startTime]);
+  }), [
+    doorDashEnabled,
+    doorDashIntervalMs,
+    uberEatsEnabled,
+    uberEatsIntervalMs,
+    syncWindow.endTime,
+    syncWindow.startTime,
+  ]);
 
   useEffect(() => {
-    if (!enabled) {
-      coordinator.stop();
-      marketplaceSyncAlertStore.getState().clear('uber_eats');
+    if (!doorDashEnabled) {
+      coordinator.stop('doordash');
       marketplaceSyncAlertStore.getState().clear('doordash');
+    }
+    if (!uberEatsEnabled) {
+      coordinator.stop('uber_eats');
+      marketplaceSyncAlertStore.getState().clear('uber_eats');
+    }
+
+    if (!doorDashEnabled && !uberEatsEnabled) {
+      coordinator.stop();
       return;
     }
 
@@ -90,7 +131,7 @@ export function MarketplaceSyncProvider({
       subscription.remove();
       coordinator.stop();
     };
-  }, [coordinator, enabled]);
+  }, [coordinator, doorDashEnabled, uberEatsEnabled]);
 
   return <>{children}<MarketplaceSyncAlertBanner /></>;
 }

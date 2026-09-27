@@ -1,26 +1,54 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import test from 'node:test';
 
-import { DEFAULT_APP_SETTINGS } from '../lib/settings';
+import {
+  DEFAULT_MARKETPLACE_AUTO_SYNC_SETTINGS,
+  normalizeMarketplaceAutoSyncSettings,
+} from '../lib/marketplace-auto-sync-settings';
 
-test('defaults marketplace auto-sync to enabled per tablet', () => {
-  assert.equal(DEFAULT_APP_SETTINGS.marketplaceAutoSyncEnabled, true);
-  assert.equal(DEFAULT_APP_SETTINGS.marketplaceSyncIntervalSec, 30);
-  assert.equal(DEFAULT_APP_SETTINGS.marketplaceSyncStartTime, '11:00');
-  assert.equal(DEFAULT_APP_SETTINGS.marketplaceSyncEndTime, '20:30');
-  assert.equal(DEFAULT_APP_SETTINGS.marketplaceFetchMode, 'api');
+test('defaults marketplace auto-sync to enabled per tablet with per-provider settings', () => {
+  assert.equal(DEFAULT_MARKETPLACE_AUTO_SYNC_SETTINGS.marketplaceAutoSyncEnabled, true);
+  assert.equal(DEFAULT_MARKETPLACE_AUTO_SYNC_SETTINGS.marketplaceSyncIntervalSec, 30);
+  assert.equal(DEFAULT_MARKETPLACE_AUTO_SYNC_SETTINGS.marketplaceDoorDashSyncEnabled, true);
+  assert.equal(DEFAULT_MARKETPLACE_AUTO_SYNC_SETTINGS.marketplaceDoorDashSyncIntervalSec, 30);
+  assert.equal(DEFAULT_MARKETPLACE_AUTO_SYNC_SETTINGS.marketplaceUberSyncEnabled, true);
+  assert.equal(DEFAULT_MARKETPLACE_AUTO_SYNC_SETTINGS.marketplaceUberSyncIntervalSec, 30);
+  assert.equal(DEFAULT_MARKETPLACE_AUTO_SYNC_SETTINGS.marketplaceSyncStartTime, '11:00');
+  assert.equal(DEFAULT_MARKETPLACE_AUTO_SYNC_SETTINGS.marketplaceSyncEndTime, '20:30');
+  assert.equal(DEFAULT_MARKETPLACE_AUTO_SYNC_SETTINGS.marketplaceFetchMode, 'api');
 });
 
-test('Settings exposes and persists the marketplace auto-sync preference', () => {
-  const source = readFileSync(resolve(
-    __dirname,
-    '../../../../app/(drawer)/(tabs)/settings.tsx',
-  ), 'utf8');
+test('migrates legacy marketplaceAutoSyncEnabled preference to both providers', () => {
+  const normalizedDisabled = normalizeMarketplaceAutoSyncSettings({
+    marketplaceAutoSyncEnabled: false,
+    marketplaceSyncIntervalSec: 60,
+  });
+  assert.equal(normalizedDisabled.marketplaceDoorDashSyncEnabled, false);
+  assert.equal(normalizedDisabled.marketplaceDoorDashSyncIntervalSec, 60);
+  assert.equal(normalizedDisabled.marketplaceUberSyncEnabled, false);
+  assert.equal(normalizedDisabled.marketplaceUberSyncIntervalSec, 60);
+  assert.equal(normalizedDisabled.marketplaceAutoSyncEnabled, false);
 
-  assert.match(source, /Marketplace auto-sync/);
-  assert.match(source, /marketplaceAutoSyncEnabled/);
-  assert.match(source, /Marketplace polling interval \(seconds\)/);
-  assert.match(source, /marketplaceSyncIntervalSec/);
+  const normalizedEnabled = normalizeMarketplaceAutoSyncSettings({
+    marketplaceAutoSyncEnabled: true,
+  });
+  assert.equal(normalizedEnabled.marketplaceDoorDashSyncEnabled, true);
+  assert.equal(normalizedEnabled.marketplaceUberSyncEnabled, true);
+  assert.equal(normalizedEnabled.marketplaceAutoSyncEnabled, true);
+});
+
+test('allows independent configuration for DoorDash and Uber Eats', () => {
+  const normalized = normalizeMarketplaceAutoSyncSettings({
+    marketplaceDoorDashSyncEnabled: true,
+    marketplaceDoorDashSyncIntervalSec: 5,
+    marketplaceUberSyncEnabled: false,
+    marketplaceUberSyncIntervalSec: 120,
+  });
+
+  assert.equal(normalized.marketplaceDoorDashSyncEnabled, true);
+  assert.equal(normalized.marketplaceDoorDashSyncIntervalSec, 5);
+  assert.equal(normalized.marketplaceUberSyncEnabled, false);
+  assert.equal(normalized.marketplaceUberSyncIntervalSec, 120);
+  assert.equal(normalized.marketplaceAutoSyncEnabled, true);
+  assert.equal(normalized.marketplaceSyncIntervalSec, 5);
 });

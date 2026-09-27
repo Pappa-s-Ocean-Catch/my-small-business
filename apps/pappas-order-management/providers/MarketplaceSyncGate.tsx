@@ -11,10 +11,20 @@ export function MarketplaceSyncGate({
   const { data: settings, isLoading } = useAppSettingsQuery();
   const { snapshot: catalog } = usePosCatalog();
 
+  const isReady = authenticated && Boolean(catalog) && !isLoading;
+
   return (
     <MarketplaceSyncProvider
-      enabled={authenticated && Boolean(catalog) && !isLoading && settings.marketplaceAutoSyncEnabled}
+      enabled={isReady && settings.marketplaceAutoSyncEnabled}
       intervalMs={settings.marketplaceSyncIntervalSec * 1_000}
+      doorDash={{
+        enabled: isReady && settings.marketplaceDoorDashSyncEnabled,
+        intervalMs: settings.marketplaceDoorDashSyncIntervalSec * 1_000,
+      }}
+      uberEats={{
+        enabled: isReady && settings.marketplaceUberSyncEnabled,
+        intervalMs: settings.marketplaceUberSyncIntervalSec * 1_000,
+      }}
       syncWindow={{
         startTime: settings.marketplaceSyncStartTime,
         endTime: settings.marketplaceSyncEndTime,
