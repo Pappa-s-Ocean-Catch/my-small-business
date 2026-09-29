@@ -13,6 +13,22 @@ test('POS save and edit each use one atomic database mutation', () => {
   assert.doesNotMatch(edit, /\.from\('order_item_addons'\)/);
 });
 
+test('the atomic edit RPC persists a supplied order workflow status', () => {
+  const migration = readFileSync(
+    resolve(process.cwd(), '../../supabase/migrations/20260927090000_fix_atomic_pos_order_edit_status.sql'),
+    'utf8',
+  );
+  const update = migration.slice(
+    migration.indexOf('IF p_order_id IS NULL THEN'),
+    migration.indexOf('DELETE FROM public.order_items'),
+  );
+
+  assert.match(
+    update,
+    /order_status = CASE WHEN p_order \? 'order_status' THEN p_order->>'order_status' ELSE o\.order_status END/,
+  );
+});
+
 test('coupon redemption uses one atomic RPC', () => {
   const coupons = readFileSync(resolve(process.cwd(), 'lib/coupons.ts'), 'utf8');
   const redemption = coupons.slice(coupons.indexOf('export async function recordCouponRedemption'), coupons.indexOf('/**\n * Get coupons list'));

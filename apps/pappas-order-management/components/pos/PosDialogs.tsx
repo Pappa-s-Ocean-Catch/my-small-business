@@ -8,6 +8,7 @@ import { CashTenderModal } from '../CashTenderModal';
 import { styles } from './pos.styles';
 import { hasNotePreset, toggleNotePreset } from '../../lib/note-presets';
 import type { CashTenderMode, PosInstorePaymentChoice, SaleProduct } from '../../app/pos.types';
+import type { EditedOrderPaymentChoice } from '../../lib/edit-order-payment';
 import {
   getSmartpayCheckoutProgress,
   type SmartpayCheckoutProgressStage,
@@ -38,7 +39,8 @@ type Props = {
   saveNote: () => void;
   instorePaymentDialogVisible: boolean;
   setInstorePaymentDialogVisible: (visible: boolean) => void;
-  onChooseInstorePayment: (choice: PosInstorePaymentChoice) => void;
+  isEditingOrder: boolean;
+  onChooseInstorePayment: (choice: PosInstorePaymentChoice | EditedOrderPaymentChoice) => void;
   freeItemDialogVisible: boolean;
   setFreeItemDialogVisible: (visible: boolean) => void;
   eligibleFreeItemProducts: SaleProduct[];
@@ -79,6 +81,7 @@ export function PosDialogs({
   saveNote,
   instorePaymentDialogVisible,
   setInstorePaymentDialogVisible,
+  isEditingOrder,
   onChooseInstorePayment,
   freeItemDialogVisible,
   setFreeItemDialogVisible,
@@ -288,10 +291,12 @@ export function PosDialogs({
           onDismiss={() => setInstorePaymentDialogVisible(false)}
           style={styles.noteDialog}
         >
-          <Dialog.Title>Complete In-store Order</Dialog.Title>
+          <Dialog.Title>{isEditingOrder ? 'Update Order Payment' : 'Complete In-store Order'}</Dialog.Title>
           <Dialog.Content>
             <Text style={styles.smartpayDialogText}>
-              Choose how this order should be recorded before it is created.
+              {isEditingOrder
+                ? 'Choose how to collect payment before this order is updated.'
+                : 'Choose how this order should be recorded before it is created.'}
             </Text>
             <View style={styles.dialogActionStack}>
               <Button mode="contained" icon="cash" onPress={() => onChooseInstorePayment('cash')}>
@@ -300,9 +305,20 @@ export function PosDialogs({
               <Button mode="contained-tonal" icon="credit-card-outline" onPress={() => onChooseInstorePayment('card')}>
                 Card
               </Button>
-              <Button mode="outlined" icon="clock-outline" onPress={() => onChooseInstorePayment('unpaid')}>
-                Unpaid
-              </Button>
+              {isEditingOrder ? (
+                <>
+                  <Button mode="outlined" icon="credit-card-wireless-outline" onPress={() => onChooseInstorePayment('smartpay')}>
+                    SmartPay
+                  </Button>
+                  <Button mode="outlined" icon="clock-outline" onPress={() => onChooseInstorePayment('unpaid')}>
+                    Unpaid
+                  </Button>
+                </>
+              ) : (
+                <Button mode="outlined" icon="clock-outline" onPress={() => onChooseInstorePayment('unpaid')}>
+                  Unpaid
+                </Button>
+              )}
             </View>
           </Dialog.Content>
           <Dialog.Actions>

@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import type { Order, OrderItem, OrderItemAddon, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { getOrderNotes, getOrderOptions } from '../utils/orderUtils';
+import { getSettlementPaymentMethod } from './order-payment-status';
 import type { DeliveryAddressDraft, DeliveryQuoteResult } from './delivery';
 import { isMarketplaceImportDuplicateError } from './marketplace-pos-import';
 import {
@@ -699,10 +700,12 @@ export async function updatePaymentStatus(
   paymentMethodDetail?: string | null
 ): Promise<{ data: Order | null; error: string | null }> {
   try {
+    const paymentMethod = getSettlementPaymentMethod(paymentStatus, paymentMethodDetail);
     const { data, error } = await supabase.rpc('update_pos_payment_status_atomic', {
       p_order_id: orderId,
       p_payment_status: paymentStatus,
       p_payment_method_detail: paymentMethodDetail ?? null,
+      p_payment_method: paymentMethod,
     });
 
     if (error) {
@@ -770,6 +773,7 @@ export async function updatePosOrder(
     | 'payment_method'
     | 'order_channel'
     | 'payment_status'
+    | 'order_status'
     | 'payment_method_detail'
     | 'order_options'
     | 'special_instructions'

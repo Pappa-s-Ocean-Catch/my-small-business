@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button, IconButton, Surface } from 'react-native-paper';
 
 import type { Customer } from '../../lib/customers';
-import { getRecentCustomers, searchCustomers } from '../../lib/customers';
+import { getRecentCustomers, searchCustomers, getRecentCalls } from '../../lib/customers';
 import { CustomerDirectoryList } from '../customers/CustomerDirectoryList';
 import type { CustomerLookupStatus } from './PosCheckoutPanel';
 import { PosPhoneInputModal } from './PosPhoneInputModal';
@@ -70,6 +70,18 @@ export function PosCustomerSelector({
   const [modalMatches, setModalMatches] = useState<Customer[]>([]);
   const [loadingModalMatches, setLoadingModalMatches] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
+
+  const [recentCallsVisible, setRecentCallsVisible] = useState(false);
+  const [recentCalls, setRecentCalls] = useState<{ caller_number: string, caller_name: string | null, created_at: string }[]>([]);
+  const [loadingRecentCalls, setLoadingRecentCalls] = useState(false);
+
+  const loadRecentCalls = async () => {
+    setLoadingRecentCalls(true);
+    setRecentCallsVisible(true);
+    const { data } = await getRecentCalls(3);
+    setRecentCalls(data || []);
+    setLoadingRecentCalls(false);
+  };
 
   useEffect(() => {
     if (!searchDialogVisible) return;
@@ -147,6 +159,16 @@ export function PosCustomerSelector({
             contentStyle={styles.customerSearchButtonContent}
           >
             Search
+          </Button>
+          <Button
+            mode="outlined"
+            icon="phone-clock"
+            compact
+            onPress={loadRecentCalls}
+            style={styles.customerSearchButton}
+            contentStyle={styles.customerSearchButtonContent}
+          >
+            Recent
           </Button>
         </View>
 
@@ -278,6 +300,40 @@ export function PosCustomerSelector({
           </View>
         </View>
       </Modal>
+
+      <Modal
+        visible={recentCallsVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setRecentCallsVisible(false)}
+      >
+        <View style={modalStyles.dropdownOverlay}>
+          <View style={modalStyles.dropdownMenu}>
+            <Text style={modalStyles.dropdownTitle}>Recent Calls</Text>
+            {loadingRecentCalls ? (
+              <ActivityIndicator size="small" style={{ margin: 20 }} />
+            ) : recentCalls.length === 0 ? (
+              <Text style={modalStyles.dropdownEmpty}>No recent calls</Text>
+            ) : (
+              recentCalls.map((call, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={modalStyles.dropdownItem}
+                  onPress={() => {
+                    onChangePhone(call.caller_number);
+                    if (call.caller_name) onChangeName(call.caller_name);
+                    setRecentCallsVisible(false);
+                  }}
+                >
+                  <Text style={modalStyles.dropdownItemPhone}>{call.caller_number}</Text>
+                  {call.caller_name && <Text style={modalStyles.dropdownItemName}>{call.caller_name}</Text>}
+                </TouchableOpacity>
+              ))
+            )}
+            <Button mode="text" onPress={() => setRecentCallsVisible(false)} style={{ marginTop: 12 }}>Close</Button>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
@@ -324,5 +380,42 @@ const modalStyles = StyleSheet.create({
   resultsArea: {
     flex: 1,
     minHeight: 0,
+  },
+  dropdownOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dropdownMenu: {
+    width: 300,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    elevation: 4,
+  },
+  dropdownTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 12,
+  },
+  dropdownEmpty: {
+    color: '#666',
+    marginVertical: 20,
+    textAlign: 'center',
+  },
+  dropdownItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  dropdownItemPhone: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  dropdownItemName: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 4,
   },
 });

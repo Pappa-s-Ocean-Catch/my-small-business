@@ -1,11 +1,11 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
-import { Surface, IconButton, useTheme, Chip } from 'react-native-paper';
-import { useRouter } from 'expo-router';
+import { View, StyleSheet, TouchableOpacity, Text, Modal } from 'react-native';
+import { Surface, IconButton, useTheme, Chip, ActivityIndicator } from 'react-native-paper';
+import { useRouter, usePathname } from 'expo-router';
 import { useAppSettingsQuery } from '@/hooks/useAppSettingsQuery';
 import { supabase } from '@/lib/supabase';
 import { DEFAULT_APP_SETTINGS } from '@/lib/settings';
-import { searchCustomers } from '@/lib/customers';
+import { searchCustomers, findCustomerByPhone } from '@/lib/customers';
 import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
 import * as CallerIdListener from '@my-small-business/caller-id-listener';
 import type { CallerIdListenerStatus, CallerIdIncomingCall } from '@my-small-business/caller-id-listener';
@@ -36,9 +36,155 @@ export const CallerIdContext = createContext<CallerIdContextValue>({
 
 export const useCallerId = () => useContext(CallerIdContext);
 
+const IncomingCallFullCard = ({ incomingCall, callerName, onAccept, onDismiss, theme }: { incomingCall: ExtendedIncomingCall, callerName: string | null, onAccept: () => void, onDismiss: () => void, theme: any }) => {
+  const [recentOrders, setRecentOrders] = useState<any[]>([]);
+  const [customerInfo, setCustomerInfo] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    const fetchData = async () => {
+      setLoading(true);
+      const { data: customerData } = await findCustomerByPhone(incomingCall.phoneNumber);
+      
+      const query = supabase
+        .from('orders')
+        .select('id, friendly_order_number, created_at, total_price')
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (incomingCall.customerId || customerData?.id) {
+        query.eq('customer_id', incomingCall.customerId || customerData?.id);
+      } else {
+        query.eq('customer_phone', incomingCall.phoneNumber);
+      }
+
+      const { data: orderData } = await query;
+      if (active) {
+        setCustomerInfo(customerData);
+        setRecentOrders(orderData || []);
+        setLoading(false);
+      }
+    };
+    fetchData();
+    return () => { active = false; };
+  }, [incomingCall]);
+
+  return (
+    <Surface style={{ 
+      flexDirection: 'row', 
+      maxWidth: 900, 
+      width: '90%',
+      backgroundColor: '#ffffff',
+      borderRadius: 24,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 20 },
+      shadowOpacity: 0.15,
+      shadowRadius: 30,
+      elevation: 20,
+      overflow: 'hidden'
+    }} elevation={5}>
+      <View style={{ flex: 1, backgroundColor: '#f8fafc', padding: 40, alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ 
+          width: 120, height: 120, borderRadius: 60, backgroundColor: '#eff6ff', 
+          alignItems: 'center', justifyContent: 'center', marginBottom: 24,
+          shadowColor: theme.colors.primary, shadowOpacity: 0.2, shadowRadius: 15, shadowOffset: { width: 0, height: 8 },
+          elevation: 8
+        }}>
+          <IconButton icon="phone-in-talk" size={60} iconColor={theme.colors.primary} />
+        </View>
+        <Text style={{ fontSize: 16, color: '#64748b', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
+          Incoming Call
+        </Text>
+        <Text style={{ fontSize: 36, fontWeight: '800', color: '#0f172a', textAlign: 'center', marginBottom: 8 }}>
+          {callerName || incomingCall.phoneNumber}
+        </Text>
+        {callerName && (
+           <Text style={{ fontSize: 20, color: '#64748b', fontWeight: '500', marginBottom: 32 }}>
+             {incomingCall.phoneNumber}
+           </Text>
+        )}
+        {!callerName && <View style={{ height: 32 }} />}
+
+        <View style={{ flexDirection: 'row', gap: 16, width: '100%' }}>
+           <TouchableOpacity 
+             style={{ flex: 1, backgroundColor: '#f1f5f9', borderRadius: 16, paddingVertical: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }} 
+             onPress={onDismiss}
+           >
+             <IconButton icon="close" size={24} iconColor="#64748b" style={{ margin: 0, marginRight: 8 }} />
+             <Text style={{ color: '#475569', fontSize: 20, fontWeight: 'bold' }}>Dismiss</Text>
+           </TouchableOpacity>
+           <TouchableOpacity 
+             style={{ flex: 1, backgroundColor: '#10b981', borderRadius: 16, paddingVertical: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', shadowColor: '#10b981', shadowOpacity: 0.4, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 6 }} 
+             onPress={onAccept}
+           >
+             <IconButton icon="phone" size={24} iconColor="#fff" style={{ margin: 0, marginRight: 8 }} />
+             <Text style={{ color: '#fff', fontSize: 20, fontWeight: 'bold' }}>Accept</Text>
+           </TouchableOpacity>
+        </View>
+      </View>
+
+      <View style={{ width: 400, padding: 40, backgroundColor: '#ffffff', borderLeftWidth: 1, borderLeftColor: '#f1f5f9' }}>
+        <Text style={{ fontSize: 24, fontWeight: '800', color: '#0f172a', marginBottom: 24 }}>Customer Profile</Text>
+        
+        {loading ? (
+           <View style={{ flex: 1, justifyContent: 'center' }}><ActivityIndicator size="small" /></View>
+        ) : !customerInfo && recentOrders.length === 0 ? (
+           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+             <View style={{ backgroundColor: '#ecfdf5', paddingHorizontal: 20, paddingVertical: 8, borderRadius: 20, marginBottom: 16 }}>
+                <Text style={{ color: '#059669', fontWeight: 'bold', fontSize: 16 }}>New Customer</Text>
+             </View>
+             <Text style={{ color: '#64748b', textAlign: 'center' }}>This looks like their first order with us!</Text>
+           </View>
+        ) : (
+           <View style={{ flex: 1 }}>
+             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 32 }}>
+                <View>
+                  <Text style={{ color: '#64748b', fontSize: 14, fontWeight: '600', marginBottom: 4 }}>Total Spent</Text>
+                  <Text style={{ color: '#0f172a', fontSize: 24, fontWeight: 'bold' }}>${(customerInfo?.totalSpent || 0).toFixed(2)}</Text>
+                </View>
+                <View>
+                  <Text style={{ color: '#64748b', fontSize: 14, fontWeight: '600', marginBottom: 4 }}>Points</Text>
+                  <Text style={{ color: '#f59e0b', fontSize: 24, fontWeight: 'bold' }}>{customerInfo?.rewardPoints || 0}</Text>
+                </View>
+                <View>
+                  <Text style={{ color: '#64748b', fontSize: 14, fontWeight: '600', marginBottom: 4 }}>Orders</Text>
+                  <Text style={{ color: '#0f172a', fontSize: 24, fontWeight: 'bold' }}>{customerInfo?.totalOrders || recentOrders.length}</Text>
+                </View>
+             </View>
+             
+             <Text style={{ fontSize: 18, fontWeight: '700', color: '#334155', marginBottom: 16 }}>Recent Orders</Text>
+             {recentOrders.length === 0 ? (
+                <Text style={{ color: '#94a3b8' }}>No recent orders found.</Text>
+             ) : (
+                recentOrders.map((order, idx) => (
+                  <View key={idx} style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                     <View>
+                       <Text style={{ fontWeight: '600', color: '#334155', fontSize: 16, marginBottom: 4 }}>
+                         #{order.friendly_order_number || order.id.slice(0, 8)}
+                       </Text>
+                       <Text style={{ color: '#94a3b8', fontSize: 14 }}>
+                         {new Date(order.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })} at {new Date(order.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                       </Text>
+                     </View>
+                     <Text style={{ fontWeight: '700', color: '#0f172a', fontSize: 16 }}>
+                       ${Number(order.total_price || 0).toFixed(2)}
+                     </Text>
+                  </View>
+                ))
+             )}
+           </View>
+        )}
+      </View>
+    </Surface>
+  );
+};
+
 export const CallerIdListenerProvider: React.FC<{ children: React.ReactNode; authenticated: boolean }> = ({ children, authenticated }) => {
   const theme = useTheme();
   const router = useRouter();
+  const pathname = usePathname();
+  const isPosScreen = pathname === '/pos';
   const { data: settings = DEFAULT_APP_SETTINGS } = useAppSettingsQuery();
   
   const [status, setStatus] = useState<CallerIdListenerStatus>({ state: 'stopped' });
@@ -196,35 +342,48 @@ export const CallerIdListenerProvider: React.FC<{ children: React.ReactNode; aut
       console.error('Caller ID Error:', event.message);
     });
 
-    // Realtime subscription for devices without physical caller ID connection
-    let realtimeChannel: any = null;
-    if (!settings.callerIdEnabled) {
-      realtimeChannel = supabase
-        .channel('public:phone_call_history')
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'phone_call_history' },
-          (payload) => {
-            const newRecord = payload.new;
-            setIncomingCall({
-              phoneNumber: newRecord.caller_number,
-              callId: newRecord.call_id || '',
-              timestamp: new Date(newRecord.created_at).getTime(),
-              customerId: newRecord.customer_id || undefined,
-            });
-            setCallerName(newRecord.caller_name || null);
-            
-            // Auto-dismiss
-            if (dismissTimer.current) {
-              clearTimeout(dismissTimer.current);
-            }
-            dismissTimer.current = setTimeout(() => {
-              setIncomingCall(null);
-            }, settings.callerIdDisplaySeconds * 1000);
+    // Realtime subscription for devices without physical caller ID connection and cross-device dismissal
+    const realtimeChannel = supabase
+      .channel('public:phone_call_history')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'phone_call_history' },
+        (payload) => {
+          if (settings.callerIdEnabled) return;
+          const newRecord = payload.new;
+          setIncomingCall({
+            phoneNumber: newRecord.caller_number,
+            callId: newRecord.call_id || '',
+            timestamp: new Date(newRecord.created_at).getTime(),
+            customerId: newRecord.customer_id || undefined,
+          });
+          setCallerName(newRecord.caller_name || null);
+          
+          // Auto-dismiss
+          if (dismissTimer.current) {
+            clearTimeout(dismissTimer.current);
           }
-        )
-        .subscribe();
-    }
+          dismissTimer.current = setTimeout(() => {
+            setIncomingCall(null);
+          }, settings.callerIdDisplaySeconds * 1000);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'phone_call_history' },
+        (payload) => {
+          const updatedRecord = payload.new;
+          if (updatedRecord.status === 'accepted') {
+            setIncomingCall((currentCall) => {
+               if (currentCall && currentCall.callId === updatedRecord.call_id) {
+                 return null;
+               }
+               return currentCall;
+            });
+          }
+        }
+      )
+      .subscribe();
 
     return () => {
       statusSub.remove();
@@ -318,28 +477,46 @@ export const CallerIdListenerProvider: React.FC<{ children: React.ReactNode; aut
 
       {/* Floating Incoming Call Card */}
       {authenticated && incomingCall && (
-        <View style={styles.cardContainer} pointerEvents="box-none">
-          <Surface style={styles.card} elevation={4}>
-            <View style={styles.cardContent}>
-              <View style={styles.iconContainer}>
-                <IconButton icon="phone-ring" size={24} iconColor={theme.colors.primary} />
-              </View>
-              <View style={styles.textContainer}>
-                <Text style={styles.callerLabel}>Incoming Call</Text>
-                <Text style={styles.callerNumber}>
-                  {incomingCall.phoneNumber}
-                  {callerName ? ` - ${callerName}` : ''}
-                </Text>
-              </View>
-              <View style={styles.actionsContainer}>
-                <TouchableOpacity style={styles.acceptButton} onPress={handleAcceptCall}>
-                  <Text style={styles.acceptButtonText}>Accept</Text>
-                </TouchableOpacity>
-                <IconButton icon="close" size={20} onPress={handleCloseCard} />
-              </View>
+        <>
+          {isPosScreen ? (
+            <View style={styles.cardContainer} pointerEvents="box-none">
+              <Surface style={styles.card} elevation={4}>
+                <View style={styles.cardContent}>
+                  <View style={styles.iconContainer}>
+                    <IconButton icon="phone-ring" size={24} iconColor={theme.colors.primary} />
+                  </View>
+                  <View style={styles.textContainer}>
+                    <Text style={styles.callerLabel}>Incoming Call</Text>
+                    <Text style={styles.callerNumber}>
+                      {incomingCall.phoneNumber}
+                      {callerName ? ` - ${callerName}` : ''}
+                    </Text>
+                  </View>
+                  <View style={styles.actionsContainer}>
+                    <TouchableOpacity style={styles.dismissButton} onPress={handleCloseCard}>
+                      <Text style={styles.dismissButtonText}>Dismiss</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.acceptButton} onPress={handleAcceptCall}>
+                      <Text style={styles.acceptButtonText}>Accept</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </Surface>
             </View>
-          </Surface>
-        </View>
+          ) : (
+            <Modal visible={true} transparent={true} animationType="slide">
+              <View style={styles.fullScreenContainer}>
+                <IncomingCallFullCard
+                  incomingCall={incomingCall}
+                  callerName={callerName}
+                  onAccept={handleAcceptCall}
+                  onDismiss={handleCloseCard}
+                  theme={theme}
+                />
+              </View>
+            </Modal>
+          )}
+        </>
       )}
     </View>
     </CallerIdContext.Provider>
@@ -409,5 +586,93 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  dismissButton: {
+    backgroundColor: '#f3f4f6',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginRight: 8,
+  },
+  dismissButtonText: {
+    color: '#374151',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  fullScreenContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    zIndex: 999,
+  },
+  fullScreenCard: {
+    width: '80%',
+    maxWidth: 600,
+    borderRadius: 24,
+    backgroundColor: '#fff',
+    padding: 32,
+  },
+  fullScreenCardContent: {
+    alignItems: 'center',
+  },
+  fullScreenIconContainer: {
+    marginBottom: 24,
+  },
+  fullScreenTextContainer: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  fullScreenCallerLabel: {
+    fontSize: 24,
+    color: '#666',
+    marginBottom: 8,
+  },
+  fullScreenCallerNumber: {
+    fontSize: 48,
+    fontWeight: 'bold',
+    color: '#000',
+    textAlign: 'center',
+  },
+  fullScreenActionsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 20,
+    width: '100%',
+  },
+  fullScreenAcceptButton: {
+    backgroundColor: '#10b981',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderRadius: 16,
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fullScreenAcceptButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 28,
+  },
+  fullScreenDismissButton: {
+    backgroundColor: '#f3f4f6',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderRadius: 16,
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fullScreenDismissButtonText: {
+    color: '#374151',
+    fontWeight: 'bold',
+    fontSize: 28,
   },
 });

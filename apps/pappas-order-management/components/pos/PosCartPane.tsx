@@ -35,7 +35,7 @@ type Props = {
   handleClearCart: () => void;
   openCheckout: () => void;
   openInstorePaymentPrompt: () => void;
-  handleCheckout: () => Promise<void>;
+  handleCheckout: () => void | Promise<void>;
   smartpayPaired: boolean;
   handleSmartpayInstoreCheckout: () => Promise<void>;
 };

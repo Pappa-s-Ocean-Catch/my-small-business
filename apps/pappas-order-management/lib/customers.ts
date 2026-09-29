@@ -91,6 +91,31 @@ export async function getRecentCustomers(page = 0, pageSize = 20): Promise<{ dat
   }
 }
 
+export async function getRecentCalls(limit = 3): Promise<{ data: { caller_number: string, caller_name: string | null, created_at: string }[] | null; error: string | null }> {
+  try {
+    const { data, error } = await supabase
+      .from('phone_call_history')
+      .select('caller_number, caller_name, created_at')
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (error) return { data: null, error: error.message };
+    
+    const unique = [];
+    const seen = new Set();
+    for (const call of (data || [])) {
+      if (!seen.has(call.caller_number)) {
+        seen.add(call.caller_number);
+        unique.push(call);
+      }
+      if (unique.length === limit) break;
+    }
+    return { data: unique, error: null };
+  } catch (err) {
+    return { data: null, error: err instanceof Error ? err.message : 'Unknown error' };
+  }
+}
+
 export async function searchCustomers(query: string, page = 0, pageSize = 20): Promise<{ data: Customer[] | null; error: string | null }> {
   try {
     const trimmedQuery = query.trim();

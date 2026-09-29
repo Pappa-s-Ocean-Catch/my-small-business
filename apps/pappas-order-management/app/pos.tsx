@@ -24,6 +24,11 @@ import {
 } from '../lib/pos-layouts';
 import { formatKitchenSectionValue, getOrderNotes, getOrderOptions, isScheduledPreOrder } from '../utils/orderUtils';
 import { formatSmartpayError, isSmartpayPaired, processSmartpayCardPayment } from '../lib/smartpay';
+import {
+  getEditedOrderPaymentAction,
+  type EditedOrderPaymentChoice,
+} from '../lib/edit-order-payment';
+import { getEditedPosOrderPaymentUpdate } from '../lib/order-payment-status';
 import { applyRewardPointsToOrder, fetchRewardPointsSettings, type RewardPointsSettings } from '../lib/reward-points';
 import {
   computePosFreeItemPromotion,
@@ -1792,8 +1797,11 @@ export default function PosScreen() {
         customer_name: name || editingOrder?.customer_name || null,
         payment_method: finalPaymentChoice === 'no_pay' ? (editingOrder?.payment_method ?? 'store') : 'store',
         order_channel: editingOrder?.order_channel ?? 'phone_pickup',
-        payment_status: paymentStatus,
-        payment_method_detail: paymentMethodDetail,
+        ...getEditedPosOrderPaymentUpdate(
+          editingOrder?.order_status ?? 'pending',
+          paymentStatus,
+          paymentMethodDetail,
+        ),
         order_options: orderOptions,
         special_instructions: orderSpecialInstructions,
         scheduled_pickup_at: pickupAt ? pickupAt.toISOString() : null,
@@ -2516,14 +2524,17 @@ export default function PosScreen() {
   ]);
 
   const openInstorePaymentPrompt = () => {
-    if (orderId) {
-      Alert.alert('Edit Order', 'Use Update Order when editing an existing order.');
-      return;
-    }
-
     if (cartItems.length === 0 || creatingOrder) return;
 
     setInstorePaymentDialogVisible(true);
+  };
+
+  const handleCheckoutWithEditPaymentPrompt = (paymentOverride?: PosCheckoutPaymentOverride) => {
+    if (orderId) {
+      openInstorePaymentPrompt();
+      return Promise.resolve();
+    }
+    return handleCheckout(paymentOverride);
   };
 
   const handleCashTenderConfirm = () => {
@@ -2541,15 +2552,25 @@ export default function PosScreen() {
     void handleInstoreCheckout('cash');
   };
 
-  const handleChooseInstorePayment = (choice: PosInstorePaymentChoice) => {
+  const handleChooseInstorePayment = (choice: PosInstorePaymentChoice | EditedOrderPaymentChoice) => {
     setInstorePaymentDialogVisible(false);
+
+    if (orderId) {
+      const action = getEditedOrderPaymentAction(choice);
+      if (action.kind === 'cash_tender') {
+        setCashTenderMode('pickup');
+        return;
+      }
+      void handleCheckout(action.payment);
+      return;
+    }
 
     if (choice === 'cash') {
       setCashTenderMode('instore');
       return;
     }
 
-    void handleInstoreCheckout(choice);
+    void handleInstoreCheckout(choice as PosInstorePaymentChoice);
   };
 
   const activeCategoryName = categories.find((category) => category.id === selectedCatId)?.name
@@ -2795,7 +2816,7 @@ export default function PosScreen() {
                   smartpayProcessing={smartpayProcessing}
                   orderId={orderId}
                   checkoutPrimaryLabel={checkoutPrimaryLabel}
-                  handleCheckout={handleCheckout}
+                  handleCheckout={handleCheckoutWithEditPaymentPrompt}
                   smartpayPaired={smartpayPaired}
                   handleInstoreCheckout={handleInstoreCheckout}
                   handleSmartpayInstoreCheckout={handleSmartpayInstoreCheckout}
@@ -2838,7 +2859,7 @@ export default function PosScreen() {
                 handleClearCart={handleClearCart}
                 openCheckout={openCheckout}
                 openInstorePaymentPrompt={openInstorePaymentPrompt}
-                handleCheckout={() => handleCheckout()}
+                handleCheckout={openInstorePaymentPrompt}
                 smartpayPaired={smartpayPaired}
                 handleSmartpayInstoreCheckout={handleSmartpayInstoreCheckout}
               />
@@ -2944,7 +2965,7 @@ export default function PosScreen() {
                 smartpayProcessing={smartpayProcessing}
                 orderId={orderId}
                 checkoutPrimaryLabel={checkoutPrimaryLabel}
-                handleCheckout={handleCheckout}
+                handleCheckout={handleCheckoutWithEditPaymentPrompt}
                 smartpayPaired={smartpayPaired}
                 handleInstoreCheckout={handleInstoreCheckout}
                 handleSmartpayInstoreCheckout={handleSmartpayInstoreCheckout}
@@ -3062,7 +3083,7 @@ export default function PosScreen() {
                 smartpayProcessing={smartpayProcessing}
                 orderId={orderId}
                 checkoutPrimaryLabel={checkoutPrimaryLabel}
-                handleCheckout={handleCheckout}
+                handleCheckout={handleCheckoutWithEditPaymentPrompt}
                 smartpayPaired={smartpayPaired}
                 handleInstoreCheckout={handleInstoreCheckout}
                 handleSmartpayInstoreCheckout={handleSmartpayInstoreCheckout}
@@ -3105,7 +3126,7 @@ export default function PosScreen() {
               handleClearCart={handleClearCart}
               openCheckout={openCheckout}
               openInstorePaymentPrompt={openInstorePaymentPrompt}
-              handleCheckout={() => handleCheckout()}
+              handleCheckout={openInstorePaymentPrompt}
               smartpayPaired={smartpayPaired}
               handleSmartpayInstoreCheckout={handleSmartpayInstoreCheckout}
             />
@@ -3140,6 +3161,7 @@ export default function PosScreen() {
         saveNote={saveNote}
         instorePaymentDialogVisible={instorePaymentDialogVisible}
         setInstorePaymentDialogVisible={setInstorePaymentDialogVisible}
+        isEditingOrder={Boolean(orderId)}
         onChooseInstorePayment={handleChooseInstorePayment}
         freeItemDialogVisible={freeItemDialogVisible}
         setFreeItemDialogVisible={setFreeItemDialogVisible}
