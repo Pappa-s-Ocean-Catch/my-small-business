@@ -567,7 +567,14 @@ export default function PosScreen() {
     return categories.find((category) => category.id === product.sale_category_id)?.section || null;
   }, [categories]);
 
-  const invalidateTopSellers = () => {
+  const lastTopSellerFetchAtRef = useRef(0);
+  const TOP_SELLER_COOLDOWN_MS = 15 * 60 * 1000;
+
+  const invalidateTopSellers = (force = false) => {
+    const now = Date.now();
+    if (!force && now - lastTopSellerFetchAtRef.current < TOP_SELLER_COOLDOWN_MS) {
+      return;
+    }
     posCatalogCacheStore.getState().clearTopSellers();
     setTopSellerRefreshKey((key) => key + 1);
   };
@@ -576,12 +583,11 @@ export default function PosScreen() {
     let timer: ReturnType<typeof setTimeout> | null = null;
     const scheduleTopSellerRefresh = () => {
       if (timer) clearTimeout(timer);
-      timer = setTimeout(() => { timer = null; invalidateTopSellers(); }, 250);
+      timer = setTimeout(() => { timer = null; invalidateTopSellers(); }, 5000);
     };
     const channel = supabase
       .channel('pos-top-sellers-refresh')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, scheduleTopSellerRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, scheduleTopSellerRefresh)
       .subscribe();
 
     return () => {
@@ -594,7 +600,7 @@ export default function PosScreen() {
     let day = formatDateInMelbourne(new Date());
     const timer = setInterval(() => {
       const nextDay = formatDateInMelbourne(new Date());
-      if (nextDay !== day) { day = nextDay; invalidateTopSellers(); }
+      if (nextDay !== day) { day = nextDay; invalidateTopSellers(true); }
     }, 60_000);
     return () => clearInterval(timer);
   }, []);
@@ -603,6 +609,7 @@ export default function PosScreen() {
     if (!catalog) return;
     const cachedTopSellers = posCatalogCacheStore.getState().getTopSellers();
     if (cachedTopSellers) {
+      lastTopSellerFetchAtRef.current = Date.now();
       const current = cachedTopSellers.flatMap((seller) => {
         const product = catalog?.productsById.get(seller.id);
         return product ? [{ ...product, total_quantity_sold: seller.total_quantity_sold, total_orders: seller.total_orders }] : [];
@@ -659,6 +666,7 @@ export default function PosScreen() {
       .filter((product): product is TopSellerProduct => Boolean(product));
 
     posCatalogCacheStore.getState().setTopSellers(nextTopSellers, cacheTtl);
+    lastTopSellerFetchAtRef.current = Date.now();
     setTopSellers(nextTopSellers);
     setLoadingTopSellers(false);
   };
@@ -1828,7 +1836,7 @@ export default function PosScreen() {
           const redemption = await recordCouponRedemption({ couponId: discountConfig.couponId, orderId: savedOrderId, userId: customerId || null });
           if (!redemption.success) throw new Error(redemption.error || 'Coupon redemption failed');
         } : undefined,
-        rewards: () => applyRewardPointsForSavedOrder(savedOrderId, customerId),
+        rewards: async () => await applyRewardPointsForSavedOrder(savedOrderId, customerId),
       });
       if (failures.length) Alert.alert('Order saved', `Some post-save updates failed: ${failures.join('; ')}`);
     }
@@ -2581,12 +2589,18 @@ export default function PosScreen() {
     || 'Menu';
   const itemsBackAction = selectedParentCatId ? backToSubgroups : backToGroups;
   const itemsBackLabel = selectedParentCatId ? activeParentCategoryName : 'Groups';
-  const quickQuantityForProduct = (productId: string) => (
-    cartItems.find((item) => (
-      item.product_id === productId
-      && !cartItemHasCustomizations(item)
-    ))?.quantity ?? 0
-  );
+  const quickQuantitiesByProductId = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const item of cartItems) {
+      if (!cartItemHasCustomizations(item)) {
+        map.set(item.product_id, (map.get(item.product_id) ?? 0) + item.quantity);
+      }
+    }
+    return map;
+  }, [cartItems]);
+  const quickQuantityForProduct = useCallback((productId: string) => (
+    quickQuantitiesByProductId.get(productId) ?? 0
+  ), [quickQuantitiesByProductId]);
   const isCompactLayout = width < 1000;
   const isPhoneLayout = isCompactPhoneWidth(width);
   const isNarrowLayout = width < 760;

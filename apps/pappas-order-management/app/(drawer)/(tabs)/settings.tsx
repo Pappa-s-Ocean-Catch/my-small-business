@@ -799,7 +799,7 @@ export default function SettingsScreen() {
         <View style={styles.screen}>
             <Appbar.Header style={styles.settingsHeader}>
                 {Platform.OS !== 'web' && <DrawerToggleButton tintColor="#fff" />}
-                <Appbar.BackAction onPress={() => router.push('/')} iconColor="#fff" />
+                <Appbar.BackAction onPress={() => router.replace('/(drawer)/(tabs)/live-orders')} iconColor="#fff" />
                 <Appbar.Content title="Settings" titleStyle={styles.settingsHeaderTitle} />
             </Appbar.Header>
             <ScrollView contentContainerStyle={styles.container}>

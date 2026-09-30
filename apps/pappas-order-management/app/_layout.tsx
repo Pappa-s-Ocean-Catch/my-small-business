@@ -3,7 +3,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-gesture-handler';
 
 import { Stack, useRouter, useSegments } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { StyleSheet } from 'react-native';
 import { MD3LightTheme, PaperProvider } from 'react-native-paper';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -29,14 +29,22 @@ import { PosCatalogProvider } from '@/providers/PosCatalogProvider';
 export default function RootLayout() {
   const router = useRouter();
   const segments = useSegments();
+  const segmentsRef = useRef(segments);
   const [authenticatedStaffAccess, setAuthenticatedStaffAccess] = useState(false);
   useKeepAwake();
+
+  useEffect(() => {
+    segmentsRef.current = segments;
+    if (!authenticatedStaffAccess && segments[0] && segments[0] !== 'login') {
+      router.replace('/login');
+    }
+  }, [authenticatedStaffAccess, router, segments]);
 
   useEffect(() => {
     let cancelled = false;
 
     const routeForSession = async (session: any | null) => {
-      const currentSegment = segments[0];
+      const currentSegment = segmentsRef.current[0];
 
       if (!session) {
         setAuthenticatedStaffAccess(false);
@@ -101,7 +109,7 @@ export default function RootLayout() {
       cancelled = true;
       subscription.unsubscribe();
     };
-  }, [router, segments]);
+  }, [router]);
 
   useEffect(() => subscribeToNewOrderNotificationResponses((route) => {
     router.push(route);

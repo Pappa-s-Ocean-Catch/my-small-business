@@ -142,7 +142,7 @@ type Props = {
   initialCheckoutTab?: PosCheckoutTab;
 };
 
-export function PosMenuPane(props: Props) {
+export const PosMenuPane = React.memo(function PosMenuPane(props: Props) {
   const {
     isPhoneLayout,
     onOpenCart,
@@ -273,26 +273,18 @@ export function PosMenuPane(props: Props) {
               </TouchableOpacity>
             )}
           />
-          <View style={styles.topSellersSection}>
-            <View style={styles.topSellersHeader}>
-              <View style={styles.topSellersHeaderText}>
-                <Text style={styles.topSellersTitle}>Top sellers today</Text>
-                <Text style={styles.topSellersSubtitle}>Most ordered items — tap to add</Text>
-                {loadingTopSellers && <Text style={styles.topSellersLoading}>Refreshing...</Text>}
-              </View>
-            </View>
-            {topSellers.length > 0 ? (
+          {topSellers.length > 0 && (
+            <View style={styles.topSellersSection}>
               <FlatList
                 data={topSellers}
                 keyExtractor={(item) => item.id}
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.topSellersList}
-                renderItem={({ item, index }) => {
+                renderItem={({ item }) => {
                   const quickQuantity = quickQuantityForProduct(item.id);
                   return (
                     <TouchableOpacity style={styles.topSellerCard} onPress={() => void quickAddProduct(item)}>
-                      <Text style={styles.topSellerRank}>#{index + 1}</Text>
                       {quickQuantity > 0 && (
                         <View style={styles.topSellerQuantityBadge}>
                           <Text style={styles.productQuantityText}>{quickQuantity}</Text>
@@ -304,12 +296,8 @@ export function PosMenuPane(props: Props) {
                   );
                 }}
               />
-            ) : (
-              <Text style={styles.topSellersEmpty}>
-                {loadingTopSellers ? 'Loading top sellers...' : 'No sales yet today'}
-              </Text>
-            )}
-          </View>
+            </View>
+          )}
         </View>
       )}
 
@@ -775,7 +763,7 @@ export function PosMenuPane(props: Props) {
       )}
     </View>
   );
-}
+});
 
 function ProductGrid({
   data,

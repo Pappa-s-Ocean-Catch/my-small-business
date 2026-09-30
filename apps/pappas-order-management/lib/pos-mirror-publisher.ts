@@ -19,7 +19,8 @@ export type PosMirrorPublisher = {
 };
 
 export type CreatePosMirrorPublisherOptions = {
-  loadRegister: () => Promise<{ id: string; name: string }>;
+  loadRegister?: () => Promise<{ id: string; name: string }>;
+  loadRegisterId?: () => Promise<string>;
   upsert: (row: PosMirrorRow) => Promise<void>;
   debounceMs: number;
   logError?: (message: string, error: unknown) => void;
@@ -35,6 +36,7 @@ const registerSuffix = (registerId: string | null): string => (
 
 export function createPosMirrorPublisher({
   loadRegister,
+  loadRegisterId,
   upsert,
   debounceMs,
   logError = (message, error) => console.warn(message, error),
@@ -48,7 +50,11 @@ export function createPosMirrorPublisher({
   const getRegister = (): Promise<{ id: string; name: string }> => {
     if (registerPromise) return registerPromise;
 
-    const currentLoad = loadRegister();
+    const currentLoad = loadRegister
+      ? loadRegister()
+      : loadRegisterId
+        ? loadRegisterId().then((id) => ({ id, name: '' }))
+        : Promise.reject(new Error('Neither loadRegister nor loadRegisterId was provided'));
     registerPromise = currentLoad;
     void currentLoad.then((register) => {
       lastRegisterId = register.id;
@@ -62,11 +68,14 @@ export function createPosMirrorPublisher({
     try {
       const register = await getRegister();
       lastRegisterId = register.id;
-      await upsert({
+      const row: PosMirrorRow = {
         register_id: register.id,
-        register_name: register.name,
         current_order: currentOrder,
-      });
+      };
+      if (register.name) {
+        row.register_name = register.name;
+      }
+      await upsert(row);
     } catch (error) {
       logError(`POS mirror publish failed for register ${registerSuffix(lastRegisterId)}`, error);
       throw error;

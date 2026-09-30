@@ -19,6 +19,7 @@ import {
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
+import { useIsFocused } from '@react-navigation/native';
 import {
   getOrder,
   refreshDeliveryStatus,
@@ -103,11 +104,12 @@ export default function LiveOrdersScreen() {
   const lastDeliverySyncAtRef = useRef(0);
   const printDeviceIdRef = useRef<string | null>(null);
 
+  const isFocused = useIsFocused();
   const queryClient = useQueryClient();
   const countdownIntervalRef = useRef<TimeoutHandle | null>(null);
   const preOrderSkipNotice = usePrinterAutomationStore((state) => state.preOrderSkipNotice);
   const addJournalEntry = usePrinterAutomationStore((state) => state.addJournalEntry);
-  const journalEntries = usePrinterAutomationStore((state) => state.journalEntries);
+  const journalEntriesCount = usePrinterAutomationStore((state) => state.journalEntries.length);
   const orderPrintStates = usePrinterAutomationStore((state) => state.orderPrintStates);
   const {
     data: orders = [],
@@ -560,13 +562,15 @@ export default function LiveOrdersScreen() {
   }, [dataUpdatedAt]);
 
   useEffect(() => {
+    if (!isFocused) return;
     if (orders.length === 0) return;
     if (Date.now() - lastDeliverySyncAtRef.current < DELIVERY_STATUS_SYNC_INTERVAL_MS) return;
     lastDeliverySyncAtRef.current = Date.now();
     void syncDeliveryStatuses(orders);
-  }, [dataUpdatedAt]);
+  }, [isFocused, dataUpdatedAt]);
 
   useEffect(() => {
+    if (!isFocused) return;
     if (refreshCountdown > 0) {
       countdownIntervalRef.current = setInterval(() => {
         setRefreshCountdown((prev) => {
@@ -581,12 +585,13 @@ export default function LiveOrdersScreen() {
     return () => {
       if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
     };
-  }, [refreshCountdown]);
+  }, [isFocused, refreshCountdown]);
 
   useEffect(() => {
+    if (!isFocused) return;
     const id = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [isFocused]);
 
   const staleThresholdSec = Math.max(60, Math.round((appSettings.refreshIntervalSec || 30) * 2.5));
   const isStale = !!lastUpdated && (Date.now() - lastUpdated.getTime()) / 1000 > staleThresholdSec;
@@ -845,9 +850,9 @@ export default function LiveOrdersScreen() {
                 onPress={() => setShowPrintLogs(true)}
               >
                 <MaterialCommunityIcons name="text-box-search-outline" size={20} color="#1f2937" />
-                {journalEntries.length > 0 ? (
+                {journalEntriesCount > 0 ? (
                   <Badge style={styles.logBadge} size={18}>
-                    {journalEntries.length > 99 ? '99+' : journalEntries.length}
+                    {journalEntriesCount > 99 ? '99+' : journalEntriesCount}
                   </Badge>
                 ) : null}
               </TouchableOpacity>

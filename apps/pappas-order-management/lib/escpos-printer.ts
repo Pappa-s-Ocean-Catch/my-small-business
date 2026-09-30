@@ -184,10 +184,19 @@ function enqueuePrinterJob<T>(printer: SavedPrinter, job: () => Promise<T>): Pro
   const queueKey = getPrinterQueueKey(printer);
   const printerQueue = printerQueues.get(queueKey) || Promise.resolve();
   const queued = printerQueue.then(job, job);
-  printerQueues.set(queueKey, queued.then(
-    () => undefined,
-    () => undefined
-  ));
+  const tail: Promise<void> = queued.then(
+    () => {
+      if (printerQueues.get(queueKey) === tail) {
+        printerQueues.delete(queueKey);
+      }
+    },
+    () => {
+      if (printerQueues.get(queueKey) === tail) {
+        printerQueues.delete(queueKey);
+      }
+    }
+  );
+  printerQueues.set(queueKey, tail);
   return queued;
 }
 

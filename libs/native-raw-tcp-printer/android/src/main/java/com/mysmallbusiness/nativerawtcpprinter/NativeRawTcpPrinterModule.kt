@@ -32,7 +32,12 @@ class NativeRawTcpPrinterModule : Module() {
         val captureStarted = System.nanoTime()
         val bitmap = withContext(Dispatchers.Main) { capture(options.viewTag, options.captureScale) }
         val capturedAt = System.nanoTime()
-        val resized = resize(bitmapToRgba(bitmap), options.width)
+        val rgba = try {
+          bitmapToRgba(bitmap)
+        } finally {
+          bitmap.recycle()
+        }
+        val resized = resize(rgba, options.width)
         val resizedAt = System.nanoTime()
         val bytes = escPos(resized)
         val rasterAt = System.nanoTime()
@@ -87,13 +92,32 @@ private fun resize(source: Raster, requestedWidth: Int): Raster {
   return Raster(width, height, output)
 }
 private fun escPos(raster: Raster): ByteArray {
-  val output = ArrayList<Byte>(); fun put(value: Int) { output.add(value.toByte()) }; fun putAll(values: ByteArray) { values.forEach { output.add(it) } }
-  putAll(byteArrayOf(0x1b, 0x40, 0x1b, 0x61, 0x01)); putAll(byteArrayOf(0x1b, 0x33, 24))
-  for (y in 0 until raster.height step 24) { put(0x1b); put(0x2a); put(33); put(raster.width and 0xff); put(raster.width shr 8)
-    for (x in 0 until raster.width) for (stripe in 0..2) { var value = 0; for (bit in 0..7) { val py = y + stripe * 8 + bit; if (py < raster.height) { val i = (py * raster.width + x) * 4; val alpha = raster.rgba[i + 3].toInt() and 0xff; val lum = (raster.rgba[i].toInt() and 0xff) * .299 + (raster.rgba[i + 1].toInt() and 0xff) * .587 + (raster.rgba[i + 2].toInt() and 0xff) * .114; if (alpha > 0 && lum < 180) value = value or (1 shl (7 - bit)) } }; put(value) }
-    put(0x0a)
+  val estimatedSize = 16 + (raster.height / 24 + 1) * (5 + raster.width * 3 + 1) + 16
+  val output = java.io.ByteArrayOutputStream(estimatedSize)
+  output.write(byteArrayOf(0x1b, 0x40, 0x1b, 0x61, 0x01, 0x1b, 0x33, 24))
+  for (y in 0 until raster.height step 24) {
+    output.write(0x1b)
+    output.write(0x2a)
+    output.write(33)
+    output.write(raster.width and 0xff)
+    output.write(raster.width shr 8)
+    for (x in 0 until raster.width) for (stripe in 0..2) {
+      var value = 0
+      for (bit in 0..7) {
+        val py = y + stripe * 8 + bit
+        if (py < raster.height) {
+          val i = (py * raster.width + x) * 4
+          val alpha = raster.rgba[i + 3].toInt() and 0xff
+          val lum = (raster.rgba[i].toInt() and 0xff) * .299 + (raster.rgba[i + 1].toInt() and 0xff) * .587 + (raster.rgba[i + 2].toInt() and 0xff) * .114
+          if (alpha > 0 && lum < 180) value = value or (1 shl (7 - bit))
+        }
+      }
+      output.write(value)
+    }
+    output.write(0x0a)
   }
-  putAll(byteArrayOf(0x1b, 0x32, 0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x00)); return output.toByteArray()
+  output.write(byteArrayOf(0x1b, 0x32, 0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x00))
+  return output.toByteArray()
 }
 private fun send(options: Options, bytes: ByteArray) { try { repeat(options.copies) { Socket().use { socket -> socket.connect(InetSocketAddress(options.host, options.port), options.timeoutMs); socket.soTimeout = options.timeoutMs; socket.getOutputStream().use { it.write(bytes); it.flush() } } } } catch (error: java.net.SocketTimeoutException) { throw PrinterFailure("TIMEOUT", "send", error.message ?: "Printer timed out") } catch (error: Throwable) { throw PrinterFailure("SEND_FAILED", "send", error.message ?: "Unable to send to printer") } }
 private fun fnv1a32(bytes: ByteArray): String { var hash = 0x811c9dc5.toInt(); bytes.forEach { hash = hash xor (it.toInt() and 0xff); hash *= 0x01000193 }; return (hash.toLong() and 0xffffffffL).toString(16).padStart(8, '0') }

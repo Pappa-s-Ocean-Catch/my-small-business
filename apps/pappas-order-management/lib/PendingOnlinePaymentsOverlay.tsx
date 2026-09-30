@@ -57,10 +57,13 @@ export function PendingOnlinePaymentsOverlay() {
   const [updatedQuoteFee, setUpdatedQuoteFee] = useState<number | null>(null);
   const [updatedEtaMinutes, setUpdatedEtaMinutes] = useState<number | null>(null);
 
+  const hasPendingSessions = sessions.some((session) => session.status === 'pending');
+
   useEffect(() => {
+    if (!hasPendingSessions) return;
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [hasPendingSessions]);
 
   useEffect(() => {
     const pendingSessions = sessions.filter((session) => session.status === 'pending');

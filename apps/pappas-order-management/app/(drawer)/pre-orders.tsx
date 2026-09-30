@@ -14,11 +14,10 @@ import {
   Surface,
 } from 'react-native-paper';
 import { Appbar } from 'react-native-paper';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { useRouter } from 'expo-router';
 import { BRAND_COLORS } from '@/utils/brand';
-import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '@/lib/supabase';
 import {
   claimOrderForAutoPrint,
@@ -68,6 +67,7 @@ export default function PreOrdersScreen() {
   const { width, height } = useWindowDimensions();
   const router = useRouter();
   const navigation = useNavigation<DrawerNavigationProp<any>>();
+  const isFocused = useIsFocused();
   const [refreshing, setRefreshing] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showOrderModal, setShowOrderModal] = useState(false);
@@ -448,7 +448,7 @@ export default function PreOrdersScreen() {
       .subscribe();
 
     return () => {
-      subscription.unsubscribe();
+      void supabase.removeChannel(subscription);
     };
   }, [queryClient]);
 
@@ -459,9 +459,10 @@ export default function PreOrdersScreen() {
   );
 
   useEffect(() => {
+    if (!isFocused) return;
     const id = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [isFocused]);
 
   const handleRefresh = () => {
     setRefreshing(true);

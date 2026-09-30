@@ -95,7 +95,7 @@ export const styles = StyleSheet.create({
     borderTopColor: '#e5e7eb',
     paddingHorizontal: 10,
     paddingTop: 8,
-    paddingBottom: 10,
+    paddingBottom: 8,
     backgroundColor: '#fff',
   },
   topSellersHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 },
@@ -106,12 +106,12 @@ export const styles = StyleSheet.create({
   topSellersList: { gap: 8, paddingRight: 8 },
   topSellerCard: {
     width: 118,
-    minHeight: 82,
+    minHeight: 64,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#e5e7eb',
     backgroundColor: '#f9fafb',
-    padding: 9,
+    padding: 8,
     justifyContent: 'space-between',
   },
   topSellerQuantityBadge: {

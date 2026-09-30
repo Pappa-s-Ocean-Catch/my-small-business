@@ -8,7 +8,7 @@ import type {
 } from '../app/pos.types';
 
 export const CATALOG_CACHE_TTL_MS = 60 * 60 * 1000;
-export const TOP_SELLERS_CACHE_TTL_MS = 5 * 60 * 1000;
+export const TOP_SELLERS_CACHE_TTL_MS = 15 * 60 * 1000;
 
 const DEFAULT_CATEGORY_LIMIT = 24;
 const DEFAULT_AVAILABILITY_LIMIT = 300;

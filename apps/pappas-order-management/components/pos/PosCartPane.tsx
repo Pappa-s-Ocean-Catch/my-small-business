@@ -40,7 +40,7 @@ type Props = {
   handleSmartpayInstoreCheckout: () => Promise<void>;
 };
 
-export function PosCartPane({
+export const PosCartPane = React.memo(function PosCartPane({
   isCompactLayout,
   isPhoneLayout,
   onBackToMenu,
@@ -339,4 +339,4 @@ export function PosCartPane({
       </View>
     </View>
   );
-}
+});
