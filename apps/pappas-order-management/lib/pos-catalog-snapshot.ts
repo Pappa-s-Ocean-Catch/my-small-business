@@ -1,6 +1,7 @@
 import type { AddonGroup, AddonItem, CustomizationData, RemovableIngredient, SaleCategory, SaleProduct } from '../app/pos.types';
 import type { PosLayoutRecord } from './pos-layouts';
 import type { PosPromotion } from './pos-promotions';
+import { DEFAULT_KITCHEN_SECTION, isCombineProduct, parseKitchenSections } from '../utils/orderUtils';
 
 export type ProductAddonLink = {
   sale_product_id: string;
@@ -13,11 +14,17 @@ export type ProductIngredient = {
   customer_can_remove: boolean;
   products: { name?: string } | { name?: string }[] | null;
 };
+export type ProductIncludeLink = {
+  parent_sale_product_id: string;
+  included_sale_product_id: string;
+  quantity?: number;
+};
 export type PosCatalogSource = {
   categories: SaleCategory[];
   products: SaleProduct[];
   addonLinks: ProductAddonLink[];
   ingredients: ProductIngredient[];
+  productIncludes?: ProductIncludeLink[];
   promotions: PosPromotion[];
   layouts: PosLayoutRecord[];
   selectedLayoutId: string | null;
@@ -27,6 +34,7 @@ export type PosCatalogSnapshot = {
   products: SaleProduct[];
   productsById: Map<string, SaleProduct>;
   productsByCategoryId: Map<string, SaleProduct[]>;
+  productIncludesByParentId: Map<string, ProductIncludeLink[]>;
   customizations: Map<string, CustomizationData>;
   customizableIds: Set<string>;
   promotions: PosPromotion[];
@@ -34,7 +42,39 @@ export type PosCatalogSnapshot = {
   preferredLayout: PosLayoutRecord | null;
 };
 
+export function getProductCombineSections(
+  snapshot: Pick<PosCatalogSnapshot, 'productIncludesByParentId' | 'productsById' | 'categories'>,
+  product: Pick<SaleProduct, 'id' | 'name' | 'sale_category_id' | 'sub_category_id'>
+): string[] {
+  const includes = snapshot.productIncludesByParentId.get(product.id) || [];
+  if (includes.length > 0) {
+    const categoriesById = new Map(snapshot.categories.map((cat) => [cat.id, cat.section]));
+    const sections = new Set<string>();
+    for (const link of includes) {
+      const included = snapshot.productsById.get(link.included_sale_product_id);
+      if (included) {
+        const itemSection = included.section
+          || (included.sub_category_id ? categoriesById.get(included.sub_category_id) : null)
+          || (included.sale_category_id ? categoriesById.get(included.sale_category_id) : null)
+          || DEFAULT_KITCHEN_SECTION;
+        parseKitchenSections(itemSection).forEach((s) => sections.add(s));
+      } else {
+        sections.add(DEFAULT_KITCHEN_SECTION);
+      }
+    }
+    return Array.from(sections);
+  }
+
+  const category = snapshot.categories.find((cat) => cat.id === product.sale_category_id || cat.id === product.sub_category_id);
+  if (isCombineProduct(product.name, category?.name, includes.length)) {
+    return [DEFAULT_KITCHEN_SECTION];
+  }
+
+  return [];
+}
+
 export function productsForCategories(snapshot: PosCatalogSnapshot, categoryIds: string[]): SaleProduct[] {
+
   const seen = new Set<string>();
   return categoryIds.flatMap((id) => snapshot.productsByCategoryId.get(id) || [])
     .filter((product) => {
@@ -86,6 +126,13 @@ export function buildPosCatalogSnapshot(source: PosCatalogSource): PosCatalogSna
     value.removableIngredients.push(removable);
   }
 
+  const productIncludesByParentId = new Map<string, ProductIncludeLink[]>();
+  for (const include of source.productIncludes || []) {
+    const list = productIncludesByParentId.get(include.parent_sale_product_id) || [];
+    list.push(include);
+    productIncludesByParentId.set(include.parent_sale_product_id, list);
+  }
+
   const layouts = source.layouts;
   const preferredLayout = layouts.find((layout) => layout.id === source.selectedLayoutId)
     ?? layouts.find((layout) => layout.is_default)
@@ -96,6 +143,7 @@ export function buildPosCatalogSnapshot(source: PosCatalogSource): PosCatalogSna
     products,
     productsById: new Map(products.map((product) => [product.id, product])),
     productsByCategoryId,
+    productIncludesByParentId,
     customizations,
     customizableIds: new Set([...customizations].filter(([, value]) =>
       value.groups.length > 0 || value.removableIngredients.length > 0).map(([id]) => id)),

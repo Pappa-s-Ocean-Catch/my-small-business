@@ -5,7 +5,7 @@ import { loadPosCatalogSource } from '../lib/pos-catalog-loader';
 
 export const POS_CATALOG_TABLES = [
   'sale_categories', 'sale_products', 'sale_product_addon_groups', 'addon_groups',
-  'addon_items', 'sale_product_ingredients', 'products', 'promotions', 'promotion_products', 'pos_layouts',
+  'addon_items', 'sale_product_ingredients', 'sale_product_includes', 'products', 'promotions', 'promotion_products', 'pos_layouts',
 ] as const;
 
 export const posCatalog = createPosCatalogCoordinator(loadPosCatalogSource);

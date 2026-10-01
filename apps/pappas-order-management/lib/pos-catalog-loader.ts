@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { getSelectedPosLayoutId, normalizePosLayout, type PosLayoutRecord } from './pos-layouts';
-import type { ProductAddonLink, ProductIngredient, PosCatalogSource } from './pos-catalog-snapshot';
+import type { ProductAddonLink, ProductIngredient, PosCatalogSource, ProductIncludeLink } from './pos-catalog-snapshot';
 import type { SaleCategory, SaleProduct } from '../app/pos.types';
 import type { PosPromotion } from './pos-promotions';
 
@@ -20,7 +20,7 @@ async function allRows<T>(makeQuery: () => any): Promise<T[]> {
 }
 
 export async function loadPosCatalogSource(): Promise<PosCatalogSource> {
-  const [categories, products, addonLinks, ingredients, promotions, layouts, selectedLayoutId] = await Promise.all([
+  const [categories, products, addonLinks, ingredients, productIncludes, promotions, layouts, selectedLayoutId] = await Promise.all([
     allRows<SaleCategory>(() => supabase.from('sale_categories')
       .select('id, name, section, sort_order, is_active, parent_category_id').eq('is_active', true).order('sort_order')),
     allRows<SaleProduct>(() => supabase.from('sale_products')
@@ -34,6 +34,8 @@ export async function loadPosCatalogSource(): Promise<PosCatalogSource> {
     allRows<ProductIngredient>(() => supabase.from('sale_product_ingredients')
       .select('id, sale_product_id, customer_can_remove, products!product_id(name)')
       .eq('customer_can_remove', true).order('id')),
+    allRows<ProductIncludeLink>(() => supabase.from('sale_product_includes')
+      .select('parent_sale_product_id, included_sale_product_id, quantity')),
     allRows<PosPromotion>(() => supabase.from('promotions')
       .select('*, promotion_products(sale_product_id)').eq('is_active', true).order('priority', { ascending: false })),
     allRows<PosLayoutRecord>(() => supabase.from('pos_layouts')
@@ -47,6 +49,7 @@ export async function loadPosCatalogSource(): Promise<PosCatalogSource> {
     products,
     addonLinks,
     ingredients,
+    productIncludes,
     promotions: promotions.map((row: any) => ({
       ...row,
       discount_value: Number(row.discount_value ?? 0),

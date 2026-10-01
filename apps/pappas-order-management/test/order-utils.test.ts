@@ -1,7 +1,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Order, OrderItemAddon } from '@my-small-business/types';
-import { buildKitchenReceiptCopies, formatOrderPaymentMethod, getPaymentStatType, getReceiptHeader, groupAddons } from '../utils/orderUtils';
+import {
+  buildKitchenReceiptCopies,
+  formatKitchenSectionValue,
+  formatOrderPaymentMethod,
+  getPaymentStatType,
+  getReceiptHeader,
+  groupAddons,
+  isCombineProduct,
+  resolveKitchenSections,
+} from '../utils/orderUtils';
 
 function makeOrder(overrides: Partial<Order> = {}): Order {
   return {
@@ -150,3 +159,98 @@ test('maps direct order channels to receipt labels without a logo', () => {
     { label: 'PHONE DELIVERY', logo: null }
   );
 });
+
+test('preserves multi-section item when an add-on specifies a single section', () => {
+  const copies = buildKitchenReceiptCopies([
+    {
+      id: 'flake-pack-1',
+      section: 'Grilled, Fried',
+      addons: [{ id: 'addon-1', section: 'Grilled' } as any],
+    },
+  ]);
+
+  assert.deepEqual(copies.map((copy) => ({
+    sectionName: copy.sections[0]?.sectionName,
+    itemIds: copy.sections[0]?.items.map((item) => item.id),
+  })), [
+    { sectionName: 'GRILLED', itemIds: ['flake-pack-1'] },
+    { sectionName: 'FRIED', itemIds: ['flake-pack-1'] },
+  ]);
+});
+
+test('resolves combine product to both Grilled and Fried when add-on is Grilled and combine item (chips) is Fried or unset', () => {
+  // Combine product like Flake Pack for 1, with add-on "Replace by grill fish" (Grilled),
+  // and combine items (Small chips -> Fried or unset -> default to Fried)
+  const sections = resolveKitchenSections(
+    null,
+    [{ id: 'addon-grilled', section: 'Grilled' } as any],
+    null,
+    ['Fried']
+  );
+  assert.deepEqual(sections.sort(), ['Fried', 'Grilled']);
+
+  const formatted = formatKitchenSectionValue(
+    null,
+    [{ id: 'addon-grilled', section: 'Grilled' } as any],
+    null,
+    ['Fried']
+  );
+  assert.equal(formatted, 'Grilled, Fried');
+});
+
+test('resolves single item to only Grilled when replaced by grill fish', () => {
+  // Non-combine item (single Flake) replaced by grilled fish should only route to Grill
+  const sections = resolveKitchenSections(
+    null,
+    [{ id: 'addon-grilled', section: 'Grilled' } as any],
+    null,
+    []
+  );
+  assert.deepEqual(sections, ['Grilled']);
+});
+
+test('resolves combine product by product name to Grilled and Fried when section was single Grilled', () => {
+  const copies = buildKitchenReceiptCopies([
+    {
+      id: 'flake-pack-1',
+      product_name: 'Flake Pack For One',
+      section: 'Grilled',
+      addons: [{ id: 'addon-1', section: 'Grilled' } as any],
+    },
+  ]);
+
+  assert.deepEqual(copies.map((copy) => ({
+    sectionName: copy.sections[0]?.sectionName,
+    itemIds: copy.sections[0]?.items.map((item) => item.id),
+  })), [
+    { sectionName: 'GRILLED', itemIds: ['flake-pack-1'] },
+    { sectionName: 'FRIED', itemIds: ['flake-pack-1'] },
+  ]);
+});
+
+test('isCombineProduct detects combine product from ingredient products list or count', () => {
+  assert.equal(isCombineProduct('Custom Feast', null, 3), true);
+  assert.equal(isCombineProduct('Custom Feast', null, [{ name: 'Chips' }]), true);
+  assert.equal(isCombineProduct('Custom Feast', null, true), true);
+  assert.equal(isCombineProduct('Flake (I)', null, 0), false);
+  assert.equal(isCombineProduct('Flake (I)', null, []), false);
+});
+
+test('resolveKitchenSections extracts sections directly from ingredient products', () => {
+  const sections = resolveKitchenSections(
+    null,
+    [{ id: 'addon-grilled', section: 'Grilled' } as any],
+    null,
+    null,
+    {
+      productName: 'Special Seafood Catch',
+      ingredients: [
+        { name: 'Flake (I)', section: null },
+        { name: 'Small Chips', section: 'Fried' },
+      ],
+    }
+  );
+  assert.deepEqual(sections, ['Grilled', 'Fried']);
+});
+
+

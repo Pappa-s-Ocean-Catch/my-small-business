@@ -55,7 +55,7 @@ import { useAppSettingsQuery } from '../hooks/useAppSettingsQuery';
 import { usePosMirrorPublisher } from '../hooks/usePosMirrorPublisher';
 import { posCatalogCacheStore } from '../stores/posCatalogCacheStore';
 import { usePosCatalog } from '../providers/PosCatalogProvider';
-import { productsForCategories } from '../lib/pos-catalog-snapshot';
+import { getProductCombineSections, productsForCategories } from '../lib/pos-catalog-snapshot';
 import { runPosPostSaveMutations } from '../lib/pos-post-save-operations';
 import { getMelbourneTodayRange, rankTopSellers } from '../lib/pos-top-sellers';
 import { formatDateInMelbourne } from '../lib/report-timezone';
@@ -1300,7 +1300,18 @@ export default function PosScreen() {
     override_price: overridePrice,
     quantity,
     subtotal: overridePrice ?? (product.sale_price + addonTotal(addons)) * quantity,
-    section: formatKitchenSectionValue(product.section, addons, getProductGroupSection(product)),
+    section: formatKitchenSectionValue(
+      product.section,
+      addons,
+      getProductGroupSection(product),
+      catalog ? getProductCombineSections(catalog, product) : undefined,
+      {
+        productName: product.name,
+        categoryName: categories.find((c) => c.id === product.sale_category_id || c.id === product.sub_category_id)?.name,
+        hasIngredients: Boolean(catalog?.productIncludesByParentId.get(product.id)?.length),
+        ingredients: catalog?.productIncludesByParentId.get(product.id),
+      }
+    ),
     removed_ingredients: removedIngredients,
     comment: comment.trim() || null,
     created_at: new Date().toISOString(),
@@ -1487,7 +1498,18 @@ export default function PosScreen() {
       return {
         ...item,
         addons,
-        section: formatKitchenSectionValue(selectedProduct.section, addons, getProductGroupSection(selectedProduct)),
+        section: formatKitchenSectionValue(
+          selectedProduct.section,
+          addons,
+          getProductGroupSection(selectedProduct),
+          catalog ? getProductCombineSections(catalog, selectedProduct) : undefined,
+          {
+            productName: selectedProduct.name,
+            categoryName: categories.find((c) => c.id === selectedProduct.sale_category_id || c.id === selectedProduct.sub_category_id)?.name,
+            hasIngredients: Boolean(catalog?.productIncludesByParentId.get(selectedProduct.id)?.length),
+            ingredients: catalog?.productIncludesByParentId.get(selectedProduct.id),
+          }
+        ),
         removed_ingredients: removedIngredients,
         override_price: null,
         subtotal: (selectedProduct.sale_price + addonTotal(addons)) * item.quantity,

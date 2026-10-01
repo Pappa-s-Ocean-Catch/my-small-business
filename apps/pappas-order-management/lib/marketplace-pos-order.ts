@@ -67,6 +67,7 @@ export type MarketplaceMappingRecord = {
 
 type MarketplaceCategorySection = {
   id: string;
+  name?: string | null;
   section?: string | null;
 };
 
@@ -440,6 +441,7 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
           ].filter(Boolean).join('\n'),
           created_at: dependencies.now().toISOString(),
           addons: [],
+          pos_updated_at: dependencies.now().getTime(),
         });
         continue;
       }
@@ -596,12 +598,18 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
         section: formatKitchenSectionValue(
           matchedProduct.section,
           addons,
-          getProductGroupSection(matchedProduct, categories)
+          getProductGroupSection(matchedProduct, categories),
+          null,
+          {
+            productName: matchedProduct.name,
+            categoryName: categories.find((c) => c.id === matchedProduct.sale_category_id || c.id === matchedProduct.sub_category_id)?.name,
+          }
         ),
         removed_ingredients: Array.from(new Set(removedIngredients)),
         comment: [item.specialInstructions.trim(), ...unmatchedAddonNotes].filter(Boolean).join('\n') || null,
         created_at: dependencies.now().toISOString(),
         addons,
+        pos_updated_at: dependencies.now().getTime(),
       });
     }
 
@@ -625,6 +633,7 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
         comment: `UNMATCHED POS ITEM — verify before preparing\n${emptyDetailNote}`,
         created_at: dependencies.now().toISOString(),
         addons: [],
+        pos_updated_at: dependencies.now().getTime(),
       });
     }
 

@@ -5,8 +5,9 @@ import {
   DEFAULT_KITCHEN_SECTION,
   shouldSkipOverlappingCombinedSectionTicket,
 } from '@/utils/orderUtils';
-import { getPrinterDriver, isSimulatorPrinterTarget, type SavedPrinter } from './escpos-printer';
+import { getPrinterDriver, isSimulatorPrinterTarget, type SavedPrinter } from './printer-types';
 import type { AppSettings, PrinterSectionAssignment } from './settings';
+
 
 type OrderItem = NonNullable<Order['items']>[number];
 
@@ -41,8 +42,12 @@ export function isAssignmentEnabledAtTime(
 
 export function normalizeSectionAssignmentName(value?: string | null): string {
   const normalized = value?.trim().toLowerCase();
-  return normalized || DEFAULT_ASSIGNMENT_NAME;
+  if (!normalized) return DEFAULT_ASSIGNMENT_NAME;
+  if (normalized === 'grill') return 'grilled';
+  if (normalized === 'fry') return 'fried';
+  return normalized;
 }
+
 
 export function isDefaultPrinterAssignment(assignment: Pick<PrinterSectionAssignment, 'isDefault' | 'sectionName'>): boolean {
   return !!assignment.isDefault || normalizeSectionAssignmentName(assignment.sectionName) === DEFAULT_ASSIGNMENT_NAME;

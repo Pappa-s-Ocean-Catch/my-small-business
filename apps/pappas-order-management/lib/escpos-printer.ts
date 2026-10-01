@@ -3,27 +3,32 @@ import type { PrinterImageSource } from './printer-image';
 import { getNativeRawTcpPrinter, type NativeRawTcpPrintOptions } from './raw-tcp-native';
 import { buildDocumentPrintJob } from './escpos-document';
 import type { EscPosDocument } from './instore-instant-ticket';
+export {
+  type PrinterDriver,
+  type SavedPrinter,
+  TCP_TARGET_PREFIX,
+  SIMULATOR_TARGET_PREFIX,
+  DEFAULT_MANUAL_PRINTER_PORT,
+  DEFAULT_SIMULATOR_PRINTER_NAME,
+  isSimulatorPrinterTarget,
+  getPrinterDriver,
+  isSimulatorPrinter,
+} from './printer-types';
+import {
+  type PrinterDriver,
+  type SavedPrinter,
+  TCP_TARGET_PREFIX,
+  SIMULATOR_TARGET_PREFIX,
+  DEFAULT_MANUAL_PRINTER_PORT,
+  DEFAULT_SIMULATOR_PRINTER_NAME,
+  isSimulatorPrinterTarget,
+  getPrinterDriver,
+  isSimulatorPrinter,
+} from './printer-types';
 
-export type PrinterDriver = 'epsonSdk' | 'rawTcp' | 'simulator';
-
-export type SavedPrinter = {
-  target: string;
-  deviceName: string;
-  driver?: PrinterDriver;
-  ipAddress?: string;
-  port?: number;
-  macAddress?: string;
-  bdAddress?: string;
-  deviceType?: string;
-};
-
-const TCP_TARGET_PREFIX = 'TCP:';
-const SIMULATOR_TARGET_PREFIX = 'SIMULATOR:';
-export const DEFAULT_MANUAL_PRINTER_PORT = 9100;
-export const DEFAULT_SIMULATOR_PRINTER_NAME = 'Print Simulator';
-type EscPosModule = typeof import('react-native-esc-pos-printer');
-type TcpSocketModule = typeof import('react-native-tcp-socket');
-type EscPosPrinterInstance = InstanceType<EscPosModule['Printer']>;
+type EscPosModule = any;
+type TcpSocketModule = any;
+type EscPosPrinterInstance = any;
 type TcpSocketLike = {
   createConnection: (...args: any[]) => any;
 };
@@ -121,19 +126,6 @@ export function createSimulatorSavedPrinter(deviceName?: string): SavedPrinter {
   };
 }
 
-export function isSimulatorPrinter(printer: SavedPrinter | null | undefined): boolean {
-  return getPrinterDriver(printer) === 'simulator';
-}
-
-export function isSimulatorPrinterTarget(target: string | null | undefined): boolean {
-  return typeof target === 'string' && target.startsWith(SIMULATOR_TARGET_PREFIX);
-}
-
-export function getPrinterDriver(printer: SavedPrinter | null | undefined): PrinterDriver {
-  if (printer?.driver === 'rawTcp') return 'rawTcp';
-  if (printer?.driver === 'simulator' || isSimulatorPrinterTarget(printer?.target)) return 'simulator';
-  return 'epsonSdk';
-}
 
 export async function getPrinterTransportLabel(printer: SavedPrinter): Promise<string> {
   const driver = getPrinterDriver(printer);

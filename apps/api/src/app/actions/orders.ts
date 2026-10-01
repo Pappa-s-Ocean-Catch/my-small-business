@@ -46,10 +46,37 @@ function parseKitchenSections(value?: string | null): string[] {
   );
 }
 
+function isCombineProduct(
+  productName?: string | null,
+  categoryName?: string | null,
+  ingredientProducts?: Array<unknown> | number | boolean | null
+): boolean {
+  if (typeof ingredientProducts === 'boolean') {
+    if (ingredientProducts) return true;
+  } else if (typeof ingredientProducts === 'number') {
+    if (ingredientProducts > 0) return true;
+  } else if (Array.isArray(ingredientProducts) && ingredientProducts.length > 0) {
+    return true;
+  }
+
+  if (categoryName && /pack|combo/i.test(categoryName)) return true;
+  if (!productName) return false;
+  return /\b(pack|combo|box|meal for)\b/i.test(productName);
+}
+
 function resolveKitchenSections(
   baseSection?: string | null,
   addons?: Array<{ section?: string | null }>,
-  fallbackSection?: string | null
+  fallbackSection?: string | null,
+  combineSections?: Array<string | null | undefined> | string | null,
+  options?: {
+    productName?: string | null;
+    categoryName?: string | null;
+    hasIngredients?: boolean | null;
+    ingredients?: Array<unknown> | number | null;
+    hasIncludes?: boolean | null;
+    includes?: Array<unknown> | number | null;
+  }
 ): string[] {
   const addonSections = Array.from(
     new Set(
@@ -57,19 +84,95 @@ function resolveKitchenSections(
     )
   );
 
-  if (addonSections.length > 0) return addonSections;
+  let parsedCombineSections = Array.from(
+    new Set(
+      (Array.isArray(combineSections) ? combineSections : [combineSections])
+        .filter(Boolean)
+        .flatMap((section) => parseKitchenSections(section))
+    )
+  );
 
-  const normalizedBase = normalizeKitchenSection(baseSection);
-  const normalizedFallback = normalizeKitchenSection(fallbackSection);
-  return [normalizedBase || normalizedFallback || DEFAULT_KITCHEN_SECTION];
+  const componentList = Array.isArray(options?.includes)
+    ? options.includes
+    : Array.isArray(options?.ingredients)
+      ? options.ingredients
+      : null;
+
+  if (parsedCombineSections.length === 0 && componentList && componentList.length > 0) {
+    const extracted = new Set<string>();
+    for (const comp of componentList) {
+      if (comp && typeof comp === 'object' && 'section' in comp) {
+        const s = (comp as { section?: string | null }).section;
+        if (s) {
+          parseKitchenSections(s).forEach((sec) => extracted.add(sec));
+        }
+      }
+    }
+    if (extracted.size > 0) {
+      parsedCombineSections = Array.from(extracted);
+    }
+  }
+
+  const hasIngredientProducts = Boolean(
+    options?.hasIncludes
+    || options?.hasIngredients
+    || (Array.isArray(options?.includes) && options.includes.length > 0)
+    || (Array.isArray(options?.ingredients) && options.ingredients.length > 0)
+    || (typeof options?.includes === 'number' && options.includes > 0)
+    || (typeof options?.ingredients === 'number' && options.ingredients > 0)
+  );
+
+  if (
+    parsedCombineSections.length === 0
+    && (hasIngredientProducts || (options?.productName && isCombineProduct(options.productName, options.categoryName, hasIngredientProducts)))
+  ) {
+    parsedCombineSections = [DEFAULT_KITCHEN_SECTION];
+  }
+
+  const baseSections = parseKitchenSections(baseSection);
+
+  if (addonSections.length > 0) {
+    if (parsedCombineSections.length > 0) {
+      const merged = new Set<string>();
+      for (const section of addonSections) merged.add(section);
+      for (const section of parsedCombineSections) merged.add(section);
+      return Array.from(merged);
+    }
+    return addonSections;
+  }
+
+  if (baseSections.length > 1) {
+    return baseSections;
+  }
+
+  if (parsedCombineSections.length > 0) {
+    const merged = new Set<string>();
+    for (const section of baseSections) merged.add(section);
+    for (const section of parsedCombineSections) merged.add(section);
+    return Array.from(merged);
+  }
+
+  if (baseSections.length > 0) return baseSections;
+
+  const fallbackSections = parseKitchenSections(fallbackSection);
+  return fallbackSections.length > 0 ? fallbackSections : [DEFAULT_KITCHEN_SECTION];
 }
 
 function formatKitchenSectionValue(
   baseSection?: string | null,
   addons?: Array<{ section?: string | null }>,
-  fallbackSection?: string | null
+  fallbackSection?: string | null,
+  combineSections?: Array<string | null | undefined> | string | null,
+  options?: {
+    productName?: string | null;
+    categoryName?: string | null;
+    hasIngredients?: boolean | null;
+    ingredients?: Array<unknown> | number | null;
+    hasIncludes?: boolean | null;
+    includes?: Array<unknown> | number | null;
+  }
 ): string {
-  return resolveKitchenSections(baseSection, addons, fallbackSection).join(', ');
+  return resolveKitchenSections(baseSection, addons, fallbackSection, combineSections, options).join(', ');
 }
 
 async function enrichOrderItemsWithKitchenSections(
@@ -85,7 +188,7 @@ async function enrichOrderItemsWithKitchenSections(
 
   const { data: productRows, error: productError } = await supabase
     .from('sale_products')
-    .select('id, section, sale_category_id, sub_category_id')
+    .select('id, name, section, sale_category_id, sub_category_id')
     .in('id', productIds);
 
   if (productError) {
@@ -98,12 +201,15 @@ async function enrichOrderItemsWithKitchenSections(
     )
   );
 
-  const [{ data: categoryRows, error: categoryError }, { data: addonRows, error: addonError }] = await Promise.all([
+  const [{ data: categoryRows, error: categoryError }, { data: addonRows, error: addonError }, { data: includeRows }] = await Promise.all([
     categoryIds.length > 0
-      ? supabase.from('sale_categories').select('id, section').in('id', categoryIds)
+      ? supabase.from('sale_categories').select('id, name, section').in('id', categoryIds)
       : Promise.resolve({ data: [], error: null }),
     addonItemIds.length > 0
       ? supabase.from('addon_items').select('id, section').in('id', addonItemIds)
+      : Promise.resolve({ data: [], error: null }),
+    productIds.length > 0
+      ? supabase.from('sale_product_includes').select('parent_sale_product_id, included_sale_product_id').in('parent_sale_product_id', productIds)
       : Promise.resolve({ data: [], error: null }),
   ]);
 
@@ -119,28 +225,50 @@ async function enrichOrderItemsWithKitchenSections(
     (productRows || []).map((product) => [product.id, product])
   );
   const categoriesById = new Map(
-    (categoryRows || []).map((category) => [category.id, category.section ?? null])
+    (categoryRows || []).map((category) => [category.id, category])
   );
   const addonSectionsById = new Map(
     (addonRows || []).map((addon) => [addon.id, addon.section ?? null])
   );
+  const includesByParentId = new Map<string, string[]>();
+  for (const row of includeRows || []) {
+    const list = includesByParentId.get(row.parent_sale_product_id) || [];
+    list.push(row.included_sale_product_id);
+    includesByParentId.set(row.parent_sale_product_id, list);
+  }
 
   return items.map((item) => {
     const product = productsById.get(item.product_id);
-    const fallbackSection = product?.sub_category_id
-      ? categoriesById.get(product.sub_category_id) ?? null
-      : null;
-    const groupSection = fallbackSection || (product?.sale_category_id ? categoriesById.get(product.sale_category_id) ?? null : null);
+    const subCat = product?.sub_category_id ? categoriesById.get(product.sub_category_id) : null;
+    const saleCat = product?.sale_category_id ? categoriesById.get(product.sale_category_id) : null;
+    const categoryName = subCat?.name || saleCat?.name || null;
+    const fallbackSection = subCat?.section ?? saleCat?.section ?? null;
 
     const addons = (item.addons || []).map((addon) => ({
       ...addon,
       section: addonSectionsById.get(addon.addon_item_id) ?? addon.section ?? null,
     }));
 
+    const includes = includesByParentId.get(product?.id || '') || [];
+    const hasIngredients = includes.length > 0;
+    const isCombine = isCombineProduct(product?.name, categoryName, includes);
+    const combineSections = hasIngredients || isCombine ? [DEFAULT_KITCHEN_SECTION] : null;
+
     return {
       ...item,
       addons,
-      section: formatKitchenSectionValue(product?.section ?? item.section ?? null, addons, groupSection),
+      section: formatKitchenSectionValue(
+        product?.section ?? item.section ?? null,
+        addons,
+        fallbackSection,
+        combineSections,
+        {
+          productName: product?.name,
+          categoryName,
+          hasIngredients,
+          ingredients: includes,
+        }
+      ),
     };
   });
 }

@@ -332,10 +332,39 @@ export const shouldSkipOverlappingCombinedSectionTicket = (
   return combinedParts.some((part) => individualSections.has(part));
 };
 
+export type KitchenSectionResolutionOptions = {
+  productName?: string | null;
+  categoryName?: string | null;
+  hasIngredients?: boolean | null;
+  ingredients?: Array<unknown> | number | null;
+  hasIncludes?: boolean | null;
+  includes?: Array<unknown> | number | null;
+};
+
+export const isCombineProduct = (
+  productName?: string | null,
+  categoryName?: string | null,
+  ingredientProducts?: Array<unknown> | number | boolean | null
+): boolean => {
+  if (typeof ingredientProducts === 'boolean') {
+    if (ingredientProducts) return true;
+  } else if (typeof ingredientProducts === 'number') {
+    if (ingredientProducts > 0) return true;
+  } else if (Array.isArray(ingredientProducts) && ingredientProducts.length > 0) {
+    return true;
+  }
+
+  if (categoryName && /packs?|combos?/i.test(categoryName)) return true;
+  if (!productName) return false;
+  return /\b(pack|combo|box|catch|meal for)\b/i.test(productName);
+};
+
 export const resolveKitchenSections = (
   baseSection?: string | null,
   addons?: OrderItemAddon[],
-  fallbackSection?: string | null
+  fallbackSection?: string | null,
+  combineSections?: Array<string | null | undefined> | string | null,
+  options?: KitchenSectionResolutionOptions
 ): string[] => {
   const addonSections = Array.from(
     new Set(
@@ -343,9 +372,73 @@ export const resolveKitchenSections = (
     )
   );
 
-  if (addonSections.length > 0) return addonSections;
+  let parsedCombineSections = Array.from(
+    new Set(
+      (Array.isArray(combineSections) ? combineSections : [combineSections])
+        .filter(Boolean)
+        .flatMap((section) => parseKitchenSections(section))
+    )
+  );
+
+  const componentList = Array.isArray(options?.includes)
+    ? options.includes
+    : Array.isArray(options?.ingredients)
+      ? options.ingredients
+      : null;
+
+  if (parsedCombineSections.length === 0 && componentList && componentList.length > 0) {
+    const extracted = new Set<string>();
+    for (const comp of componentList) {
+      if (comp && typeof comp === 'object' && 'section' in comp) {
+        const s = (comp as { section?: string | null }).section;
+        if (s) {
+          parseKitchenSections(s).forEach((sec) => extracted.add(sec));
+        }
+      }
+    }
+    if (extracted.size > 0) {
+      parsedCombineSections = Array.from(extracted);
+    }
+  }
+
+  const hasIngredientProducts = Boolean(
+    options?.hasIncludes
+    || options?.hasIngredients
+    || (Array.isArray(options?.includes) && options.includes.length > 0)
+    || (Array.isArray(options?.ingredients) && options.ingredients.length > 0)
+    || (typeof options?.includes === 'number' && options.includes > 0)
+    || (typeof options?.ingredients === 'number' && options.ingredients > 0)
+  );
+
+  if (
+    parsedCombineSections.length === 0
+    && (hasIngredientProducts || (options?.productName && isCombineProduct(options.productName, options.categoryName, hasIngredientProducts)))
+  ) {
+    parsedCombineSections = [DEFAULT_KITCHEN_SECTION];
+  }
 
   const baseSections = parseKitchenSections(baseSection);
+
+  // If baseSection already has multiple sections (e.g. "Grilled, Fried"),
+  // preserve all of them along with any addon sections or combine sections.
+  if (baseSections.length > 1) {
+    return Array.from(new Set([...baseSections, ...addonSections, ...parsedCombineSections]));
+  }
+
+  // If this is a combine product with ingredient / included component sections:
+  // Both the addon sections (e.g. "Grilled" from replace with grilled fish)
+  // and the combine item sections (e.g. "Fried" from chips) must be resolved.
+  if (parsedCombineSections.length > 0) {
+    return Array.from(new Set([
+      ...(addonSections.length > 0 ? addonSections : baseSections),
+      ...parsedCombineSections,
+    ]));
+  }
+
+  // If there are addon sections and no combine sections:
+  // Addon sections take precedence for single products (e.g. single Flake replaced by grilled fish -> Grilled only).
+  if (addonSections.length > 0) return addonSections;
+
   if (baseSections.length > 0) return baseSections;
 
   const fallbackSections = parseKitchenSections(fallbackSection);
@@ -355,20 +448,26 @@ export const resolveKitchenSections = (
 export const formatKitchenSectionValue = (
   baseSection?: string | null,
   addons?: OrderItemAddon[],
-  fallbackSection?: string | null
-): string => resolveKitchenSections(baseSection, addons, fallbackSection).join(', ');
+  fallbackSection?: string | null,
+  combineSections?: Array<string | null | undefined> | string | null,
+  options?: KitchenSectionResolutionOptions
+): string => resolveKitchenSections(baseSection, addons, fallbackSection, combineSections, options).join(', ');
 
 export const getResolvedKitchenSectionKey = (
   baseSection?: string | null,
   addons?: OrderItemAddon[],
-  fallbackSection?: string | null
-): string => resolveKitchenSections(baseSection, addons, fallbackSection).join(',');
+  fallbackSection?: string | null,
+  combineSections?: Array<string | null | undefined> | string | null,
+  options?: KitchenSectionResolutionOptions
+): string => resolveKitchenSections(baseSection, addons, fallbackSection, combineSections, options).join(',');
 
 export const getResolvedKitchenSectionDisplay = (
   baseSection?: string | null,
   addons?: OrderItemAddon[],
-  fallbackSection?: string | null
-): string => resolveKitchenSections(baseSection, addons, fallbackSection)
+  fallbackSection?: string | null,
+  combineSections?: Array<string | null | undefined> | string | null,
+  options?: KitchenSectionResolutionOptions
+): string => resolveKitchenSections(baseSection, addons, fallbackSection, combineSections, options)
   .map((section) => section.toUpperCase())
   .join(' & ');
 
@@ -384,15 +483,27 @@ export type KitchenReceiptCopy<TItem> = {
   sections: KitchenSectionGroup<TItem>[];
 };
 
-export const buildKitchenReceiptCopies = <TItem extends { section?: string | null; addons?: OrderItemAddon[] }>(
+export const buildKitchenReceiptCopies = <TItem extends {
+  section?: string | null;
+  addons?: OrderItemAddon[];
+  product_name?: string | null;
+}>(
   items: TItem[] | null | undefined,
-  getFallbackSection?: (item: TItem) => string | null | undefined
+  getFallbackSection?: (item: TItem) => string | null | undefined,
+  getCombineSections?: (item: TItem) => Array<string | null | undefined> | string | null | undefined
 ): KitchenReceiptCopy<TItem>[] => {
   const sourceItems = items || [];
   const groups = (() => {
     const map = new Map<string, KitchenSectionGroup<TItem>>();
     for (const item of sourceItems) {
-      const sections = resolveKitchenSections(item.section, item.addons, getFallbackSection?.(item));
+      const explicitCombineSections = getCombineSections?.(item);
+      const sections = resolveKitchenSections(
+        item.section,
+        item.addons,
+        getFallbackSection?.(item),
+        explicitCombineSections,
+        { productName: item.product_name }
+      );
       for (const section of sections) {
         const sectionKey = section || DEFAULT_KITCHEN_SECTION;
         const sectionName = sectionKey.toUpperCase();
