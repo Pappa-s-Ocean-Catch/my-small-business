@@ -1,0 +1,130 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.plugin.serialization'
+}
+
+def loadEnv() {
+    def env = new Properties()
+    def candidateFiles = [
+        file("${rootDir}/.env"),
+        file("${rootDir}/../../.env"),
+        file("${rootDir}/../pos-mirror/.env"),
+        file("${rootDir}/../../.env.local")
+    ]
+    for (candidate in candidateFiles) {
+        if (candidate.exists()) {
+            candidate.withReader('UTF-8') { reader ->
+                reader.eachLine { line ->
+                    def trimmed = line.trim()
+                    if (trimmed && !trimmed.startsWith('#') && trimmed.contains('=')) {
+                        def parts = trimmed.split('=', 2)
+                        def key = parts[0].trim()
+                        def value = parts[1].trim()
+                        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+                            value = value.substring(1, value.length() - 1)
+                        }
+                        if (!env.containsKey(key)) {
+                            env.put(key, value)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return env
+}
+
+def env = loadEnv()
+
+def getEnvVar(Properties env, String... keys) {
+    for (key in keys) {
+        def sysVal = System.getenv(key)
+        if (sysVal != null && !sysVal.isEmpty()) return sysVal
+        def envVal = env.getProperty(key)
+        if (envVal != null && !envVal.isEmpty()) return envVal
+    }
+    return null
+}
+
+def supabaseUrl = getEnvVar(env, "SUPABASE_URL", "EXPO_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL") ?: "https://ytoxlssjgzpuxyrfzfqb.supabase.co"
+def supabaseAnonKey = getEnvVar(env, "SUPABASE_ANON_KEY", "EXPO_PUBLIC_SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY") ?: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0b3hsc3NqZ3pwdXh5cmZ6ZnFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxOTQ3MTIsImV4cCI6MjA3Mzc3MDcxMn0.6MWBmHcfGlgwSqig2ZoXfBLM5u2WJBxD99TdRqm7Tt0"
+
+android {
+    namespace 'com.pappas.posmirror'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.pappas.posmirror'
+        minSdk 21
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
+
+        buildConfigField "String", "SUPABASE_URL", "\"${supabaseUrl}\""
+        buildConfigField "String", "SUPABASE_ANON_KEY", "\"${supabaseAnonKey}\""
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.debug
+        }
+        debug {
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        coreLibraryDesugaringEnabled true
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+
+    buildFeatures {
+        viewBinding true
+        buildConfig true
+    }
+}
+
+dependencies {
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
+
+    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.9.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation 'androidx.recyclerview:recyclerview:1.3.2'
+
+    // Supabase Kotlin SDK (supabase-kt)
+    implementation platform("io.github.jan-tennert.supabase:bom:3.0.2")
+    implementation "io.github.jan-tennert.supabase:postgrest-kt"
+    implementation "io.github.jan-tennert.supabase:auth-kt"
+    implementation "io.github.jan-tennert.supabase:realtime-kt"
+
+    // Ktor Engine
+    implementation "io.ktor:ktor-client-okhttp:3.0.0"
+    implementation "io.ktor:ktor-client-core:3.0.0"
+
+    // Networking & Utilities
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'com.google.code.gson:gson:2.10.1'
+    implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3'
+
+    // Coroutines
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+
+    // Image loading
+    implementation 'io.coil-kt:coil:2.6.0'
+
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20231013'
+}

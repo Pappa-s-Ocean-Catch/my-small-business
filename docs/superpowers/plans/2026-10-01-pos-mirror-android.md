@@ -21,40 +21,37 @@
 
 ## Tasks
 
-- [ ] **Task 1: Scaffold `apps/pos-mirror-android` Gradle Project**
+- [x] **Task 1: Scaffold `apps/pos-mirror-android` Gradle Project**
   - Create directory structure: `apps/pos-mirror-android/{app/src/main/java/com/pappas/posmirror,app/src/main/res}`
-  - Create `settings.gradle.kts` and root `build.gradle.kts`
-  - Create `app/build.gradle.kts` with `minSdkVersion = 21`, `targetSdkVersion = 34`, dependencies (Material, OkHttp, Gson, Coroutines)
+  - Create `settings.gradle` and root `build.gradle`
+  - Create `app/build.gradle` with `minSdkVersion = 21`, `targetSdkVersion = 34`, dependencies (Material, supabase-kt, OkHttp, Gson, Coroutines)
   - Verify Gradle configuration compiles cleanly with `./gradlew tasks`
 
-- [ ] **Task 2: Data Models & Unit Tests**
+- [x] **Task 2: Data Models & Unit Tests**
   - Implement `MirrorOrderSnapshot`, `MirrorOrderLine`, `Customization`, `CustomerQueueEntry`, `MirrorSettings` in `com.pappas.posmirror.data.model`
   - Implement parser/converter for Supabase `pos_mirror_state` payload
   - Write JUnit tests for JSON parsing and snapshot reconciliation
   - Verify all unit tests pass
 
-- [ ] **Task 3: Supabase Auth & Settings Repository**
+- [x] **Task 3: Supabase Auth & Settings Repository**
   - Implement `SettingsRepository` backed by `SharedPreferences` (stores `registerId`, `idleMode`, `idleImageUri`, `accessToken`)
-  - Implement `SupabaseAuthClient` using OkHttp to call `/auth/v1/token?grant_type=password` and verify role permissions
-  - Add unit/integration tests for auth request serialization
+  - Implement `SupabaseClientProvider` and `SupabaseRepository` using official `io.github.jan-tennert.supabase` SDK (Auth, Postgrest, Realtime)
+  - Role permissions check (`admin` / `staff`)
 
-- [ ] **Task 4: Supabase Realtime WebSocket Engine**
-  - Implement `SupabaseRealtimeClient` using OkHttp `WebSocketListener`
-  - Implement Phoenix protocol join topic `realtime:public:pos_mirror_state:register_id=eq.<REGISTER_ID>`
-  - Implement heartbeat (every 30s) and automatic reconnection with backoff
-  - Unit test the message encoder/decoder
+- [x] **Task 4: Supabase Realtime WebSocket Engine**
+  - Integrated `supabase-kt` 3.0.2 `realtime-kt` with `postgresChangeFlow` on `pos_mirror_state` and `order_sync_state`
+  - Core library desugaring enabled for Android 5.0 (minSdk 21) compatibility
 
-- [ ] **Task 5: UI & Brand Themes (Landscape 1024x768)**
-  - Add colors, styles, dimens, and drawable assets matching Pappas brand
-  - Build `LoginActivity` with Material outlined inputs, sign in button, and error banner
-  - Build `SettingsActivity` with register selector, idle mode radio group, and sign out
-  - Build `DisplayActivity` with 2-column active cart layout (Left: QTY/ITEM/EACH/TOTAL RecyclerView; Right: TOTAL TO PAY, discount notice, PREPPING queue count, secret 5-tap unlock)
-  - Build Idle Artwork display and Customer Queue two-column board
-  - Add fullscreen immersive sticky mode and `FLAG_KEEP_SCREEN_ON`
+- [x] **Task 5: UI & Brand Themes (Landscape 1024x768)**
+  - Added colors, styles, dimens, and drawable assets matching Pappas brand
+  - Built `LoginActivity` with Material outlined inputs, sign in button, and error banner
+  - Built `SettingsActivity` with live register selector from Supabase, idle mode radio group, and sign out
+  - Built `DisplayActivity` with 2-column active cart layout (Left: QTY/ITEM/EACH/TOTAL RecyclerView; Right: TOTAL TO PAY, discount notice, PREPPING queue count, secret 5-tap unlock)
+  - Built Idle Artwork display and Customer Queue two-column board
+  - Added fullscreen immersive sticky mode and `FLAG_KEEP_SCREEN_ON`
 
-- [ ] **Task 6: Build APK & Deploy to Citaq H10-3 via ADB**
-  - Run `./gradlew assembleRelease` to generate `app-release.apk`
-  - Verify APK `minSdkVersion` is 21 using `aapt dump badging`
-  - Install onto Citaq device via ADB: `adb -s 192.168.4.68:5555 install -r app-release.apk`
-  - Launch app on device: `adb -s 192.168.4.68:5555 shell am start -n com.pappas.posmirror/.ui.display.DisplayActivity`
-  - Verify live UI on screen and confirm smooth 60fps operation
+- [x] **Task 6: Build APK & Deploy to Citaq H10-3 via ADB**
+  - Ran `./gradlew assembleRelease` generating `app-release.apk`
+  - Verified APK `minSdkVersion` is 21 using `aapt dump badging`
+  - Installed onto Citaq device via ADB: `adb -s 192.168.4.68:5555 install -r app-release.apk`
+  - Launched app on device and confirmed live operation on the Citaq H10-3 terminal
