@@ -1,3 +1,4 @@
+import { loadMarketingAudience } from './marketing-audience';
 import { supabase } from './supabase';
 import { getApiUrl } from '../utils/orderUtils';
 import { customerFromSummary } from '../utils/customer-profile';
@@ -420,5 +421,20 @@ export async function createCustomerProfile(input: {
     return { data: payload.customer, error: null };
   } catch (err) {
     return { data: null, error: err instanceof Error ? err.message : 'Unknown error' };
+  }
+}
+
+/** Marketing needs the full audience, rather than only the most recent buyers. */
+export async function getMarketingCustomers(): Promise<{ data: Customer[] | null; error: string | null }> {
+  try {
+    return await loadMarketingAudience<Customer>(async (offset, limit) => {
+      const { data, error } = await supabase.from('customer_summary').select('*')
+        .order('profileId', { ascending: true }).order('email', { ascending: true }).order('phone', { ascending: true })
+        .order('name', { ascending: true }).order('firstOrderDate', { ascending: true })
+        .range(offset, offset + limit - 1);
+      return { data: data as Customer[] | null, error: error?.message || null };
+    });
+  } catch (error) {
+    return { data: null, error: error instanceof Error ? error.message : 'Failed to load marketing customers' };
   }
 }

@@ -37,7 +37,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
                 android:fontFamily="sans-serif-black"
-                android:text="POS Quick Launch Hub"
+                android:text="Pappa’s Launcher"
                 android:textColor="@color/text_primary"
                 android:textSize="26sp" />
 
@@ -64,11 +64,20 @@
 
     </LinearLayout>
 
+    <TextView
+        android:id="@+id/textHomeStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="Checking default Home app…"
+        android:textColor="@color/text_secondary"
+        android:textSize="14sp" />
+
     <!-- Main Grid of 4 Large Cards -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_marginTop="28dp"
+        android:layout_marginTop="16dp"
         android:layout_weight="1"
         android:orientation="horizontal">
 
@@ -303,6 +312,15 @@
             android:text="💡 Swipe down from top screen edge anytime for quick notification controls"
             android:textColor="#64748B"
             android:textSize="13sp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnLauncherSetup"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
+            android:text="Launcher setup"
+            android:textColor="@color/text_primary" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnAllApps"
