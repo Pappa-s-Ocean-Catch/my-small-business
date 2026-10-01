@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand_primary">#E11D48</color>
+    <color name="brand_primary_dark">#BE123C</color>
+    <color name="brand_accent">#0EA5E9</color>
+    <color name="bg_dark">#0F172A</color>
+    <color name="bg_card">#1E293B</color>
+    <color name="bg_card_stroke">#334155</color>
+    <color name="text_primary">#F8FAFC</color>
+    <color name="text_secondary">#94A3B8</color>
+    <color name="status_green">#10B981</color>
+</resources>

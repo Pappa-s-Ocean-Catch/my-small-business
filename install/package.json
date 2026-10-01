@@ -1,0 +1,11 @@
+{
+  "name": "pos-install-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local HTTP server to install Pappa's POS applications on terminals",
+  "scripts": {
+    "start": "./serve.sh",
+    "serve": "./serve.sh",
+    "update": "./update-apks.sh"
+  }
+}

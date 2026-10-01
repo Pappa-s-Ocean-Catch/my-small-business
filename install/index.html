@@ -1,0 +1,136 @@
+ack<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>Pappa's POS - Internal App Center</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #0f172a;
+            color: #f8fafc;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 24px;
+            box-sizing: border-box;
+            text-align: center;
+        }
+        .card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 20px;
+            padding: 32px 24px;
+            max-width: 540px;
+            width: 100%;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+        }
+        h1 {
+            color: #f43f5e;
+            font-size: 24px;
+            margin: 0 0 6px 0;
+            font-weight: 800;
+        }
+        p {
+            color: #94a3b8;
+            font-size: 14px;
+            margin: 0 0 20px 0;
+            line-height: 1.5;
+        }
+        .btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .btn {
+            display: block;
+            background: #1e293b;
+            color: #ffffff;
+            text-decoration: none;
+            font-size: 16px;
+            font-weight: 700;
+            padding: 14px 18px;
+            border-radius: 12px;
+            border: 1px solid #475569;
+            text-align: left;
+            transition: all 0.2s;
+        }
+        .btn-highlight {
+            background: linear-gradient(135deg, #f43f5e, #be123c);
+            border-color: #fb7185;
+            box-shadow: 0 4px 18px rgba(244, 63, 94, 0.45);
+        }
+        .btn-highlight:hover {
+            filter: brightness(1.1);
+        }
+        .btn-primary {
+            background: #0284c7;
+            border-color: #38bdf8;
+        }
+        .btn-primary:hover {
+            background: #0369a1;
+        }
+        .btn-sub {
+            font-size: 12px;
+            font-weight: 400;
+            color: #f1f5f9;
+            display: block;
+            margin-top: 4px;
+            opacity: 0.9;
+        }
+        .badge {
+            display: inline-block;
+            background: #ffffff;
+            color: #be123c;
+            font-size: 11px;
+            font-weight: 800;
+            padding: 2px 8px;
+            border-radius: 6px;
+            margin-bottom: 4px;
+        }
+        .meta {
+            color: #64748b;
+            font-size: 12px;
+            margin-top: 24px;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>PAPPA'S POS APPS</h1>
+        <p>Terminal App Center &amp; Quick Launch Controls</p>
+        
+        <div class="btn-group">
+            <a href="/pappas-quick-hub.apk" class="btn btn-highlight">
+                <span class="badge">RECOMMENDED</span>
+                ⚡ Pappa's Quick Hub (pappas-quick-hub.apk)
+                <span class="btn-sub">Top-left floating corner button + Notification controls (4.5 MB)</span>
+            </a>
+
+            <a href="/pos-mirror.apk" class="btn btn-primary">
+                📺 POS Mirror (Customer Display)
+                <span class="btn-sub">Customer-facing order items and price mirror (8.7 MB)</span>
+            </a>
+
+            <a href="/pappas-order-management.apk" class="btn btn-primary">
+                📦 Pappas Order Management
+                <span class="btn-sub">Cashier POS order taking &amp; ticket management (143 MB)</span>
+            </a>
+
+            <a href="/browser.apk" class="btn">
+                🌐 Lightning Browser
+                <span class="btn-sub">Lightweight web browser (2.2 MB)</span>
+            </a>
+        </div>
+
+        <div class="meta">
+            Pappa's Ocean Catch Internal Distribution<br>
+            Updated: 01/10/2026
+        </div>
+    </div>
+</body>
+</html>

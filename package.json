@@ -10,6 +10,8 @@
     "dev:all": "pnpm --filter web --filter web-portal --filter api --parallel dev",
     "dev": "node scripts/dev-web-with-proxy.mjs",
     "dev:http-proxy": "NODE_TLS_REJECT_UNAUTHORIZED=0 node scripts/http-to-https-proxy.mjs",
+    "install:serve": "cd install && ./serve.sh",
+    "install:update": "cd install && ./update-apks.sh",
     "build": "pnpm --filter web build",
     "build:agent": "pnpm --filter web build:agent",
     "start": "pnpm --filter web start",
