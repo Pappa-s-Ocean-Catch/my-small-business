@@ -128,7 +128,7 @@ export async function processPendingPrintJob(jobId: string): Promise<boolean> {
   const driver = getPrinterDriver(startedJob.printer);
   const transport = driver === 'rawTcp'
     ? 'Raw TCP (native/JS resolved during dispatch)'
-    : driver === 'epsonSdk' ? 'Epson SDK' : 'simulator';
+    : driver === 'sunmi' ? 'Sunmi built-in' : driver === 'epsonSdk' ? 'Epson SDK' : 'simulator';
 
   store.addJournalEntry({
     level: 'info',

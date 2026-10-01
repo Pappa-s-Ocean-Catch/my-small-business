@@ -9,6 +9,7 @@ import { playNewOrderSound, SOUND_OPTIONS, type SoundId } from '@/lib/sounds';
 import { PRINT_SECTION_OPTIONS } from '@/utils/orderUtils';
 import { BRAND_COLORS } from '@/utils/brand';
 import { usePrintersDiscovery } from 'react-native-esc-pos-printer';
+import { createSunmiSavedPrinter } from '@/lib/printer-types';
 import type { DeviceInfo } from 'react-native-esc-pos-printer';
 import {
     DEFAULT_SIMULATOR_PRINTER_NAME,
@@ -104,7 +105,7 @@ export default function SettingsScreen() {
     const [manualPrinterIp, setManualPrinterIp] = useState('');
     const [manualPrinterPortText, setManualPrinterPortText] = useState(String(DEFAULT_MANUAL_PRINTER_PORT));
     const [manualPrinterName, setManualPrinterName] = useState('');
-    const [manualPrinterDriver, setManualPrinterDriver] = useState<'rawTcp' | 'simulator'>('rawTcp');
+    const [manualPrinterDriver, setManualPrinterDriver] = useState<'rawTcp' | 'simulator' | 'sunmi'>('rawTcp');
     const [editingManualPrinterTarget, setEditingManualPrinterTarget] = useState<string | null>(null);
 
     const [saving, setSaving] = useState(false);
@@ -411,7 +412,7 @@ export default function SettingsScreen() {
 
     const startEditingManualPrinter = (printer: SavedPrinter) => {
         setEditingManualPrinterTarget(printer.target);
-        setManualPrinterDriver(getPrinterDriver(printer) === 'simulator' ? 'simulator' : 'rawTcp');
+        setManualPrinterDriver(getPrinterDriver(printer) === 'sunmi' ? 'sunmi' : getPrinterDriver(printer) === 'simulator' ? 'simulator' : 'rawTcp');
         setManualPrinterIp(printer.ipAddress?.trim() || '');
         setManualPrinterPortText(String(printer.port ?? DEFAULT_MANUAL_PRINTER_PORT));
         setManualPrinterName(printer.deviceName || '');
@@ -419,6 +420,16 @@ export default function SettingsScreen() {
 
     const handleManualPrinterAdd = () => {
         const deviceName = manualPrinterName.trim();
+        if (manualPrinterDriver === 'sunmi') {
+            if (Platform.OS !== 'android') { Alert.alert('Unsupported device', 'Sunmi built-in printing requires Android.'); return; }
+            const printer = createSunmiSavedPrinter(deviceName);
+            setPrinterSaved((prev) => [printer, ...prev.filter((p) => p.target !== printer.target)]);
+            setPrinterSelectedTarget(printer.target);
+            updatePrinterAssignmentTarget(defaultPrinterAssignmentId, printer.target);
+            setPrinterEnabled(true);
+            resetManualPrinterForm();
+            return;
+        }
         if (manualPrinterDriver === 'simulator') {
             const simulatorPrinter = createSimulatorSavedPrinter(deviceName || DEFAULT_SIMULATOR_PRINTER_NAME);
             const existing = printerSaved.find((printer) => printer.target === simulatorPrinter.target) || null;
@@ -1305,7 +1316,7 @@ export default function SettingsScreen() {
                                     <View style={styles.panelCard}>
                                         <View style={styles.panelHeader}>
                                             <Text style={styles.panelTitle}>Add printer manually</Text>
-                                            <Text style={styles.panelDescription}>Create a network or simulator printer entry without discovery.</Text>
+                                            <Text style={styles.panelDescription}>Add a network, built-in Sunmi, or simulator printer.</Text>
                                         </View>
                                         <View style={styles.buttonGroup}>
                                             <Button
@@ -1323,7 +1334,15 @@ export default function SettingsScreen() {
                                                 Simulator
                                             </Button>
                                         </View>
-                                        {manualPrinterDriver === 'rawTcp' ? (
+                                        {Platform.OS === 'android' && (
+                                            <Button mode={manualPrinterDriver === 'sunmi' ? 'contained' : 'outlined'} onPress={() => setManualPrinterDriver('sunmi')}>Sunmi built-in</Button>
+                                        )}
+                                        {manualPrinterDriver === 'sunmi' ? (
+                                            <>
+                                                <TextInput mode="outlined" label="Printer name (optional)" value={manualPrinterName} onChangeText={setManualPrinterName} placeholder="Sunmi built-in" style={styles.input} />
+                                                <Text style={styles.helper}>Uses this Sunmi device’s built-in printer. No IP address or port is needed.</Text>
+                                            </>
+                                        ) : manualPrinterDriver === 'rawTcp' ? (
                                             <>
                                                 <TextInput
                                                     mode="outlined"
@@ -1442,7 +1461,7 @@ export default function SettingsScreen() {
                                                             <Text style={styles.helper}>
                                                                 {isSimulatorPrinter(p)
                                                                     ? 'Virtual simulator printer'
-                                                                    : p.ipAddress
+                                                                    : p.driver === 'sunmi' ? 'Sunmi built-in printer' : p.ipAddress
                                                                         ? `Network printer${(p.port ?? DEFAULT_MANUAL_PRINTER_PORT) === DEFAULT_MANUAL_PRINTER_PORT ? ' • port 9100' : ` • port ${p.port}`}`
                                                                         : 'Discovered printer'}
                                                             </Text>
@@ -1457,7 +1476,7 @@ export default function SettingsScreen() {
                                                             >
                                                                 {isSelected ? 'Default' : 'Set default'}
                                                             </Button>
-                                                            {p.driver === 'rawTcp' || p.driver === 'simulator' ? (
+                                                            {p.driver === 'rawTcp' || p.driver === 'simulator' || p.driver === 'sunmi' ? (
                                                                 <Button
                                                                     mode="text"
                                                                     onPress={() => startEditingManualPrinter(p)}

@@ -1,3 +1,4 @@
+import { requireNativeModule } from 'expo-modules-core';
 import { Platform } from 'react-native';
 import type { PrinterImageSource } from './printer-image';
 import { getNativeRawTcpPrinter, type NativeRawTcpPrintOptions } from './raw-tcp-native';
@@ -129,6 +130,7 @@ export function createSimulatorSavedPrinter(deviceName?: string): SavedPrinter {
 
 export async function getPrinterTransportLabel(printer: SavedPrinter): Promise<string> {
   const driver = getPrinterDriver(printer);
+  if (driver === 'sunmi') return 'Sunmi built-in';
   if (driver === 'simulator') return 'simulator';
   if (driver === 'epsonSdk') return 'Epson SDK';
   return Platform.OS === 'android' || Platform.OS === 'ios' ? 'Native Raw TCP' : 'Native Raw TCP unavailable';
@@ -356,6 +358,10 @@ export async function escposPrintDocument(document: EscPosDocument, printer: Sav
   }
 
   return enqueuePrinterJob(printer, async () => {
+    if (getPrinterDriver(printer) === 'sunmi') {
+      await getSunmiPrinter().printRaw(Array.from(buildDocumentPrintJob(document)));
+      return;
+    }
     if (getPrinterDriver(printer) === 'rawTcp') {
       await withRawTcpPrinter(printer, (socket) => writeRawBytes(socket, buildDocumentPrintJob(document)), { timeoutMs: 30000 });
       return;
@@ -427,6 +433,12 @@ export async function escposPrintOrderImage(
         ? imageSource.uri
         : (imageSource.previewUri ?? null);
 
+    if (getPrinterDriver(printer) === 'sunmi') {
+      if (!imageUri) throw new Error('Sunmi printing requires an image URI.');
+      await getSunmiPrinter().printImage(imageUri, width, repeat);
+      return { driver: 'sunmi', quality, captureScale, totalMs: Date.now() - startedAt };
+    }
+
     for (let i = 0; i < repeat; i++) {
       {
         if (!imageUri) {
@@ -453,4 +465,9 @@ export async function escposPrintOrderImage(
     }
     return { driver: 'epsonSdk', quality, captureScale, totalMs: Date.now() - startedAt };
   });
+}
+
+function getSunmiPrinter() {
+  if (Platform.OS !== 'android') throw new Error('Sunmi built-in printing is only available on Android.');
+  return requireNativeModule<{ printImage(uri: string, width: number, copies: number): Promise<void>; printRaw(bytes: number[]): Promise<void> }>('SunmiPrinter');
 }

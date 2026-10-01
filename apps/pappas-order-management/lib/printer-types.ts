@@ -1,4 +1,4 @@
-export type PrinterDriver = 'epsonSdk' | 'rawTcp' | 'simulator';
+export type PrinterDriver = 'epsonSdk' | 'rawTcp' | 'simulator' | 'sunmi';
 
 export type SavedPrinter = {
   target: string;
@@ -21,6 +21,7 @@ export function isSimulatorPrinterTarget(target: string | null | undefined): boo
 }
 
 export function getPrinterDriver(printer: SavedPrinter | null | undefined): PrinterDriver {
+  if (printer?.driver === 'sunmi') return 'sunmi';
   if (printer?.driver === 'rawTcp') return 'rawTcp';
   if (printer?.driver === 'simulator' || isSimulatorPrinterTarget(printer?.target)) return 'simulator';
   return 'epsonSdk';
@@ -28,4 +29,8 @@ export function getPrinterDriver(printer: SavedPrinter | null | undefined): Prin
 
 export function isSimulatorPrinter(printer: SavedPrinter | null | undefined): boolean {
   return getPrinterDriver(printer) === 'simulator';
+}
+
+export function createSunmiSavedPrinter(deviceName = 'Sunmi built-in'): SavedPrinter {
+  return { target: 'SUNMI:BUILTIN', deviceName: deviceName.trim() || 'Sunmi built-in', driver: 'sunmi', deviceType: 'TYPE_PRINTER' };
 }
