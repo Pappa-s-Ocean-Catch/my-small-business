@@ -24,8 +24,8 @@ test('builds a normalized V1 snapshot with quantity-summed item count', () => {
     updatedAt: '2026-09-16T00:00:00.000Z',
     itemCount: 3,
     items: [
-      { id: 'line-1', name: 'Fish Pack', quantity: 2, unitPrice: 12.51, lineTotal: 25.01 },
-      { id: 'line-2', name: 'Chips', quantity: 1, unitPrice: 5, lineTotal: 5 },
+      { id: 'line-1', name: 'Fish Pack', quantity: 2, unitPrice: 12.51, lineTotal: 25.01, customizations: undefined },
+      { id: 'line-2', name: 'Chips', quantity: 1, unitPrice: 5, lineTotal: 5, customizations: undefined },
     ],
     subtotal: 30.01,
     discount: 5.01,
@@ -59,7 +59,7 @@ test('rounds currency values correctly at floating-point half-cent boundaries', 
     version: 1,
     updatedAt: '2026-09-16T00:00:00.000Z',
     itemCount: 1,
-    items: [{ id: 'line-1', name: 'Fish Pack', quantity: 1, unitPrice: 10.08, lineTotal: 10.08 }],
+    items: [{ id: 'line-1', name: 'Fish Pack', quantity: 1, unitPrice: 10.08, lineTotal: 10.08, customizations: undefined }],
     subtotal: 10.08,
     discount: 0,
     total: 10.08,
@@ -100,7 +100,7 @@ test('accepts a valid V1 snapshot', () => {
     total: 25,
   };
 
-  assert.deepEqual(parseMirrorOrderSnapshot(value), value);
+  assert.deepEqual(parseMirrorOrderSnapshot(value), { ...value, items: [{ ...value.items[0], customizations: undefined }] });
 });
 
 test('normalizes every parsed currency field to two decimal places', () => {
@@ -116,7 +116,7 @@ test('normalizes every parsed currency field to two decimal places', () => {
 
   assert.deepEqual(parseMirrorOrderSnapshot(value), {
     ...value,
-    items: [{ ...value.items[0], unitPrice: 1.01, lineTotal: 2.68 }],
+    items: [{ ...value.items[0], unitPrice: 1.01, lineTotal: 2.68, customizations: undefined }],
     subtotal: 3.34,
     discount: 0.11,
     total: 3.23,

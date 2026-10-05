@@ -1,5 +1,6 @@
 export type NativeRawTcpPrintOptions = {
-  viewTag: number;
+  viewTag?: number;
+  imageUri?: string;
   host: string;
   port: number;
   width: number;
@@ -41,6 +42,7 @@ export type NativeRawTcpPrintErrorCode =
 
 export type NativeRawTcpPrinter = {
   print(options: NativeRawTcpPrintOptions): Promise<NativeRawTcpPrintResult>;
+  printRaw?: (options: { host: string; port: number; bytes: number[]; timeoutMs: number }) => Promise<{ ok: boolean; sent: boolean }>;
 };
 
 export function getNativeRawTcpPrinter(

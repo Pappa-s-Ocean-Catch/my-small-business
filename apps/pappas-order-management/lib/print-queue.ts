@@ -79,7 +79,8 @@ export async function waitForPrintJobs(jobIds: string[]): Promise<{ success: boo
       });
     }, WAIT_FOR_PRINT_JOBS_TIMEOUT_MS);
 
-    const unsubscribe = usePrinterAutomationStore.subscribe((state) => {
+    let unsubscribe = () => {};
+    const check = (state: ReturnType<typeof usePrinterAutomationStore.getState>) => {
       const trackedJobs = state.printJobs.filter((job) => jobIds.includes(job.id));
       if (trackedJobs.length === 0) {
         clearTimeout(timeoutId);
@@ -107,7 +108,9 @@ export async function waitForPrintJobs(jobIds: string[]): Promise<{ success: boo
         success: failedJobs.length === 0,
         failedJobs,
       });
-    });
+    };
+    unsubscribe = usePrinterAutomationStore.subscribe(check);
+    check(usePrinterAutomationStore.getState());
   });
 }
 

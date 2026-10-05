@@ -53,17 +53,17 @@ class LoginActivity : AppCompatActivity() {
 
         // Check if already authenticated (unless force_show_login extra is passed)
         val forceShowLogin = intent.getBooleanExtra("force_show_login", false)
-        val savedUserId = settingsRepo.getUserId()
         val savedToken = settingsRepo.getAccessToken()
         val savedRefresh = settingsRepo.getRefreshToken()
         val savedSettings = settingsRepo.getSettings()
 
-        if (!forceShowLogin && !savedUserId.isNullOrEmpty() && !savedToken.isNullOrEmpty() && !savedRefresh.isNullOrEmpty()) {
+        if (!forceShowLogin) {
             setLoading(true)
             lifecycleScope.launch {
                 val restored = supabaseRepo.restoreSession(savedToken, savedRefresh)
                 if (restored) {
-                    val hasAccess = supabaseRepo.canAccessPosMirror(savedUserId)
+                    val userId = com.pappas.posmirror.data.SupabaseClientProvider.auth.currentUserOrNull()?.id
+                    val hasAccess = userId != null && supabaseRepo.canAccessPosMirror(userId)
                     if (hasAccess) {
                         if (savedSettings.registerId.isNotEmpty()) {
                             startActivity(Intent(this@LoginActivity, DisplayActivity::class.java))
@@ -118,7 +118,6 @@ class LoginActivity : AppCompatActivity() {
                     return@launch
                 }
 
-                settingsRepo.saveAuth(session.accessToken, session.refreshToken, userId)
 
                 val settings = settingsRepo.getSettings()
                 if (settings.registerId.isNotEmpty()) {

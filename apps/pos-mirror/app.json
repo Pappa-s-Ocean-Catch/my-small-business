@@ -13,14 +13,13 @@
     },
     "android": {
       "package": "com.pappas.posmirror",
-      "adaptiveIcon": {
-        "backgroundColor": "#1D4ED8",
-        "foregroundImage": "./assets/icon.png"
-      },
       "predictiveBackGestureEnabled": false
     },
     "plugins": [
       "./plugins/withAndroidFullscreen"
-    ]
+    ],
+    "splash": {
+      "backgroundColor": "#FFF1F2"
+    }
   }
 }

@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { documentDirectory, copyAsync } from 'expo-file-system/legacy';
 
-import type { MirrorSettings } from '../lib/mirror-settings';
+import { ALL_REGISTERS, type MirrorSettings } from '../lib/mirror-settings';
 import { listMirrorRegisterIds } from '../lib/mirror-registers';
 import { colors, radius, spacing } from '../theme';
 
@@ -26,7 +26,7 @@ export function SettingsScreen({ initialSettings, onSave, onSignOut, onCancel }:
   const [registerIds, setRegisterIds] = useState<{ id: string; name: string }[]>([]);
   const [registersLoading, setRegistersLoading] = useState(true);
   const [registersError, setRegistersError] = useState<string | null>(null);
-  const selectedRegisterIsAvailable = registerIds.some(r => r.id === registerId.trim());
+  const selectedRegisterIsAvailable = registerId === ALL_REGISTERS || registerIds.some(r => r.id === registerId.trim());
 
   const loadRegisters = useCallback(async () => {
     setRegistersLoading(true);
@@ -46,7 +46,7 @@ export function SettingsScreen({ initialSettings, onSave, onSignOut, onCancel }:
 
   const save = async () => {
     const normalizedRegisterId = registerId.trim();
-    if (!registerIds.some(r => r.id === normalizedRegisterId)) {
+    if (normalizedRegisterId !== ALL_REGISTERS && !registerIds.some(r => r.id === normalizedRegisterId)) {
       setError('Choose a mother POS register from the available list.');
       return;
     }
@@ -90,22 +90,23 @@ export function SettingsScreen({ initialSettings, onSave, onSignOut, onCancel }:
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
           <View style={styles.titleRow}>
-            <View style={styles.titleBlock}><Text variant="headlineMedium" style={styles.title}>Display settings</Text><Text variant="bodyLarge" style={styles.subtitle}>Connect this screen to one mother-POS register.</Text></View>
+            <View style={styles.titleBlock}><Text variant="headlineMedium" style={styles.title}>Display settings</Text><Text variant="bodyLarge" style={styles.subtitle}>Listen to one POS or all POS registers.</Text></View>
             {onCancel && <Button mode="text" onPress={onCancel}>Back to display</Button>}
           </View>
           <View style={styles.registerHeading}>
             <Text variant="titleMedium" style={styles.sectionTitle}>Mother POS register</Text>
             <Button mode="text" compact onPress={() => void loadRegisters()} loading={registersLoading} disabled={registersLoading}>Refresh</Button>
           </View>
-          <Text variant="bodyMedium" style={styles.helper}>Choose a register that has published mirror data from the mother POS.</Text>
+          <Text variant="bodyMedium" style={styles.helper}>The current POS keeps the display until its cart clears. Other active POS carts wait their turn.</Text>
           {registersLoading && <View style={styles.loadingRegisters} accessibilityState={{ busy: true }}><ActivityIndicator color={colors.primary} /><Text variant="bodyMedium">Loading available registers…</Text></View>}
           {!registersLoading && registersError && <Text accessibilityLiveRegion="polite" style={styles.error}>{registersError}</Text>}
           {!registersLoading && !registersError && registerIds.length === 0 && <Text style={styles.emptyState}>No mother POS registers yet. Start a cart on a mother POS, then refresh this list.</Text>}
-          {!registersLoading && registerIds.length > 0 && <RadioButton.Group value={registerId} onValueChange={setRegisterId}>
+          <RadioButton.Group value={registerId} onValueChange={setRegisterId}>
+            <RadioButton.Item label="Listen to all POS" value={ALL_REGISTERS} position="leading" style={styles.registerChoice} accessibilityLabel="Listen to all POS registers" />
             {registerIds.map(({ id, name }) => <RadioButton.Item key={id} label={`${name} (${id})`} value={id} position="leading" style={styles.registerChoice} accessibilityLabel={`Use mother POS register ${name}`} />)}
-          </RadioButton.Group>}
-          {!registersLoading && registerId && !registerIds.some(r => r.id === registerId) && <Text style={styles.error}>The saved register is no longer available. Choose one from the list.</Text>}
-          <Text variant="titleMedium" style={styles.sectionTitle}>When this register is idle</Text>
+          </RadioButton.Group>
+          {!registersLoading && registerId && registerId !== ALL_REGISTERS && !registerIds.some(r => r.id === registerId) && <Text style={styles.error}>The saved register is no longer available. Choose one from the list.</Text>}
+          <Text variant="titleMedium" style={styles.sectionTitle}>When no POS cart is active</Text>
           <RadioButton.Group value={idleMode} onValueChange={(value) => setIdleMode(value === 'queue' ? 'queue' : 'image')}>
             <View style={styles.choice}>
               <RadioButton value="image" />

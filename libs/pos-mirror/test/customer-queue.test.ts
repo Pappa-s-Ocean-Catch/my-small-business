@@ -9,6 +9,10 @@ const nowMs = Date.parse('2026-09-16T10:00:00.000Z');
 
 function candidate(overrides: Partial<CustomerQueueCandidate> = {}): CustomerQueueCandidate {
   return {
+    id: 'order-1',
+    customer_name: null,
+    total: 0,
+    order_items: [],
     order_number: 'ORD-001',
     created_at: '2026-09-16T09:00:00.000Z',
     scheduled_pickup_at: null,
@@ -47,6 +51,7 @@ test('excludes closed, refunded, on-the-way, pending-payment, and future schedul
   ], nowMs);
 
   assert.deepEqual(queue, [{
+    id: 'order-1', customerName: null, total: 0, items: [],
     orderNumber: 'boundary',
     status: 'Pending',
     sortAt: '2026-09-16T10:30:00.000Z',
@@ -67,7 +72,7 @@ test('sorts oldest first by scheduled pickup time or creation time', () => {
   ]);
 });
 
-test('projects only public queue fields', () => {
+test('projects customer display fields while excluding staff notes and payment method', () => {
   const privateCandidate = {
     ...candidate({ order_number: 'ORD-PRIVATE' }),
     id: 'database-id',
@@ -79,11 +84,12 @@ test('projects only public queue fields', () => {
   const queue = buildCustomerQueue([privateCandidate], nowMs);
 
   assert.deepEqual(queue, [{
+    id: 'database-id', customerName: 'Private Customer', total: 0, items: [],
     orderNumber: 'PRIVATE',
     status: 'Pending',
     sortAt: '2026-09-16T09:00:00.000Z',
   }]);
-  assert.deepEqual(Object.keys(queue[0]).sort(), ['orderNumber', 'sortAt', 'status']);
+  assert.deepEqual(Object.keys(queue[0]).sort(), ['customerName', 'id', 'items', 'orderNumber', 'sortAt', 'status', 'total']);
 });
 
 test('uses only the final order-number group for customer queue entries', () => {

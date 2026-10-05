@@ -31,7 +31,17 @@ class MainActivity : AppCompatActivity() {
         setupCards()
         setupToggles()
         setupAllApps()
-        binding.btnLauncherSetup.setOnClickListener { showLauncherSetup() }
+        binding.btnLauncherSetup.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("Launcher setup")
+                .setItems(arrayOf("Default Home settings", "SUNMI Home redirect", "Redirect diagnostics")) { _, which ->
+                    when (which) {
+                        0 -> showLauncherSetup()
+                        1 -> showRedirectSetup()
+                        else -> showRedirectDiagnostics()
+                    }
+                }.setNegativeButton("Close", null).show()
+        }
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
             != PackageManager.PERMISSION_GRANTED) {
             val prefs = getSharedPreferences("quick_hub_prefs", MODE_PRIVATE)
@@ -44,6 +54,16 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        val redirectPrefs = getSharedPreferences("launcher_redirect", MODE_PRIVATE)
+        val requested = redirectPrefs.getLong("launch_requested_at", 0)
+        if (requested > 0) {
+            val elapsed = android.os.SystemClock.elapsedRealtime() - requested
+            val previous = redirectPrefs.getString("diagnostics", "") ?: ""
+            val time = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.US).format(java.util.Date())
+            redirectPrefs.edit().remove("launch_requested_at").putString("diagnostics",
+                (previous.lines().filter { it.isNotBlank() } + "$time Pappa’s resumed ${elapsed}ms after launch request (may include manual return)")
+                    .takeLast(20).joinToString("\n")).apply()
+        }
         updateFloatingToggleState()
         protectionError = launcher.restoreProtectedHome()
         updateHomeStatus()
@@ -218,6 +238,103 @@ class MainActivity : AppCompatActivity() {
             }
         }
         dialog.show().findViewById<android.widget.TextView>(android.R.id.message)?.setTextIsSelectable(true)
+    }
+
+    private fun showRedirectSetup() {
+        val prefs = getSharedPreferences("launcher_redirect", MODE_PRIVATE)
+        val target = prefs.getString("target", "") ?: ""
+        val enabled = prefs.getBoolean("enabled", false)
+        val manager = getSystemService(ACCESSIBILITY_SERVICE) as android.view.accessibility.AccessibilityManager
+        val serviceEnabled = manager.getEnabledAccessibilityServiceList(
+            android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK
+        ).any { it.resolveInfo.serviceInfo.packageName == packageName &&
+            it.resolveInfo.serviceInfo.name == LauncherRedirectService::class.java.name }
+        AlertDialog.Builder(this)
+            .setTitle("SUNMI Home redirect")
+            .setMessage("Redirect: ${if (enabled) "ON" else "OFF"}\n" +
+                "Stock launcher: ${target.ifBlank { "Not selected" }}\n" +
+                "Accessibility service: ${if (serviceEnabled) "enabled" else "disabled"}\n\n" +
+                "Select the stock launcher opened by Home. When that app appears, return to Pappa’s. " +
+                "This also redirects if you open that launcher manually. Other apps are unaffected. " +
+                "A brief flash of the stock launcher may occur.\n\n" +
+                "Enable Pappa’s Home redirect in Accessibility settings. It observes app window changes, " +
+                "without reading screen content. No USB or ADB is needed.")
+            .setPositiveButton("Select stock launcher") { _, _ -> selectRedirectLauncher() }
+            .setNeutralButton("Accessibility settings") { _, _ ->
+                try { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+                catch (e: RuntimeException) {
+                    Toast.makeText(this, "Accessibility settings unavailable", Toast.LENGTH_LONG).show()
+                }
+            }
+            .setNegativeButton(if (enabled) "Turn off" else "Turn on") { _, _ ->
+                if (!enabled && target.isBlank()) selectRedirectLauncher()
+                else {
+                    prefs.edit().putBoolean("enabled", !enabled).apply()
+                    showRedirectSetup()
+                }
+            }.show()
+    }
+
+    private fun showRedirectDiagnostics() {
+        val prefs = getSharedPreferences("launcher_redirect", MODE_PRIVATE)
+        val manager = getSystemService(ACCESSIBILITY_SERVICE) as android.view.accessibility.AccessibilityManager
+        val active = manager.getEnabledAccessibilityServiceList(
+            android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK
+        ).any { it.resolveInfo.serviceInfo.packageName == packageName &&
+            it.resolveInfo.serviceInfo.name == LauncherRedirectService::class.java.name }
+        val message = "Version: ${packageManager.getPackageInfo(packageName, 0).versionName}\n" +
+            "Redirect: ${if (prefs.getBoolean("enabled", false)) "ON" else "OFF"}\n" +
+            "Target: ${prefs.getString("target", "")?.ifBlank { "Not selected" }}\n" +
+            "Accessibility enabled: $active\n\n" +
+            "Clear log, open a POS app, wait 3 seconds, press Home, then return through the floating button or notification and open this log.\n\n" +
+            (prefs.getString("diagnostics", "")?.ifBlank { "No events recorded yet. Toggle the accessibility service off and on." })
+        AlertDialog.Builder(this).setTitle("Redirect diagnostics").setMessage(message)
+            .setPositiveButton("Refresh") { _, _ -> showRedirectDiagnostics() }
+            .setNeutralButton("Choose observed app") { _, _ -> selectObservedRedirectTarget() }
+            .setNegativeButton("Clear log") { _, _ ->
+                prefs.edit().remove("diagnostics").remove("last_window").remove("recent_packages").apply()
+                Toast.makeText(this, "Log cleared. Open a POS app and press Home.", Toast.LENGTH_LONG).show()
+            }.show().findViewById<android.widget.TextView>(android.R.id.message)?.setTextIsSelectable(true)
+    }
+
+    private fun selectObservedRedirectTarget() {
+        val prefs = getSharedPreferences("launcher_redirect", MODE_PRIVATE)
+        val packages = (prefs.getString("recent_packages", "") ?: "").lines().filter { it.isNotBlank() }.reversed()
+        if (packages.isEmpty()) {
+            Toast.makeText(this, "No apps observed. Enable the service, then open a POS app and press Home.", Toast.LENGTH_LONG).show()
+            return
+        }
+        AlertDialog.Builder(this).setTitle("Select the observed SUNMI launcher")
+            .setItems(packages.toTypedArray()) { _, which ->
+                val selected = packages[which]
+                AlertDialog.Builder(this).setTitle("Redirect $selected?")
+                    .setMessage("Select only the stock launcher shown after Home. Every time this app appears, Pappa’s will open instead. Check its Window entry in the log first.")
+                    .setPositiveButton("Use this launcher") { _, _ ->
+                        prefs.edit().putString("target", selected).putBoolean("enabled", true).apply()
+                        showRedirectSetup()
+                    }.setNegativeButton("Cancel", null).show()
+            }.setNegativeButton("Close", null).show()
+    }
+
+    private fun selectRedirectLauncher() {
+        val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        val apps = packageManager.queryIntentActivities(home, 0)
+            .filter { it.activityInfo.packageName != packageName }
+            .distinctBy { it.activityInfo.packageName }
+            .sortedBy { it.loadLabel(packageManager).toString() }
+        if (apps.isEmpty()) {
+            Toast.makeText(this, "No other Home apps found", Toast.LENGTH_LONG).show()
+            return
+        }
+        val labels = apps.map { "${it.loadLabel(packageManager)}\n${it.activityInfo.packageName}" }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Select the stock launcher opened by Home")
+            .setItems(labels) { _, which ->
+                getSharedPreferences("launcher_redirect", MODE_PRIVATE).edit()
+                    .putString("target", apps[which].activityInfo.packageName)
+                    .putBoolean("enabled", true).apply()
+                showRedirectSetup()
+            }.setNegativeButton("Cancel", null).show()
     }
 
     private fun chooseHome() {

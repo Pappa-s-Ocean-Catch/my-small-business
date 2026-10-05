@@ -1,3 +1,6 @@
+// Reserved selection value; existing single-register settings remain valid.
+export const ALL_REGISTERS = '*';
+
 export type IdleMode = 'image' | 'queue';
 
 export type MirrorSettings = {

@@ -7,7 +7,7 @@ const olderSnapshot = {
   version: 1 as const,
   updatedAt: '2026-09-16T00:00:00.000Z',
   itemCount: 1,
-  items: [{ id: 'line-1', name: 'Fish Pack', quantity: 1, unitPrice: 12, lineTotal: 12 }],
+  items: [{ id: 'line-1', name: 'Fish Pack', quantity: 1, unitPrice: 12, lineTotal: 12, customizations: undefined }],
   subtotal: 12,
   discount: 0,
   total: 12,

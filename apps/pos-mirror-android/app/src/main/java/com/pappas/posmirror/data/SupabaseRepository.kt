@@ -7,6 +7,15 @@ import com.pappas.posmirror.data.model.CustomerQueueEntry
 import com.pappas.posmirror.data.model.MirrorOrderSnapshot
 import com.pappas.posmirror.data.model.RegisterOption
 import com.pappas.posmirror.util.CustomerQueueHelper
+import com.pappas.posmirror.util.MirrorStateUpdate
+import com.pappas.posmirror.util.isValidMirrorSnapshot
+import com.pappas.posmirror.data.model.ALL_REGISTERS
+import io.github.jan.supabase.auth.status.SessionStatus
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.postgrest.postgrest
@@ -31,6 +40,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import java.util.UUID
 
 @Serializable
 data class ProfileRole(val role_slug: String = "")
@@ -39,7 +49,7 @@ data class ProfileRole(val role_slug: String = "")
 data class RegisterRow(val register_id: String? = null, val register_name: String? = null)
 
 @Serializable
-data class PosMirrorStateRow(val register_id: String = "", val current_order: MirrorOrderSnapshot = MirrorOrderSnapshot())
+data class PosMirrorStateRow(val register_id: String = "", val current_order: JsonObject = JsonObject(emptyMap()))
 
 class SupabaseRepository(
     private val client: SupabaseClientProvider = SupabaseClientProvider,
@@ -52,6 +62,7 @@ class SupabaseRepository(
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     suspend fun signIn(email: String, pass: String): io.github.jan.supabase.auth.user.UserSession = withContext(Dispatchers.IO) {
+        client.auth.awaitInitialization()
         client.auth.signInWith(Email) {
             this.email = email.trim()
             this.password = pass
@@ -60,12 +71,30 @@ class SupabaseRepository(
         session
     }
 
-    suspend fun restoreSession(accessToken: String, refreshToken: String): Boolean = withContext(Dispatchers.IO) {
+    suspend fun restoreSession(accessToken: String?, refreshToken: String?): Boolean = withContext(Dispatchers.IO) {
         try {
-            client.auth.importAuthToken(accessToken = accessToken, refreshToken = refreshToken)
-            val user = client.auth.currentUserOrNull()
-            Log.d(TAG, "restoreSession: restored user = ${user?.email}")
-            user != null
+            restoreMirrorSession(
+                storage = client.auth.sessionManager,
+                awaitSession = {
+                    client.auth.awaitInitialization()
+                    // The SDK retries transient refresh failures; let it recover instead of forcing a login.
+                    val status = client.auth.sessionStatus.first {
+                        it !is SessionStatus.Initializing && it !is SessionStatus.RefreshFailure
+                    }
+                    (status as? SessionStatus.Authenticated)?.session
+                },
+                importLegacy = { access, refresh ->
+                    client.auth.importAuthToken(accessToken = access, refreshToken = refresh, autoRefresh = true)
+                    val status = client.auth.sessionStatus.first {
+                        it !is SessionStatus.Initializing && it !is SessionStatus.RefreshFailure
+                    }
+                    (status as? SessionStatus.Authenticated)?.session
+                },
+                accessToken = accessToken,
+                refreshToken = refreshToken
+            )?.user != null
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.w(TAG, "restoreSession failed", e)
             false
@@ -77,6 +106,8 @@ class SupabaseRepository(
             client.auth.signOut()
         } catch (e: Exception) {
             Log.w(TAG, "Sign out exception", e)
+        } finally {
+            client.auth.clearSession()
         }
     }
 
@@ -120,17 +151,16 @@ class SupabaseRepository(
         map.map { RegisterOption(it.key, it.value) }.sortedBy { it.id }
     }
 
-    suspend fun fetchCurrentOrder(registerId: String): MirrorOrderSnapshot = withContext(Dispatchers.IO) {
+    suspend fun fetchCurrentOrders(registerId: String): List<MirrorStateUpdate> = withContext(Dispatchers.IO) {
         val cleanId = registerId.trim()
-        val rows = client.postgrest["pos_mirror_state"]
-            .select(columns = Columns.list("register_id", "current_order")) {
-                filter {
-                    eq("register_id", cleanId)
+        authenticatedMirrorFetch({ client.auth.currentAccessTokenOrNull() }) {
+            client.postgrest["pos_mirror_state"]
+                .select(columns = Columns.list("register_id", "current_order")) {
+                    if (cleanId != ALL_REGISTERS) filter { eq("register_id", cleanId) }
                 }
-            }
-            .decodeList<PosMirrorStateRow>()
-
-        if (rows.isEmpty()) MirrorOrderSnapshot() else rows.first().current_order
+                .decodeList<PosMirrorStateRow>()
+                .map { MirrorStateUpdate(it.register_id, parseOrder(it.current_order)) }
+        }
     }
 
     suspend fun fetchCustomerQueue(): List<CustomerQueueEntry> = withContext(Dispatchers.IO) {
@@ -185,14 +215,14 @@ class SupabaseRepository(
     fun subscribeMirrorState(
         scope: CoroutineScope,
         registerId: String,
-        onSnapshot: (MirrorOrderSnapshot) -> Unit
+        onSnapshot: (String, MirrorOrderSnapshot?) -> Unit
     ): RealtimeChannel {
         val cleanId = registerId.trim()
-        val channel = client.realtime.channel("pos-mirror-state-$cleanId")
+        val channel = client.realtime.channel("pos-mirror-state-$cleanId-${UUID.randomUUID()}")
 
         val changeFlow = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
             table = "pos_mirror_state"
-            filter(FilterOperation("register_id", FilterOperator.EQ, cleanId))
+            if (cleanId != ALL_REGISTERS) filter(FilterOperation("register_id", FilterOperator.EQ, cleanId))
         }
 
         changeFlow.onEach { action ->
@@ -200,6 +230,9 @@ class SupabaseRepository(
                 is PostgresAction.Insert -> parseRecordAndEmit(action.record, onSnapshot)
                 is PostgresAction.Update -> parseRecordAndEmit(action.record, onSnapshot)
                 is PostgresAction.Select -> parseRecordAndEmit(action.record, onSnapshot)
+                is PostgresAction.Delete -> action.oldRecord["register_id"]?.jsonPrimitive?.contentOrNull?.let {
+                    onSnapshot(it, MirrorOrderSnapshot())
+                }
                 else -> {}
             }
         }.launchIn(scope)
@@ -211,7 +244,7 @@ class SupabaseRepository(
         scope: CoroutineScope,
         onSync: () -> Unit
     ): RealtimeChannel {
-        val channel = client.realtime.channel("pos-mirror-order-sync")
+        val channel = client.realtime.channel("pos-mirror-order-sync-${UUID.randomUUID()}")
 
         val changeFlow = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
             table = "order_sync_state"
@@ -225,17 +258,21 @@ class SupabaseRepository(
     }
 
     private fun parseRecordAndEmit(
-        record: kotlinx.serialization.json.JsonObject,
-        onSnapshot: (MirrorOrderSnapshot) -> Unit
+        record: JsonObject,
+        onSnapshot: (String, MirrorOrderSnapshot?) -> Unit
     ) {
-        try {
-            val currentOrderElem = record["current_order"]
-            if (currentOrderElem != null) {
-                val snapshot = json.decodeFromJsonElement<MirrorOrderSnapshot>(currentOrderElem)
-                onSnapshot(snapshot)
-            }
+        val registerId = record["register_id"]?.jsonPrimitive?.contentOrNull ?: return
+        val order = record["current_order"] as? JsonObject ?: return
+        onSnapshot(registerId, parseOrder(order))
+    }
+
+    private fun parseOrder(order: JsonObject): MirrorOrderSnapshot? {
+        if (order.isEmpty()) return MirrorOrderSnapshot()
+        return try {
+            json.decodeFromJsonElement<MirrorOrderSnapshot>(order).takeIf(::isValidMirrorSnapshot)
         } catch (e: Exception) {
-            Log.e(TAG, "Error decoding realtime order snapshot", e)
+            Log.w(TAG, "Ignoring invalid mirror snapshot", e)
+            null
         }
     }
 }

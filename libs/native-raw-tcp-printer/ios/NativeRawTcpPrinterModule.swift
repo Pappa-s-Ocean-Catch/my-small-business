@@ -4,21 +4,24 @@ import UIKit
 import CryptoKit
 
 private struct PrinterOptions {
-  let viewTag: Int; let host: String; let port: UInt16; let width: Int; let copies: Int; let captureScale: CGFloat; let timeoutMs: Int
+  let viewTag: Int?; let imageUri: String?; let host: String; let port: UInt16; let width: Int; let copies: Int; let captureScale: CGFloat; let timeoutMs: Int
 }
 private struct Raster { let width: Int; let height: Int; let rgba: [UInt8] }
 private struct NativeFailure: Error { let code: String; let phase: String; let message: String }
 
 private actor PrinterQueues {
   static let shared = PrinterQueues()
-  private var tails: [String: Task<Void, Never>] = [:]
+  private var tails: [String: (UUID, Task<Void, Never>)] = [:]
   func run<T: Sendable>(key: String, _ work: @escaping @Sendable () async throws -> T) async throws -> T {
-    let previous = tails[key]
-    let task = Task { if let previous { _ = await previous.result } }
-    tails[key] = task
-    _ = await task.result
-    defer { if tails[key] == task { tails.removeValue(forKey: key) } }
-    return try await work()
+    let previous = tails[key]?.1
+    let token = UUID()
+    let task = Task<T, Error> {
+      if let previous { _ = await previous.result }
+      return try await work()
+    }
+    tails[key] = (token, Task { _ = try? await task.value })
+    defer { if tails[key]?.0 == token { tails.removeValue(forKey: key) } }
+    return try await task.value
   }
 }
 
@@ -30,7 +33,15 @@ public final class NativeRawTcpPrinterModule: Module {
       do {
         let options = try Self.parse(input)
         let captureStart = DispatchTime.now().uptimeNanoseconds
-        let image = try await MainActor.run { try self.capture(tag: options.viewTag, scale: options.captureScale) }
+        let image: UIImage
+        if let uri = options.imageUri {
+          guard let url = URL(string: uri), url.isFileURL, let snapshot = UIImage(contentsOfFile: url.path) else {
+            throw NativeFailure(code: "CAPTURE_FAILED", phase: "capture", message: "Receipt must be a readable local image")
+          }
+          image = snapshot
+        } else {
+          image = try await MainActor.run { try self.capture(tag: options.viewTag!, scale: options.captureScale) }
+        }
         let captureEnd = DispatchTime.now().uptimeNanoseconds
         let raster = try Self.resize(try Self.rgba(image), maxWidth: options.width)
         let resizeEnd = DispatchTime.now().uptimeNanoseconds
@@ -58,9 +69,11 @@ public final class NativeRawTcpPrinterModule: Module {
   }
 
   private static func parse(_ value: [String: Any]) throws -> PrinterOptions {
-    guard let viewTag = value["viewTag"] as? Int, let host = value["host"] as? String, let port = value["port"] as? Int, let width = value["width"] as? Int, let copies = value["copies"] as? Int, let timeoutMs = value["timeoutMs"] as? Int else { throw NativeFailure(code: "INVALID_OPTIONS", phase: "options", message: "Missing printer options") }
+    let viewTag = value["viewTag"] as? Int
+    let imageUri = value["imageUri"] as? String
+    guard viewTag != nil || imageUri != nil, let host = value["host"] as? String, let port = value["port"] as? Int, let width = value["width"] as? Int, let copies = value["copies"] as? Int, let timeoutMs = value["timeoutMs"] as? Int else { throw NativeFailure(code: "INVALID_OPTIONS", phase: "options", message: "Missing printer options") }
     guard let captureScale = value["captureScale"] as? Double, !host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, (1...65535).contains(port), width >= 8, (1...10).contains(copies), timeoutMs > 0, (1...2).contains(captureScale) else { throw NativeFailure(code: "INVALID_OPTIONS", phase: "options", message: "Invalid printer options") }
-    return PrinterOptions(viewTag: viewTag, host: host, port: UInt16(port), width: width, copies: copies, captureScale: CGFloat(captureScale), timeoutMs: timeoutMs)
+    return PrinterOptions(viewTag: viewTag, imageUri: imageUri, host: host, port: UInt16(port), width: width, copies: copies, captureScale: CGFloat(captureScale), timeoutMs: timeoutMs)
   }
 
   private static func rgba(_ image: UIImage) throws -> Raster {
@@ -89,10 +102,14 @@ public final class NativeRawTcpPrinterModule: Module {
   private static func send(_ bytes: [UInt8], options: PrinterOptions) async throws {
     for _ in 0..<options.copies { try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
       let connection = NWConnection(host: NWEndpoint.Host(options.host), port: NWEndpoint.Port(rawValue: options.port)!, using: .tcp)
-      var settled = false; func finish(_ result: Result<Void, Error>) { guard !settled else { return }; settled = true; connection.cancel(); continuation.resume(with: result) }
+      let queue = DispatchQueue(label: "printer.send")
+      var timeout: DispatchWorkItem?
+      var settled = false; func finish(_ result: Result<Void, Error>) { guard !settled else { return }; settled = true; timeout?.cancel(); timeout = nil; connection.stateUpdateHandler = nil; connection.cancel(); continuation.resume(with: result) }
       connection.stateUpdateHandler = { state in if case .failed(let error) = state { finish(.failure(NativeFailure(code: "CONNECTION_FAILED", phase: "send", message: error.localizedDescription))) } }
-      connection.start(queue: .global()); connection.send(content: Data(bytes), completion: .contentProcessed { error in if let error { finish(.failure(NativeFailure(code: "SEND_FAILED", phase: "send", message: error.localizedDescription))) } else { finish(.success(())) } })
-      DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(options.timeoutMs)) { finish(.failure(NativeFailure(code: "TIMEOUT", phase: "send", message: "Printer timed out"))) }
+      let deadline = DispatchWorkItem { finish(.failure(NativeFailure(code: "TIMEOUT", phase: "send", message: "Printer timed out"))) }
+      timeout = deadline
+      queue.asyncAfter(deadline: .now() + .milliseconds(options.timeoutMs), execute: deadline)
+      connection.start(queue: queue); connection.send(content: Data(bytes), completion: .contentProcessed { error in if let error { finish(.failure(NativeFailure(code: "SEND_FAILED", phase: "send", message: error.localizedDescription))) } else { finish(.success(())) } })
     } }
   }
 

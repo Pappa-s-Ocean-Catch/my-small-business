@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, Modal, Image, ScrollView, TouchableOpacity, Alert, Platform } from 'react-native';
 import { IconButton, Button as PaperButton, Surface } from 'react-native-paper';
 import * as Sharing from 'expo-sharing';
 import type { Order } from '@my-small-business/types';
 import { getFriendlyOrderNumber } from '../utils/orderNumber';
 import { BRAND_COLORS } from '@/utils/brand';
+import { retainReceiptCapture, releaseReceiptCapture } from '@/lib/receipt-capture-lifecycle';
 
 interface PrintSimulatorModalProps {
   visible: boolean;
@@ -31,17 +32,31 @@ export const PrintSimulatorModal: React.FC<PrintSimulatorModalProps> = ({
 }) => {
   const simulatorTitle = title || 'Print Simulation';
   const simulatorSubtitle = subtitle || `Order #${order ? getFriendlyOrderNumber(order.order_number) : ''}`;
-  const images = imageUris && imageUris.length > 0
+  const images = useMemo(() => imageUris && imageUris.length > 0
     ? imageUris
     : imageUri
       ? [imageUri]
-      : [];
+      : [], [imageUris, imageUri]);
   const [sharing, setSharing] = useState(false);
+  const previewOwners = useRef(new Set<string>());
+  const ownershipKey = JSON.stringify([...new Set(images)]);
+  useEffect(() => {
+    const next = new Set<string>(visible ? JSON.parse(ownershipKey) : []);
+    for (const uri of next) if (!previewOwners.current.has(uri)) retainReceiptCapture(uri);
+    for (const uri of previewOwners.current) if (!next.has(uri)) releaseReceiptCapture(uri);
+    previewOwners.current = next;
+  }, [visible, ownershipKey]);
+  useEffect(() => () => {
+    previewOwners.current.forEach(releaseReceiptCapture);
+    previewOwners.current.clear();
+  }, []);
 
   const handleShare = async () => {
     if (!images[0] || sharing) return;
     
     setSharing(true);
+    const sharedUri = images[0];
+    retainReceiptCapture(sharedUri);
     try {
       const isAvailable = await Sharing.isAvailableAsync();
       if (!isAvailable) {
@@ -58,6 +73,7 @@ export const PrintSimulatorModal: React.FC<PrintSimulatorModalProps> = ({
       console.error('Error sharing receipt:', error);
       Alert.alert('Error', 'Failed to share receipt image');
     } finally {
+      releaseReceiptCapture(sharedUri);
       setSharing(false);
     }
   };

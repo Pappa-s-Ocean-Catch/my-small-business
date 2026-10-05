@@ -1,0 +1,4 @@
+<resources>
+    <string name="launcher_redirect_label">Pappa’s Home redirect</string>
+    <string name="launcher_redirect_description">Returns to Pappa’s when the stock launcher selected in Launcher setup appears. Observes app window changes only; does not read screen content. Turn redirect off in Pappa’s Launcher setup or disable this service here.</string>
+</resources>

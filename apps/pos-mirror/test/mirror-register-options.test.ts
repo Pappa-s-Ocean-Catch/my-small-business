@@ -10,5 +10,5 @@ test('keeps only unique non-empty register IDs from mirror-state rows', () => {
     { register_id: 'register-2' },
     { register_id: '' },
     { register_id: null },
-  ]), ['register-1', 'register-2']);
+  ]), [{ id: 'register-1', name: 'Unknown Register' }, { id: 'register-2', name: 'Unknown Register' }]);
 });

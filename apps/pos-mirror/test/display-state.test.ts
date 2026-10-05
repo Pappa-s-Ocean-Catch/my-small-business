@@ -13,7 +13,7 @@ const activeSnapshot = {
   total: 12,
 };
 
-const queue = [{ orderNumber: '12', status: 'Ready' as const, sortAt: '2026-09-16T00:00:00.000Z' }];
+const queue = [{ id: 'order-12', customerName: null, total: 0, items: [], orderNumber: '12', status: 'Ready' as const, sortAt: '2026-09-16T00:00:00.000Z' }];
 
 test('active carts take priority over the current queue', () => {
   assert.equal(selectDisplayState(activeSnapshot, 'queue', queue).kind, 'cart');

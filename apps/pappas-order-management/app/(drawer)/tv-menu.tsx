@@ -1,9 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, FlatList, Alert, Image } from 'react-native';
+import { View, StyleSheet, FlatList, Alert, Image, Modal, Platform, useWindowDimensions } from 'react-native';
 import { Text, Button, Card, ActivityIndicator, IconButton, Switch, useTheme, Appbar } from 'react-native-paper';
 import { supabase } from '@/lib/supabase';
 import * as DocumentPicker from 'expo-document-picker';
-import { Stack, useRouter } from 'expo-router';
+import { File } from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { uploadTVMenuImage, getImageDownloadName, downloadAndShareMenuImage } from '@/lib/tv-menu-images';
 import { useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 
@@ -20,7 +24,11 @@ export default function TVMenuScreen() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const theme = useTheme();
-  const router = useRouter();
+  const [preview, setPreview] = useState<TVMenu | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const { height } = useWindowDimensions();
 
   useEffect(() => {
     fetchMenus();
@@ -47,7 +55,8 @@ export default function TVMenuScreen() {
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: 'image/*',
-        copyToCacheDirectory: false,
+        copyToCacheDirectory: true,
+        multiple: false,
       });
 
       if (result.canceled || !result.assets || result.assets.length === 0) {
@@ -56,38 +65,27 @@ export default function TVMenuScreen() {
 
       setUploading(true);
       const file = result.assets[0];
-      const ext = file.name.split('.').pop() || 'jpg';
-      const fileName = `${Date.now()}.${ext}`;
-      const filePath = `menus/${fileName}`;
-
-      // Convert local URI to Blob for upload
-      const response = await fetch(file.uri);
-      const blob = await response.blob();
-
-      // Upload to Supabase storage
-      const { error: uploadError } = await supabase.storage
-        .from('tv_menus')
-        .upload(filePath, blob, {
-          contentType: file.mimeType || 'image/jpeg',
-          upsert: false,
-        });
-
-      if (uploadError) throw uploadError;
-
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('tv_menus')
-        .getPublicUrl(filePath);
-
-      // Insert into database
-      const { error: dbError } = await supabase.from('tv_menus').insert({
-        name: file.name,
-        url: publicUrl,
-        is_active: true,
-        sort_order: menus.length,
+      await uploadTVMenuImage(file, menus.length, {
+        read: async (asset) => {
+          if (Platform.OS !== 'web') return new File(asset.uri).arrayBuffer();
+          const response = await fetch(asset.uri);
+          if (!response.ok) throw new Error(`File read failed (${response.status})`);
+          return response.arrayBuffer();
+        },
+        upload: async (path, bytes, contentType) => {
+          const { error } = await supabase.storage.from('tv_menus').upload(path, bytes, { contentType, upsert: false });
+          if (error) throw error;
+          return supabase.storage.from('tv_menus').getPublicUrl(path).data.publicUrl;
+        },
+        save: async (row) => {
+          const { error } = await supabase.from('tv_menus').insert(row);
+          if (error) throw error;
+        },
+        remove: async (path) => {
+          const { error } = await supabase.storage.from('tv_menus').remove([path]);
+          if (error) throw error;
+        },
       });
-
-      if (dbError) throw dbError;
 
       Alert.alert('Success', 'Menu uploaded successfully');
       fetchMenus();
@@ -95,6 +93,48 @@ export default function TVMenuScreen() {
       Alert.alert('Upload Error', error.message);
     } finally {
       setUploading(false);
+    }
+  };
+
+  const openPreview = (item: TVMenu) => {
+    setPreviewError(false);
+    setPreviewLoading(true);
+    setPreview(item);
+  };
+
+  const downloadMenu = async (item: TVMenu) => {
+    if (downloadingId) return;
+    setDownloadingId(item.id);
+    try {
+      const name = getImageDownloadName(item.name, item.url);
+      if (Platform.OS === 'web') {
+        const response = await fetch(item.url);
+        if (!response.ok) throw new Error(`Download failed (${response.status})`);
+        const objectUrl = URL.createObjectURL(await response.blob());
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = name;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+      } else {
+        if (!await Sharing.isAvailableAsync()) throw new Error('Saving or sharing files is unavailable on this device.');
+        if (!FileSystem.cacheDirectory) throw new Error('Download storage is unavailable.');
+        const localUri = `${FileSystem.cacheDirectory}${Date.now()}-${name}`;
+        await downloadAndShareMenuImage(localUri, {
+          download: async (uri) => {
+            const result = await FileSystem.downloadAsync(item.url, uri);
+            if (result.status < 200 || result.status >= 300) throw new Error(`Download failed (${result.status})`);
+          },
+          share: async (uri) => { await Sharing.shareAsync(uri, { dialogTitle: 'Save menu image' }); },
+          remove: async (uri) => { await FileSystem.deleteAsync(uri, { idempotent: true }); },
+        });
+      }
+    } catch (error: any) {
+      Alert.alert('Download Error', error.message || 'Could not download the image.');
+    } finally {
+      setDownloadingId(null);
     }
   };
 
@@ -172,7 +212,7 @@ export default function TVMenuScreen() {
   const renderItem = ({ item, index }: { item: TVMenu; index: number }) => (
     <Card style={styles.card}>
       <View style={styles.cardContent}>
-        <Image source={{ uri: item.url }} style={styles.thumbnail} />
+        <Image source={{ uri: item.url }} style={styles.thumbnail} resizeMode="contain" accessibilityLabel={item.name} />
         <View style={styles.menuInfo}>
           <Text style={styles.menuName} numberOfLines={1}>{item.name}</Text>
           <View style={styles.actionRow}>
@@ -203,6 +243,10 @@ export default function TVMenuScreen() {
           onPress={() => deleteMenu(item.id, item.url)}
         />
       </View>
+      <Card.Actions style={styles.imageActions}>
+        <Button icon="image-search" onPress={() => openPreview(item)} accessibilityLabel={`Preview ${item.name}`}>Preview</Button>
+        <Button icon="download" onPress={() => downloadMenu(item)} loading={downloadingId === item.id} disabled={downloadingId !== null} accessibilityLabel={`Download ${item.name}`}>Download</Button>
+      </Card.Actions>
     </Card>
   );
 
@@ -210,6 +254,29 @@ export default function TVMenuScreen() {
 
   return (
     <>
+      <Modal visible={preview !== null} animationType="fade" onRequestClose={() => setPreview(null)}>
+        <SafeAreaView style={[styles.previewContainer, { backgroundColor: theme.colors.background }]}>
+          <Appbar.Header statusBarHeight={0}>
+            <Appbar.Content title={preview?.name || 'Image preview'} />
+            <Appbar.Action icon="close" accessibilityLabel="Close image preview" onPress={() => setPreview(null)} />
+          </Appbar.Header>
+          <View style={styles.previewBody}>
+            {preview && <Image
+              key={preview.id}
+              source={{ uri: preview.url }}
+              style={[styles.previewImage, { height: height * 0.65 }]}
+              resizeMode="contain"
+              accessibilityLabel={preview.name}
+              onLoad={() => setPreviewLoading(false)}
+              onError={() => { setPreviewLoading(false); setPreviewError(true); }}
+            />}
+            {previewLoading && <ActivityIndicator style={styles.previewIndicator} accessibilityLabel="Loading image preview" />}
+            {previewError && <Text role="alert">Could not load this image. Check your connection and reopen the preview.</Text>}
+          </View>
+          <Button style={styles.previewDownload} mode="contained" icon="download" loading={downloadingId === preview?.id} disabled={downloadingId !== null} onPress={() => preview && downloadMenu(preview)}>Download image</Button>
+          <Text style={styles.downloadHint}>Choose where to save or share the image.</Text>
+        </SafeAreaView>
+      </Modal>
       <Appbar.Header style={{ backgroundColor: theme.colors.primary }}>
         <Appbar.Action icon="menu" onPress={() => navigation.openDrawer()} iconColor="#fff" />
         <Appbar.Content title="TV Menu Management" titleStyle={{ color: '#fff' }} />
@@ -246,6 +313,13 @@ export default function TVMenuScreen() {
 }
 
 const styles = StyleSheet.create({
+  imageActions: { flexWrap: 'wrap', gap: 8 },
+  previewContainer: { flex: 1 },
+  previewBody: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 16 },
+  previewImage: { width: '100%' },
+  previewIndicator: { position: 'absolute' },
+  previewDownload: { marginHorizontal: 16 },
+  downloadHint: { textAlign: 'center', margin: 16 },
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',

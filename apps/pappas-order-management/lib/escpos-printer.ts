@@ -4,6 +4,7 @@ import type { PrinterImageSource } from './printer-image';
 import { getNativeRawTcpPrinter, type NativeRawTcpPrintOptions } from './raw-tcp-native';
 import { buildDocumentPrintJob } from './escpos-document';
 import type { EscPosDocument } from './instore-instant-ticket';
+import { retainReceiptCapture, releaseReceiptCapture } from './receipt-capture-lifecycle';
 export {
   type PrinterDriver,
   type SavedPrinter,
@@ -313,7 +314,11 @@ async function withRawTcpPrinter<T>(
     };
 
     socket.on('close', () => {
-      if (settled || !waitingForClose) return;
+      if (settled) return;
+      if (!waitingForClose) {
+        finishWithError(new Error('Printer connection closed before the document was sent'));
+        return;
+      }
       settled = true;
       if (closeTimer) clearTimeout(closeTimer);
       resolve(pendingResult as T);
@@ -363,6 +368,14 @@ export async function escposPrintDocument(document: EscPosDocument, printer: Sav
       return;
     }
     if (getPrinterDriver(printer) === 'rawTcp') {
+      if (Platform.OS === 'android') {
+        const nativePrinter = getNativeRawTcpPrinter();
+        if (!nativePrinter || typeof nativePrinter.printRaw !== 'function') throw new Error('Native Raw TCP text printing requires an updated native build.');
+        const { host, port } = getRawTcpConnectionOptions(printer);
+        const result = await nativePrinter.printRaw({ host, port, bytes: Array.from(buildDocumentPrintJob(document)), timeoutMs: 30000 });
+        if (!result.ok || !result.sent) throw new Error('Native Raw TCP did not send the document.');
+        return;
+      }
       await withRawTcpPrinter(printer, (socket) => writeRawBytes(socket, buildDocumentPrintJob(document)), { timeoutMs: 30000 });
       return;
     }
@@ -411,7 +424,10 @@ export async function escposPrintOrderImage(
   assertPrinter(printer);
   const repeat = normalizeCopies(copies);
 
-  return await enqueuePrinterJob(printer, async () => {
+  const ownedUri = typeof imageSource === 'string' ? imageSource : imageSource.kind === 'uri' ? imageSource.uri : null;
+  if (ownedUri) retainReceiptCapture(ownedUri);
+  try {
+    return await enqueuePrinterJob(printer, async () => {
     const rawDriver = getPrinterDriver(printer) === 'rawTcp';
     const startedAt = Date.now();
     const source: PrinterImageSource = typeof imageSource === 'string' ? { kind: 'uri', uri: imageSource } : imageSource;
@@ -419,11 +435,10 @@ export async function escposPrintOrderImage(
     const captureScale = source.kind === 'native-view' ? source.captureScale : source.captureScale ?? 1;
     if (rawDriver) {
       if (Platform.OS !== 'android' && Platform.OS !== 'ios') throw new Error('Native Raw TCP is unavailable on this platform.');
-      if (source.kind !== 'native-view') throw new Error('Native Raw TCP requires a receipt view source.');
       const nativePrinter = getNativeRawTcpPrinter();
       if (!nativePrinter) throw new Error('Native Raw TCP is unavailable in this build.');
       const { host, port } = getRawTcpConnectionOptions(printer);
-      const result = await nativePrinter.print({ viewTag: source.nativeViewTag, host, port, width, copies: repeat, captureScale: source.captureScale, timeoutMs: 30000 } as NativeRawTcpPrintOptions);
+      const result = await nativePrinter.print({ ...(source.kind === 'uri' ? { imageUri: source.uri } : { viewTag: source.nativeViewTag }), host, port, width, copies: repeat, captureScale, timeoutMs: 30000 } as NativeRawTcpPrintOptions);
       if (!result.ok || !result.sent) throw new Error(result.ok ? 'Native Raw TCP did not send the receipt.' : result.error.message);
       return { driver: 'rawTcp', quality, captureScale, totalMs: result.totalMs, native: { captureMs: result.captureMs, resizeMs: result.resizeMs, rasterMs: result.rasterMs, sendMs: result.sendMs, width: result.width, height: result.height, byteLength: result.byteLength } };
     }
@@ -464,7 +479,10 @@ export async function escposPrintOrderImage(
       }
     }
     return { driver: 'epsonSdk', quality, captureScale, totalMs: Date.now() - startedAt };
-  });
+    });
+  } finally {
+    if (ownedUri) releaseReceiptCapture(ownedUri);
+  }
 }
 
 function getSunmiPrinter() {

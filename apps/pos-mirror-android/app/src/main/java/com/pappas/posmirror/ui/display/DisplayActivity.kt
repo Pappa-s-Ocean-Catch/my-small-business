@@ -13,6 +13,12 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import coil.load
 import com.pappas.posmirror.R
+import com.pappas.posmirror.App
+import com.pappas.posmirror.data.SupabaseClientProvider
+import com.pappas.posmirror.data.model.ALL_REGISTERS
+import com.pappas.posmirror.util.MirrorSession
+import io.github.jan.supabase.auth.status.SessionStatus
+import kotlinx.coroutines.CancellationException
 import com.pappas.posmirror.data.SupabaseRepository
 import com.pappas.posmirror.data.model.CustomerQueueEntry
 import com.pappas.posmirror.data.model.MirrorOrderLine
@@ -39,6 +45,8 @@ class DisplayActivity : AppCompatActivity() {
     private val supabaseRepo = SupabaseRepository()
 
     private var settings: MirrorSettings = MirrorSettings()
+    private val mirrorSession = MirrorSession()
+    private var mirrorRefreshInFlight = false
     private var currentSnapshot: MirrorOrderSnapshot = MirrorOrderSnapshot()
     private var currentQueueItems: List<CustomerQueueEntry> = emptyList()
 
@@ -72,12 +80,6 @@ class DisplayActivity : AppCompatActivity() {
         enableImmersiveMode()
 
         settingsRepo = SettingsRepository(this)
-        if (settingsRepo.getUserId().isNullOrEmpty()) {
-            startActivity(Intent(this, LoginActivity::class.java))
-            finish()
-            return
-        }
-
         settings = settingsRepo.getSettings()
 
         if (settings.registerId.isEmpty()) {
@@ -90,9 +92,16 @@ class DisplayActivity : AppCompatActivity() {
         setupInteractions()
         setupClockOverlay()
         renderIdleDisplay()
-        loadInitialState()
-        startRealtimeSubscriptions()
-        startQueueCountPolling()
+        lifecycleScope.launch {
+            if (!supabaseRepo.restoreSession(settingsRepo.getAccessToken(), settingsRepo.getRefreshToken())) {
+                openLogin()
+                return@launch
+            }
+            observeAuthentication()
+            loadInitialState()
+            startRealtimeSubscriptions()
+            startQueueCountPolling()
+        }
 
         // Auto-hide settings button after 30 seconds
         mainHandler.postDelayed(hideFabRunnable, 30000)
@@ -253,14 +262,13 @@ class DisplayActivity : AppCompatActivity() {
     }
 
     private fun loadInitialState() {
-        binding.tvWaitingMessage.text = "Waiting for register ${settings.registerId}..."
+        binding.tvWaitingMessage.text = if (settings.registerId == ALL_REGISTERS) "Waiting for POS activity..." else "Waiting for register ${settings.registerId}..."
         binding.tvWaitingMessage.visibility = View.VISIBLE
 
         lifecycleScope.launch {
             try {
-                val snapshot = supabaseRepo.fetchCurrentOrder(settings.registerId)
+                refreshMirrorState()
                 binding.tvWaitingMessage.visibility = View.GONE
-                updateSnapshot(snapshot)
 
                 if (settings.idleMode == "queue") {
                     refreshCustomerQueue()
@@ -273,28 +281,95 @@ class DisplayActivity : AppCompatActivity() {
     }
 
     private fun startRealtimeSubscriptions() {
-        lifecycleScope.launch {
-            try {
-                mirrorChannel = supabaseRepo.subscribeMirrorState(lifecycleScope, settings.registerId) { snapshot ->
-                    runOnUiThread {
-                        hideConnectionWarning()
-                        updateSnapshot(snapshot)
-                    }
-                }
-                mirrorChannel?.subscribe()
-
-                if (settings.idleMode == "queue") {
-                    orderSyncChannel = supabaseRepo.subscribeOrderSync(lifecycleScope) {
-                        runOnUiThread {
-                            refreshCustomerQueue()
-                        }
-                    }
-                    orderSyncChannel?.subscribe()
-                }
-            } catch (e: Exception) {
-                showConnectionWarning("Realtime connection error: ${e.message}")
+        mirrorChannel = supabaseRepo.subscribeMirrorState(lifecycleScope, settings.registerId) { registerId, snapshot ->
+            if (settings.registerId == ALL_REGISTERS || registerId == settings.registerId) {
+                mirrorSession.apply(registerId, snapshot)
+                updateSnapshot(mirrorSession.snapshot)
             }
         }
+        mirrorChannel?.let { channel ->
+            lifecycleScope.launch {
+                channel.status.collect { status ->
+                    if (status == RealtimeChannel.Status.SUBSCRIBED) {
+                        refreshMirrorState()
+                    } else {
+                        showConnectionWarning("Connection interrupted. Showing the latest order while reconnecting.")
+                    }
+                }
+            }
+            subscribeWithRetry(channel)
+        }
+
+        if (settings.idleMode == "queue") {
+            orderSyncChannel = supabaseRepo.subscribeOrderSync(lifecycleScope) { refreshCustomerQueue() }
+            orderSyncChannel?.let { channel ->
+                lifecycleScope.launch {
+                    channel.status.collect { status ->
+                        if (status == RealtimeChannel.Status.SUBSCRIBED) refreshCustomerQueue()
+                    }
+                }
+                subscribeWithRetry(channel)
+            }
+        }
+    }
+
+    private fun subscribeWithRetry(channel: RealtimeChannel) {
+        lifecycleScope.launch {
+            while (isActive) {
+                try {
+                    channel.subscribe()
+                    return@launch
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    showConnectionWarning("Connection interrupted. Retrying automatically.")
+                    delay(10000)
+                }
+            }
+        }
+    }
+
+    private suspend fun refreshMirrorState() {
+        mirrorSession.expire()
+        updateSnapshot(mirrorSession.snapshot)
+        if (mirrorRefreshInFlight) return
+        mirrorRefreshInFlight = true
+        val revision = mirrorSession.revision
+        try {
+            val rows = supabaseRepo.fetchCurrentOrders(settings.registerId)
+            mirrorSession.refresh(rows, revision)
+            updateSnapshot(mirrorSession.snapshot)
+            hideConnectionWarning()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            showConnectionWarning("Unable to refresh the mirrored order. Retrying automatically.")
+        } finally {
+            mirrorRefreshInFlight = false
+        }
+    }
+
+    private fun observeAuthentication() {
+        lifecycleScope.launch {
+            SupabaseClientProvider.auth.sessionStatus.collect { status ->
+                when (status) {
+                    is SessionStatus.Authenticated -> {
+                        // Realtime's SDK forwards rotated tokens to joined channels.
+                        // Fetch current rows as well to recover events missed during refresh.
+                        refreshMirrorState()
+                        if (settings.idleMode == "queue") refreshCustomerQueue()
+                    }
+                    is SessionStatus.RefreshFailure -> showConnectionWarning("Authentication refresh interrupted. Retrying automatically.")
+                    is SessionStatus.NotAuthenticated -> if (status.isSignOut) openLogin()
+                    else -> Unit
+                }
+            }
+        }
+    }
+
+    private fun openLogin() {
+        startActivity(Intent(this, LoginActivity::class.java).apply { putExtra("force_show_login", true) })
+        finish()
     }
 
     private fun startQueueCountPolling() {
@@ -302,6 +377,8 @@ class DisplayActivity : AppCompatActivity() {
         queueCountJob = lifecycleScope.launch {
             while (isActive) {
                 try {
+                    // Polling also recovers missed mirror events during a websocket outage.
+                    refreshMirrorState()
                     val count = supabaseRepo.fetchQueueCount()
                     binding.tvQueueCount.text = count.toString()
 
@@ -472,10 +549,10 @@ class DisplayActivity : AppCompatActivity() {
         queueCountJob?.cancel()
         clockBlinkJob?.cancel()
         mainHandler.removeCallbacks(hideFabRunnable)
-        lifecycleScope.launch {
+        val channels = listOfNotNull(mirrorChannel, orderSyncChannel)
+        App.instance.applicationScope.launch {
             try {
-                mirrorChannel?.let { com.pappas.posmirror.data.SupabaseClientProvider.realtime.removeChannel(it) }
-                orderSyncChannel?.let { com.pappas.posmirror.data.SupabaseClientProvider.realtime.removeChannel(it) }
+                channels.forEach { SupabaseClientProvider.realtime.removeChannel(it) }
             } catch (e: Exception) {
                 // Ignore cleanup error
             }

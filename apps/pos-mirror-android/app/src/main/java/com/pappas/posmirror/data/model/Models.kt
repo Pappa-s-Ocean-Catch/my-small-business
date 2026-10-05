@@ -4,6 +4,8 @@ import com.google.gson.annotations.SerializedName
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+const val ALL_REGISTERS = "*"
+
 @Serializable
 data class Customization(
     @SerialName("label") @SerializedName("label") val label: String

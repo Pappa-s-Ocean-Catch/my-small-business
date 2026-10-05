@@ -22,6 +22,7 @@ import {
 } from '@/lib/orders';
 import { escposPrintDocument, formatPrinterError, getPrinterDriver, isSimulatorPrinter } from '@/lib/escpos-printer';
 import { captureReceiptForPrinter, captureReceiptPreview, type PrinterImageSource } from '@/lib/printer-image';
+import { acquireReceiptRender } from '@/lib/receipt-render-lock';
 import { buildSectionPrintJobs, hasAnySimulatorAssignment } from '@/lib/printer-routing';
 import { getSectionPrintImageCaptureKey } from '@/lib/section-print-image-capture';
 import { enqueuePreparedPrintJobs, processReadyPendingPrintJobs, waitForPrintJobs } from '@/lib/print-queue';
@@ -135,6 +136,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
   }, []);
 
   const printInstoreCustomerReceipt = useCallback(async (order: Order) => {
+    let releaseRender: (() => void) | null = null;
     try {
       const effectiveSettings = await loadAppSettings().catch(() => appSettings);
       const jobSettings = getInstoreCustomerReceiptPrintJob(
@@ -157,6 +159,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
         return;
       }
 
+      releaseRender = await acquireReceiptRender('automation-customer');
       setTempInstoreCustomerReceiptOrder(order);
       await new Promise((resolve) => setTimeout(resolve, RECEIPT_RENDER_SETTLE_MS));
       await waitForReceiptRenderFrames();
@@ -206,7 +209,10 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
       logOrderEvent('error', 'instore-customer-receipt', 'Automatic customer receipt failed', { order, details: reason });
       showToast(`Customer receipt failed: ${reason}`, 'error');
     } finally {
-      setTempInstoreCustomerReceiptOrder(null);
+      if (releaseRender) {
+        setTempInstoreCustomerReceiptOrder(null);
+        releaseRender();
+      }
     }
   }, [appSettings, logOrderEvent, showAutoPrintSimulator, showToast, waitForReceiptRenderFrames]);
 
@@ -282,6 +288,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
   }, [appSettings.soundEnabled, appSettings.soundId, appSettings.soundRepeatCount]);
 
   const quickPrintAutoOrder = useCallback(async (order: Order) => {
+    let releaseRender: (() => void) | null = null;
     let claimedDeviceId: string | null = null;
     let shouldReleaseClaim = false;
     const workflowStartedAt = Date.now();
@@ -347,11 +354,14 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
         });
       }
 
-      setTempPrintingOrder(freshOrder);
-      setTempPrintSource('printer-automation:auto-print');
       const targetDots = effectiveSettings.printerPaperWidth === '58mm' ? 384 : 576;
       const scale = effectiveSettings.printerHighQuality ? 2 : 1;
       const jobs = buildSectionPrintJobs(effectiveSettings, freshOrder);
+      if (jobs.some((job) => effectiveSettings.printerReceiptMode !== 'text' || !job.printer || isSimulatorPrinter(job.printer))) {
+        releaseRender = await acquireReceiptRender('automation-kitchen');
+        setTempPrintingOrder(freshOrder);
+        setTempPrintSource('printer-automation:auto-print');
+      }
       const printSessionId = createPrintDebugSessionId();
       logOrderEvent('info', 'print', 'Auto-print queue acquired', {
         order: freshOrder,
@@ -474,6 +484,17 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
         }
       }
 
+      if (releaseRender) {
+        setTempPrintingOrder(null);
+        setTempPrintSource(null);
+        setTempPrintTicketIndex(0);
+        setTempPrintDuplicateBySections(false);
+        setTempPrintTemplate('kitchen');
+        setTempPrintDebugContext(null);
+        releaseRender();
+        releaseRender = null;
+      }
+
       const simulatorImageUris: string[] = [];
       const simulatorImageLabels: string[] = [];
       const printerJobs: Array<{ image: PrinterImageSource; printer: NonNullable<typeof capturedJobs[number]['printer']> }> = [];
@@ -577,12 +598,15 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
           console.error('Failed to release kitchen print claim:', released.error);
         }
       }
-      setTempPrintingOrder(null);
-      setTempPrintSource(null);
-      setTempPrintTicketIndex(0);
-      setTempPrintDuplicateBySections(false);
-      setTempPrintTemplate('kitchen');
-      setTempPrintDebugContext(null);
+      if (releaseRender) {
+        setTempPrintingOrder(null);
+        setTempPrintSource(null);
+        setTempPrintTicketIndex(0);
+        setTempPrintDuplicateBySections(false);
+        setTempPrintTemplate('kitchen');
+        setTempPrintDebugContext(null);
+        releaseRender();
+      }
       autoPrintingOrderIdsRef.current.delete(order.id);
     }
   }, [appSettings, logOrderEvent, notifyAutoPrintError, showAutoPrintSimulator, showToast, waitForReceiptRenderFrames, waitForReceiptTemplateRef]);

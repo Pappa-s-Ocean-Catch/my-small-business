@@ -2,7 +2,7 @@
 # Include local .env if it exists
 -include .env
 
-DEVICE_IP ?= 192.168.4.68
+DEVICE_IP ?= 192.168.0.254
 DEVICE_PORT ?= 5555
 DEVICE_TARGET := $(DEVICE_IP):$(DEVICE_PORT)
 PACKAGE_NAME := com.pappas.posmirror

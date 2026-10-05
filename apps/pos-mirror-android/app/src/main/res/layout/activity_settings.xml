@@ -44,7 +44,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
                         android:fontFamily="sans-serif"
-                        android:text="Connect this screen to one mother-POS register."
+                        android:text="Listen to one POS or all POS registers."
                         android:textColor="@color/brand_muted_text"
                         android:textSize="15sp" />
                 </LinearLayout>
@@ -101,7 +101,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="Choose a register that publishes mirror data from the mother POS."
+                    android:text="The current POS keeps the display until its cart clears. Other active POS carts wait their turn."
                     android:textColor="@color/brand_muted_text"
                     android:textSize="14sp" />
 

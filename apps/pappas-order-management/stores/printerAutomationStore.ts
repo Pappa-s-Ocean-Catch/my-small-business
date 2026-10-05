@@ -5,6 +5,7 @@ import type { PrinterImageSource } from '@/lib/printer-image';
 import type { EscPosDocument } from '@/lib/instore-instant-ticket';
 import { JOURNAL_LOGS_ENABLED } from '@/lib/journal-config';
 import { selectReadyPrintJobIds } from '@/lib/print-job-priority';
+import { retainReceiptCapture, releaseReceiptCapture, pruneOrphanedReceiptCaptures } from '@/lib/receipt-capture-lifecycle';
 
 export type JournalLevel = 'info' | 'decision' | 'success' | 'error';
 export type PrintJobStatus = 'queued' | 'printing' | 'success' | 'failed';
@@ -65,6 +66,7 @@ function buildId(prefix: string): string {
 function stripCompletedJobPayload(job: PrintJob): PrintJob {
   if (job.status === 'queued' || job.status === 'printing') return job;
   if (job.image == null && job.document == null) return job;
+  if (job.image?.kind === 'uri') releaseReceiptCapture(job.image.uri);
   return {
     ...job,
     image: null,
@@ -74,7 +76,7 @@ function stripCompletedJobPayload(job: PrintJob): PrintJob {
 
 function normalizeJobsForRetention(jobs: PrintJob[], now: number): PrintJob[] {
   return jobs.map((job) => {
-    if ((job.status === 'queued' || job.status === 'printing') && now - job.updatedAt > ACTIVE_JOB_STALE_MS) {
+    if (job.status === 'queued' && now - job.updatedAt > ACTIVE_JOB_STALE_MS) {
       return stripCompletedJobPayload({
         ...job,
         status: 'failed',
@@ -236,6 +238,7 @@ export const usePrinterAutomationStore = create<PrinterAutomationState>((set, ge
     JOURNAL_LOGS_ENABLED ? { journalEntries: [] } : state
   )),
   pruneRuntimeState: () => set((state) => {
+    pruneOrphanedReceiptCaptures();
     const now = Date.now();
     const printJobs = pruneJobs(state.printJobs, now);
     return {
@@ -258,6 +261,7 @@ export const usePrinterAutomationStore = create<PrinterAutomationState>((set, ge
       completedAt: null,
       error: null,
     }));
+    for (const job of nextJobs) if (job.image?.kind === 'uri') retainReceiptCapture(job.image.uri);
 
     set((state) => {
       const printJobs = pruneJobs([...state.printJobs, ...nextJobs], now);
@@ -274,7 +278,7 @@ export const usePrinterAutomationStore = create<PrinterAutomationState>((set, ge
     set((state) => {
       const now = Date.now();
       const targetJob = state.printJobs.find((job) => job.id === jobId) || null;
-      if (!targetJob) {
+      if (!targetJob || targetJob.status !== 'queued') {
         return state;
       }
 
@@ -369,10 +373,9 @@ export const usePrinterAutomationStore = create<PrinterAutomationState>((set, ge
     });
     return completedJob;
   },
-  clearPrintHistory: () => set({
-    printJobs: [],
-    activePrintJobIdsByPrinter: {},
-    orderPrintStates: {},
+  clearPrintHistory: () => set((state) => {
+    const printJobs = state.printJobs.filter((job) => job.status === 'queued' || job.status === 'printing');
+    return { printJobs, orderPrintStates: deriveOrderPrintStates(printJobs, Date.now()) };
   }),
   setPreOrderSkipNotice: (message) => set({ preOrderSkipNotice: message }),
   showAutoPrintSimulator: ({ order, imageUri, imageUris, imageLabels }) => set({

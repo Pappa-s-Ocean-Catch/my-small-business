@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, AppState as NativeAppState, StyleSheet, View } from 'react-native';
 import { MD3LightTheme as DefaultTheme, PaperProvider, Text } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import type { Session } from '@supabase/supabase-js';
@@ -21,6 +21,11 @@ export default function App() {
 
   useEffect(() => {
     let active = true;
+    supabase.auth.startAutoRefresh();
+    const appStateListener = NativeAppState.addEventListener('change', nextState => {
+      if (nextState === 'active') supabase.auth.startAutoRefresh();
+      else supabase.auth.stopAutoRefresh();
+    });
     const restoreSession = async (session: Session | null) => {
       if (!session?.user.id) {
         if (active) setState('login');
@@ -42,12 +47,16 @@ export default function App() {
     };
 
     void supabase.auth.getSession().then(({ data }) => restoreSession(data.session));
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      // Rotation must not remount the display or reload settings mid-session.
+      if (event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') return;
       setTimeout(() => void restoreSession(session), 0);
     });
     return () => {
       active = false;
       listener.subscription.unsubscribe();
+      appStateListener.remove();
+      supabase.auth.stopAutoRefresh();
     };
   }, []);
 

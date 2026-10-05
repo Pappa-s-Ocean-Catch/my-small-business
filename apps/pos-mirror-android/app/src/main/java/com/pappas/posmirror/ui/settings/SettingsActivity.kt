@@ -15,6 +15,7 @@ import com.pappas.posmirror.R
 import com.pappas.posmirror.data.SupabaseRepository
 import com.pappas.posmirror.data.model.MirrorSettings
 import com.pappas.posmirror.data.model.RegisterOption
+import com.pappas.posmirror.data.model.ALL_REGISTERS
 import com.pappas.posmirror.data.repository.SettingsRepository
 import com.pappas.posmirror.databinding.ActivitySettingsBinding
 import com.pappas.posmirror.ui.display.DisplayActivity
@@ -143,49 +144,43 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    private fun renderRegisterChoices() {
+        binding.rgRegisters.setOnCheckedChangeListener(null)
+        binding.rgRegisters.removeAllViews()
+        for (reg in listOf(RegisterOption(ALL_REGISTERS, "Listen to all POS")) + availableRegisters) {
+            val rb = RadioButton(this).apply {
+                id = View.generateViewId()
+                text = if (reg.id == ALL_REGISTERS) reg.name else "${reg.name} (${reg.id})"
+                tag = reg.id
+                textSize = 16f
+                minHeight = (48 * resources.displayMetrics.density).toInt()
+                setTextColor(ContextCompat.getColor(this@SettingsActivity, R.color.brand_text))
+                setButtonTintList(ContextCompat.getColorStateList(this@SettingsActivity, R.color.brand_primary))
+                setPadding(16, 16, 16, 16)
+            }
+            binding.rgRegisters.addView(rb)
+            if (reg.id == selectedRegisterId) rb.isChecked = true
+        }
+        binding.rgRegisters.setOnCheckedChangeListener { group, checkedId ->
+            group.findViewById<RadioButton>(checkedId)?.let { selectedRegisterId = it.tag as? String ?: "" }
+        }
+    }
+
     private fun loadRegisters() {
         binding.progressRegisters.visibility = View.VISIBLE
         binding.tvEmptyRegisters.visibility = View.GONE
-        binding.rgRegisters.removeAllViews()
         hideError()
-
+        // All-register mode does not depend on a successful register inventory fetch.
+        renderRegisterChoices()
         lifecycleScope.launch {
             try {
                 availableRegisters = supabaseRepo.listRegisters()
-                binding.progressRegisters.visibility = View.GONE
-
-                if (availableRegisters.isEmpty()) {
-                    binding.tvEmptyRegisters.visibility = View.VISIBLE
-                    return@launch
-                }
-
-                for (reg in availableRegisters) {
-                    val rb = RadioButton(this@SettingsActivity).apply {
-                        id = View.generateViewId()
-                        text = "${reg.name} (${reg.id})"
-                        tag = reg.id
-                        textSize = 16f
-                        setTextColor(ContextCompat.getColor(this@SettingsActivity, R.color.brand_text))
-                        setButtonTintList(ContextCompat.getColorStateList(this@SettingsActivity, R.color.brand_primary))
-                        setPadding(16, 16, 16, 16)
-                    }
-
-                    binding.rgRegisters.addView(rb)
-
-                    if (reg.id == selectedRegisterId) {
-                        rb.isChecked = true
-                    }
-                }
-
-                binding.rgRegisters.setOnCheckedChangeListener { group, checkedId ->
-                    val checkedRb = group.findViewById<RadioButton>(checkedId)
-                    if (checkedRb != null) {
-                        selectedRegisterId = (checkedRb.tag as? String) ?: ""
-                    }
-                }
+                if (availableRegisters.isEmpty()) binding.tvEmptyRegisters.visibility = View.VISIBLE
+                renderRegisterChoices()
             } catch (e: Exception) {
-                binding.progressRegisters.visibility = View.GONE
                 showError("Could not load mother POS registers. Check connection and refresh.")
+            } finally {
+                binding.progressRegisters.visibility = View.GONE
             }
         }
     }
@@ -197,7 +192,7 @@ class SettingsActivity : AppCompatActivity() {
             return
         }
 
-        if (availableRegisters.isNotEmpty() && !availableRegisters.any { it.id == regId }) {
+        if (regId != ALL_REGISTERS && !availableRegisters.any { it.id == regId }) {
             showError("Selected register is not available. Please pick one from the list.")
             return
         }
