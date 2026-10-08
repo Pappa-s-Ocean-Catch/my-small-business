@@ -15,7 +15,7 @@ test('older delivery entry sessions still load correctly', () => {
 });
 test('change-times navigation restores pickup and arrival times', () => {
   const session = storage({ orderType: 'delivery', pickupOption: 'scheduled', scheduledPickupAt: '2026-10-09T01:00:00Z', scheduledDeliveryAt: '2026-10-09T01:30:00Z' });
-  assert.deepEqual(getSessionSchedule(session, 'delivery'), { option: 'scheduled', pickupAt: '2026-10-09T01:00:00.000Z', deliveryDelayMinutes: '30' });
+  assert.deepEqual(getSessionSchedule(session, 'delivery'), { option: 'scheduled', pickupAt: '2026-10-09T01:20:00.000Z', deliveryAt: '2026-10-09T01:30:00.000Z' });
 });
 test('changing order type clears previous schedules and updates both navigation keys', () => {
   const session = storage({ orderType: 'delivery', pickupOption: 'scheduled', scheduledPickupAt: '2026-10-09T01:00:00Z', scheduledDeliveryAt: '2026-10-09T01:30:00Z' });
@@ -32,5 +32,5 @@ test('re-saving the same type preserves a selected schedule', () => {
 });
 test('invalid saved schedules remain scheduled and require reselection instead of reverting to ASAP', () => {
   const session = storage({ orderType: 'delivery', pickupOption: 'scheduled', scheduledPickupAt: 'invalid' });
-  assert.deepEqual(getSessionSchedule(session, 'delivery'), { option: 'scheduled', pickupAt: null, deliveryDelayMinutes: '' });
+  assert.deepEqual(getSessionSchedule(session, 'delivery'), { option: 'scheduled', pickupAt: null, deliveryAt: null });
 });

@@ -76,7 +76,7 @@ for (const app of ['web', 'api', 'web-portal']) {
     assert.equal(result.error, null);
     assert.equal(result.data.items.length, 1);
     assert.equal(inserts.length, 2);
-    assert.equal(inserts[0].value.scheduled_pickup_at, '2026-10-08T00:00:00Z');
+    assert.equal(inserts[0].value.scheduled_pickup_at, '2026-10-08T00:20:00.000Z');
     assert.equal(inserts[0].value.scheduled_delivery_at, '2026-10-08T00:30:00Z');
   });
   test(`${app}: closed pickup rejects ASAP orders`, async () => {
@@ -103,7 +103,7 @@ for (const app of ['web', 'api', 'web-portal']) {
       assert.equal(result.data.order_type, scenario.order_type);
       assert.equal(result.data.payment_method, scenario.payment_method);
       assert.equal(result.data.order_status, scenario.payment_method === 'online' ? 'pending_online_payment' : 'pending');
-      assert.equal(result.data.scheduled_pickup_at, scenario.scheduled_pickup_at ?? null);
+      assert.equal(result.data.scheduled_pickup_at, scenario.order_type === 'delivery' && scenario.scheduled_delivery_at ? '2026-10-09T01:20:00.000Z' : scenario.scheduled_pickup_at ?? null);
       assert.equal(result.data.scheduled_delivery_at, scenario.scheduled_delivery_at ?? null);
       assert.equal(result.data.items.length, 1);
       assert.equal(result.data.items[0].product_name, 'Fish');
@@ -114,7 +114,7 @@ for (const app of ['web', 'api', 'web-portal']) {
     { name: 'past pickup', order_type: 'pickup', scheduled_pickup_at: '2026-10-08T00:00:00Z' },
     { name: 'pickup after closing', order_type: 'pickup', scheduled_pickup_at: '2026-10-08T11:00:00Z' },
     { name: 'preorder beyond seven days', order_type: 'pickup', scheduled_pickup_at: '2026-10-15T01:00:00Z' },
-    { name: 'delivery before pickup', order_type: 'delivery', scheduled_pickup_at: '2026-10-09T01:00:00Z', scheduled_delivery_at: '2026-10-09T00:30:00Z' },
+    { name: 'delivery before opening plus fifteen minutes', order_type: 'delivery', scheduled_pickup_at: '2026-10-08T23:00:00Z', scheduled_delivery_at: '2026-10-08T23:10:00Z' },
     { name: 'pay-at-store delivery', order_type: 'delivery', payment_method: 'store' },
   ]) {
     test(`${app}: rejects ${scenario.name} without creating an order`, async () => {
@@ -124,4 +124,20 @@ for (const app of ['web', 'api', 'web-portal']) {
       assert.equal(inserts.length, 0);
     });
   }
+}
+
+for (const app of ['web', 'api', 'web-portal']) {
+  test(`${app}: closed-store customer selects only delivery time and backend derives pickup`, async () => {
+    const { actions } = fixture(app);
+    const result = await actions.createOrder({ ...input, scheduled_delivery_at: '2026-10-07T23:15:00Z' });
+    assert.equal(result.error, null);
+    assert.equal(result.data.scheduled_pickup_at, '2026-10-07T23:05:00.000Z');
+    assert.equal(result.data.scheduled_delivery_at, '2026-10-07T23:15:00Z');
+  });
+  test(`${app}: pickup cannot be overridden independently of a selected delivery time`, async () => {
+    const { actions } = fixture(app);
+    const result = await actions.createOrder({ ...input, scheduled_pickup_at: '2026-10-09T10:00:00Z', scheduled_delivery_at: '2026-10-09T01:30:00Z' });
+    assert.equal(result.error, null);
+    assert.equal(result.data.scheduled_pickup_at, '2026-10-09T01:20:00.000Z');
+  });
 }

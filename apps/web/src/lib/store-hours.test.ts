@@ -28,3 +28,14 @@ test('daylight-saving jump does not offer slots at or after closing', () => {
   assert.ok(days[0].slots.every((slot: { value: string }) => isPickupTimeWithinHours({ '0': { open: '01:00', close: '03:00' } }, slot.value)));
   assert.equal(days[0].slots.at(-1)?.label, '01:45');
 });
+test('delivery slots begin 15 minutes after opening and never before that', async () => {
+  // @ts-expect-error Node runner uses source extensions.
+  const { getDeliveryTimeSlots, isDeliveryTimeWithinHours } = await import('./store-hours.ts');
+  const hours = { '4': { open: '10:00', close: '21:00' } };
+  const days = getDeliveryTimeSlots(hours, new Date('2026-10-07T13:00:00Z'), { numDays: 1 });
+  assert.equal(days[0].slots[0].label, '10:15');
+  assert.equal(days[0].slots[0].value, '2026-10-07T23:15:00.000Z');
+  assert.equal(isDeliveryTimeWithinHours(hours, '2026-10-07T23:10:00Z'), false);
+  assert.equal(isDeliveryTimeWithinHours(hours, '2026-10-07T23:15:00Z'), true);
+  assert.equal(isDeliveryTimeWithinHours(hours, '2026-10-08T10:00:00Z'), false);
+});

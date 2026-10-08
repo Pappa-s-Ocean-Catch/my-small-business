@@ -1,3 +1,5 @@
+import { getPickupTimeForDelivery } from '@my-small-business/shipday/scheduling';
+
 type SessionStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 type OrderType = 'pickup' | 'delivery';
 
@@ -8,18 +10,17 @@ export function getSessionOrderType(storage: Pick<SessionStorage, 'getItem'>): O
 }
 
 export function getSessionSchedule(storage: Pick<SessionStorage, 'getItem'>, orderType: OrderType): {
-  option: 'asap' | 'scheduled'; pickupAt: string | null; deliveryDelayMinutes: string;
+  option: 'asap' | 'scheduled'; pickupAt: string | null; deliveryAt: string | null;
 } {
-  const empty = { option: 'asap' as const, pickupAt: null, deliveryDelayMinutes: '' };
+  const empty = { option: 'asap' as const, pickupAt: null, deliveryAt: null };
   if (getSessionOrderType(storage) !== orderType || storage.getItem('pickupOption') !== 'scheduled') return empty;
-  const pickup = new Date(storage.getItem('scheduledPickupAt') || '');
   const delivery = new Date(storage.getItem('scheduledDeliveryAt') || '');
-  const pickupAt = Number.isFinite(pickup.getTime()) ? pickup.toISOString() : null;
-  const delay = (delivery.getTime() - pickup.getTime()) / 60000;
-  return {
-    option: 'scheduled', pickupAt,
-    deliveryDelayMinutes: orderType === 'delivery' && [15, 30, 45, 60, 75, 90].includes(delay) ? String(delay) : '',
-  };
+  const deliveryAt = orderType === 'delivery' && Number.isFinite(delivery.getTime()) ? delivery.toISOString() : null;
+  const pickup = new Date(storage.getItem('scheduledPickupAt') || '');
+  const pickupAt = orderType === 'delivery'
+    ? getPickupTimeForDelivery(deliveryAt)
+    : Number.isFinite(pickup.getTime()) ? pickup.toISOString() : null;
+  return { option: 'scheduled', pickupAt, deliveryAt };
 }
 
 export function setSessionOrderType(storage: SessionStorage, type: OrderType): void {

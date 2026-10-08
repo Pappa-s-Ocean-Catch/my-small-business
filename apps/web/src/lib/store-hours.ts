@@ -62,9 +62,9 @@ export interface PickupDayOption {
 export function getPickupTimeSlots(
   storeHours: StoreHours,
   fromDate: Date,
-  options: { numDays?: number; intervalMinutes?: number; timezone?: string } = {}
+  options: { numDays?: number; intervalMinutes?: number; timezone?: string; startOffsetMinutes?: number } = {}
 ): PickupDayOption[] {
-  const { numDays = 7, intervalMinutes = 15, timezone = DEFAULT_TZ } = options;
+  const { numDays = 7, intervalMinutes = 15, timezone = DEFAULT_TZ, startOffsetMinutes = 0 } = options;
   const result: PickupDayOption[] = [];
   const local = localParts(fromDate, timezone);
   const cursor = new Date(Date.UTC(local.year, local.month - 1, local.day));
@@ -78,7 +78,7 @@ export function getPickupTimeSlots(
     const openMin = timeToMinutes(dayHours.open);
     let closeMin = timeToMinutes(dayHours.close);
     if (closeMin <= openMin) closeMin += 24 * 60;
-    for (let m = openMin; m < closeMin; m += intervalMinutes) {
+    for (let m = openMin + startOffsetMinutes; m < closeMin; m += intervalMinutes) {
       const slotDate = localToDate(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate(), m, timezone);
       if (slotDate.getTime() <= fromDate.getTime()) continue;
       const p = localParts(slotDate, timezone);
@@ -125,4 +125,20 @@ export function isPickupTimeWithinHours(
   const previous = storeHours[String((day + 6) % 7)];
   return !!previous && timeToMinutes(previous.close) <= timeToMinutes(previous.open)
     && minutes < timeToMinutes(previous.close);
+}
+
+/** Customer delivery slots begin fifteen minutes after the store opens. */
+export function getDeliveryTimeSlots(
+  storeHours: StoreHours,
+  fromDate: Date,
+  options: { numDays?: number; intervalMinutes?: number; timezone?: string } = {}
+): PickupDayOption[] {
+  return getPickupTimeSlots(storeHours, fromDate, { ...options, startOffsetMinutes: 15 });
+}
+
+export function isDeliveryTimeWithinHours(storeHours: StoreHours, deliveryAt: string, timezone: string = DEFAULT_TZ): boolean {
+  const timestamp = new Date(deliveryAt).getTime();
+  if (!Number.isFinite(timestamp)) return false;
+  return isPickupTimeWithinHours(storeHours, deliveryAt, timezone)
+    && isPickupTimeWithinHours(storeHours, new Date(timestamp - 15 * 60000).toISOString(), timezone);
 }

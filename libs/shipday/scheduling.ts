@@ -1,3 +1,10 @@
+/** Scheduled delivery is the customer choice; driver pickup/food ready is ten minutes earlier. */
+export function getPickupTimeForDelivery(deliveryAt?: string | null): string | null {
+  if (!deliveryAt) return null;
+  const timestamp = new Date(deliveryAt).getTime();
+  return Number.isFinite(timestamp) ? new Date(timestamp - 10 * 60000).toISOString() : null;
+}
+
 interface ScheduledOrder {
   created_at?: string | null;
   scheduled_pickup_at?: string | null;
@@ -20,13 +27,13 @@ export function getDeliverySchedule(order: ScheduledOrder) {
 }
 
 export function validateDeliverySchedule(isOpen: boolean, pickup?: string | null, delivery?: string | null, now = new Date()): string | null {
-  if (!isOpen && (!pickup || !delivery)) return 'Store is currently closed. Please choose pickup/ready and delivery times to pre-order.';
+  if (!isOpen && (!pickup || !delivery)) return 'Store is currently closed. Please choose a delivery time to pre-order.';
   if (!pickup && !delivery) return null;
-  if (!pickup || !delivery) return 'Please choose both pickup/ready and delivery times.';
+  if (!pickup || !delivery) return 'Please choose a delivery time.';
   const pickupMs = new Date(pickup).getTime();
   const deliveryMs = new Date(delivery).getTime();
-  if (!Number.isFinite(pickupMs) || !Number.isFinite(deliveryMs)) return 'Please choose valid pickup and delivery times.';
-  if (pickupMs <= now.getTime()) return 'Pickup/ready time must be in the future.';
-  if (deliveryMs <= pickupMs) return 'Delivery time must be after pickup/ready time.';
+  if (!Number.isFinite(pickupMs) || !Number.isFinite(deliveryMs)) return 'Please choose a valid delivery time.';
+  if (pickupMs <= now.getTime()) return 'Please choose a later delivery time.';
+  if (deliveryMs <= pickupMs) return 'Please choose a later delivery time.';
   return null;
 }

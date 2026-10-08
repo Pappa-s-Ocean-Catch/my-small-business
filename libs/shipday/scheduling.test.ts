@@ -19,3 +19,11 @@ test('delivery must follow pickup and schedules cannot be in the past', () => {
   assert.equal(validateDeliverySchedule(false, '2026-10-08T01:00:00Z', '2026-10-08T01:30:00Z', now), null);
   assert.equal(validateDeliverySchedule(true, null, null, now), null);
 });
+test('customer delivery time derives pickup and ready time ten minutes earlier', async () => {
+  // @ts-expect-error Node runner uses source extensions.
+  const { getPickupTimeForDelivery } = await import('./scheduling.ts');
+  assert.equal(getPickupTimeForDelivery('2026-10-09T01:30:00Z'), '2026-10-09T01:20:00.000Z');
+  assert.equal(getPickupTimeForDelivery('2026-10-08T13:05:00Z'), '2026-10-08T12:55:00.000Z');
+  assert.equal(getPickupTimeForDelivery(null), null);
+  assert.equal(getPickupTimeForDelivery('invalid'), null);
+});

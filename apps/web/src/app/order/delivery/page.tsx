@@ -149,7 +149,7 @@ export default function DeliveryEntryPage() {
 
             {requiresSchedule && !loading && (
               <div className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-6 dark:bg-neutral-900">
-                <p className="mb-4 text-sm">The store is currently closed. You can start your order and choose pickup/ready and delivery times in the order summary. Delivery availability and fees will be checked for those times.</p>
+                <p className="mb-4 text-sm">The store is currently closed. You can start your order and choose your delivery time in the order summary. Delivery availability and fees will be checked for that time.</p>
                 <button onClick={handleContinue} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-4 font-bold text-white">
                   Start Ordering
                   <Icon icon={FaArrowRight} />

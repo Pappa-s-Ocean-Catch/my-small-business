@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { getSessionOrderType, getSessionSchedule, setSessionOrderType } from '@/lib/order-schedule-session';
+import { OrderScheduleSelector } from './components/OrderScheduleSelector';
 import { LiveOrderTracker } from '@/components/LiveOrderTracker';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
 import { useRouter } from 'next/navigation';
@@ -11,6 +12,7 @@ import type { CartItem } from '@/contexts/CartContext';
 import { ItemCustomizationModal } from '@/components/ItemCustomizationModal';
 import { OrderTypeSelector, type OrderType } from '@/components/OrderTypeSelector';
 import { DeliveryAddressForm, type DeliveryAddressInput } from '@/components/DeliveryAddressForm';
+import { getPickupTimeForDelivery } from '@my-small-business/shipday/scheduling';
 import type { DeliveryQuote } from '@my-small-business/shipday';
 import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 import { getActivePromotions } from '@/app/actions/promotions';
@@ -29,12 +31,12 @@ import {
   type PromotionWithProducts,
 } from '@/lib/promotions';
 import type { StoreHours } from '@my-small-business/types';
-import { buildDefaultStoreHours, getPickupTimeSlots, isStoreOpenNow, type PickupDayOption } from '@/lib/store-hours';
+import { buildDefaultStoreHours, getDeliveryTimeSlots, getPickupTimeSlots, isStoreOpenNow, type PickupDayOption } from '@/lib/store-hours';
 
 type StoreHoursForOrderResult = {
   storeHours: StoreHours;
   isOpenNow: boolean;
-  pickupDayOptions: PickupDayOption[];
+  scheduleDayOptions: PickupDayOption[];
 };
 
 type EligibleFreeItemProduct = {
@@ -84,10 +86,9 @@ export default function OrderSummaryPage() {
   const [storeHoursLoading, setStoreHoursLoading] = useState(false);
   const [storeHoursResult, setStoreHoursResult] = useState<StoreHoursForOrderResult | null>(null);
   const [pickupOption, setPickupOption] = useState<'asap' | 'scheduled'>('asap');
-  const [scheduledPickupAt, setScheduledPickupAt] = useState<string | null>(null);
-  const [deliveryDelayMinutes, setDeliveryDelayMinutes] = useState<string>('');
-  const scheduledDeliveryAt = scheduledPickupAt && deliveryDelayMinutes
-    ? new Date(new Date(scheduledPickupAt).getTime() + Number(deliveryDelayMinutes) * 60000).toISOString() : null;
+  const [pickupTime, setScheduledPickupAt] = useState<string | null>(null);
+  const [scheduledDeliveryAt, setScheduledDeliveryAt] = useState<string | null>(null);
+  const scheduledPickupAt = orderType === 'delivery' ? getPickupTimeForDelivery(scheduledDeliveryAt) : pickupTime;
   const [selectedPickupDate, setSelectedPickupDate] = useState<string | null>(null);
 
   const [activePromotions, setActivePromotions] = useState<PromotionWithProducts[]>([]);
@@ -337,22 +338,24 @@ export default function OrderSummaryPage() {
 
         const fromDate = new Date();
         const numDays = 7;
-        const pickupDayOptions = getPickupTimeSlots(storeHours, fromDate, {
+        const getSlots = orderType === 'delivery' ? getDeliveryTimeSlots : getPickupTimeSlots;
+        const scheduleDayOptions = getSlots(storeHours, fromDate, {
           numDays,
           intervalMinutes: 15,
-        }).map(day => ({ ...day, slots: day.slots.filter(slot => new Date(slot.value).getTime() > fromDate.getTime() + 10 * 60000) }))
+        }).map(day => ({ ...day, slots: day.slots.filter(slot => new Date(slot.value).getTime() > fromDate.getTime() + (orderType === 'delivery' ? 15 : 10) * 60000) }))
           .filter(day => day.slots.length > 0);
 
         if (!cancelled) {
-          const result: StoreHoursForOrderResult = { storeHours, isOpenNow, pickupDayOptions };
+          const result: StoreHoursForOrderResult = { storeHours, isOpenNow, scheduleDayOptions };
           setStoreHoursResult(result);
           const saved = getSessionSchedule(sessionStorage, orderType);
-          const savedDay = result.pickupDayOptions.find(day => day.slots.some(slot => slot.value === saved.pickupAt));
+          const savedTime = orderType === 'delivery' ? saved.deliveryAt : saved.pickupAt;
+          const savedDay = result.scheduleDayOptions.find(day => day.slots.some(slot => slot.value === savedTime));
           const pickupAt = savedDay ? saved.pickupAt : null;
           setPickupOption(!result.isOpenNow || saved.option === 'scheduled' ? 'scheduled' : 'asap');
           setScheduledPickupAt(pickupAt);
-          setDeliveryDelayMinutes(pickupAt ? saved.deliveryDelayMinutes : '');
-          setSelectedPickupDate(savedDay?.date ?? result.pickupDayOptions[0]?.date ?? null);
+          setScheduledDeliveryAt(savedDay ? saved.deliveryAt : null);
+          setSelectedPickupDate(savedDay?.date ?? result.scheduleDayOptions[0]?.date ?? null);
         }
       } catch (error) {
         console.error('Error loading store hours for order:', error);
@@ -672,118 +675,32 @@ export default function OrderSummaryPage() {
                       </p>
                     ) : (
                       <p className="text-sm text-amber-600 dark:text-amber-400 mb-4">
-                        Store is currently closed. Please choose a future {orderType === 'delivery' ? 'pickup/ready time and delivery time' : 'pickup time'} to pre-order.
+                        Store is currently closed. Please choose a future {orderType === 'delivery' ? 'delivery time' : 'pickup time'} to pre-order.
                       </p>
                     )}
-                    <div className="space-y-3 mb-4">
-                      {storeHoursResult.isOpenNow && (
-                        <label className="flex items-center gap-3 cursor-pointer">
-                          <input
-                            type="radio"
-                            name="pickupOption"
-                            className="w-4 h-4 text-blue-600"
-                            checked={pickupOption === 'asap'}
-                            onChange={() => {
-                              setDeliveryDelayMinutes('');
-                              setPickupOption('asap');
-                              setScheduledPickupAt(null);
-                              setSelectedPickupDate(null);
-                            }}
-                          />
-                          <span className="text-sm text-gray-900 dark:text-white">As soon as ready [ETA=10 minutes]</span>
-                        </label>
-                      )}
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="pickupOption"
-                          className="w-4 h-4 text-blue-600"
-                          checked={pickupOption === 'scheduled'}
-                          onChange={() => {
-                            setDeliveryDelayMinutes('');
-                            setPickupOption('scheduled');
-                            const firstDay = storeHoursResult.pickupDayOptions[0];
-                            setSelectedPickupDate(firstDay?.date ?? selectedPickupDate);
-                            setScheduledPickupAt(null);
-                          }}
-                        />
-                        <span className="text-sm text-gray-900 dark:text-white">
-                          {orderType === 'delivery' ? 'Pickup/ready and delivery times (required)' : 'Choose a pickup time'}
-                        </span>
-                      </label>
-                    </div>
-                    {pickupOption === 'scheduled' && storeHoursResult.pickupDayOptions.length === 0 && <p className="text-sm" role="status">No pickup times are available in the next seven days.</p>}
-                    {pickupOption === 'scheduled' && storeHoursResult.pickupDayOptions.length > 0 && (
-                      <div className="grid gap-3">
-                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                          {orderType === 'delivery' ? 'Restaurant pickup / food-ready time' : 'Pickup date & time'}
-                        </label>
-                        <p className="text-xs text-gray-500">All times are Australia/Melbourne.</p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md">
-                          {/* Date picker (select) */}
-                          <div className="flex flex-col gap-1">
-                            <span className="text-xs text-gray-500 dark:text-gray-400">Date</span>
-                            <select
-                              className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900 text-sm"
-                              value={selectedPickupDate ?? storeHoursResult.pickupDayOptions[0]?.date ?? ''}
-                              onChange={(e) => {
-                                const newDate = e.target.value;
-                                setSelectedPickupDate(newDate);
-                                setDeliveryDelayMinutes('');
-                                setScheduledPickupAt(null);
-                              }}
-                            >
-                              {storeHoursResult.pickupDayOptions.map((day) => (
-                                <option key={day.date} value={day.date}>
-                                  {day.dateLabel}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-
-                          {/* Time picker (select) */}
-                          <div className="flex flex-col gap-1">
-                            <span className="text-xs text-gray-500 dark:text-gray-400">Time</span>
-                            {(() => {
-                              const currentDate =
-                                selectedPickupDate ?? storeHoursResult.pickupDayOptions[0]?.date ?? null;
-                              const day =
-                                storeHoursResult.pickupDayOptions.find((d) => d.date === currentDate) ??
-                                storeHoursResult.pickupDayOptions[0];
-                              const slots = day?.slots ?? [];
-                              const currentValue = scheduledPickupAt ?? '';
-                              return (
-                                <select
-                                  className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900 text-sm"
-                                  value={currentValue}
-                                  onChange={(e) => { setScheduledPickupAt(e.target.value); setDeliveryDelayMinutes(''); }}
-                                >
-                                  <option value="" disabled>Select pickup/ready time</option>
-                                  {slots.map((slot) => (
-                                    <option key={slot.value} value={slot.value}>
-                                      {slot.label}
-                                    </option>
-                                  ))}
-                                </select>
-                              );
-                            })()}
-                          </div>
-                        </div>
-                        {orderType === 'delivery' && scheduledPickupAt && (
-                          <label className="grid gap-1 max-w-md text-sm">
-                            Delivery time (Australia/Melbourne)
-                            <select className="h-10 rounded-lg border px-3 bg-white dark:bg-neutral-900" value={deliveryDelayMinutes} onChange={e => setDeliveryDelayMinutes(e.target.value)}>
-                              <option value="" disabled>Select delivery time</option>
-                              {[15, 30, 45, 60, 75, 90].map(minutes => (
-                                <option key={minutes} value={minutes}>
-                                  {new Date(new Date(scheduledPickupAt).getTime() + minutes * 60000).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                        )}
-                      </div>
-                    )}
+                    <OrderScheduleSelector
+                      orderType={orderType}
+                      isOpen={storeHoursResult.isOpenNow}
+                      option={pickupOption}
+                      days={storeHoursResult.scheduleDayOptions}
+                      selectedDate={selectedPickupDate}
+                      selectedTime={orderType === 'delivery' ? scheduledDeliveryAt : scheduledPickupAt}
+                      onOptionChange={option => {
+                        setPickupOption(option);
+                        setScheduledPickupAt(null);
+                        setScheduledDeliveryAt(null);
+                        setSelectedPickupDate(option === 'scheduled' ? storeHoursResult.scheduleDayOptions[0]?.date ?? null : null);
+                      }}
+                      onDateChange={date => {
+                        setSelectedPickupDate(date);
+                        setScheduledPickupAt(null);
+                        setScheduledDeliveryAt(null);
+                      }}
+                      onTimeChange={time => {
+                        if (orderType === 'delivery') setScheduledDeliveryAt(time);
+                        else setScheduledPickupAt(time);
+                      }}
+                    />
                     <button
                       onClick={() => setOrderType(null)}
                       className="mt-4 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
@@ -1136,7 +1053,7 @@ export default function OrderSummaryPage() {
                     {orderType === 'delivery' && (!deliveryAddress || !deliveryQuote)
                       ? 'Complete Delivery Info'
                       : !canProceedPickup
-                        ? (orderType === 'delivery' ? 'Select Pickup & Delivery Times' : 'Select Pickup Time')
+                        ? (orderType === 'delivery' ? 'Select Delivery Time' : 'Select Pickup Time')
                         : 'Continue Checkout'}
                   </button>
                 )}

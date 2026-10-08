@@ -1,4 +1,6 @@
 "use client";
+
+import { getSessionSchedule } from "@/lib/order-schedule-session";
 import { normalizeAuPhone, buildFallbackOrderEmail, isPlaceholderCustomerEmail, mapPhoneAuthError } from "@/lib/phone-auth";
 
 import { useState, useEffect, useRef } from "react";
@@ -533,8 +535,9 @@ export default function CheckoutPage() {
     const storedDeliveryAddress = sessionStorage.getItem("deliveryAddress");
     const storedDeliveryQuote = sessionStorage.getItem("deliveryQuote");
     const storedPickupOption = sessionStorage.getItem("pickupOption");
-    const storedScheduledPickupAt = sessionStorage.getItem("scheduledPickupAt");
-    setScheduledDeliveryAt(sessionStorage.getItem("scheduledDeliveryAt"));
+    const savedSchedule = getSessionSchedule(sessionStorage, storedOrderType === "delivery" ? "delivery" : "pickup");
+    const storedScheduledPickupAt = savedSchedule.pickupAt;
+    setScheduledDeliveryAt(savedSchedule.deliveryAt);
 
     if (storedOrderType) {
       setOrderType(storedOrderType);
@@ -1981,7 +1984,7 @@ export default function CheckoutPage() {
 
           {scheduledPickupSelected && scheduledPickupAt && (
             <div className="rounded-lg border p-4 text-sm space-y-2">
-              <p><strong>{orderType === 'delivery' ? 'Restaurant pickup / food ready' : 'Pickup'}:</strong> {new Date(scheduledPickupAt).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' })}</p>
+              {orderType === 'pickup' && <p><strong>Pickup:</strong> {new Date(scheduledPickupAt).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' })}</p>}
               {orderType === 'delivery' && scheduledDeliveryAt && <p><strong>Delivery:</strong> {new Date(scheduledDeliveryAt).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' })}</p>}
               <p>All times are Australia/Melbourne. <Link href="/order/summary" className="underline">Change times</Link></p>
             </div>

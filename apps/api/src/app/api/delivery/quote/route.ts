@@ -1,4 +1,4 @@
-import { validateDeliverySchedule } from '@my-small-business/shipday/scheduling';
+import { getPickupTimeForDelivery, validateDeliverySchedule } from '@my-small-business/shipday/scheduling';
 import { NextRequest, NextResponse } from 'next/server';
 import { getShipdayClient } from '@my-small-business/shipday';
 import type { DeliveryAddress } from '@my-small-business/shipday';
@@ -39,12 +39,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const scheduleError = validateDeliverySchedule(true, body.scheduled_pickup_at, body.scheduled_delivery_at);
+    const pickupAt = body.scheduled_delivery_at ? getPickupTimeForDelivery(body.scheduled_delivery_at) : body.scheduled_pickup_at;
+    const scheduleError = validateDeliverySchedule(true, pickupAt, body.scheduled_delivery_at);
     if (scheduleError) return NextResponse.json({ error: scheduleError }, { status: 400 });
 
     // Request quote from Shipday
     const client = getShipdayClient();
-    const quote = await client.requestQuote(body.pickup_address, body.dropoff_address, { pickup_at: body.scheduled_pickup_at, delivery_at: body.scheduled_delivery_at });
+    const quote = await client.requestQuote(body.pickup_address, body.dropoff_address, { pickup_at: pickupAt, delivery_at: body.scheduled_delivery_at });
     console.log('[Delivery Quote] Received quote:', quote);
     return NextResponse.json({
       success: true,

@@ -1,12 +1,12 @@
 'use server';
 
-import { validateDeliverySchedule } from '@my-small-business/shipday/scheduling';
+import { getPickupTimeForDelivery, validateDeliverySchedule } from '@my-small-business/shipday/scheduling';
 
 import { createServiceRoleClient, createServerSupabaseClient } from '@my-small-business/supabase/server';
 import { CartItemData } from './cart';
 import { getPostHogClient } from '@/lib/posthog-server';
 import { groupOrderItemsByOrderId } from '@/lib/order-items';
-import { buildDefaultStoreHours, isPickupTimeWithinHours, isStoreOpenNow } from '@/lib/store-hours';
+import { buildDefaultStoreHours, isDeliveryTimeWithinHours, isPickupTimeWithinHours, isStoreOpenNow } from '@/lib/store-hours';
 import type {
   Order,
   OrderEvent,
@@ -342,6 +342,10 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
       return { data: null, error: 'Delivery orders require online payment' };
     }
 
+    const scheduledPickupAt = input.order_type === 'delivery' && input.scheduled_delivery_at
+      ? getPickupTimeForDelivery(input.scheduled_delivery_at)
+      : input.scheduled_pickup_at ?? null;
+
     // Pickup-time rules:
     // - If store is closed now: customer must pre-order and choose scheduled_pickup_at
     // - If scheduled_pickup_at is provided: it must fall within store opening hours
@@ -378,20 +382,23 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
       const isOpenNow = isStoreOpenNow(storeHours);
 
       if (input.order_type === 'delivery') {
-        const error = validateDeliverySchedule(isOpenNow, input.scheduled_pickup_at, input.scheduled_delivery_at);
+        const error = validateDeliverySchedule(isOpenNow, scheduledPickupAt, input.scheduled_delivery_at);
         if (error) return { data: null, error };
+        if (input.scheduled_delivery_at && !isDeliveryTimeWithinHours(storeHours, input.scheduled_delivery_at)) {
+          return { data: null, error: 'Delivery time must be at least 15 minutes after opening and before closing.' };
+        }
       }
 
-      if (!isOpenNow && !input.scheduled_pickup_at) {
+      if (!isOpenNow && !scheduledPickupAt) {
         return { data: null, error: 'Store is currently closed. Please choose a pickup time to pre-order.' };
       }
 
-      if (input.scheduled_pickup_at && !isPickupTimeWithinHours(storeHours, input.scheduled_pickup_at)) {
+      if (scheduledPickupAt && !isPickupTimeWithinHours(storeHours, scheduledPickupAt)) {
         return { data: null, error: 'Selected pickup time must be within store opening hours.' };
       }
 
       // Allow pre-order pickup for any of the next 7 days (including today if open)
-      if (input.scheduled_pickup_at) {
+      if (scheduledPickupAt) {
         const melbourneFormatter = new Intl.DateTimeFormat('en-CA', {
           timeZone: 'Australia/Melbourne',
           year: 'numeric',
@@ -400,7 +407,7 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
         });
 
         const now = new Date();
-        const scheduled = new Date(input.scheduled_pickup_at);
+        const scheduled = new Date(scheduledPickupAt);
         if (!Number.isFinite(scheduled.getTime()) || scheduled.getTime() <= now.getTime()) {
           return { data: null, error: 'Pickup time must be in the future.' };
         }
@@ -460,7 +467,7 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
       order_options: input.order_options ?? null,
       special_instructions: input.special_instructions || null,
       delivery_instructions: input.delivery_instructions || null,
-      scheduled_pickup_at: input.scheduled_pickup_at ?? null,
+      scheduled_pickup_at: scheduledPickupAt,
       scheduled_delivery_at: input.scheduled_delivery_at ?? null,
     };
 

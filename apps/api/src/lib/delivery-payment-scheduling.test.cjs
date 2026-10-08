@@ -25,7 +25,7 @@ function fixture(orderType, scheduled) {
     id, order_number: 'TEST-1', order_type: orderType, payment_method: 'online',
     payment_status: 'pending', order_status: 'pending_online_payment',
     created_at: '2026-10-08T01:00:00Z', delivery_eta_minutes: 25,
-    scheduled_pickup_at: scheduled ? '2026-10-09T01:00:00Z' : null,
+    scheduled_pickup_at: scheduled ? '2026-10-09T01:20:00Z' : null,
     scheduled_delivery_at: scheduled ? '2026-10-09T01:30:00Z' : null,
     delivery_provider_id: null, delivery_status: 'pending',
     customer_name: 'Test', customer_email: 'test@example.com', customer_phone: '0400000000',
@@ -83,7 +83,7 @@ function fixture(orderType, scheduled) {
 for (const entry of ['verify', 'webhook']) {
   for (const scenario of [
     { name: 'ASAP delivery', type: 'delivery', scheduled: false, date: '2026-10-08', pickup: '01:10:00', delivery: '01:35:00' },
-    { name: 'scheduled delivery', type: 'delivery', scheduled: true, date: '2026-10-09', pickup: '01:00:00', delivery: '01:30:00' },
+    { name: 'scheduled delivery', type: 'delivery', scheduled: true, date: '2026-10-09', pickup: '01:20:00', delivery: '01:30:00' },
     { name: 'pickup', type: 'pickup', scheduled: false },
     { name: 'scheduled pickup', type: 'pickup', scheduled: true },
   ]) {
