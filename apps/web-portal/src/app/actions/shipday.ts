@@ -1,5 +1,7 @@
 'use server';
 
+import { getDeliverySchedule } from '@my-small-business/shipday/scheduling';
+
 import { getShipdayClient } from '@my-small-business/shipday';
 import { createServiceRoleClient } from '@my-small-business/supabase/server';
 import type { Order } from '@my-small-business/types';
@@ -46,9 +48,7 @@ export async function createShipdayOrder(orderId: string) {
     console.log(`[Shipday Action] Constructed Address: ${addressString}`);
 
     const createdAt = order.created_at || new Date().toISOString();
-    const expectedPickupAt = new Date(new Date(createdAt).getTime() + 10 * 60 * 1000);
-    const etaMinutes = Number(order.delivery_eta_minutes) > 0 ? Number(order.delivery_eta_minutes) : 30;
-    const expectedDeliveryAt = new Date(expectedPickupAt.getTime() + etaMinutes * 60 * 1000);
+    const schedule = getDeliverySchedule(order);
 
     const paymentMethod: 'online' | 'store' =
       order.payment_method === 'store' ? 'store' : 'online';
@@ -81,8 +81,7 @@ export async function createShipdayOrder(orderId: string) {
         (Number(order.reward_points_value) || 0),
       payment_method: paymentMethod,
       placed_at: createdAt,
-      expected_pickup_at: expectedPickupAt.toISOString(),
-      expected_delivery_at: expectedDeliveryAt.toISOString(),
+      ...schedule,
       items: order.order_items.map((item: any) => ({
         name: item.product_name,
         quantity: item.quantity,

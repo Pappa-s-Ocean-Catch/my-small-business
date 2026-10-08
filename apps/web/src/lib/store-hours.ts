@@ -20,50 +20,28 @@ function timeToMinutes(t: string): number {
   return (h ?? 0) * 60 + (m ?? 0);
 }
 
-/** Check if a given time (minutes since midnight) is within open-close. Handles overnight (e.g. 22:00 - 02:00). */
-function isTimeWithinRange(open: StoreHoursDay, minutes: number): boolean {
-  const openMin = timeToMinutes(open.open);
-  let closeMin = timeToMinutes(open.close);
-  if (closeMin <= openMin) closeMin += 24 * 60; // next day
-  const m = minutes >= openMin ? minutes : minutes + 24 * 60;
-  return m >= openMin && m < closeMin;
+/** Calendar fields in the store timezone, independent of browser/server timezone. */
+function localParts(date: Date, timezone: string) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(date);
+  const get = (type: string) => Number(parts.find(p => p.type === type)?.value);
+  return { year: get('year'), month: get('month'), day: get('day'), hour: get('hour'), minute: get('minute') };
 }
 
-/**
- * Returns whether the store is currently open according to store hours.
- * Uses optional timezone (default Australia/Melbourne).
- */
-export function isStoreOpenNow(
-  storeHours: StoreHours,
-  timezone: string = DEFAULT_TZ
-): boolean {
-  const now = new Date();
-  const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: timezone,
-    weekday: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-  const parts = formatter.formatToParts(now);
-  let day = 0; // Sunday
-  let hour = 0;
-  let minute = 0;
-  for (const p of parts) {
-    if (p.type === 'weekday') {
-      const w = p.value.toLowerCase();
-      const days: Record<string, number> = {
-        sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6,
-      };
-      day = days[w] ?? 0;
-    }
-    if (p.type === 'hour') hour = parseInt(p.value, 10);
-    if (p.type === 'minute') minute = parseInt(p.value, 10);
+function localToDate(year: number, month: number, day: number, minutes: number, timezone: string): Date {
+  const target = Date.UTC(year, month - 1, day, 0, minutes);
+  let instant = target;
+  for (let i = 0; i < 3; i++) {
+    const p = localParts(new Date(instant), timezone);
+    instant += target - Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute);
   }
-  const dayHours = storeHours[String(day)];
-  if (!dayHours) return false;
-  const minutes = hour * 60 + minute;
-  return isTimeWithinRange(dayHours, minutes);
+  return new Date(instant);
+}
+
+export function isStoreOpenNow(storeHours: StoreHours, timezone: string = DEFAULT_TZ): boolean {
+  return isPickupTimeWithinHours(storeHours, new Date().toISOString(), timezone);
 }
 
 export interface PickupSlot {
@@ -88,41 +66,38 @@ export function getPickupTimeSlots(
 ): PickupDayOption[] {
   const { numDays = 7, intervalMinutes = 15, timezone = DEFAULT_TZ } = options;
   const result: PickupDayOption[] = [];
-  const cursor = new Date(fromDate);
-  cursor.setHours(0, 0, 0, 0);
+  const local = localParts(fromDate, timezone);
+  const cursor = new Date(Date.UTC(local.year, local.month - 1, local.day));
 
-  for (let d = 0; d < numDays; d++) {
-    const day = cursor.getDay();
-    const dayHours = storeHours[String(day)];
-    if (!dayHours) {
-      cursor.setDate(cursor.getDate() + 1);
-      continue;
-    }
-
+  // Include any remaining slots in the previous day's overnight window.
+  for (let d = -1; d < numDays; d++) {
+    const date = new Date(cursor);
+    date.setUTCDate(date.getUTCDate() + d);
+    const dayHours = storeHours[String(date.getUTCDay())];
+    if (!dayHours) continue;
     const openMin = timeToMinutes(dayHours.open);
     let closeMin = timeToMinutes(dayHours.close);
     if (closeMin <= openMin) closeMin += 24 * 60;
-
-    const slots: PickupSlot[] = [];
     for (let m = openMin; m < closeMin; m += intervalMinutes) {
-      const h = Math.floor(m / 60) % 24;
-      const min = m % 60;
-      const slotDate = new Date(cursor);
-      slotDate.setHours(h, min, 0, 0);
-      const iso = slotDate.toISOString();
-      const label = `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
-      slots.push({ value: iso, label });
+      const slotDate = localToDate(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate(), m, timezone);
+      if (slotDate.getTime() <= fromDate.getTime()) continue;
+      const p = localParts(slotDate, timezone);
+      const dateStr = `${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`;
+      const firstDate = cursor.toISOString().slice(0, 10);
+      const lastDate = new Date(cursor.getTime() + (numDays - 1) * 86400000).toISOString().slice(0, 10);
+      if (dateStr < firstDate || dateStr > lastDate) continue;
+      let option = result.find(day => day.date === dateStr);
+      if (!option) {
+        option = { date: dateStr, dateLabel: slotDate.toLocaleDateString('en-AU', {
+          weekday: 'short', day: 'numeric', month: 'short', timeZone: timezone,
+        }), slots: [] };
+        result.push(option);
+      }
+      const value = slotDate.toISOString();
+      if (!option.slots.some(slot => slot.value === value)) {
+        option.slots.push({ value, label: `${String(p.hour).padStart(2, '0')}:${String(p.minute).padStart(2, '0')}` });
+      }
     }
-
-    const dateStr = cursor.toISOString().slice(0, 10);
-    const dateLabel = cursor.toLocaleDateString('en-AU', {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-      timeZone: timezone,
-    });
-    result.push({ date: dateStr, dateLabel, slots });
-    cursor.setDate(cursor.getDate() + 1);
   }
 
   return result;
@@ -137,30 +112,17 @@ export function isPickupTimeWithinHours(
   timezone: string = DEFAULT_TZ
 ): boolean {
   const d = new Date(scheduledPickupAt);
-  const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: timezone,
-    weekday: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-  const parts = formatter.formatToParts(d);
-  let day = 0;
-  let hour = 0;
-  let minute = 0;
-  for (const p of parts) {
-    if (p.type === 'weekday') {
-      const w = p.value.toLowerCase();
-      const days: Record<string, number> = {
-        sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6,
-      };
-      day = days[w] ?? 0;
-    }
-    if (p.type === 'hour') hour = parseInt(p.value, 10);
-    if (p.type === 'minute') minute = parseInt(p.value, 10);
+  if (!Number.isFinite(d.getTime())) return false;
+  const p = localParts(d, timezone);
+  const day = new Date(Date.UTC(p.year, p.month - 1, p.day)).getUTCDay();
+  const minutes = p.hour * 60 + p.minute;
+  const today = storeHours[String(day)];
+  if (today) {
+    const open = timeToMinutes(today.open);
+    const close = timeToMinutes(today.close);
+    if (close > open ? minutes >= open && minutes < close : minutes >= open) return true;
   }
-  const dayHours = storeHours[String(day)];
-  if (!dayHours) return false;
-  const minutes = hour * 60 + minute;
-  return isTimeWithinRange(dayHours, minutes);
+  const previous = storeHours[String((day + 6) % 7)];
+  return !!previous && timeToMinutes(previous.close) <= timeToMinutes(previous.open)
+    && minutes < timeToMinutes(previous.close);
 }

@@ -39,6 +39,9 @@ importers:
       '@my-small-business/marketplace':
         specifier: workspace:*
         version: link:../../libs/marketplace
+      '@my-small-business/shipday':
+        specifier: workspace:*
+        version: link:../../libs/shipday
       '@my-small-business/supabase':
         specifier: workspace:*
         version: link:../../libs/supabase
@@ -593,6 +596,9 @@ importers:
       '@my-small-business/marketplace':
         specifier: workspace:*
         version: link:../../libs/marketplace
+      '@my-small-business/shipday':
+        specifier: workspace:*
+        version: link:../../libs/shipday
       '@my-small-business/supabase':
         specifier: workspace:*
         version: link:../../libs/supabase
@@ -786,6 +792,9 @@ importers:
       '@my-small-business/marketplace':
         specifier: workspace:*
         version: link:../../libs/marketplace
+      '@my-small-business/shipday':
+        specifier: workspace:*
+        version: link:../../libs/shipday
       '@my-small-business/supabase':
         specifier: workspace:*
         version: link:../../libs/supabase

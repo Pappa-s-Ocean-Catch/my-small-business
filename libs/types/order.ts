@@ -49,7 +49,8 @@ export interface OrderInput {
   coupon_discount?: number;
 
   /** When the customer wants to pick up (for pickup orders). Required when ordering outside open hours (pre-order). */
-  scheduled_pickup_at?: string | null; // ISO datetime
+  scheduled_pickup_at?: string | null;
+  scheduled_delivery_at?: string | null; // ISO datetime
 }
 
 export interface OrderItem {
@@ -154,6 +155,7 @@ export interface Order {
   created_at: string;
   updated_at: string;
   scheduled_pickup_at: string | null;
+  scheduled_delivery_at?: string | null;
   kitchen_print_claimed_at: string | null;
   kitchen_print_claimed_by: string | null;
   kitchen_print_completed_at: string | null;

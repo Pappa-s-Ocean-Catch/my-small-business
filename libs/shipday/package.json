@@ -8,5 +8,15 @@
   },
   "devDependencies": {
     "typescript": "^5.3.3"
+  },
+  "exports": {
+    ".": {
+      "types": "./index.ts",
+      "default": "./index.ts"
+    },
+    "./scheduling": {
+      "types": "./scheduling.ts",
+      "default": "./scheduling.ts"
+    }
   }
 }

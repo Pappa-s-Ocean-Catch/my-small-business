@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { setSessionOrderType } from '@/lib/order-schedule-session';
+import { getStoreHoursForOrder } from '@/app/actions/store-hours';
 import { useRouter } from 'next/navigation';
 import { DeliveryAddressForm, type DeliveryAddressInput } from '@/components/DeliveryAddressForm';
 
@@ -20,14 +22,22 @@ export default function DeliveryEntryPage() {
   const [address, setAddress] = useState<DeliveryAddressInput | null>(null);
   const [quote, setQuote] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [requiresSchedule, setRequiresSchedule] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleAddressSelect = async (selectedAddress: DeliveryAddressInput) => {
     setAddress(selectedAddress);
+    setQuote(null);
+    setRequiresSchedule(false);
     setError(null);
     setLoading(true);
 
     try {
+      const hours = await getStoreHoursForOrder();
+      if (!hours.isOpenNow) {
+        setRequiresSchedule(true);
+        return;
+      }
       const response = await fetch((process.env.NEXT_PUBLIC_API_URL || '') + '/api/delivery/quote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -60,11 +70,18 @@ export default function DeliveryEntryPage() {
   };
 
   const handleContinue = () => {
-    if (!address || !quote) return;
+    if (!address || (!quote && !requiresSchedule)) return;
 
-    sessionStorage.setItem('order_type', 'delivery');
+    setSessionOrderType(sessionStorage, 'delivery');
+    sessionStorage.setItem('deliveryAddress', JSON.stringify(address));
     sessionStorage.setItem('delivery_address', JSON.stringify(address));
-    sessionStorage.setItem('delivery_quote', JSON.stringify(quote));
+    if (quote) {
+      sessionStorage.setItem('delivery_quote', JSON.stringify(quote));
+      sessionStorage.setItem('deliveryQuote', JSON.stringify(quote));
+    } else {
+      sessionStorage.removeItem('delivery_quote');
+      sessionStorage.removeItem('deliveryQuote');
+    }
 
     router.push('/order');
   };
@@ -130,6 +147,15 @@ export default function DeliveryEntryPage() {
               </div>
             )}
 
+            {requiresSchedule && !loading && (
+              <div className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-6 dark:bg-neutral-900">
+                <p className="mb-4 text-sm">The store is currently closed. You can start your order and choose pickup/ready and delivery times in the order summary. Delivery availability and fees will be checked for those times.</p>
+                <button onClick={handleContinue} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-4 font-bold text-white">
+                  Start Ordering
+                  <Icon icon={FaArrowRight} />
+                </button>
+              </div>
+            )}
             {quote && !loading && (
               <div className="mt-8 animate-in slide-in-from-bottom-4 fade-in duration-500">
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 dark:border-emerald-900 dark:bg-emerald-950/30 md:rounded-[1.75rem]">
@@ -213,7 +239,7 @@ export default function DeliveryEntryPage() {
               </p>
               <button
                 onClick={() => {
-                  sessionStorage.setItem('order_type', 'pickup');
+                  setSessionOrderType(sessionStorage, 'pickup');
                   router.push('/order');
                 }}
                 className="mt-4 w-full rounded-2xl border border-gray-300 px-4 py-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-neutral-700 dark:text-gray-200 dark:hover:bg-neutral-800"

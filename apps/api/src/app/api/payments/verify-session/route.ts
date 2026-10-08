@@ -1,3 +1,4 @@
+import { getDeliverySchedule } from '@my-small-business/shipday/scheduling';
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createServiceRoleClient } from '@my-small-business/supabase/server';
@@ -213,12 +214,7 @@ export async function POST(request: Request) {
 
                 const assignDriver = !(process.env.SHIPDAY_TEST_MODE === 'true' || process.env.NODE_ENV !== 'production');
                 const orderPlacedAt = orderResult.data.created_at || new Date().toISOString();
-                const expectedPickupAt = new Date(new Date(orderPlacedAt).getTime() + 10 * 60 * 1000);
-                const etaMinutes =
-                  Number(orderResult.data.delivery_eta_minutes) > 0
-                    ? Number(orderResult.data.delivery_eta_minutes)
-                    : 30;
-                const expectedDeliveryAt = new Date(expectedPickupAt.getTime() + etaMinutes * 60 * 1000);
+                const schedule = getDeliverySchedule(orderResult.data);
 
                 const pickupAddressStr = [
                   pickupAddress.address_line1,
@@ -260,8 +256,7 @@ export async function POST(request: Request) {
                     (Number(orderResult.data.reward_points_value) || 0),
                   payment_method: orderResult.data.payment_method === 'store' ? 'store' : 'online',
                   placed_at: orderPlacedAt,
-                  expected_pickup_at: expectedPickupAt.toISOString(),
-                  expected_delivery_at: expectedDeliveryAt.toISOString(),
+                  ...schedule,
                   special_instructions: [
                     orderResult.data.special_instructions,
                     orderResult.data.delivery_instructions ? `Delivery Instructions: ${orderResult.data.delivery_instructions}` : null

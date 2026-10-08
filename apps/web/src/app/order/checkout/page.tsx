@@ -245,6 +245,7 @@ export default function CheckoutPage() {
   const [scheduledPickupAt, setScheduledPickupAt] = useState<string | null>(
     null,
   );
+  const [scheduledDeliveryAt, setScheduledDeliveryAt] = useState<string | null>(null);
   const [scheduledPickupSelected, setScheduledPickupSelected] = useState(false);
 
   // Reward points state
@@ -533,6 +534,7 @@ export default function CheckoutPage() {
     const storedDeliveryQuote = sessionStorage.getItem("deliveryQuote");
     const storedPickupOption = sessionStorage.getItem("pickupOption");
     const storedScheduledPickupAt = sessionStorage.getItem("scheduledPickupAt");
+    setScheduledDeliveryAt(sessionStorage.getItem("scheduledDeliveryAt"));
 
     if (storedOrderType) {
       setOrderType(storedOrderType);
@@ -560,10 +562,9 @@ export default function CheckoutPage() {
     if (storedScheduledPickupAt) {
       const scheduledMs = new Date(storedScheduledPickupAt).getTime();
       const isExplicitScheduledPickup =
-        storedOrderType === "pickup"
+        (storedOrderType === "pickup" || storedOrderType === "delivery")
         && storedPickupOption === "scheduled"
-        && Number.isFinite(scheduledMs)
-        && scheduledMs > Date.now();
+        && Number.isFinite(scheduledMs);
 
       setScheduledPickupSelected(isExplicitScheduledPickup);
       setScheduledPickupAt(isExplicitScheduledPickup ? storedScheduledPickupAt : null);
@@ -1560,8 +1561,9 @@ export default function CheckoutPage() {
       }
 
       // Add scheduled pickup time for pickup orders (optional when store open, set when pre-order or custom time)
-      if (orderType === "pickup" && scheduledPickupSelected && scheduledPickupAt) {
+      if (scheduledPickupSelected && scheduledPickupAt) {
         orderInput.scheduled_pickup_at = scheduledPickupAt;
+        if (orderType === "delivery") orderInput.scheduled_delivery_at = scheduledDeliveryAt;
       }
 
       // Add delivery fields if order type is delivery
@@ -1629,6 +1631,8 @@ export default function CheckoutPage() {
               },
 
               dropoff_address: deliveryAddress,
+              scheduled_pickup_at: orderInput.scheduled_pickup_at,
+              scheduled_delivery_at: orderInput.scheduled_delivery_at,
             }),
           });
           const qData = await qRes.json();
@@ -1974,6 +1978,14 @@ export default function CheckoutPage() {
               orderType === "delivery" ? handleDeliveryInstructionsChange : undefined
             }
           />
+
+          {scheduledPickupSelected && scheduledPickupAt && (
+            <div className="rounded-lg border p-4 text-sm space-y-2">
+              <p><strong>{orderType === 'delivery' ? 'Restaurant pickup / food ready' : 'Pickup'}:</strong> {new Date(scheduledPickupAt).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' })}</p>
+              {orderType === 'delivery' && scheduledDeliveryAt && <p><strong>Delivery:</strong> {new Date(scheduledDeliveryAt).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' })}</p>}
+              <p>All times are Australia/Melbourne. <Link href="/order/summary" className="underline">Change times</Link></p>
+            </div>
+          )}
 
           {/* Require login/signup for all payment methods */}
           <CustomerAuthSection

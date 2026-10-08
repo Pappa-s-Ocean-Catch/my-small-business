@@ -1,5 +1,7 @@
 'use server';
 
+import { validateDeliverySchedule } from '@my-small-business/shipday/scheduling';
+
 import { createServiceRoleClient, createServerSupabaseClient } from '@my-small-business/supabase/server';
 import { CartItemData } from './cart';
 import { getPostHogClient } from '@/lib/posthog-server';
@@ -308,8 +310,9 @@ export interface OrderInput {
   coupon_code?: string;
   coupon_discount?: number;
 
-  /** When the customer wants to pick up (for pickup orders). Required when ordering outside open hours (pre-order). */
+  /** Customer pickup or restaurant pickup/food-ready time. Required when the store is closed. */
   scheduled_pickup_at?: string | null;
+  scheduled_delivery_at?: string | null;
 }
 
 // Note: Types are no longer re-exported here
@@ -342,7 +345,7 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
     // Pickup-time rules:
     // - If store is closed now: customer must pre-order and choose scheduled_pickup_at
     // - If scheduled_pickup_at is provided: it must fall within store opening hours
-    if (input.order_type === 'pickup') {
+    if (input.order_type === 'pickup' || input.order_type === 'delivery') {
       const [storeHoursRes, defaultsRes] = await Promise.all([
         supabase.from('settings').select('value').eq('key', 'store_hours').maybeSingle(),
         supabase.from('settings').select('value').eq('key', 'defaults').maybeSingle(),
@@ -374,6 +377,11 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
 
       const isOpenNow = isStoreOpenNow(storeHours);
 
+      if (input.order_type === 'delivery') {
+        const error = validateDeliverySchedule(isOpenNow, input.scheduled_pickup_at, input.scheduled_delivery_at);
+        if (error) return { data: null, error };
+      }
+
       if (!isOpenNow && !input.scheduled_pickup_at) {
         return { data: null, error: 'Store is currently closed. Please choose a pickup time to pre-order.' };
       }
@@ -393,6 +401,9 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
 
         const now = new Date();
         const scheduled = new Date(input.scheduled_pickup_at);
+        if (!Number.isFinite(scheduled.getTime()) || scheduled.getTime() <= now.getTime()) {
+          return { data: null, error: 'Pickup time must be in the future.' };
+        }
 
         const todayParts = melbourneFormatter.formatToParts(now);
         const schedParts = melbourneFormatter.formatToParts(scheduled);
@@ -450,6 +461,7 @@ export async function createOrder(input: OrderInput): Promise<{ data: Order | nu
       special_instructions: input.special_instructions || null,
       delivery_instructions: input.delivery_instructions || null,
       scheduled_pickup_at: input.scheduled_pickup_at ?? null,
+      scheduled_delivery_at: input.scheduled_delivery_at ?? null,
     };
 
     // Add delivery fields if order type is delivery

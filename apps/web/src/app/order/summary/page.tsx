@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { getSessionOrderType, getSessionSchedule, setSessionOrderType } from '@/lib/order-schedule-session';
 import { LiveOrderTracker } from '@/components/LiveOrderTracker';
 import { getSupabaseClient } from '@my-small-business/supabase/client';
 import { useRouter } from 'next/navigation';
@@ -72,16 +73,21 @@ export default function OrderSummaryPage() {
   const enableDelivery = flags?.enable_online_delivery ?? false;
   const [deliveryAddress, setDeliveryAddress] = useState<DeliveryAddressInput | null>(null);
   const [deliveryQuote, setDeliveryQuote] = useState<DeliveryQuote | null>(null);
+  const quoteAbortRef = useRef<AbortController | null>(null);
   const [loadingQuote, setLoadingQuote] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isChangingAddress, setIsChangingAddress] = useState(false);
 
   // Pickup time: when store is open user can choose "asap" or "scheduled"; when closed, must choose scheduled (pre-order)
+  const [storeHoursError, setStoreHoursError] = useState<string | null>(null);
   const [storeHoursLoading, setStoreHoursLoading] = useState(false);
   const [storeHoursResult, setStoreHoursResult] = useState<StoreHoursForOrderResult | null>(null);
   const [pickupOption, setPickupOption] = useState<'asap' | 'scheduled'>('asap');
   const [scheduledPickupAt, setScheduledPickupAt] = useState<string | null>(null);
+  const [deliveryDelayMinutes, setDeliveryDelayMinutes] = useState<string>('');
+  const scheduledDeliveryAt = scheduledPickupAt && deliveryDelayMinutes
+    ? new Date(new Date(scheduledPickupAt).getTime() + Number(deliveryDelayMinutes) * 60000).toISOString() : null;
   const [selectedPickupDate, setSelectedPickupDate] = useState<string | null>(null);
 
   const [activePromotions, setActivePromotions] = useState<PromotionWithProducts[]>([]);
@@ -241,7 +247,7 @@ export default function OrderSummaryPage() {
 
   // Load order type and delivery info from sessionStorage
   useEffect(() => {
-    const savedType = sessionStorage.getItem('order_type') as OrderType;
+    const savedType = getSessionOrderType(sessionStorage);
     if (savedType) {
       setOrderType(savedType);
     } else {
@@ -250,8 +256,8 @@ export default function OrderSummaryPage() {
     }
 
     if (savedType === 'delivery') {
-      const savedAddress = sessionStorage.getItem('delivery_address');
-      const savedQuote = sessionStorage.getItem('delivery_quote');
+      const savedAddress = sessionStorage.getItem('deliveryAddress') || sessionStorage.getItem('delivery_address');
+      const savedQuote = sessionStorage.getItem('deliveryQuote') || sessionStorage.getItem('delivery_quote');
       
       if (savedAddress) {
         try {
@@ -282,23 +288,30 @@ export default function OrderSummaryPage() {
   }, []);
 
 
-  // Get delivery quote when address is provided
+  // Quotes must follow the currently selected schedule; ignore stale responses.
   useEffect(() => {
-    if (orderType === 'delivery' && deliveryAddress && !deliveryQuote) {
-      getDeliveryQuote();
-    }
-  }, [orderType, deliveryAddress]);
+    quoteAbortRef.current?.abort();
+    setDeliveryQuote(null);
+    setLoadingQuote(false);
+    setQuoteError(null);
+    sessionStorage.removeItem('delivery_quote');
+    if (orderType !== 'delivery' || !deliveryAddress || !storeHoursResult || storeHoursLoading) return;
+    if ((!storeHoursResult.isOpenNow || pickupOption === 'scheduled') && (!scheduledPickupAt || !scheduledDeliveryAt)) return;
+    void getDeliveryQuote();
+    return () => quoteAbortRef.current?.abort();
+  }, [orderType, deliveryAddress, storeHoursResult, storeHoursLoading, pickupOption, scheduledPickupAt, scheduledDeliveryAt]);
 
   // Load store hours when pickup is selected (for open/closed and pickup time slots)
   useEffect(() => {
-    if (orderType !== 'pickup') return;
+    if (!orderType) return;
     let cancelled = false;
     setStoreHoursLoading(true);
+    setStoreHoursError(null);
     const loadStoreHours = async () => {
       try {
         const supabase = getSupabaseClient();
 
-        const [{ data: storeHoursRow }, { data: defaultsRow }] = await Promise.all([
+        const [{ data: storeHoursRow, error: hoursError }, { data: defaultsRow, error: defaultsError }] = await Promise.all([
           supabase
             .from('settings')
             .select('value')
@@ -311,6 +324,7 @@ export default function OrderSummaryPage() {
             .maybeSingle(),
         ]);
 
+        if (hoursError || defaultsError) throw new Error('Unable to load store hours. Please reload and try again.');
         const storeHoursValue = storeHoursRow?.value as StoreHours | undefined;
         const defaults = (defaultsRow?.value as { store_open_time?: string; store_close_time?: string } | undefined) ?? {};
 
@@ -321,38 +335,28 @@ export default function OrderSummaryPage() {
 
         const isOpenNow = isStoreOpenNow(storeHours);
 
-        // When store is open: allow scheduled pickup for today + tomorrow.
-
-        // Allow scheduled pickup for any of the next 7 days (including today if open)
-        const now = new Date();
-        const fromDate = new Date(now);
-        let numDays = 7;
-        // If store is closed, don't allow today, start from tomorrow
-        if (!isOpenNow) {
-          fromDate.setDate(fromDate.getDate() + 1);
-          numDays = 7;
-        }
-
+        const fromDate = new Date();
+        const numDays = 7;
         const pickupDayOptions = getPickupTimeSlots(storeHours, fromDate, {
           numDays,
           intervalMinutes: 15,
-        });
+        }).map(day => ({ ...day, slots: day.slots.filter(slot => new Date(slot.value).getTime() > fromDate.getTime() + 10 * 60000) }))
+          .filter(day => day.slots.length > 0);
 
         if (!cancelled) {
           const result: StoreHoursForOrderResult = { storeHours, isOpenNow, pickupDayOptions };
           setStoreHoursResult(result);
-          if (!result.isOpenNow) {
-            setPickupOption('scheduled');
-            const firstOption = result.pickupDayOptions[0]?.slots[0]?.value ?? null;
-            setScheduledPickupAt(firstOption);
-            setSelectedPickupDate(result.pickupDayOptions[0]?.date ?? null);
-          } else {
-            setScheduledPickupAt(null);
-            setSelectedPickupDate(null);
-          }
+          const saved = getSessionSchedule(sessionStorage, orderType);
+          const savedDay = result.pickupDayOptions.find(day => day.slots.some(slot => slot.value === saved.pickupAt));
+          const pickupAt = savedDay ? saved.pickupAt : null;
+          setPickupOption(!result.isOpenNow || saved.option === 'scheduled' ? 'scheduled' : 'asap');
+          setScheduledPickupAt(pickupAt);
+          setDeliveryDelayMinutes(pickupAt ? saved.deliveryDelayMinutes : '');
+          setSelectedPickupDate(savedDay?.date ?? result.pickupDayOptions[0]?.date ?? null);
         }
       } catch (error) {
         console.error('Error loading store hours for order:', error);
+        if (!cancelled) { setStoreHoursResult(null); setStoreHoursError('Unable to load store hours. Please reload and try again.'); }
       } finally {
         if (!cancelled) setStoreHoursLoading(false);
       }
@@ -364,14 +368,20 @@ export default function OrderSummaryPage() {
   }, [orderType]);
 
   const getDeliveryQuote = async () => {
-    if (!deliveryAddress) return;
+    if (!deliveryAddress || !storeHoursResult || storeHoursLoading) return;
+    if ((!storeHoursResult.isOpenNow || pickupOption === 'scheduled') && (!scheduledPickupAt || !scheduledDeliveryAt)) return;
 
+    quoteAbortRef.current?.abort();
+    const controller = new AbortController();
+    quoteAbortRef.current = controller;
+    const signal = controller.signal;
     setLoadingQuote(true);
     setQuoteError(null);
 
     try {
       const response = await fetch((process.env.NEXT_PUBLIC_API_URL || '') + '/api/delivery/quote', {
         method: 'POST',
+        signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           pickup_address: {
@@ -384,6 +394,8 @@ export default function OrderSummaryPage() {
             longitude: parseFloat(process.env.NEXT_PUBLIC_STORE_LONGITUDE || '144.579'),
           },
           dropoff_address: deliveryAddress,
+          scheduled_pickup_at: pickupOption === 'scheduled' ? scheduledPickupAt : null,
+          scheduled_delivery_at: pickupOption === 'scheduled' ? scheduledDeliveryAt : null,
         }),
       });
 
@@ -393,18 +405,21 @@ export default function OrderSummaryPage() {
         throw new Error(data.error || 'Failed to get delivery quote');
       }
 
+      if (signal?.aborted) return;
       setDeliveryQuote(data.data);
       sessionStorage.setItem('delivery_quote', JSON.stringify(data.data));
     } catch (error) {
+      if (signal?.aborted) return;
       console.error('Error getting delivery quote:', error);
       setQuoteError(error instanceof Error ? error.message : 'Failed to get delivery quote');
     } finally {
-      setLoadingQuote(false);
+      if (!signal?.aborted) setLoadingQuote(false);
     }
   };
 
 
   const handleOrderTypeSelect = (type: OrderType) => {
+    setSessionOrderType(sessionStorage, type);
     setOrderType(type);
     if (type === 'pickup') {
       setDeliveryAddress(null);
@@ -419,6 +434,7 @@ export default function OrderSummaryPage() {
     setQuoteError(null);
     setIsChangingAddress(false);
     sessionStorage.setItem('delivery_address', JSON.stringify(address));
+    sessionStorage.setItem('deliveryAddress', JSON.stringify(address));
     sessionStorage.removeItem('delivery_quote');
   };
 
@@ -430,13 +446,20 @@ export default function OrderSummaryPage() {
 
     // Store order type and delivery info in sessionStorage to pass to checkout
     if (orderType === 'delivery' && deliveryAddress && deliveryQuote) {
-      sessionStorage.setItem('orderType', 'delivery');
+      setSessionOrderType(sessionStorage, 'delivery');
       sessionStorage.setItem('deliveryAddress', JSON.stringify(deliveryAddress));
       sessionStorage.setItem('deliveryQuote', JSON.stringify(deliveryQuote));
-      sessionStorage.removeItem('pickupOption');
-      sessionStorage.removeItem('scheduledPickupAt');
+      sessionStorage.setItem('pickupOption', pickupOption);
+      if (pickupOption === 'scheduled' && scheduledPickupAt && scheduledDeliveryAt) {
+        sessionStorage.setItem('scheduledPickupAt', scheduledPickupAt);
+        sessionStorage.setItem('scheduledDeliveryAt', scheduledDeliveryAt);
+      } else {
+        sessionStorage.removeItem('scheduledPickupAt');
+        sessionStorage.removeItem('scheduledDeliveryAt');
+      }
     } else if (orderType === 'pickup') {
-      sessionStorage.setItem('orderType', 'pickup');
+      setSessionOrderType(sessionStorage, 'pickup');
+      sessionStorage.removeItem('scheduledDeliveryAt');
       sessionStorage.removeItem('deliveryAddress');
       sessionStorage.removeItem('deliveryQuote');
       sessionStorage.setItem('pickupOption', pickupOption);
@@ -451,8 +474,8 @@ export default function OrderSummaryPage() {
   };
 
 
-  const pickupRequiresTime = storeHoursResult && !storeHoursResult.isOpenNow;
-  const canProceedPickup = orderType !== 'pickup' || !pickupRequiresTime || !!scheduledPickupAt;
+  const pickupRequiresTime = storeHoursResult && (!storeHoursResult.isOpenNow || pickupOption === 'scheduled');
+  const canProceedPickup = !!storeHoursResult && !storeHoursLoading && (!pickupRequiresTime || (!!scheduledPickupAt && new Date(scheduledPickupAt).getTime() > Date.now() && (orderType !== 'delivery' || !!scheduledDeliveryAt)));
 
   if (isLoading) {
     return (
@@ -572,6 +595,13 @@ export default function OrderSummaryPage() {
                   </div>
                 )}
 
+                {loadingQuote && <p className="mt-4 text-sm" role="status">Checking delivery availability for your selected time…</p>}
+                {quoteError && (
+                  <div className="mt-4 text-sm text-red-600" role="alert">
+                    <p>{quoteError}</p>
+                    <button onClick={() => void getDeliveryQuote()} className="mt-2 underline">Retry delivery quote</button>
+                  </div>
+                )}
                 {deliveryQuote && !loadingQuote && (
                   <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
                     <div className="flex items-start justify-between mb-2">
@@ -594,7 +624,7 @@ export default function OrderSummaryPage() {
                       </div>
                     </div>
                     <button
-                      onClick={getDeliveryQuote}
+                      onClick={() => void getDeliveryQuote()}
                       className="mt-3 text-xs text-green-600 dark:text-green-400 hover:underline"
                     >
                       Refresh quote
@@ -619,14 +649,15 @@ export default function OrderSummaryPage() {
 
 
             {/* Pickup: store hours and pickup time */}
-            {orderType === 'pickup' && (
+            {orderType && (
               <div className="bg-white dark:bg-neutral-800 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 p-6">
                 <div className="flex items-center gap-3 mb-2">
                   <Icon icon={FaCheck} className="w-5 h-5 text-blue-600" />
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    Pickup Order
+                    {orderType === 'delivery' ? 'Delivery schedule' : 'Pickup Order'}
                   </h2>
                 </div>
+                {storeHoursError && <p role="alert" className="text-sm text-red-600">{storeHoursError}</p>}
                 {storeHoursLoading && (
                   <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 py-2">
                     <Icon icon={FaSpinner} className="w-4 h-4 animate-spin" />
@@ -637,11 +668,11 @@ export default function OrderSummaryPage() {
                   <>
                     {storeHoursResult.isOpenNow ? (
                       <p className="text-sm text-green-600 dark:text-green-400 mb-4">
-                        Store is open now. You can pick up as soon as ready or choose a time.
+                        Store is open now. Order as soon as ready or choose a time.
                       </p>
                     ) : (
                       <p className="text-sm text-amber-600 dark:text-amber-400 mb-4">
-                        Store is currently closed. This is a pre-order – please choose when you’d like to pick up.
+                        Store is currently closed. Please choose a future {orderType === 'delivery' ? 'pickup/ready time and delivery time' : 'pickup time'} to pre-order.
                       </p>
                     )}
                     <div className="space-y-3 mb-4">
@@ -653,6 +684,7 @@ export default function OrderSummaryPage() {
                             className="w-4 h-4 text-blue-600"
                             checked={pickupOption === 'asap'}
                             onChange={() => {
+                              setDeliveryDelayMinutes('');
                               setPickupOption('asap');
                               setScheduledPickupAt(null);
                               setSelectedPickupDate(null);
@@ -668,23 +700,25 @@ export default function OrderSummaryPage() {
                           className="w-4 h-4 text-blue-600"
                           checked={pickupOption === 'scheduled'}
                           onChange={() => {
+                            setDeliveryDelayMinutes('');
                             setPickupOption('scheduled');
                             const firstDay = storeHoursResult.pickupDayOptions[0];
-                            const first = firstDay?.slots[0]?.value ?? null;
                             setSelectedPickupDate(firstDay?.date ?? selectedPickupDate);
-                            setScheduledPickupAt(first ?? scheduledPickupAt);
+                            setScheduledPickupAt(null);
                           }}
                         />
                         <span className="text-sm text-gray-900 dark:text-white">
-                          {storeHoursResult.isOpenNow ? 'Choose a pickup time' : 'Pickup date & time (required)'}
+                          {orderType === 'delivery' ? 'Pickup/ready and delivery times (required)' : 'Choose a pickup time'}
                         </span>
                       </label>
                     </div>
+                    {pickupOption === 'scheduled' && storeHoursResult.pickupDayOptions.length === 0 && <p className="text-sm" role="status">No pickup times are available in the next seven days.</p>}
                     {pickupOption === 'scheduled' && storeHoursResult.pickupDayOptions.length > 0 && (
                       <div className="grid gap-3">
                         <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                          Pickup date &amp; time
+                          {orderType === 'delivery' ? 'Restaurant pickup / food-ready time' : 'Pickup date & time'}
                         </label>
+                        <p className="text-xs text-gray-500">All times are Australia/Melbourne.</p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md">
                           {/* Date picker (select) */}
                           <div className="flex flex-col gap-1">
@@ -695,11 +729,8 @@ export default function OrderSummaryPage() {
                               onChange={(e) => {
                                 const newDate = e.target.value;
                                 setSelectedPickupDate(newDate);
-                                const day = storeHoursResult.pickupDayOptions.find((d) => d.date === newDate);
-                                const firstSlot = day?.slots[0];
-                                if (firstSlot) {
-                                  setScheduledPickupAt(firstSlot.value);
-                                }
+                                setDeliveryDelayMinutes('');
+                                setScheduledPickupAt(null);
                               }}
                             >
                               {storeHoursResult.pickupDayOptions.map((day) => (
@@ -720,20 +751,14 @@ export default function OrderSummaryPage() {
                                 storeHoursResult.pickupDayOptions.find((d) => d.date === currentDate) ??
                                 storeHoursResult.pickupDayOptions[0];
                               const slots = day?.slots ?? [];
-                              const currentValue =
-                                scheduledPickupAt && slots.some((s) => s.value === scheduledPickupAt)
-                                  ? scheduledPickupAt
-                                  : slots[0]?.value ?? '';
-                              if (!scheduledPickupAt && slots[0]) {
-                                // Ensure we always have a value when there are slots
-                                setScheduledPickupAt(slots[0].value);
-                              }
+                              const currentValue = scheduledPickupAt ?? '';
                               return (
                                 <select
                                   className="h-10 rounded-lg border px-3 bg-white/80 dark:bg-neutral-900 text-sm"
                                   value={currentValue}
-                                  onChange={(e) => setScheduledPickupAt(e.target.value)}
+                                  onChange={(e) => { setScheduledPickupAt(e.target.value); setDeliveryDelayMinutes(''); }}
                                 >
+                                  <option value="" disabled>Select pickup/ready time</option>
                                   {slots.map((slot) => (
                                     <option key={slot.value} value={slot.value}>
                                       {slot.label}
@@ -744,13 +769,26 @@ export default function OrderSummaryPage() {
                             })()}
                           </div>
                         </div>
+                        {orderType === 'delivery' && scheduledPickupAt && (
+                          <label className="grid gap-1 max-w-md text-sm">
+                            Delivery time (Australia/Melbourne)
+                            <select className="h-10 rounded-lg border px-3 bg-white dark:bg-neutral-900" value={deliveryDelayMinutes} onChange={e => setDeliveryDelayMinutes(e.target.value)}>
+                              <option value="" disabled>Select delivery time</option>
+                              {[15, 30, 45, 60, 75, 90].map(minutes => (
+                                <option key={minutes} value={minutes}>
+                                  {new Date(new Date(scheduledPickupAt).getTime() + minutes * 60000).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        )}
                       </div>
                     )}
                     <button
                       onClick={() => setOrderType(null)}
                       className="mt-4 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
                     >
-                      Change to delivery order
+                      Change order type
                     </button>
                   </>
                 )}
@@ -1090,15 +1128,15 @@ export default function OrderSummaryPage() {
                     onClick={handleProceedToCheckout}
                     disabled={
                       (orderType === 'delivery' && (!deliveryAddress || !deliveryQuote)) ||
-                      (orderType === 'pickup' && !canProceedPickup)
+                      !canProceedPickup
                     }
                     className="block w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
                   >
                     <Icon icon={FaDollarSign} className="w-4 h-4" />
                     {orderType === 'delivery' && (!deliveryAddress || !deliveryQuote)
                       ? 'Complete Delivery Info'
-                      : orderType === 'pickup' && !canProceedPickup
-                        ? 'Select Pickup Time'
+                      : !canProceedPickup
+                        ? (orderType === 'delivery' ? 'Select Pickup & Delivery Times' : 'Select Pickup Time')
                         : 'Continue Checkout'}
                   </button>
                 )}

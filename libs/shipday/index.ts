@@ -130,14 +130,15 @@ class ShipdayClient {
    * Shipday doesn't have a direct "pre-order" quote API.
    * We use the on-demand availability API and return the cheapest valid option.
    */
-  async requestQuote(pickup: DeliveryAddress, dropoff: DeliveryAddress): Promise<DeliveryQuote> {
+  async requestQuote(pickup: DeliveryAddress, dropoff: DeliveryAddress, schedule: { pickup_at?: string | null; delivery_at?: string | null } = {}): Promise<DeliveryQuote> {
     const pickupStr = [pickup.address_line1, pickup.city, pickup.state, pickup.postcode].filter(Boolean).join(', ');
     const dropoffStr = [dropoff.address_line1, dropoff.city, dropoff.state, dropoff.postcode].filter(Boolean).join(', ');
 
     console.log('[Shipday] Requesting availability quote:', { pickupStr, dropoffStr });
 
     try {
-      const deliveryTime = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+      const requestedPickupTime = schedule.pickup_at || new Date(Date.now() + 10 * 60 * 1000).toISOString();
+      const deliveryTime = schedule.delivery_at || new Date(new Date(requestedPickupTime).getTime() + 30 * 60 * 1000).toISOString();
       console.log(JSON.stringify({
         pickupAddress: pickupStr,
         deliveryAddress: dropoffStr,
@@ -152,7 +153,8 @@ class ShipdayClient {
         body: JSON.stringify({
           pickupAddress: pickupStr,
           deliveryAddress: dropoffStr,
-          deliveryTime: deliveryTime
+          deliveryTime: deliveryTime,
+          pickUpTime: requestedPickupTime
         })
       });
 
@@ -300,6 +302,7 @@ class ShipdayClient {
     const placedAt = this.parseIsoDate(req.placed_at) ?? new Date();
     const expectedPickupAt =
       this.parseIsoDate(req.expected_pickup_at) ?? new Date(placedAt.getTime() + 10 * 60 * 1000);
+    const expectedDeliveryAt = this.parseIsoDate(req.expected_delivery_at) ?? new Date(expectedPickupAt.getTime() + 30 * 60000);
     const paymentMethod = this.normalizePaymentMethod(req.payment_method);
 
     const payload = {
@@ -312,6 +315,8 @@ class ShipdayClient {
       restaurantAddress: req.pickup_address || this.getStoreAddressFallback(),
       restaurantPhoneNumber: this.getStorePhone(),
       expectedPickupTime: this.toShipdayTime(expectedPickupAt),
+      expectedDeliveryDate: this.toShipdayDate(expectedDeliveryAt),
+      expectedDeliveryTime: this.toShipdayTime(expectedDeliveryAt),
       pickupLatitude: req.pickup_latitude ?? undefined,
       pickupLongitude: req.pickup_longitude ?? undefined,
       deliveryLatitude: req.delivery_latitude ?? undefined,

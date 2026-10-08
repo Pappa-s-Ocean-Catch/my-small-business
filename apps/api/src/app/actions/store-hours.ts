@@ -24,17 +24,19 @@ export interface StoreHoursForOrderResult {
 export async function getStoreHoursForOrder(): Promise<StoreHoursForOrderResult> {
   const supabase = await createServerSupabaseClient();
 
-  const { data: storeHoursRow } = await supabase
+  const { data: storeHoursRow, error: hoursError } = await supabase
     .from('settings')
     .select('value')
     .eq('key', 'store_hours')
     .maybeSingle();
 
-  const { data: defaultsRow } = await supabase
+  const { data: defaultsRow, error: defaultsError } = await supabase
     .from('settings')
     .select('value')
     .eq('key', 'defaults')
     .maybeSingle();
+
+  if (hoursError || defaultsError) throw new Error('Unable to load store hours. Please try again.');
 
   let storeHours: StoreHours;
 

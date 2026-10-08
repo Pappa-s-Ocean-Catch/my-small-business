@@ -1,5 +1,7 @@
 'use client';
 
+import { clearSessionSchedule } from '@/lib/order-schedule-session';
+
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { getOrCreateCart, saveCart, clearCart as clearCartDB, type CartItemData } from '@/app/actions/cart';
 
@@ -271,6 +273,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const clearCart = useCallback(async () => {
     setItems([]);
+    if (typeof window !== 'undefined') clearSessionSchedule(window.sessionStorage);
     if (sessionId) {
       try {
         await clearCartDB(sessionId);

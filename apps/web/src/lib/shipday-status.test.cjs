@@ -13,6 +13,8 @@ function loadSource(filename, dependencies) {
   const localRequire = (name) => {
     if (Object.hasOwn(dependencies, name)) return dependencies[name];
     if (name.startsWith('@/')) return loadSource(path.resolve(__dirname, '..', name.slice(2) + '.ts'), dependencies);
+    if (name === '@my-small-business/shipday/scheduling') return loadSource(require.resolve(name), dependencies);
+    if (name.startsWith('.')) return loadSource(path.resolve(path.dirname(filename), name + '.ts'), dependencies);
     return require(name);
   };
   new Function('require', 'module', 'exports', output)(localRequire, loaded, loaded.exports);
@@ -90,7 +92,7 @@ function setup({ status, duplicate = false, orderStatus = 'ready', paymentStatus
     };
   }
   const actions = loadSource(path.resolve(__dirname, '../app/actions/shipday.ts'), dependencies);
-  const webhook = loadSource(path.resolve(__dirname, '../app/api/webhooks/shipday/route.ts'), dependencies);
+  const webhook = loadSource(path.resolve(__dirname, '../../../api/src/app/api/webhooks/shipday/route.ts'), dependencies);
   return {
     order, writes, events,
     refresh: () => actions.refreshShipdayOrderStatus(order.id),
