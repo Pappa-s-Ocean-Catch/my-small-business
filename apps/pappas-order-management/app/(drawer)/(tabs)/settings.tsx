@@ -99,6 +99,9 @@ export default function SettingsScreen() {
     const [printerDelayPrintSecText, setPrinterDelayPrintSecText] = useState(
         String(DEFAULT_APP_SETTINGS.printerDelayPrintSec)
     );
+    const [printerClaimDelaySecText, setPrinterClaimDelaySecText] = useState(
+        String(DEFAULT_APP_SETTINGS.printerClaimDelaySec)
+    );
     const [printerPaperWidth, setPrinterPaperWidth] = useState<'58mm' | '80mm'>(DEFAULT_APP_SETTINGS.printerPaperWidth);
     const [printerReceiptMode, setPrinterReceiptMode] = useState(DEFAULT_APP_SETTINGS.printerReceiptMode);
     const [printerHighQuality, setPrinterHighQuality] = useState<boolean>(DEFAULT_APP_SETTINGS.printerHighQuality);
@@ -153,6 +156,7 @@ export default function SettingsScreen() {
         setPrinterSelectedTarget(currentSettings.printerSelectedTarget);
         setPrinterSectionAssignments(currentSettings.printerSectionAssignments);
         setPrinterDelayPrintSecText(String(currentSettings.printerDelayPrintSec));
+        setPrinterClaimDelaySecText(String(currentSettings.printerClaimDelaySec));
         setPrinterPaperWidth(currentSettings.printerPaperWidth);
         setPrinterReceiptMode(currentSettings.printerReceiptMode);
         setPrinterHighQuality(currentSettings.printerHighQuality);
@@ -621,6 +625,7 @@ export default function SettingsScreen() {
         const callerIdDisplaySeconds = parseIntOr(callerIdDisplaySecondsText, DEFAULT_APP_SETTINGS.callerIdDisplaySeconds);
         const callerIdSipResponses = callerIdSipResponsesText.split(',').map(s => s.trim()).filter(s => s.length > 0);
         const printerDelayPrintSec = parseIntOr(printerDelayPrintSecText, DEFAULT_APP_SETTINGS.printerDelayPrintSec);
+        const printerClaimDelaySec = parseIntOr(printerClaimDelaySecText, DEFAULT_APP_SETTINGS.printerClaimDelaySec);
 
         if (refreshIntervalSec < 5 || refreshIntervalSec > 600) {
             Alert.alert('Invalid refresh interval', 'Please enter a value between 5 and 600 seconds.');
@@ -647,6 +652,11 @@ export default function SettingsScreen() {
         }
         if (printerDelayPrintSec < 0 || printerDelayPrintSec > 120) {
             Alert.alert('Invalid print delay', 'Please enter a value between 0 and 120 seconds.');
+            return;
+        }
+
+        if (printerClaimDelaySec < 0 || printerClaimDelaySec > 120) {
+            Alert.alert('Invalid claim delay', 'Please enter a value between 0 and 120 seconds.');
             return;
         }
 
@@ -740,6 +750,7 @@ export default function SettingsScreen() {
                 printerSaved,
                 printerSectionAssignments: normalizedAssignments,
                 printerDelayPrintSec,
+                printerClaimDelaySec,
                 printerPaperWidth,
                 printerReceiptMode,
                 printerHighQuality,
@@ -1652,7 +1663,18 @@ export default function SettingsScreen() {
                                             style={styles.input}
                                             disabled={!hasPrinterCapability || !printerAutoPrint}
                                         />
-                                        <Text style={styles.helper}>Wait before printing a new order (0 to 120).</Text>
+                                        <Text style={styles.helper}>Wait before printing a new order (0 to 120). Set 0 for no scheduled delay.</Text>
+
+                                        <TextInput
+                                            mode="outlined"
+                                            label="Auto-print claim delay on this POS (seconds)"
+                                            value={printerClaimDelaySecText}
+                                            onChangeText={setPrinterClaimDelaySecText}
+                                            keyboardType="number-pad"
+                                            style={styles.input}
+                                            disabled={!hasPrinterCapability || !printerAutoPrint}
+                                        />
+                                        <Text style={styles.helper}>Set 0 on the primary printing tablet and 1 or more on staff tablets to give the primary a head start. If the order remains unclaimed, this POS can print it. Range: 0 to 120 seconds.</Text>
 
                                         <View style={styles.separator} />
                                         <Text style={styles.label}>In-store customer receipt</Text>

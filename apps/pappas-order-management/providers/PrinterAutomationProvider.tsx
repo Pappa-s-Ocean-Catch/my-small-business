@@ -36,7 +36,7 @@ import { buildKitchenReceiptDocument } from '@/lib/kitchen-receipt-document';
 import { getOrderPrintIntegrityWarning } from '@/lib/order-print-integrity';
 import { buildInstoreInstantTicketDocument, getInstoreInstantTicketDebugDetails, getInstoreInstantTicketPrintJob } from '@/lib/instore-instant-ticket';
 import { getAutoPrintableLiveOrders } from '@/lib/live-order-window';
-import { getOrderAnnouncementDelayMs } from '@/lib/marketplace-print-scheduling';
+import { getOrderAnnouncementDelayMs, getPrintDelayMs, waitForPrintClaimDelay } from '@/lib/marketplace-print-scheduling';
 import { getFriendlyOrderNumber } from '@/utils/orderNumber';
 import { playNewOrderSound } from '@/lib/sounds';
 import { usePrinterAutomationStore, type JournalLevel } from '@/stores/printerAutomationStore';
@@ -116,8 +116,6 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
       details: reason,
     });
   }, [logOrderEvent, showToast]);
-
-  const getPrintDelayMs = useCallback(() => Math.max(2000, (appSettings.printerDelayPrintSec || 3) * 1000), [appSettings.printerDelayPrintSec]);
 
   const waitForReceiptTemplateRef = useCallback(async () => {
     for (let attempt = 0; attempt < RECEIPT_REF_MAX_ATTEMPTS; attempt++) {
@@ -302,7 +300,15 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
       }
       autoPrintingOrderIdsRef.current.add(order.id);
 
-      const effectiveSettings = await loadAppSettings().catch(() => appSettings);
+      let effectiveSettings = await loadAppSettings().catch(() => appSettings);
+      if (effectiveSettings.printerClaimDelaySec > 0) {
+        logOrderEvent('decision', 'claim', 'Waiting before attempting auto-print claim', {
+          order,
+          details: `Claim delay=${effectiveSettings.printerClaimDelaySec}s on this POS`,
+        });
+        await waitForPrintClaimDelay(effectiveSettings.printerClaimDelaySec);
+        effectiveSettings = await loadAppSettings().catch(() => appSettings);
+      }
 
       if (!effectiveSettings.printerAutoPrint || (!effectiveSettings.printerEnabled && !hasAnySimulatorAssignment(effectiveSettings))) {
         processedOrderIdsRef.current.delete(order.id);
@@ -697,7 +703,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
     if (pendingAnnouncementTimersRef.current.has(order.id)) return;
     if (announcingOrderIdsRef.current.has(order.id)) return;
 
-    const delayMs = getPrintDelayMs();
+    const delayMs = getPrintDelayMs(appSettings.printerDelayPrintSec);
     const dueInMs = getOrderAnnouncementDelayMs(
       order,
       delayMs,
@@ -722,7 +728,7 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
       order: { id: order.id },
       details: `Due in ${dueInMs}ms (${order.order_channel === 'third_party' ? 'marketplace arrival' : 'order creation'})`,
     });
-  }, [appSettings.instoreOrderAutoPrintEnabled, fetchAndAnnounceOrder, getPrintDelayMs, logOrderEvent]);
+  }, [appSettings.instoreOrderAutoPrintEnabled, appSettings.printerDelayPrintSec, fetchAndAnnounceOrder, logOrderEvent]);
 
   const scanScheduledOrdersForAutoPrint = useCallback(async () => {
     try {

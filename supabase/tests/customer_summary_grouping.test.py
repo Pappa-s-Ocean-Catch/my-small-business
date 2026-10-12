@@ -16,6 +16,7 @@ class CustomerSummaryGroupingTest(unittest.TestCase):
             path.read_text() for path in sorted(migrations.glob("*.sql"))
             if re.search(r"CREATE (?:OR REPLACE )?VIEW public.customer_summary AS", path.read_text())
         ]
+        self.definition = definitions[-1]
         expression = re.search(r"GROUP BY (CASE[\s\S]*?END)", definitions[-1]).group(1)
         self.expression = expression.replace("::text", "")
         self.db = sqlite3.connect(":memory:")
@@ -34,6 +35,21 @@ class CustomerSummaryGroupingTest(unittest.TestCase):
         return self.db.execute(
             f"SELECT COUNT(*), SUM(total) FROM orders GROUP BY {self.expression} ORDER BY COUNT(*) DESC"
         ).fetchall()
+
+    def summary_name(self, profile_name, order_name):
+        expression = re.search(r'SELECT\s+cp\."foundProfileId" AS id,\s*([\s\S]*?),\s*cp\.customer_email', self.definition).group(1)
+        expression = expression.replace(' AS name', '')
+        return self.db.execute(
+            f"SELECT {expression} FROM (SELECT ? AS name) cp CROSS JOIN (SELECT ? AS full_name) p",
+            (order_name, profile_name),
+        ).fetchone()[0]
+
+    def test_saved_profile_name_overrides_unknown_order_name(self):
+        self.assertEqual(self.summary_name('Alice', 'Unknown'), 'Alice')
+
+    def test_missing_profile_name_preserves_order_name(self):
+        for name in (None, '', '  '):
+            self.assertEqual(self.summary_name(name, 'Guest'), 'Guest')
 
     def test_anonymous_instore_is_one_customer(self):
         self.add("cash", total=15)

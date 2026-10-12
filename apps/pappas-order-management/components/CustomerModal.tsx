@@ -212,11 +212,11 @@ export function CustomerModal({
 
     setSavingName(true);
     try {
-      const result = await updateCustomerNameByContact({ profileId: customer?.profileId, name: trimmedName });
+      await updateCustomerNameByContact({ profileId: customer?.profileId, name: trimmedName });
       setCustomer((current) => (current ? { ...current, name: trimmedName } : current));
       setShowEditCustomerModal(false);
       onCustomerUpdated?.();
-      Alert.alert('Saved', result.updatedCount > 0 ? 'Customer name updated successfully.' : 'Name saved for this customer.');
+      Alert.alert('Saved', 'Customer name updated successfully.');
     } catch (saveError: any) {
       Alert.alert('Error', saveError?.message || 'Failed to update customer name.');
     } finally {

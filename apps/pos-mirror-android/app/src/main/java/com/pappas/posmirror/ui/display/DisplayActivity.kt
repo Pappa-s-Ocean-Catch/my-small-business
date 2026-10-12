@@ -446,7 +446,11 @@ class DisplayActivity : AppCompatActivity() {
 
             val count = snapshot.itemCount
             binding.tvItemCount.text = "$count item${if (count == 1) "" else "s"}"
-            orderLineAdapter.submitList(snapshot.items)
+            val topItemChanged = snapshot.items.firstOrNull()?.id != orderLineAdapter.currentList.firstOrNull()?.id
+            orderLineAdapter.submitList(snapshot.items) {
+                // Diff updates can preserve the old row's scroll position and hide a new top item.
+                if (topItemChanged) binding.rvOrderLines.scrollToPosition(0)
+            }
 
             binding.tvTotalToPay.text = String.format(Locale.US, "$%.2f", snapshot.total)
 

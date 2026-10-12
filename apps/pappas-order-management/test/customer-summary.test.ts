@@ -14,12 +14,39 @@ const marketplaceOrders = [{
   order_status: 'completed',
 }];
 
+let updateResult: { data: { id: string }[] | null; error: { message: string } | null } = { data: [], error: null };
+let profileName: string | null = 'Saved Customer';
+
 const originalLoad = (Module as unknown as { _load: (...args: unknown[]) => unknown })._load;
 (Module as unknown as { _load: (...args: unknown[]) => unknown })._load = (request: unknown, parent: unknown, isMain: unknown) => {
   if (request === '@/lib/supabase') {
     return {
       supabase: {
         from(table: string) {
+          if (table === 'profiles') {
+            const query = {
+              select: () => query,
+              eq: (column: string, value: string) => {
+                assert.equal(column, 'id');
+                assert.equal(value, 'marketplace-profile-1');
+                return query;
+              },
+              limit: () => Promise.resolve({ data: [{ full_name: profileName }], error: null }),
+              update: (value: { full_name: string }) => {
+                assert.equal(value.full_name, 'New Name');
+                const update = {
+                  eq: (column: string, id: string) => {
+                    assert.equal(column, 'id');
+                    assert.equal(id, 'marketplace-profile-1');
+                    return update;
+                  },
+                  select: () => Promise.resolve(updateResult),
+                };
+                return update;
+              },
+            };
+            return query;
+          }
           if (table === 'orders') {
             const query = {
               select: () => query,
@@ -50,7 +77,7 @@ const originalLoad = (Module as unknown as { _load: (...args: unknown[]) => unkn
   return originalLoad(request, parent, isMain);
 };
 
-const { fetchCustomerSummary } = require('../utils/customerSummary') as typeof import('../utils/customerSummary');
+const { fetchCustomerSummary, updateCustomerNameByContact } = require('../utils/customerSummary') as typeof import('../utils/customerSummary');
 
 test('loads a marketplace customer and all linked orders by profile ID without contact details', async () => {
   const summary = await fetchCustomerSummary({ profileId: 'marketplace-profile-1' });
@@ -64,4 +91,31 @@ test('loads a marketplace customer and all linked orders by profile ID without c
   }]);
   assert.equal(summary?.profileId, 'marketplace-profile-1');
   assert.equal(summary?.totalOrders, 1);
+});
+
+test('refresh uses the saved profile name rather than a historical order name', async () => {
+  profileName = 'Saved Customer';
+  const summary = await fetchCustomerSummary({ profileId: 'marketplace-profile-1' });
+  assert.equal(summary?.name, 'Saved Customer');
+});
+
+test('falls back to the order name when the profile has no name', async () => {
+  profileName = '  ';
+  const summary = await fetchCustomerSummary({ profileId: 'marketplace-profile-1' });
+  assert.equal(summary?.name, 'Marketplace customer');
+});
+
+test('does not report success when RLS or a missing profile causes a zero-row update', async () => {
+  updateResult = { data: [], error: null };
+  await assert.rejects(updateCustomerNameByContact({ profileId: 'marketplace-profile-1', name: 'New Name' }));
+});
+
+test('reports a persisted update and trims the entered name', async () => {
+  updateResult = { data: [{ id: 'marketplace-profile-1' }], error: null };
+  assert.deepEqual(await updateCustomerNameByContact({ profileId: 'marketplace-profile-1', name: ' New Name ' }), { updatedCount: 1 });
+});
+
+test('propagates database update errors', async () => {
+  updateResult = { data: null, error: { message: 'Permission denied' } };
+  await assert.rejects(updateCustomerNameByContact({ profileId: 'marketplace-profile-1', name: 'New Name' }), /Permission denied/);
 });

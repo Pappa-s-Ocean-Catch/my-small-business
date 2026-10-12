@@ -17,3 +17,16 @@ export function getOrderAnnouncementDelayMs(
     ? Math.max(0, createdAtMs + printerDelayMs - nowMs)
     : printerDelayMs;
 }
+
+/** Convert the configured order delay without replacing an explicit zero. */
+export function getPrintDelayMs(seconds: number = 3): number {
+  return Math.min(120, Math.max(0, Number.isFinite(seconds) ? seconds : 3)) * 1000;
+}
+
+/** Give another tablet a head start before competing for the database claim. */
+export function waitForPrintClaimDelay(seconds: number = 0): Promise<void> {
+  const delayMs = getPrintDelayMs(Number.isFinite(seconds) ? seconds : 0);
+  return delayMs > 0
+    ? new Promise((resolve) => setTimeout(resolve, delayMs))
+    : Promise.resolve();
+}

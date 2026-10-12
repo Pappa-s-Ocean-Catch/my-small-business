@@ -54,7 +54,7 @@ export async function fetchCustomerSummary({ email, phone, profileId }: { email?
         throw new Error(error.message);
     }
     if (!orders || orders.length === 0) return null;
-    const name = orders[0].customer_name || '';
+    let name = orders[0].customer_name || '';
     const signUpDate = orders[0].created_at;
     const totalOrders = orders.length;
     const lastOrderDate = orders[orders.length - 1].created_at;
@@ -91,6 +91,17 @@ export async function fetchCustomerSummary({ email, phone, profileId }: { email?
 
     let rewardHistory: CustomerRewardHistoryItem[] = [];
     if (resolvedProfileId) {
+        const { data: profileRows, error: profileError } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', resolvedProfileId)
+            .limit(1);
+
+        if (profileError) {
+            throw new Error(profileError.message);
+        }
+        name = profileRows?.[0]?.full_name?.trim() || name;
+
         const { data: rewardRows, error: rewardError } = await supabase
             .from('reward_point_transactions')
             .select('id, order_id, transaction_type, points, points_balance_after, description, metadata, created_at')
@@ -159,5 +170,9 @@ export async function updateCustomerNameByContact({
         throw new Error(error.message);
     }
 
-    return { updatedCount: data?.length ?? 0 };
+    if (!data?.length) {
+        throw new Error('Customer name was not updated. The profile may be missing or you may not have permission to edit it.');
+    }
+
+    return { updatedCount: data.length };
 }

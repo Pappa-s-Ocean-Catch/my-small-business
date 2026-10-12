@@ -167,6 +167,8 @@ export type AppSettings = MarketplaceAutoSyncSettings & {
     printerSectionAssignments: PrinterSectionAssignment[];
     /** Seconds to wait before auto-printing a new kitchen ticket. */
     printerDelayPrintSec: number;
+    /** Per-device head start for other tablets before automatic claim acquisition. */
+    printerClaimDelaySec: number;
 
     printerPaperWidth: '58mm' | '80mm';
     printerReceiptMode: PrinterReceiptMode;
@@ -251,6 +253,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     }],
 
     printerDelayPrintSec: 3,
+    printerClaimDelaySec: 0,
     printerPaperWidth: '80mm',
     printerReceiptMode: 'text',
     printerHighQuality: true,
@@ -375,6 +378,14 @@ export async function loadAppSettings(): Promise<AppSettings> {
             120
         );
 
+        const printerClaimDelaySec = clampInt(
+            typeof parsed?.printerClaimDelaySec === 'number'
+                ? parsed.printerClaimDelaySec
+                : DEFAULT_APP_SETTINGS.printerClaimDelaySec,
+            0,
+            120
+        );
+
         const result: AppSettings = {
             registerName: diagnosticSettings.registerName,
             refreshIntervalSec,
@@ -404,6 +415,7 @@ export async function loadAppSettings(): Promise<AppSettings> {
             printerSectionAssignments,
 
             printerDelayPrintSec,
+            printerClaimDelaySec,
             printerPaperWidth: parsed?.printerPaperWidth === '58mm' ? '58mm' : '80mm',
             printerReceiptMode: normalizePrinterReceiptMode(parsed?.printerReceiptMode),
             printerHighQuality: typeof (parsed as any)?.printerHighQuality === 'boolean'
@@ -461,6 +473,7 @@ export async function saveAppSettings(settings: AppSettings): Promise<void> {
         ),
 
         printerDelayPrintSec: clampInt(settings.printerDelayPrintSec, 0, 120),
+        printerClaimDelaySec: clampInt(settings.printerClaimDelaySec ?? 0, 0, 120),
         printerPaperWidth: settings.printerPaperWidth === '58mm' ? '58mm' : '80mm',
         printerReceiptMode: normalizePrinterReceiptMode(settings.printerReceiptMode),
         printerHighQuality: !!settings.printerHighQuality,
