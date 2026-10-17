@@ -1,4 +1,44 @@
-import type { OrderItem } from '@my-small-business/types';
+import type { Order, OrderItem } from '@my-small-business/types';
+
+export function restorePosOrderPromotions<T extends PosPromotionCartItem>(
+  order: Pick<Order, 'promotion_discount' | 'promotions_applied'>,
+  items: T[],
+) {
+  const promotions = Array.isArray(order.promotions_applied) ? order.promotions_applied : [];
+  const freePromotions = promotions.filter((entry) => entry?.kind === 'free_item');
+  let selectedFreeItemId: string | null = null;
+  let restoredItems = items;
+
+  for (const entry of freePromotions) {
+    // Checkout cart IDs (and IDs from earlier POS edits) do not survive insertion.
+    // The saved display name distinguishes the free row from a paid identical product.
+    const item = items.find((candidate) => candidate.id === entry.selected_item_id)
+      ?? items.find((candidate) => candidate.product_name === entry.selected_item_name);
+    if (!item?.id) continue;
+    selectedFreeItemId = item.id;
+    const threshold = Number(entry.threshold ?? 0) || 0;
+    const suffix = threshold > 0
+      ? ` on orders over $${Number.isInteger(threshold) ? threshold.toFixed(0) : threshold.toFixed(2)}`
+      : '';
+    let name = item.product_name;
+    if (name.startsWith('FREE ')) {
+      name = name.slice(5);
+      if (suffix && name.endsWith(suffix)) name = name.slice(0, -suffix.length);
+    }
+    restoredItems = items.map((candidate) => candidate.id === item.id
+      ? { ...candidate, product_name: name }
+      : candidate);
+    break;
+  }
+
+  return {
+    items: restoredItems,
+    selectedFreeItemId,
+    promotionDiscount: clampCurrency((Number(order.promotion_discount) || 0)
+      - freePromotions.reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0)),
+    promotionsApplied: promotions.filter((entry) => entry?.kind !== 'free_item'),
+  };
+}
 
 export type PosPromotion = {
   id: string;

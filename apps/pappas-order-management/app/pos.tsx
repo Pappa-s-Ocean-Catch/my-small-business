@@ -32,6 +32,7 @@ import { getEditedPosOrderPaymentUpdate } from '../lib/order-payment-status';
 import { applyRewardPointsToOrder, fetchRewardPointsSettings, type RewardPointsSettings } from '../lib/reward-points';
 import {
   computePosFreeItemPromotion,
+  restorePosOrderPromotions,
   getFreeItemDisplayName,
   isPromotionActiveNow,
   type PosPromotion,
@@ -750,7 +751,7 @@ export default function PosScreen() {
         return;
       }
 
-      const items = (order.order_items || []).map((item: any) => ({
+      const items: PosCartItem[] = (order.order_items || []).map((item: any) => ({
         ...item,
         base_price: Number(item.base_price || 0),
         override_price: item.override_price == null ? null : Number(item.override_price),
@@ -759,15 +760,21 @@ export default function PosScreen() {
         removed_ingredients: item.removed_ingredients || [],
         addons: item.order_item_addons || [],
       }));
+      const restoredPromotions = restorePosOrderPromotions(order as Order, items);
       setEditingOrder(order as Order);
-      setCartItems(items);
+      setCartItems(restoredPromotions.items);
+      setSelectedFreeItemId(restoredPromotions.selectedFreeItemId);
       setCustomerPhone(order.customer_phone || '');
       setCustomerName(order.customer_name || '');
       setRewardPointsToUse(Number(order.reward_points_used ?? 0));
       setRewardPointsValue(Number(order.reward_points_value ?? 0));
       setQuickOrderNote(getOrderOptions(order)[0] || null);
       setOrderNoteText(getOrderNotes(order) || '');
-      setDiscountConfig(getDiscountConfigFromOrder(order as Order));
+      setDiscountConfig(getDiscountConfigFromOrder({
+        ...order,
+        promotion_discount: restoredPromotions.promotionDiscount,
+        promotions_applied: restoredPromotions.promotionsApplied,
+      } as Order));
       setPaymentChoice(
         order.payment_status !== 'paid'
           ? 'no_pay'
