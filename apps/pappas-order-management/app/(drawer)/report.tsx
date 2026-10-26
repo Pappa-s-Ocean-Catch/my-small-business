@@ -1,13 +1,20 @@
+import { ActionButton as Button } from '@/components/ui/ActionButton';
+import { ManualPrintButton } from '@/components/printer/ManualPrintButton';
+import { enqueuePreparedPrintJobs, waitForPrintJobs } from '@/lib/print-queue';
+import { EditorSheet } from '@/components/ui/EditorSheet';
+import { ChoiceTabs } from '@/components/ui/ChoiceTabs';
+import { WorkspaceHeader } from '@/components/ui';
+import { designTokens as t } from '@/lib/redesign';
+import { FormField, MetricCard, Panel, SectionHeader } from '@/components/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Modal,
   Platform,
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
-  TouchableOpacity,
   View,
   useWindowDimensions,
 } from 'react-native';
@@ -15,8 +22,7 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import { useNavigation } from '@react-navigation/native';
 import { isCompactPhoneWidth } from '@/lib/responsive';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
-import { Appbar, Button, IconButton, Surface, Text, TextInput } from 'react-native-paper';
-import { BRAND_COLORS } from '@/utils/brand';
+import { IconButton, Menu, Surface, Text } from 'react-native-paper';
 import { LineChart, type lineDataItem } from 'react-native-gifted-charts';
 import type { Order } from '@my-small-business/types';
 import { ReportPrintTemplate } from '@/components/ReportPrintTemplate';
@@ -24,7 +30,7 @@ import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
 import { useAppSettingsQuery } from '@/hooks/useAppSettingsQuery';
 import { useStoreInfo } from '@/hooks/useStoreInfo';
 import { captureReceiptForPrinter, captureReceiptPreview } from '@/lib/printer-image';
-import { escposPrintOrderImage, formatPrinterError, isSimulatorPrinter, type SavedPrinter } from '@/lib/escpos-printer';
+import { formatPrinterError, isSimulatorPrinter, type SavedPrinter } from '@/lib/escpos-printer';
 import { buildReportPrintSnapshot, REPORT_RECEIPT_WIDTH } from '@/lib/report-printing';
 import { clampRollingDays, getRollingReportRanges } from '@/lib/report-periods';
 import { buildDailyReportBreakdown } from '@/lib/report-daily-breakdown';
@@ -69,13 +75,13 @@ const REPORT_TILES: ReportTile[] = [
     type: 'daily',
     title: 'Sales report',
     description: 'Single day trading, 30 minute sales trend, payment mix, and channel split.',
-    accent: '#2563eb',
+    accent: t.color.primary,
   },
   {
     type: 'weekly',
     title: 'Weekly sales',
     description: 'Monday to Sunday totals grouped by date with previous week comparison.',
-    accent: '#059669',
+    accent: t.color.success,
   },
   {
     type: 'monthly',
@@ -104,7 +110,7 @@ const REPORT_LABELS: Record<ReportType, string> = {
   rolling: 'Last X days',
 };
 
-const money = (value: number) => `$${Math.round(value).toLocaleString('en-AU')}`;
+const money = (value: number) => `${value < 0 ? '−' : ''}$${Math.round(Math.abs(value)).toLocaleString('en-AU')}`;
 
 const parseLocalDate = (dateString: string) => {
   const [year, month, day] = dateString.split('-').map(Number);
@@ -272,20 +278,11 @@ const getDiscountTotal = (orders: Order[]) => (
 );
 
 const buildChartData = (buckets: ChartBucket[]): lineDataItem[] => (
-  buckets.map((bucket, index) => {
-    const showLabel = buckets.length <= 7 || index % Math.max(1, Math.ceil(buckets.length / 6)) === 0 || index === buckets.length - 1;
+  buckets.map((bucket) => {
     return {
       value: bucket.total,
       label: bucket.label,
-      dataPointLabelComponent: bucket.total > 0
-        ? () => <Text style={styles.dataPointLabel}>{money(bucket.total)}</Text>
-        : undefined,
-      dataPointLabelShiftX: index === 0 ? 0 : index === buckets.length - 1 ? -36 : -18,
-      dataPointLabelShiftY: -12,
-      dataPointLabelWidth: 48,
-      labelComponent: () => (
-        <Text style={styles.chartXAxisLabel}>{showLabel ? bucket.label : ''}</Text>
-      ),
+      labelComponent: () => null,
     };
   })
 );
@@ -293,45 +290,50 @@ const buildChartData = (buckets: ChartBucket[]): lineDataItem[] => (
 function ComparisonChart({
   current,
   compare,
-  width,
   chartKey,
 }: {
   current: ChartBucket[];
   compare: ChartBucket[];
-  width: number;
   chartKey: string;
 }) {
-  const chartWidth = Math.max(320, width - 92);
+  const [availableWidth, setAvailableWidth] = useState(0);
+  const { fontScale } = useWindowDimensions();
   const maxValue = Math.max(1, ...current.map((b) => b.total), ...compare.map((b) => b.total));
   const roundedMaxValue = Math.ceil(maxValue / 50) * 50 || 50;
-  const spacing = Math.max(6, (chartWidth - 24) / Math.max(1, current.length - 1));
+  // Gifted Charts adds the Y-axis gutter outside its plot width. Measure the
+  // actual card body so rail, split view, padding, and text scaling are included.
+  const axisLabelWidth = Math.max(44, Math.ceil((String(roundedMaxValue).length + 1) * 8 * fontScale + 12));
+  const chartWidth = Math.max(1, availableWidth - axisLabelWidth - 12);
+  const spacing = Math.max(0, (chartWidth - 48) / Math.max(1, Math.max(current.length, compare.length) - 1));
 
   return (
-    <View style={styles.chartWrap}>
-      <LineChart
+    <View style={styles.chartWrap} onLayout={(event) => setAvailableWidth(event.nativeEvent.layout.width)}>
+      {availableWidth > 0 && <LineChart
         key={chartKey}
         data={buildChartData(current)}
         data2={buildChartData(compare)}
         height={190}
         width={chartWidth}
+        parentWidth={availableWidth}
         maxValue={roundedMaxValue}
         noOfSections={4}
         spacing={spacing}
-        initialSpacing={8}
-        endSpacing={8}
-        color="#2563eb"
+        initialSpacing={24}
+        endSpacing={24}
+        color={t.color.primary}
         color2="#94a3b8"
         thickness={3}
         thickness2={3}
         strokeDashArray2={[6, 5]}
-        curved
-        areaChart
-        startFillColor="#bfdbfe"
-        endFillColor="#ffffff"
-        startOpacity={0.35}
-        endOpacity={0.02}
+        curved={false}
+        areaChart1
+        areaChart2={false}
+        startFillColor1={t.color.primary}
+        endFillColor1={t.color.primary}
+        startOpacity1={0.18}
+        endOpacity1={0.01}
         dataPointsRadius={3}
-        dataPointsColor="#2563eb"
+        dataPointsColor={t.color.primary}
         hideDataPoints2
         yAxisColor="#e5e7eb"
         xAxisColor="#e5e7eb"
@@ -339,15 +341,15 @@ function ComparisonChart({
         yAxisTextStyle={styles.chartAxisText}
         xAxisLabelTextStyle={styles.chartAxisText}
         yAxisLabelPrefix="$"
-        yAxisLabelWidth={44}
-        xAxisLabelsHeight={40}
+        yAxisLabelWidth={axisLabelWidth}
+        xAxisLabelsHeight={0}
         xAxisLabelsVerticalShift={8}
         disableScroll
         pointerConfig={{
           pointerStripHeight: 190,
           pointerStripColor: '#94a3b8',
           pointerStripWidth: 1,
-          pointerColor: '#2563eb',
+          pointerColor: t.color.primary,
           radius: 4,
           pointerLabelWidth: 128,
           pointerLabelHeight: 58,
@@ -361,20 +363,25 @@ function ComparisonChart({
             </View>
           ),
         }}
-      />
+      />}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingLeft: axisLabelWidth, paddingTop: 8 }}>
+        {[0, Math.floor((current.length - 1) / 2), current.length - 1].map((index) => <Text key={index} style={styles.chartAxisText}>{current[index]?.label}</Text>)}
+      </View>
     </View>
   );
 }
 
 export default function ReportScreen() {
   const navigation = useNavigation<DrawerNavigationProp<any>>();
-  const { width } = useWindowDimensions();
-  const isPhoneLayout = isCompactPhoneWidth(width);
+  const { fontScale } = useWindowDimensions();
+  const [contentWidth, setContentWidth] = useState(0);
+  const isPhoneLayout = isCompactPhoneWidth(contentWidth / fontScale);
   const requestIdRef = useRef(0);
   const reportReceiptRef = useRef<View>(null);
   const { data: appSettings = DEFAULT_APP_SETTINGS } = useAppSettingsQuery();
   const storeInfo = useStoreInfo();
   const [selectedReport, setSelectedReport] = useState<ReportType>('daily');
+  const [showCompareMenu, setShowCompareMenu] = useState(false);
   const [rollingDays, setRollingDays] = useState(15);
   const reportToday = formatDateInMelbourne(new Date());
   const [selectedDate, setSelectedDate] = useState(reportToday);
@@ -386,7 +393,6 @@ export default function ReportScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState<'current' | 'custom' | null>(null);
   const [draftDate, setDraftDate] = useState<Date>(parseLocalDate(reportToday));
-  const [showPrinterPicker, setShowPrinterPicker] = useState(false);
   const [isPrintingReport, setIsPrintingReport] = useState(false);
   const [showReportSimulator, setShowReportSimulator] = useState(false);
   const [reportPreviewUri, setReportPreviewUri] = useState<string | null>(null);
@@ -559,7 +565,6 @@ export default function ReportScreen() {
 
   const printReportToPrinter = async (printer: SavedPrinter) => {
     try {
-      setShowPrinterPicker(false);
       setIsPrintingReport(true);
       await new Promise((resolve) => setTimeout(resolve, 300));
       if (!reportReceiptRef.current) throw new Error('Report receipt is not ready yet.');
@@ -569,10 +574,14 @@ export default function ReportScreen() {
         return;
       }
       const image = await captureReceiptForPrinter(reportReceiptRef.current, printer, REPORT_RECEIPT_WIDTH, appSettings.printerHighQuality);
-      await escposPrintOrderImage(image, printer, 1, REPORT_RECEIPT_WIDTH);
-      Alert.alert('Printed', `Report sent to ${printer.deviceName}.`);
+      const jobs = enqueuePreparedPrintJobs({ source: 'manual', scope: 'report:manual', jobs: [{ copyType: 'report', reportId: `${selectedReport}:${currentRange.start}:${currentRange.end}`, image, printer, width: REPORT_RECEIPT_WIDTH, label: `${selectedReport} report` }] });
+      const result = await waitForPrintJobs(jobs.map((job) => job.id));
+      if (!result.success) throw new Error(result.failedJobs[0]?.error || `Report print outcome unknown. Check job ${jobs[0]?.id} in the printer journal before retrying.`);
+      Alert.alert('Printed', `Report completed on ${printer.deviceName}.`);
+      return true;
     } catch (error) {
       Alert.alert('Print error', formatPrinterError(error));
+      return false;
     } finally {
       setIsPrintingReport(false);
     }
@@ -638,8 +647,8 @@ export default function ReportScreen() {
   };
 
   const renderBreakdown = (title: string, rows: BreakdownRow[], emptyLabel: string) => (
-    <Surface key={`${selectedReport}-${title}`} style={styles.panel} elevation={1}>
-      <Text style={styles.panelTitle}>{title}</Text>
+    <Panel key={`${selectedReport}-${title}`} style={styles.panel}>
+      <SectionHeader title={title} />
       {rows.length === 0 ? (
         <Text style={styles.emptyText}>{emptyLabel}</Text>
       ) : (
@@ -653,149 +662,65 @@ export default function ReportScreen() {
           </View>
         ))
       )}
-    </Surface>
+    </Panel>
   );
 
   return (
-    <View style={styles.container}>
-      <Appbar.Header style={styles.appbar}>
-        <Appbar.Action icon="menu" onPress={() => navigation.openDrawer()} iconColor="#fff" />
-        <Appbar.Content title="Report" color="#fff" />
-      </Appbar.Header>
+    <View style={styles.container} onLayout={(event) => setContentWidth(event.nativeEvent.layout.width)}>
+      <WorkspaceHeader title="Sales reports" actions={<>
+
+      </>} />
 
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingHorizontal: contentWidth < 1100 ? 12 : 16 }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
 
 
-        <View style={styles.tileGrid}>
-          {REPORT_TILES.map((tile) => {
-            const active = tile.type === selectedReport;
-            return (
-              <TouchableOpacity
-                key={tile.type}
-                style={[
-                  styles.reportTile,
-                  isPhoneLayout ? styles.reportTilePhone : null,
-                  active ? styles.reportTileActive : null,
-                  { borderColor: tile.accent },
-                ]}
-                onPress={() => setSelectedReport(tile.type)}
-              >
-                <View style={[styles.reportTileAccent, { backgroundColor: tile.accent }]} />
-                <View style={styles.tileTitleRow}><Text style={styles.reportTileTitle}>{tile.title}</Text><IconButton icon="information-outline" size={18} onPress={() => setTileInfo(tile)} /></View>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.eyebrow}>{REPORT_LABELS[selectedReport]}</Text>
-            <Text style={styles.reportPeriodTitle}>{periodTitle}</Text>
-          </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><ChoiceTabs style={{ flex: 1 }} value={selectedReport} onValueChange={(value) => setSelectedReport(value as ReportType)} buttons={REPORT_TILES.map((tile) => ({ value: tile.type, label: { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly', rolling: 'Last X days' }[tile.type] }))} /><IconButton icon="information-outline" accessibilityLabel={`About ${REPORT_LABELS[selectedReport]}`} onPress={() => setTileInfo(REPORT_TILES.find((tile) => tile.type === selectedReport) || null)} /></View>
+        {isPhoneLayout ? <View style={styles.phonePeriodRow}>
+          {selectedReport !== 'rolling' && <Pressable accessibilityRole="button" accessibilityLabel="Previous report period" onPress={() => shiftSelectedPeriod('previous')} style={({ pressed }) => [styles.phonePeriodButton, pressed && styles.periodPressed]}><Text style={styles.phonePeriodLabel}>{'‹\nPrevious'}</Text></Pressable>}
+          <Pressable accessibilityRole="button" accessibilityLabel={`Report period: ${periodTitle}`} accessibilityState={{ disabled: selectedReport === 'rolling' }} disabled={selectedReport === 'rolling'} onPress={() => openDatePicker('current')} style={({ pressed }) => [styles.phonePeriodButton, pressed && styles.periodPressed]}><Text style={styles.phonePeriodLabel}>{selectedReport === 'daily' ? parseLocalDate(selectedDate).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) + '\n' + parseLocalDate(selectedDate).getFullYear() : periodTitle}</Text></Pressable>
+          {selectedReport !== 'rolling' && <Pressable accessibilityRole="button" accessibilityLabel="Next report period" onPress={() => shiftSelectedPeriod('next')} style={({ pressed }) => [styles.phonePeriodButton, pressed && styles.periodPressed]}><Text style={styles.phonePeriodLabel}>Next ›</Text></Pressable>}
+          <ManualPrintButton printers={appSettings.printerSaved} label="Print report" disabled={loading || refreshing || isPrintingReport} loading={isPrintingReport} onSelectPrinter={(printer) => printer ? printReportToPrinter(printer) : false} renderTrigger={({ onPress, disabled, loading: printing }) => <Pressable accessibilityRole="button" accessibilityLabel="Print report" accessibilityState={{ disabled, busy: printing }} disabled={disabled} onPress={onPress} style={({ pressed }) => [styles.phonePeriodButton, pressed && styles.periodPressed, disabled && styles.periodDisabled]}>{printing ? <ActivityIndicator size="small" color={t.color.primary} /> : <Text style={styles.phonePeriodLabel}>{'Print\nreport'}</Text>}</Pressable>} />
+        </View> : <View style={styles.headerRow}>
           <View style={styles.periodActions}>
-            {selectedReport !== 'rolling' && (
-              <>
-                <Button mode="outlined" compact icon="chevron-left" onPress={() => shiftSelectedPeriod('previous')}>
-                  Prev
-                </Button>
-                <Button mode="outlined" compact icon="chevron-right" contentStyle={styles.periodNextButtonContent} onPress={() => shiftSelectedPeriod('next')}>
-                  Next
-                </Button>
-              </>
-            )}
-            {selectedReport !== 'rolling' ? <Button mode="outlined" icon="calendar" onPress={() => openDatePicker('current')}>
-              {selectedReport === 'daily' ? 'Date' : 'Pick'}
-            </Button> : null}
-            <Button mode="contained" icon="printer" onPress={() => setShowPrinterPicker(true)} disabled={loading || refreshing || isPrintingReport} loading={isPrintingReport}>
-              Print report
-            </Button>
+            {selectedReport !== 'rolling' && <Button mode="outlined" contentStyle={{ minHeight: 48 }} onPress={() => shiftSelectedPeriod('previous')}>‹ Previous</Button>}
+            <Button mode="outlined" contentStyle={{ minHeight: 48 }} disabled={selectedReport === 'rolling'} onPress={() => openDatePicker('current')}>{periodTitle}</Button>
+            {selectedReport !== 'rolling' && <Button mode="outlined" contentStyle={{ minHeight: 48 }} onPress={() => shiftSelectedPeriod('next')}>Next ›</Button>}
           </View>
-        </View>
-
-        {selectedReport === 'daily' && (
-          <View style={styles.compareRow}>
-            {(Object.keys(COMPARE_LABELS) as CompareMode[]).map((mode) => (
-              <TouchableOpacity
-                key={mode}
-                style={[styles.compareChip, compareMode === mode && styles.compareChipActive]}
-                onPress={() => {
-                  setCompareMode(mode);
-                  if (mode === 'custom') openDatePicker('custom');
-                }}
-              >
-                <Text style={[styles.compareChipText, compareMode === mode && styles.compareChipTextActive]}>
-                  {mode === 'custom' ? 'Custom' : COMPARE_LABELS[mode].replace('Same day ', '')}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
+          <ManualPrintButton printers={appSettings.printerSaved} label="Print report" disabled={loading || refreshing || isPrintingReport} loading={isPrintingReport} onSelectPrinter={(printer) => printer ? printReportToPrinter(printer) : false} />
+        </View>}
 
         {selectedReport === 'rolling' ? (
-          <Surface style={styles.panel} elevation={1}>
+          <Surface style={styles.panel} elevation={0}>
             <Text style={styles.panelTitle}>Rolling period</Text>
             <View style={[styles.rollingControls, isPhoneLayout && styles.rollingControlsPhone]}>
               <View style={styles.compareRow}>
-                {[7, 15, 30, 90].map((days) => <Button key={days} compact mode={rollingDays === days ? 'contained' : 'outlined'} onPress={() => setRollingDays(days)}>{days} days</Button>)}
+                {[7, 15, 30, 60, 90].map((days) => <Button key={days} compact mode={rollingDays === days ? 'contained' : 'outlined'} onPress={() => setRollingDays(days)}>{days} days</Button>)}
               </View>
-              <TextInput style={styles.rollingCustomInput} dense mode="outlined" label="Custom days" keyboardType="number-pad" value={String(rollingDays)} onChangeText={(value) => setRollingDays(clampRollingDays(Number(value)))} />
+              <FormField style={styles.rollingCustomInput} dense mode="outlined" label="Custom days" keyboardType="number-pad" value={String(rollingDays)} onChangeText={(value) => setRollingDays(clampRollingDays(Number(value)))} />
             </View>
           </Surface>
         ) : null}
 
         {loading && !refreshing ? (
           <View style={styles.loading}>
-            <ActivityIndicator size="large" color="#2563eb" />
+            <ActivityIndicator size="large" color={t.color.primary} />
             <Text style={styles.emptyText}>Loading report...</Text>
           </View>
         ) : (
           <>
             <View style={styles.statGrid}>
-              <View style={[styles.statBox, isPhoneLayout ? styles.statBoxPhone : null, styles.statBoxSales]}>
-                <Text style={styles.statLabel}>Gross sales</Text>
-                <Text style={styles.statValue}>{money(currentTotal)}</Text>
-              </View>
-              <View style={[styles.statBox, isPhoneLayout ? styles.statBoxPhone : null, styles.statBoxNet]}>
-                <Text style={styles.statLabel}>Net sales</Text>
-                <Text style={styles.statValue}>{currentNetSales == null ? 'N/A' : money(currentNetSales)}</Text>
-                {netDifference != null && (
-                  <Text style={styles.statSubtext}>
-                    Vs {compareSummaryLabel} {netDifference >= 0 ? '+' : ''}{money(netDifference)}
-                  </Text>
-                )}
-              </View>
-              <View style={[styles.statBox, isPhoneLayout ? styles.statBoxPhone : null, styles.statBoxOrders]}>
-                <Text style={styles.statLabel}>Paid orders</Text>
-                <Text style={styles.statValue}>{currentSalesOrders.length}</Text>
-              </View>
-              <View style={[styles.statBox, isPhoneLayout ? styles.statBoxPhone : null, styles.statBoxAverage]}>
-                <Text style={styles.statLabel}>Average order</Text>
-                <Text style={styles.statValue}>
-                  {currentSalesOrders.length ? money(currentTotal / currentSalesOrders.length) : money(0)}
-                </Text>
-              </View>
-              <View style={[styles.statBox, isPhoneLayout ? styles.statBoxPhone : null, styles.statBoxAverage]}>
-                <Text style={styles.statLabel}>Discounts</Text>
-                <Text style={styles.statValue}>{money(currentDiscountTotal)}</Text>
-                <Text style={styles.statSubtext}>
-                  Vs {compareSummaryLabel} {money(currentDiscountTotal - compareDiscountTotal)}
-                </Text>
-              </View>
-              <View style={[styles.statBox, isPhoneLayout ? styles.statBoxPhone : null, difference >= 0 ? styles.statBoxPositive : styles.statBoxNegative]}>
-                <Text style={styles.statLabel}>Vs {compareSummaryLabel}</Text>
-                <Text style={[styles.statValue, difference >= 0 ? styles.positive : styles.negative]}>
-                  {difference >= 0 ? '+' : ''}{money(difference)}
-                </Text>
-                <Text style={styles.statSubtext}>
-                  {differencePercent == null ? 'No comparison sales' : `${differencePercent >= 0 ? '+' : ''}${differencePercent.toFixed(1)}%`}
-                </Text>
-              </View>
+              <MetricCard label="Gross sales" value={money(currentTotal)} style={[isPhoneLayout ? styles.metricPhone : styles.metricTablet]} />
+              <MetricCard label="Net sales" value={currentNetSales == null ? 'N/A' : money(currentNetSales)} style={[isPhoneLayout ? styles.metricPhone : styles.metricTablet]} />
+              <MetricCard label="Paid orders" value={currentSalesOrders.length} style={[isPhoneLayout ? styles.metricPhone : styles.metricTablet]} />
+              <MetricCard label="Average order" value={currentSalesOrders.length ? money(currentTotal / currentSalesOrders.length) : money(0)} style={[isPhoneLayout ? styles.metricPhone : styles.metricTablet]} />
+              <MetricCard label="Discounts" value={money(currentDiscountTotal)} style={[isPhoneLayout ? styles.metricPhone : styles.metricTablet]} />
+              <MetricCard label={`Vs ${compareSummaryLabel}`} value={`${difference >= 0 ? '+' : ''}${money(difference)}`} style={[isPhoneLayout ? styles.metricPhone : styles.metricTablet]} />
             </View>
 
-            <Surface style={styles.panel} elevation={1}>
+            <Surface style={styles.panel} elevation={0}>
               <View style={styles.panelHeader}>
                 <View>
                   <Text style={styles.panelTitle}>{chartTitle}</Text>
@@ -803,22 +728,20 @@ export default function ReportScreen() {
                 </View>
                 <View style={styles.legend}>
                   <Text style={styles.legendCurrent}>Current</Text>
-                  <Text style={styles.legendCompare}>Compare</Text>
+                  {selectedReport === 'daily' ? <Menu visible={showCompareMenu} onDismiss={() => setShowCompareMenu(false)} anchor={<Button mode="text" compact accessibilityLabel={`Choose comparison period: ${COMPARE_LABELS[compareMode]}`} labelStyle={{ fontSize: 13 }} onPress={() => setShowCompareMenu(true)}>Prior period ▾</Button>}>{(Object.keys(COMPARE_LABELS) as CompareMode[]).map((mode) => <Menu.Item key={mode} title={COMPARE_LABELS[mode]} leadingIcon={compareMode === mode ? 'check' : undefined} onPress={() => { setCompareMode(mode); setShowCompareMenu(false); if (mode === 'custom') openDatePicker('custom'); }} />)}</Menu> : <Text style={styles.legendCompare}>Prior period</Text>}
                 </View>
               </View>
               <ComparisonChart
                 current={currentBuckets}
                 compare={compareBuckets}
-                width={width}
                 chartKey={`${selectedReport}-${currentRange.start}-${currentRange.end}-${compareRange.start}-${compareRange.end}-${currentTotal}-${compareTotal}`}
               />
             </Surface>
 
             {selectedReport !== 'daily' && renderBreakdown('Gross sales by date', dailyBreakdown, 'No paid sales for this period.')}
-            {renderBreakdown('Payment method', paymentBreakdown, 'No paid sales for this period.')}
-            {renderBreakdown('Channel', channelBreakdown, 'No paid sales for this period.')}
+            <SectionHeader title="Breakdown" /><View style={{ flexDirection: contentWidth >= 900 ? 'row' : 'column', gap: 20 }}><View style={{ flex: 1, minWidth: 0 }}>{renderBreakdown('Payment methods', paymentBreakdown, 'No paid sales for this period.')}</View><View style={{ flex: 1, minWidth: 0 }}>{renderBreakdown('Sales by channel', channelBreakdown, 'No paid sales for this period.')}</View></View>
 
-            <Surface style={styles.panel} elevation={1}>
+            <Surface style={styles.panel} elevation={0}>
               <Text style={styles.panelTitle}>Channel financials</Text>
               <Text style={styles.panelSubtitle}>
                 Gross sales, marketplace payout, commission, and net sales by channel.
@@ -852,53 +775,17 @@ export default function ReportScreen() {
         <DateTimePicker value={draftDate} mode="date" display="default" onChange={onDateChange} />
       )}
 
-      <Modal
+      <EditorSheet
         visible={Boolean(showDatePicker && Platform.OS !== 'android')}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowDatePicker(null)}
+        title={showDatePicker === 'custom' ? 'Comparison date' : selectedReport === 'daily' ? 'Report date' : 'Anchor date'}
+        subtitle={formatDisplayDate(formatDateToLocalISO(draftDate))}
+        onDismiss={() => setShowDatePicker(null)}
+        footer={<><Button mode="outlined" contentStyle={{ minHeight: 48 }} onPress={() => setShowDatePicker(null)}>Cancel</Button><Button mode="contained" contentStyle={{ minHeight: 48 }} onPress={applyDraftDate}>Apply date</Button></>}
       >
-        <View style={styles.dateModalBackdrop}>
-          <Surface style={styles.dateModal} elevation={3}>
-            <View style={styles.dateModalHeader}>
-              <Text style={styles.panelTitle}>
-                {showDatePicker === 'custom' ? 'Comparison date' : selectedReport === 'daily' ? 'Report date' : 'Anchor date'}
-              </Text>
-              <Text style={styles.panelSubtitle}>{formatDisplayDate(formatDateToLocalISO(draftDate))}</Text>
-            </View>
-            <DateTimePicker
-              value={draftDate}
-              mode="date"
-              display="spinner"
-              onChange={onDateChange}
-            />
-            <View style={styles.dateModalActions}>
-              <Button mode="outlined" onPress={() => setShowDatePicker(null)}>
-                Cancel
-              </Button>
-              <Button mode="contained" onPress={applyDraftDate}>
-                Apply
-              </Button>
-            </View>
-          </Surface>
-        </View>
-      </Modal>
+        <DateTimePicker value={draftDate} mode="date" display={Platform.OS === 'ios' ? 'inline' : 'default'} onChange={onDateChange} />
+      </EditorSheet>
 
-      <Modal visible={showPrinterPicker} transparent animationType="fade" onRequestClose={() => setShowPrinterPicker(false)}>
-        <View style={styles.dateModalBackdrop}>
-          <Surface style={styles.dateModal} elevation={3}>
-            <Text style={styles.panelTitle}>Select printer</Text>
-            <Text style={styles.panelSubtitle}>Choose a printer for this report. You will be asked every time.</Text>
-            {appSettings.printerSaved.length ? appSettings.printerSaved.map((printer) => (
-              <Button key={printer.target} mode="outlined" icon={isSimulatorPrinter(printer) ? 'monitor' : 'printer'} onPress={() => void printReportToPrinter(printer)} style={styles.printerChoice}>
-                {printer.deviceName}{isSimulatorPrinter(printer) ? ' (Simulator)' : ''}
-              </Button>
-            )) : <Text style={styles.emptyText}>No saved printers. Add a printer in Settings before printing a report.</Text>}
-            <View style={styles.dateModalActions}><Button mode="outlined" onPress={() => setShowPrinterPicker(false)}>Close</Button></View>
-          </Surface>
-        </View>
-      </Modal>
-      <Modal visible={!!tileInfo} transparent animationType="fade" onRequestClose={() => setTileInfo(null)}><View style={styles.dateModalBackdrop}><Surface style={styles.dateModal} elevation={3}><Text style={styles.panelTitle}>{tileInfo?.title}</Text><Text style={styles.panelSubtitle}>{tileInfo?.description}</Text><View style={styles.dateModalActions}><Button mode="outlined" onPress={() => setTileInfo(null)}>Close</Button></View></Surface></View></Modal>
+      <EditorSheet visible={!!tileInfo} title={tileInfo?.title || 'About reports'} onDismiss={() => setTileInfo(null)} footer={<Button mode="outlined" contentStyle={{ minHeight: 48 }} onPress={() => setTileInfo(null)}>Close</Button>}><Text style={styles.panelSubtitle}>{tileInfo?.description}</Text></EditorSheet>
 
       {isPrintingReport ? (
         <View style={styles.hiddenReceiptContainer} pointerEvents="none">
@@ -908,22 +795,21 @@ export default function ReportScreen() {
         </View>
       ) : null}
 
-      <PrintSimulatorModal visible={showReportSimulator} order={null} imageUri={reportPreviewUri} title="Report print simulation" subtitle={reportPrintSnapshot.periodLabel} onClose={() => setShowReportSimulator(false)} />
+      <PrintSimulatorModal visible={showReportSimulator} order={null} imageUri={reportPreviewUri} title="Report print preview" subtitle={reportPrintSnapshot.periodLabel} onClose={() => setShowReportSimulator(false)} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f3f4f6' },
-  appbar: { backgroundColor: BRAND_COLORS.header },
-  content: { padding: 12, gap: 14, paddingBottom: 32 },
+  container: { flex: 1, backgroundColor: t.color.background },
+  content: { padding: 16, gap: 20, paddingBottom: 32 },
   heroCard: {
-    backgroundColor: '#111827',
-    borderRadius: 18,
+    backgroundColor: t.color.text,
+    borderRadius: t.radius.card,
     padding: 18,
   },
   heroDescription: {
-    color: '#cbd5e1',
+    color: t.color.border,
     marginTop: 10,
     lineHeight: 20,
   },
@@ -936,7 +822,7 @@ const styles = StyleSheet.create({
     flexBasis: 220,
     flexGrow: 1,
     borderRadius: 16,
-    backgroundColor: '#fff',
+    backgroundColor: t.color.surface,
     borderWidth: 1,
     padding: 12,
   },
@@ -946,8 +832,8 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   reportTileActive: {
-    backgroundColor: '#f8fafc',
-    shadowColor: '#0f172a',
+    backgroundColor: t.color.background,
+    shadowColor: t.color.text,
     shadowOpacity: 0.08,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
@@ -961,12 +847,12 @@ const styles = StyleSheet.create({
   },
   reportTileTitle: {
     fontSize: 18,
-    color: '#111827',
+    color: t.color.text,
     fontWeight: '800',
   },
   reportTileDescription: {
     marginTop: 8,
-    color: '#475569',
+    color: t.color.muted,
     lineHeight: 19,
   },
   reportTileAction: {
@@ -974,24 +860,24 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     fontWeight: '800',
   },
-  reportTileActionPhone: { paddingTop: 8, fontSize: 12 },
+  reportTileActionPhone: { paddingTop: 8, fontSize: 14 },
   reportTileSoon: {
     flexBasis: 220,
     flexGrow: 1,
     minHeight: 168,
     borderRadius: 16,
-    backgroundColor: '#e2e8f0',
+    backgroundColor: t.color.border,
     padding: 16,
     justifyContent: 'space-between',
   },
   reportTileSoonTitle: {
     fontSize: 17,
     fontWeight: '800',
-    color: '#334155',
+    color: t.color.text,
   },
   reportTileSoonText: {
     marginTop: 10,
-    color: '#475569',
+    color: t.color.muted,
     lineHeight: 19,
   },
   headerRow: {
@@ -1001,6 +887,11 @@ const styles = StyleSheet.create({
     gap: 12,
     flexWrap: 'wrap',
   },
+  phonePeriodRow: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
+  phonePeriodButton: { flex: 1, minWidth: 0, minHeight: 52, paddingHorizontal: 6, paddingVertical: 8, borderWidth: 1, borderColor: t.color.border, borderRadius: 10, backgroundColor: t.color.surface, alignItems: 'center', justifyContent: 'center' },
+  phonePeriodLabel: { fontSize: 14, lineHeight: 16, fontWeight: '700', color: t.color.text, textAlign: 'center' },
+  periodPressed: { backgroundColor: t.color.primaryTint },
+  periodDisabled: { opacity: 0.45 },
   periodActions: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1011,30 +902,32 @@ const styles = StyleSheet.create({
   periodNextButtonContent: {
     flexDirection: 'row-reverse',
   },
-  eyebrow: { fontSize: 13, color: '#6b7280', fontWeight: '700', textTransform: 'uppercase' },
-  title: { fontSize: 26, color: '#fff', fontWeight: '800', marginTop: 4 },
-  reportPeriodTitle: { fontSize: 24, color: '#111827', fontWeight: '800', marginTop: 2 },
+  eyebrow: { fontSize: 14, color: t.color.muted, fontWeight: '700', textTransform: 'uppercase' },
+  title: { fontSize: 26, color: t.color.surface, fontWeight: '800', marginTop: 4 },
+  reportPeriodTitle: { fontSize: 24, color: t.color.text, fontWeight: '800', marginTop: 2 },
   compareRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   rollingControls: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 10, flexWrap: 'wrap' },
   rollingControlsPhone: { alignItems: 'stretch' },
-  rollingCustomInput: { width: 150, backgroundColor: '#fff' },
+  rollingCustomInput: { width: 150, backgroundColor: t.color.surface },
   compareChip: {
     borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 8,
+    borderColor: t.color.border,
+    borderRadius: t.radius.card,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: '#fff',
+    backgroundColor: t.color.surface,
   },
-  compareChipActive: { borderColor: '#2563eb', backgroundColor: '#eff6ff' },
-  compareChipText: { color: '#475569', fontWeight: '700' },
-  compareChipTextActive: { color: '#1d4ed8' },
+  compareChipActive: { borderColor: t.color.primary, backgroundColor: t.color.primaryTint },
+  compareChipText: { color: t.color.muted, fontWeight: '700' },
+  compareChipTextActive: { color: t.color.primary },
   loading: { paddingVertical: 80, alignItems: 'center', gap: 12 },
-  statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  metricPhone: { flexBasis: '45%', minWidth: 120 },
+  metricTablet: { flexBasis: '30%', minWidth: 160 },
+  statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
   statBox: {
     flexGrow: 1,
     flexBasis: 180,
-    borderRadius: 6,
+    borderRadius: t.radius.card,
     padding: 14,
     borderLeftWidth: 4,
   },
@@ -1042,18 +935,18 @@ const styles = StyleSheet.create({
     flexGrow: 0,
     flexBasis: '47%',
   },
-  statBoxSales: { backgroundColor: '#eff6ff', borderLeftColor: '#2563eb' },
+  statBoxSales: { backgroundColor: t.color.primaryTint, borderLeftColor: t.color.primary },
   statBoxNet: { backgroundColor: '#faf5ff', borderLeftColor: '#9333ea' },
-  statBoxOrders: { backgroundColor: '#f0fdf4', borderLeftColor: '#16a34a' },
-  statBoxAverage: { backgroundColor: '#fff7ed', borderLeftColor: '#f97316' },
-  statBoxPositive: { backgroundColor: '#ecfdf5', borderLeftColor: '#059669' },
-  statBoxNegative: { backgroundColor: '#fef2f2', borderLeftColor: '#dc2626' },
-  statLabel: { fontSize: 13, color: '#64748b', fontWeight: '700' },
-  statValue: { fontSize: 24, color: '#111827', fontWeight: '800', marginTop: 6 },
-  statSubtext: { color: '#64748b', marginTop: 2 },
-  positive: { color: '#059669' },
-  negative: { color: '#dc2626' },
-  panel: { borderRadius: 8, padding: 14, backgroundColor: '#fff' },
+  statBoxOrders: { backgroundColor: t.color.successTint, borderLeftColor: t.color.success },
+  statBoxAverage: { backgroundColor: t.color.warningTint, borderLeftColor: t.color.warning },
+  statBoxPositive: { backgroundColor: t.color.successTint, borderLeftColor: t.color.success },
+  statBoxNegative: { backgroundColor: t.color.dangerTint, borderLeftColor: t.color.danger },
+  statLabel: { fontSize: 14, color: t.color.muted, fontWeight: '700' },
+  statValue: { fontSize: 24, color: t.color.text, fontWeight: '800', marginTop: 6 },
+  statSubtext: { color: t.color.muted, marginTop: 2 },
+  positive: { color: t.color.success },
+  negative: { color: t.color.danger },
+  panel: { borderRadius: t.radius.card, padding: 20, backgroundColor: t.color.surface, borderWidth: 1, borderColor: t.color.border },
   panelHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1061,40 +954,40 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     flexWrap: 'wrap',
   },
-  panelTitle: { fontSize: 17, color: '#111827', fontWeight: '800' },
-  panelSubtitle: { color: '#64748b', marginTop: 2, flexShrink: 1 },
-  legend: { alignItems: 'flex-end', gap: 3, flexShrink: 1 },
-  legendCurrent: { color: '#2563eb', fontWeight: '800' },
-  legendCompare: { color: '#64748b', fontWeight: '800' },
-  chartWrap: { marginTop: 6, marginLeft: -4 },
-  chartAxisText: { color: '#64748b', fontSize: 11 },
-  chartXAxisLabel: { color: '#64748b', fontSize: 11, marginTop: 14 },
-  dataPointLabel: { color: '#1d4ed8', fontSize: 11, fontWeight: '800' },
+  panelTitle: { fontSize: 17, color: t.color.text, fontWeight: '800' },
+  panelSubtitle: { color: t.color.muted, marginTop: 2, flexShrink: 1 },
+  legend: { flexDirection: 'row', alignItems: 'center', gap: 12, flexShrink: 1, flexWrap: 'wrap' },
+  legendCurrent: { color: t.color.primary, fontWeight: '800' },
+  legendCompare: { color: t.color.muted, fontWeight: '800' },
+  chartWrap: { marginTop: 6, minWidth: 0, width: '100%' },
+  chartAxisText: { color: t.color.muted, fontSize: 14 },
+  chartXAxisLabel: { color: t.color.muted, fontSize: 14, marginTop: 14 },
+  dataPointLabel: { color: t.color.primary, fontSize: 14, fontWeight: '800' },
   pointerLabel: {
-    borderRadius: 8,
-    backgroundColor: '#111827',
+    borderRadius: t.radius.card,
+    backgroundColor: t.color.text,
     paddingHorizontal: 10,
     paddingVertical: 8,
   },
-  pointerLabelText: { color: '#fff', fontSize: 12, fontWeight: '800' },
-  pointerLabelValue: { color: '#bfdbfe', fontSize: 12, marginTop: 3 },
-  pointerLabelMuted: { color: '#cbd5e1', fontSize: 12, marginTop: 2 },
+  pointerLabelText: { color: t.color.surface, fontSize: 14, fontWeight: '800' },
+  pointerLabelValue: { color: '#bfdbfe', fontSize: 14, marginTop: 3 },
+  pointerLabelMuted: { color: t.color.border, fontSize: 14, marginTop: 2 },
   breakdownRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 11,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: t.color.border,
     gap: 12,
   },
-  breakdownLabel: { color: '#111827', fontWeight: '800', flexShrink: 1 },
-  breakdownMeta: { color: '#64748b', marginTop: 2 },
-  breakdownValue: { color: '#111827', fontWeight: '800', fontSize: 16 },
+  breakdownLabel: { color: t.color.text, fontWeight: '800', flexShrink: 1 },
+  breakdownMeta: { color: t.color.muted, marginTop: 2 },
+  breakdownValue: { color: t.color.text, fontWeight: '800', fontSize: 16 },
   channelFinancialRow: {
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: t.color.border,
     gap: 10,
   },
   channelFinancialHeading: {
@@ -1112,10 +1005,10 @@ const styles = StyleSheet.create({
   channelFinancialMetric: {
     flexBasis: 150,
     flexGrow: 1,
-    color: '#334155',
+    color: t.color.text,
     fontWeight: '700',
   },
-  emptyText: { color: '#64748b' },
+  emptyText: { color: t.color.muted },
   dateModalBackdrop: {
     flex: 1,
     justifyContent: 'center',
@@ -1123,8 +1016,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(15, 23, 42, 0.45)',
   },
   dateModal: {
-    borderRadius: 8,
-    backgroundColor: '#fff',
+    width: '100%', maxWidth: 620, alignSelf: 'center',
+    borderRadius: t.radius.dialog,
+    backgroundColor: t.color.surface,
     padding: 16,
   },
   dateModalHeader: { gap: 3, marginBottom: 8 },

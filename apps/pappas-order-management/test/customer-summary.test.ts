@@ -23,6 +23,18 @@ const originalLoad = (Module as unknown as { _load: (...args: unknown[]) => unkn
     return {
       supabase: {
         from(table: string) {
+          if (table === 'customer_summary') {
+            const query = {
+              select: () => query,
+              eq: (column: string, value: string) => {
+                assert.equal(column, 'profileId');
+                assert.equal(value, 'marketplace-profile-1');
+                return query;
+              },
+              limit: () => Promise.resolve({ data: [{ rewardPoints: 5827, profileId: 'marketplace-profile-1' }], error: null }),
+            };
+            return query;
+          }
           if (table === 'profiles') {
             const query = {
               select: () => query,
@@ -118,4 +130,9 @@ test('reports a persisted update and trims the entered name', async () => {
 test('propagates database update errors', async () => {
   updateResult = { data: null, error: { message: 'Permission denied' } };
   await assert.rejects(updateCustomerNameByContact({ profileId: 'marketplace-profile-1', name: 'New Name' }), /Permission denied/);
+});
+
+test('profile-linked summaries load the current reward balance even without contact details', async () => {
+  const summary = await fetchCustomerSummary({ profileId: 'marketplace-profile-1' });
+  assert.equal(summary?.rewardPoints, 5827);
 });

@@ -1,7 +1,15 @@
+import { ActionButton as Button } from '@/components/ui/ActionButton';
+import { EditorSheet } from '@/components/ui/EditorSheet';
+import { useRouter } from 'expo-router';
+import { ManagementRow } from '@/components/ui/ManagementRow';
+import { SearchField } from '@/components/ui';
+import { WorkspaceHeader } from '@/components/ui';
+import { useWindowDimensions } from 'react-native';
+import { designTokens as t } from '@/lib/redesign';
+import { FormField } from '@/components/ui';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { Appbar, Button, Card, Checkbox, Dialog, FAB, IconButton, List, Portal, SegmentedButtons, Switch, Text, TextInput } from 'react-native-paper';
-import { useRouter } from 'expo-router';
+import { Checkbox, IconButton, Portal, Switch, Text } from 'react-native-paper';
 import {
   createMobileAddonGroup,
   createMobileAddonItem,
@@ -74,6 +82,8 @@ const formatSectionList = (values: string[]) => parseSectionList(values.join(','
 
 export default function AddonsManagementScreen() {
   const router = useRouter();
+  const { width: windowWidth } = useWindowDimensions();
+  const compact = windowWidth < 600;
   const [groups, setGroups] = useState<MobileAddonGroup[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -87,6 +97,11 @@ export default function AddonsManagementScreen() {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [groupForm, setGroupForm] = useState<GroupFormState>(emptyGroupForm);
   const [itemForm, setItemForm] = useState<ItemFormState>(emptyItemForm);
+  const [groupBaseline, setGroupBaseline] = useState('');
+  const [itemBaseline, setItemBaseline] = useState('');
+  useEffect(() => { if (groupDialogVisible) setGroupBaseline(JSON.stringify(groupForm)); }, [groupDialogVisible]);
+  useEffect(() => { if (itemDialogVisible) setItemBaseline(JSON.stringify(itemForm)); }, [itemDialogVisible]);
+
 
   const loadData = async (showRefresh = false) => {
     try {
@@ -268,84 +283,22 @@ export default function AddonsManagementScreen() {
 
   return (
     <View style={styles.screen}>
-      <Appbar.Header>
-        <Appbar.BackAction onPress={() => router.back()} />
-        <Appbar.Content title="Add-ons Management" subtitle="Groups and items" />
-      </Appbar.Header>
-
-      <View style={styles.managementNavWrap}>
-        <SegmentedButtons
-          value="addons"
-          onValueChange={(value) => {
-            if (value === 'menu') router.push('/menu-management');
-          }}
-          buttons={[
-            { value: 'menu', label: 'Menu' },
-            { value: 'addons', label: 'Add-ons' },
-          ]}
-        />
-      </View>
-
-      <Card style={styles.infoBanner}>
-        <Card.Content style={styles.infoBannerContent}>
-          <Text variant="titleSmall">Manage option groups</Text>
-          <Text variant="bodySmall" style={styles.mutedText}>
-            Add-on item sections have highest priority and can override both product and group fallback sections.
-          </Text>
-        </Card.Content>
-      </Card>
-
+      <WorkspaceHeader title="Add-on groups" onBack={() => router.replace('/menu-management')} />
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { padding: compact ? 12 : 16 }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void loadData(true)} />}
       >
-        <TextInput
-          mode="outlined"
-          label="Search groups or items"
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          left={<TextInput.Icon icon="magnify" />}
-        />
-
-        {filteredGroups.map((group) => (
-          <Card key={group.id} style={styles.card}>
-            <List.Accordion
-              title={group.name}
-              description={`${group.items.length} items • sort #${group.sort_order ?? 0} • ${group.is_active === false ? 'Inactive' : 'Active'}`}
-              expanded={searchQuery.trim() ? true : expandedGroupIds[group.id] === true}
-              onPress={() => setExpandedGroupIds((prev) => ({ ...prev, [group.id]: prev[group.id] === false }))}
-              left={(props) => <List.Icon {...props} icon="shape-outline" />}
-              right={() => (
-                <View style={styles.headerActions}>
-                  <IconButton icon="plus" onPress={() => openCreateItem(group.id)} />
-                  <IconButton icon="pencil" onPress={() => openEditGroup(group)} />
-                  <IconButton icon="delete-outline" onPress={() => confirmDeleteGroup(group)} />
-                </View>
-              )}
-            >
-              <Card.Content style={styles.groupMeta}>
-                <Text variant="bodySmall" style={styles.mutedText}>
-                  {group.multiple_choice === false ? 'Single choice' : 'Multiple choice'} • {group.is_required ? 'Required' : 'Optional'}
-                </Text>
-                {group.description ? <Text variant="bodySmall" style={styles.mutedText}>{group.description}</Text> : null}
-              </Card.Content>
-              {group.items.map((item) => (
-                <List.Item
-                  key={item.id}
-                  title={item.name}
-                  description={`$${(item.extra_price ?? 0).toFixed(2)} • ${formatSectionList(parseSectionList(item.section)) || 'Default Fried'} • sort #${item.sort_order ?? 0}`}
-                  left={(props) => <List.Icon {...props} icon="plus-circle-outline" />}
-                  right={() => (
-                    <View style={styles.headerActions}>
-                      <IconButton icon="pencil" onPress={() => openEditItem(group.id, item)} />
-                      <IconButton icon="delete-outline" onPress={() => confirmDeleteItem(item)} />
-                    </View>
-                  )}
-                />
-              ))}
-            </List.Accordion>
-          </Card>
-        ))}
+        <View style={{ flexDirection: compact ? 'column' : 'row', gap: 8, alignItems: 'stretch' }}><SearchField placeholder="Search groups or items" value={searchQuery} onChangeText={setSearchQuery} style={{ flex: compact ? undefined : 1 }} /><Button mode="contained" contentStyle={{ minHeight: 48 }} onPress={openCreateGroup}>Add group</Button></View>
+        {filteredGroups.map((group) => {
+          const expanded = searchQuery.trim() ? true : !!expandedGroupIds[group.id];
+          return <View key={group.id} style={{ borderRadius: 16, borderWidth: 1, borderColor: t.color.border, overflow: 'hidden', backgroundColor: t.color.surface }}>
+            <ManagementRow style={{ minHeight: 94, padding: 20, borderLeftWidth: 0, borderRightWidth: 0, borderBottomWidth: expanded ? 1 : 0 }} title={group.name} description={`${group.items.length} items · ${group.is_active === false ? 'Inactive' : 'Active'} · ${group.is_required ? 'Required' : 'Optional'}`} onEdit={() => openEditGroup(group)} onDelete={() => confirmDeleteGroup(group)} actions={<><IconButton style={{ margin: 0, width: 38, height: 44, borderRadius: 10, borderWidth: 1, borderColor: t.color.border }} size={16} icon={expanded ? 'chevron-up' : 'chevron-down'} accessibilityLabel={`${expanded ? 'Collapse' : 'Expand'} ${group.name}`} accessibilityState={{ expanded }} onPress={() => setExpandedGroupIds((prev) => ({ ...prev, [group.id]: !prev[group.id] }))} /><Button mode="outlined" contentStyle={{ minHeight: 44 }} labelStyle={{ fontSize: 13 }} hitSlop={2} onPress={() => openCreateItem(group.id)}>Add item</Button></>} />
+            {expanded && <>
+              <Text style={{ padding: 16, color: t.color.muted }}>{group.multiple_choice === false ? 'Single choice' : 'Multiple choice'}{group.description ? ` · ${group.description}` : ''}</Text>
+              {group.items.map((item) => <ManagementRow style={{ borderLeftWidth: 0, borderRightWidth: 0 }} key={item.id} indent title={item.name} description={`$${(item.extra_price ?? 0).toFixed(2)} · ${formatSectionList(parseSectionList(item.section)) || 'Default Fried'} · Sort ${item.sort_order ?? 0}`} active={item.is_active !== false} onEdit={() => openEditItem(group.id, item)} onDelete={() => confirmDeleteItem(item)} />)}
+            </>}
+          </View>;
+        })}
 
         {!loading && filteredGroups.length === 0 && (
           <Text style={styles.emptyText}>
@@ -354,49 +307,37 @@ export default function AddonsManagementScreen() {
         )}
       </ScrollView>
 
-      <FAB icon="plus" label="Add Group" style={styles.fab} onPress={openCreateGroup} />
+
 
       <Portal>
-        <Dialog visible={groupDialogVisible} onDismiss={() => setGroupDialogVisible(false)}>
-          <Dialog.Title>{editingGroup ? 'Edit Group' : 'New Group'}</Dialog.Title>
-          <Dialog.ScrollArea>
-            <ScrollView contentContainerStyle={styles.dialogContent}>
-              <TextInput mode="outlined" label="Name" value={groupForm.name} onChangeText={(value) => setGroupForm((prev) => ({ ...prev, name: value }))} />
-              <TextInput mode="outlined" label="Description" value={groupForm.description} onChangeText={(value) => setGroupForm((prev) => ({ ...prev, description: value }))} multiline />
-              <TextInput mode="outlined" label="Sort order" value={groupForm.sortOrder} onChangeText={(value) => setGroupForm((prev) => ({ ...prev, sortOrder: value }))} keyboardType="number-pad" />
+        <EditorSheet visible={groupDialogVisible} title={editingGroup ? 'Edit add-on group' : 'New add-on group'} pending={saving} dirty={JSON.stringify(groupForm) !== groupBaseline} onDismiss={() => setGroupDialogVisible(false)} footer={(dismiss) => <><Button mode="outlined" contentStyle={{ minHeight: 48 }} disabled={saving} onPress={dismiss}>Cancel</Button><Button mode="contained" contentStyle={{ minHeight: 48 }} disabled={saving || !groupForm.name.trim()} loading={saving} onPress={() => void saveGroup()}>Save group</Button></>}>
+              <FormField mode="outlined" label="Name" value={groupForm.name} onChangeText={(value) => setGroupForm((prev) => ({ ...prev, name: value }))} />
+              <FormField mode="outlined" label="Description" value={groupForm.description} onChangeText={(value) => setGroupForm((prev) => ({ ...prev, description: value }))} multiline />
+              <FormField mode="outlined" label="Sort order" value={groupForm.sortOrder} onChangeText={(value) => setGroupForm((prev) => ({ ...prev, sortOrder: value }))} keyboardType="number-pad" />
               <View style={styles.switchRow}>
                 <Text>Required</Text>
-                <Switch value={groupForm.isRequired} onValueChange={(value) => setGroupForm((prev) => ({ ...prev, isRequired: value }))} />
+                <View style={styles.switchControl}><Switch style={{ height: 32 }} value={groupForm.isRequired} onValueChange={(value) => setGroupForm((prev) => ({ ...prev, isRequired: value }))} /></View>
               </View>
               <View style={styles.switchRow}>
                 <Text>Allow multiple</Text>
-                <Switch value={groupForm.multipleChoice} onValueChange={(value) => setGroupForm((prev) => ({ ...prev, multipleChoice: value }))} />
+                <View style={styles.switchControl}><Switch style={{ height: 32 }} value={groupForm.multipleChoice} onValueChange={(value) => setGroupForm((prev) => ({ ...prev, multipleChoice: value }))} /></View>
               </View>
               <View style={styles.switchRow}>
                 <Text>Active</Text>
-                <Switch value={groupForm.isActive} onValueChange={(value) => setGroupForm((prev) => ({ ...prev, isActive: value }))} />
+                <View style={styles.switchControl}><Switch style={{ height: 32 }} value={groupForm.isActive} onValueChange={(value) => setGroupForm((prev) => ({ ...prev, isActive: value }))} /></View>
               </View>
-            </ScrollView>
-          </Dialog.ScrollArea>
-          <Dialog.Actions>
-            <Button onPress={() => setGroupDialogVisible(false)}>Cancel</Button>
-            <Button loading={saving} onPress={() => void saveGroup()}>Save</Button>
-          </Dialog.Actions>
-        </Dialog>
+        </EditorSheet>
 
-        <Dialog visible={itemDialogVisible} onDismiss={() => setItemDialogVisible(false)}>
-          <Dialog.Title>{editingItem ? 'Edit Item' : 'New Item'}</Dialog.Title>
-          <Dialog.ScrollArea>
-            <ScrollView contentContainerStyle={styles.dialogContent}>
-              <TextInput mode="outlined" label="Name" value={itemForm.name} onChangeText={(value) => setItemForm((prev) => ({ ...prev, name: value }))} />
-              <TextInput mode="outlined" label="Extra price" value={itemForm.extraPrice} onChangeText={(value) => setItemForm((prev) => ({ ...prev, extraPrice: value }))} keyboardType="decimal-pad" />
+        <EditorSheet visible={itemDialogVisible} title={editingItem ? 'Edit item' : 'New item'} pending={saving} dirty={JSON.stringify(itemForm) !== itemBaseline} onDismiss={() => setItemDialogVisible(false)} footer={(dismiss) => <><Button mode="outlined" contentStyle={{ minHeight: 48 }} disabled={saving} onPress={dismiss}>Cancel</Button><Button mode="contained" contentStyle={{ minHeight: 48 }} disabled={saving || !itemForm.name.trim()} loading={saving} onPress={() => void saveItem()}>Save item</Button></>}>
+              <FormField mode="outlined" label="Name" value={itemForm.name} onChangeText={(value) => setItemForm((prev) => ({ ...prev, name: value }))} />
+              <FormField mode="outlined" label="Extra price" value={itemForm.extraPrice} onChangeText={(value) => setItemForm((prev) => ({ ...prev, extraPrice: value }))} keyboardType="decimal-pad" />
               <Text variant="labelMedium">Kitchen sections</Text>
               <View style={styles.checkboxList}>
                 {KITCHEN_SECTION_OPTIONS.map((option) => {
                   const selectedSections = parseSectionList(itemForm.section);
                   const checked = selectedSections.includes(option);
                   return (
-                    <Checkbox.Item
+                    <Checkbox.Item mode="android"
                       key={option}
                       label={option}
                       status={checked ? 'checked' : 'unchecked'}
@@ -415,32 +356,27 @@ export default function AddonsManagementScreen() {
               <Text variant="bodySmall" style={styles.helperText}>
                 Select one or more sections. Leave everything unchecked to keep the default fried behavior.
               </Text>
-              <TextInput mode="outlined" label="Sort order" value={itemForm.sortOrder} onChangeText={(value) => setItemForm((prev) => ({ ...prev, sortOrder: value }))} keyboardType="number-pad" />
+              <FormField mode="outlined" label="Sort order" value={itemForm.sortOrder} onChangeText={(value) => setItemForm((prev) => ({ ...prev, sortOrder: value }))} keyboardType="number-pad" />
               <View style={styles.switchRow}>
                 <Text>Active</Text>
-                <Switch value={itemForm.isActive} onValueChange={(value) => setItemForm((prev) => ({ ...prev, isActive: value }))} />
+                <View style={styles.switchControl}><Switch style={{ height: 32 }} value={itemForm.isActive} onValueChange={(value) => setItemForm((prev) => ({ ...prev, isActive: value }))} /></View>
               </View>
-            </ScrollView>
-          </Dialog.ScrollArea>
-          <Dialog.Actions>
-            <Button onPress={() => setItemDialogVisible(false)}>Cancel</Button>
-            <Button loading={saving} onPress={() => void saveItem()}>Save</Button>
-          </Dialog.Actions>
-        </Dialog>
+        </EditorSheet>
       </Portal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  groupActions: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, flexWrap: 'wrap', borderBottomWidth: 1, borderBottomColor: t.color.border },
   screen: {
     flex: 1,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: t.color.background,
   },
   content: {
     padding: 12,
     paddingBottom: 120,
-    gap: 12,
+    gap: 16,
   },
   managementNavWrap: {
     paddingHorizontal: 12,
@@ -449,13 +385,16 @@ const styles = StyleSheet.create({
   infoBanner: {
     marginHorizontal: 12,
     marginTop: 12,
-    backgroundColor: '#fff',
+    backgroundColor: t.color.surface,
   },
   infoBannerContent: {
     gap: 4,
   },
   card: {
     overflow: 'hidden',
+    backgroundColor: t.color.surface,
+    borderWidth: 1, borderColor: t.color.border,
+    borderRadius: t.radius.card,
   },
   headerActions: {
     flexDirection: 'row',
@@ -467,10 +406,10 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   mutedText: {
-    color: '#6b7280',
+    color: t.color.muted,
   },
   helperText: {
-    color: '#6b7280',
+    color: t.color.muted,
     marginTop: -4,
   },
   checkboxList: {
@@ -481,7 +420,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     textAlign: 'center',
-    color: '#6b7280',
+    color: t.color.muted,
     marginTop: 24,
   },
   fab: {
@@ -493,10 +432,17 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingBottom: 8,
   },
+  switchControl: {
+    height: 32,
+    justifyContent: 'center',
+  },
   switchRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
+    minHeight: 68,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: t.color.border,
   },
 });

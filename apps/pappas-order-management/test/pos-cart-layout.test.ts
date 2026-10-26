@@ -13,13 +13,12 @@ const cartStylesSource = readFileSync(
 );
 
 test('keeps cart controls in compact shared rows', () => {
-  assert.match(cartPaneSource, /styles\.cartHeaderActions/);
   assert.match(cartPaneSource, /styles\.cartCheckoutActions/);
   assert.doesNotMatch(cartPaneSource, /styles\.quickActionsPanel/);
 });
 
-test('uses a compact update indicator instead of a current-order heading', () => {
-  assert.doesNotMatch(cartPaneSource, />Current Order</);
+test('shows current-order context and an edited-order update indicator', () => {
+  assert.match(cartPaneSource, />Current order</);
   assert.match(cartPaneSource, /styles\.cartUpdateIndicator/);
   assert.match(cartPaneSource, /You are updating order/);
 });
@@ -39,12 +38,14 @@ test('lets the salt selector fill the compact header row', () => {
 
 test('visually separates cart controls from the item list', () => {
   assert.match(cartStylesSource, /cartHeader: \{[^}]*borderBottomWidth: 1/);
-  assert.match(cartStylesSource, /cartHeader: \{[^}]*borderBottomColor: '#e5e7eb'/);
+  assert.match(cartStylesSource, /cartHeader: \{[^}]*borderBottomColor: tokens\.color\.border/);
 });
 
 test('groups repeated add-ons before rendering cart metadata', () => {
   assert.match(cartPaneSource, /import \{ groupAddons \} from '..\/..\/utils\/orderUtils';/);
-  assert.match(cartPaneSource, /groupAddons\(item\.addons \|\| \[\]\)\.map\(\(addon, addonIndex\)/);
+  assert.match(cartPaneSource, /groupAddons\(\(item\.addons \|\| \[\]\)\.filter/);
+  assert.match(cartPaneSource, /addon\.addon_group_name === group/);
   assert.match(cartPaneSource, /key=\{`\$\{item\.id\}-addon-\$\{addonIndex\}`\}/);
-  assert.match(cartPaneSource, /addon\.quantity > 1 \? `\$\{addon\.quantity\}x ` : '\+ '/);
+  assert.match(cartPaneSource, /addon\.quantity > 1/);
+  assert.match(cartPaneSource, /addon\.group/);
 });

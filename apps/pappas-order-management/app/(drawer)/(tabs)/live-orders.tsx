@@ -1,3 +1,8 @@
+import { ActionButton as PaperButton } from '@/components/ui/ActionButton';
+import { useOrderHeaderActions } from '@/components/navigation/order-header-actions';
+import { countActiveOrderFilters } from '@/components/orders/filter-state';
+import { AsyncState } from '@/components/ui';
+import { designTokens as t } from '@/lib/redesign';
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   View,
@@ -11,11 +16,7 @@ import {
   ScrollView,
   useWindowDimensions,
 } from 'react-native';
-import {
-  Button as PaperButton,
-  Surface,
-  Badge,
-} from 'react-native-paper';
+import { Surface, Badge } from 'react-native-paper';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -122,7 +123,7 @@ export default function LiveOrdersScreen() {
   // Keep completion polling alive before the lazily mounted delivery tab is opened.
   useOnTheWayOrdersQuery();
   const { data: successfulOrderCounts } = useCustomerOrderCounts(orders);
-  const { data: preOrderCount = 0 } = usePreOrderCountQuery();
+  const { data: preOrderCount } = usePreOrderCountQuery();
   const { data: appSettings = DEFAULT_APP_SETTINGS } = useAppSettingsQuery();
   const loadError = liveOrdersError instanceof Error ? liveOrdersError.message : null;
   const appSettingsRef = useRef(appSettings);
@@ -290,8 +291,8 @@ export default function LiveOrdersScreen() {
         if (s.printerReceiptMode === 'text' && !isSimulatorPrinter(selectedPrinter)) {
           const queuedJobs = enqueuePreparedPrintJobs({ order: freshOrder, source: 'manual', scope: 'live-orders:manual-direct', jobs: [{ document: buildKitchenReceiptDocument(freshOrder, { paperWidth: s.printerPaperWidth, duplicateBySections: false, printDebugContext: null }), printer: selectedPrinter, width: targetDots, label: selectedPrinter.deviceName }] });
           const queueResult = await waitForPrintJobs(queuedJobs.map((job) => job.id));
-          if (!queueResult.success) throw new Error(queueResult.failedJobs[0]?.error || 'Queued text print job failed');
-          return;
+          if (!queueResult.success) throw new Error(queueResult.failedJobs[0]?.error || `Print outcome unknown. Check request ${queuedJobs.map((job) => job.id).join(', ')} in the printer journal before retrying.`);
+          return true;
         }
         setTempPrintTicketIndex(0);
         setTempPrintDuplicateBySections(false);
@@ -346,7 +347,7 @@ export default function LiveOrdersScreen() {
             order: freshOrder,
             details: `printer=${selectedPrinter.deviceName}`,
           });
-          return;
+          return true;
         }
 
         const captureStartedAt = Date.now();
@@ -358,7 +359,7 @@ export default function LiveOrdersScreen() {
 
         if (!s.printerEnabled) {
           Alert.alert('Printer error', `No printer is selected. ${printSettingsDetails}`);
-          return;
+          return false;
         }
 
         const queuedJobs = enqueuePreparedPrintJobs({
@@ -374,13 +375,13 @@ export default function LiveOrdersScreen() {
         });
         const queueResult = await waitForPrintJobs(queuedJobs.map((job) => job.id));
         if (!queueResult.success) {
-          throw new Error(queueResult.failedJobs[0]?.error || 'Queued print job failed');
+          throw new Error(queueResult.failedJobs[0]?.error || `Print outcome unknown. Check request ${queuedJobs.map((job) => job.id).join(', ')} in the printer journal before retrying.`);
         }
         logOrderEvent('success', 'print', 'Manual print sent to direct printer', {
           order: freshOrder,
           details: `queuedJobs=${queuedJobs.length} total=${formatDurationMs(workflowStartedAt)} printer=${selectedPrinter.deviceName}`,
         });
-        return;
+        return true;
       }
 
       const jobs = buildSectionPrintJobs(s, freshOrder);
@@ -499,7 +500,7 @@ export default function LiveOrdersScreen() {
             details: printSettingsDetails,
           });
           Alert.alert('Printer error', message);
-          return;
+          return false;
         }
 
         logOrderEvent('info', 'print', 'Sending receipt image(s) to printer', {
@@ -520,7 +521,7 @@ export default function LiveOrdersScreen() {
         });
         const queueResult = await waitForPrintJobs(queuedJobs.map((job) => job.id));
         if (!queueResult.success) {
-          throw new Error(queueResult.failedJobs[0]?.error || 'Queued print job failed');
+          throw new Error(queueResult.failedJobs[0]?.error || `Print outcome unknown. Check request ${queuedJobs.map((job) => job.id).join(', ')} in the printer journal before retrying.`);
         }
         logOrderEvent('success', 'print', 'Manual routed print jobs completed', {
           order: freshOrder,
@@ -531,6 +532,7 @@ export default function LiveOrdersScreen() {
         order: freshOrder,
         details: `total=${formatDurationMs(workflowStartedAt)} capturedJobs=${capturedJobs.length}`,
       });
+      return true;
     } catch (error) {
       console.error('Quick print failed:', error);
       const message = formatPrinterError(error) || 'Failed to print order.';
@@ -539,6 +541,7 @@ export default function LiveOrdersScreen() {
         details: `after=${formatDurationMs(workflowStartedAt)} reason=${message}`,
       });
       Alert.alert('Print error', message);
+      return false;
     } finally {
       setPrintingOrderId(null);
       setTempPrintingOrder(null);
@@ -654,7 +657,6 @@ export default function LiveOrdersScreen() {
     { key: 'ready', label: 'Ready', count: summaryCounts.ready },
     { key: 'scheduled', label: 'Scheduled', count: summaryCounts.scheduled },
   ];
-  const activeFilterOption = filterOptions.find((filter) => filter.key === activeFilter) ?? filterOptions[0];
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -668,6 +670,14 @@ export default function LiveOrdersScreen() {
     });
     setShowOrderModal(true);
   };
+
+  useOrderHeaderActions({
+    onRefresh: handleRefresh,
+    refreshing: loading || isFetchingOrders || refreshing,
+    onToggleFilters: () => setHeaderExpanded((value) => !value),
+    filtersExpanded: headerExpanded,
+    activeFilterCount: countActiveOrderFilters({ quick: activeFilter }),
+  });
 
   const handleRefreshDeliveryStatus = async (order: Order) => {
     if (order.order_type !== 'delivery') return;
@@ -716,7 +726,6 @@ export default function LiveOrdersScreen() {
   };
 
   const handleOpenOrderFromCustomerModal = async (orderId: string) => {
-    setShowCustomerModal(false);
     const result = await getOrder(orderId);
     if (result.error) {
       Alert.alert('Error', result.error);
@@ -736,9 +745,9 @@ export default function LiveOrdersScreen() {
     appSettings.liveOrderCardLayout === 'vertical',
     width,
     height,
-  );
+  ) && height >= 700; // Short windows need vertical scrolling to reach every card action.
   const liveOrderCardWidth = getLiveOrderCardRailWidth(
-    width,
+    width - (width >= 1100 ? 72 + 8 : width >= 600 ? 64 : 0),
     height,
     appSettings.liveOrderCardsPerScreen,
     filteredOrders.length,
@@ -778,7 +787,7 @@ export default function LiveOrdersScreen() {
       {smartpayProcessingOrder && (
         <View style={styles.smartpayOverlay} pointerEvents="auto">
           <View style={styles.smartpayPanel}>
-            <ActivityIndicator size="large" color="#2563eb" />
+            <ActivityIndicator size="large" color={t.color.primary} />
             <Text style={styles.smartpayTitle}>SmartPay payment</Text>
             <Text style={styles.smartpayText}>Waiting for terminal transaction to finish.</Text>
             <Text style={styles.smartpayAmount}>${smartpayProcessingOrder.total.toFixed(2)}</Text>
@@ -806,104 +815,24 @@ export default function LiveOrdersScreen() {
         />
       )}
 
-      <Surface style={[styles.header, useCompactVerticalCards ? styles.headerCompact : null]} elevation={1}>
-        <View style={[styles.headerRow, isPhoneLayout ? styles.headerRowPhone : null, useCompactVerticalCards ? styles.headerRowCompact : null]}>
-          <View style={[styles.headerTitleWrap, isPhoneLayout ? styles.headerTitleWrapPhone : null]}>
-            {!isPhoneLayout ? <Text style={[styles.headerTitle, useCompactVerticalCards ? styles.headerTitleCompact : null]}>Live Orders</Text> : null}
-            <Text style={[styles.headerSubtitle, useCompactVerticalCards ? styles.headerSubtitleCompact : null]}>
-              {summaryCounts.all} active • {isStale ? 'Sync delayed' : refreshCountdown > 0 ? `Refresh in ${refreshCountdown}s` : 'Up to date'}
-            </Text>
-          </View>
-          <View style={[styles.headerActions, isPhoneLayout ? styles.headerActionsPhone : null, useCompactVerticalCards ? styles.headerActionsCompact : null]}>
-            <View style={styles.preOrderBadgeContainer}>
-              <PaperButton
-                mode="outlined"
-                onPress={() => router.push('/pre-orders')}
-                style={[styles.preOrderButton, styles.headerActionButton, isPhoneLayout ? styles.phoneActionButton : null]}
-                contentStyle={isPhoneLayout ? styles.phoneActionContent : useCompactVerticalCards ? styles.headerCompactActionContent : undefined}
-                compact
-                icon="calendar-clock"
-                accessibilityLabel="Pre-orders"
-              >
-                {isPhoneLayout ? '' : 'Pre-orders'}
-              </PaperButton>
-              {preOrderCount > 0 && (
-                <Badge style={styles.preOrderBadge} size={20}>
-                  {preOrderCount}
-                </Badge>
-              )}
-            </View>
-            <PaperButton
-              mode={headerExpanded ? 'contained-tonal' : 'outlined'}
-              onPress={() => setHeaderExpanded((current) => !current)}
-              style={[styles.filterToggleButton, styles.headerActionButton, isPhoneLayout ? styles.phoneActionButton : null]}
-              contentStyle={isPhoneLayout ? styles.phoneActionContent : useCompactVerticalCards ? styles.headerCompactActionContent : undefined}
-              compact
-              icon="filter-variant"
-              accessibilityLabel={`Filter: ${activeFilterOption.label}`}
-            >
-              {isPhoneLayout ? '' : activeFilterOption.label}
-            </PaperButton>
-            {JOURNAL_LOGS_ENABLED ? (
-              <TouchableOpacity
-                style={styles.logButton}
-                onPress={() => setShowPrintLogs(true)}
-              >
-                <MaterialCommunityIcons name="text-box-search-outline" size={20} color="#1f2937" />
-                {journalEntriesCount > 0 ? (
-                  <Badge style={styles.logBadge} size={18}>
-                    {journalEntriesCount > 99 ? '99+' : journalEntriesCount}
-                  </Badge>
-                ) : null}
-              </TouchableOpacity>
-            ) : null}
-            <PaperButton
-              mode="contained"
-              onPress={() => {
-                void loadOrders();
-              }}
-              loading={loading || isFetchingOrders}
-              style={[styles.refreshButton, styles.headerActionButton, isPhoneLayout ? styles.phoneActionButton : null]}
-              contentStyle={isPhoneLayout ? styles.phoneActionContent : useCompactVerticalCards ? styles.headerCompactActionContent : undefined}
-              compact
-              icon="refresh"
-              accessibilityLabel="Refresh live orders"
-            >
-              {isPhoneLayout ? '' : 'Refresh'}
-            </PaperButton>
-          </View>
-        </View>
+      {headerExpanded && <View style={[styles.header, { paddingHorizontal: width >= 1100 ? 16 : 12 }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={styles.filterRow}>
+            {filterOptions.map((filter) => {
+              const selected = filter.key === activeFilter;
+              return <TouchableOpacity key={filter.key} accessibilityRole="button" accessibilityState={{ selected }} style={[styles.filterChip, selected && styles.filterChipSelected]} onPress={() => setActiveFilter(filter.key)}>
+                <Text style={[styles.filterChipText, selected && styles.filterChipTextSelected]}>{filter.key === 'all' ? 'All orders' : filter.label}</Text>
+              </TouchableOpacity>;
+            })}
+          </ScrollView>
 
-        {headerExpanded && (
-          <>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={[styles.filterRow, useCompactVerticalCards ? styles.filterRowCompact : null]}
-            >
-              {filterOptions.map((filter) => {
-                const selected = filter.key === activeFilter;
-                return (
-                  <TouchableOpacity
-                    key={filter.key}
-                    style={[styles.filterChip, useCompactVerticalCards ? styles.filterChipCompact : null, selected ? styles.filterChipSelected : null]}
-                    onPress={() => setActiveFilter(filter.key)}
-                  >
-                    <Text style={[styles.filterChipText, selected ? styles.filterChipTextSelected : null]}>
-                      {filter.label}
-                    </Text>
-                    <View style={[styles.filterCount, useCompactVerticalCards ? styles.filterCountCompact : null, selected ? styles.filterCountSelected : null]}>
-                      <Text style={[styles.filterCountText, selected ? styles.filterCountTextSelected : null]}>
-                        {filter.count}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </>
-        )}
-      </Surface>
+        </View>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
+          <Text style={{ color: t.color.muted, fontSize: 14 }}>{summaryCounts.all} active · {isStale ? 'Sync delayed' : refreshCountdown > 0 ? `Refresh in ${refreshCountdown}s` : 'Up to date'}</Text>
+          <PaperButton mode="text" icon="calendar-clock" onPress={() => router.push('/pre-orders')}>Pre-orders{preOrderCount ? ` (${preOrderCount})` : ''}</PaperButton>
+          {JOURNAL_LOGS_ENABLED && <PaperButton mode="text" icon="text-box-search-outline" onPress={() => setShowPrintLogs(true)}>Print journal{journalEntriesCount ? ` (${journalEntriesCount})` : ''}</PaperButton>}
+        </View>
+      </View>}
 
       <FlatList
         ref={flatListRef}
@@ -928,7 +857,7 @@ export default function LiveOrdersScreen() {
             previewItemsLimit={appSettings.liveOrderCardPreviewItems}
             onOrderPress={handleOrderPress}
             onCustomerPress={handleCustomerPress}
-            onPrintPress={(order, printer) => void quickPrintOrder(order, printer)}
+            onPrintPress={quickPrintOrder}
             availablePrinters={appSettings.printerSaved}
             onQuickAction={handleQuickAction}
             onSmartpayPayment={handleSmartpayPayment}
@@ -957,16 +886,12 @@ export default function LiveOrdersScreen() {
         )}
         keyExtractor={(order) => order.id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
-        contentContainerStyle={[styles.listContent, useCompactVerticalCards ? styles.listContentCompact : null]}
+        contentContainerStyle={[styles.listContent, { alignItems: useVerticalCardRail ? 'flex-start' : 'stretch', paddingHorizontal: width >= 1100 ? 16 : 12, paddingTop: 16 }, useCompactVerticalCards ? styles.listContentCompact : null, filteredOrders.length === 0 && { flexGrow: 1, justifyContent: 'center', alignItems: 'stretch', width: '100%' }]}
         initialNumToRender={8}
         maxToRenderPerBatch={8}
         windowSize={7}
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
-              {activeFilter === 'all' ? 'No live orders' : 'No orders match this filter'}
-            </Text>
-          </View>
+          <AsyncState icon={loadError ? 'alert-circle-outline' : 'check'} loading={loading} title={loading ? 'Loading orders' : loadError ? 'Orders could not be loaded' : activeFilter === 'all' ? 'You’re all caught up' : 'No orders match this filter'} description={loading ? undefined : loadError || 'New orders will appear here. Refresh to check for updates.'} retryLabel={loadError ? 'Retry' : 'Refresh'} onRetry={() => void loadOrders()} />
         }
       />
 
@@ -1078,30 +1003,30 @@ export default function LiveOrdersScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
-  header: { padding: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e5e5e5', gap: 10 },
+  container: { flex: 1, backgroundColor: t.color.background },
+  header: { padding: 12, backgroundColor: t.color.background, borderBottomWidth: 1, borderBottomColor: t.color.border, gap: 10 },
   headerCompact: { paddingHorizontal: 8, paddingVertical: 6, gap: 5 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' },
   headerRowCompact: { alignItems: 'center', flexWrap: 'nowrap' },
   headerRowPhone: { alignItems: 'center' },
   headerTitleWrap: { flex: 1, gap: 2 },
   headerTitleWrapPhone: { flexBasis: '100%' },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827', flexShrink: 1 },
+  headerTitle: { fontSize: 24, fontWeight: 'bold', color: t.color.text, flexShrink: 1 },
   headerTitleCompact: { fontSize: 16 },
-  headerSubtitle: { fontSize: 12, color: '#6b7280', fontWeight: '700' },
-  headerSubtitleCompact: { fontSize: 11 },
+  headerSubtitle: { fontSize: 14, color: t.color.muted, fontWeight: '700' },
+  headerSubtitleCompact: { fontSize: 14 },
   headerActions: { flexDirection: 'row', gap: 8, flexShrink: 1, flexWrap: 'wrap', justifyContent: 'flex-start' },
   headerActionsCompact: { gap: 5, flexWrap: 'nowrap' },
   headerActionsPhone: { width: '100%', justifyContent: 'space-between', flexWrap: 'nowrap' },
   preOrderBadgeContainer: { position: 'relative' },
-  preOrderButton: { borderRadius: 8, borderColor: '#2563eb' },
-  filterToggleButton: { borderRadius: 8 },
+  preOrderButton: { borderRadius: t.radius.control, borderColor: t.color.primary },
+  filterToggleButton: { borderRadius: t.radius.control },
   logButton: {
-    width: 40,
-    height: 40,
+    width: 48,
+    height: 48,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: t.color.border,
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1111,29 +1036,30 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -6,
     right: -8,
-    backgroundColor: '#dc2626',
+    backgroundColor: t.color.danger,
   },
   preOrderBadge: {
     position: 'absolute',
     top: -8,
     right: -8,
-    backgroundColor: '#ef4444',
+    backgroundColor: t.color.danger,
     fontWeight: 'bold',
   },
-  refreshButton: { borderRadius: 8, minWidth: 88 },
-  headerActionButton: { height: 40, minHeight: 40 },
-  headerCompactActionContent: { height: 34, paddingHorizontal: 8 },
-  phoneActionButton: { minWidth: 0, width: 40 },
-  phoneActionContent: { width: 40, height: 40, marginHorizontal: 0 },
+  refreshButton: { borderRadius: t.radius.control, minWidth: 88 },
+  headerActionButton: { height: 48, minHeight: 48 },
+  headerCompactActionContent: { height: 48, paddingHorizontal: 8 },
+  phoneActionButton: { minWidth: 0, width: 48 },
+  phoneActionContent: { width: 48, height: 48, marginHorizontal: 0 },
   filterRow: { gap: 8, paddingRight: 12 },
   filterRowCompact: { gap: 5, paddingRight: 8 },
   filterChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    borderRadius: 999,
+    borderRadius: 10,
+    minHeight: 48,
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: t.color.border,
     backgroundColor: '#fff',
     paddingLeft: 12,
     paddingRight: 8,
@@ -1141,41 +1067,41 @@ const styles = StyleSheet.create({
   },
   filterChipCompact: { gap: 5, paddingLeft: 8, paddingRight: 6, paddingVertical: 5 },
   filterChipSelected: {
-    backgroundColor: '#111827',
-    borderColor: '#111827',
+    backgroundColor: t.color.primaryTint,
+    borderColor: t.color.primary,
   },
-  filterChipText: { color: '#111827', fontSize: 12, fontWeight: '800' },
-  filterChipTextSelected: { color: '#fff' },
+  filterChipText: { color: t.color.text, fontSize: 14, fontWeight: '800' },
+  filterChipTextSelected: { color: t.color.primary },
   filterCount: {
     minWidth: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: t.color.background,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 6,
   },
   filterCountCompact: { minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4 },
   filterCountSelected: { backgroundColor: 'rgba(255,255,255,0.18)' },
-  filterCountText: { color: '#374151', fontSize: 11, fontWeight: '900' },
+  filterCountText: { color: '#374151', fontSize: 14, fontWeight: '900' },
   filterCountTextSelected: { color: '#fff' },
-  listContent: { flexGrow: 1, alignItems: 'stretch', padding: 12, paddingBottom: 20 },
-  listContentCompact: { padding: 8, paddingBottom: 8 },
+  listContent: { flexGrow: 1, alignItems: 'flex-start', paddingHorizontal: 16, paddingBottom: 20 },
+  listContentCompact: { paddingHorizontal: 16, paddingBottom: 16 },
   cardRailSeparator: { width: 12 },
   emptyContainer: { flex: 1, alignItems: 'center', marginTop: 100 },
-  emptyText: { fontSize: 16, color: '#6b7280' },
+  emptyText: { fontSize: 16, color: t.color.muted },
   printingOverlay: { position: 'absolute', top: 24, left: 0, right: 0, alignItems: 'center', zIndex: 100 },
-  printingChip: { backgroundColor: '#2563eb', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8 },
+  printingChip: { backgroundColor: t.color.primary, borderRadius: t.radius.card, paddingHorizontal: 16, paddingVertical: 8 },
   printingText: { color: '#fff', fontWeight: 'bold' },
   preOrderNoticeOverlay: { position: 'absolute', top: 66, left: 0, right: 0, alignItems: 'center', zIndex: 99 },
   preOrderNoticeChip: {
     backgroundColor: '#f59e0b',
-    borderRadius: 20,
+    borderRadius: t.radius.card,
     paddingHorizontal: 16,
     paddingVertical: 8,
     maxWidth: '92%',
   },
-  preOrderNoticeText: { color: '#111827', fontWeight: '700' },
+  preOrderNoticeText: { color: t.color.text, fontWeight: '700' },
   hiddenReceiptContainer: {
     position: 'absolute',
     top: -9999,
@@ -1193,18 +1119,18 @@ const styles = StyleSheet.create({
   smartpayPanel: {
     width: '100%',
     maxWidth: 360,
-    borderRadius: 8,
+    borderRadius: t.radius.control,
     backgroundColor: '#fff',
     padding: 24,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: t.color.border,
   },
-  smartpayTitle: { marginTop: 16, fontSize: 18, fontWeight: '800', color: '#111827' },
-  smartpayText: { marginTop: 8, fontSize: 14, color: '#4b5563', textAlign: 'center' },
-  smartpayAmount: { marginTop: 12, fontSize: 28, fontWeight: '900', color: '#111827' },
+  smartpayTitle: { marginTop: 16, fontSize: 18, fontWeight: '800', color: t.color.text },
+  smartpayText: { marginTop: 8, fontSize: 14, color: t.color.muted, textAlign: 'center' },
+  smartpayAmount: { marginTop: 12, fontSize: 28, fontWeight: '900', color: t.color.text },
   snackbar: {
-    backgroundColor: '#111827',
+    backgroundColor: t.color.text,
   },
   moreOrdersFloatingBadge: {
     position: 'absolute',
@@ -1220,9 +1146,9 @@ const styles = StyleSheet.create({
   moreOrdersPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0f172a',
+    backgroundColor: t.color.navy,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: t.color.muted,
     paddingVertical: 7,
     paddingHorizontal: 12,
     borderRadius: 999,

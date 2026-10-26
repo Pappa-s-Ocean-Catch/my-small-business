@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
-import { Alert, Modal, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Button } from 'react-native-paper';
+import { ActionButton as Button } from '@/components/ui/ActionButton';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, StyleSheet, Text, View } from 'react-native';
+
 import type { Order } from '@my-small-business/types';
 import { findCustomerByPhone, createCustomerIfNotExists, type Customer } from '../lib/customers';
 import { associateCustomerWithOrder, createPayByLink } from '../lib/pay-by-link';
 import { ReceiptQrCode } from './ReceiptQrCode';
+import { EditorSheet, FormField, designTokens as t } from '@/components/ui';
 
 type Props = {
   visible: boolean;
@@ -14,6 +16,7 @@ type Props = {
 };
 
 export function PayByLinkModal({ visible, order, onDismiss, onOrderRefresh }: Props) {
+  const sendInProgress = useRef(false);
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -33,6 +36,7 @@ export function PayByLinkModal({ visible, order, onDismiss, onOrderRefresh }: Pr
   }, [visible, order?.id]);
 
   useEffect(() => {
+    if (!visible || paymentUrl) return;
     const digits = phone.replace(/\D/g, '');
     const isValidPhone = (digits.length === 10 && (digits.startsWith('04') || digits.startsWith('03')))
       || (digits.length === 11 && (digits.startsWith('614') || digits.startsWith('613')));
@@ -68,12 +72,13 @@ export function PayByLinkModal({ visible, order, onDismiss, onOrderRefresh }: Pr
       active = false;
       clearTimeout(timer);
     };
-  }, [phone]);
+  }, [phone, visible, paymentUrl]);
 
   const handleSend = async () => {
-    if (!order) return;
+    if (!order || sendInProgress.current) return;
     const normalizedPhone = phone.trim();
     if (!normalizedPhone) return Alert.alert('Customer phone', 'Enter the customer phone number first.');
+    sendInProgress.current = true;
     setLoading(true);
     try {
       const lookup = await findCustomerByPhone(normalizedPhone);
@@ -96,41 +101,60 @@ export function PayByLinkModal({ visible, order, onDismiss, onOrderRefresh }: Pr
     } catch (error) {
       Alert.alert('Pay by Link', error instanceof Error ? error.message : 'Failed to create payment link.');
     } finally {
+      sendInProgress.current = false;
       setLoading(false);
     }
   };
 
-  return <Modal visible={visible} transparent animationType="fade" onRequestClose={onDismiss}>
-    <View style={styles.scrim}><View style={styles.card}>
-      {paymentUrl ? <>
-        <Text style={styles.title}>Payment link sent</Text>
-        <View style={styles.qr}><ReceiptQrCode value={paymentUrl} size={250} /></View>
-        <Text style={styles.copy}>SMS sent to {phone}</Text>
-        <Text style={styles.amount}>${order?.total.toFixed(2)}</Text>
-        <Button mode="contained" onPress={onDismiss}>Done</Button>
-      </> : <>
-        <Text style={styles.title}>Pay by Link</Text>
-        <Text style={styles.copy}>We’ll find the customer by phone or create a customer record before sending the Stripe payment link.</Text>
-        <TextInput value={phone} onChangeText={setPhone} placeholder="Phone number" keyboardType="phone-pad" style={styles.input} />
-        {lookingUpCustomer ? <Text style={styles.copy}>Looking up customer…</Text> : null}
-        {customer ? <Text style={styles.customerFound}>Existing customer: {customer.name || customer.phone}</Text> : null}
-        {lookupError ? <Text style={styles.error}>{lookupError}</Text> : null}
-        {!customer ? <TextInput value={name} onChangeText={setName} placeholder="Name (required for new customer)" style={styles.input} /> : null}
-        <View style={styles.actions}><Button onPress={onDismiss}>Cancel</Button><Button mode="contained" onPress={() => void handleSend()} loading={loading} disabled={loading}>Send link</Button></View>
+  return (
+    <EditorSheet
+      visible={visible}
+      title={paymentUrl ? 'Payment link sent' : 'Pay by Link'}
+      onDismiss={onDismiss}
+      pending={loading}
+      footer={paymentUrl ? (
+        <Button mode="contained" onPress={onDismiss} style={styles.action} contentStyle={styles.actionContent}>Done</Button>
+      ) : <>
+        <Button mode="outlined" onPress={onDismiss} disabled={loading} style={styles.action} contentStyle={styles.actionContent}>Cancel</Button>
+        <Button mode="contained" onPress={() => void handleSend()} loading={loading} disabled={loading || !order || !phone.trim() || lookingUpCustomer} style={styles.action} contentStyle={styles.actionContent}>Send link</Button>
       </>}
-    </View></View>
-  </Modal>;
+    >
+      <View style={styles.summary}>
+        <Text style={styles.summaryLabel}>Amount due</Text>
+        <Text style={styles.amount}>${order?.total.toFixed(2) ?? '0.00'}</Text>
+      </View>
+      {paymentUrl ? <>
+        <View style={styles.success} accessibilityLiveRegion="polite">
+          <Text style={styles.successTitle}>SMS sent to {phone}</Text>
+          <Text style={styles.copy}>The customer can open the link or scan this code to pay.</Text>
+        </View>
+        <View style={styles.qr} accessible accessibilityLabel="Payment QR code"><ReceiptQrCode value={paymentUrl} size={220} /></View>
+        <Text style={styles.copy}>Payment remains unpaid until the customer completes payment.</Text>
+      </> : <>
+        <Text style={styles.copy}>Send the customer a secure payment link by SMS.</Text>
+        <FormField label="Phone number" value={phone} onChangeText={setPhone} keyboardType="phone-pad" autoComplete="tel" disabled={loading} />
+        {lookingUpCustomer ? <Text style={styles.copy} accessibilityLiveRegion="polite">Looking up customer…</Text> : null}
+        {customer ? <View style={styles.success}><Text style={styles.customerFound}>Existing customer: {customer.name || customer.phone}</Text></View> : null}
+        {lookupError ? <Text style={styles.error} accessibilityRole="alert">{lookupError}</Text> : null}
+        {!customer ? <>
+          <FormField label="Customer name" value={name} onChangeText={setName} autoCapitalize="words" autoComplete="name" disabled={loading} />
+          <Text style={styles.copy}>A name is required to create a new customer record.</Text>
+        </> : null}
+      </>}
+    </EditorSheet>
+  );
 }
 
 const styles = StyleSheet.create({
-  scrim: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(15,23,42,0.55)', padding: 24 },
-  card: { width: '100%', maxWidth: 480, backgroundColor: '#fff', borderRadius: 20, padding: 24, gap: 14 },
-  title: { fontSize: 24, fontWeight: '800', color: '#10243f' },
-  copy: { fontSize: 15, color: '#475569', lineHeight: 22 },
-  amount: { fontSize: 28, fontWeight: '800', color: '#10243f', textAlign: 'center' },
-  customerFound: { fontSize: 15, fontWeight: '700', color: '#047857' },
-  error: { fontSize: 14, color: '#b91c1c' },
-  input: { borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 17 },
-  actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
-  qr: { alignItems: 'center', padding: 12, backgroundColor: '#fff' },
+  summary: { backgroundColor: t.color.navy, borderRadius: t.radius.card, padding: 20, gap: 8 },
+  summaryLabel: { color: t.color.surface, fontSize: 16 },
+  amount: { fontSize: 32, fontWeight: '700', color: t.color.surface, fontVariant: ['tabular-nums'] },
+  copy: { fontSize: 15, color: t.color.muted, lineHeight: 22 },
+  success: { borderRadius: t.radius.control, padding: 14, gap: 6, backgroundColor: t.color.successTint },
+  successTitle: { fontSize: 17, fontWeight: '700', color: t.color.success },
+  customerFound: { fontSize: 15, fontWeight: '700', color: t.color.success },
+  error: { fontSize: 14, lineHeight: 21, color: t.color.danger },
+  qr: { alignItems: 'center', padding: 12, backgroundColor: t.color.surface },
+  action: { borderRadius: t.radius.control },
+  actionContent: { minHeight: t.touch.primaryHeight },
 });

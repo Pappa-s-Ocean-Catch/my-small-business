@@ -1,7 +1,8 @@
+import { ActionButton as Button } from '@/components/ui/ActionButton';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Button, IconButton, Surface } from 'react-native-paper';
+import { IconButton, Surface } from 'react-native-paper';
 
 import type { Customer } from '../../lib/customers';
 import { getRecentCustomers, searchCustomers, getRecentCalls } from '../../lib/customers';
@@ -10,7 +11,9 @@ import type { CustomerLookupStatus } from './PosCheckoutPanel';
 import { PosPhoneInputModal } from './PosPhoneInputModal';
 import { PosTextInputModal } from './PosTextInputModal';
 import { styles } from './pos.styles';
+import { WorkspaceHeader, HeaderIconButton, EditorSheet } from '@/components/ui';
 import { BRAND_COLORS } from '@/utils/brand';
+import { designTokens as tokens } from '@/lib/redesign';
 
 type Props = {
   customerLookupStatus: CustomerLookupStatus;
@@ -73,11 +76,13 @@ export function PosCustomerSelector({
 
   const [recentCallsVisible, setRecentCallsVisible] = useState(false);
   const [recentCalls, setRecentCalls] = useState<{ caller_number: string, caller_name: string | null, created_at: string }[]>([]);
+  const [selectedCall, setSelectedCall] = useState<number | null>(null);
   const [loadingRecentCalls, setLoadingRecentCalls] = useState(false);
 
   const loadRecentCalls = async () => {
     setLoadingRecentCalls(true);
     setRecentCallsVisible(true);
+    setSelectedCall(null);
     const { data } = await getRecentCalls(3);
     setRecentCalls(data || []);
     setLoadingRecentCalls(false);
@@ -131,51 +136,25 @@ export function PosCustomerSelector({
     <>
       <View style={styles.customerCard}>
         <Text style={styles.checkoutSectionTitle}>Customer</Text>
-        <View style={styles.customerIdentityRowSingleLine}>
-          <TouchableOpacity
-            style={[styles.phoneTrigger, styles.customerIdentityField, styles.customerPhoneField]}
-            onPress={() => setPhoneModalVisible(true)}
-          >
-            <Text style={styles.phoneTriggerLabel}>{allowEmptyPhone ? 'Phone optional' : 'Phone'}</Text>
-            <Text style={[styles.phoneTriggerValue, !customerPhone ? styles.phoneTriggerPlaceholder : null]} numberOfLines={1}>
-              {customerPhone || '04'}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.phoneTrigger, styles.customerIdentityField]}
-            onPress={() => setNameModalVisible(true)}
-          >
-            <Text style={styles.phoneTriggerLabel}>Name</Text>
-            <Text style={[styles.phoneTriggerValue, !customerName ? styles.phoneTriggerPlaceholder : null]} numberOfLines={1}>
-              {customerName || 'Tap to enter'}
-            </Text>
-          </TouchableOpacity>
-          <Button
-            mode="outlined"
-            icon="account-search-outline"
-            compact
-            onPress={() => setSearchDialogVisible(true)}
-            style={styles.customerSearchButton}
-            contentStyle={styles.customerSearchButtonContent}
-          >
-            Search
-          </Button>
-          <Button
-            mode="outlined"
-            icon="phone-clock"
-            compact
-            onPress={loadRecentCalls}
-            style={styles.customerSearchButton}
-            contentStyle={styles.customerSearchButtonContent}
-          >
-            Recent
-          </Button>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16 }}>
+          <View style={{ flex: 1, minWidth: 140 }}>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: tokens.color.text, marginBottom: 8 }}>{allowEmptyPhone ? 'Phone (optional)' : 'Phone'}</Text>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Enter customer phone" style={styles.customerInputTrigger} onPress={() => setPhoneModalVisible(true)}><Text style={styles.customerInputValue}>{customerPhone || '04'}</Text></TouchableOpacity>
+          </View>
+          <View style={{ flex: 1, minWidth: 140 }}>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: tokens.color.text, marginBottom: 8 }}>Customer name</Text>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Enter customer name" style={styles.customerInputTrigger} onPress={() => setNameModalVisible(true)}><Text style={[styles.customerInputValue, !customerName && { color: tokens.color.muted }]}>{customerName || 'Customer name'}</Text></TouchableOpacity>
+          </View>
+        </View>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 4 }}>
+          <Button mode="outlined" compact onPress={() => setSearchDialogVisible(true)} contentStyle={{ minHeight: 44 }} labelStyle={{ fontSize: 13 }} hitSlop={2} textColor={tokens.color.text}>Find customer</Button>
+          <Button mode="outlined" compact onPress={loadRecentCalls} contentStyle={{ minHeight: 44 }} labelStyle={{ fontSize: 13 }} hitSlop={2} textColor={tokens.color.text}>Recent calls</Button>
         </View>
 
-        <View style={styles.customerInlineState}>
+        {customerLookupStatus !== 'idle' && <View style={styles.customerInlineState}>
           {customerLookupStatus === 'loading' ? <ActivityIndicator size="small" color="#2563eb" /> : null}
           <Text style={[helperStyle, styles.customerHelperText]}>{helperText}</Text>
-        </View>
+        </View>}
 
         {(selectedCustomer || customerName.trim()) && (
           <View style={styles.customerSummaryCompact}>
@@ -239,7 +218,7 @@ export function PosCustomerSelector({
 
       <PosTextInputModal
         visible={nameModalVisible}
-        title="Enter Customer Name"
+        title="Customer name"
         value={customerName}
         onDismiss={() => setNameModalVisible(false)}
         onSave={(value) => {
@@ -256,23 +235,7 @@ export function PosCustomerSelector({
       >
         <View style={modalStyles.container}>
           <View style={modalStyles.modalShell}>
-            <Surface
-              style={[
-                modalStyles.header,
-                { paddingTop: isWide ? 14 : Math.max(insets.top, 8) },
-              ]}
-              elevation={1}
-            >
-              <View style={modalStyles.headerTop}>
-                <View style={modalStyles.headerTitleBlock}>
-                  <Text style={modalStyles.headerTitle}>Find customer</Text>
-                  <Text style={modalStyles.headerMeta}>
-                    Search by name or phone, then tap a customer to attach them to this order.
-                  </Text>
-                </View>
-                <IconButton icon="close" size={24} iconColor="#f8fafc" onPress={() => setSearchDialogVisible(false)} />
-              </View>
-            </Surface>
+            <WorkspaceHeader title="Find a customer" actions={<><Button mode="outlined" compact onPress={loadRecentCalls}>Recent calls</Button><HeaderIconButton icon="close" accessibilityLabel="Close customer search" onPress={() => setSearchDialogVisible(false)} /></>} />
 
             <View
               style={[
@@ -301,39 +264,9 @@ export function PosCustomerSelector({
         </View>
       </Modal>
 
-      <Modal
-        visible={recentCallsVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setRecentCallsVisible(false)}
-      >
-        <View style={modalStyles.dropdownOverlay}>
-          <View style={modalStyles.dropdownMenu}>
-            <Text style={modalStyles.dropdownTitle}>Recent Calls</Text>
-            {loadingRecentCalls ? (
-              <ActivityIndicator size="small" style={{ margin: 20 }} />
-            ) : recentCalls.length === 0 ? (
-              <Text style={modalStyles.dropdownEmpty}>No recent calls</Text>
-            ) : (
-              recentCalls.map((call, idx) => (
-                <TouchableOpacity
-                  key={idx}
-                  style={modalStyles.dropdownItem}
-                  onPress={() => {
-                    onChangePhone(call.caller_number);
-                    if (call.caller_name) onChangeName(call.caller_name);
-                    setRecentCallsVisible(false);
-                  }}
-                >
-                  <Text style={modalStyles.dropdownItemPhone}>{call.caller_number}</Text>
-                  {call.caller_name && <Text style={modalStyles.dropdownItemName}>{call.caller_name}</Text>}
-                </TouchableOpacity>
-              ))
-            )}
-            <Button mode="text" onPress={() => setRecentCallsVisible(false)} style={{ marginTop: 12 }}>Close</Button>
-          </View>
-        </View>
-      </Modal>
+      <EditorSheet visible={recentCallsVisible} title="Recent calls" onDismiss={() => setRecentCallsVisible(false)} footer={<><Button mode="outlined" onPress={() => setRecentCallsVisible(false)}>Cancel</Button><Button mode="contained" disabled={selectedCall === null} onPress={() => { const call = selectedCall === null ? null : recentCalls[selectedCall]; if (call) { onChangePhone(call.caller_number); if (call.caller_name) onChangeName(call.caller_name); } setRecentCallsVisible(false); }}>Use selected number</Button></>}>
+        {loadingRecentCalls ? <ActivityIndicator /> : recentCalls.length === 0 ? <Text style={{ color: tokens.color.muted }}>No recent calls</Text> : recentCalls.map((call, index) => <TouchableOpacity key={`${call.caller_number}-${call.created_at}`} accessibilityRole="radio" accessibilityState={{ checked: selectedCall === index }} onPress={() => setSelectedCall(index)} style={{ minHeight: 50, borderWidth: 1, borderColor: selectedCall === index ? tokens.color.primary : tokens.color.border, backgroundColor: selectedCall === index ? tokens.color.primaryTint : tokens.color.surface, padding: 14, borderRadius: 10, flexDirection: 'row', gap: 12 }}><Text style={{ color: tokens.color.primary }}>{selectedCall === index ? '◉' : '○'}</Text><View style={{ flex: 1 }}><Text style={{ color: tokens.color.text }}>{call.caller_name || 'Unknown caller'} · {call.caller_number}</Text><Text style={{ color: tokens.color.muted, fontSize: 12 }}>{new Date(call.created_at).toLocaleString('en-AU')}</Text></View></TouchableOpacity>)}
+      </EditorSheet>
     </>
   );
 }
@@ -343,7 +276,7 @@ const modalStyles = StyleSheet.create({
   modalShell: { flex: 1, backgroundColor: '#eef2f6' },
   header: {
     paddingBottom: 18,
-    backgroundColor: BRAND_COLORS.header,
+    backgroundColor: tokens.color.surface,
     borderBottomWidth: 1,
     borderBottomColor: '#183457',
   },
@@ -359,9 +292,9 @@ const modalStyles = StyleSheet.create({
     paddingRight: 12,
   },
   headerTitle: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#f8fafc',
+    fontSize: 18,
+    fontWeight: '700',
+    color: tokens.color.text,
   },
   headerMeta: {
     fontSize: 14,

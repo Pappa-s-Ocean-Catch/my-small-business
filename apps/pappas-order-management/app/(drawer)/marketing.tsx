@@ -1,6 +1,12 @@
+import { ActionButton as Button } from '@/components/ui/ActionButton';
+import { EditorSheet } from '@/components/ui/EditorSheet';
+import { SearchField as Searchbar } from '@/components/ui';
+import { WorkspaceHeader, WorkflowSteps, StatusBadge } from '@/components/ui';
+import { designTokens as t } from '@/lib/redesign';
+import { FormField, PageHeader, Panel, SectionHeader } from '@/components/ui';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Image, Modal, RefreshControl, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { Appbar, Button, Card, Checkbox, Chip, HelperText, IconButton, RadioButton, Searchbar, SegmentedButtons, Surface, Text, TextInput } from 'react-native-paper';
+import { Appbar, Card, Checkbox, Chip, HelperText, IconButton, RadioButton, SegmentedButtons, Surface, Text, TextInput } from 'react-native-paper';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { Customer, getMarketingCustomers } from '@/lib/customers';
@@ -106,88 +112,29 @@ function CustomerTable({
   checkedIds: Set<string>;
   onCheckCustomer: (customer: MarketingCustomer) => void;
 }) {
-  const { width } = useWindowDimensions();
-  const isPhonePortrait = width < 700;
-
-  return (
-    <View style={styles.dualListColumn}>
-      <Text variant="titleSmall" style={styles.columnTitle}>{title}</Text>
-      {rows.length === 0 ? <Text style={styles.emptyColumnText}>{emptyText}</Text> : null}
-      {!isPhonePortrait ? (
-        <View style={styles.tableHeader}>
-          <Text style={[styles.tableHeaderText, styles.colName]}>Customer</Text>
-          <Text style={[styles.tableHeaderText, styles.colOrders]}>Orders</Text>
-          <Text style={[styles.tableHeaderText, styles.colDate]}>Last Order</Text>
-          <Text style={[styles.tableHeaderText, styles.colDate]}>SMS</Text>
-          <Text style={[styles.tableHeaderText, styles.colDate]}>Email</Text>
-          <Text style={[styles.tableHeaderText, styles.colAction]}>Action</Text>
-        </View>
-      ) : null}
-
-      {rows.map(({ customer, listKey }) => (
-        <View
-          key={selected ? `${listKey}-selected` : listKey}
-          style={[styles.tableRow, isPhonePortrait ? styles.mobileTableRow : null, selected ? styles.selectedListItem : null]}
-        >
-          {isPhonePortrait ? (
-            <>
-              <View style={styles.mobileCustomerRow}>
-                <Checkbox.Item label="" style={styles.rowCheckbox} status={customer.profileId && checkedIds.has(customer.profileId) ? 'checked' : 'unchecked'} disabled={disabled || (!selected && !canSelectRecipient(customer))} onPress={() => onCheckCustomer(customer)} accessibilityLabel={`${selected ? 'Mark for removal' : 'Select'} ${customer.name || 'customer'}`} />
-                <View style={styles.mobileCustomerCell}>
-                  <Text numberOfLines={1} style={styles.tablePrimaryText}>{customer.name || 'Customer'}</Text>
-                  <Text numberOfLines={1} style={styles.tableSecondaryText}>{customer.email || customer.phone || 'No contact'}</Text>
-                </View>
-                {selected || (customer.profileId && checkedIds.has(customer.profileId)) ? (
-                  <Button compact mode="contained-tonal" disabled={disabled} onPress={() => onToggleCustomer(customer)}>Remove</Button>
-                ) : customer.optInMarketing === false ? (
-                  <Chip compact>Opted out</Chip>
-                ) : (
-                  <Button compact mode="contained" disabled={disabled || !canSelectRecipient(customer)} onPress={() => onToggleCustomer(customer)}>Add</Button>
-                )}
-              </View>
-              <View style={styles.mobileStatsRow}>
-                <Text style={styles.mobileStatText}>Orders: {customer.totalOrders || 0}</Text>
-                <Text style={styles.mobileStatText}>Last order: {formatDateLabel(customer.lastOrderDate)}</Text>
-                <Text style={styles.mobileStatText}>SMS: {formatDateLabel(customer.lastMarketingSmsSentAt)}</Text>
-                <Text style={styles.mobileStatText}>Email: {formatDateLabel(customer.lastMarketingEmailSentAt)}</Text>
-              </View>
-            </>
-          ) : (
-            <>
-              <View style={styles.colName}>
-                <View style={styles.checkboxCell}>
-                  <Checkbox.Item label="" style={styles.rowCheckbox} status={customer.profileId && checkedIds.has(customer.profileId) ? 'checked' : 'unchecked'} disabled={disabled || (!selected && !canSelectRecipient(customer))} onPress={() => onCheckCustomer(customer)} accessibilityLabel={`${selected ? 'Mark for removal' : 'Select'} ${customer.name || 'customer'}`} />
-                  <View style={styles.customerCell}>
-                    <Text numberOfLines={1} style={styles.tablePrimaryText}>{customer.name || 'Customer'}</Text>
-                    <Text numberOfLines={1} style={styles.tableSecondaryText}>{customer.email || customer.phone || 'No contact'}</Text>
-                  </View>
-                </View>
-              </View>
-              <Text style={[styles.tableCellText, styles.colOrders]}>{customer.totalOrders || 0}</Text>
-              <Text style={[styles.tableCellText, styles.colDate]}>{formatDateLabel(customer.lastOrderDate)}</Text>
-              <Text style={[styles.tableCellText, styles.colDate]}>{formatDateLabel(customer.lastMarketingSmsSentAt)}</Text>
-              <Text style={[styles.tableCellText, styles.colDate]}>{formatDateLabel(customer.lastMarketingEmailSentAt)}</Text>
-              <View style={styles.colAction}>
-                {selected || (customer.profileId && checkedIds.has(customer.profileId)) ? (
-                  <Button compact mode="contained-tonal" disabled={disabled} onPress={() => onToggleCustomer(customer)}>Remove</Button>
-                ) : customer.optInMarketing === false ? (
-                  <Chip compact>Opted out</Chip>
-                ) : (
-                  <Button compact mode="contained" disabled={disabled || !canSelectRecipient(customer)} onPress={() => onToggleCustomer(customer)}>Add</Button>
-                )}
-              </View>
-            </>
-          )}
-        </View>
-      ))}
-    </View>
-  );
+  return <View style={{ backgroundColor: t.color.surface, borderWidth: 1, borderColor: t.color.border, borderRadius: 16, overflow: 'hidden' }}>
+    {rows.length === 0 && <Text style={{ color: t.color.muted, fontSize: 14, padding: 16 }}>{title}</Text>}
+    {rows.length === 0 && <Text style={{ padding: 20, color: t.color.muted }}>{emptyText}</Text>}
+    {rows.map(({ customer, listKey }, index) => {
+      const checked = !!customer.profileId && checkedIds.has(customer.profileId);
+      const contactHistory = [customer.lastMarketingEmailSentAt, customer.lastMarketingSmsSentAt].filter(Boolean).sort().pop();
+      return <View key={listKey} style={{ paddingHorizontal: 20, paddingVertical: 12, minHeight: 82, borderTopWidth: index === 0 ? 0 : 1, borderColor: t.color.border, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
+        {selected && <Checkbox.Item label="" status={checked ? 'checked' : 'unchecked'} disabled={disabled} onPress={() => onCheckCustomer(customer)} accessibilityLabel={`Mark ${customer.name || 'customer'} for removal`} style={styles.rowCheckbox} />}
+        <View style={{ flex: 1, minWidth: 160, gap: 4 }}><Text style={{ color: t.color.text, fontSize: 16, fontWeight: '700' }}>{customer.name || 'Customer'}</Text><Text style={{ color: t.color.muted, fontSize: 14 }}>{customer.email ? 'Email available' : customer.phone ? 'Phone available' : 'No contact'} · {customer.totalOrders || 0} orders · {contactHistory ? `Last contacted ${formatDateLabel(contactHistory)}` : 'Never contacted'}</Text></View>
+        <Button mode={checked && !selected ? 'contained' : 'outlined'} contentStyle={{ minHeight: 48 }} disabled={disabled || (!selected && !canSelectRecipient(customer))} onPress={() => onToggleCustomer(customer)}>{selected ? 'Remove' : customer.optInMarketing === false ? 'Opted out' : checked ? 'Selected' : 'Select'}</Button>
+      </View>;
+    })}
+  </View>;
 }
 
 export default function MarketingScreen() {
   const navigation = useNavigation<DrawerNavigationProp<any>>();
-  const { width, height } = useWindowDimensions();
-  const isPhonePortrait = width < 700;
+  const { height, fontScale } = useWindowDimensions();
+  const [contentWidth, setContentWidth] = useState(0);
+  const [workflowHeight, setWorkflowHeight] = useState(0);
+  const [workflowViewportHeight, setWorkflowViewportHeight] = useState(0);
+  const stickyWorkflowFooter = workflowViewportHeight > 0 && workflowHeight + 112 > workflowViewportHeight;
+  const isPhonePortrait = contentWidth / fontScale < 700;
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [allCustomers, setAllCustomers] = useState<MarketingCustomer[]>([]);
@@ -513,109 +460,70 @@ export default function MarketingScreen() {
     }
   };
 
+  const workflowFooter = (
+      <View style={{ flexDirection: 'row', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 12, paddingTop: 18, paddingBottom: 18, backgroundColor: t.color.background }}>
+        <Button mode="outlined" contentStyle={{ minHeight: 48 }} disabled={step === 1 || busy} onPress={() => goToStep(step - 1)}>Back</Button>
+        {step < 3 ? <Button mode="contained" contentStyle={{ minHeight: 48 }} disabled={busy || !campaignReady || (step === 2 && selectedCount === 0)} onPress={() => goToStep(step + 1)}>{step === 1 ? 'Choose recipients' : 'Review campaign'}</Button> : <Button mode="contained" contentStyle={{ minHeight: 48 }} onPress={() => handleSend('email')} loading={sendingChannel === 'email'} disabled={sendingChannel !== null || !validDiscount || emailRecipientCount === 0 || !subject.trim() || !emailBody.trim()}>Send email · {emailRecipientCount} recipients</Button>}
+      </View>
+  );
+
   return (
-    <View style={styles.container}>
-      <Appbar.Header style={styles.appbar}>
-        <Appbar.Action icon="menu" onPress={() => navigation.openDrawer()} iconColor="#fff" />
-        <Appbar.Content title="Marketing" titleStyle={styles.appbarTitle} />
-      </Appbar.Header>
+    <View style={styles.container} onLayout={(event) => setContentWidth(event.nativeEvent.layout.width)}>
+      <WorkspaceHeader title={step === 1 ? "Create a campaign" : step === 2 ? "Choose recipients" : "Review campaign"} actions={<>
+
+      </>} />
 
       <ScrollView
         keyboardShouldPersistTaps="handled"
         ref={scrollRef}
+        onLayout={(event) => setWorkflowViewportHeight(event.nativeEvent.layout.height)}
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => {
           setRefreshing(true);
           void loadCustomers(page);
         }} />}
       >
-        <Surface style={styles.panel} elevation={1}>
-          <Text variant="titleLarge" style={styles.panelTitle}>Create a marketing campaign</Text>
-          <View style={styles.row}>
-            {['Campaign', 'Recipients', 'Review & send'].map((label, index) => (
-              <Button key={label} mode={step === index + 1 ? 'contained' : 'outlined'} disabled={busy || (index > 0 && !campaignReady) || (index === 2 && selectedCount === 0)} onPress={() => goToStep(index + 1)} accessibilityLabel={`Step ${index + 1}: ${label}`}>
-                {index + 1}. {label}
-              </Button>
-            ))}
-          </View>
-          <Text style={styles.stepHint}>Step {step} of 3 · {selectedCount} recipients selected</Text>
-        </Surface>
-        {step === 1 ? <Surface style={styles.panel} elevation={1}>
-          <Text variant="titleMedium" style={styles.panelTitle}>Campaign</Text>
-          <View style={[styles.row, isPhonePortrait ? styles.mobileStack : null]}>
-            <TextInput
-              mode="outlined"
-              label="Discount %"
-              value={discountPercentage}
-              onChangeText={setDiscountPercentage}
-              keyboardType="number-pad"
-              style={[styles.discountInput, isPhonePortrait ? styles.mobileFullWidth : null]}
-            />
-            <Button mode="contained" onPress={handleGenerateContent} loading={generatingContent} disabled={busy || !validDiscount}>
-              Generate Copy
-            </Button>
-            <Button mode="outlined" onPress={handleGenerateImage} loading={generatingImage} disabled={busy || !subject || !validDiscount}>
-              Generate Image
-            </Button>
-          </View>
+        <View style={{ gap: 20 }} onLayout={(event) => setWorkflowHeight(event.nativeEvent.layout.height)}>
+        <WorkflowSteps steps={['Campaign', 'Recipients', 'Review & send']} current={step - 1} onSelect={(index) => goToStep(index + 1)} disabled={[busy, busy || !campaignReady, busy || !campaignReady || selectedCount === 0]} />
+        {step === 1 ? <View style={{ flexDirection: contentWidth >= 1000 ? 'row' : 'column', gap: 20 }}><Surface style={[styles.panel, { flex: 1.5, minWidth: 0 }]} elevation={0}>
+          <FormField label="Discount %" value={discountPercentage} onChangeText={setDiscountPercentage} keyboardType="number-pad" style={styles.field} />
+          {!validDiscount && <HelperText type="error">Enter a discount greater than 0 and up to 100%.</HelperText>}
 
-          <HelperText type="info" visible>
-            Prepare email, SMS, or both. Each channel is sent separately after review.
-          </HelperText>
-
-          {!validDiscount ? <HelperText type="error">Enter a discount greater than 0 and up to 100%.</HelperText> : null}
-          <TextInput mode="outlined" label="Email subject" value={subject} onChangeText={setSubject} style={styles.field} />
-          <TextInput
+          <FormField mode="outlined" label="Email subject" value={subject} onChangeText={setSubject} style={styles.field} />
+          <FormField
             mode="outlined"
             label="Email body (HTML allowed)"
             value={emailBody}
             onChangeText={setEmailBody}
             multiline
             numberOfLines={8}
-            style={styles.field}
+            style={[styles.field, { height: 105 }]}
           />
-          <TextInput
+          <FormField
             mode="outlined"
             label="SMS body"
             value={smsBody}
             onChangeText={setSmsBody}
             multiline
             numberOfLines={4}
-            style={styles.field}
+            style={[styles.field, { height: 105 }]}
           />
 
-          {imageBase64 ? (
-            <Card style={styles.imageCard}>
-              <Image source={{ uri: `data:image/png;base64,${imageBase64}` }} style={styles.imagePreview} resizeMode="cover" />
-            </Card>
-          ) : null}
-        </Surface> : null}
-
-        {step === 2 ? <Surface style={styles.panel} elevation={1}>
-          <Text variant="titleMedium" style={styles.panelTitle}>Recipients</Text>
-          <Searchbar
-            placeholder="Search customers"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            style={styles.searchbar}
-          />
-
-          <View style={styles.recipientSettingsRow}>
-            <Text style={styles.recipientSettingsSummary} numberOfLines={2} accessibilityLabel={`Recipient settings: ${recipientSettingsSummary}`}>
-              {recipientSettingsSummary}
-            </Text>
-            <IconButton
-              icon="filter-variant"
-              mode="contained-tonal"
-              size={22}
-              disabled={busy}
-              onPress={openRecipientSettings}
-              accessibilityLabel="Open recipient filters and sorting"
-              style={styles.settingsIcon}
-            />
+          <View style={styles.row}>
+            <Button mode="outlined" onPress={handleGenerateContent} loading={generatingContent} disabled={busy || !validDiscount} contentStyle={{ minHeight: 48 }}>Generate copy</Button>
+            <Button mode="outlined" onPress={handleGenerateImage} loading={generatingImage} disabled={busy || !subject || !validDiscount} contentStyle={{ minHeight: 48 }}>Generate image</Button>
           </View>
+        </Surface><Panel style={{ flex: 1, minWidth: 0, padding: 20 }}>
+          <SectionHeader title="A reason to come back" description="Build a short offer for your regular customers. You’ll choose who receives it next." />
+          {imageBase64 ? <Image source={{ uri: `data:image/png;base64,${imageBase64}` }} style={{ width: '100%', aspectRatio: 1.8, borderRadius: 12 }} resizeMode="cover" /> : <View style={{ minHeight: 246, borderRadius: 12, backgroundColor: t.color.navy, padding: 24, alignItems: 'center', justifyContent: 'center', gap: 16 }}><Text style={{ color: t.color.surface, fontFamily: 'Georgia', fontWeight: '700', fontSize: 30, textAlign: 'center' }}>Pappa’s Ocean Catch</Text><Text style={{ color: t.color.surface, fontSize: 12, letterSpacing: 3, textAlign: 'center' }}>YOUR NEXT FAVOURITE MEAL</Text><Text style={{ color: '#E6C785', fontFamily: 'Georgia', fontStyle: 'italic', fontSize: 40 }}>{validDiscount ? `${discountPercentage}% off` : 'Your offer'}</Text></View>}
+          <Text style={{ fontSize: 14, color: t.color.muted }}>Local preview · Nothing sent</Text>
+        </Panel></View> : null}
 
-          <View style={styles.selectionSummaryRow}>
+
+        {step === 2 ? <Surface style={[styles.panel, { padding: 0, borderWidth: 0, backgroundColor: t.color.background }]} elevation={0}>
+          <View style={{ flexDirection: isPhonePortrait ? 'column' : 'row', alignItems: 'stretch', gap: 8, marginBottom: 20 }}><Searchbar placeholder="Search recipients" value={searchQuery} onChangeText={setSearchQuery} style={{ flex: 1, backgroundColor: t.color.surface, borderRadius: 10, borderWidth: 1, borderColor: t.color.border }} /><Button mode="outlined" contentStyle={{ minHeight: 48 }} disabled={busy} onPress={openRecipientSettings}>Filter & sort</Button></View>
+          <Text style={{ color: t.color.muted, fontSize: 14, marginBottom: 12 }}>{recipientSettingsSummary}</Text>
+          <View style={[styles.selectionSummaryRow, { backgroundColor: t.color.primaryTint, borderRadius: 10, padding: 12 }]}><Text style={{ color: t.color.text }}>{selectedCount} recipients selected</Text>
             <Button
               mode="text"
               onPress={() => setSelectedCustomers((current) => {
@@ -662,100 +570,39 @@ export default function MarketingScreen() {
           ) : null}
         </Surface> : null}
 
-        {step === 3 ? <Surface style={styles.panel} elevation={1}>
-          <Text variant="titleMedium" style={styles.panelTitle}>Review & send</Text>
-          <Text variant="titleSmall">{parsedDiscount}% discount · {selectedCount} recipients</Text>
-          <Text style={styles.stepHint}>Ready to send: {emailRecipientCount} email · {smsRecipientCount} SMS</Text>
-          {sentIds.email.size || sentIds.sms.size ? <Text style={styles.stepHint}>Sent this session: {sentIds.email.size} email · {sentIds.sms.size} SMS. Successful recipients remain selected for the other channel.</Text> : null}
-          {subject.trim() && emailBody.trim() ? <View style={styles.reviewCopy}>
-            <Text variant="titleSmall">Email: {subject}</Text>
-            <Text>{htmlToPlainText(emailBody)}</Text>
-          </View> : null}
-          {smsBody.trim() ? <View style={styles.reviewCopy}><Text variant="titleSmall">SMS</Text><Text>{smsBody}</Text></View> : null}
-          <HelperText type="info">Recipients who opted out or received a recent duplicate may be skipped. The generated image is a preview and is not included in the send.</HelperText>
-          <View style={styles.selectionSummaryRow}>
-            <Button disabled={busy || !selectedCount} onPress={() => setRemovalIds(new Set(selectedCustomerRows.slice(reviewPage * PAGE_SIZE, (reviewPage + 1) * PAGE_SIZE).map(({ customer }) => customer.profileId!)))}>Mark visible for removal</Button>
-            <Button mode="outlined" disabled={busy || removalIds.size === 0} onPress={() => { setSelectedCustomers((current) => removeRecipients(current, removalIds)); setRemovalIds(new Set()); }}>Remove marked ({removalIds.size})</Button>
-            <Button disabled={busy || removalIds.size === 0} onPress={() => setRemovalIds(new Set())}>Clear marks</Button>
+        {step === 3 ? <>
+          <Panel style={{ backgroundColor: t.color.warningTint }}><Text style={{ fontWeight: '700', color: t.color.text }}>Review before sending</Text><Text>{emailRecipientCount} email recipients · {smsRecipientCount} SMS recipients. Sending contacts customers and cannot be undone.</Text></Panel>
+          <View style={{ flexDirection: contentWidth >= 1000 ? 'row' : 'column', gap: 20 }}>
+            <Panel style={{ flex: 1, minWidth: 0, minHeight: 340 }}><SectionHeader title="Email preview" description={`Subject: ${subject || 'No email subject'}`} /><Text style={{ lineHeight: 25 }}>{htmlToPlainText(emailBody) || 'No email copy prepared.'}</Text><StatusBadge label={sentIds.email.size || sentIds.sms.size ? `Sent this session: ${sentIds.email.size} email · ${sentIds.sms.size} SMS` : 'Local draft · Unsent'} tone="warning" /><Text style={{ color: t.color.muted, fontSize: 14 }}>{parsedDiscount}% discount</Text></Panel>
+            <Panel style={{ flex: 1, minWidth: 0 }}><SectionHeader title={`Recipients · ${selectedCount}`} />
+              <CustomerTable title={`Selected recipients · Page ${reviewPage + 1}`} rows={selectedCustomerRows.slice(reviewPage * PAGE_SIZE, (reviewPage + 1) * PAGE_SIZE)} selected disabled={busy} checkedIds={removalIds} onCheckCustomer={toggleRemoval} onToggleCustomer={toggleCustomer} emptyText="No recipients selected. Go back to Recipients to add customers." />
+              {selectedCount > PAGE_SIZE && <View style={styles.row}><Button disabled={busy || reviewPage === 0} onPress={() => setReviewPage((current) => current - 1)}>Previous</Button><Button disabled={busy || (reviewPage + 1) * PAGE_SIZE >= selectedCount} onPress={() => setReviewPage((current) => current + 1)}>Next</Button></View>}
+              <View style={styles.row}><Button mode="outlined" onPress={() => goToStep(2)} disabled={busy}>Edit recipients</Button><Button mode="text" disabled={busy || removalIds.size === 0} onPress={() => { setSelectedCustomers((current) => removeRecipients(current, removalIds)); setRemovalIds(new Set()); }}>Remove marked ({removalIds.size})</Button></View>
+              <SectionHeader title="SMS preview" description={smsBody || 'No SMS copy prepared.'} />
+              <Button mode="outlined" onPress={() => handleSend('sms')} loading={sendingChannel === 'sms'} disabled={sendingChannel !== null || !validDiscount || smsRecipientCount === 0 || !smsBody.trim()} contentStyle={{ minHeight: 48 }}>Send SMS · {smsRecipientCount} recipients</Button>
+              <Text style={{ color: t.color.muted, fontSize: 14 }}>Opted-out recipients and recent duplicates may be skipped.</Text>
+            </Panel>
           </View>
-          <CustomerTable title={`Recipients (${selectedCount}) · check boxes to mark for removal`} rows={selectedCustomerRows.slice(reviewPage * PAGE_SIZE, (reviewPage + 1) * PAGE_SIZE)} selected disabled={busy} checkedIds={removalIds} onCheckCustomer={toggleRemoval} onToggleCustomer={toggleCustomer} emptyText="No recipients selected. Go back to Recipients to add customers." />
-          <View style={styles.paginationRow}>
-            <Text>Page {reviewPage + 1} of {Math.max(1, Math.ceil(selectedCount / PAGE_SIZE))}</Text>
-            <View style={styles.paginationActions}>
-              <Button disabled={busy || reviewPage === 0} onPress={() => setReviewPage((current) => current - 1)}>Previous</Button>
-              <Button disabled={busy || (reviewPage + 1) * PAGE_SIZE >= selectedCount} onPress={() => setReviewPage((current) => current + 1)}>Next</Button>
-            </View>
-          </View>
-        </Surface> : null}
-
-        <View style={styles.selectionSummaryRow}>
-          <Button mode="outlined" disabled={step === 1 || busy} onPress={() => goToStep(step - 1)}>Back</Button>
-          {step < 3 ? <Button mode="contained" disabled={busy || !campaignReady || (step === 2 && selectedCount === 0)} onPress={() => goToStep(step + 1)}>{step === 1 ? 'Choose recipients' : `Review ${selectedCount} recipients`}</Button> : <Button disabled={busy} onPress={() => goToStep(2)}>Edit recipients</Button>}
-        </View>
+        </> : null}
 
         {error ? <HelperText type="error" visible>{error}</HelperText> : null}
         {resultMessage ? <HelperText type="info" visible>{resultMessage}</HelperText> : null}
+        </View>
+        {!stickyWorkflowFooter && workflowFooter}
 
-        {step === 3 ? <View style={[styles.sendActions, isPhonePortrait ? styles.mobileStack : null]}>
-          <Button
-            mode="contained"
-            onPress={() => handleSend('email')}
-            loading={sendingChannel === 'email'}
-            disabled={sendingChannel !== null || !validDiscount || emailRecipientCount === 0 || !subject.trim() || !emailBody.trim()}
-            style={[styles.sendButton, styles.sendButtonHalf, isPhonePortrait ? styles.mobileFullWidth : null]}
-          >
-            Send Email ({emailRecipientCount})
-          </Button>
-          <Button
-            mode="outlined"
-            onPress={() => handleSend('sms')}
-            loading={sendingChannel === 'sms'}
-            disabled={sendingChannel !== null || !validDiscount || smsRecipientCount === 0 || !smsBody.trim()}
-            style={[styles.sendButton, styles.sendButtonHalf, isPhonePortrait ? styles.mobileFullWidth : null]}
-          >
-            Send SMS ({smsRecipientCount})
-          </Button>
-        </View> : null}
       </ScrollView>
-      <Modal
-        visible={settingsVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setSettingsVisible(false)}
-      >
-        <View style={styles.settingsBackdrop}>
-          <Surface style={[styles.settingsDialog, { maxHeight: height * 0.9 }]} elevation={3}>
-            <View style={styles.settingsHeader}>
-              <Text variant="titleLarge" style={styles.settingsTitle}>Filters & sort</Text>
-              <IconButton icon="close" onPress={() => setSettingsVisible(false)} accessibilityLabel="Cancel recipient settings" />
-            </View>
-            <ScrollView style={styles.settingsScroll} contentContainerStyle={styles.settingsBody} keyboardShouldPersistTaps="handled">
+      {stickyWorkflowFooter && <View style={{ paddingHorizontal: 12, borderTopWidth: 1, borderColor: t.color.border }}>{workflowFooter}</View>}
+
+      <EditorSheet visible={settingsVisible} title="Recipient filters & sort" onDismiss={() => setSettingsVisible(false)} footer={<><Button mode="outlined" onPress={() => setSettingsVisible(false)}>Cancel</Button><Button mode="contained" onPress={applyRecipientSettings}>Apply filters</Button></>}>
               <Text variant="titleSmall" style={styles.settingsSectionTitle}>Show customers with</Text>
-              <View style={styles.contactFilterRow}>
-                <Checkbox.Item
-                  label="Email"
-                  status={draftContactFilters.email ? 'checked' : 'unchecked'}
-                  onPress={() => setDraftContactFilters((current) => ({ ...current, email: !current.email }))}
-                  style={styles.contactFilterItem}
-                />
-                <Checkbox.Item
-                  label="Phone"
-                  status={draftContactFilters.phone ? 'checked' : 'unchecked'}
-                  onPress={() => setDraftContactFilters((current) => ({ ...current, phone: !current.phone }))}
-                  style={styles.contactFilterItem}
-                />
-              </View>
+              <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>{(['email', 'phone'] as const).map((channel) => <Button key={channel} mode={draftContactFilters[channel] ? 'contained-tonal' : 'outlined'} accessibilityState={{ selected: draftContactFilters[channel] }} onPress={() => setDraftContactFilters((current) => ({ ...current, [channel]: !current[channel] }))}>{channel === 'email' ? 'Email' : 'Phone'}</Button>)}</View>
               <Text style={styles.settingsHint}>Select both to require both email and phone. Leave both off to show all contacts.</Text>
 
               <Text variant="titleSmall" style={styles.settingsSectionTitle}>Send history</Text>
-              <RadioButton.Group value={draftHistoryFilter} onValueChange={(value) => setDraftHistoryFilter(value as MarketingHistoryFilter)}>
-                {HISTORY_OPTIONS.map(({ value, label }) => <RadioButton.Item key={value} value={value} label={label} style={styles.settingsChoice} />)}
-              </RadioButton.Group>
+              <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>{HISTORY_OPTIONS.map(({ value, label }) => <Button key={value} mode={draftHistoryFilter === value ? 'contained-tonal' : 'outlined'} accessibilityState={{ selected: draftHistoryFilter === value }} onPress={() => setDraftHistoryFilter(value)}>{label}</Button>)}</View>
 
               <Text variant="titleSmall" style={styles.settingsSectionTitle}>Sort recipients</Text>
-              <RadioButton.Group value={draftSortOption} onValueChange={(value) => { setDraftSortOption(value as SortOption); setDraftSortDirection('asc'); }}>
-                {SORT_OPTIONS.map(({ value, label }) => <RadioButton.Item key={value} value={value} label={label} style={styles.settingsChoice} />)}
-              </RadioButton.Group>
+              <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>{SORT_OPTIONS.map(({ value, label }) => <Button key={value} mode={draftSortOption === value ? 'contained-tonal' : 'outlined'} accessibilityState={{ selected: draftSortOption === value }} onPress={() => { setDraftSortOption(value); setDraftSortDirection('asc'); }}>{label}</Button>)}</View>
               {draftSortOption !== 'marketing-priority' && draftSortOption !== 'never-contacted' ? (
                 <>
                   <Text variant="titleSmall" style={styles.settingsSectionTitle}>Sort direction</Text>
@@ -765,29 +612,22 @@ export default function MarketingScreen() {
                   ]} />
                 </>
               ) : null}
-            </ScrollView>
-            <View style={styles.settingsFooter}>
-              <Button onPress={() => setSettingsVisible(false)}>Cancel</Button>
-              <Button mode="contained" onPress={applyRecipientSettings}>Apply</Button>
-            </View>
-          </Surface>
-        </View>
-      </Modal>
+      </EditorSheet>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   rowCheckbox: { paddingHorizontal: 0, paddingVertical: 0, width: 48 },
-  stepHint: { marginTop: 12, color: '#475569' },
-  reviewCopy: { marginTop: 16, gap: 8, padding: 12, backgroundColor: '#f8fafc', borderRadius: 8 },
+  stepHint: { marginTop: 12, color: t.color.muted },
+  reviewCopy: { marginTop: 16, gap: 8, padding: 12, backgroundColor: t.color.background, borderRadius: t.radius.card },
   recipientSettingsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     marginBottom: 12,
   },
-  recipientSettingsSummary: { flex: 1, color: '#475569', fontSize: 13 },
+  recipientSettingsSummary: { flex: 1, color: t.color.muted, fontSize: 14 },
   settingsIcon: { margin: 0 },
   settingsBackdrop: {
     flex: 1,
@@ -803,26 +643,26 @@ const styles = StyleSheet.create({
   settingsBody: { paddingHorizontal: 20, paddingBottom: 16 },
   settingsSectionTitle: { marginTop: 16, marginBottom: 8, fontWeight: '700' },
   settingsChoice: { paddingHorizontal: 0 },
-  settingsHint: { color: '#475569', fontSize: 13 },
-  settingsFooter: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, padding: 16, borderTopWidth: 1, borderTopColor: '#e2e8f0' },
+  settingsHint: { color: t.color.muted, fontSize: 14 },
+  settingsFooter: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, padding: 16, borderTopWidth: 1, borderTopColor: t.color.border },
   container: {
     flex: 1,
-    backgroundColor: '#f5f7fb',
+    backgroundColor: t.color.background,
   },
   appbar: {
     backgroundColor: BRAND_COLORS.header,
   },
   appbarTitle: {
-    color: '#fff',
+    color: t.color.surface,
     fontWeight: '700',
   },
   content: {
-    padding: 12,
-    gap: 16,
+    padding: 16,
+    gap: 20,
   },
   panel: {
-    padding: 16,
-    borderRadius: 16,
+    padding: 20,
+    borderRadius: 16, borderWidth: 1, borderColor: t.color.border, backgroundColor: t.color.surface,
   },
   panelTitle: {
     marginBottom: 12,
@@ -848,7 +688,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   field: {
-    marginTop: 12,
+    marginBottom: 18,
   },
   imageCard: {
     marginTop: 12,
@@ -894,7 +734,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   paginationText: {
-    color: '#334155',
+    color: t.color.text,
     fontWeight: '600',
   },
   paginationActions: {
@@ -906,7 +746,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     flexBasis: 280,
-    backgroundColor: '#f8fafc',
+    backgroundColor: t.color.background,
     borderRadius: 14,
     padding: 8,
   },
@@ -914,10 +754,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     paddingHorizontal: 8,
     fontWeight: '700',
-    color: '#0f172a',
+    color: t.color.text,
   },
   emptyColumnText: {
-    color: '#64748b',
+    color: t.color.muted,
     paddingHorizontal: 12,
     paddingVertical: 12,
   },
@@ -931,9 +771,9 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   tableHeaderText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '700',
-    color: '#475569',
+    color: t.color.muted,
   },
   tableRow: {
     flexDirection: 'row',
@@ -941,7 +781,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 6,
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    borderBottomColor: t.color.border,
     gap: 8,
     flexWrap: 'wrap',
   },
@@ -976,21 +816,21 @@ const styles = StyleSheet.create({
     paddingLeft: 48,
   },
   mobileStatText: {
-    color: '#475569',
-    fontSize: 12,
+    color: t.color.muted,
+    fontSize: 14,
   },
   tablePrimaryText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#0f172a',
+    color: t.color.text,
   },
   tableSecondaryText: {
-    fontSize: 11,
-    color: '#64748b',
+    fontSize: 14,
+    color: t.color.muted,
   },
   tableCellText: {
-    fontSize: 12,
-    color: '#334155',
+    fontSize: 14,
+    color: t.color.text,
   },
   colName: {
     flex: 2.6,
@@ -1008,10 +848,10 @@ const styles = StyleSheet.create({
   },
   selectedListItem: {
     backgroundColor: '#ecfeff',
-    borderRadius: 12,
+    borderRadius: t.radius.card,
   },
   emptyText: {
-    color: '#64748b',
+    color: t.color.muted,
     textAlign: 'center',
     paddingVertical: 24,
   },

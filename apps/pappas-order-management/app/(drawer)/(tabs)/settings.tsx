@@ -1,10 +1,19 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Alert, Modal, ScrollView, StyleSheet, View, Platform } from 'react-native';
-import { Appbar, Button, Switch, Text, TextInput, Chip } from 'react-native-paper';
+import { Switch } from '@/components/ui/Switch';
+import { ActionButton as Button } from '@/components/ui/ActionButton';
+import { SelectionSheet, type SheetSelection } from '@/components/ui/SelectionSheet';
+import { PrintJournalList } from '@/components/settings/PrintJournalList';
+import { SettingsEditor } from '@/components/settings/SettingsEditor';
+import { ChoiceTabs } from '@/components/ui/ChoiceTabs';
+import { WorkspaceHeader } from '@/components/ui';
+import { useWindowDimensions } from 'react-native';
+import { designTokens as t } from '@/lib/redesign';
+import { FormField } from '@/components/ui';
+import { useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
+import { Alert, ScrollView, StyleSheet, View, Platform, TextInput as NativeTextInput } from 'react-native';
+import { Text, Chip } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { DEFAULT_APP_SETTINGS, type PrinterSectionAssignment } from '@/lib/settings';
-import { DrawerToggleButton } from '@react-navigation/drawer';
 import { playNewOrderSound, SOUND_OPTIONS, type SoundId } from '@/lib/sounds';
 import { PRINT_SECTION_OPTIONS } from '@/utils/orderUtils';
 import { BRAND_COLORS } from '@/utils/brand';
@@ -37,26 +46,39 @@ import { DEFAULT_STORE_INFO, fetchStoreInfo, saveStoreInfo, type StoreInfo } fro
 import { invalidateLocalMarketplaceSession } from '@/lib/marketplace-local-session';
 import { pickSettingsBackup, writeSavedSettingsBackupFile } from '@/lib/settings-backup-device';
 
-type SettingsDialogKey = 'refresh' | 'sound' | 'printer' | 'liveOrders' | 'marketplace' | 'printDiagnostics' | 'journal' | 'storeInfo' | 'callerId' | null;
+/** Settings choices use an outlined teal selection rather than Paper's tonal grey. */
+function SettingsChoice({ selected, style, contentStyle, labelStyle, ...props }: Omit<ComponentProps<typeof Button>, 'mode'> & { selected: boolean }) {
+    return <Button {...props} mode="outlined" accessibilityState={{ ...props.accessibilityState, selected }} hitSlop={2} buttonColor={selected ? t.color.primaryTint : t.color.surface} textColor={selected ? t.color.primary : t.color.text} style={[{ height: 44, borderColor: selected ? '#80B9B5' : t.color.border }, style]} contentStyle={[contentStyle, { height: 44, minHeight: 44 }]} labelStyle={[{ fontSize: 14, marginHorizontal: 15, marginVertical: 9 }, labelStyle]} />;
+}
+
+type SettingsDialogKey = 'refresh' | 'sound' | 'printer' | 'savedPrinters' | 'liveOrders' | 'marketplace' | 'printDiagnostics' | 'journal' | 'storeInfo' | 'callerId' | 'routing' | 'receipts' | null;
 
 const SETTINGS_MODAL_TITLES: Record<Exclude<SettingsDialogKey, null>, string> = {
     refresh: 'Refresh interval',
     sound: 'Order sound',
     printer: 'Kitchen printer',
+    savedPrinters: 'Kitchen printer',
+    routing: 'Printer section routing',
+    receipts: 'Receipt & print behaviour',
     liveOrders: 'Live order cards',
-    marketplace: 'Marketplace',
+    marketplace: 'Marketplace auto-sync',
     printDiagnostics: 'Print diagnostics',
-    journal: 'Journal',
+    journal: 'Print journal',
     storeInfo: 'Store information',
-    callerId: 'Caller ID listener',
+    callerId: 'Caller ID',
 };
 
 export default function SettingsScreen() {
+    const { width: windowWidth } = useWindowDimensions();
+    const compact = windowWidth < 600;
+    const [syncPresetsExpanded, setSyncPresetsExpanded] = useState(false);
     const router = useRouter();
     const { data: currentSettings = DEFAULT_APP_SETTINGS } = useAppSettingsQuery();
     const saveSettings = useAppSettingsStore((state) => state.saveSettings);
     const journalEntries = usePrinterAutomationStore((state) => state.journalEntries);
     const clearJournal = usePrinterAutomationStore((state) => state.clearJournal);
+    const [selection, setSelection] = useState<SheetSelection | null>(null);
+    const [callerDiagnosticsExpanded, setCallerDiagnosticsExpanded] = useState(false);
     const [activeDialog, setActiveDialog] = useState<SettingsDialogKey>(null);
     const [refreshIntervalSecText, setRefreshIntervalSecText] = useState(String(DEFAULT_APP_SETTINGS.refreshIntervalSec));
     const [soundEnabled, setSoundEnabled] = useState<boolean>(DEFAULT_APP_SETTINGS.soundEnabled);
@@ -162,6 +184,62 @@ export default function SettingsScreen() {
         setPrinterHighQuality(currentSettings.printerHighQuality);
     }, [currentSettings]);
 
+    const printerPage = activeDialog !== null && ['printer', 'savedPrinters', 'routing', 'receipts', 'journal'].includes(activeDialog);
+    const editorOpen = activeDialog !== null;
+    const restoreEditorDraft = useRef<(() => void) | null>(null);
+    useEffect(() => {
+        if (!editorOpen) { restoreEditorDraft.current = null; return; }
+        // Capture the hub draft at entry; Cancel preserves earlier completed edits.
+        restoreEditorDraft.current = () => {
+            setRefreshIntervalSecText(refreshIntervalSecText);
+            setSoundEnabled(soundEnabled);
+            setSoundId(soundId);
+            setRepeatCountText(repeatCountText);
+            setLiveOrderCardLayout(liveOrderCardLayout);
+            setLiveOrderCardsPerScreen(liveOrderCardsPerScreen);
+            setLiveOrderCardPreviewItems(liveOrderCardPreviewItems);
+            setMarketplaceAutoSyncEnabled(marketplaceAutoSyncEnabled);
+            setMarketplaceSyncIntervalSecText(marketplaceSyncIntervalSecText);
+            setMarketplaceDoorDashSyncEnabled(marketplaceDoorDashSyncEnabled);
+            setMarketplaceDoorDashSyncIntervalSecText(marketplaceDoorDashSyncIntervalSecText);
+            setMarketplaceUberSyncEnabled(marketplaceUberSyncEnabled);
+            setMarketplaceUberSyncIntervalSecText(marketplaceUberSyncIntervalSecText);
+            setMarketplaceSyncStartTime(marketplaceSyncStartTime);
+            setMarketplaceSyncEndTime(marketplaceSyncEndTime);
+            setMarketplaceFetchMode(marketplaceFetchMode);
+            setCallerIdEnabled(callerIdEnabled);
+            setAiCallAssistantEnabled(aiCallAssistantEnabled);
+            setCallerIdPortText(callerIdPortText);
+            setCallerIdDisplaySecondsText(callerIdDisplaySecondsText);
+            setCallerIdSipResponsesText(callerIdSipResponsesText);
+            setRegisterName(registerName);
+            setPrinterDebugFooter(printerDebugFooter);
+            setPrinterEnabled(printerEnabled);
+            setPrinterAutoPrint(printerAutoPrint);
+            setInstoreOrderAutoPrintEnabled(instoreOrderAutoPrintEnabled);
+            setInstoreCustomerReceiptAutoPrintEnabled(instoreCustomerReceiptAutoPrintEnabled);
+            setInstoreCustomerReceiptPrinterTarget(instoreCustomerReceiptPrinterTarget);
+            setInstoreCustomerReceiptEnabledFromTime(instoreCustomerReceiptEnabledFromTime);
+            setInstoreCustomerReceiptEnabledToTime(instoreCustomerReceiptEnabledToTime);
+            setInstoreInstantTicketEnabled(instoreInstantTicketEnabled);
+            setInstoreInstantTicketPrinterTarget(instoreInstantTicketPrinterTarget);
+            setPrinterSaved(printerSaved);
+            setPrinterSelectedTarget(printerSelectedTarget);
+            setPrinterSectionAssignments(printerSectionAssignments);
+            setPrinterDelayPrintSecText(printerDelayPrintSecText);
+            setPrinterClaimDelaySecText(printerClaimDelaySecText);
+            setPrinterPaperWidth(printerPaperWidth);
+            setPrinterReceiptMode(printerReceiptMode);
+            setPrinterHighQuality(printerHighQuality);
+            setStoreInfo(storeInfo);
+        };
+    }, [editorOpen]);
+    const cancelEditor = () => {
+        setSelection(null);
+        restoreEditorDraft.current?.();
+        setActiveDialog(null);
+    };
+
     const selectedSoundLabel = useMemo(
         () => SOUND_OPTIONS.find((o) => o.id === soundId)?.label ?? soundId,
         [soundId]
@@ -236,19 +314,7 @@ export default function SettingsScreen() {
         error: styles.logLevelBadgeerror,
     };
 
-    const openSoundPicker = () => {
-        Alert.alert(
-            'Select notification sound',
-            undefined,
-            [
-                ...SOUND_OPTIONS.map((opt) => ({
-                    text: opt.label,
-                    onPress: () => setSoundId(opt.id),
-                })),
-                { text: 'Cancel', style: 'cancel' },
-            ]
-        );
-    };
+    const openSoundPicker = () => setSelection({ title: 'Choose notification sound', value: soundId, options: SOUND_OPTIONS.map((option) => ({ value: option.id, label: option.label })), confirmLabel: 'Use selected sound', onSelect: (value) => setSoundId(value as SoundId) });
 
     const parseIntOr = (value: string, fallback: number) => {
         const n = Number.parseInt(value, 10);
@@ -715,6 +781,7 @@ export default function SettingsScreen() {
         try {
             setSaving(true);
             await saveSettings({
+                ...currentSettings,
                 refreshIntervalSec,
                 registerName,
                 soundEnabled,
@@ -817,28 +884,60 @@ export default function SettingsScreen() {
         }
     };
 
+    const renderSavedPrinters = (split: boolean) => (
+        <View style={[styles.panelCard, { gap: 0, flex: split ? 1 : undefined, width: split ? undefined : '100%', minWidth: 0 }]}>
+            <Text style={[styles.panelTitle, { fontSize: 18, marginBottom: 12 }]}>Saved printers</Text>
+            {printerSaved.length === 0 ? <Text style={styles.helper}>No printers saved yet. Use discovery or add one manually above.</Text> : printerSaved.map((p, index) => {
+                const isSelected = p.target === printerSelectedTarget;
+                const address = p.ipAddress ? `${p.ipAddress}:${p.port ?? DEFAULT_MANUAL_PRINTER_PORT}` : (p.macAddress || p.bdAddress || p.target);
+                return <View key={p.target} style={{ paddingVertical: 8, gap: 8, borderBottomWidth: index < printerSaved.length - 1 ? 1 : 0, borderColor: t.color.border }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                        <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+                            <Text style={[styles.printerName, { fontSize: 15 }]}>{p.deviceName}</Text>
+                            <Text style={{ color: t.color.muted, fontSize: 13, lineHeight: 18 }}>{isSimulatorPrinter(p) ? 'Preview only' : p.driver === 'sunmi' ? 'Sunmi built-in printer' : address}</Text>
+                        </View>
+                        {isSelected ? <View style={{ backgroundColor: t.color.primaryTint, borderRadius: 7, paddingHorizontal: 10, paddingVertical: 7 }}><Text style={{ color: t.color.primary, fontSize: 12, fontWeight: '700' }}>Default</Text></View> : <Button mode="outlined" labelStyle={{ fontSize: 13 }} contentStyle={{ minHeight: 44 }} onPress={() => { setPrinterSelectedTarget(p.target); updatePrinterAssignmentTarget(defaultPrinterAssignmentId, p.target); }}>Set default</Button>}
+                    </View>
+                    <View style={[styles.savedPrinterActions, { borderTopWidth: 1, borderColor: t.color.border }]}>
+                        {p.driver === 'rawTcp' || p.driver === 'simulator' || p.driver === 'sunmi' ? <Button mode="outlined" labelStyle={{ fontSize: 13 }} contentStyle={{ minHeight: 44 }} onPress={() => { startEditingManualPrinter(p); setActiveDialog('printer'); }}>Edit</Button> : null}
+                        <Button mode="outlined" textColor={t.color.danger} style={{ backgroundColor: t.color.dangerTint }} labelStyle={{ fontSize: 13 }} contentStyle={{ minHeight: 44 }} onPress={() => removeSavedPrinter(p.target)}>Remove</Button>
+                    </View>
+                </View>;
+            })}
+        </View>
+    );
+
+    const saveSharedStoreInfo = async () => {
+        try {
+            setSaving(true);
+            const saved = await saveStoreInfo({ ...storeInfo, shopName: storeInfo.shopName.trim() });
+            setStoreInfo(saved);
+            setActiveDialog(null);
+            Alert.alert('Saved', 'Store information updated for all registers.');
+        } catch (error) {
+            Alert.alert('Save failed', error instanceof Error ? error.message : 'Unable to update store information.');
+        } finally { setSaving(false); }
+    };
+
     return (
         <View style={styles.screen}>
-            <Appbar.Header style={styles.settingsHeader}>
-                {Platform.OS !== 'web' && <DrawerToggleButton tintColor="#fff" />}
-                <Appbar.BackAction onPress={() => router.replace('/(drawer)/(tabs)/live-orders')} iconColor="#fff" />
-                <Appbar.Content title="Settings" titleStyle={styles.settingsHeaderTitle} />
-            </Appbar.Header>
-            <ScrollView contentContainerStyle={styles.container}>
+            <WorkspaceHeader title="Settings" />
+            <ScrollView contentContainerStyle={[styles.container, { padding: compact ? 12 : 16 }]}>
+              <View style={styles.sectionGrid}>
 
                 <SettingsSectionCard
-                    title="Catalog"
+                    title="Catalogue"
                     description="Manage categories, products, layouts, and add-ons in smaller focused tools."
                 >
                     <SettingsActionTile title="Store information" description={storeInfo.shopName} icon="storefront-outline" onPress={() => setActiveDialog('storeInfo')} />
                     <SettingsActionTile
-                        title="Menu management"
+                        title="Menu products & categories"
                         description="Products, categories, and pricing"
                         icon="silverware-fork-knife"
                         onPress={() => router.push('/menu-management')}
                     />
                     <SettingsActionTile
-                        title="Add-ons management"
+                        title="Add-on groups"
                         description="Modifier groups and add-on items"
                         icon="shape-outline"
                         onPress={() => router.push('/addons-management')}
@@ -853,7 +952,7 @@ export default function SettingsScreen() {
 
                 <SettingsSectionCard
                     title="Register"
-                    description="Core behavior for refresh, order sounds, and kitchen printer automation."
+                    description="Refresh, notifications, marketplace sync, and caller identification."
                 >
                     <SettingsActionTile
                         title="Refresh interval"
@@ -885,12 +984,17 @@ export default function SettingsScreen() {
                         icon="phone-in-talk-outline"
                         onPress={() => setActiveDialog('callerId')}
                     />
+                </SettingsSectionCard>
+
+                <SettingsSectionCard title="Printing" description="Kitchen printers, section routing, receipts, and diagnostics.">
                     <SettingsActionTile
                         title="Kitchen printer"
                         description={printerSummary}
                         icon="printer"
                         onPress={() => setActiveDialog('printer')}
                     />
+                    <SettingsActionTile title="Section routing" description="Fried, grilled and till" icon="source-branch" onPress={() => setActiveDialog('routing')} />
+                    <SettingsActionTile title="Receipt options" description="Automatic printing and receipts" icon="receipt-text-outline" onPress={() => setActiveDialog('receipts')} />
                     <SettingsActionTile
                         title="Print diagnostics"
                         description={printerDebugFooter ? 'Diagnostic footer enabled' : 'Diagnostic footer disabled'}
@@ -900,7 +1004,7 @@ export default function SettingsScreen() {
                 </SettingsSectionCard>
 
                 <SettingsSectionCard
-                    title="Storage"
+                    title="Storage & integrations"
                     description="Manage transient POS data and settings backups for this tablet."
                 >
                     <SettingsActionTile
@@ -921,12 +1025,7 @@ export default function SettingsScreen() {
                         icon="file-import-outline"
                         onPress={handleImportSettings}
                     />
-                </SettingsSectionCard>
 
-                <SettingsSectionCard
-                    title="Integrations"
-                    description="Connect this POS register to payment terminals and external services."
-                >
                     <SettingsActionTile
                         title="Smartpay POS pairing"
                         description="Manage payment terminal connection"
@@ -934,38 +1033,20 @@ export default function SettingsScreen() {
                         onPress={() => router.push('/POS-intergation')}
                     />
                 </SettingsSectionCard>
+              </View>
 
-                <Button
-                    mode="contained"
-                    loading={saving}
-                    disabled={saving}
-                    onPress={handleSave}
-                    style={styles.saveButton}
-                    contentStyle={styles.saveButtonContent}
-                >
-                    Save
-                </Button>
 
-                <Text style={styles.footer}>More settings coming later.</Text>
 
-                <Modal
-                    visible={activeDialog !== null}
-                    animationType="slide"
-                    presentationStyle="fullScreen"
-                    onRequestClose={() => setActiveDialog(null)}
-                >
-                    <View style={styles.modalScreen}>
-                        <Appbar.Header style={styles.modalHeader}>
-                            <Appbar.BackAction onPress={() => setActiveDialog(null)} iconColor="#fff" />
-                            <Appbar.Content
-                                title={activeDialog ? SETTINGS_MODAL_TITLES[activeDialog] : 'Settings'}
-                                titleStyle={styles.modalHeaderTitle}
-                            />
-                        </Appbar.Header>
-                        <ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
+
+
+                <SettingsEditor pending={saving} visible={editorOpen} page={printerPage} wide title={activeDialog ? SETTINGS_MODAL_TITLES[activeDialog] : 'Settings'} onCancel={cancelEditor} onDone={activeDialog === 'storeInfo' ? () => void saveSharedStoreInfo() : () => setActiveDialog(null)} primaryLabel={activeDialog === 'storeInfo' ? 'Save store information' : 'Done'} primaryDisabled={activeDialog === 'storeInfo' && !storeInfo.shopName.trim()}>
+                    {printerPage && <ChoiceTabs value={activeDialog || 'printer'} onValueChange={(value) => setActiveDialog(value as SettingsDialogKey)} buttons={[
+                        { value: 'printer', label: 'Connections' }, { value: 'savedPrinters', label: 'Saved printers' }, { value: 'routing', label: 'Section routing' }, { value: 'receipts', label: 'Receipt options' }, ...(JOURNAL_LOGS_ENABLED ? [{ value: 'journal', label: 'Journal' }] : []),
+                    ]} />}
+                    <View style={{ gap: 16, paddingTop: printerPage ? 20 : 0 }}>
                             {activeDialog === 'refresh' && (
                                 <>
-                                    <TextInput
+                                    <FormField
                                         mode="outlined"
                                         label="Refresh interval (seconds)"
                                         value={refreshIntervalSecText}
@@ -999,7 +1080,7 @@ export default function SettingsScreen() {
                                         Bridge incoming calls to the OpenAI Realtime API so the AI agent can take orders. Requires Caller ID listener to be enabled.
                                     </Text>
 
-                                    <TextInput
+                                    <FormField
                                         mode="outlined"
                                         label="UDP Port"
                                         value={callerIdPortText}
@@ -1009,7 +1090,7 @@ export default function SettingsScreen() {
                                     />
                                     <Text style={styles.helper}>Usually 5060.</Text>
 
-                                    <TextInput
+                                    <FormField
                                         mode="outlined"
                                         label="Display duration (seconds)"
                                         value={callerIdDisplaySecondsText}
@@ -1019,7 +1100,7 @@ export default function SettingsScreen() {
                                     />
                                     <Text style={styles.helper}>How long the notification stays on screen.</Text>
 
-                                    <TextInput
+                                    <FormField
                                         mode="outlined"
                                         label="SIP Responses (comma separated)"
                                         value={callerIdSipResponsesText}
@@ -1028,7 +1109,8 @@ export default function SettingsScreen() {
                                         autoCapitalize="none"
                                         placeholder="e.g. 100 Trying, 180 Ringing"
                                     />
-                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                                    <Button mode="text" icon={callerDiagnosticsExpanded ? 'chevron-down' : 'chevron-right'} style={{ alignSelf: 'flex-start' }} onPress={() => setCallerDiagnosticsExpanded((value) => !value)}>Diagnostics</Button>
+                                    {callerDiagnosticsExpanded && (                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
                                         {[
                                             { label: 'None', value: '' },
                                             { label: 'Trying', value: '100 Trying' },
@@ -1038,17 +1120,11 @@ export default function SettingsScreen() {
                                             { label: 'Trying + OK', value: '100 Trying, 200 OK' },
                                             { label: 'Busy (486)', value: '486 Busy Here' },
                                             { label: 'Unavailable (480)', value: '480 Temporarily Unavailable' },
-                                        ].map((preset, idx) => (
-                                            <Chip
-                                                key={idx}
-                                                mode="outlined"
-                                                compact
-                                                onPress={() => setCallerIdSipResponsesText(preset.value)}
-                                            >
-                                                {preset.label}
-                                            </Chip>
+                                        ].map((preset) => (
+                                            <SettingsChoice key={preset.value} selected={callerIdSipResponsesText === preset.value} contentStyle={{ minHeight: 48 }} onPress={() => setCallerIdSipResponsesText(preset.value)}>{preset.label}</SettingsChoice>
                                         ))}
-                                    </View>
+                                    </View>)}
+
                                 </>
                             )}
 
@@ -1064,7 +1140,7 @@ export default function SettingsScreen() {
                                     </Button>
                                     <Text style={styles.helper}>Tap to change.</Text>
 
-                                    <TextInput
+                                    <FormField
                                         mode="outlined"
                                         label="Play times"
                                         value={repeatCountText}
@@ -1084,20 +1160,20 @@ export default function SettingsScreen() {
                                 <>
                                     <Text style={styles.label}>Display mode</Text>
                                     <View style={styles.buttonGroup}>
-                                        <Button
-                                            mode={liveOrderCardLayout === 'vertical' ? 'contained' : 'outlined'}
+                                        <SettingsChoice
+                                            selected={liveOrderCardLayout === 'vertical'}
                                             onPress={() => setLiveOrderCardLayout('vertical')}
                                             style={styles.flexButton}
                                         >
                                             Vertical
-                                        </Button>
-                                        <Button
-                                            mode={liveOrderCardLayout === 'horizontal' ? 'contained' : 'outlined'}
+                                        </SettingsChoice>
+                                        <SettingsChoice
+                                            selected={liveOrderCardLayout === 'horizontal'}
                                             onPress={() => setLiveOrderCardLayout('horizontal')}
                                             style={styles.flexButton}
                                         >
                                             Horizontal
-                                        </Button>
+                                        </SettingsChoice>
                                     </View>
                                     <Text style={styles.helper}>Vertical uses compact queue cards with horizontal scrolling. Horizontal keeps the full-width row list.</Text>
 
@@ -1105,20 +1181,20 @@ export default function SettingsScreen() {
                                         <>
                                             <Text style={[styles.label, { marginTop: 16 }]}>Cards per screen (Landscape)</Text>
                                             <View style={styles.buttonGroup}>
-                                                <Button
-                                                    mode={liveOrderCardsPerScreen === 3 ? 'contained' : 'outlined'}
+                                                <SettingsChoice
+                                                    selected={liveOrderCardsPerScreen === 3}
                                                     onPress={() => setLiveOrderCardsPerScreen(3)}
                                                     style={styles.flexButton}
                                                 >
-                                                    3 Cards
-                                                </Button>
-                                                <Button
-                                                    mode={liveOrderCardsPerScreen === 4 ? 'contained' : 'outlined'}
+                                                    3
+                                                </SettingsChoice>
+                                                <SettingsChoice
+                                                    selected={liveOrderCardsPerScreen === 4}
                                                     onPress={() => setLiveOrderCardsPerScreen(4)}
                                                     style={styles.flexButton}
                                                 >
-                                                    4 Cards
-                                                </Button>
+                                                    4
+                                                </SettingsChoice>
                                             </View>
                                         </>
                                     )}
@@ -1126,14 +1202,14 @@ export default function SettingsScreen() {
                                     <Text style={[styles.label, { marginTop: 16 }]}>Items to preview</Text>
                                     <View style={styles.buttonGroup}>
                                         {[3, 5, 8, 12].map((num) => (
-                                            <Button
+                                            <SettingsChoice
                                                 key={num}
-                                                mode={liveOrderCardPreviewItems === num ? 'contained' : 'outlined'}
+                                                selected={liveOrderCardPreviewItems === num}
                                                 onPress={() => setLiveOrderCardPreviewItems(num)}
                                                 style={styles.flexButton}
                                             >
                                                 {num}
-                                            </Button>
+                                            </SettingsChoice>
                                         ))}
                                     </View>
                                     <Text style={styles.helper}>Number of items shown on the card before truncating.</Text>
@@ -1141,140 +1217,27 @@ export default function SettingsScreen() {
                             )}
 
                             {activeDialog === 'marketplace' && (
-                                <>
-                                    <View style={styles.panelCard}>
-                                        <View style={styles.panelHeader}>
-                                            <View style={styles.switchRow}>
-                                                <Text style={styles.panelTitle}>DoorDash</Text>
-                                                <Switch
-                                                    value={marketplaceDoorDashSyncEnabled}
-                                                    onValueChange={setMarketplaceDoorDashSyncEnabled}
-                                                />
-                                            </View>
-                                            <Text style={styles.panelDescription}>
-                                                Automatically poll DoorDash orders on this tablet.
-                                            </Text>
+                                <View style={{ gap: 18 }}>
+                                    {[
+                                        { name: 'DoorDash', enabled: marketplaceDoorDashSyncEnabled, setEnabled: setMarketplaceDoorDashSyncEnabled, interval: marketplaceDoorDashSyncIntervalSecText, setInterval: setMarketplaceDoorDashSyncIntervalSecText },
+                                        { name: 'Uber Eats', enabled: marketplaceUberSyncEnabled, setEnabled: setMarketplaceUberSyncEnabled, interval: marketplaceUberSyncIntervalSecText, setInterval: setMarketplaceUberSyncIntervalSecText },
+                                    ].map((provider) => <View key={provider.name} style={{ flexDirection: compact ? 'column' : 'row', gap: 20 }}>
+                                        <View style={{ flex: 1, minHeight: 65, borderBottomWidth: 1, borderColor: t.color.border, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}><Text>{provider.name} enabled</Text><Switch accessibilityLabel={`${provider.name} enabled`} value={provider.enabled} onValueChange={provider.setEnabled} /></View>
+                                        <View style={{ flex: 1 }}><FormField label={`${provider.name} interval (seconds)`} value={provider.interval} onChangeText={provider.setInterval} keyboardType="number-pad" disabled={!provider.enabled} />
+                                            {syncPresetsExpanded && <View style={[styles.chipRow, { marginTop: 8 }]}>{[5, 15, 30, 60, 120].map((interval) => <SettingsChoice key={interval} selected={provider.interval === String(interval)} disabled={!provider.enabled} onPress={() => provider.setInterval(String(interval))}>{interval}s</SettingsChoice>)}</View>}
                                         </View>
-                                        <View style={styles.chipRow}>
-                                            {[5, 15, 30, 60, 120].map((interval) => (
-                                                <Chip
-                                                    key={interval}
-                                                    mode={marketplaceDoorDashSyncIntervalSecText === String(interval) ? 'flat' : 'outlined'}
-                                                    selected={marketplaceDoorDashSyncIntervalSecText === String(interval)}
-                                                    disabled={!marketplaceDoorDashSyncEnabled}
-                                                    onPress={() => setMarketplaceDoorDashSyncIntervalSecText(String(interval))}
-                                                >
-                                                    {interval}s
-                                                </Chip>
-                                            ))}
-                                        </View>
-                                        <TextInput
-                                            mode="outlined"
-                                            label="DoorDash polling interval (seconds)"
-                                            value={marketplaceDoorDashSyncIntervalSecText}
-                                            onChangeText={setMarketplaceDoorDashSyncIntervalSecText}
-                                            keyboardType="number-pad"
-                                            disabled={!marketplaceDoorDashSyncEnabled}
-                                            style={styles.input}
-                                        />
-                                        <Text style={styles.helper}>
-                                            Checks every 5 to 600 seconds. Default is 30s.
-                                        </Text>
-                                    </View>
-
-                                    <View style={styles.panelCard}>
-                                        <View style={styles.panelHeader}>
-                                            <View style={styles.switchRow}>
-                                                <Text style={styles.panelTitle}>Uber Eats</Text>
-                                                <Switch
-                                                    value={marketplaceUberSyncEnabled}
-                                                    onValueChange={setMarketplaceUberSyncEnabled}
-                                                />
-                                            </View>
-                                            <Text style={styles.panelDescription}>
-                                                Automatically poll Uber Eats orders on this tablet.
-                                            </Text>
-                                        </View>
-                                        <View style={styles.chipRow}>
-                                            {[5, 15, 30, 60, 120].map((interval) => (
-                                                <Chip
-                                                    key={interval}
-                                                    mode={marketplaceUberSyncIntervalSecText === String(interval) ? 'flat' : 'outlined'}
-                                                    selected={marketplaceUberSyncIntervalSecText === String(interval)}
-                                                    disabled={!marketplaceUberSyncEnabled}
-                                                    onPress={() => setMarketplaceUberSyncIntervalSecText(String(interval))}
-                                                >
-                                                    {interval}s
-                                                </Chip>
-                                            ))}
-                                        </View>
-                                        <TextInput
-                                            mode="outlined"
-                                            label="Uber Eats polling interval (seconds)"
-                                            value={marketplaceUberSyncIntervalSecText}
-                                            onChangeText={setMarketplaceUberSyncIntervalSecText}
-                                            keyboardType="number-pad"
-                                            disabled={!marketplaceUberSyncEnabled}
-                                            style={styles.input}
-                                        />
-                                        <Text style={styles.helper}>
-                                            Checks every 5 to 600 seconds. Default is 30s.
-                                        </Text>
-                                    </View>
-
-                                    <View style={styles.panelCard}>
-                                        <View style={styles.panelHeader}>
-                                            <Text style={styles.panelTitle}>Operating Hours & Mode</Text>
-                                            <Text style={styles.panelDescription}>
-                                                Applies to both marketplace providers.
-                                            </Text>
-                                        </View>
-                                        <TextInput
-                                            mode="outlined"
-                                            label="Marketplace sync start time"
-                                            value={marketplaceSyncStartTime}
-                                            onChangeText={setMarketplaceSyncStartTime}
-                                            placeholder="11:00"
-                                            style={styles.input}
-                                        />
-                                        <TextInput
-                                            mode="outlined"
-                                            label="Marketplace sync end time"
-                                            value={marketplaceSyncEndTime}
-                                            onChangeText={setMarketplaceSyncEndTime}
-                                            placeholder="20:30"
-                                            style={styles.input}
-                                        />
-                                        <Text style={styles.helper}>
-                                            Uses Melbourne time. Auto-sync runs from the start time up to, but not including, the end time. Manual refresh remains available anytime.
-                                        </Text>
-                                        <Text style={[styles.label, { marginTop: 12 }]}>Marketplace request mode</Text>
-                                        <View style={styles.segmentedButtons}>
-                                            <Button
-                                                mode={marketplaceFetchMode === 'api' ? 'contained' : 'outlined'}
-                                                onPress={() => setMarketplaceFetchMode('api')}
-                                                style={styles.segmentedButton}
-                                            >
-                                                API (recommended)
-                                            </Button>
-                                            <Button
-                                                mode={marketplaceFetchMode === 'local' ? 'contained' : 'outlined'}
-                                                onPress={() => setMarketplaceFetchMode('local')}
-                                                style={styles.segmentedButton}
-                                            >
-                                                Local tablet
-                                            </Button>
-                                        </View>
-                                        <Text style={styles.helper}>
-                                            API sends provider requests through the web API. Local tablet sends provider requests directly from this tablet after fetching a session held in memory for up to one hour.
-                                        </Text>
-                                    </View>
-                                </>
+                                    </View>)}
+                                    <View style={{ flexDirection: compact ? 'column' : 'row', gap: 20 }}><FormField style={{ flex: 1 }} label="Opening time" value={marketplaceSyncStartTime} onChangeText={setMarketplaceSyncStartTime} placeholder="11:00" /><FormField style={{ flex: 1 }} label="Closing time" value={marketplaceSyncEndTime} onChangeText={setMarketplaceSyncEndTime} placeholder="20:30" /></View>
+                                    <Text style={styles.label}>Request mode</Text>
+                                    <View style={styles.buttonGroup}><SettingsChoice selected={marketplaceFetchMode === 'local'} onPress={() => setMarketplaceFetchMode('local')}>Local device</SettingsChoice><SettingsChoice selected={marketplaceFetchMode === 'api'} onPress={() => setMarketplaceFetchMode('api')}>Server</SettingsChoice></View>
+                                    <Button mode="text" style={{ alignSelf: 'flex-start' }} icon={syncPresetsExpanded ? 'chevron-down' : 'chevron-right'} onPress={() => setSyncPresetsExpanded((value) => !value)}>Interval presets & details</Button>
+                                    {syncPresetsExpanded && <Text style={styles.helper}>Checks every 5 to 600 seconds. Uses Melbourne time, from opening up to closing. Manual refresh is always available. Server requests use the web API; Local device sends requests directly from this tablet with a session held in memory for up to one hour.</Text>}
+                                </View>
                             )}
 
                             {activeDialog === 'printDiagnostics' && (
                                 <>
-                                    <TextInput
+                                    <FormField
                                         mode="outlined"
                                         label="Register name"
                                         value={registerName}
@@ -1293,69 +1256,53 @@ export default function SettingsScreen() {
                             )}
 
                             {activeDialog === 'storeInfo' && (
-                                <>
+                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 20, rowGap: 16 }}>
                                     {([['shopName', 'Shop name'], ['legalName', 'Legal company name'], ['abn', 'ABN'], ['addressLine1', 'Address line 1'], ['addressLine2', 'Address line 2'], ['phone', 'Phone'], ['website', 'Website'], ['logoUrl', 'Logo URL'], ['openingHours', 'Opening hours']] as Array<[keyof StoreInfo, string]>).map(([key, label]) => (
-                                        <TextInput key={key} mode="outlined" label={label} value={storeInfo[key]} onChangeText={(value) => setStoreInfo((current) => ({ ...current, [key]: value }))} style={styles.input} />
+                                        <View key={key} style={{ width: windowWidth < 750 ? '100%' : '48%' }}>{key === 'logoUrl' ? <View style={styles.input}><Text style={{ fontSize: 14, fontWeight: '700', color: t.color.text, marginBottom: 6 }}>{label}</Text><View style={{ height: 48, overflow: 'hidden', borderRadius: t.radius.control, borderWidth: 1, borderColor: t.color.border, backgroundColor: t.color.surface }}><NativeTextInput key="store-logo-single-line" accessibilityLabel={label} value={storeInfo.logoUrl} onChangeText={(value) => setStoreInfo((current) => ({ ...current, logoUrl: value }))} multiline={false} numberOfLines={1} scrollEnabled autoCapitalize="none" autoCorrect={false} keyboardType="url" style={{ height: 46, paddingHorizontal: 14, paddingVertical: 0, fontSize: 16, color: t.color.text }} /></View></View> : <FormField mode="outlined" label={label} value={storeInfo[key]} onChangeText={(value) => setStoreInfo((current) => ({ ...current, [key]: value }))} multiline={key === 'openingHours'} numberOfLines={key === 'openingHours' ? 4 : 1} scrollEnabled style={[styles.input, key === 'openingHours' && { height: 105 }]} />}</View>
                                     ))}
                                     <Text style={styles.helper}>This shared information syncs to all online POS registers. Opening hours are stored for future use and are not printed on receipts.</Text>
-                                    <Button mode="contained" loading={saving} disabled={saving || !storeInfo.shopName.trim()} onPress={async () => { try { setSaving(true); setStoreInfo(await saveStoreInfo({ ...storeInfo, shopName: storeInfo.shopName.trim() })); Alert.alert('Saved', 'Store information updated for all registers.'); } catch (error) { Alert.alert('Save failed', error instanceof Error ? error.message : 'Unable to update store information.'); } finally { setSaving(false); } }} style={styles.previewButton}>Save store information</Button>
-                                </>
+
+                                </View>
                             )}
 
-                            {activeDialog === 'printer' && (
+                            {(activeDialog === 'printer' || activeDialog === 'savedPrinters' || activeDialog === 'routing' || activeDialog === 'receipts') && (
                                 <>
-                                    <View style={styles.switchRow}>
+                                    {activeDialog === 'savedPrinters' && renderSavedPrinters(false)}
+                                    {activeDialog === 'printer' && <><View style={{ flexDirection: windowWidth >= 1000 ? 'row' : 'column', gap: 20, alignItems: 'flex-start' }}><View style={{ flex: windowWidth >= 1000 ? 1 : undefined, width: windowWidth >= 1000 ? undefined : '100%', minWidth: 0 }}><View style={styles.panelCard}>
+                                        <View style={styles.panelHeader}>
+                                            <Text style={[styles.panelTitle, { fontSize: 18 }]}>{editingManualPrinterTarget ? 'Edit saved printer' : 'Printer connection'}</Text>
+                                            <Text style={styles.panelDescription}>Add a network, built-in Sunmi, or simulator printer.</Text>
+                                        </View><View style={styles.switchRow}>
                                         <Text style={styles.label}>Enable Epson printer</Text>
                                         <Switch value={printerEnabled} onValueChange={setPrinterEnabled} />
                                     </View>
-
-                                    <Button
-                                        mode="outlined"
-                                        onPress={() => void handleStartDiscovery()}
-                                        disabled={isDiscovering}
-                                        style={styles.selectButton}
-                                    >
-                                        {isDiscovering ? 'Discovering…' : 'Discover printers'}
-                                    </Button>
-
-                                    {isDiscovering && (
-                                        <Button mode="text" onPress={stop} style={styles.selectButton}>
-                                            Stop discovery
-                                        </Button>
-                                    )}
-
-                                    <View style={styles.panelCard}>
-                                        <View style={styles.panelHeader}>
-                                            <Text style={styles.panelTitle}>Add printer manually</Text>
-                                            <Text style={styles.panelDescription}>Add a network, built-in Sunmi, or simulator printer.</Text>
-                                        </View>
                                         <View style={styles.buttonGroup}>
-                                            <Button
-                                                mode={manualPrinterDriver === 'rawTcp' ? 'contained' : 'outlined'}
+                                            <SettingsChoice
+                                                selected={manualPrinterDriver === 'rawTcp'}
                                                 onPress={() => setManualPrinterDriver('rawTcp')}
                                                 style={styles.flexButton}
                                             >
-                                                TCP Raw
-                                            </Button>
-                                            <Button
-                                                mode={manualPrinterDriver === 'simulator' ? 'contained' : 'outlined'}
+                                                TCP / IP
+                                            </SettingsChoice>
+                                            <SettingsChoice
+                                                selected={manualPrinterDriver === 'simulator'}
                                                 onPress={() => setManualPrinterDriver('simulator')}
                                                 style={styles.flexButton}
                                             >
                                                 Simulator
-                                            </Button>
+                                            </SettingsChoice>
                                         </View>
                                         {Platform.OS === 'android' && (
-                                            <Button mode={manualPrinterDriver === 'sunmi' ? 'contained' : 'outlined'} onPress={() => setManualPrinterDriver('sunmi')}>Sunmi built-in</Button>
+                                            <SettingsChoice selected={manualPrinterDriver === 'sunmi'} onPress={() => setManualPrinterDriver('sunmi')}>Sunmi built-in</SettingsChoice>
                                         )}
                                         {manualPrinterDriver === 'sunmi' ? (
                                             <>
-                                                <TextInput mode="outlined" label="Printer name (optional)" value={manualPrinterName} onChangeText={setManualPrinterName} placeholder="Sunmi built-in" style={styles.input} />
+                                                <FormField mode="outlined" label="Printer name (optional)" value={manualPrinterName} onChangeText={setManualPrinterName} placeholder="Sunmi built-in" style={styles.input} />
                                                 <Text style={styles.helper}>Uses this Sunmi device’s built-in printer. No IP address or port is needed.</Text>
                                             </>
                                         ) : manualPrinterDriver === 'rawTcp' ? (
                                             <>
-                                                <TextInput
+                                                <FormField
                                                     mode="outlined"
                                                     label="Printer IP address"
                                                     value={manualPrinterIp}
@@ -1366,16 +1313,16 @@ export default function SettingsScreen() {
                                                     placeholder="192.168.1.50"
                                                     style={styles.input}
                                                 />
-                                                <TextInput
+                                                <FormField
                                                     mode="outlined"
-                                                    label="Printer port"
+                                                    label="Port"
                                                     value={manualPrinterPortText}
                                                     onChangeText={setManualPrinterPortText}
                                                     keyboardType="number-pad"
                                                     placeholder={String(DEFAULT_MANUAL_PRINTER_PORT)}
                                                     style={styles.input}
                                                 />
-                                                <TextInput
+                                                <FormField
                                                     mode="outlined"
                                                     label="Printer name (optional)"
                                                     value={manualPrinterName}
@@ -1387,7 +1334,7 @@ export default function SettingsScreen() {
                                             </>
                                         ) : (
                                             <>
-                                                <TextInput
+                                                <FormField
                                                     mode="outlined"
                                                     label="Simulator name"
                                                     value={manualPrinterName}
@@ -1399,16 +1346,18 @@ export default function SettingsScreen() {
                                                 <Text style={styles.helper}>Virtual printers open the receipt in the in-app simulator instead of sending it to physical hardware.</Text>
                                             </>
                                         )}
-                                        <View style={styles.buttonGroup}>
-                                            <Button mode="contained-tonal" onPress={handleManualPrinterAdd} style={styles.flexButton}>
-                                                {editingManualPrinterTarget ? 'Update printer' : 'Add printer'}
-                                            </Button>
-                                            {editingManualPrinterTarget ? (
-                                                <Button mode="text" onPress={resetManualPrinterForm} style={styles.flexButton}>
-                                                    Cancel edit
-                                                </Button>
-                                            ) : null}
-                                        </View>
+
+
+                                    <View style={[styles.buttonGroup, { flexWrap: 'wrap', gap: 8 }]}>
+                                        <Button mode="outlined" contentStyle={{ minHeight: 44 }} labelStyle={{ fontSize: 13 }} onPress={() => void handleStartDiscovery()} disabled={isDiscovering}>
+                                            {isDiscovering ? 'Discovering…' : 'Discover printers'}
+                                        </Button>
+                                        {isDiscovering && <Button mode="text" onPress={stop}>Stop discovery</Button>}
+                                        <Button mode="contained" contentStyle={{ minHeight: 44 }} labelStyle={{ fontSize: 13 }} onPress={handleManualPrinterAdd}>
+                                            {editingManualPrinterTarget ? 'Update printer' : 'Add printer'}
+                                        </Button>
+                                        {editingManualPrinterTarget && <Button mode="text" onPress={resetManualPrinterForm}>Cancel edit</Button>}
+                                    </View>
                                     </View>
 
                                     {printers.length > 0 && (
@@ -1435,80 +1384,23 @@ export default function SettingsScreen() {
                                                         )}
                                                     </View>
                                                     <View style={styles.printerActions}>
-                                                        <Button
-                                                            mode={matchedSaved ? (isSelected ? 'contained' : 'outlined') : 'contained-tonal'}
+                                                        <SettingsChoice
+                                                            selected={matchedSaved ? isSelected : true}
                                                             onPress={() => void addDiscoveredPrinter(p, { replaceExisting: needsReplacement })}
                                                         >
                                                             {needsReplacement ? 'Replace saved' : matchedSaved ? (isSelected ? 'Saved' : 'Update saved') : 'Add'}
-                                                        </Button>
+                                                        </SettingsChoice>
                                                     </View>
                                                 </View>
                                             ))}
                                         </View>
                                     )}
 
-                                    <View style={styles.panelCard}>
-                                        <View style={styles.panelHeader}>
-                                            <Text style={styles.panelTitle}>Saved printers</Text>
-                                            <Text style={styles.panelDescription}>Choose the default printer for routed image print jobs.</Text>
-                                        </View>
-                                        {printerSaved.length === 0 ? (
-                                            <Text style={styles.helper}>No printers saved yet. Use discovery or add one manually above.</Text>
-                                        ) : (
-                                            printerSaved.map((p) => {
-                                                const isSelected = p.target === printerSelectedTarget;
-                                                return (
-                                                    <View key={p.target} style={[styles.printerCard, styles.savedPrinterCard, isSelected ? styles.selectedPrinterCard : null]}>
-                                                        <View style={styles.printerDetails}>
-                                                            <View style={styles.printerHeaderRow}>
-                                                                <Text style={styles.printerName}>{p.deviceName}</Text>
-                                                                <View style={[styles.printerBadge, isSelected ? styles.printerBadgeDefault : styles.printerBadgeSaved]}>
-                                                                    <Text style={styles.printerBadgeText}>{isSelected ? 'Default' : 'Saved'}</Text>
-                                                                </View>
-                                                            </View>
-                                                            <Text style={styles.printerMeta}>
-                                                                {p.ipAddress ? `${p.ipAddress}:${p.port ?? DEFAULT_MANUAL_PRINTER_PORT}` : (p.macAddress || p.bdAddress || p.target)}
-                                                            </Text>
-                                                            <Text style={styles.helper}>
-                                                                {isSimulatorPrinter(p)
-                                                                    ? 'Virtual simulator printer'
-                                                                    : p.driver === 'sunmi' ? 'Sunmi built-in printer' : p.ipAddress
-                                                                        ? `Network printer${(p.port ?? DEFAULT_MANUAL_PRINTER_PORT) === DEFAULT_MANUAL_PRINTER_PORT ? ' • port 9100' : ` • port ${p.port}`}`
-                                                                        : 'Discovered printer'}
-                                                            </Text>
-                                                        </View>
-                                                        <View style={[styles.printerActions, styles.savedPrinterActions]}>
-                                                            <Button
-                                                                mode={isSelected ? 'contained' : 'outlined'}
-                                                                onPress={() => {
-                                                                    setPrinterSelectedTarget(p.target);
-                                                                    updatePrinterAssignmentTarget(defaultPrinterAssignmentId, p.target);
-                                                                }}
-                                                            >
-                                                                {isSelected ? 'Default' : 'Set default'}
-                                                            </Button>
-                                                            {p.driver === 'rawTcp' || p.driver === 'simulator' || p.driver === 'sunmi' ? (
-                                                                <Button
-                                                                    mode="text"
-                                                                    onPress={() => startEditingManualPrinter(p)}
-                                                                >
-                                                                    Edit
-                                                                </Button>
-                                                            ) : null}
-                                                            <Button mode="text" onPress={() => removeSavedPrinter(p.target)}>
-                                                                Remove
-                                                            </Button>
-                                                        </View>
-                                                    </View>
-                                                );
-                                            })
-                                        )}
-                                    </View>
+                                    </View>{renderSavedPrinters(windowWidth >= 1000)}</View></>}
 
-                                    <View style={styles.panelCard}>
-                                        <View style={styles.panelHeader}>
-                                            <Text style={styles.panelTitle}>Section printers</Text>
-                                            <Text style={styles.panelDescription}>Each rule is separated below. Default is the fallback. `Customer Copy` can be routed as its own receipt job.</Text>
+                                    {activeDialog === 'routing' && (<View style={{ gap: 16 }}>
+                                        <View style={{ backgroundColor: t.color.primaryTint, padding: 16, borderWidth: 1, borderColor: t.color.border, borderRadius: 12 }}>
+                                            <Text style={{ color: t.color.text, fontSize: 13, lineHeight: 20 }}>Route each kitchen section independently. Combine groups items; Separate prints individual tickets. Default is the fallback.</Text>
                                         </View>
                                         {printerSectionAssignments.map((assignment, index) => {
                                             const assignmentPrinter = printerSaved.find((printer) => printer.target === assignment.printerTarget) || null;
@@ -1523,122 +1415,83 @@ export default function SettingsScreen() {
                                                                 {assignmentPrinter?.deviceName || 'No printer selected'}
                                                             </Text>
                                                         </View>
-                                                        {assignment.isDefault ? (
-                                                            <TextInput
-                                                                mode="outlined"
-                                                                label="Default section"
-                                                                value="Default"
-                                                                disabled
-                                                                style={styles.input}
-                                                            />
-                                                        ) : (
-                                                            <Button
-                                                                mode="outlined"
-                                                                style={styles.selectButton}
-                                                                onPress={() => Alert.alert(
-                                                                    'Select section',
-                                                                    undefined,
-                                                                    [
-                                                                        ...PRINT_SECTION_OPTIONS.map((section) => ({
-                                                                            text: section,
-                                                                            onPress: () => updatePrinterAssignmentSection(assignment.id, section),
-                                                                        })),
-                                                                        { text: 'Cancel', style: 'cancel' as const },
-                                                                    ]
-                                                                )}
-                                                            >
-                                                                {assignment.sectionName || 'Select section'}
-                                                            </Button>
-                                                        )}
-                                                        <Button
-                                                            mode="outlined"
-                                                            style={styles.selectButton}
-                                                            onPress={() => Alert.alert(
-                                                                assignment.isDefault ? 'Choose default printer' : `Choose printer for ${assignment.sectionName || 'this section'}`,
-                                                                undefined,
-                                                                [
-                                                                    ...printerSaved.map((printer) => ({
-                                                                        text: printer.deviceName,
-                                                                        onPress: () => updatePrinterAssignmentTarget(assignment.id, printer.target),
-                                                                    })),
-                                                                    { text: 'Clear', onPress: () => updatePrinterAssignmentTarget(assignment.id, null) },
-                                                                    { text: 'Cancel', style: 'cancel' as const },
-                                                                ]
-                                                            )}
-                                                        >
-                                                            {assignmentPrinter?.deviceName || (assignment.isDefault ? 'Select default printer' : 'No printer (skip)')}
-                                                        </Button>
-                                                        <View style={styles.assignmentDivider} />
+                                                        {!assignment.isDefault && <Button mode="outlined" style={{ alignSelf: 'flex-start' }} onPress={() => setSelection({ title: 'Select section', value: assignment.sectionName || '', options: PRINT_SECTION_OPTIONS.map((section) => ({ value: section, label: section })), onSelect: (value) => updatePrinterAssignmentSection(assignment.id, value) })}>{assignment.sectionName || 'Select section'}</Button>}
+                                                        <Text style={styles.label}>Printer</Text>
+                                                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                                                          {printerSaved.map(printer => <SettingsChoice key={printer.target} selected={assignment.printerTarget === printer.target} onPress={() => updatePrinterAssignmentTarget(assignment.id, printer.target)}>{printer.deviceName}</SettingsChoice>)}
+                                                          <SettingsChoice selected={!assignment.printerTarget} onPress={() => updatePrinterAssignmentTarget(assignment.id, null)}>No printer (skip)</SettingsChoice>
+                                                        </View>
+                                                        
                                                         <Text style={[styles.label, styles.assignmentSubLabel]}>Print mode</Text>
                                                         <View style={styles.buttonGroup}>
-                                                            <Button
-                                                                mode={(assignment.printMode || 'combine') === 'combine' ? 'contained' : 'outlined'}
+                                                            <SettingsChoice
+                                                                selected={(assignment.printMode || 'combine') === 'combine'}
                                                                 onPress={() => updatePrinterAssignmentPrintMode(assignment.id, 'combine')}
-                                                                style={styles.flexButton}
+                                                                style={{ alignSelf: 'flex-start' }}
                                                             >
                                                                 Combine
-                                                            </Button>
-                                                            <Button
-                                                                mode={assignment.printMode === 'separate' ? 'contained' : 'outlined'}
+                                                            </SettingsChoice>
+                                                            <SettingsChoice
+                                                                selected={assignment.printMode === 'separate'}
                                                                 onPress={() => updatePrinterAssignmentPrintMode(assignment.id, 'separate')}
-                                                                style={styles.flexButton}
+                                                                style={{ alignSelf: 'flex-start' }}
                                                             >
                                                                 Separate
-                                                            </Button>
+                                                            </SettingsChoice>
                                                         </View>
                                                         <Text style={[styles.label, styles.assignmentSubLabel]}>Template</Text>
                                                         <View style={styles.buttonGroup}>
-                                                            <Button
-                                                                mode={(assignment.template || 'kitchen') === 'kitchen' ? 'contained' : 'outlined'}
+                                                            <SettingsChoice
+                                                                selected={(assignment.template || 'kitchen') === 'kitchen'}
                                                                 onPress={() => updatePrinterAssignmentTemplate(assignment.id, 'kitchen')}
-                                                                style={styles.flexButton}
+                                                                style={{ alignSelf: 'flex-start' }}
                                                             >
                                                                 Kitchen
-                                                            </Button>
-                                                            <Button
-                                                                mode={assignment.template === 'customer-copy' ? 'contained' : 'outlined'}
+                                                            </SettingsChoice>
+                                                            <SettingsChoice
+                                                                selected={assignment.template === 'customer-copy'}
                                                                 onPress={() => updatePrinterAssignmentTemplate(assignment.id, 'customer-copy')}
-                                                                style={styles.flexButton}
+                                                                style={{ alignSelf: 'flex-start' }}
                                                             >
                                                                 Customer Copy
-                                                            </Button>
+                                                            </SettingsChoice>
                                                         </View>
-                                                        <Text style={[styles.label, styles.assignmentSubLabel]}>Enabled time window</Text>
+                                                        
                                                         <View style={styles.buttonGroup}>
-                                                            <TextInput
+                                                            <FormField
                                                                 mode="outlined"
-                                                                label="From"
+                                                                label="Enabled from"
                                                                 value={assignment.enabledFromTime || ''}
                                                                 onChangeText={(value) => updatePrinterAssignmentTimeWindow(assignment.id, 'enabledFromTime', value)}
                                                                 placeholder="17:00"
-                                                                style={[styles.input, styles.flexButton]}
+                                                                style={[styles.input, { flex: 1 }]}
                                                             />
-                                                            <TextInput
+                                                            <FormField
                                                                 mode="outlined"
-                                                                label="To"
+                                                                label="Enabled to"
                                                                 value={assignment.enabledToTime || ''}
                                                                 onChangeText={(value) => updatePrinterAssignmentTimeWindow(assignment.id, 'enabledToTime', value)}
                                                                 placeholder="20:00"
-                                                                style={[styles.input, styles.flexButton]}
+                                                                style={[styles.input, { flex: 1 }]}
                                                             />
                                                         </View>
                                                         <Text style={styles.helper}>Leave both blank to always print. Use 24-hour time like 17:00 to 20:00.</Text>
                                                         {!assignment.isDefault && (
-                                                            <Button mode="text" onPress={() => removePrinterSectionAssignment(assignment.id)}>
+                                                            <Button mode="outlined" textColor={t.color.danger} style={{ alignSelf: 'flex-start', backgroundColor: t.color.dangerTint, marginTop: 16 }} onPress={() => removePrinterSectionAssignment(assignment.id)}>
                                                                 Remove section rule
                                                             </Button>
                                                         )}
                                                     </View>
-                                                    {index < printerSectionAssignments.length - 1 ? <View style={styles.ruleDivider} /> : null}
+                                                    
                                                 </View>
                                             );
                                         })}
                                         <Button mode="contained-tonal" onPress={addPrinterSectionAssignment} style={styles.previewButton}>
                                             Add section printer
                                         </Button>
-                                    </View>
+                                    </View>)}
 
-                                    <View style={styles.panelCard}>
+                                    {activeDialog === 'receipts' && (<View style={[styles.panelCard, { maxWidth: 940 }]}>
                                         <View style={styles.panelHeader}>
                                             <Text style={styles.panelTitle}>Print behavior</Text>
                                             <Text style={styles.panelDescription}>Control auto print timing, paper width, image quality, and test output.</Text>
@@ -1654,7 +1507,7 @@ export default function SettingsScreen() {
                                         </View>
                                         <Text style={styles.helper}>Turn off on a busy order-taking POS to let a printer-configured POS claim and print in-store orders. Other order channels keep their normal routing.</Text>
 
-                                        <TextInput
+                                        <FormField
                                             mode="outlined"
                                             label="Auto-print delay (seconds)"
                                             value={printerDelayPrintSecText}
@@ -1665,7 +1518,7 @@ export default function SettingsScreen() {
                                         />
                                         <Text style={styles.helper}>Wait before printing a new order (0 to 120). Set 0 for no scheduled delay.</Text>
 
-                                        <TextInput
+                                        <FormField
                                             mode="outlined"
                                             label="Auto-print claim delay on this POS (seconds)"
                                             value={printerClaimDelaySecText}
@@ -1686,15 +1539,15 @@ export default function SettingsScreen() {
                                         <Text style={[styles.label, styles.assignmentSubLabel]}>Receipt printer</Text>
                                         <View style={styles.buttonGroup}>
                                             {printerSaved.map((printer) => (
-                                                <Button key={printer.target} mode={instoreCustomerReceiptPrinterTarget === printer.target ? 'contained' : 'outlined'} onPress={() => setInstoreCustomerReceiptPrinterTarget(printer.target)} style={styles.flexButton} disabled={!hasPrinterCapability}>
+                                                <SettingsChoice key={printer.target} selected={instoreCustomerReceiptPrinterTarget === printer.target} onPress={() => setInstoreCustomerReceiptPrinterTarget(printer.target)} style={styles.flexButton} disabled={!hasPrinterCapability}>
                                                     {printer.deviceName}
-                                                </Button>
+                                                </SettingsChoice>
                                             ))}
                                         </View>
                                         {printerSaved.length === 0 ? <Text style={styles.helper}>Add a saved printer before enabling automatic customer receipts.</Text> : null}
                                         <View style={styles.buttonGroup}>
-                                            <TextInput mode="outlined" label="From" value={instoreCustomerReceiptEnabledFromTime} onChangeText={setInstoreCustomerReceiptEnabledFromTime} placeholder="17:00" style={[styles.input, styles.flexButton]} disabled={!instoreCustomerReceiptAutoPrintEnabled} />
-                                            <TextInput mode="outlined" label="To" value={instoreCustomerReceiptEnabledToTime} onChangeText={setInstoreCustomerReceiptEnabledToTime} placeholder="20:00" style={[styles.input, styles.flexButton]} disabled={!instoreCustomerReceiptAutoPrintEnabled} />
+                                            <FormField mode="outlined" label="From" value={instoreCustomerReceiptEnabledFromTime} onChangeText={setInstoreCustomerReceiptEnabledFromTime} placeholder="17:00" style={[styles.input, styles.flexButton]} disabled={!instoreCustomerReceiptAutoPrintEnabled} />
+                                            <FormField mode="outlined" label="To" value={instoreCustomerReceiptEnabledToTime} onChangeText={setInstoreCustomerReceiptEnabledToTime} placeholder="20:00" style={[styles.input, styles.flexButton]} disabled={!instoreCustomerReceiptAutoPrintEnabled} />
                                         </View>
                                         <Text style={styles.helper}>Leave both blank to always print. Uses 24-hour time and supports overnight windows.</Text>
 
@@ -1709,9 +1562,9 @@ export default function SettingsScreen() {
                                         <Text style={[styles.label, styles.assignmentSubLabel]}>Ticket printer</Text>
                                         <View style={styles.buttonGroup}>
                                             {savedPhysicalPrinters.map((printer) => (
-                                                <Button key={printer.target} mode={instoreInstantTicketPrinterTarget === printer.target ? 'contained' : 'outlined'} onPress={() => setInstoreInstantTicketPrinterTarget(printer.target)} style={styles.flexButton} disabled={!hasInstantTicketPrinterCapability}>
+                                                <SettingsChoice key={printer.target} selected={instoreInstantTicketPrinterTarget === printer.target} onPress={() => setInstoreInstantTicketPrinterTarget(printer.target)} style={styles.flexButton} disabled={!hasInstantTicketPrinterCapability}>
                                                     {printer.deviceName}
-                                                </Button>
+                                                </SettingsChoice>
                                             ))}
                                         </View>
                                         {savedPhysicalPrinters.length === 0 ? <Text style={styles.helper}>Add and enable a physical saved printer before enabling instant tickets.</Text> : null}
@@ -1720,27 +1573,27 @@ export default function SettingsScreen() {
 
                                         <Text style={styles.label}>Paper & quality</Text>
                                         <View style={styles.buttonGroup}>
-                                            <Button
-                                                mode={printerPaperWidth === '80mm' ? 'contained' : 'outlined'}
+                                            <SettingsChoice
+                                                selected={printerPaperWidth === '80mm'}
                                                 onPress={() => setPrinterPaperWidth('80mm')}
                                                 style={styles.flexButton}
                                             >
                                                 80mm
-                                            </Button>
-                                            <Button
-                                                mode={printerPaperWidth === '58mm' ? 'contained' : 'outlined'}
+                                            </SettingsChoice>
+                                            <SettingsChoice
+                                                selected={printerPaperWidth === '58mm'}
                                                 onPress={() => setPrinterPaperWidth('58mm')}
                                                 style={styles.flexButton}
                                             >
                                                 58mm
-                                            </Button>
+                                            </SettingsChoice>
                                         </View>
                                         <Text style={styles.helper}>Choose your paper width. 80mm is standard.</Text>
 
                                         <Text style={[styles.label, { marginTop: 12 }]}>Kitchen receipt mode</Text>
                                         <View style={styles.buttonGroup}>
-                                            <Button mode={printerReceiptMode === 'text' ? 'contained' : 'outlined'} onPress={() => setPrinterReceiptMode('text')} style={styles.flexButton}>Text</Button>
-                                            <Button mode={printerReceiptMode === 'image' ? 'contained' : 'outlined'} onPress={() => setPrinterReceiptMode('image')} style={styles.flexButton}>Image</Button>
+                                            <SettingsChoice selected={printerReceiptMode === 'text'} onPress={() => setPrinterReceiptMode('text')} style={styles.flexButton}>Text</SettingsChoice>
+                                            <SettingsChoice selected={printerReceiptMode === 'image'} onPress={() => setPrinterReceiptMode('image')} style={styles.flexButton}>Image</SettingsChoice>
                                         </View>
                                         <Text style={styles.helper}>Text printing is faster; Image preserves the current captured receipt layout.</Text>
 
@@ -1765,64 +1618,28 @@ export default function SettingsScreen() {
                                                 <Text style={styles.helper}>{recentJournalLabel}</Text>
                                             </>
                                         ) : null}
-                                    </View>
+                                    </View>)}
                                 </>
                             )}
 
                             {activeDialog === 'journal' && JOURNAL_LOGS_ENABLED && (
-                                <>
-                                    <View style={styles.logsHeaderRow}>
-                                        <Text style={styles.helper}>
-                                            Review recent journal events for this device. Newest entries appear first.
-                                        </Text>
-                                        <Button
-                                            mode="text"
-                                            icon="delete-outline"
-                                            onPress={handleClearJournal}
-                                            disabled={journalEntries.length === 0}
-                                        >
-                                            Clear journal
-                                        </Button>
-                                    </View>
-
-                                    {journalEntries.length === 0 ? (
-                                        <View style={styles.logsEmptyState}>
-                                            <Text style={styles.label}>No journal entries yet.</Text>
-                                            <Text style={styles.helper}>Run a test print or wait for the next kitchen workflow event to populate this list.</Text>
-                                        </View>
-                                    ) : (
-                                        journalEntries.map((entry) => (
-                                            <View key={entry.id} style={styles.logCard}>
-                                                <View style={styles.logCardHeader}>
-                                                    <View style={[styles.logLevelBadge, logLevelBadgeStyles[entry.level]]}>
-                                                        <Text style={styles.logLevelBadgeText}>{entry.level.toUpperCase()}</Text>
-                                                    </View>
-                                                    <Text style={styles.logTimestamp}>{new Date(entry.timestamp).toLocaleString()}</Text>
-                                                </View>
-                                                <Text style={styles.logScope}>{entry.scope}</Text>
-                                                <Text style={styles.logMessage}>{entry.message}</Text>
-                                                {entry.orderNumber || entry.orderId ? (
-                                                    <Text style={styles.logMeta}>
-                                                        Order: {entry.orderNumber || entry.orderId}
-                                                    </Text>
-                                                ) : null}
-                                                {entry.details ? (
-                                                    <Text style={styles.logDetails}>{entry.details}</Text>
-                                                ) : null}
-                                            </View>
-                                        ))
-                                    )}
-                                </>
+                                <PrintJournalList entries={journalEntries} onClear={handleClearJournal} />
                             )}
-                        </ScrollView>
-                        <View style={styles.modalFooter}>
-                            <Button mode="text" onPress={() => setActiveDialog(null)}>
-                                Done
-                            </Button>
-                        </View>
                     </View>
-                </Modal>
+                    <SelectionSheet selection={selection} onDismiss={() => setSelection(null)} />
+                </SettingsEditor>
             </ScrollView>
+            <View style={{ paddingHorizontal: compact ? 12 : 16, paddingVertical: 18, backgroundColor: t.color.background }}>
+                <Button
+                    mode="contained"
+                    loading={saving}
+                    disabled={saving}
+                    onPress={handleSave}
+                    style={styles.saveButton}
+                    contentStyle={styles.saveButtonContent}
+                >
+                    Save settings
+                </Button></View>
         </View>
     );
 }
@@ -1830,48 +1647,42 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
     screen: {
         flex: 1,
-        backgroundColor: '#f5f5f5',
+        backgroundColor: t.color.background,
     },
     settingsHeader: {
         backgroundColor: BRAND_COLORS.header,
     },
     settingsHeaderTitle: {
-        color: '#fff',
+        color: t.color.surface,
         fontWeight: '700',
     },
+    sectionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 20 },
     container: {
         padding: 16,
-        backgroundColor: '#f5f5f5',
+        backgroundColor: t.color.background,
         flexGrow: 1,
     },
     modalScreen: {
         flex: 1,
-        backgroundColor: '#f5f5f5',
+        backgroundColor: t.color.background,
     },
     modalHeader: {
         backgroundColor: BRAND_COLORS.header,
     },
     modalHeaderTitle: {
-        color: '#fff',
+        color: t.color.surface,
         fontSize: 20,
         fontWeight: '700',
     },
     modalContent: {
-        paddingHorizontal: 20,
-        paddingTop: 20,
-        paddingBottom: 120,
+        padding: 28,
     },
     modalFooter: {
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        bottom: 0,
-        paddingHorizontal: 20,
+        marginTop: 28,
+        paddingHorizontal: 0,
         paddingVertical: 14,
-        borderTopWidth: 1,
-        borderTopColor: '#d7dee7',
-        backgroundColor: '#fbfdff',
-        alignItems: 'flex-end',
+        backgroundColor: t.color.background,
+        flexDirection: 'row', justifyContent: 'flex-end', gap: 12,
     },
     label: {
         fontSize: 14,
@@ -1879,8 +1690,8 @@ const styles = StyleSheet.create({
     },
     helper: {
         marginTop: 6,
-        fontSize: 12,
-        color: '#666',
+        fontSize: 14,
+        color: t.color.muted,
     },
     input: {
         marginTop: 4,
@@ -1903,8 +1714,8 @@ const styles = StyleSheet.create({
         gap: 10,
         paddingVertical: 10,
         paddingHorizontal: 12,
-        borderRadius: 12,
-        backgroundColor: '#fff',
+        borderRadius: t.radius.card,
+        backgroundColor: t.color.surface,
         borderWidth: 1,
         borderColor: '#ececec',
         marginTop: 8,
@@ -1917,15 +1728,20 @@ const styles = StyleSheet.create({
         gap: 6,
     },
     savedPrinterCard: {
+        flexDirection: 'column',
         alignItems: 'stretch',
         paddingVertical: 14,
     },
     selectedPrinterCard: {
-        borderColor: '#93c5fd',
-        backgroundColor: '#f8fbff',
+        borderColor: t.color.primary,
+        backgroundColor: t.color.primaryTint,
     },
     savedPrinterActions: {
-        minWidth: 120,
+        flexDirection: 'row',
+        gap: 8,
+        flexWrap: 'wrap',
+        justifyContent: 'flex-end',
+        alignItems: 'center',
     },
     printerHeaderRow: {
         flexDirection: 'row',
@@ -1940,23 +1756,24 @@ const styles = StyleSheet.create({
         paddingVertical: 4,
     },
     printerBadgeDefault: {
-        backgroundColor: '#dbeafe',
+        backgroundColor: t.color.primaryTint,
     },
     printerBadgeSaved: {
-        backgroundColor: '#e5e7eb',
+        backgroundColor: t.color.border,
     },
     printerBadgeText: {
-        fontSize: 11,
+        fontSize: 14,
         fontWeight: '700',
-        color: '#334155',
+        color: t.color.text,
     },
     panelCard: {
-        marginTop: 14,
-        padding: 14,
+        marginTop: 0,
+        padding: 20,
+        gap: 16,
         borderRadius: 16,
-        backgroundColor: '#fcfdff',
+        backgroundColor: t.color.surface,
         borderWidth: 1,
-        borderColor: '#dbe4f0',
+        borderColor: t.color.border,
     },
     panelHeader: {
         marginBottom: 10,
@@ -1965,32 +1782,32 @@ const styles = StyleSheet.create({
     panelTitle: {
         fontSize: 16,
         fontWeight: '700',
-        color: '#0f172a',
+        color: t.color.text,
     },
     panelDescription: {
-        fontSize: 12,
+        fontSize: 14,
         color: '#526175',
         lineHeight: 18,
     },
     assignmentCard: {
-        padding: 14,
-        borderRadius: 12,
-        backgroundColor: '#fff',
+        padding: 20,
+        borderRadius: t.radius.card,
+        backgroundColor: t.color.surface,
         borderWidth: 1,
-        borderColor: '#e2e8f0',
+        borderColor: t.color.border,
     },
     assignmentHeader: {
         gap: 2,
         marginBottom: 8,
     },
     assignmentTitle: {
-        fontSize: 15,
+        fontSize: 18,
         fontWeight: '700',
-        color: '#0f172a',
+        color: t.color.text,
     },
     assignmentSummary: {
-        fontSize: 12,
-        color: '#64748b',
+        fontSize: 14,
+        color: t.color.muted,
     },
     assignmentDivider: {
         height: 1,
@@ -2016,8 +1833,8 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
     printerMeta: {
-        fontSize: 12,
-        color: '#666',
+        fontSize: 14,
+        color: t.color.muted,
     },
     selectButton: {
         marginTop: 4,
@@ -2026,15 +1843,15 @@ const styles = StyleSheet.create({
         marginTop: 12,
     },
     saveButton: {
-        marginTop: 8,
+        marginTop: 8, alignSelf: 'flex-end',
     },
     saveButtonContent: {
         paddingVertical: 10,
     },
     footer: {
         marginTop: 12,
-        fontSize: 12,
-        color: '#666',
+        fontSize: 14,
+        color: t.color.muted,
         textAlign: 'center',
     },
     separator: {
@@ -2044,11 +1861,12 @@ const styles = StyleSheet.create({
     },
     buttonGroup: {
         flexDirection: 'row',
+        flexWrap: 'wrap',
         gap: 8,
         marginTop: 8,
     },
     flexButton: {
-        flex: 1,
+        flexGrow: 0,
     },
     group: {
         marginTop: 12,
@@ -2060,16 +1878,16 @@ const styles = StyleSheet.create({
     logsEmptyState: {
         marginTop: 8,
         padding: 16,
-        borderRadius: 12,
-        backgroundColor: '#fff',
+        borderRadius: t.radius.card,
+        backgroundColor: t.color.surface,
         borderWidth: 1,
         borderColor: '#ececec',
     },
     logCard: {
         marginTop: 10,
         padding: 12,
-        borderRadius: 12,
-        backgroundColor: '#fff',
+        borderRadius: t.radius.card,
+        backgroundColor: t.color.surface,
         borderWidth: 1,
         borderColor: '#ececec',
         gap: 6,
@@ -2087,46 +1905,46 @@ const styles = StyleSheet.create({
         alignSelf: 'flex-start',
     },
     logLevelBadgeinfo: {
-        backgroundColor: '#dbeafe',
+        backgroundColor: t.color.primaryTint,
     },
     logLevelBadgedecision: {
         backgroundColor: '#ede9fe',
     },
     logLevelBadgesuccess: {
-        backgroundColor: '#dcfce7',
+        backgroundColor: t.color.successTint,
     },
     logLevelBadgeerror: {
         backgroundColor: '#fee2e2',
     },
     logLevelBadgeText: {
-        fontSize: 11,
+        fontSize: 14,
         fontWeight: '700',
-        color: '#334155',
+        color: t.color.text,
     },
     logTimestamp: {
         flex: 1,
         textAlign: 'right',
-        fontSize: 11,
-        color: '#64748b',
+        fontSize: 14,
+        color: t.color.muted,
     },
     logScope: {
-        fontSize: 12,
+        fontSize: 14,
         fontWeight: '700',
-        color: '#475569',
+        color: t.color.muted,
         textTransform: 'uppercase',
     },
     logMessage: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#0f172a',
+        color: t.color.text,
     },
     logMeta: {
-        fontSize: 12,
-        color: '#475569',
+        fontSize: 14,
+        color: t.color.muted,
     },
     logDetails: {
-        fontSize: 12,
-        color: '#334155',
+        fontSize: 14,
+        color: t.color.text,
     },
     segmentedButtons: {
         flexDirection: 'row',

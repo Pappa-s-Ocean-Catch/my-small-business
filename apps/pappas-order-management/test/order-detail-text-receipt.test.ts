@@ -8,7 +8,9 @@ test('manual order-detail printing selects the text receipt engine before image 
   const manualPrint = source.slice(source.indexOf('const handleInternalPrint'));
   assert.match(manualPrint, /printerReceiptMode === 'text'/);
   assert.match(manualPrint, /buildKitchenReceiptDocument/);
-  assert.match(manualPrint, /escposPrintDocument/);
+  assert.match(manualPrint, /enqueuePreparedPrintJobs/);
+  assert.match(manualPrint, /waitForPrintJobs/);
+  assert.doesNotMatch(manualPrint, /await escposPrintDocument/);
 });
 
 test('order-detail print control groups kitchen, customer-copy, and ticket printing into one menu', () => {
@@ -22,9 +24,13 @@ test('order-detail print control groups kitchen, customer-copy, and ticket print
   assert.doesNotMatch(source, /label="Print Customer Copy"/);
 });
 
-test('manual print mode picker uses the native dialog layer above order-detail modals', () => {
+test('manual print mode picker uses the native modal layer above order-detail modals', () => {
   const source = readFileSync(join(process.cwd(), 'components/printer/ManualPrintButton.tsx'), 'utf8');
 
-  assert.match(source, /Alert\.alert\(\s*'Choose print type'/);
+  assert.match(source, /<Modal visible=\{open\} transparent/);
+  assert.match(source, /Print order/);
+  assert.match(source, /submitting\.current = true/);
+  assert.match(source, /key=\{printer\.target\}/);
+  assert.match(source, /onPress=\{\(\) => void submit\(printer\)\}/);
   assert.doesNotMatch(source, /\bMenu\b/);
 });

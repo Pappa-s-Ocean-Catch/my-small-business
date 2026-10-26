@@ -1,6 +1,9 @@
+import { ActionButton as Button } from '@/components/ui/ActionButton';
+import { EditorSheet } from '@/components/ui';
+import { designTokens as t } from '@/lib/redesign';
 import React from 'react';
-import { View, Text, StyleSheet, Modal, ScrollView } from 'react-native';
-import { Chip, Button as PaperButton } from 'react-native-paper';
+import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+
 import { STATUS_LABELS, PAYMENT_STATUS_LABELS } from '../utils/constants';
 
 interface OrderFiltersModalProps {
@@ -17,173 +20,64 @@ interface OrderFiltersModalProps {
   hideStatusFilter?: boolean;
 }
 
-export const OrderFiltersModal: React.FC<OrderFiltersModalProps> = ({
-  visible,
-  statusFilter,
-  paymentFilter,
-  orderMethodFilter,
-  onStatusChange,
-  onPaymentChange,
-  onOrderMethodChange,
-  onApply,
-  onReset,
-  onClose,
-  hideStatusFilter = false,
-}) => {
-  return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent
-      onRequestClose={onClose}
-    >
-      <View style={styles.filtersModalBackdrop}>
-        <View style={styles.filtersModalContent}>
-          <Text style={styles.filtersModalTitle}>Filters</Text>
-          <ScrollView style={styles.filtersModalScroll} contentContainerStyle={styles.filtersModalScrollContent}>
-            {!hideStatusFilter && (
-              <View style={styles.filterGroup}>
-                <Text style={styles.filterLabel}>Status</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-                  <Chip selected={statusFilter === 'all'} onPress={() => onStatusChange('all')} style={styles.chip}>
-                    All
-                  </Chip>
-                  {Object.entries(STATUS_LABELS).map(([status, label]) => (
-                    <Chip
-                      key={status}
-                      selected={statusFilter === status}
-                      onPress={() => onStatusChange(status)}
-                      style={styles.chip}
-                    >
-                      {label}
-                    </Chip>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-            <View style={styles.filterGroup}>
-              <Text style={styles.filterLabel}>Payment Status</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-                <Chip selected={paymentFilter === 'all'} onPress={() => onPaymentChange('all')} style={styles.chip}>
-                  All
-                </Chip>
-                {Object.entries(PAYMENT_STATUS_LABELS).map(([status, label]) => (
-                  <Chip
-                    key={status}
-                    selected={paymentFilter === status}
-                    onPress={() => onPaymentChange(status)}
-                    style={styles.chip}
-                  >
-                    {label}
-                  </Chip>
-                ))}
-              </ScrollView>
-            </View>
+function FilterChoices({ label, value, options, onChange }: {
+  label: string;
+  value: string;
+  options: [string, string][];
+  onChange: (value: string) => void;
+}) {
+  return <View style={styles.group}>
+    <Text style={styles.label}>{label}</Text>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.choices}>
+      {options.map(([key, text]) => <Pressable
+        key={key}
+        accessibilityRole="radio"
+        accessibilityLabel={`${label}: ${text}`}
+        accessibilityState={{ checked: value === key }}
+        onPress={() => onChange(key)}
+        style={[styles.choice, value === key && styles.selectedChoice]}
+      ><Text style={[styles.choiceText, value === key && styles.selectedText]}>{text}</Text></Pressable>)}
+    </ScrollView>
+  </View>;
+}
 
-            <View style={styles.filterGroup}>
-              <Text style={styles.filterLabel}>Order Source</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-                <Chip 
-                  selected={orderMethodFilter === 'all'} 
-                  onPress={() => onOrderMethodChange('all')} 
-                  style={styles.chip}
-                >
-                  All
-                </Chip>
-                <Chip 
-                  selected={orderMethodFilter === 'online'} 
-                  onPress={() => onOrderMethodChange('online')} 
-                  style={styles.chip}
-                >
-                  Online
-                </Chip>
-                <Chip 
-                  selected={orderMethodFilter === 'store'} 
-                  onPress={() => onOrderMethodChange('store')} 
-                  style={styles.chip}
-                >
-                  At Counter
-                </Chip>
-              </ScrollView>
-            </View>
-          </ScrollView>
-          <View style={styles.filtersModalActions}>
-            <PaperButton
-              mode="outlined"
-              onPress={onReset}
-              style={styles.resetButton}
-            >
-              Reset
-            </PaperButton>
-            <PaperButton
-              mode="contained"
-              onPress={onApply}
-              style={styles.applyButton}
-            >
-              Apply
-            </PaperButton>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-};
+export const OrderFiltersModal: React.FC<OrderFiltersModalProps> = ({
+  visible, statusFilter, paymentFilter, orderMethodFilter,
+  onStatusChange, onPaymentChange, onOrderMethodChange, onApply, onReset, onClose,
+  hideStatusFilter = false,
+}) => <EditorSheet
+  visible={visible}
+  title="Filter order history"
+  onDismiss={onClose}
+  footer={<>
+    <Button mode="text" onPress={onReset} contentStyle={styles.actionContent} style={styles.reset}>Reset</Button>
+    <Button mode="outlined" onPress={onClose} contentStyle={styles.actionContent} style={styles.action}>Cancel</Button>
+    <Button mode="contained" onPress={onApply} contentStyle={styles.actionContent} style={styles.action}>Apply filters</Button>
+  </>}
+>
+  <View style={styles.body}>
+    {!hideStatusFilter && <FilterChoices label="Order status" value={statusFilter} onChange={onStatusChange} options={[
+      ['all', 'All'], ...Object.entries(STATUS_LABELS).map(([key, label]): [string, string] => [key, key === 'pending_online_payment' ? 'Waiting for payment' : label]),
+    ]} />}
+    <FilterChoices label="Payment status" value={paymentFilter} onChange={onPaymentChange} options={[
+      ['all', 'All'], ...Object.entries(PAYMENT_STATUS_LABELS),
+    ]} />
+    <FilterChoices label="Order source" value={orderMethodFilter} onChange={onOrderMethodChange} options={[
+      ['all', 'All'], ['online', 'Online'], ['store', 'At counter'],
+    ]} />
+  </View>
+</EditorSheet>;
 
 const styles = StyleSheet.create({
-  filtersModalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  filtersModalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 24,
-    maxHeight: '80%',
-  },
-  filtersModalTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginBottom: 24,
-  },
-  filtersModalScroll: {
-    marginBottom: 24,
-  },
-  filtersModalScrollContent: {
-    gap: 20,
-  },
-  filterGroup: {
-    marginBottom: 16,
-  },
-  filterLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 12,
-  },
-  filterScroll: {
-    flexDirection: 'row',
-  },
-  chip: {
-    marginRight: 8,
-    backgroundColor: '#f3f4f6',
-  },
-  filtersModalActions: {
-    flexDirection: 'row',
-    gap: 12,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
-  },
-  resetButton: {
-    flex: 1,
-    borderRadius: 8,
-  },
-  applyButton: {
-    flex: 1,
-    borderRadius: 8,
-    backgroundColor: '#2563eb',
-  },
+  body: { gap: 24, paddingBottom: 24 },
+  group: { gap: 8 },
+  label: { fontSize: 14, fontWeight: '700', color: t.color.text },
+  choices: { gap: 8 },
+  choice: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 16, borderWidth: 1, borderColor: t.color.border, backgroundColor: t.color.surface, borderRadius: t.radius.control },
+  selectedChoice: { borderColor: t.color.primary, backgroundColor: t.color.primaryTint },
+  choiceText: { color: t.color.text, fontSize: 14, fontWeight: '700' },
+  selectedText: { color: t.color.primary },
+  actionContent: { minHeight: 48, paddingHorizontal: 8 },
+  action: { borderRadius: t.radius.control, borderColor: t.color.border },
+  reset: { marginRight: 'auto' },
 });

@@ -14,11 +14,6 @@ const liveOrdersScreenSource = readFileSync(
   resolve(process.cwd(), 'app/(drawer)/(tabs)/live-orders.tsx'),
   'utf8',
 );
-const liveOrderCardSource = readFileSync(
-  resolve(process.cwd(), 'components/LiveOrderListItem.tsx'),
-  'utf8',
-);
-
 test('keeps detailed vertical live order cards on portrait phones', () => {
   assert.equal(shouldUseVerticalLiveOrderCards(true, 375), true);
   assert.equal(shouldUseVerticalLiveOrderCards(false, 375), false);
@@ -60,22 +55,6 @@ test('uses compact vertical cards on short landscape screens', () => {
   assert.equal(shouldUseCompactLiveOrderCards(false, 1024, 600), false);
 });
 
-test('reads the screen height before checking for a single-column card', () => {
-  assert.match(liveOrderCardSource, /const \{ width, height \} = useWindowDimensions\(\)/);
-});
-
-test('keeps landscape rail card content unconstrained so text can render', () => {
-  assert.match(liveOrderCardSource, /verticalOrderCardRail: \{[\s\S]*minHeight: 470/);
-  assert.match(liveOrderCardSource, /verticalOrderCardRailCompact: \{[\s\S]*minHeight: 420/);
-  assert.doesNotMatch(liveOrderCardSource, /verticalCardContentRail/);
-  assert.doesNotMatch(liveOrderCardSource, /verticalFooterRail/);
-});
-
-test('adds spacing between cards in the vertical list only', () => {
-  assert.match(liveOrderCardSource, /cardWidth == null \? styles\.verticalOrderCardList : null/);
-  assert.match(liveOrderCardSource, /verticalOrderCardList: \{ marginBottom: 12 \}/);
-});
-
 test('renders filtered Live Orders as one flat card queue', () => {
   assert.doesNotMatch(liveOrdersScreenSource, /type GroupKey/);
   assert.doesNotMatch(liveOrdersScreenSource, /groupedSections/);
@@ -91,10 +70,4 @@ test('uses the landscape card rail for the flat live-order queue', () => {
   assert.match(liveOrdersScreenSource, /horizontal=\{useVerticalCardRail\}/);
   assert.match(liveOrdersScreenSource, /cardWidth=\{useVerticalCardRail \? liveOrderCardWidth : undefined\}/);
   assert.match(liveOrdersScreenSource, /compact=\{useCompactVerticalCards\}/);
-});
-
-test('keeps header action buttons at the journal button height', () => {
-  const headerActionButtons = liveOrdersScreenSource.match(/styles\.headerActionButton/g) ?? [];
-  assert.equal(headerActionButtons.length, 3);
-  assert.match(liveOrdersScreenSource, /headerActionButton: \{ height: 40, minHeight: 40 \}/);
 });

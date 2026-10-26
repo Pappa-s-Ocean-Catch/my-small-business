@@ -1,0 +1,65 @@
+{
+  "color": {
+    "navy": "#122E40",
+    "primary": "#087F82",
+    "primaryPressed": "#066467",
+    "background": "#F4F6F5",
+    "surface": "#FFFFFF",
+    "text": "#172E3A",
+    "muted": "#526773",
+    "border": "#D7E0E2",
+    "success": "#166647",
+    "successTint": "#E6F4EC",
+    "warning": "#88520B",
+    "warningTint": "#FFF2D6",
+    "danger": "#B53535",
+    "dangerTint": "#FFF0EF"
+  },
+  "font": {
+    "family": "System / SF Pro / Roboto",
+    "body": 16,
+    "small": 14,
+    "title": 28,
+    "metric": 32
+  },
+  "spacing": [
+    4,
+    8,
+    12,
+    16,
+    24,
+    32,
+    48
+  ],
+  "radius": {
+    "control": 10,
+    "card": 16,
+    "dialog": 24
+  },
+  "touch": {
+    "minimum": 48,
+    "primaryHeight": 52
+  },
+  "breakpoints": {
+    "compact": "<600 dp",
+    "medium": "600\u20131099 dp",
+    "expanded": ">=1100 dp"
+  },
+  "navigation": {
+    "expandedRail": 72,
+    "mediumRail": 64,
+    "compactBottom": 76
+  },
+  "cart": {
+    "expandedWidth": 352,
+    "mediumWidth": 288
+  },
+  "header": {
+    "height": 56,
+    "titleSize": 18,
+    "iconSize": 20,
+    "iconStroke": 1.8,
+    "visualButton": 40,
+    "nativeHitSlop": 4
+  }
+}

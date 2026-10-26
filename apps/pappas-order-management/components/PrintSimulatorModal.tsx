@@ -1,10 +1,12 @@
+import { ActionButton as PaperButton } from '@/components/ui/ActionButton';
+import { useModalFocus } from '@/hooks/useModalFocus';
+import { designTokens as t } from '@/lib/redesign';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, Modal, Image, ScrollView, TouchableOpacity, Alert, Platform } from 'react-native';
-import { IconButton, Button as PaperButton, Surface } from 'react-native-paper';
+import { View, Text, StyleSheet, Modal, Image, ScrollView, Alert, useWindowDimensions } from 'react-native';
+import { IconButton } from 'react-native-paper';
 import * as Sharing from 'expo-sharing';
 import type { Order } from '@my-small-business/types';
 import { getFriendlyOrderNumber } from '../utils/orderNumber';
-import { BRAND_COLORS } from '@/utils/brand';
 import { retainReceiptCapture, releaseReceiptCapture } from '@/lib/receipt-capture-lifecycle';
 
 interface PrintSimulatorModalProps {
@@ -30,6 +32,10 @@ export const PrintSimulatorModal: React.FC<PrintSimulatorModalProps> = ({
   useModal = true,
   onClose,
 }) => {
+  const { width } = useWindowDimensions();
+  const compact = width < 600;
+  const panelRef = useRef<View>(null);
+  useModalFocus(panelRef, visible, onClose);
   const simulatorTitle = title || 'Print Simulation';
   const simulatorSubtitle = subtitle || `Order #${order ? getFriendlyOrderNumber(order.order_number) : ''}`;
   const images = useMemo(() => imageUris && imageUris.length > 0
@@ -38,6 +44,8 @@ export const PrintSimulatorModal: React.FC<PrintSimulatorModalProps> = ({
       ? [imageUri]
       : [], [imageUris, imageUri]);
   const [sharing, setSharing] = useState(false);
+  const [imageRatios, setImageRatios] = useState<Record<string, number>>({});
+  const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
   const previewOwners = useRef(new Set<string>());
   const ownershipKey = JSON.stringify([...new Set(images)]);
   useEffect(() => {
@@ -66,7 +74,7 @@ export const PrintSimulatorModal: React.FC<PrintSimulatorModalProps> = ({
       
       await Sharing.shareAsync(images[0], {
         mimeType: 'image/png',
-        dialogTitle: `Receipt for Order #${order ? getFriendlyOrderNumber(order.order_number) : ''}`,
+        dialogTitle: order ? `Receipt for Order #${getFriendlyOrderNumber(order.order_number)}` : simulatorTitle,
         UTI: 'public.png',
       });
     } catch (error) {
@@ -82,12 +90,9 @@ export const PrintSimulatorModal: React.FC<PrintSimulatorModalProps> = ({
 
   const content = (
     <>
-      <View style={styles.simulatorOverlay}>
-        <Surface style={styles.simulatorCard} elevation={5}>
+      <View style={[styles.simulatorOverlay, compact && { padding: 0 }]} >
+        <View ref={panelRef} accessibilityViewIsModal style={[styles.simulatorCard, compact && { height: '100%', maxHeight: '100%', borderRadius: 0 }]}>
           <View style={styles.header}>
-            <View style={styles.headerIconContainer}>
-               <IconButton icon="printer-check" size={32} iconColor="#10b981" style={styles.headerIcon} />
-            </View>
             <View style={styles.headerTitleContainer}>
               <Text style={styles.simulatorTitle}>{simulatorTitle}</Text>
               <Text style={styles.simulatorSubtitle}>{simulatorSubtitle}</Text>
@@ -97,7 +102,7 @@ export const PrintSimulatorModal: React.FC<PrintSimulatorModalProps> = ({
                 </Text>
               )}
             </View>
-            <IconButton icon="close" size={24} onPress={onClose} iconColor="#fff" />
+            <IconButton icon="close" size={24} onPress={onClose} hitSlop={4} accessibilityLabel="Close print preview" iconColor={t.color.text} style={styles.closeControl} />
           </View>
 
           <ScrollView 
@@ -120,9 +125,13 @@ export const PrintSimulatorModal: React.FC<PrintSimulatorModalProps> = ({
                     <View style={styles.imagePreviewContainer}>
                       <Image 
                         source={{ uri }} 
-                        style={styles.receiptImage} 
+                        style={[styles.receiptImage, imageRatios[uri] ? { aspectRatio: imageRatios[uri] } : null]}
                         resizeMode="contain"
+                        accessibilityLabel={imageLabels?.[index] || `${simulatorTitle} receipt ${index + 1}`}
+                        onLoad={(event) => { const { width, height } = event.nativeEvent.source; if (width > 0 && height > 0) setImageRatios((prev) => ({ ...prev, [uri]: width / height })); }}
+                        onError={() => setFailedImages((prev) => ({ ...prev, [uri]: true }))}
                       />
+                      {failedImages[uri] && <Text accessibilityRole="alert" style={styles.noImageText}>Preview image couldn’t load. Close the preview and try again.</Text>}
                     </View>
                   </View>
                 ))}
@@ -138,7 +147,8 @@ export const PrintSimulatorModal: React.FC<PrintSimulatorModalProps> = ({
           <View style={styles.footer}>
             {images.length > 0 && (
               <PaperButton
-                mode="outlined"
+                mode="contained"
+                contentStyle={{ minHeight: 48 }}
                 icon="download"
                 onPress={handleShare}
                 loading={sharing}
@@ -150,15 +160,16 @@ export const PrintSimulatorModal: React.FC<PrintSimulatorModalProps> = ({
               </PaperButton>
             )}
             <PaperButton
-              mode="contained"
+              mode="outlined"
+              contentStyle={{ minHeight: 48 }}
               onPress={onClose}
               style={styles.dismissButton}
-              labelStyle={[styles.buttonLabel, { color: '#fff' }]}
+              labelStyle={styles.buttonLabel}
             >
-              Dismiss
+              Close preview
             </PaperButton>
           </View>
-        </Surface>
+        </View>
       </View>
     </>
   );
@@ -182,7 +193,7 @@ export const PrintSimulatorModal: React.FC<PrintSimulatorModalProps> = ({
 const styles = StyleSheet.create({
   simulatorOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    backgroundColor: t.color.scrim,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -190,26 +201,28 @@ const styles = StyleSheet.create({
     elevation: 1000,
   },
   simulatorCard: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
+    backgroundColor: t.color.surface,
+    borderRadius: t.radius.dialog,
     width: '100%',
-    maxWidth: '100%',
-    height: '100%',
-    maxHeight: '100%',
+    maxWidth: 620,
+    height: 640,
+    maxHeight: '90%',
     overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
     borderBottomWidth: 1,
-    backgroundColor: BRAND_COLORS.header,
-    borderBottomColor: BRAND_COLORS.header,
+    backgroundColor: t.color.surface,
+    borderBottomColor: t.color.border,
   },
+  closeControl: { width: 40, height: 40, margin: 0, borderRadius: 20, backgroundColor: '#F0F4F3' },
   headerIconContainer: {
     width: 48,
     height: 48,
-    borderRadius: 12,
+    borderRadius: t.radius.card,
     backgroundColor: '#ecfdf5',
     justifyContent: 'center',
     alignItems: 'center',
@@ -222,23 +235,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   simulatorTitle: {
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: '800',
-    color: '#fff',
+    color: t.color.text,
   },
   simulatorSubtitle: {
     fontSize: 14,
-    color: '#d7e4ed',
+    color: t.color.muted,
     fontWeight: '500',
   },
   simulatorHint: {
     marginTop: 4,
-    fontSize: 12,
-    color: '#94a3b8',
+    fontSize: 14,
+    color: t.color.muted,
     fontWeight: '500',
   },
   contentScroll: {
-    backgroundColor: '#f8fafc',
+    flex: 1,
+    backgroundColor: t.color.background,
   },
   contentContainer: {
     padding: 20,
@@ -248,19 +262,16 @@ const styles = StyleSheet.create({
   },
   imagePreviewContainer: {
     width: '100%',
-    maxWidth: 420,
+    maxWidth: 320,
     alignSelf: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    shadowColor: '#000',
+    backgroundColor: t.color.surface,
+    borderRadius: 0,
+    shadowColor: t.color.text,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
-    // Add visual border to see margins
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderStyle: 'dashed',
+
   },
   imagePreviewList: {
     width: '100%',
@@ -275,37 +286,41 @@ const styles = StyleSheet.create({
   copyLabel: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#475569',
+    color: t.color.muted,
   },
   receiptImage: {
     width: '100%',
     aspectRatio: 0.7, // Receipts are usually tall
-    minHeight: 400,
+
   },
   noImageContainer: {
     paddingVertical: 60,
     alignItems: 'center',
   },
   noImageText: {
-    color: '#94a3b8',
+    color: t.color.muted,
     textAlign: 'center',
     marginTop: 12,
     paddingHorizontal: 40,
     lineHeight: 20,
   },
   footer: {
-    padding: 16,
+    flexDirection: 'row-reverse',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+    paddingVertical: 18,
+    paddingHorizontal: 26,
     borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
+    borderTopColor: t.color.border,
     gap: 12,
   },
   downloadButton: {
-    borderRadius: 12,
-    borderColor: '#e2e8f0',
+    borderRadius: t.radius.control,
+    borderColor: t.color.border,
   },
   dismissButton: {
-    borderRadius: 12,
-    backgroundColor: '#1e293b',
+    borderRadius: t.radius.control,
+    borderColor: t.color.border,
   },
   buttonLabel: {
     fontSize: 15,

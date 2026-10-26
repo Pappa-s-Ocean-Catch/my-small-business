@@ -1,6 +1,15 @@
+import { ActionButton as Button } from '@/components/ui/ActionButton';
+import { WorkspaceShell } from '@/components/ui/WorkspaceShell';
+import { SearchField } from '@/components/ui';
+import { ChoiceTabs as SegmentedButtons } from '@/components/ui/ChoiceTabs';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { WorkspaceHeader, Panel, SectionHeader, StatusBadge, EditorSheet } from '@/components/ui';
+import { useWindowDimensions } from 'react-native';
+import { designTokens as t } from '@/lib/redesign';
+import { FormField, PageHeader } from '@/components/ui';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Modal as NativeModal, RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Appbar, Button, Card, Checkbox, IconButton, Menu, Modal, Portal, SegmentedButtons, Surface, Text, TextInput } from 'react-native-paper';
+import { Appbar, Card, Checkbox, IconButton, Menu, Modal, Portal, Surface, Text, TextInput } from 'react-native-paper';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { useRouter } from 'expo-router';
@@ -134,6 +143,9 @@ function formatOrderState(value: string | null | undefined) {
 }
 
 export default function MarketplaceScreen() {
+  const { height: windowHeight, fontScale } = useWindowDimensions();
+  const [contentWidth, setContentWidth] = useState(0);
+  const compact = contentWidth / fontScale < 600;
   const navigation = useNavigation<DrawerNavigationProp<any>>();
   const router = useRouter();
   const [providerTab, setProviderTab] = useState<ProviderTab>('uber_eats');
@@ -160,9 +172,12 @@ export default function MarketplaceScreen() {
   const [products, setProducts] = useState<SaleProduct[]>([]);
   const [addonItems, setAddonItems] = useState<AddonItem[]>([]);
   const [ingredients, setIngredients] = useState<RemovableIngredient[]>([]);
+  const [mappingSearch, setMappingSearch] = useState('');
   const [selectedMappings, setSelectedMappings] = useState<Record<string, string>>({});
   const [historyDateRange, setHistoryDateRange] = useState<MarketplaceHistoryDateRange>('TODAY');
   const [selectedHistoryStatuses, setSelectedHistoryStatuses] = useState<string[]>([]);
+  const [draftHistoryDateRange, setDraftHistoryDateRange] = useState<MarketplaceHistoryDateRange>('TODAY');
+  const [draftHistoryStatuses, setDraftHistoryStatuses] = useState<string[]>([]);
   const [showHistoryDateMenu, setShowHistoryDateMenu] = useState(false);
   const [showHistoryStatusMenu, setShowHistoryStatusMenu] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -358,7 +373,7 @@ export default function MarketplaceScreen() {
 
     try {
       setSaving(true);
-      const providerConfig = providerTab === 'doordash'
+      const providerConfig: Record<string, string | number | boolean | null> = providerTab === 'doordash'
         ? {
             businessId: businessIdInput.trim(),
             storeId: storeIdInput.trim(),
@@ -593,12 +608,12 @@ export default function MarketplaceScreen() {
 
   const getMappingOptions = (entityType: MappingEntityType) => {
     if (entityType === 'product') {
-      return products.map((item) => item.name);
+      return [...new Set(products.map((item) => item.name))];
     }
     if (entityType === 'addon') {
-      return addonItems.map((item) => item.name);
+      return [...new Set(addonItems.map((item) => item.name))];
     }
-    return ingredients.map((item) => item.ingredient_name);
+    return [...new Set(ingredients.map((item) => item.ingredient_name))];
   };
 
   const openMappingsModal = async () => {
@@ -607,179 +622,60 @@ export default function MarketplaceScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Appbar.Header style={styles.appbar}>
-        <Appbar.Action icon="menu" onPress={() => navigation.openDrawer()} iconColor="#fff" />
-        <Appbar.Content title="Marketplace" titleStyle={styles.appbarTitle} />
-        <Appbar.Action icon="home" onPress={() => router.replace('/(drawer)/(tabs)/live-orders')} iconColor="#fff" />
-      </Appbar.Header>
+    <View style={styles.container} onLayout={(event) => setContentWidth(event.nativeEvent.layout.width)}>
+      <WorkspaceHeader title="Marketplace" actions={<>
+      </>} />
 
       <ScrollView
         style={styles.content}
-        contentContainerStyle={styles.contentContainer}
+        contentContainerStyle={[styles.contentContainer, { padding: contentWidth >= 1100 ? 16 : 12 }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
       >
-        <Card style={styles.utilityCard}>
-          <Card.Content style={styles.utilityContent}>
-            <View style={styles.utilityHeader}>
-              <View style={styles.utilityTitleWrap}>
-                <Text style={styles.utilityTitle}>Marketplace</Text>
-                <Text style={styles.utilitySubtitle}>Sync settings, mappings, and marketplace orders.</Text>
-              </View>
-            </View>
-
-            <View style={styles.providerConfigRow}>
-              {(['uber_eats', 'doordash'] as ProviderTab[]).map((provider) => {
-                const status = credentialStatus[provider];
-                const isActiveProvider = providerTab === provider;
-                const label = PROVIDER_LABELS[provider];
-
-                return (
-                  <TouchableOpacity
-                    key={provider}
-                    style={[
-                      styles.providerConfigButton,
-                      isActiveProvider ? styles.providerConfigButtonActive : null,
-                      status.configured ? styles.providerConfigButtonReady : styles.providerConfigButtonPending,
-                    ]}
-                    onPress={() => {
-                      setProviderTab(provider);
-                      setShowSettingsModal(true);
-                    }}
-                  >
-                    <View style={styles.providerConfigButtonHeader}>
-                      <Text style={[styles.providerConfigButtonTitle, isActiveProvider ? styles.providerConfigButtonTitleActive : null]}>
-                        {label}
-                      </Text>
-                      <IconButton
-                        icon={status.configured ? 'check-circle' : 'circle-outline'}
-                        size={18}
-                        iconColor={status.configured ? '#15803d' : '#a16207'}
-                        style={styles.providerConfigIcon}
-                      />
-                    </View>
-                    <Text style={styles.providerConfigButtonMeta}>
-                      {status.configured ? `Configured • ${formatStatusDate(status.updatedAt)}` : 'Tap to configure'}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            <View style={styles.utilityMetaRow}>
-              <View style={styles.mappingCompactCopy}>
-                <Text style={styles.mappingCompactTitle}>Name Mapping</Text>
-                <Text style={styles.mappingCompactMeta}>
-                  {unmatchedNames.length > 0
-                    ? `${unmatchedNames.length} unmatched names ready to review`
-                    : 'Keep product, add-on, and ingredient names aligned for imports.'}
-                </Text>
-              </View>
-              <Button mode="text" icon="tune-variant" onPress={() => void openMappingsModal()} compact>
-                Open Mapping
-              </Button>
-            </View>
-          </Card.Content>
-        </Card>
+        <View style={{ flexDirection: contentWidth >= 900 ? 'row' : 'column', gap: 20 }}>
+          {(['uber_eats', 'doordash'] as ProviderTab[]).map((provider) => {
+            const status = credentialStatus[provider];
+            return <Panel key={provider} style={{ flex: 1, minWidth: 0, padding: 20 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}><Text style={{ fontSize: 18, fontWeight: '700', color: t.color.text }}>{PROVIDER_LABELS[provider]}</Text><StatusBadge label={status.configured ? 'Configured' : 'Not configured'} tone={status.configured ? 'success' : 'warning'} /></View>
+              <Text style={{ color: t.color.muted, fontSize: 14 }}>{status.configured ? `Updated ${formatStatusDate(status.updatedAt)}` : provider === 'uber_eats' ? 'Connect your store to load marketplace orders.' : 'Manage connection and synchronisation.'}</Text>
+              <Button mode="outlined" contentStyle={{ minHeight: 48 }} style={{ alignSelf: 'flex-start' }} onPress={() => { setProviderTab(provider); setShowSettingsModal(true); }}>{status.configured ? 'Connection settings' : 'Configure connection'}</Button>
+            </Panel>;
+          })}
+        </View>
+        <SectionHeader title="Menu name mapping" action={<Button mode="outlined" contentStyle={{ minHeight: 48 }} onPress={() => void openMappingsModal()}>Resolve names</Button>} />
+        <Panel style={{ padding: 16, backgroundColor: t.color.primaryTint }}><Text style={{ color: t.color.text, fontSize: 14 }}>Match external menu names to internal POS products and add-ons.{unmatchedNames.length > 0 ? ` ${unmatchedNames.length} unmatched names to review.` : ''}</Text></Panel>
 
         <SegmentedButtons
           value={providerTab}
           onValueChange={(value) => setProviderTab(value as ProviderTab)}
-          buttons={PROVIDER_TAB_OPTIONS}
+          buttons={PROVIDER_TAB_OPTIONS.map((button) => ({ ...button, label: PROVIDER_LABELS[button.value as ProviderTab] }))}
         />
 
         <View style={styles.tableSection}>
           <View style={styles.tableHeader}>
-            <View style={styles.tableHeaderTopRow}>
-              <View>
-                <Text style={styles.sectionTitle}>Orders</Text>
-                <Text style={styles.sectionSubtitleCompact}>Active now, scheduled next, and completed history by provider.</Text>
-              </View>
-              <Button
-                mode="outlined"
-                icon="refresh"
-                onPress={() => void Promise.all([loadStatuses(), loadHistory(), loadActiveOrders(), loadScheduledOrders()])}
-                loading={loading || historyLoading || activeLoading || scheduledLoading}
-                compact
-              >
-                Refresh
-              </Button>
-            </View>
-            <SegmentedButtons
-              value={listTab}
-              onValueChange={(value) => setListTab(value as MarketplaceListTab)}
-              buttons={LIST_TAB_OPTIONS}
-            />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><SegmentedButtons style={{ flex: 1 }} value={listTab} onValueChange={(value) => setListTab(value as MarketplaceListTab)} buttons={LIST_TAB_OPTIONS} /><Button mode="outlined" onPress={() => void Promise.all([loadStatuses(), loadHistory(), loadActiveOrders(), loadScheduledOrders()])} loading={loading || historyLoading || activeLoading || scheduledLoading} contentStyle={{ minHeight: 48 }}>Refresh</Button></View>
+
           </View>
 
           {listTab === 'history' ? (
-            <Card style={styles.filterCard}>
-              <Card.Content style={styles.filterCardContent}>
+            <Card mode="outlined" style={[styles.filterCard, { backgroundColor: t.color.background }]}>
+              <Card.Content style={[styles.filterCardContent, { paddingHorizontal: 0, paddingVertical: 0 }]}>
                 <View style={styles.filterToolbar}>
                   <View style={styles.filterControl}>
-                    <Text style={styles.filterLabel}>Date</Text>
-                    <Menu
-                      visible={showHistoryDateMenu}
-                      onDismiss={() => setShowHistoryDateMenu(false)}
-                      anchor={(
-                        <Button mode="outlined" icon="calendar" onPress={() => setShowHistoryDateMenu(true)} style={styles.filterDropdownButton}>
-                          {selectedHistoryDateLabel}
-                        </Button>
-                      )}
-                    >
-                      {HISTORY_DATE_RANGE_OPTIONS.map((option) => (
-                        <Menu.Item
-                          key={option.value}
-                          onPress={() => {
-                            setHistoryDateRange(option.value);
-                            setShowHistoryDateMenu(false);
-                          }}
-                          title={option.label}
-                          leadingIcon={historyDateRange === option.value ? 'check' : undefined}
-                        />
-                      ))}
-                    </Menu>
+                    <Button mode="outlined" icon="calendar" onPress={() => { setDraftHistoryDateRange(historyDateRange); setShowHistoryDateMenu(true); }} style={[styles.filterDropdownButton, { alignSelf: 'flex-start' }]}>{selectedHistoryDateLabel}</Button>
                   </View>
 
                   <View style={styles.filterControl}>
-                    <Text style={styles.filterLabel}>Status</Text>
-                    <Menu
-                      visible={showHistoryStatusMenu}
-                      onDismiss={() => setShowHistoryStatusMenu(false)}
-                      anchor={(
-                        <Button mode="outlined" icon="filter-variant" onPress={() => setShowHistoryStatusMenu(true)} style={styles.filterDropdownButton}>
-                          {selectedStatusLabel}
-                        </Button>
-                      )}
-                    >
-                      {historyStatusOptions.map((status) => (
-                        <TouchableOpacity key={status} onPress={() => toggleHistoryStatus(status)} style={styles.filterMenuRow}>
-                          <Checkbox
-                            status={selectedHistoryStatuses.includes(status) ? 'checked' : 'unchecked'}
-                            onPress={() => toggleHistoryStatus(status)}
-                          />
-                          <Text style={styles.filterMenuText}>{status}</Text>
-                        </TouchableOpacity>
-                      ))}
-                      <Menu.Item
-                        onPress={() => {
-                          setSelectedHistoryStatuses([]);
-                          setShowHistoryStatusMenu(false);
-                        }}
-                        title="Clear status filters"
-                        leadingIcon="close-circle-outline"
-                      />
-                    </Menu>
+                    <Button mode="outlined" icon="filter-variant" onPress={() => { setDraftHistoryStatuses([...selectedHistoryStatuses]); setShowHistoryStatusMenu(true); }} style={[styles.filterDropdownButton, { alignSelf: 'flex-start' }]}>{selectedStatusLabel}</Button>
                   </View>
                 </View>
               </Card.Content>
             </Card>
           ) : null}
 
-          <Card style={styles.tableCard}>
+          <Card mode="outlined" style={styles.tableCard}>
             <Card.Content>
               <>
-              <View style={styles.tableColumns}>
+              <View style={[styles.tableColumns, (compact || !currentStatus.configured) && { display: 'none' }]}>
                 <Text style={[styles.tableHeading, styles.flex2]}>Order</Text>
                 <Text style={styles.tableHeading}>Customer</Text>
                 <Text style={styles.tableHeading}>Status</Text>
@@ -791,22 +687,22 @@ export default function MarketplaceScreen() {
                     {activeOrders.map((order) => (
                       <TouchableOpacity
                         key={order.workflowUuid}
-                        style={styles.historyRow}
+                        style={[styles.historyRow, compact && { flexDirection: 'column', borderWidth: 1, borderColor: t.color.border, borderRadius: t.radius.card, padding: 16 }]}
                         onPress={() => void handleOpenOrderDetail(providerTab, order.workflowUuid, isUberEats ? 'live' : 'history')}
                       >
-                        <View style={[styles.historyCell, styles.flex2]}>
+                        <View style={[styles.historyCell, styles.flex2]}>{compact && <Text style={styles.filterLabel}>Order</Text>}
                           <Text style={styles.historyPrimaryLink}>{order.orderId}</Text>
                           <Text style={styles.historySecondary}>{order.salesTotal || 'No total available'}</Text>
                         </View>
-                        <View style={styles.historyCell}>
+                        <View style={styles.historyCell}>{compact && <Text style={styles.filterLabel}>Customer</Text>}
                           <Text style={styles.historyPrimary}>{order.customerName}</Text>
                           <Text style={styles.historySecondary}>{order.orderChannel || providerLabel}</Text>
                         </View>
-                        <View style={styles.historyCell}>
+                        <View style={styles.historyCell}>{compact && <Text style={styles.filterLabel}>Status</Text>}
                           <Text style={styles.historyPrimary}>{formatOrderState(order.status)}</Text>
                           <Text style={styles.historySecondary}>{order.fulfillmentType || 'No fulfillment type'}</Text>
                         </View>
-                        <View style={styles.historyCell}>
+                        <View style={styles.historyCell}>{compact && <Text style={styles.filterLabel}>Updated</Text>}
                           <Text style={styles.historyPrimary}>{order.requestedAt || 'N/A'}</Text>
                           <Text style={styles.historySecondary}>{order.statusDescription || order.courierName || 'In progress'}</Text>
                         </View>
@@ -827,24 +723,24 @@ export default function MarketplaceScreen() {
                     {scheduledOrders.map((order) => (
                       <TouchableOpacity
                         key={order.workflowUuid}
-                        style={styles.historyRow}
+                        style={[styles.historyRow, compact && { flexDirection: 'column', borderWidth: 1, borderColor: t.color.border, borderRadius: t.radius.card, padding: 16 }]}
                         onPress={() => void handleOpenOrderDetail(providerTab, order.workflowUuid, 'history')}
                       >
-                        <View style={[styles.historyCell, styles.flex2]}>
+                        <View style={[styles.historyCell, styles.flex2]}>{compact && <Text style={styles.filterLabel}>Order</Text>}
                           <Text style={styles.historyPrimaryLink}>{order.orderId}</Text>
                           <Text style={styles.historySecondary}>
                             {order.netPayout ? `${order.salesTotal} net ${order.netPayout}` : order.salesTotal}
                           </Text>
                         </View>
-                        <View style={styles.historyCell}>
+                        <View style={styles.historyCell}>{compact && <Text style={styles.filterLabel}>Customer</Text>}
                           <Text style={styles.historyPrimary}>{order.customerName}</Text>
                           <Text style={styles.historySecondary}>{order.orderChannel || providerLabel}</Text>
                         </View>
-                        <View style={styles.historyCell}>
+                        <View style={styles.historyCell}>{compact && <Text style={styles.filterLabel}>Status</Text>}
                           <Text style={styles.historyPrimary}>{formatOrderState(order.fulfillmentType).replace('FULFILLMENT TYPE ', '')}</Text>
                           <Text style={styles.historySecondary}>{order.courierName || 'No courier yet'}</Text>
                         </View>
-                        <View style={styles.historyCell}>
+                        <View style={styles.historyCell}>{compact && <Text style={styles.filterLabel}>Updated</Text>}
                           <Text style={styles.historyPrimary}>{order.requestedAt}</Text>
                           <Text style={styles.historySecondary}>{order.issueType || 'Scheduled'}</Text>
                         </View>
@@ -860,11 +756,10 @@ export default function MarketplaceScreen() {
                   </View>
                 )
               ) : listTab === 'scheduled' ? (
-                <View style={styles.placeholderPanelCompact}>
-                  <Text style={styles.placeholderTitle}>Scheduled orders coming next</Text>
-                  <Text style={styles.placeholderText}>
-                    Configure {providerLabel} settings first to load scheduled orders.
-                  </Text>
+                <View style={styles.placeholderPanel}>
+                  <View style={{ backgroundColor: t.color.primaryTint, padding: 24, borderRadius: 24, marginBottom: 16 }}><MaterialCommunityIcons name="shopping-outline" size={32} color={t.color.primary} /></View>
+                  <Text style={styles.placeholderTitle}>Connect to view scheduled orders</Text>
+                  <Text style={styles.placeholderText}>Configure the selected marketplace to retrieve orders.</Text>
                 </View>
               ) : listTab === 'history' && currentStatus.configured ? (
                 filteredHistoryOrders.length > 0 ? (
@@ -872,16 +767,16 @@ export default function MarketplaceScreen() {
                     {filteredHistoryOrders.map((order) => (
                       <TouchableOpacity
                         key={order.workflowUuid}
-                        style={styles.historyRow}
+                        style={[styles.historyRow, compact && { flexDirection: 'column', borderWidth: 1, borderColor: t.color.border, borderRadius: t.radius.card, padding: 16 }]}
                         onPress={() => void handleOpenOrderDetail(providerTab, order.workflowUuid, 'history')}
                       >
-                        <View style={[styles.historyCell, styles.flex2]}>
+                        <View style={[styles.historyCell, styles.flex2]}>{compact && <Text style={styles.filterLabel}>Order</Text>}
                           <Text style={styles.historyPrimaryLink}>{order.orderId}</Text>
                           <Text style={styles.historySecondary}>
                             {order.netPayout ? `${order.salesTotal} net ${order.netPayout}` : order.salesTotal}
                           </Text>
                         </View>
-                        <View style={styles.historyCell}>
+                        <View style={styles.historyCell}>{compact && <Text style={styles.filterLabel}>Customer</Text>}
                           <Text style={styles.historyPrimary}>{order.customerName}</Text>
                           <Text style={styles.historySecondary}>
                             {isUberEats
@@ -889,11 +784,11 @@ export default function MarketplaceScreen() {
                               : order.orderChannel || providerLabel}
                           </Text>
                         </View>
-                        <View style={styles.historyCell}>
+                        <View style={styles.historyCell}>{compact && <Text style={styles.filterLabel}>Status</Text>}
                           <Text style={styles.historyPrimary}>{formatOrderState(order.fulfillmentType).replace('FULFILLMENT TYPE ', '')}</Text>
                           <Text style={styles.historySecondary}>{order.courierName || 'No courier'}</Text>
                         </View>
-                        <View style={styles.historyCell}>
+                        <View style={styles.historyCell}>{compact && <Text style={styles.filterLabel}>Updated</Text>}
                           <Text style={styles.historyPrimary}>{order.requestedAt}</Text>
                           <Text style={styles.historySecondary}>{order.issueType || 'Completed'}</Text>
                         </View>
@@ -910,18 +805,9 @@ export default function MarketplaceScreen() {
                 )
               ) : (
                 <View style={styles.placeholderPanel}>
-                  <Text style={styles.placeholderTitle}>
-                    {providerLabel} {listTab === 'active' ? 'active orders' : listTab === 'scheduled' ? 'scheduled orders' : 'history orders'}
-                  </Text>
-                  <Text style={styles.placeholderText}>
-                    {listTab === 'active'
-                      ? `Configure ${providerLabel} settings first to load active orders.`
-                      : listTab === 'scheduled'
-                        ? `Scheduled ${providerLabel} orders will appear here after backend integration.`
-                      : currentStatus.configured
-                        ? `Loading history from ${providerLabel}.`
-                        : `Configure ${providerLabel} settings first to load history orders.`}
-                  </Text>
+                  <View style={{ backgroundColor: t.color.primaryTint, padding: 24, borderRadius: 24, alignSelf: 'center', marginBottom: 16 }}><MaterialCommunityIcons name="shopping-outline" size={32} color={t.color.primary} /></View>
+                  <Text style={styles.placeholderTitle}>Connect to view orders</Text>
+                  <Text style={styles.placeholderText}>Configure the selected marketplace to retrieve orders.</Text>
                 </View>
               )}
               </>
@@ -930,6 +816,13 @@ export default function MarketplaceScreen() {
         </View>
       </ScrollView>
 
+      <EditorSheet visible={showHistoryDateMenu} title="Marketplace date range" onDismiss={() => setShowHistoryDateMenu(false)} footer={<><Button mode="outlined" onPress={() => setShowHistoryDateMenu(false)}>Cancel</Button><Button mode="contained" onPress={() => { setHistoryDateRange(draftHistoryDateRange); setShowHistoryDateMenu(false); }}>Apply range</Button></>}>
+        {HISTORY_DATE_RANGE_OPTIONS.map((option) => <Button key={option.value} mode="outlined" style={{ backgroundColor: draftHistoryDateRange === option.value ? t.color.primaryTint : t.color.surface }} contentStyle={{ justifyContent: 'flex-start' }} icon={draftHistoryDateRange === option.value ? 'radiobox-marked' : 'radiobox-blank'} onPress={() => setDraftHistoryDateRange(option.value)}>{option.label}</Button>)}
+      </EditorSheet>
+      <EditorSheet visible={showHistoryStatusMenu} title="Filter marketplace status" onDismiss={() => setShowHistoryStatusMenu(false)} footer={<><Button mode="outlined" onPress={() => setShowHistoryStatusMenu(false)}>Cancel</Button><Button mode="contained" onPress={() => { setSelectedHistoryStatuses(draftHistoryStatuses); setShowHistoryStatusMenu(false); }}>Apply status</Button></>}>
+        <Button mode="outlined" icon={!draftHistoryStatuses.length ? 'checkbox-marked-outline' : 'checkbox-blank-outline'} contentStyle={{ justifyContent: 'flex-start' }} style={{ backgroundColor: !draftHistoryStatuses.length ? t.color.primaryTint : t.color.surface }} onPress={() => setDraftHistoryStatuses([])}>All statuses</Button>
+        {historyStatusOptions.map((status) => <Button key={status} mode="outlined" icon={draftHistoryStatuses.includes(status) ? 'checkbox-marked-outline' : 'checkbox-blank-outline'} contentStyle={{ justifyContent: 'flex-start' }} style={{ backgroundColor: draftHistoryStatuses.includes(status) ? t.color.primaryTint : t.color.surface }} onPress={() => setDraftHistoryStatuses((current) => current.includes(status) ? current.filter((value) => value !== status) : [...current, status])}>{status}</Button>)}
+      </EditorSheet>
       <Portal>
         <NativeModal
           visible={showMappingsModal}
@@ -940,37 +833,24 @@ export default function MarketplaceScreen() {
             setShowMappingsModal(false);
           }}
         >
-          <View style={styles.detailScreen}>
+          <WorkspaceShell onNavigate={() => setShowMappingsModal(false)}><View style={styles.detailScreen}>
             <View style={styles.detailShell}>
-              <Surface style={styles.detailTopBar} elevation={1}>
-                <View style={styles.detailTopBarHeader}>
-                  <View style={styles.detailHeaderCopy}>
-                    <Text style={styles.detailHeaderTitle}>Marketplace Mapping</Text>
-                    <Text style={styles.detailHeaderMeta}>
-                      Match unmatched marketplace names to POS products, add-ons, and ingredients.
-                    </Text>
-                  </View>
-                  <IconButton
-                    icon="close"
-                    size={24}
-                    onPress={() => setShowMappingsModal(false)}
-                    disabled={Boolean(savingMappingId)}
-                  />
-                </View>
-              </Surface>
+              <WorkspaceHeader title="Resolve menu names" showNewOrder={false} onBack={() => { if (!savingMappingId) setShowMappingsModal(false); }} />
 
-              <ScrollView style={styles.detailScrollContent} contentContainerStyle={styles.detailScrollContainer}>
+              <ScrollView style={styles.detailScrollContent} contentContainerStyle={[styles.detailScrollContainer, { padding: compact ? 12 : 16, gap: 20 }]}>
+                <SearchField placeholder="Search unresolved names" value={mappingSearch} onChangeText={setMappingSearch} />
+                <Panel style={{ padding: 16, backgroundColor: t.color.warningTint }}><Text>{unmatchedNames.length} names need a match. Suggestions are not saved automatically.</Text></Panel>
                 {unmatchedNames.length > 0 ? (
                   <View style={styles.mappingList}>
-                    {unmatchedNames.map((entry) => {
+                    {unmatchedNames.filter((entry) => entry.external_name.toLowerCase().includes(mappingSearch.trim().toLowerCase())).map((entry) => {
                       const options = getMappingOptions(entry.entity_type);
                       const selectedValue = selectedMappings[entry.id] || '';
                       const matches = options
-                        .filter((option) => option.toLowerCase().includes(entry.external_name.toLowerCase()) || entry.external_name.toLowerCase().includes(option.toLowerCase()))
+                        .filter((option) => option.toLowerCase().includes((selectedValue.trim() || entry.external_name).toLowerCase()) || (!selectedValue.trim() && entry.external_name.toLowerCase().includes(option.toLowerCase())))
                         .slice(0, 12);
 
                       return (
-                        <Card key={entry.id} style={styles.mappingCard}>
+                        <Card mode="outlined" key={entry.id} style={styles.mappingCard}>
                           <Card.Content style={styles.mappingCardContent}>
                             <View style={styles.mappingHeader}>
                               <View style={styles.mappingCopy}>
@@ -982,7 +862,7 @@ export default function MarketplaceScreen() {
                               </View>
                             </View>
 
-                            <TextInput
+                            <FormField
                               mode="outlined"
                               label="Internal POS name"
                               value={selectedValue}
@@ -1035,7 +915,7 @@ export default function MarketplaceScreen() {
                   <View style={styles.mappingList}>
                     <Text style={styles.savedMappingsTitle}>Saved mappings</Text>
                     {savedMappings.map((mapping) => (
-                      <Card key={mapping.id} style={styles.mappingCard}>
+                      <Card mode="outlined" key={mapping.id} style={styles.mappingCard}>
                         <Card.Content style={styles.mappingCardContent}>
                           <Text style={styles.mappingTitle}>{mapping.external_name} → {mapping.internal_name}</Text>
                           <Text style={styles.mappingMeta}>
@@ -1057,6 +937,7 @@ export default function MarketplaceScreen() {
               </ScrollView>
             </View>
           </View>
+          </WorkspaceShell>
         </NativeModal>
 
         <NativeModal
@@ -1211,27 +1092,17 @@ export default function MarketplaceScreen() {
           </View>
         </NativeModal>
 
-        <Modal
-          visible={showSettingsModal}
-          onDismiss={() => {
-            if (saving) return;
-            setShowSettingsModal(false);
-            setCookieInput('');
-            setBusinessIdInput('');
-            setStoreIdInput('');
-            setDdAttKeyInput('');
-          }}
-          contentContainerStyle={styles.modalCard}
-        >
-          <Text style={styles.modalTitle}>{providerLabel} cookies</Text>
-          <Text style={styles.modalSubtitle}>
-            Paste the full cookie string from your browser session. We encrypt it on the server before saving it to the database for cross-device sync.
-          </Text>
+        <EditorSheet visible={showSettingsModal} title={`Connect ${providerLabel}`} pending={saving} dirty={!!cookieInput.trim() || businessIdInput !== String(currentStatus.providerConfig.businessId || '') || storeIdInput !== String(currentStatus.providerConfig.storeId || '') || ddAttKeyInput !== String(currentStatus.providerConfig.ddAttKey || '')} onDismiss={() => { setShowSettingsModal(false); setCookieInput(''); setBusinessIdInput(''); setStoreIdInput(''); setDdAttKeyInput(''); }} footer={(dismiss) => <>
+          <Button mode="outlined" onPress={dismiss} disabled={saving} contentStyle={{ minHeight: 48 }}>Cancel</Button>
+          {currentStatus.configured && <Button mode="outlined" onPress={() => void handleClearCookies()} disabled={saving} contentStyle={{ minHeight: 48 }}>Clear</Button>}
+          <Button mode="contained" onPress={() => void handleSaveCookies()} loading={saving} disabled={saving || !cookieInput.trim() || (isDoorDash && (!businessIdInput.trim() || !storeIdInput.trim()))} contentStyle={{ minHeight: 48 }}>Save connection</Button>
+        </>}>
+          <Text style={{ color: t.color.muted, fontSize: 14 }}>Paste the cookie header from your merchant browser session. Saved credentials are encrypted for register synchronisation.</Text>
 
           {isDoorDash ? (
             <>
               <View style={styles.doordashConfigRow}>
-                <TextInput
+                <FormField
                   mode="outlined"
                   label="Business ID"
                   value={businessIdInput}
@@ -1240,7 +1111,7 @@ export default function MarketplaceScreen() {
                   style={styles.doordashConfigInput}
                   disabled={saving}
                 />
-                <TextInput
+                <FormField
                   mode="outlined"
                   label="Store ID"
                   value={storeIdInput}
@@ -1250,7 +1121,7 @@ export default function MarketplaceScreen() {
                   disabled={saving}
                 />
               </View>
-              <TextInput
+              <FormField
                 mode="outlined"
                 label="DD ATT Key"
                 value={ddAttKeyInput}
@@ -1261,7 +1132,7 @@ export default function MarketplaceScreen() {
             </>
           ) : null}
 
-          <TextInput
+          <FormField
             mode="outlined"
             label="Cookie header value"
             value={cookieInput}
@@ -1276,23 +1147,7 @@ export default function MarketplaceScreen() {
             Current status: {currentStatus.configured ? `configured on ${formatStatusDate(currentStatus.updatedAt)}` : 'not configured'}
           </Text>
 
-          <View style={styles.modalActions}>
-            <Button mode="text" onPress={() => setShowSettingsModal(false)} disabled={saving}>
-              Close
-            </Button>
-            <Button mode="outlined" onPress={() => void handleClearCookies()} disabled={!currentStatus.configured || saving}>
-              Clear
-            </Button>
-            <Button
-              mode="contained"
-              onPress={() => void handleSaveCookies()}
-              loading={saving}
-              disabled={!cookieInput.trim() || (isDoorDash && (!businessIdInput.trim() || !storeIdInput.trim()))}
-            >
-              Save
-            </Button>
-          </View>
-        </Modal>
+        </EditorSheet>
       </Portal>
     </View>
   );
@@ -1301,25 +1156,26 @@ export default function MarketplaceScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f3f6fb',
+    backgroundColor: t.color.background,
   },
   appbar: {
     backgroundColor: BRAND_COLORS.header,
   },
   appbarTitle: {
-    color: '#fff',
+    color: t.color.surface,
     fontWeight: '700',
   },
   content: {
     flex: 1,
   },
   contentContainer: {
-    padding: 12,
-    gap: 12,
+    padding: 28,
+    gap: 20,
   },
   utilityCard: {
-    borderRadius: 18,
-    backgroundColor: '#fff',
+    borderRadius: t.radius.card,
+    backgroundColor: t.color.surface,
+    borderWidth: 1, borderColor: t.color.border,
   },
   utilityContent: {
     gap: 12,
@@ -1338,11 +1194,11 @@ const styles = StyleSheet.create({
   utilityTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#0f172a',
+    color: t.color.text,
   },
   utilitySubtitle: {
-    color: '#64748b',
-    fontSize: 13,
+    color: t.color.muted,
+    fontSize: 14,
     lineHeight: 18,
   },
   providerConfigRow: {
@@ -1360,19 +1216,19 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   providerConfigButtonActive: {
-    borderColor: '#2563eb',
-    shadowColor: '#2563eb',
+    borderColor: t.color.primary,
+    shadowColor: t.color.primary,
     shadowOpacity: 0.08,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
     elevation: 1,
   },
   providerConfigButtonReady: {
-    backgroundColor: '#f0fdf4',
+    backgroundColor: t.color.successTint,
     borderColor: '#bbf7d0',
   },
   providerConfigButtonPending: {
-    backgroundColor: '#fffbeb',
+    backgroundColor: t.color.warningTint,
     borderColor: '#fde68a',
   },
   providerConfigButtonHeader: {
@@ -1384,14 +1240,14 @@ const styles = StyleSheet.create({
   providerConfigButtonTitle: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#0f172a',
+    color: t.color.text,
   },
   providerConfigButtonTitleActive: {
-    color: '#1d4ed8',
+    color: t.color.primary,
   },
   providerConfigButtonMeta: {
-    fontSize: 12,
-    color: '#64748b',
+    fontSize: 14,
+    color: t.color.muted,
     lineHeight: 16,
   },
   providerConfigIcon: {
@@ -1403,7 +1259,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
     borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
+    borderTopColor: t.color.border,
     paddingTop: 12,
     flexWrap: 'wrap',
   },
@@ -1414,21 +1270,21 @@ const styles = StyleSheet.create({
   mappingCompactTitle: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#0f172a',
+    color: t.color.text,
   },
   mappingCompactMeta: {
-    fontSize: 12,
-    color: '#64748b',
+    fontSize: 14,
+    color: t.color.muted,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#0f172a',
+    color: t.color.text,
   },
   sectionSubtitleCompact: {
     marginTop: 4,
-    color: '#64748b',
-    fontSize: 12,
+    color: t.color.muted,
+    fontSize: 14,
     lineHeight: 17,
     maxWidth: 520,
   },
@@ -1446,20 +1302,22 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   tableCard: {
-    borderRadius: 18,
-    backgroundColor: '#fff',
+    borderRadius: t.radius.card,
+    backgroundColor: t.color.surface,
+    borderColor: t.color.border,
   },
   filterCard: {
-    borderRadius: 18,
-    backgroundColor: '#fff',
+    borderRadius: t.radius.card,
+    backgroundColor: t.color.surface,
+    borderColor: t.color.border,
   },
   filterCardContent: {
     gap: 6,
   },
   filterLabel: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '800',
-    color: '#334155',
+    color: t.color.text,
     textTransform: 'uppercase',
   },
   filterToolbar: {
@@ -1468,10 +1326,10 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   filterControl: {
-    flex: 1,
-    minWidth: 140,
+    flexGrow: 0,
     gap: 6,
   },
+  checkoutInput: { backgroundColor: t.color.surface },
   filterDropdownButton: {
     justifyContent: 'flex-start',
   },
@@ -1484,7 +1342,7 @@ const styles = StyleSheet.create({
   },
   filterMenuText: {
     flex: 1,
-    color: '#0f172a',
+    color: t.color.text,
     fontSize: 14,
   },
   tableColumns: {
@@ -1492,21 +1350,21 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingBottom: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    borderBottomColor: t.color.border,
     flexWrap: 'wrap',
   },
   tableHeading: {
     flex: 1,
     minWidth: 120,
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '800',
-    color: '#475569',
+    color: t.color.muted,
     textTransform: 'uppercase',
   },
   flex2: {
     flex: 2,
   },
-  placeholderPanel: {
+  placeholderPanel: { minHeight: 240, alignItems: 'center', justifyContent: 'center',
     paddingVertical: 24,
     gap: 8,
   },
@@ -1523,7 +1381,7 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    borderBottomColor: t.color.border,
     flexWrap: 'wrap',
   },
   historyCell: {
@@ -1532,19 +1390,19 @@ const styles = StyleSheet.create({
     minWidth: 140,
   },
   historyPrimary: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
-    color: '#0f172a',
+    color: t.color.text,
   },
   historyPrimaryLink: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '800',
-    color: '#2563eb',
+    color: t.color.primary,
     textDecorationLine: 'underline',
   },
   historySecondary: {
-    fontSize: 12,
-    color: '#64748b',
+    fontSize: 14,
+    color: t.color.muted,
   },
   mappingList: {
     gap: 12,
@@ -1556,7 +1414,8 @@ const styles = StyleSheet.create({
   },
   mappingCard: {
     borderRadius: 16,
-    backgroundColor: '#f8fafc',
+    backgroundColor: t.color.surface,
+    borderWidth: 0, borderColor: t.color.border,
   },
   mappingCardContent: {
     gap: 12,
@@ -1573,11 +1432,11 @@ const styles = StyleSheet.create({
   mappingTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#0f172a',
+    color: t.color.text,
   },
   mappingMeta: {
-    fontSize: 12,
-    color: '#64748b',
+    fontSize: 14,
+    color: t.color.muted,
   },
   mappingSuggestions: {
     flexDirection: 'row',
@@ -1585,39 +1444,39 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   mappingSuggestionChip: {
-    borderRadius: 999,
+    borderRadius: 10,
   },
   mappingActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
   },
-  placeholderTitle: {
-    fontSize: 16,
+  placeholderTitle: { textAlign: 'center',
+    fontSize: 24,
     fontWeight: '700',
-    color: '#0f172a',
+    color: t.color.text,
   },
-  placeholderText: {
-    color: '#64748b',
+  placeholderText: { textAlign: 'center',
+    color: t.color.muted,
     fontSize: 14,
     lineHeight: 20,
-    maxWidth: 560,
+    maxWidth: 360,
   },
   modalCard: {
     marginHorizontal: 12,
     padding: 20,
     borderRadius: 20,
-    backgroundColor: '#fff',
+    backgroundColor: t.color.surface,
     gap: 14,
   },
   detailScreen: {
     flex: 1,
-    backgroundColor: '#f3f6fb',
+    backgroundColor: t.color.background,
   },
   detailShell: {
     flex: 1,
   },
   detailTopBar: {
-    backgroundColor: '#fff',
+    backgroundColor: t.color.surface,
     paddingTop: 14,
   },
   detailTopBarHeader: {
@@ -1635,11 +1494,11 @@ const styles = StyleSheet.create({
   detailHeaderTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#111827',
+    color: t.color.text,
   },
   detailHeaderMeta: {
     fontSize: 14,
-    color: '#6b7280',
+    color: t.color.muted,
   },
   detailHeaderBadges: {
     flexDirection: 'row',
@@ -1655,19 +1514,19 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   detailStatusBadgePrimary: {
-    backgroundColor: '#2563eb',
+    backgroundColor: t.color.primary,
   },
   detailStatusBadgeSecondary: {
     backgroundColor: '#0f766e',
   },
   detailStatusBadgeText: {
-    color: '#fff',
-    fontSize: 11,
+    color: t.color.surface,
+    fontSize: 14,
     fontWeight: '800',
   },
   detailHeaderTime: {
-    fontSize: 13,
-    color: '#6b7280',
+    fontSize: 14,
+    color: t.color.muted,
   },
   detailHeaderAction: {
     borderRadius: 999,
@@ -1684,13 +1543,14 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   detailInfoCard: {
-    borderRadius: 12,
-    backgroundColor: '#fff',
+    borderRadius: t.radius.card,
+    backgroundColor: t.color.surface,
+    borderWidth: 1, borderColor: t.color.border,
   },
   detailCardTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#111827',
+    color: t.color.text,
   },
   detailCustomerName: {
     fontSize: 16,
@@ -1700,7 +1560,7 @@ const styles = StyleSheet.create({
   },
   detailContactText: {
     fontSize: 14,
-    color: '#374151',
+    color: t.color.text,
     marginBottom: 4,
   },
   detailTotalRow: {
@@ -1713,26 +1573,26 @@ const styles = StyleSheet.create({
   },
   detailTotalLabel: {
     fontSize: 14,
-    color: '#6b7280',
+    color: t.color.muted,
   },
   detailTotalValue: {
     flex: 1,
     textAlign: 'right',
     fontSize: 14,
     fontWeight: '700',
-    color: '#111827',
+    color: t.color.text,
   },
   detailHelperText: {
     marginTop: -2,
     marginBottom: 8,
-    color: '#6b7280',
-    fontSize: 12,
+    color: t.color.muted,
+    fontSize: 14,
     fontWeight: '600',
   },
   detailItemRow: {
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    borderBottomColor: t.color.border,
   },
   detailItemHeader: {
     flexDirection: 'row',
@@ -1745,31 +1605,31 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     fontWeight: '700',
-    color: '#111827',
+    color: t.color.text,
   },
   detailItemPrice: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#2563eb',
+    color: t.color.primary,
   },
   detailItemNote: {
     marginTop: 4,
-    fontSize: 13,
-    color: '#64748b',
+    fontSize: 14,
+    color: t.color.muted,
   },
   detailAddonsList: {
     marginTop: 6,
     paddingLeft: 10,
   },
   detailAddonGroup: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
-    color: '#334155',
+    color: t.color.text,
     marginBottom: 2,
   },
   detailAddonText: {
-    fontSize: 13,
-    color: '#64748b',
+    fontSize: 14,
+    color: t.color.muted,
     marginBottom: 2,
   },
   timelineRow: {
@@ -1778,26 +1638,26 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    borderBottomColor: t.color.border,
     flexWrap: 'wrap',
   },
   timelineState: {
     flex: 1,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
-    color: '#0f172a',
+    color: t.color.text,
   },
   timelineTime: {
-    fontSize: 12,
-    color: '#64748b',
+    fontSize: 14,
+    color: t.color.muted,
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#0f172a',
+    color: t.color.text,
   },
   modalSubtitle: {
-    color: '#64748b',
+    color: t.color.muted,
     fontSize: 14,
     lineHeight: 20,
   },
@@ -1809,14 +1669,14 @@ const styles = StyleSheet.create({
   doordashConfigInput: {
     flex: 1,
     minWidth: 180,
-    backgroundColor: '#fff',
+    backgroundColor: t.color.surface,
   },
   cookieInput: {
-    backgroundColor: '#fff',
+    backgroundColor: t.color.surface,
   },
   modalHint: {
-    color: '#475569',
-    fontSize: 12,
+    color: t.color.muted,
+    fontSize: 14,
   },
   modalActions: {
     flexDirection: 'row',

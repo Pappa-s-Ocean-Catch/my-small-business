@@ -1,7 +1,10 @@
+import { ActionButton as Button } from '@/components/ui/ActionButton';
+import { Panel, SectionHeader, StatusBadge, AsyncState } from '@/components/ui';
+import { designTokens as t } from '@/lib/redesign';
 import React from 'react';
 import { View, StyleSheet, ScrollView, ActivityIndicator, Linking } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
-import { Text, Surface, useTheme, Button, Divider } from 'react-native-paper';
+import { Text, Surface, useTheme, Divider } from 'react-native-paper';
 import { getDeliveryOrderDetail } from '../../lib/delivery-management';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -48,8 +51,8 @@ export function DeliveryOrderDetail({ id, reference, onBack }: Props) {
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Surface style={styles.section} elevation={1}>
-          <Text variant="titleMedium" style={styles.sectionTitle}>Status</Text>
-          <Text variant="bodyLarge">{order.status}</Text>
+          <SectionHeader title="Status" />
+          <StatusBadge label={order.status} />
           {onDemandError && (
             <Text variant="bodyMedium" style={{ color: theme.colors.error, marginTop: 4 }}>
               Error: {onDemandError}
@@ -58,13 +61,13 @@ export function DeliveryOrderDetail({ id, reference, onBack }: Props) {
         </Surface>
 
         <Surface style={styles.section} elevation={1}>
-          <Text variant="titleMedium" style={styles.sectionTitle}>Customer Info</Text>
+          <SectionHeader title="Customer Info" />
           <Text variant="bodyMedium">Name: {order.customerName}</Text>
           <Text variant="bodyMedium">Phone: {order.customerPhone}</Text>
         </Surface>
 
         <Surface style={styles.section} elevation={1}>
-          <Text variant="titleMedium" style={styles.sectionTitle}>Addresses</Text>
+          <SectionHeader title="Addresses" />
           <Text variant="bodyMedium" style={{ fontWeight: 'bold' }}>Pickup:</Text>
           <Text variant="bodyMedium" style={{ marginBottom: 8 }}>{order.pickupAddress}</Text>
           <Text variant="bodyMedium" style={{ fontWeight: 'bold' }}>Dropoff:</Text>
@@ -73,13 +76,13 @@ export function DeliveryOrderDetail({ id, reference, onBack }: Props) {
 
         {order.driverName && (
           <Surface style={styles.section} elevation={1}>
-            <Text variant="titleMedium" style={styles.sectionTitle}>Driver Info</Text>
+            <SectionHeader title="Driver Info" />
             <Text variant="bodyMedium">Name: {order.driverName}</Text>
             <Text variant="bodyMedium">Phone: {order.driverPhone}</Text>
             {order.trackingUrl && (
-              <Button 
-                mode="outlined" 
-                icon="map-marker" 
+              <Button
+                mode="outlined"
+                icon="map-marker"
                 onPress={() => Linking.openURL(order.trackingUrl!)}
                 style={{ marginTop: 12 }}
               >
@@ -90,7 +93,7 @@ export function DeliveryOrderDetail({ id, reference, onBack }: Props) {
         )}
 
         <Surface style={styles.section} elevation={1}>
-          <Text variant="titleMedium" style={styles.sectionTitle}>Fees & Details</Text>
+          <SectionHeader title="Fees & Details" />
           <Text variant="bodyMedium">Delivery Fee: ${order.deliveryFee?.toFixed(2) ?? 'N/A'}</Text>
           <Text variant="bodyMedium">Created At: {order.createdAt ? new Date(order.createdAt).toLocaleString() : 'N/A'}</Text>
         </Surface>
@@ -103,27 +106,28 @@ export function DeliveryOrderDetail({ id, reference, onBack }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f4f4f4',
+    backgroundColor: t.color.background,
   },
   headerBar: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
-    backgroundColor: '#ffffff',
+    backgroundColor: t.color.surface,
     zIndex: 10,
   },
   backButton: {
     marginRight: 16,
   },
   scrollContent: {
-    padding: 12,
+    padding: 16,
+    width: '100%', maxWidth: 920, alignSelf: 'center',
     paddingBottom: 40,
     gap: 12,
   },
   section: {
     padding: 16,
-    borderRadius: 8,
-    backgroundColor: '#ffffff',
+    borderRadius: t.radius.card,
+    backgroundColor: t.color.surface,
   },
   sectionTitle: {
     fontWeight: 'bold',

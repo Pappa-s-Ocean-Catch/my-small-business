@@ -1,7 +1,11 @@
-import { useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { ActionButton as Button } from '@/components/ui/ActionButton';
+import { WorkspaceHeader, Panel } from '@/components/ui';
+import { designTokens as t } from '@/lib/redesign';
+import { FormField, PageHeader } from '@/components/ui';
+import React, { useEffect, useState } from 'react';
+import { Alert, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Appbar, Button, Card, Text, TextInput } from 'react-native-paper';
+import { Appbar, Card, Text, TextInput } from 'react-native-paper';
 import { BRAND_COLORS } from '@/utils/brand';
 import {
   formatSmartpayError,
@@ -13,6 +17,7 @@ import {
 
 export default function PosIntegrationScreen() {
   const router = useRouter();
+  const compact = useWindowDimensions().width < 750;
   const [settings, setSettings] = useState<SmartpayPairingSettings | null>(null);
   const [pairingCode, setPairingCode] = useState('');
   const [loading, setLoading] = useState(true);
@@ -67,142 +72,56 @@ export default function PosIntegrationScreen() {
     );
   }
 
-  return (
-    <View style={styles.screen}>
-      <Appbar.Header style={styles.header}>
-        <Appbar.BackAction onPress={() => router.back()} iconColor="#fff" />
-        <Appbar.Content title="POS Integration" titleStyle={styles.headerTitle} />
-      </Appbar.Header>
-
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <Card style={styles.card}>
-          <Card.Content>
-            <Text style={styles.sectionTitle}>Smartpay Pairing</Text>
-            <Text style={styles.helper}>
-              Enter the pairing code shown on the Smartpay terminal. The register ID below is generated once and stored only on this device for future Smartpay requests.
-            </Text>
-
-            <TextInput
-              mode="outlined"
-              label="Smartpay production URL"
-              value={settings.environmentUrl}
-              editable={false}
-              style={styles.input}
-            />
-
-            <TextInput
-              mode="outlined"
-              label="Pairing code"
-              value={pairingCode}
-              onChangeText={setPairingCode}
-              autoCapitalize="characters"
-              autoCorrect={false}
-              style={styles.input}
-            />
-
-            <TextInput
-              mode="outlined"
-              label="POS Register ID"
-              value={settings.posRegisterId}
-              editable={false}
-              style={styles.input}
-            />
-
-            <TextInput
-              mode="outlined"
-              label="POS Register Name"
-              value={settings.posRegisterName}
-              onChangeText={(posRegisterName) => updateSettings({ posRegisterName })}
-              style={styles.input}
-            />
-            <TextInput
-              mode="outlined"
-              label="Business Name"
-              value={settings.posBusinessName}
-              onChangeText={(posBusinessName) => updateSettings({ posBusinessName })}
-              style={styles.input}
-            />
-            <TextInput
-              mode="outlined"
-              label="POS Vendor Name"
-              value={settings.posVendorName}
-              onChangeText={(posVendorName) => updateSettings({ posVendorName })}
-              style={styles.input}
-            />
-
-            {settings.pairedAt && (
-              <Text style={styles.statusText}>
-                Last paired: {new Date(settings.pairedAt).toLocaleString()}
-              </Text>
-            )}
-
-            <View style={styles.buttonRow}>
-              <Button mode="outlined" onPress={handleSave} loading={saving} disabled={saving || pairing} style={styles.flexButton}>
-                Save
-              </Button>
-              <Button mode="contained" onPress={handlePair} loading={pairing} disabled={pairing || saving} style={styles.flexButton}>
-                Pair
-              </Button>
-            </View>
-          </Card.Content>
-        </Card>
-
-        <Card style={styles.card}>
-          <Card.Content>
-            <Text style={styles.sectionTitle}>Store Contact</Text>
-            <Text style={styles.helper}>Optional details sent to Smartpay as store metadata during pairing.</Text>
-
-            <TextInput mode="outlined" label="Contact Name" value={settings.contactName} onChangeText={(contactName) => updateSettings({ contactName })} style={styles.input} />
-            <TextInput mode="outlined" label="Address" value={settings.address} onChangeText={(address) => updateSettings({ address })} style={styles.input} />
-            <View style={styles.twoColumnRow}>
-              <TextInput mode="outlined" label="City" value={settings.city} onChangeText={(city) => updateSettings({ city })} style={styles.columnInput} />
-              <TextInput mode="outlined" label="State" value={settings.state} onChangeText={(state) => updateSettings({ state })} style={styles.columnInput} />
-            </View>
-            <View style={styles.twoColumnRow}>
-              <TextInput mode="outlined" label="Postcode" value={settings.zipCode} onChangeText={(zipCode) => updateSettings({ zipCode })} style={styles.columnInput} />
-              <TextInput mode="outlined" label="Phone" value={settings.phone} onChangeText={(phone) => updateSettings({ phone })} keyboardType="phone-pad" style={styles.columnInput} />
-            </View>
-            <TextInput
-              mode="outlined"
-              label="Email"
-              value={settings.email}
-              onChangeText={(email) => updateSettings({ email })}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              style={styles.input}
-            />
-          </Card.Content>
-        </Card>
-      </ScrollView>
-    </View>
-  );
+  const fields: [keyof SmartpayPairingSettings, string, boolean?][] = [
+    ['environmentUrl', 'Smartpay base URL', true], ['posRegisterId', 'POS register ID', true],
+    ['posBusinessName', 'Business name'], ['posVendorName', 'POS vendor name'],
+    ['contactName', 'Contact name'], ['address', 'Address'], ['city', 'City'], ['state', 'State'],
+    ['zipCode', 'Postcode'], ['phone', 'Phone'], ['email', 'Email'], ['posRegisterName', 'POS register name'],
+  ];
+  const fieldStyle = { flexGrow: 1, flexBasis: compact ? '100%' as const : '46%' as const, minWidth: 0 };
+  return <View style={styles.screen}>
+    <WorkspaceHeader title="Smartpay pairing" />
+    <ScrollView contentContainerStyle={{ padding: compact ? 12 : 16, gap: 24 }} keyboardShouldPersistTaps="handled">
+      <Panel style={{ maxWidth: 940, padding: 20 }}>
+        <View style={{ padding: 16, backgroundColor: settings.pairedAt ? t.color.successTint : t.color.warningTint, borderRadius: 10 }}><Text style={{ color: t.color.text }}>{settings.pairedAt ? `Last paired: ${new Date(settings.pairedAt).toLocaleString()}` : 'Terminal not paired. Enter the code from your payment terminal.'}</Text></View>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 20, rowGap: 16 }}>
+          <View style={fieldStyle}><FormField label="Smartpay base URL" value={settings.environmentUrl} editable={false} /></View>
+          <View style={fieldStyle}><FormField label="Pairing code" value={pairingCode} onChangeText={setPairingCode} autoCapitalize="characters" autoCorrect={false} editable={!pairing && !saving} /></View>
+          {fields.slice(1).map(([key, label, readOnly]) => <React.Fragment key={key}><View style={fieldStyle}><FormField label={label} value={settings[key] || ''} editable={!readOnly && !pairing && !saving} onChangeText={(value) => updateSettings({ [key]: value })} keyboardType={key === 'phone' ? 'phone-pad' : key === 'email' ? 'email-address' : 'default'} autoCapitalize={key === 'email' ? 'none' : 'sentences'} /></View>{key === 'posRegisterId' && !compact && <View style={fieldStyle} />}</React.Fragment>)}
+        </View>
+        <Button mode="outlined" style={{ alignSelf: 'flex-start' }} onPress={handleSave} loading={saving} disabled={saving || pairing}>Save configuration</Button>
+      </Panel>
+      <View style={{ flexDirection: 'row', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 12 }}><Button mode="outlined" onPress={() => router.back()} disabled={saving || pairing}>Cancel</Button><Button mode="contained" onPress={handlePair} loading={pairing} disabled={pairing || saving}>Pair terminal</Button></View>
+    </ScrollView>
+  </View>;
 }
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: t.color.background,
   },
   header: {
     backgroundColor: BRAND_COLORS.header,
   },
   headerTitle: {
-    color: '#fff',
+    color: t.color.surface,
     fontWeight: '700',
   },
   loadingContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: t.color.background,
   },
   container: {
     padding: 16,
     gap: 12,
   },
   card: {
-    borderRadius: 8,
+    borderRadius: t.radius.card,
+    backgroundColor: t.color.surface,
+    borderWidth: 1, borderColor: t.color.border,
   },
   sectionTitle: {
     fontSize: 18,
@@ -210,8 +129,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   helper: {
-    fontSize: 12,
-    color: '#666',
+    fontSize: 14,
+    color: t.color.muted,
     marginBottom: 12,
   },
   input: {
@@ -219,7 +138,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     marginTop: 12,
-    color: '#047857',
+    color: t.color.success,
     fontWeight: '700',
   },
   buttonRow: {

@@ -1,6 +1,8 @@
+import { ActionButton as Button } from '@/components/ui/ActionButton';
 import React, { useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
-import { Button, TextInput } from 'react-native-paper';
+import { FormField } from '@/components/ui';
+import { designTokens as tokens } from '@/lib/redesign';
 
 import { styles } from './pos.styles';
 import type { PosInstorePaymentChoice } from '../../app/pos.types';
@@ -120,19 +122,12 @@ export function PosInstoreCheckoutForm({
         <View style={styles.paymentPanel}>
           <Text style={styles.checkoutSectionTitle}>Payment</Text>
           <View style={styles.paymentModeRow}>
-            <Button mode={paymentChoice === 'card' ? 'contained' : 'outlined'} icon="credit-card-outline" onPress={() => setPaymentChoice('card')} style={styles.paymentModeButton}>
-              CARD
-            </Button>
-            <Button mode={paymentChoice === 'cash' ? 'contained' : 'outlined'} icon="cash" onPress={() => setPaymentChoice('cash')} style={styles.paymentModeButton}>
-              CASH
-            </Button>
-            <Button mode={paymentChoice === 'unpaid' ? 'contained' : 'outlined'} icon="clock-outline" onPress={() => setPaymentChoice('unpaid')} style={styles.paymentModeButton}>
-              UNPAID
-            </Button>
+            {(['card', 'cash', 'unpaid'] as const).map(choice => <Button key={choice} mode="outlined" onPress={() => setPaymentChoice(choice)} style={[styles.paymentModeButton, paymentChoice === choice && { borderColor: tokens.color.primary }]} buttonColor={paymentChoice === choice ? tokens.color.primaryTint : tokens.color.surface} textColor={paymentChoice === choice ? tokens.color.primaryPressed : tokens.color.text} contentStyle={{ minHeight: 44 }} labelStyle={{ fontSize: 13 }} hitSlop={2}>{choice[0].toUpperCase() + choice.slice(1)}</Button>)}
           </View>
+          <Text style={{ color: tokens.color.muted, fontSize: 13 }}>Choose a method when completing this order.</Text>
         </View>
 
-        <TextInput
+        <FormField
           label="Order note"
           mode="outlined"
           value={orderNoteText}
@@ -148,7 +143,7 @@ export function PosInstoreCheckoutForm({
           disabled={creatingOrder || smartpayPreparing || smartpayProcessing || cartItemsCount === 0}
           onPress={() => void handleInstoreCheckout(paymentChoice)}
           style={styles.placeOrderButton}
-          buttonColor="#dc2626"
+          buttonColor={tokens.color.primary}
         >
           {primaryLabel}
         </Button>
@@ -163,7 +158,7 @@ export function PosInstoreCheckoutForm({
               disabled={!smartpayPaired || creatingOrder || smartpayPreparing || smartpayProcessing || cartItemsCount === 0}
               onPress={() => void handleSmartpayInstoreCheckout()}
               style={styles.secondaryActionButton}
-              buttonColor="#2563eb"
+              buttonColor={tokens.color.primary}
             >
               SmartPay
             </Button>

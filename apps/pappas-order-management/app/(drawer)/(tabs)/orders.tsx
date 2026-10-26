@@ -1,3 +1,11 @@
+import { EditorSheet } from '@/components/ui/EditorSheet';
+import { ActionButton as PaperButton } from '@/components/ui/ActionButton';
+import { useOrderHeaderActions } from '@/components/navigation/order-header-actions';
+import { countActiveOrderFilters } from '@/components/orders/filter-state';
+import { SearchField as Searchbar } from '@/components/ui';
+import { getFriendlyOrderNumber } from '@/utils/orderNumber';
+import { AsyncState } from '@/components/ui';
+import { designTokens as t } from '@/lib/redesign';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
@@ -13,11 +21,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import {
-  Button as PaperButton,
-  IconButton,
-  Surface,
-} from 'react-native-paper';
+import { IconButton, Surface } from 'react-native-paper';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { getRecentCustomers, searchCustomers, Customer } from '@/lib/customers';
 import { CustomerModal } from '@/components/CustomerModal';
@@ -40,17 +44,22 @@ export default function HistoryScreen() {
   const isTablet = width >= 600;
 
   const [orders, setOrders] = useState<Order[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [paymentFilter, setPaymentFilter] = useState<string>('all');
   const [selectedDate, setSelectedDate] = useState<string>(getTodayDateString());
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showOrderModal, setShowOrderModal] = useState(false);
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [isFiltersModalVisible, setIsFiltersModalVisible] = useState(false);
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [customerInfo, setCustomerInfo] = useState<{ email?: string; phone?: string }>({});
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [draftDate, setDraftDate] = useState(new Date(selectedDate + 'T12:00:00'));
+  const openDatePicker = () => { setDraftDate(new Date(selectedDate + 'T12:00:00')); setShowDatePicker(true); };
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<'all' | 'card' | 'cash' | 'marketplace'>('all');
   const [orderMethodFilter, setOrderMethodFilter] = useState<string>('all');
   const { data: appSettings = DEFAULT_APP_SETTINGS } = useAppSettingsQuery();
@@ -67,11 +76,14 @@ export default function HistoryScreen() {
 
       const result = await getAllOrders(filters);
       if (result.error) {
+        setLoadError(result.error);
         Alert.alert('Error', result.error);
       } else {
+        setLoadError(null);
         setOrders(result.data || []);
       }
     } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Failed to load orders');
       Alert.alert('Error', 'Failed to load orders');
     } finally {
       setLoading(false);
@@ -128,19 +140,20 @@ export default function HistoryScreen() {
 
   const filteredOrders = useMemo(() => {
     let result = orders;
-    
+
     // Payment method filter (Card/Cash) from top-level toggles
     if (paymentMethodFilter !== 'all') {
       result = result.filter((order) => getPaymentStatType(order) === paymentMethodFilter);
     }
-    
+
     // Order source filter (Online/Store) from modal
     if (orderMethodFilter !== 'all') {
       result = result.filter((order) => order.payment_method === orderMethodFilter);
     }
-    
-    return result;
-  }, [orders, paymentMethodFilter, orderMethodFilter]);
+
+    const query = searchQuery.trim().replace(/^#/, '').toLowerCase();
+    return query ? result.filter((order) => [order.order_number, getFriendlyOrderNumber(order.order_number), order.customer_name, order.customer_email, order.customer_phone].some((value) => value?.toLowerCase().includes(query))) : result;
+  }, [orders, paymentMethodFilter, orderMethodFilter, searchQuery]);
 
   const navigateDate = (direction: 'prev' | 'next' | 'today') => {
     if (direction === 'today') {
@@ -158,12 +171,7 @@ export default function HistoryScreen() {
   };
 
   const onDateChange = (event: DateTimePickerEvent, date?: Date) => {
-    if (Platform.OS === 'android') setShowDatePicker(false);
-    if (event.type === 'set' && date) {
-      setSelectedDate(formatDateToLocalISO(date));
-    } else if (event.type === 'dismissed') {
-      setShowDatePicker(false);
-    }
+    if (event.type === 'set' && date) setDraftDate(date);
   };
 
   const handleRefresh = () => {
@@ -177,7 +185,6 @@ export default function HistoryScreen() {
   };
 
   const handleOpenOrderFromCustomerModal = async (orderId: string) => {
-    setShowCustomerModal(false);
     const result = await getOrder(orderId);
     if (result.error) {
       Alert.alert('Error', result.error);
@@ -189,87 +196,89 @@ export default function HistoryScreen() {
     }
   };
 
+  useOrderHeaderActions({
+    onRefresh: handleRefresh,
+    refreshing: loading || refreshing,
+    onToggleFilters: () => setFiltersExpanded((value) => !value),
+    filtersExpanded,
+    activeFilterCount: countActiveOrderFilters({ status: statusFilter, payment: paymentFilter, method: paymentMethodFilter, source: orderMethodFilter, search: searchQuery.trim() || 'all' }),
+  });
+
   return (
     <View style={styles.container}>
 
-      <Surface style={styles.header} elevation={1}>
+      <Surface style={styles.header} elevation={0}>
         <View style={styles.headerTop}>
           <View style={styles.dateNavigation}>
-            <IconButton icon="chevron-left" onPress={() => navigateDate('prev')} />
-            <PaperButton mode="outlined" onPress={() => setShowDatePicker(true)} style={styles.dateButton}>
-              {selectedDate}
+            <PaperButton mode="outlined" contentStyle={{ minHeight: 48 }} onPress={() => navigateDate('prev')}>‹ Previous</PaperButton>
+            <PaperButton mode="outlined" onPress={openDatePicker} style={styles.dateButton}>
+              {new Date(selectedDate + 'T12:00:00').toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })}
             </PaperButton>
-            <IconButton
-              icon="chevron-right"
+            <PaperButton mode="outlined" contentStyle={{ minHeight: 48 }}
               onPress={() => navigateDate('next')}
               disabled={selectedDate === getTodayDateString()}
-            />
-            <PaperButton mode="text" onPress={() => navigateDate('today')}>Today</PaperButton>
+            >Next ›</PaperButton>
+            {filtersExpanded && <PaperButton mode="text" onPress={() => navigateDate('today')}>Today</PaperButton>}
           </View>
           <View style={styles.headerActions}>
-            <IconButton icon="filter-variant" onPress={() => setIsFiltersModalVisible(true)} />
-            <PaperButton mode="contained" onPress={loadOrders} loading={loading} style={styles.refreshButton}>
-              Refresh
-            </PaperButton>
+            {filtersExpanded && <PaperButton mode="outlined" contentStyle={{ minHeight: 48 }} onPress={() => setIsFiltersModalVisible(true)}>More filters</PaperButton>}
+
           </View>
         </View>
 
         {quickStats && (
           <View style={styles.statsContainer}>
             <View style={styles.statsRow}>
-              <TouchableOpacity 
-                style={[
-                  styles.statBox, 
-                  paymentMethodFilter === 'all' && styles.statBoxActive
-                ]} 
+              <TouchableOpacity
+                style={styles.statBox}
                 onPress={() => setPaymentMethodFilter('all')}
               >
-                <Text style={styles.statLabel}>Orders</Text>
+                <Text style={styles.statLabel}>Paid orders</Text>
                 <Text style={styles.statValue}>{quickStats.totalOrders}</Text>
               </TouchableOpacity>
-              
+
               <View style={styles.statBox}>
-                <Text style={styles.statLabel}>Sales</Text>
+                <Text style={styles.statLabel}>Paid sales</Text>
                 <Text style={styles.statValue}>${quickStats.totalSales.toFixed(2)}</Text>
               </View>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[
-                  styles.statBox, 
+                  styles.statBox,
                   paymentMethodFilter === 'card' && styles.statBoxActive
-                ]} 
+                ]}
                 onPress={() => setPaymentMethodFilter(paymentMethodFilter === 'card' ? 'all' : 'card')}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 }}>
-                  <MaterialCommunityIcons 
-                    name="credit-card-outline" 
-                    size={14} 
-                    color={paymentMethodFilter === 'card' ? '#2563eb' : '#6b7280'} 
+                  <MaterialCommunityIcons
+                    name="credit-card-outline"
+                    size={14}
+                    color={paymentMethodFilter === 'card' ? t.color.primary : t.color.muted}
                   />
                   <Text style={[styles.statLabel, { marginBottom: 0 }]}>Card</Text>
                 </View>
                 <Text style={styles.statValue}>${quickStats.totalCard.toFixed(2)}</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[
-                  styles.statBox, 
+                  styles.statBox,
                   paymentMethodFilter === 'cash' && styles.statBoxActive
-                ]} 
+                ]}
                 onPress={() => setPaymentMethodFilter(paymentMethodFilter === 'cash' ? 'all' : 'cash')}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 }}>
-                  <MaterialCommunityIcons 
-                    name="cash" 
-                    size={14} 
-                    color={paymentMethodFilter === 'cash' ? '#2563eb' : '#6b7280'} 
+                  <MaterialCommunityIcons
+                    name="cash"
+                    size={14}
+                    color={paymentMethodFilter === 'cash' ? t.color.primary : t.color.muted}
                   />
                   <Text style={[styles.statLabel, { marginBottom: 0 }]}>Cash</Text>
                 </View>
                 <Text style={styles.statValue}>${quickStats.totalCash.toFixed(2)}</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
+              {filtersExpanded && (              <TouchableOpacity
                 style={[
                   styles.statBox,
                   paymentMethodFilter === 'marketplace' && styles.statBoxActive
@@ -280,21 +289,23 @@ export default function HistoryScreen() {
                   <MaterialCommunityIcons
                     name="shopping-outline"
                     size={14}
-                    color={paymentMethodFilter === 'marketplace' ? '#2563eb' : '#6b7280'}
+                    color={paymentMethodFilter === 'marketplace' ? t.color.primary : t.color.muted}
                   />
                   <Text style={[styles.statLabel, { marginBottom: 0 }]}>Marketplace</Text>
                 </View>
                 <Text style={styles.statValue}>${quickStats.totalMarketplace.toFixed(2)}</Text>
-              </TouchableOpacity>
+              </TouchableOpacity>)}
             </View>
           </View>
         )}
       </Surface>
 
-      <FlatList
+      <Searchbar placeholder="Search order or customer" value={searchQuery} onChangeText={setSearchQuery} style={{ marginHorizontal: 16, marginTop: 8, marginBottom: 16 }} />
+      <View style={[styles.listFrame, filteredOrders.length > 0 && styles.populatedListFrame]}><FlatList
         data={filteredOrders}
         renderItem={({ item }) => (
           <HistoryOrderListItem
+            compact
             order={item}
             successfulOrderCount={successfulOrderCounts?.[item.id]}
             onOrderPress={(o) => { setSelectedOrder(o); setShowOrderModal(true); }}
@@ -305,11 +316,9 @@ export default function HistoryScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No orders found for this date.</Text>
-          </View>
+          <AsyncState icon={loadError ? 'alert-circle-outline' : 'check'} loading={loading} title={loading ? 'Loading order history' : loadError ? 'Order history unavailable' : searchQuery.trim() ? 'No matching orders' : 'No orders for this date'} description={loadError || (searchQuery.trim() ? 'Try another order number or customer.' : 'Change date or clear filters to find orders.')} retryLabel={loadError ? 'Retry' : 'Change date'} retryMode={loadError ? 'outlined' : 'contained'} onRetry={loadError ? () => void loadOrders() : openDatePicker} />
         }
-      />
+      /></View>
 
       <OrderDetailModal
         visible={showOrderModal}
@@ -355,16 +364,11 @@ export default function HistoryScreen() {
         onClose={() => setShowSimulator(false)}
       />
 
-      {showDatePicker && (
-        <DateTimePicker
-          value={new Date(selectedDate)}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={onDateChange}
-          maximumDate={new Date()}
-        />
-      )}
-      
+      <EditorSheet visible={showDatePicker} title="Choose date" onDismiss={() => setShowDatePicker(false)} footer={<><PaperButton mode="outlined" onPress={() => setShowDatePicker(false)}>Cancel</PaperButton><PaperButton mode="contained" onPress={() => { setSelectedDate(formatDateToLocalISO(draftDate)); setShowDatePicker(false); }}>Apply date</PaperButton></>}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}><PaperButton mode="outlined" onPress={() => setDraftDate(new Date())}>Today</PaperButton><PaperButton mode="outlined" onPress={() => { const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1); setDraftDate(yesterday); }}>Yesterday</PaperButton></View>
+        {showDatePicker && <DateTimePicker value={draftDate} mode="date" display={Platform.OS === 'ios' ? 'inline' : 'default'} onChange={onDateChange} maximumDate={new Date()} />}
+      </EditorSheet>
+
       <CustomerModal
         visible={showCustomerModal}
         email={customerInfo.email}
@@ -377,20 +381,22 @@ export default function HistoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
-  header: { padding: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e5e5e5' },
+  container: { flex: 1, backgroundColor: t.color.background },
+  header: { padding: 12, paddingHorizontal: 16, backgroundColor: t.color.background },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
   dateNavigation: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1, flexWrap: 'wrap' },
   dateButton: { minWidth: 80, flexShrink: 1 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1, flexWrap: 'wrap' },
-  refreshButton: { borderRadius: 8 },
-  statsContainer: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#f3f4f6' },
-  statsRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' },
-  statBox: { flex: 1, minWidth: 90, padding: 8, backgroundColor: '#f9fafb', borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: 'transparent' },
-  statBoxActive: { backgroundColor: '#eff6ff', borderColor: '#2563eb' },
-  statLabel: { fontSize: 11, color: '#6b7280', marginBottom: 2, textTransform: 'uppercase' },
-  statValue: { fontSize: 14, fontWeight: 'bold', color: '#111827' },
-  listContent: { padding: 16 },
+  refreshButton: { borderRadius: t.radius.control },
+  statsContainer: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: t.color.background },
+  statsRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' },
+  statBox: { flex: 1, minWidth: 120, minHeight: 110, padding: 18, backgroundColor: t.color.surface, borderRadius: t.radius.card, alignItems: 'flex-start', justifyContent: 'center', borderWidth: 1, borderColor: t.color.border },
+  statBoxActive: { borderColor: t.color.primary },
+  statLabel: { fontSize: 14, color: t.color.muted, marginBottom: 6 },
+  statValue: { fontSize: 28, fontWeight: 'bold', color: t.color.text },
+  listFrame: { flex: 1, marginHorizontal: 16, marginBottom: 16 },
+  populatedListFrame: { borderWidth: 1, borderColor: t.color.border, borderRadius: 16, overflow: 'hidden', backgroundColor: t.color.surface },
+  listContent: { flexGrow: 1 },
   emptyContainer: { flex: 1, alignItems: 'center', marginTop: 100 },
-  emptyText: { fontSize: 16, color: '#6b7280' },
+  emptyText: { fontSize: 16, color: t.color.muted },
 });

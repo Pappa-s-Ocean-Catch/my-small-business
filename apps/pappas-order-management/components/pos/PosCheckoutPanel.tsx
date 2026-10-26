@@ -1,8 +1,10 @@
+import { ActionButton as Button } from '@/components/ui/ActionButton';
 import React, { useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
-import { Button, SegmentedButtons } from 'react-native-paper';
+import { Pressable, Text, View } from 'react-native';
+import { SegmentedButtons } from 'react-native-paper';
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 
+import { designTokens as tokens } from '../../lib/redesign';
 import { styles } from './pos.styles';
 import type { PosInstorePaymentChoice } from '../../app/pos.types';
 import { PosInstoreCheckoutForm } from './PosInstoreCheckoutForm';
@@ -162,20 +164,7 @@ export function PosCheckoutPanel({
   return (
     <View style={styles.checkoutPane}>
       <View style={styles.checkoutTopBar}>
-        <Button mode="outlined" icon="arrow-left" onPress={closeCheckout} style={styles.backButton}>
-          Order
-        </Button>
-        <SegmentedButtons
-          value={activeTab}
-          onValueChange={(value) => setActiveTab(value as CheckoutTab)}
-          style={styles.checkoutSegmentedButtons}
-          buttons={[
-            { value: 'instore', label: 'INSTORE' },
-            { value: 'pickup', label: 'PICKUP' },
-            { value: 'delivery', label: 'DELIVERY' },
-            { value: 'third_party', label: '3RD PARTY' },
-          ]}
-        />
+        {([{ value: 'instore', label: 'In-store' }, { value: 'pickup', label: 'Pickup' }, { value: 'delivery', label: 'Delivery' }, { value: 'third_party', label: 'Third-party' }] as const).map((tab) => <Pressable key={tab.value} accessibilityRole="tab" accessibilityState={{ selected: activeTab === tab.value }} onPress={() => setActiveTab(tab.value)} style={[styles.checkoutTypeTab, activeTab === tab.value && styles.checkoutTypeTabSelected]}><Text style={[styles.checkoutTypeTabText, activeTab === tab.value && styles.checkoutTypeTabTextSelected]}>{tab.label}</Text></Pressable>)}
       </View>
       {freeItemPromotionTitle ? (
         <View style={[styles.discountCard, freeItemSelectionRequired ? styles.discountCardActive : null, { marginHorizontal: 16, marginTop: 12 }]}>
@@ -229,6 +218,7 @@ export function PosCheckoutPanel({
 
       {activeTab === 'pickup' && (
         <PosPickupCheckoutForm
+          onBackToOrder={closeCheckout}
           customerLookupStatus={customerLookupStatus}
           customerPhone={customerPhone}
           onChangeCustomerPhone={onChangeCustomerPhone}
@@ -324,6 +314,7 @@ export function PosCheckoutPanel({
           onSubmit={handleThirdPartyCheckout}
         />
       )}
+      {activeTab !== 'pickup' && <Button mode="text" icon="arrow-left" onPress={closeCheckout} style={{ alignSelf: 'flex-end' }} contentStyle={{ minHeight: 48 }}>Back to order</Button>}
     </View>
   );
 }

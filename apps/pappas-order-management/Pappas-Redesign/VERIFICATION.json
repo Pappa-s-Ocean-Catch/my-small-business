@@ -1,0 +1,108 @@
+{
+  "date": "2026-10-19",
+  "sourceStates": 114,
+  "proposedDesignStates": 2,
+  "totalDesignStates": 116,
+  "exportedFrames": 464,
+  "devices": {
+    "landscape": [
+      1366,
+      1024
+    ],
+    "smalltablet": [
+      1024,
+      768
+    ],
+    "portrait": [
+      1024,
+      1366
+    ],
+    "phone": [
+      390,
+      844
+    ]
+  },
+  "additionalWidths": [
+    320,
+    375,
+    430,
+    600,
+    768,
+    820,
+    1100
+  ],
+  "additionalScreenChecks": 140,
+  "javascriptErrors": [],
+  "horizontalOverflow": [],
+  "standaloneSourceToggle": true,
+  "deviceToggle": true,
+  "limitations": [
+    "Static design reference; no production app/integration tests.",
+    "Exports show the initial viewport; use the atlas to scroll long screens.",
+    "Native OS prompts are handoff specifications."
+  ],
+  "revision": 5,
+  "v5Interactions": {
+    "revision": 5,
+    "checks": [
+      {
+        "width": 1024,
+        "height": 768,
+        "backBothLevels": true,
+        "continueSameGroup": true,
+        "cartTapSameLine": true,
+        "directPrinterSingleAction": true,
+        "customerOriginRestored": true,
+        "fullSizeModal": true
+      },
+      {
+        "width": 1366,
+        "height": 1024,
+        "backBothLevels": true,
+        "continueSameGroup": true,
+        "cartTapSameLine": true,
+        "directPrinterSingleAction": true,
+        "customerOriginRestored": true,
+        "fullSizeModal": true
+      },
+      {
+        "width": 1024,
+        "height": 1366,
+        "backBothLevels": true,
+        "continueSameGroup": true,
+        "cartTapSameLine": true,
+        "directPrinterSingleAction": true,
+        "customerOriginRestored": true,
+        "fullSizeModal": true
+      },
+      {
+        "width": 390,
+        "height": 844,
+        "backBothLevels": true,
+        "continueSameGroup": true,
+        "cartTapSameLine": true,
+        "directPrinterSingleAction": true,
+        "customerOriginRestored": true,
+        "fullSizeModal": true
+      },
+      {
+        "width": 320,
+        "height": 768,
+        "backBothLevels": true,
+        "continueSameGroup": true,
+        "cartTapSameLine": true,
+        "directPrinterSingleAction": true,
+        "customerOriginRestored": true,
+        "fullSizeModal": true
+      }
+    ],
+    "javascriptErrors": []
+  },
+  "regressionChecks": {
+    "immediateProductInsertionAndStableCartLine": "passed",
+    "onDemandSearch": "passed",
+    "layoutPreviewAndAppliedConfiguration": "passed",
+    "compactHeaderAndCollapsibleFilters": "passed",
+    "liveOnTheWayCompletedAndConditionalPreorders": "passed"
+  }
+}

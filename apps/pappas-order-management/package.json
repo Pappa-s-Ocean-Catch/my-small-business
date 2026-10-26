@@ -24,7 +24,7 @@
     "build:release:ios": "dotenv -e release.env -- expo run:ios --configuration Release",
     "release:android:production": "dotenv -e release.env -- node scripts/run-with-build-metadata.mjs eas build --platform android --profile production --local --output app-release.apk",
     "update:android:production": "dotenv -e release.env -- node scripts/run-with-build-metadata.mjs eas update --channel production --environment production --platform android",
-    "test:unit": "rm -rf dist-test && tsc -p tsconfig.test.json && node --test dist-test/apps/pappas-order-management/test/**/*.test.js",
+    "test:unit": "rm -rf dist-test && tsc -p tsconfig.test.json && node --require ./scripts/register-test-paths.cjs --test dist-test/apps/pappas-order-management/test/**/*.test.js",
     "test:pos-mirror": "rm -rf dist-test && node scripts/test-pos-mirror-publisher.mjs"
   },
   "dependencies": {
@@ -63,6 +63,7 @@
     "newrelic-react-native-agent": "^1.8.8",
     "pako": "^3.0.1",
     "react": "19.1.0",
+    "react-dom": "19.1.0",
     "react-native": "0.81.5",
     "react-native-esc-pos-printer": "^4.5.0",
     "react-native-gesture-handler": "~2.28.0",
@@ -75,6 +76,7 @@
     "react-native-tcp-socket": "^6.4.1",
     "react-native-vector-icons": "^10.3.0",
     "react-native-view-shot": "^4.0.3",
+    "react-native-web": "0.21.2",
     "reanimated-color-picker": "^5.1.1",
     "zustand": "^5.0.14"
   },

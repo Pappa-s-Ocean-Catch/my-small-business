@@ -1,0 +1,830 @@
+{
+  "routes": [
+    {
+      "source": "apps/pappas-order-management/app/(drawer)/(tabs)/completed.tsx",
+      "route": "(drawer)/(tabs)/completed",
+      "capture_status": "captured_representative_states",
+      "capture_ids": [
+        6,
+        7,
+        8
+      ],
+      "note": null
+    },
+    {
+      "source": "apps/pappas-order-management/app/(drawer)/(tabs)/live-orders.tsx",
+      "route": "(drawer)/(tabs)/live-orders",
+      "capture_status": "captured_representative_states",
+      "capture_ids": [
+        1,
+        2,
+        3,
+        4,
+        108
+      ],
+      "note": null
+    },
+    {
+      "source": "apps/pappas-order-management/app/(drawer)/(tabs)/menu.tsx",
+      "route": "(drawer)/(tabs)/menu",
+      "capture_status": "redirect_to_pos_captured",
+      "capture_ids": [
+        10,
+        118,
+        119
+      ],
+      "note": null
+    },
+    {
+      "source": "apps/pappas-order-management/app/(drawer)/(tabs)/on-the-way.tsx",
+      "route": "(drawer)/(tabs)/on-the-way",
+      "capture_status": "captured_representative_states",
+      "capture_ids": [
+        5
+      ],
+      "note": null
+    },
+    {
+      "source": "apps/pappas-order-management/app/(drawer)/(tabs)/orders.tsx",
+      "route": "(drawer)/(tabs)/orders",
+      "capture_status": "captured_representative_states",
+      "capture_ids": [
+        112,
+        113,
+        114,
+        115
+      ],
+      "note": null
+    },
+    {
+      "source": "apps/pappas-order-management/app/(drawer)/(tabs)/settings.tsx",
+      "route": "(drawer)/(tabs)/settings",
+      "capture_status": "captured_representative_states",
+      "capture_ids": [
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107
+      ],
+      "note": "See coverage gaps for lower-page content, nested controls, edit variants and conditional states."
+    },
+    {
+      "source": "apps/pappas-order-management/app/(drawer)/about.tsx",
+      "route": "(drawer)/about",
+      "capture_status": "captured_representative_states",
+      "capture_ids": [
+        92
+      ],
+      "note": null
+    },
+    {
+      "source": "apps/pappas-order-management/app/(drawer)/call-history.tsx",
+      "route": "(drawer)/call-history",
+      "capture_status": "captured_representative_states",
+      "capture_ids": [
+        89,
+        90,
+        91
+      ],
+      "note": null
+    },
+    {
+      "source": "apps/pappas-order-management/app/(drawer)/coupons.tsx",
+      "route": "(drawer)/coupons",
+      "capture_status": "captured_representative_states",
+      "capture_ids": [
+        43,
+        44,
+        45
+      ],
+      "note": null
+    },
+    {
+      "source": "apps/pappas-order-management/app/(drawer)/customers.tsx",
+      "route": "(drawer)/customers",
+      "capture_status": "captured_representative_states",
+      "capture_ids": [
+        33,
+        34,
+        35,
+        36,
+        37,
+        114
+      ],
+      "note": "See coverage gaps for lower-page content, nested controls, edit variants and conditional states."
+    },
+    {
+      "source": "apps/pappas-order-management/app/(drawer)/delivery-management.tsx",
+      "route": "(drawer)/delivery-management",
+      "capture_status": "captured_representative_states",
+      "capture_ids": [
+        54,
+        55,
+        56
+      ],
+      "note": null
+    },
+    {
+      "source": "apps/pappas-order-management/app/(drawer)/marketing.tsx",
+      "route": "(drawer)/marketing",
+      "capture_status": "captured_representative_states",
+      "capture_ids": [
+        39,
+        40,
+        41,
+        42
+      ],
+      "note": null
+    },
+    {
+      "source": "apps/pappas-order-management/app/(drawer)/marketplace.tsx",
+      "route": "(drawer)/marketplace",
+      "capture_status": "captured_representative_states",
+      "capture_ids": [
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53
+      ],
+      "note": null
+    },
+    {
+      "source": "apps/pappas-order-management/app/(drawer)/pre-orders.tsx",
+      "route": "(drawer)/pre-orders",
+      "capture_status": "captured_representative_states",
+      "capture_ids": [
+        32
+      ],
+      "note": null
+    },
+    {
+      "source": "apps/pappas-order-management/app/(drawer)/report.tsx",
+      "route": "(drawer)/report",
+      "capture_status": "captured_representative_states",
+      "capture_ids": [
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64
+      ],
+      "note": "See coverage gaps for lower-page content, nested controls, edit variants and conditional states."
+    },
+    {
+      "source": "apps/pappas-order-management/app/(drawer)/settings.tsx",
+      "route": "(drawer)/settings",
+      "capture_status": "captured_representative_states",
+      "capture_ids": [
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107
+      ],
+      "note": "See coverage gaps for lower-page content, nested controls, edit variants and conditional states."
+    },
+    {
+      "source": "apps/pappas-order-management/app/(drawer)/tv-menu.tsx",
+      "route": "(drawer)/tv-menu",
+      "capture_status": "captured_representative_states",
+      "capture_ids": [
+        93,
+        94,
+        95
+      ],
+      "note": null
+    },
+    {
+      "source": "apps/pappas-order-management/app/POS-intergation.tsx",
+      "route": "POS-intergation",
+      "capture_status": "captured_representative_states",
+      "capture_ids": [
+        76
+      ],
+      "note": null
+    },
+    {
+      "source": "apps/pappas-order-management/app/addons-management.tsx",
+      "route": "addons-management",
+      "capture_status": "captured_representative_states",
+      "capture_ids": [
+        86,
+        87,
+        88
+      ],
+      "note": "See coverage gaps for lower-page content, nested controls, edit variants and conditional states."
+    },
+    {
+      "source": "apps/pappas-order-management/app/index.tsx",
+      "route": "index",
+      "capture_status": "redirect_no_unique_screen",
+      "capture_ids": [],
+      "note": null
+    },
+    {
+      "source": "apps/pappas-order-management/app/login.tsx",
+      "route": "login",
+      "capture_status": "captured_representative_states",
+      "capture_ids": [
+        99,
+        100
+      ],
+      "note": null
+    },
+    {
+      "source": "apps/pappas-order-management/app/marketplace-resolver.tsx",
+      "route": "marketplace-resolver",
+      "capture_status": "captured_representative_states",
+      "capture_ids": [
+        117
+      ],
+      "note": null
+    },
+    {
+      "source": "apps/pappas-order-management/app/menu-management.tsx",
+      "route": "menu-management",
+      "capture_status": "captured_representative_states",
+      "capture_ids": [
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85
+      ],
+      "note": "See coverage gaps for lower-page content, nested controls, edit variants and conditional states."
+    },
+    {
+      "source": "apps/pappas-order-management/app/order-detail.tsx",
+      "route": "order-detail",
+      "capture_status": "shared_modal_only_standalone_route_unverified",
+      "capture_ids": [
+        3,
+        115
+      ],
+      "note": "Shared modal captured; standalone route not independently verified."
+    },
+    {
+      "source": "apps/pappas-order-management/app/pos-layout-settings.tsx",
+      "route": "pos-layout-settings",
+      "capture_status": "captured_representative_states",
+      "capture_ids": [
+        13,
+        14,
+        15,
+        16,
+        17
+      ],
+      "note": null
+    },
+    {
+      "source": "apps/pappas-order-management/app/pos.tsx",
+      "route": "pos",
+      "capture_status": "captured_representative_states",
+      "capture_ids": [
+        10,
+        11,
+        12,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        118,
+        119,
+        120,
+        121
+      ],
+      "note": null
+    }
+  ],
+  "overlay_sources": [
+    {
+      "source": "apps/pappas-order-management/app/(drawer)/(tabs)/live-orders.tsx",
+      "dialog_titles": [],
+      "modal_elements": 5,
+      "alert_calls": 8,
+      "capture_ids": [
+        1,
+        2,
+        3,
+        4,
+        108
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/app/(drawer)/(tabs)/on-the-way.tsx",
+      "dialog_titles": [],
+      "modal_elements": 2,
+      "alert_calls": 2,
+      "capture_ids": [
+        5
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/app/(drawer)/(tabs)/orders.tsx",
+      "dialog_titles": [],
+      "modal_elements": 4,
+      "alert_calls": 3,
+      "capture_ids": [
+        112,
+        113,
+        114,
+        115
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/app/(drawer)/(tabs)/settings.tsx",
+      "dialog_titles": [],
+      "modal_elements": 1,
+      "alert_calls": 37,
+      "capture_ids": [
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/app/(drawer)/about.tsx",
+      "dialog_titles": [],
+      "modal_elements": 0,
+      "alert_calls": 2,
+      "capture_ids": [
+        92
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/app/(drawer)/call-history.tsx",
+      "dialog_titles": [],
+      "modal_elements": 1,
+      "alert_calls": 2,
+      "capture_ids": [
+        89,
+        90,
+        91
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/app/(drawer)/coupons.tsx",
+      "dialog_titles": [
+        "\n            Coupon Details\n          "
+      ],
+      "modal_elements": 4,
+      "alert_calls": 4,
+      "capture_ids": [
+        43,
+        44,
+        45
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/app/(drawer)/customers.tsx",
+      "dialog_titles": [],
+      "modal_elements": 4,
+      "alert_calls": 4,
+      "capture_ids": [
+        33,
+        34,
+        35,
+        36,
+        37,
+        114
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/app/(drawer)/marketing.tsx",
+      "dialog_titles": [],
+      "modal_elements": 1,
+      "alert_calls": 6,
+      "capture_ids": [
+        39,
+        40,
+        41,
+        42
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/app/(drawer)/marketplace.tsx",
+      "dialog_titles": [],
+      "modal_elements": 3,
+      "alert_calls": 6,
+      "capture_ids": [
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/app/(drawer)/pre-orders.tsx",
+      "dialog_titles": [],
+      "modal_elements": 3,
+      "alert_calls": 7,
+      "capture_ids": [
+        32
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/app/(drawer)/report.tsx",
+      "dialog_titles": [],
+      "modal_elements": 4,
+      "alert_calls": 4,
+      "capture_ids": [
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/app/(drawer)/tv-menu.tsx",
+      "dialog_titles": [],
+      "modal_elements": 1,
+      "alert_calls": 8,
+      "capture_ids": [
+        93,
+        94,
+        95
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/app/POS-intergation.tsx",
+      "dialog_titles": [],
+      "modal_elements": 0,
+      "alert_calls": 5,
+      "capture_ids": [
+        76
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/app/addons-management.tsx",
+      "dialog_titles": [
+        "{editingGroup ? 'Edit Group' : 'New Group'}",
+        "{editingItem ? 'Edit Item' : 'New Item'}"
+      ],
+      "modal_elements": 8,
+      "alert_calls": 10,
+      "capture_ids": [
+        86,
+        87,
+        88
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/app/menu-management.tsx",
+      "dialog_titles": [
+        "{editingCategory ? 'Edit Category' : 'New Category'}",
+        "{editingProduct ? 'Edit Product' : 'New Product'}",
+        "{pickerTarget?.type === 'ingredient' ? 'Select Inventory Product' : 'Select Menu Product'}"
+      ],
+      "modal_elements": 13,
+      "alert_calls": 10,
+      "capture_ids": [
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/app/order-detail.tsx",
+      "dialog_titles": [],
+      "modal_elements": 1,
+      "alert_calls": 16,
+      "capture_ids": [],
+      "capture_status": "not_triggered_read_only_or_unavailable"
+    },
+    {
+      "source": "apps/pappas-order-management/app/pos-layout-settings.tsx",
+      "dialog_titles": [
+        "{editingVirtualCategoryId ? 'Edit virtual group' : 'Create virtual group'}",
+        "Custom color"
+      ],
+      "modal_elements": 8,
+      "alert_calls": 5,
+      "capture_ids": [
+        13,
+        14,
+        15,
+        16,
+        17
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/app/pos.tsx",
+      "dialog_titles": [],
+      "modal_elements": 0,
+      "alert_calls": 44,
+      "capture_ids": [
+        10,
+        11,
+        12,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        118,
+        119,
+        120,
+        121
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/components/CashTenderModal.tsx",
+      "dialog_titles": [],
+      "modal_elements": 1,
+      "alert_calls": 0,
+      "capture_ids": [
+        121
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/components/CustomDrawerContent.tsx",
+      "dialog_titles": [],
+      "modal_elements": 0,
+      "alert_calls": 2,
+      "capture_ids": [
+        31,
+        96,
+        97
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/components/CustomerInfoModal.tsx",
+      "dialog_titles": [
+        "Customer Info"
+      ],
+      "modal_elements": 4,
+      "alert_calls": 0,
+      "capture_ids": [],
+      "capture_status": "not_triggered_read_only_or_unavailable"
+    },
+    {
+      "source": "apps/pappas-order-management/components/CustomerModal.tsx",
+      "dialog_titles": [],
+      "modal_elements": 2,
+      "alert_calls": 17,
+      "capture_ids": [
+        35,
+        36,
+        37,
+        114
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/components/OrderDetailModal.tsx",
+      "dialog_titles": [],
+      "modal_elements": 3,
+      "alert_calls": 6,
+      "capture_ids": [
+        3,
+        4,
+        115
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/components/OrderFiltersModal.tsx",
+      "dialog_titles": [],
+      "modal_elements": 1,
+      "alert_calls": 0,
+      "capture_ids": [
+        8
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/components/PayByLinkModal.tsx",
+      "dialog_titles": [],
+      "modal_elements": 1,
+      "alert_calls": 2,
+      "capture_ids": [],
+      "capture_status": "not_triggered_read_only_or_unavailable"
+    },
+    {
+      "source": "apps/pappas-order-management/components/PrintLogsModal.tsx",
+      "dialog_titles": [],
+      "modal_elements": 1,
+      "alert_calls": 0,
+      "capture_ids": [
+        107
+      ],
+      "capture_status": "shared_journal_modal_captured"
+    },
+    {
+      "source": "apps/pappas-order-management/components/PrintSimulatorModal.tsx",
+      "dialog_titles": [],
+      "modal_elements": 1,
+      "alert_calls": 2,
+      "capture_ids": [
+        63
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/components/customers/AddCustomerModal.tsx",
+      "dialog_titles": [],
+      "modal_elements": 4,
+      "alert_calls": 0,
+      "capture_ids": [
+        34,
+        36
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/components/delivery-management/NewDeliveryForm.tsx",
+      "dialog_titles": [],
+      "modal_elements": 0,
+      "alert_calls": 8,
+      "capture_ids": [
+        56
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/components/pos/PosCustomerSelector.tsx",
+      "dialog_titles": [],
+      "modal_elements": 4,
+      "alert_calls": 0,
+      "capture_ids": [
+        28,
+        29
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/components/pos/PosDialogs.tsx",
+      "dialog_titles": [
+        "{smartpayProgress.title}",
+        "Salt option",
+        "Item note",
+        "{isEditingOrder ? 'Update Order Payment' : 'Complete In-store Order'}",
+        "Select free item",
+        "Apply discount"
+      ],
+      "modal_elements": 25,
+      "alert_calls": 0,
+      "capture_ids": [
+        12,
+        19,
+        21,
+        120
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/components/pos/PosPhoneInputModal.tsx",
+      "dialog_titles": [],
+      "modal_elements": 1,
+      "alert_calls": 0,
+      "capture_ids": [
+        23
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/components/pos/PosTextInputModal.tsx",
+      "dialog_titles": [],
+      "modal_elements": 1,
+      "alert_calls": 0,
+      "capture_ids": [
+        24
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/components/printer/ManualPrintButton.tsx",
+      "dialog_titles": [],
+      "modal_elements": 0,
+      "alert_calls": 2,
+      "capture_ids": [
+        4
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/lib/ConfirmationDialog.tsx",
+      "dialog_titles": [],
+      "modal_elements": 1,
+      "alert_calls": 0,
+      "capture_ids": [
+        30
+      ],
+      "capture_status": "representative_states_captured_not_all_conditions"
+    },
+    {
+      "source": "apps/pappas-order-management/lib/PendingOnlinePaymentsOverlay.tsx",
+      "dialog_titles": [],
+      "modal_elements": 1,
+      "alert_calls": 2,
+      "capture_ids": [],
+      "capture_status": "not_triggered_read_only_or_unavailable"
+    }
+  ],
+  "notes": [
+    "Source counts are static search results, not a count of distinct UI states.",
+    "Capture IDs refer to manifest.json; route presence does not imply every conditional prompt was triggered.",
+    "No claim of exhaustive coverage; consult coverage.md and coverage-gaps.json."
+  ]
+}

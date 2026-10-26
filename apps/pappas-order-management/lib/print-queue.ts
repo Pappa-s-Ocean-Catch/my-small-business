@@ -13,6 +13,8 @@ import {
 const WAIT_FOR_PRINT_JOBS_TIMEOUT_MS = 2 * 60 * 1000;
 
 type PreparedPrintJobBase = {
+  copyType?: PrintJob['copyType'];
+  reportId?: string;
   printer: SavedPrinter;
   label: string;
   width: number;
@@ -34,6 +36,8 @@ export function enqueuePreparedPrintJobs(options: {
 }): PrintJob[] {
   const enqueuePrintJobs = usePrinterAutomationStore.getState().enqueuePrintJobs;
   const queuedJobs = enqueuePrintJobs(options.jobs.map((job) => ({
+    copyType: job.copyType,
+    reportId: job.reportId,
     orderId: options.order?.id ?? null,
     orderNumber: options.order?.order_number ?? null,
     source: options.source,

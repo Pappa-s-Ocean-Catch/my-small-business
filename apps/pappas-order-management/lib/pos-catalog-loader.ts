@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { getSelectedPosLayoutId, normalizePosLayout, type PosLayoutRecord } from './pos-layouts';
+import { getAppliedPosLayout, getSelectedPosLayoutId, normalizePosLayout, type PosLayoutRecord } from './pos-layouts';
 import type { ProductAddonLink, ProductIngredient, PosCatalogSource, ProductIncludeLink } from './pos-catalog-snapshot';
 import type { SaleCategory, SaleProduct } from '../app/pos.types';
 import type { PosPromotion } from './pos-promotions';
@@ -20,7 +20,7 @@ async function allRows<T>(makeQuery: () => any): Promise<T[]> {
 }
 
 export async function loadPosCatalogSource(): Promise<PosCatalogSource> {
-  const [categories, products, addonLinks, ingredients, productIncludes, promotions, layouts, selectedLayoutId] = await Promise.all([
+  const [categories, products, addonLinks, ingredients, productIncludes, promotions, layouts, selectedLayoutId, activeLayout] = await Promise.all([
     allRows<SaleCategory>(() => supabase.from('sale_categories')
       .select('id, name, section, sort_order, is_active, parent_category_id').eq('is_active', true).order('sort_order')),
     allRows<SaleProduct>(() => supabase.from('sale_products')
@@ -42,6 +42,7 @@ export async function loadPosCatalogSource(): Promise<PosCatalogSource> {
       .select('id, name, layout, is_default, created_at, updated_at')
       .order('is_default', { ascending: false }).order('updated_at', { ascending: false })),
     getSelectedPosLayoutId().catch(() => null),
+    getAppliedPosLayout().catch(() => null),
   ]);
 
   return {
@@ -60,5 +61,6 @@ export async function loadPosCatalogSource(): Promise<PosCatalogSource> {
     })),
     layouts: layouts.map((row) => ({ ...row, layout: normalizePosLayout(row.layout) })),
     selectedLayoutId,
+    activeLayout,
   };
 }

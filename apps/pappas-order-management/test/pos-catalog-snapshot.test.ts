@@ -62,3 +62,15 @@ test('getProductCombineSections falls back to Fried if name indicates a combine/
   assert.deepEqual(getProductCombineSections(snapshot, familyPack), ['Fried']);
 });
 
+
+test('named saved layout edits stay separate from explicitly applied local tiles', () => {
+  const applied = { id: 'layout-1', name: 'Counter', is_default: false, created_at: '', updated_at: '', layout: { version: 1 as const, categories: [{ categoryId: 'g', title: 'Applied label', background: '#123456', products: [] }] } };
+  const saved = { ...applied, layout: { ...applied.layout, categories: [{ ...applied.layout.categories[0], title: 'Saved draft label', background: '#ffffff' }] } };
+  const source = { categories: [], products: [], addonLinks: [], ingredients: [], promotions: [], layouts: [saved], selectedLayoutId: 'layout-1' };
+  const snapshot = buildPosCatalogSnapshot({ ...source, activeLayout: applied });
+  assert.equal(snapshot.preferredLayout?.layout.categories[0].title, 'Applied label');
+  assert.equal(snapshot.preferredLayout?.layout.categories[0].background, '#123456');
+  assert.equal(snapshot.layouts[0].layout.categories[0].title, 'Saved draft label');
+  assert.equal(buildPosCatalogSnapshot(source).preferredLayout?.layout.categories[0].title, 'Saved draft label');
+  assert.equal(buildPosCatalogSnapshot({ ...source, activeLayout: saved }).preferredLayout?.layout.categories[0].title, 'Saved draft label');
+});

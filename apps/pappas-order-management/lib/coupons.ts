@@ -272,7 +272,10 @@ export async function getCouponsList(params?: {
     }
 
     if (params?.filter === 'active') {
-      query = query.eq('is_active', true);
+      const now = new Date().toISOString();
+      query = query.eq('is_active', true)
+        .or(`starts_at.is.null,starts_at.lte.${now}`)
+        .or(`ends_at.is.null,ends_at.gte.${now}`);
     } else if (params?.filter === 'inactive') {
       query = query.eq('is_active', false);
     } else if (params?.filter === 'expired') {

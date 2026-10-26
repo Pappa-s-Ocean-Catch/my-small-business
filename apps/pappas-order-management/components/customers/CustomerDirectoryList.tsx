@@ -1,21 +1,17 @@
+import { ActionButton as Button } from '@/components/ui/ActionButton';
+import { SearchField as Searchbar } from '@/components/ui';
+import { StatusBadge } from '@/components/ui';
+import { designTokens as t } from '@/lib/redesign';
 import React from 'react';
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from 'react-native';
-import {
-  Avatar,
-  Button,
-  Card,
-  IconButton,
-  Searchbar,
-  Surface,
-  Text,
-  useTheme,
-} from 'react-native-paper';
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Avatar, Card, IconButton, Surface, Text, useTheme } from 'react-native-paper';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 import type { Customer } from '@/lib/customers';
 import { BRAND_COLORS } from '@/utils/brand';
 
 type Props = {
+  headerNotice?: React.ReactNode;
   customers: Customer[];
   searchQuery: string;
   onChangeSearchQuery: (value: string) => void;
@@ -44,6 +40,7 @@ const getInitials = (name: string) => (
 );
 
 export function CustomerDirectoryList({
+  headerNotice,
   customers,
   searchQuery,
   onChangeSearchQuery,
@@ -55,46 +52,22 @@ export function CustomerDirectoryList({
   onEndReached,
   emptyText = 'No customers found',
   loadingText = 'Loading customers...',
-  searchPlaceholder = 'Search customers...',
+  searchPlaceholder = 'Search customers by name, phone or email',
   headerActionLabel,
   onHeaderActionPress,
 }: Props) {
   const theme = useTheme();
+  const { width, fontScale } = useWindowDimensions();
+  const compact = width / fontScale < 600;
+  const gutter = width < 1100 ? 12 : 16;
 
-  const renderCustomerItem = ({ item }: { item: Customer }) => (
-    <Card
-      style={styles.card}
-      onPress={() => onSelectCustomer(item)}
-      mode="contained"
-    >
-      <Card.Content style={styles.cardContent}>
-        <Avatar.Text
-          size={48}
-          label={getInitials(item.name || 'Unknown')}
-          style={[styles.avatar, { backgroundColor: theme.colors.primaryContainer }]}
-          labelStyle={{ color: theme.colors.onPrimaryContainer }}
-        />
-        <View style={styles.infoContainer}>
-          <Text variant="titleMedium" style={styles.name}>{item.name || 'Unknown'}</Text>
-          <Text variant="bodySmall" style={styles.contact}>{item.email || item.phone || 'No contact details'}</Text>
-          <View style={styles.statsRow}>
-            <View style={styles.stat}>
-              <MaterialCommunityIcons name="cart-outline" size={14} color={theme.colors.secondary} />
-              <Text variant="labelSmall" style={styles.statText}>{item.totalOrders ?? 0} orders</Text>
-            </View>
-            <View style={styles.stat}>
-              <MaterialCommunityIcons name="currency-usd" size={14} color="#16a34a" />
-              <Text variant="labelSmall" style={styles.statText}>{formatMoney(item.totalSpent)} spent</Text>
-            </View>
-            <View style={styles.stat}>
-              <MaterialCommunityIcons name="star-outline" size={14} color="#f59e0b" />
-              <Text variant="labelSmall" style={styles.statText}>{item.rewardPoints ?? 0} pts</Text>
-            </View>
-          </View>
-        </View>
-        <IconButton icon="chevron-right" size={20} />
-      </Card.Content>
-    </Card>
+  const renderCustomerItem = ({ item, index }: { item: Customer; index: number }) => (
+    <View style={[styles.card, compact && styles.cardCompact, index === 0 && { borderTopLeftRadius: 16, borderTopRightRadius: 16, borderTopWidth: 1 }, index === customers.length - 1 && { borderBottomLeftRadius: 16, borderBottomRightRadius: 16 } ]}>
+      <Avatar.Text size={44} label={getInitials(item.name || 'Unknown')} style={[styles.avatar, { backgroundColor: t.color.primaryTint }]} labelStyle={{ color: t.color.primary, fontSize: 16, fontWeight: '700' }} />
+      <View style={[styles.infoContainer, compact && styles.infoCompact]}><Text style={styles.name}>{item.name || 'Unknown'}</Text><Text style={styles.contact}>{item.phone || item.email || 'No contact details'} · {item.totalOrders ?? 0} orders{item.lastOrderDate ? ` · Last visit ${new Date(item.lastOrderDate).toLocaleDateString([], { day: 'numeric', month: 'short' })}` : ''}</Text></View>
+      <StatusBadge label={`${item.rewardPoints ?? 0} pts`} tone="primary" />
+      <Button mode="outlined" contentStyle={{ minHeight: 48 }} onPress={() => onSelectCustomer(item)}>View</Button>
+    </View>
   );
 
   const renderFooter = () => {
@@ -109,12 +82,12 @@ export function CustomerDirectoryList({
   if (loading && !refreshing) {
     return (
       <View style={styles.container}>
-        <Surface style={styles.searchSurface} elevation={1}>
+        <Surface style={[styles.searchSurface, { paddingHorizontal: gutter }]} elevation={0}>
           <Searchbar
             placeholder={searchPlaceholder}
             onChangeText={onChangeSearchQuery}
             value={searchQuery}
-            style={styles.searchBar}
+            style={[styles.searchBar, compact && styles.searchBarCompact]}
             elevation={0}
           />
         </Surface>
@@ -128,22 +101,21 @@ export function CustomerDirectoryList({
 
   return (
     <View style={styles.container}>
-      <Surface style={styles.searchSurface} elevation={1}>
-        <View style={styles.searchRow}>
+      <Surface style={[styles.searchSurface, { paddingHorizontal: gutter }]} elevation={0}>
+        <View style={[styles.searchRow, compact && styles.searchRowCompact]}>
           <Searchbar
             placeholder={searchPlaceholder}
             onChangeText={onChangeSearchQuery}
             value={searchQuery}
-            style={styles.searchBar}
+            style={[styles.searchBar, compact && styles.searchBarCompact]}
             elevation={0}
           />
           {headerActionLabel && onHeaderActionPress ? (
             <Button
               mode="contained"
-              icon="account-plus-outline"
               onPress={onHeaderActionPress}
-              buttonColor={BRAND_COLORS.header}
-              style={styles.headerActionButton}
+              buttonColor={t.color.primary}
+              style={[styles.headerActionButton, compact && styles.headerActionCompact]}
               contentStyle={styles.headerActionButtonContent}
             >
               {headerActionLabel}
@@ -152,12 +124,13 @@ export function CustomerDirectoryList({
         </View>
       </Surface>
 
+      {headerNotice}
       <FlatList
         data={customers}
         keyExtractor={(item) => `${item.id}-${item.email}-${item.phone}`}
         renderItem={renderCustomerItem}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, { paddingHorizontal: gutter }]}
         refreshControl={
           onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} /> : undefined
         }
@@ -180,59 +153,65 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   searchSurface: {
-    padding: 12,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    padding: 16,
+    paddingBottom: 20,
+    backgroundColor: t.color.background,
   },
   searchBar: {
-    backgroundColor: '#f1f5f9',
-    borderRadius: 12,
+    backgroundColor: t.color.surface,
     flex: 1,
+    minWidth: 180,
   },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    flexWrap: 'wrap',
   },
   headerActionButton: {
-    borderRadius: 12,
+    borderRadius: t.radius.control,
   },
   headerActionButtonContent: {
-    height: 52,
+    minHeight: 48,
   },
   listContent: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 28,
     flexGrow: 1,
   },
   separator: {
-    height: 10,
+    height: 0,
   },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
+    backgroundColor: t.color.surface,
+    borderLeftWidth: 1, borderRightWidth: 1, borderBottomWidth: 1, borderColor: t.color.border, minHeight: 82, paddingVertical: 16, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap',
   },
   cardContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
+    padding: 16,
   },
+  cardCompact: { paddingHorizontal: 14, gap: 10, flexWrap: 'nowrap', minHeight: 102 },
+  infoCompact: { minWidth: 0 },
+  searchRowCompact: { flexDirection: 'column', alignItems: 'stretch', gap: 8 },
+  searchBarCompact: { flex: 0, width: '100%' },
+  headerActionCompact: { width: '100%' },
   avatar: {
-    marginRight: 16,
+    marginRight: 2,
+    flexShrink: 0,
   },
   infoContainer: {
     flex: 1,
+    minWidth: 120,
   },
   name: {
-    fontWeight: 'bold',
-    color: '#1e293b',
+    fontSize: 16, fontWeight: '700',
+    color: t.color.text,
   },
   contact: {
-    color: '#64748b',
+    color: t.color.muted,
     marginTop: 2,
-    fontSize: 14,
+    fontSize: 13,
   },
   statsRow: {
     flexDirection: 'row',
@@ -246,7 +225,8 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   statText: {
-    color: '#64748b',
+    color: t.color.muted,
+    fontSize: 14,
   },
   centerContainer: {
     flex: 1,
@@ -255,7 +235,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 12,
-    color: '#64748b',
+    color: t.color.muted,
   },
   emptyContainer: {
     flex: 1,

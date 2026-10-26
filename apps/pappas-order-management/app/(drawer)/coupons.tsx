@@ -1,3 +1,9 @@
+import { ActionButton as Button } from '@/components/ui/ActionButton';
+import { SearchField as Searchbar } from '@/components/ui';
+import { WorkspaceHeader, StatusBadge, EditorSheet, DetailRow } from '@/components/ui';
+import { ResponsiveDialog as Dialog } from '@/components/ui/ResponsiveDialog';
+import { designTokens as t } from '@/lib/redesign';
+import { PageHeader } from '@/components/ui';
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   Alert,
@@ -10,12 +16,9 @@ import {
 } from 'react-native';
 import {
   Appbar,
-  Button,
   Card,
   Chip,
-  Dialog,
   Portal,
-  Searchbar,
   Switch,
   Text,
   useTheme,
@@ -36,6 +39,10 @@ type FilterType = 'all' | 'active' | 'inactive' | 'expired';
 
 export default function CouponsScreen() {
   const theme = useTheme();
+  const [contentWidth, setContentWidth] = useState(0);
+  const columns = contentWidth < 600 ? 1 : contentWidth < 1000 ? 2 : 3;
+  const gutter = contentWidth >= 1100 ? 16 : 12;
+  const cardWidth = Math.max(0, (contentWidth - gutter * 2 - (columns - 1) * 16) / columns);
   const navigation = useNavigation<DrawerNavigationProp<any>>();
 
   const [coupons, setCoupons] = useState<Coupon[]>([]);
@@ -45,10 +52,12 @@ export default function CouponsScreen() {
   const [filter, setFilter] = useState<FilterType>('all');
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [selectedCoupon, setSelectedCoupon] = useState<Coupon | null>(null);
+  const [activeDraft, setActiveDraft] = useState(false);
+  useEffect(() => { setActiveDraft(selectedCoupon?.is_active ?? false); }, [selectedCoupon?.id, selectedCoupon?.is_active]);
 
   // Pagination states
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(6);
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -94,38 +103,25 @@ export default function CouponsScreen() {
     }
   };
 
-  const handleToggleActive = async (coupon: Coupon) => {
-    const newStatus = !coupon.is_active;
+  const saveCouponDetails = async () => {
+    if (!selectedCoupon || togglingId) return;
+    if (activeDraft === selectedCoupon.is_active) { setSelectedCoupon(null); return; }
+    const coupon = selectedCoupon;
     setTogglingId(coupon.id);
-    const { success, error } = await toggleCouponActive(coupon.id, newStatus);
-    setTogglingId(null);
-    if (success) {
-      setCoupons((prev) =>
-        prev.map((c) => (c.id === coupon.id ? { ...c, is_active: newStatus } : c))
-      );
-      if (selectedCoupon?.id === coupon.id) {
-        setSelectedCoupon({ ...selectedCoupon, is_active: newStatus });
-      }
-    } else {
-      Alert.alert('Error', error || 'Failed to update coupon status.');
-    }
+    try {
+      const { success, error } = await toggleCouponActive(coupon.id, activeDraft);
+      if (!success) { Alert.alert('Error', error || 'Failed to update coupon status.'); return; }
+      setCoupons((current) => current.map((item) => item.id === coupon.id ? { ...item, is_active: activeDraft } : item));
+      setSelectedCoupon(null);
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to update coupon status.');
+    } finally { setTogglingId(null); }
   };
 
   const getStatusBadge = (coupon: Coupon) => {
     const now = new Date();
-    if (!coupon.is_active) {
-      return <Chip style={[styles.badge, styles.badgeInactive]} textStyle={styles.badgeText}>Inactive</Chip>;
-    }
-    if (coupon.ends_at && new Date(coupon.ends_at) < now) {
-      return <Chip style={[styles.badge, styles.badgeExpired]} textStyle={styles.badgeText}>Expired</Chip>;
-    }
-    if (coupon.starts_at && new Date(coupon.starts_at) > now) {
-      return <Chip style={[styles.badge, styles.badgePending]} textStyle={styles.badgeText}>Scheduled</Chip>;
-    }
-    if (coupon.max_uses != null && coupon.usage_count >= coupon.max_uses) {
-      return <Chip style={[styles.badge, styles.badgeMax]} textStyle={styles.badgeText}>Max Uses</Chip>;
-    }
-    return <Chip style={[styles.badge, styles.badgeActive]} textStyle={styles.badgeText}>Active</Chip>;
+    const label = !coupon.is_active ? 'Inactive' : coupon.ends_at && new Date(coupon.ends_at) < now ? 'Expired' : coupon.starts_at && new Date(coupon.starts_at) > now ? 'Scheduled' : coupon.max_uses != null && coupon.usage_count >= coupon.max_uses ? 'Max uses' : 'Active';
+    return <StatusBadge label={label} tone={label === 'Active' ? 'success' : label === 'Scheduled' ? 'primary' : 'neutral'} />;
   };
 
   const formatDate = (dateStr: string | null) => {
@@ -136,44 +132,27 @@ export default function CouponsScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Appbar.Header style={styles.appbar}>
-        <Appbar.Action icon="menu" onPress={() => navigation.openDrawer()} iconColor="#fff" />
-        <Appbar.Content
-          title="Coupon Management"
-          subtitle="Manage & toggle discount coupon codes"
-          titleStyle={styles.appbarTitle}
-          subtitleStyle={styles.appbarSubtitle}
-        />
-        <Appbar.Action icon="refresh" onPress={onRefresh} iconColor="#fff" />
-      </Appbar.Header>
+    <View style={styles.container} onLayout={(event) => setContentWidth(event.nativeEvent.layout.width)}>
+      <WorkspaceHeader title="Coupons" />
 
-      <View style={styles.filterSection}>
-        <Searchbar
+      <View style={[styles.filterSection, { padding: gutter }]}>
+        <View style={{ flexDirection: contentWidth < 600 ? 'column' : 'row', alignItems: 'stretch', gap: 8, marginBottom: 24 }}><Searchbar
           placeholder="Search coupon code, title..."
           onChangeText={handleSearchChange}
           value={searchQuery}
-          style={styles.searchBar}
-          elevation={1}
-        />
+          style={[styles.searchBar, contentWidth < 600 && { flex: undefined, width: '100%' }]}
+          elevation={0}
+        /><Button mode="outlined" contentStyle={{ minHeight: 48 }} onPress={onRefresh} loading={refreshing}>Refresh</Button></View>
 
         <View style={styles.filterChipRow}>
           {(['all', 'active', 'inactive', 'expired'] as FilterType[]).map((f) => (
-            <Chip
-              key={f}
-              selected={filter === f}
-              onPress={() => handleFilterChange(f)}
-              style={styles.filterChip}
-              showSelectedOverlay
-            >
-              {f.charAt(0).toUpperCase() + f.slice(1)}
-            </Chip>
+            <Button key={f} mode="outlined" contentStyle={{ minHeight: 44 }} style={{ backgroundColor: filter === f ? t.color.primaryTint : t.color.surface, borderColor: filter === f ? t.color.primary : t.color.border }} onPress={() => handleFilterChange(f)}>{f.charAt(0).toUpperCase() + f.slice(1)}</Button>
           ))}
         </View>
       </View>
 
       <ScrollView
-        style={styles.content}
+        style={[styles.content, { paddingHorizontal: gutter }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {loading && !refreshing ? (
@@ -190,78 +169,19 @@ export default function CouponsScreen() {
         ) : (
           <View style={styles.couponGrid}>
             {coupons.map((coupon) => {
-              const isToggling = togglingId === coupon.id;
               const discountText =
                 coupon.discount_type === 'percent'
                   ? `${coupon.discount_value}% OFF`
                   : `$${coupon.discount_value.toFixed(2)} OFF`;
 
               return (
-                <Card
-                  key={coupon.id}
-                  style={styles.couponCard}
-                  onPress={() => setSelectedCoupon(coupon)}
-                >
-                  <Card.Content style={styles.cardContent}>
-                    <View style={styles.cardHeaderRow}>
-                      <TouchableOpacity
-                        style={styles.codeContainer}
-                        onPress={() => handleCopyCode(coupon.code)}
-                      >
-                        <MaterialCommunityIcons name="ticket-confirmation-outline" size={20} color={theme.colors.primary} />
-                        <Text style={styles.codeText}>{coupon.code}</Text>
-                        <MaterialCommunityIcons name="content-copy" size={16} color={theme.colors.primary} style={{ marginLeft: 4 }} />
-                      </TouchableOpacity>
-                      {getStatusBadge(coupon)}
-                    </View>
-
-                    <Text style={styles.couponTitle} numberOfLines={1}>
-                      {coupon.title}
-                    </Text>
-                    {coupon.description ? (
-                      <Text style={styles.couponDesc} numberOfLines={2}>
-                        {coupon.description}
-                      </Text>
-                    ) : null}
-
-                    <View style={styles.detailsRow}>
-                      <Chip compact icon="label-outline" style={styles.discountChip}>
-                        {discountText}
-                      </Chip>
-
-                      <Text style={styles.detailText}>
-                        Uses: {coupon.usage_count} {coupon.max_uses != null ? `/ ${coupon.max_uses}` : ''}
-                      </Text>
-                    </View>
-
-                    <View style={styles.metaRow}>
-                      <Text style={styles.metaText}>
-                        Min Subtotal: ${coupon.min_cart_subtotal.toFixed(2)}
-                      </Text>
-                      <Text style={styles.metaText}>
-                        Ends: {formatDate(coupon.ends_at)}
-                      </Text>
-                    </View>
-
-                    <View style={styles.actionRow}>
-                      <View style={styles.switchContainer}>
-                        <Text style={styles.switchLabel}>Active Status</Text>
-                        <Switch
-                          value={coupon.is_active}
-                          onValueChange={() => handleToggleActive(coupon)}
-                          disabled={isToggling}
-                        />
-                      </View>
-                      <Button
-                        mode="outlined"
-                        compact
-                        onPress={() => setSelectedCoupon(coupon)}
-                      >
-                        Details
-                      </Button>
-                    </View>
-                  </Card.Content>
-                </Card>
+                <View key={coupon.id} style={[styles.couponCard, { width: cardWidth }]}>
+                  <View style={styles.cardHeaderRow}><Text style={{ flex: 1, fontSize: 14, fontWeight: '700', letterSpacing: 1.5, color: t.color.text }}>{coupon.code}</Text>{getStatusBadge(coupon)}</View>
+                  <Text style={{ fontSize: 32, color: t.color.text, fontWeight: '700', marginTop: 22, marginBottom: 8 }}>{discountText.toLowerCase()}</Text>
+                  <Text style={{ fontSize: 14, color: t.color.muted, marginBottom: 16 }}>{coupon.title} · Min ${coupon.min_cart_subtotal.toFixed(2)}</Text>
+                  <Text style={{ fontSize: 14, color: t.color.muted }}>{coupon.usage_count}{coupon.max_uses != null ? ` / ${coupon.max_uses}` : ''} uses · Ends {formatDate(coupon.ends_at)}</Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12, borderTopWidth: 1, borderColor: t.color.border, paddingTop: 18, marginTop: 20 }}><Button mode="outlined" contentStyle={{ minHeight: 48 }} onPress={() => handleCopyCode(coupon.code)}>Copy code</Button><Button mode="outlined" contentStyle={{ minHeight: 48 }} onPress={() => setSelectedCoupon(coupon)}>Details</Button></View>
+                </View>
               );
             })}
           </View>
@@ -279,7 +199,7 @@ export default function CouponsScreen() {
         <View style={styles.paginationControls}>
           <View style={styles.pageSizeRow}>
             <Text style={styles.pageSizeLabel}>Per page:</Text>
-            {[10, 20, 50].map((size) => (
+            {[6, 10, 20, 50].map((size) => (
               <Chip
                 key={size}
                 compact
@@ -324,101 +244,24 @@ export default function CouponsScreen() {
         </View>
       </View>
 
-      {/* Coupon Detail Dialog */}
-      <Portal>
-        <Dialog visible={selectedCoupon !== null} onDismiss={() => setSelectedCoupon(null)}>
-          <Dialog.Title style={styles.dialogTitle}>
-            Coupon Details
-          </Dialog.Title>
-          <Dialog.Content>
-            {selectedCoupon && (
-              <View style={styles.dialogContent}>
-                <View style={[styles.dialogRow, { alignItems: 'center', backgroundColor: '#e3f2fd', padding: 10, borderRadius: 8 }]}>
-                  <Text style={[styles.dialogLabel, { fontSize: 16, color: '#1565c0' }]}>Code:</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1565c0', letterSpacing: 1 }}>
-                      {selectedCoupon.code}
-                    </Text>
-                    <Button
-                      mode="contained"
-                      compact
-                      icon="content-copy"
-                      onPress={() => handleCopyCode(selectedCoupon.code)}
-                    >
-                      Copy
-                    </Button>
-                  </View>
-                </View>
-                <View style={styles.dialogRow}>
-                  <Text style={styles.dialogLabel}>Title:</Text>
-                  <Text style={styles.dialogValue}>{selectedCoupon.title}</Text>
-                </View>
-                {selectedCoupon.description && (
-                  <View style={styles.dialogRow}>
-                    <Text style={styles.dialogLabel}>Description:</Text>
-                    <Text style={styles.dialogValue}>{selectedCoupon.description}</Text>
-                  </View>
-                )}
-                <View style={styles.dialogRow}>
-                  <Text style={styles.dialogLabel}>Discount:</Text>
-                  <Text style={styles.dialogValue}>
-                    {selectedCoupon.discount_type === 'percent'
-                      ? `${selectedCoupon.discount_value}%`
-                      : `$${selectedCoupon.discount_value.toFixed(2)}`}
-                  </Text>
-                </View>
-                <View style={styles.dialogRow}>
-                  <Text style={styles.dialogLabel}>Min Subtotal:</Text>
-                  <Text style={styles.dialogValue}>${selectedCoupon.min_cart_subtotal.toFixed(2)}</Text>
-                </View>
-                <View style={styles.dialogRow}>
-                  <Text style={styles.dialogLabel}>Usage Count:</Text>
-                  <Text style={styles.dialogValue}>
-                    {selectedCoupon.usage_count} {selectedCoupon.max_uses != null ? `/ ${selectedCoupon.max_uses}` : '(Unlimited)'}
-                  </Text>
-                </View>
-                <View style={styles.dialogRow}>
-                  <Text style={styles.dialogLabel}>Per-User Limit:</Text>
-                  <Text style={styles.dialogValue}>
-                    {selectedCoupon.max_uses_per_user != null ? `${selectedCoupon.max_uses_per_user} per customer` : 'No limit'}
-                  </Text>
-                </View>
-                <View style={styles.dialogRow}>
-                  <Text style={styles.dialogLabel}>Target Email:</Text>
-                  <Text style={styles.dialogValue}>{selectedCoupon.target_email || 'Public / Anyone'}</Text>
-                </View>
-                <View style={styles.dialogRow}>
-                  <Text style={styles.dialogLabel}>Starts At:</Text>
-                  <Text style={styles.dialogValue}>{formatDate(selectedCoupon.starts_at)}</Text>
-                </View>
-                <View style={styles.dialogRow}>
-                  <Text style={styles.dialogLabel}>Ends At:</Text>
-                  <Text style={styles.dialogValue}>{formatDate(selectedCoupon.ends_at)}</Text>
-                </View>
+      <EditorSheet visible={selectedCoupon !== null} title="Coupon details" onDismiss={() => setSelectedCoupon(null)} dirty={!!selectedCoupon && activeDraft !== selectedCoupon.is_active} pending={!!togglingId} footer={(dismiss) => <>
+        <Button mode="outlined" onPress={dismiss} disabled={!!togglingId} contentStyle={{ minHeight: 48 }}>Cancel</Button>
+        <Button mode="contained" onPress={() => void saveCouponDetails()} loading={!!togglingId} disabled={!!togglingId} contentStyle={{ minHeight: 48 }}>Done</Button>
+      </>}>
+        {selectedCoupon && <View>
+          <DetailRow label="Coupon code" value={selectedCoupon.code} />
+          <DetailRow label="Description" value={selectedCoupon.description || selectedCoupon.title} />
+          <DetailRow label="Discount" value={selectedCoupon.discount_type === 'percent' ? `${selectedCoupon.discount_value}%` : `$${selectedCoupon.discount_value.toFixed(2)}`} />
+          <DetailRow label="Minimum subtotal" value={`$${selectedCoupon.min_cart_subtotal.toFixed(2)}`} />
+          <DetailRow label="Usage count / limit" value={`${selectedCoupon.usage_count} / ${selectedCoupon.max_uses ?? 'Unlimited'}`} />
+          <DetailRow label="Per-user limit" value={selectedCoupon.max_uses_per_user ?? 'No limit'} />
+          {selectedCoupon.target_email && <DetailRow label="Target email" value={selectedCoupon.target_email} />}
+          <DetailRow label="Starts" value={formatDate(selectedCoupon.starts_at)} />
+          <DetailRow label="Ends" value={formatDate(selectedCoupon.ends_at)} />
+          <DetailRow label="Active status" value={<Switch accessibilityLabel="Active status" value={activeDraft} onValueChange={setActiveDraft} disabled={!!togglingId} />} />
+        </View>}
+      </EditorSheet>
 
-                <View style={[styles.dialogRow, { marginTop: 15, alignItems: 'center' }]}>
-                  <Text style={styles.dialogLabel}>Active Status:</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Text style={{ marginRight: 8 }}>{selectedCoupon.is_active ? 'Active' : 'Inactive'}</Text>
-                    <Switch
-                      value={selectedCoupon.is_active}
-                      onValueChange={() => handleToggleActive(selectedCoupon)}
-                    />
-                  </View>
-                </View>
-              </View>
-            )}
-          </Dialog.Content>
-          <Dialog.Actions>
-            {selectedCoupon && (
-              <Button icon="content-copy" onPress={() => handleCopyCode(selectedCoupon.code)}>
-                Copy Code
-              </Button>
-            )}
-            <Button onPress={() => setSelectedCoupon(null)}>Close</Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
     </View>
   );
 }
@@ -426,29 +269,28 @@ export default function CouponsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: t.color.background,
   },
   appbar: {
     backgroundColor: BRAND_COLORS.header,
   },
   appbarTitle: {
-    color: '#fff',
+    color: t.color.surface,
   },
   appbarSubtitle: {
     color: '#d7e4ed',
   },
   filterSection: {
-    padding: 12,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    padding: 28,
+    paddingBottom: 20,
+    backgroundColor: t.color.background,
   },
   searchBar: {
-    backgroundColor: '#f5f5f5',
-    marginBottom: 8,
+    backgroundColor: t.color.surface, flex: 1, borderRadius: 10, borderWidth: 1, borderColor: t.color.border,
   },
   filterChipRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
   },
   filterChip: {
@@ -456,7 +298,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: 12,
+    paddingHorizontal: 28,
   },
   centerContainer: {
     alignItems: 'center',
@@ -465,7 +307,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 12,
-    color: '#666',
+    color: t.color.muted,
   },
   emptyTitle: {
     fontSize: 18,
@@ -481,12 +323,12 @@ const styles = StyleSheet.create({
   couponGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 16,
   },
   couponCard: {
-    width: '49%',
-    minWidth: 320,
-    backgroundColor: '#fff',
+    padding: 20, minWidth: 0, maxWidth: '100%', borderLeftWidth: 4, borderLeftColor: t.color.primary,
+    borderRadius: t.radius.card, borderWidth: 1, borderColor: t.color.border,
+    backgroundColor: t.color.surface,
   },
   cardContent: {
     padding: 12,
@@ -495,7 +337,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    flexWrap: 'wrap', gap: 8,
+    marginBottom: 0,
   },
   codeContainer: {
     flexDirection: 'row',
@@ -504,7 +347,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#e3f2fd',
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: t.radius.card,
   },
   codeText: {
     fontSize: 15,
@@ -516,7 +359,7 @@ const styles = StyleSheet.create({
     height: 26,
   },
   badgeText: {
-    fontSize: 11,
+    fontSize: 14,
     marginVertical: 0,
   },
   badgeActive: {
@@ -541,8 +384,8 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   couponDesc: {
-    fontSize: 13,
-    color: '#666',
+    fontSize: 14,
+    color: t.color.muted,
     marginBottom: 8,
   },
   detailsRow: {
@@ -555,7 +398,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff8e1',
   },
   detailText: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#555',
     fontWeight: '500',
   },
@@ -566,7 +409,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   metaText: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#777',
   },
   actionRow: {
@@ -583,7 +426,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   switchLabel: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#555',
   },
   dialogTitle: {
@@ -601,21 +444,20 @@ const styles = StyleSheet.create({
     color: '#444',
   },
   dialogValue: {
-    color: '#666',
+    color: t.color.muted,
   },
   paginationFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 12,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+    backgroundColor: t.color.background,
     flexWrap: 'wrap',
     gap: 8,
   },
   paginationInfo: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#555',
     fontWeight: '500',
   },
@@ -631,8 +473,8 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   pageSizeLabel: {
-    fontSize: 12,
-    color: '#666',
+    fontSize: 14,
+    color: t.color.muted,
     marginRight: 4,
   },
   pageSizeChip: {
@@ -644,7 +486,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   pageNumberText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#333',
   },

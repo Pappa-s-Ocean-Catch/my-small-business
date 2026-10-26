@@ -1,0 +1,12 @@
+import React from 'react';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Text } from 'react-native-paper';
+import { ActionButton as Button } from './ActionButton';
+import { StatusBadge } from '@/components/ui';
+import { designTokens as t } from '@/lib/redesign';
+
+/** Compact catalogue row shared by products, categories and add-on groups. */
+export function ManagementRow({ title, description, active, onEdit, onDelete, children, actions, indent = false, first = false, last = false, style }: { style?: StyleProp<ViewStyle>; title: string; description?: string; active?: boolean; onEdit: () => void; onDelete: () => void; children?: React.ReactNode; actions?: React.ReactNode; indent?: boolean; first?: boolean; last?: boolean }) {
+  return <View style={[s.row, first && s.first, last && s.last, indent && { paddingLeft: 36 }, style]}><View style={s.copy}><Text style={s.title}>{title}</Text>{description && <Text style={s.description}>{description}</Text>}{children}</View><View style={s.actions}>{actions}{active !== undefined && <View style={{ alignSelf: 'center' }}><StatusBadge label={active ? 'Active' : 'Inactive'} tone={active ? 'success' : 'neutral'} /></View>}<Button mode="outlined" contentStyle={s.control} labelStyle={s.controlLabel} hitSlop={2} onPress={onEdit} accessibilityLabel={`Edit ${title}`}>Edit</Button><Button mode="outlined" contentStyle={s.control} labelStyle={s.controlLabel} hitSlop={2} textColor={t.color.danger} style={s.delete} onPress={onDelete} accessibilityLabel={`Delete ${title}`}>Delete</Button></View></View>;
+}
+const s = StyleSheet.create({ row: { minHeight: 78, paddingHorizontal: 18, paddingVertical: 14, gap: 12, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', borderBottomWidth: 1, borderLeftWidth: 1, borderRightWidth: 1, borderColor: t.color.border, backgroundColor: t.color.surface }, first: { borderTopWidth: 1, borderTopLeftRadius: 16, borderTopRightRadius: 16 }, last: { borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }, copy: { flex: 1, minWidth: 160, gap: 4 }, title: { fontSize: 16, fontWeight: '700', color: t.color.text }, description: { fontSize: 13, color: t.color.muted }, actions: { flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' }, control: { minHeight: 44 }, controlLabel: { fontSize: 13 }, delete: { backgroundColor: t.color.dangerTint, borderColor: t.color.border } });

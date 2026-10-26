@@ -1,8 +1,16 @@
+import { toggleNotePreset } from '@/lib/note-presets';
+import { ActionButton as Button } from '@/components/ui/ActionButton';
 import React from 'react';
+import { PosProductTile } from './PosProductTile';
+import { PosGroupTile } from './PosConfigurableTile';
+import { findPosProductConfig, type PosLayoutData } from '@/lib/pos-layout-config';
+import { EditorSheet, FormField, HeaderIconButton } from '@/components/ui';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { designTokens as tokens } from '../../lib/redesign';
 import { FlatList, Text, TouchableOpacity, View } from 'react-native';
 import type { DimensionValue } from 'react-native';
 import { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { Button, TextInput } from 'react-native-paper';
+import { TextInput } from 'react-native-paper';
 
 import { styles } from './pos.styles';
 import type {
@@ -26,6 +34,28 @@ type MenuLevel = 'groups' | 'subgroups' | 'items' | 'addons' | 'checkout' | 'sea
 type CustomerLookupStatus = 'idle' | 'loading' | 'found' | 'new' | 'error';
 
 type Props = {
+  quickItemNotes?: string[];
+  layout?: PosLayoutData | null;
+  layoutCategoryId?: string;
+  productQuery: string;
+  onProductQueryChange: (value: string) => void;
+  groupQuery: string;
+  onGroupQueryChange: (value: string) => void;
+  groupScrollOffset: React.MutableRefObject<number>;
+  groupColumns: number;
+  hasAddons: (productId: string) => boolean;
+  getProductGroupName: (product: SaleProduct) => string;
+  itemFeedback: string;
+  hasEditorDraft: boolean;
+  onResumeDraft: () => void;
+  editorQuantity: number;
+  onEditorQuantityChange: (value: number) => void;
+  editorNote: string;
+  onEditorNoteChange: (value: string) => void;
+  editorError: string | null;
+  editingItem: boolean;
+  onConfirmEditor: () => void;
+  onCancelEditor: () => void;
   isPhoneLayout?: boolean;
   onOpenCart?: () => void;
   menuLevel: MenuLevel;
@@ -254,50 +284,40 @@ export const PosMenuPane = React.memo(function PosMenuPane(props: Props) {
     initialCheckoutTab,
   } = props;
 
+  const addonListRef = React.useRef<FlatList<AddonGroup>>(null);
+  const [noteVisible, setNoteVisible] = React.useState(false);
+  const [topSellersExpanded, setTopSellersExpanded] = React.useState(false);
+  const [noteDraft, setNoteDraft] = React.useState('');
+  React.useEffect(() => {
+    if (!props.editorError) return;
+    const index = editorAddonGroups.findIndex((group) => props.editorError?.includes(group.name));
+    if (index >= 0) addonListRef.current?.scrollToIndex({ index, animated: false, viewPosition: 0 });
+  }, [props.editorError, editorAddonGroups]);
+
   return (
     <View style={styles.menuPane}>
+      {!!props.itemFeedback && <Text accessibilityLiveRegion="polite" style={styles.feedback}>{props.itemFeedback}</Text>}
+      {props.hasEditorDraft && menuLevel !== 'addons' && menuLevel !== 'checkout' && <Button onPress={props.onResumeDraft}>Return to item options</Button>}
       {menuLevel === 'groups' && (
         <View style={styles.groupScreen}>
           <FlatList
             data={layoutTopLevelCategories}
+            contentOffset={{ x: 0, y: props.groupScrollOffset.current }}
+            onScroll={(event) => { props.groupScrollOffset.current = event.nativeEvent.contentOffset.y; }}
+            scrollEventThrottle={100}
             keyExtractor={(item) => item.id}
-            numColumns={gridColumns}
-            key={`groups-${gridColumns}`}
+            numColumns={props.groupColumns}
+            columnWrapperStyle={undefined}
+            ItemSeparatorComponent={undefined}
+            key={`groups-${props.groupColumns}`}
+            ListEmptyComponent={<View style={styles.emptyState}><Text style={styles.emptyTitle}>No matching groups</Text><Text style={styles.menuSubtitle}>Try another group name.</Text></View>}
             contentContainerStyle={styles.tileGrid}
             renderItem={({ item }) => (
-              <TouchableOpacity
-                style={[styles.groupCard, { backgroundColor: item.color }]}
-                onPress={() => openCategory(item.id)}
-              >
-                <Text style={styles.groupCardText} numberOfLines={3}>{item.name}</Text>
-              </TouchableOpacity>
+              <PosGroupTile label={item.name} subtitle={`${item.productCount} products`} columns={props.groupColumns} layout={props.layout} tileConfig={props.layout?.categories.find(c => c.categoryId === item.id)} onPress={() => openCategory(item.id)} />
             )}
           />
-          {topSellers.length > 0 && (
-            <View style={styles.topSellersSection}>
-              <FlatList
-                data={topSellers}
-                keyExtractor={(item) => item.id}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.topSellersList}
-                renderItem={({ item }) => {
-                  const quickQuantity = quickQuantityForProduct(item.id);
-                  return (
-                    <TouchableOpacity style={styles.topSellerCard} onPress={() => void quickAddProduct(item)}>
-                      {quickQuantity > 0 && (
-                        <View style={styles.topSellerQuantityBadge}>
-                          <Text style={styles.productQuantityText}>{quickQuantity}</Text>
-                        </View>
-                      )}
-                      <Text style={styles.topSellerName} numberOfLines={2}>{item.name}</Text>
-                      <Text style={styles.topSellerMeta}>{item.total_quantity_sold} sold</Text>
-                    </TouchableOpacity>
-                  );
-                }}
-              />
-            </View>
-          )}
+
+
         </View>
       )}
 
@@ -323,6 +343,7 @@ export const PosMenuPane = React.memo(function PosMenuPane(props: Props) {
               style={styles.searchInput}
             />
             <ProductGrid
+              layout={props.layout} layoutCategoryId={props.layoutCategoryId}
               data={searchResults}
               gridColumns={gridColumns}
               listKey="search-products"
@@ -331,6 +352,8 @@ export const PosMenuPane = React.memo(function PosMenuPane(props: Props) {
               getQuantity={quickQuantityForProduct}
               onPressProduct={(item) => void quickAddProduct(item)}
               productTilePalette={productTilePalette}
+              hasAddons={props.hasAddons}
+              getGroupName={props.getProductGroupName}
             />
           </View>
         </>
@@ -363,7 +386,7 @@ export const PosMenuPane = React.memo(function PosMenuPane(props: Props) {
                 style={[styles.groupCard, activeLayoutCategory?.color ? { backgroundColor: activeLayoutCategory.color } : null]}
                 onPress={() => openSubcategory(item.id)}
               >
-                <Text style={styles.groupCardText} numberOfLines={3}>{item.name}</Text>
+                <Text style={styles.groupCardText}>{item.name}</Text><Text style={styles.menuSubtitle}>Choose products  →</Text>
               </TouchableOpacity>
             )}
           />
@@ -372,101 +395,37 @@ export const PosMenuPane = React.memo(function PosMenuPane(props: Props) {
 
       {menuLevel === 'items' && (
         <>
-          <View style={styles.menuHeader}>
-            <Button mode="outlined" icon="arrow-left" onPress={itemsBackAction} style={styles.backButton}>
-              {itemsBackLabel}
-            </Button>
-            <View style={styles.menuHeaderText}>
-              <Text style={styles.menuTitle}>{activeCategoryName}</Text>
-              <Text style={styles.menuSubtitle}>{layoutProducts.length} items</Text>
-            </View>
+          <View style={styles.productContext}>
+            <HeaderIconButton icon="arrow-left" accessibilityLabel="Back to groups" onPress={backToGroups} />
+            <View style={{ flex: 1, gap: 4 }}><Text style={styles.contextTitle}>{activeCategoryName}</Text></View>
           </View>
-          <FlatList
+          <ProductGrid
+              layout={props.layout} layoutCategoryId={props.layoutCategoryId}
             data={layoutProducts}
-            keyExtractor={(item) => item.id}
-            numColumns={gridColumns}
-            key={`products-${gridColumns}`}
-            contentContainerStyle={styles.tileGrid}
-            ListEmptyComponent={(
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>{loadingProducts ? 'Loading items...' : 'No items in this group'}</Text>
-              </View>
-            )}
-            renderItem={({ item }) => {
-              const quickQuantity = quickQuantityForProduct(item.id);
-              const skipCustomization = Boolean(activeLayoutCategory?.showProductsOnTopLevel);
-              const customColor = productButtonColor(item.id);
-              const tilePalette = productTilePalette(item.id);
-              return (
-                <TouchableOpacity
-                  style={[
-                    styles.productCard,
-                    { backgroundColor: tilePalette.backgroundColor, borderColor: tilePalette.borderColor },
-                    customColor ? styles.productCardCustomColor : null,
-                    customColor ? { backgroundColor: customColor, borderColor: customColor } : null,
-                  ]}
-                  onPress={() => void quickAddProduct(item, { skipCustomization })}
-                >
-                  {quickQuantity > 0 && (
-                    <View style={styles.productQuantityBadge}>
-                      <Text style={styles.productQuantityText}>{quickQuantity}</Text>
-                    </View>
-                  )}
-                  <View style={styles.productNameArea}>
-                    <Text style={[styles.productName, customColor ? styles.productCardCustomText : null]} numberOfLines={3}>{item.name}</Text>
-                  </View>
-                  <View style={[
-                    styles.productPricePill,
-                    customColor ? styles.productPricePillCustom : { backgroundColor: tilePalette.priceColor },
-                  ]}>
-                    <Text style={[styles.productPrice, customColor ? styles.productCardCustomText : null]}>${item.sale_price.toFixed(2)}</Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            }}
+            gridColumns={gridColumns} listKey="group-products" contentContainerStyle={styles.tileGrid}
+            emptyText={loadingProducts ? 'Loading products…' : 'No matching products in this group'}
+            getQuantity={quickQuantityForProduct} onPressProduct={(item) => void quickAddProduct(item)}
+            productTilePalette={productTilePalette} hasAddons={props.hasAddons} getGroupName={() => activeCategoryName}
           />
-          <View style={styles.levelFooter}>
-            <View style={styles.levelFooterActions}>
-              <Button
-                mode="outlined"
-                icon="arrow-left"
-                onPress={itemsBackAction}
-                style={styles.levelFooterButton}
-                contentStyle={styles.levelFooterButtonContent}
-                labelStyle={styles.levelFooterButtonLabel}
-              >
-                {selectedParentCatId ? 'Back to Subgroups' : 'Back to Groups'}
-              </Button>
-              <Button
-                mode="contained"
-                icon="lightning-bolt"
-                onPress={() => setQuickListVisible(true)}
-                style={styles.levelFooterQuickListButton}
-                contentStyle={styles.quickListButtonContent}
-                buttonColor="#0f766e"
-                disabled={quickAccessProducts.length === 0}
-              >
-                Quick List
-              </Button>
-            </View>
-          </View>
         </>
       )}
 
       {menuLevel === 'addons' && selectedProduct && (
         <>
-          <View style={styles.menuHeader}>
-            <Button mode="outlined" icon="arrow-left" onPress={backToItems} style={styles.backButton}>
-              Items
-            </Button>
-            <View style={styles.menuHeaderText}>
-              <Text style={styles.menuTitle} numberOfLines={1}>{selectedProduct.name}</Text>
-              <Text style={styles.menuSubtitle}>Customize item</Text>
-            </View>
-          </View>
-
           <View style={styles.editorBody}>
-            {editorRemovableIngredients.length > 0 && (
+
+
+            <FlatList
+              ref={addonListRef}
+              onScrollToIndexFailed={({ index, averageItemLength }) => addonListRef.current?.scrollToOffset({ offset: index * averageItemLength, animated: false })}
+              data={editorAddonGroups}
+              ListHeaderComponent={<>
+              <View style={styles.modifierProductCard}>
+                <HeaderIconButton icon="arrow-left" accessibilityLabel="Back to product group" onPress={backToItems} />
+                <View style={{ flex: 1, gap: 3 }}><Text style={styles.menuSubtitle}>{props.getProductGroupName(selectedProduct)}</Text><Text style={styles.addonGroupTitle}>{selectedProduct.name}</Text><Text style={styles.menuSubtitle}>${selectedProduct.sale_price.toFixed(2)} each · Quantity {props.editorQuantity}</Text></View>
+                <Text style={{ color: tokens.color.success, backgroundColor: tokens.color.successTint, padding: 7, borderRadius: 6, fontSize: 12, fontWeight: '700' }}>Already in order</Text>
+              </View>
+              {editorRemovableIngredients.length > 0 && (
               <View style={styles.removableBlock}>
                 <View style={[styles.addonGroupLabel, styles.removeGroupLabel]}>
                   <Text style={[styles.addonGroupTitle, styles.removeGroupTitle]}>Remove Ingredients</Text>
@@ -490,9 +449,7 @@ export const PosMenuPane = React.memo(function PosMenuPane(props: Props) {
                 </View>
               </View>
             )}
-
-            <FlatList
-              data={editorAddonGroups}
+              </>}
               keyExtractor={(item) => item.id}
               style={styles.addonList}
               ListEmptyComponent={(
@@ -506,29 +463,28 @@ export const PosMenuPane = React.memo(function PosMenuPane(props: Props) {
                   <View
                     style={[
                       styles.addonGroup,
-                      { backgroundColor: groupPalette.backgroundColor, borderColor: groupPalette.borderColor },
+                      props.editorError?.includes(group.name) ? { borderColor: tokens.color.danger, borderWidth: 2 } : null,
+                      { backgroundColor: tokens.color.surface, borderColor: tokens.color.border },
                     ]}
                   >
-                    <View style={[styles.addonGroupLabel, { backgroundColor: groupPalette.labelColor }]}>
+                    <View style={styles.modifierHeading}>
                       <Text style={styles.addonGroupTitle}>{group.name}</Text>
+                      <Text style={[styles.modifierRequirement, group.is_required && styles.modifierRequirementRequired]}>
+                        {group.is_required ? 'Required' : 'Optional'} · {group.multiple_choice ? 'Choose multiple' : 'Choose 1'}
+                      </Text>
                     </View>
-                    <Text style={styles.groupRequirementText}>
-                      {group.is_required ? 'Required selection' : group.multiple_choice ? 'Optional, choose multiple' : 'Optional, choose one'}
-                    </Text>
                     <View style={styles.optionGrid}>
                       {group.items.map((item) => {
                         const quantity = editorAddonQuantities[item.id] || 0;
                         const selected = quantity > 0;
                         const optionContent = (
                           <>
-                            <Text style={[styles.optionText, selected && styles.optionTextSelected]} numberOfLines={2}>
+                            <Text style={[styles.optionText, selected && styles.optionTextSelected]} >
                               {item.name}
                             </Text>
-                            {item.extra_price > 0 && (
-                              <Text style={[styles.optionPrice, selected && styles.optionTextSelected]}>
-                                +${item.extra_price.toFixed(2)}
-                              </Text>
-                            )}
+                            <Text style={[styles.optionPrice, selected && styles.optionTextSelected]}>
+                              {item.extra_price > 0 ? `+$${item.extra_price.toFixed(2)}` : 'Included'}
+                            </Text>
                           </>
                         );
 
@@ -565,6 +521,7 @@ export const PosMenuPane = React.memo(function PosMenuPane(props: Props) {
                           <TouchableOpacity
                             key={item.id}
                             accessibilityRole="button"
+                            accessibilityState={{ selected }}
                             accessibilityLabel={selected ? `Remove ${item.name}` : `Add ${item.name}`}
                             style={[styles.optionButton, { width: addonOptionWidth }, selected && styles.optionButtonSelected]}
                             onPress={() => changeAddonQuantity(group, item, selected ? -1 : 1)}
@@ -579,37 +536,27 @@ export const PosMenuPane = React.memo(function PosMenuPane(props: Props) {
               }}
             />
 
+            {!!props.editorError && <Text accessibilityRole="alert" style={styles.editorError}>{props.editorError}</Text>}
+            <View style={styles.selectedModifierSummary}><Text style={styles.selectedModifierSummaryText}>Current item: {editorAddonGroups.flatMap((group) => group.items.filter((item) => (editorAddonQuantities[item.id] || 0) > 0).map((item) => `${group.name}: ${item.name} ×${editorAddonQuantities[item.id]}`)).join(' · ') || 'No add-ons'}{props.editorNote ? ` · Note: ${props.editorNote}` : ''}</Text></View>
             <View style={styles.addonSummaryBar}>
-              <View style={styles.addonSummaryText}>
-                <Text style={styles.addonSummaryTitle}>
-                  {addonSelectionCount > 0 ? `${addonSelectionCount} selections` : 'No selections yet'}
-                </Text>
-                <Text style={styles.addonSummaryMeta}>
-                  {addonSelectionTotal > 0 ? `Add-ons +$${addonSelectionTotal.toFixed(2)}` : 'Continue when the item looks right'}
-                </Text>
+              <View style={styles.qtyStepper}>
+                <Button compact accessibilityLabel="Reduce item quantity" onPress={() => props.onEditorQuantityChange(Math.max(1, props.editorQuantity - 1))} contentStyle={{ minHeight: 48 }}>−</Button>
+                <Text style={styles.cartQuantity}>{props.editorQuantity}</Text>
+                <Button compact accessibilityLabel="Increase item quantity" onPress={() => props.onEditorQuantityChange(props.editorQuantity + 1)} contentStyle={{ minHeight: 48 }}>+</Button>
               </View>
-              <Button
-                mode="contained"
-                icon="arrow-right"
-                onPress={backToItems}
-                style={styles.addonSummaryButton}
-                contentStyle={styles.levelFooterButtonContent}
-              >
+              <Button mode="outlined" onPress={() => { setNoteDraft(props.editorNote); setNoteVisible(true); }} contentStyle={{ minHeight: 48 }}>Item note{props.editorNote ? ' •' : ''}</Button>
+              <Text style={{ marginLeft: 'auto', color: tokens.color.text, fontSize: 20, fontWeight: '700' }}>${((selectedProduct.sale_price + addonSelectionTotal) * props.editorQuantity).toFixed(2)}</Text><Button mode="contained" onPress={props.onConfirmEditor} style={styles.addonSummaryButton} contentStyle={{ minHeight: 52 }}>
                 Continue
               </Button>
             </View>
 
-            <View style={styles.editorActions}>
-              <Button mode="outlined" icon="arrow-left" onPress={backToGroups} style={styles.editorActionButton}>
-                Back to Groups
-              </Button>
-              <Button mode="contained" icon="cash-register" onPress={openCheckout} style={styles.editorActionButton}>
-                Checkout
-              </Button>
-            </View>
           </View>
         </>
       )}
+
+      <EditorSheet visible={noteVisible} title="Item note" onDismiss={() => setNoteVisible(false)} footer={(dismiss) => <><Button onPress={dismiss}>Cancel</Button><Button mode="contained" onPress={() => { props.onEditorNoteChange(noteDraft); setNoteVisible(false); }} contentStyle={{ minHeight: 52 }}>Save note</Button></>}>
+        <Text style={{ color: tokens.color.text, fontWeight: '700', fontSize: 13 }}>Quick notes</Text><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{(props.quickItemNotes || []).map(note => <Button mode="outlined" key={note} onPress={() => setNoteDraft(current => toggleNotePreset(current, note))}>{note}</Button>)}</View><FormField label="Item note" value={noteDraft} onChangeText={setNoteDraft} multiline autoFocus />
+      </EditorSheet>
 
       {menuLevel === 'checkout' && (
         <PosCheckoutPanel
@@ -682,24 +629,38 @@ export const PosMenuPane = React.memo(function PosMenuPane(props: Props) {
 
       {menuLevel === 'quick-list' && (
         <>
-          <View style={styles.menuHeader}>
-            <Button mode="outlined" icon="arrow-left" onPress={() => setQuickListVisible(false)} style={styles.backButton}>
-              Back
-            </Button>
-            <View style={styles.menuHeaderText}>
-              <Text style={styles.menuTitle}>Quick List</Text>
-              <Text style={styles.menuSubtitle}>{quickAccessProducts.length} quick items</Text>
-            </View>
+          <View style={styles.productContext}>
+            <HeaderIconButton icon="arrow-left" accessibilityLabel="Back to groups" onPress={backToGroups} />
+            <Text style={[styles.contextTitle, { flex: 1, textAlign: 'center' }]}>Quick list</Text>
+            {topSellers.length > 0 ? <Button compact onPress={() => setTopSellersExpanded(value => !value)} accessibilityState={{ expanded: topSellersExpanded }} contentStyle={{ minHeight: 40 }} labelStyle={{ fontSize: 12 }}>Top sellers</Button> : <Text style={styles.menuSubtitle}>Favourites</Text>}
           </View>
+          {topSellersExpanded && topSellers.length > 0 && (
+            <View style={[styles.topSellersSection, { flexShrink: 0, minHeight: 142 }]}>
+              <FlatList
+                data={topSellers}
+                keyExtractor={(item) => item.id}
+                horizontal
+                style={{ flexGrow: 0 }}
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.topSellersList}
+                renderItem={({ item }) => {
+                  return <View style={{ width: 190 }}><PosProductTile accent={productTilePalette(item.id).borderColor} layout={props.layout} tileConfig={findPosProductConfig(props.layout, item.id)} product={item} groupName={`${item.total_quantity_sold} sold`} columns={1} quantity={quickQuantityForProduct(item.id)} hasAddons={props.hasAddons(item.id)} onPress={() => void quickAddProduct(item)} /></View>;
+                }}
+              />
+            </View>
+          )}
           {quickAccessProducts.length > 0 ? (
             <ProductGrid
+              layout={props.layout}
               data={quickAccessProducts}
               gridColumns={quickListColumns}
               listKey="quick-list"
               contentContainerStyle={styles.quickListGrid}
               getQuantity={quickQuantityForProduct}
-              onPressProduct={(item) => void quickAddProduct(item, { forcePlainAdd: true, skipCustomization: true })}
+              onPressProduct={(item) => void quickAddProduct(item)}
               productTilePalette={productTilePalette}
+              hasAddons={props.hasAddons}
+              getGroupName={props.getProductGroupName}
             />
           ) : (
             <View style={styles.emptyState}>
@@ -709,22 +670,11 @@ export const PosMenuPane = React.memo(function PosMenuPane(props: Props) {
               </Text>
             </View>
           )}
-          <View style={styles.levelFooter}>
-            <Button
-              mode="outlined"
-              icon="arrow-left"
-              onPress={() => setQuickListVisible(false)}
-              style={styles.levelFooterButton}
-              contentStyle={styles.levelFooterButtonContent}
-              labelStyle={styles.levelFooterButtonLabel}
-            >
-              Back
-            </Button>
-          </View>
+
         </>
       )}
 
-      {menuLevel !== 'groups' && menuLevel !== 'items' && menuLevel !== 'addons' && menuLevel !== 'quick-list' && (
+      {menuLevel !== 'groups' && menuLevel !== 'items' && menuLevel !== 'addons' && menuLevel !== 'quick-list' && menuLevel !== 'checkout' && (
         <View pointerEvents="box-none" style={styles.quickListButtonWrap}>
           <Button
             mode="contained"
@@ -740,24 +690,25 @@ export const PosMenuPane = React.memo(function PosMenuPane(props: Props) {
         </View>
       )}
 
-      {isPhoneLayout && cartItemsCount > 0 && onOpenCart && menuLevel !== 'checkout' && (
+      {isPhoneLayout && onOpenCart && menuLevel !== 'checkout' && (
         <TouchableOpacity
           style={styles.phoneFloatingCartBar}
           onPress={onOpenCart}
+          disabled={cartItemsCount === 0}
           activeOpacity={0.85}
           accessibilityRole="button"
           accessibilityLabel={`View cart with ${cartItemsCount} items total ${totals.subtotal.toFixed(2)}`}
         >
           <View style={styles.phoneFloatingCartInfo}>
             <Text style={styles.phoneFloatingCartTitle}>
-              Cart ({cartItemsCount} {cartItemsCount === 1 ? 'item' : 'items'})
+              Order ({cartItemsCount} {cartItemsCount === 1 ? 'item' : 'items'})
             </Text>
             <Text style={styles.phoneFloatingCartSub}>
               Subtotal: ${totals.subtotal.toFixed(2)}
             </Text>
           </View>
           <View style={styles.phoneFloatingCartButton}>
-            <Text style={styles.phoneFloatingCartButtonText}>View Cart & Checkout →</Text>
+            <Text style={styles.phoneFloatingCartButtonText}>View order →</Text>
           </View>
         </TouchableOpacity>
       )}
@@ -766,6 +717,7 @@ export const PosMenuPane = React.memo(function PosMenuPane(props: Props) {
 });
 
 function ProductGrid({
+  layout, layoutCategoryId,
   data,
   gridColumns,
   listKey,
@@ -774,7 +726,12 @@ function ProductGrid({
   getQuantity,
   onPressProduct,
   productTilePalette,
+  hasAddons,
+  getGroupName,
 }: {
+  layout?: PosLayoutData | null; layoutCategoryId?: string;
+  hasAddons?: (productId: string) => boolean;
+  getGroupName?: (product: SaleProduct) => string;
   data: SaleProduct[];
   gridColumns: number;
   listKey: string;
@@ -796,31 +753,8 @@ function ProductGrid({
           <Text style={styles.emptyTitle}>{emptyText}</Text>
         </View>
       ) : null}
-      renderItem={({ item }) => {
-        const quickQuantity = getQuantity(item.id);
-        const tilePalette = productTilePalette(item.id);
-        return (
-          <TouchableOpacity
-            style={[
-              styles.productCard,
-              { backgroundColor: tilePalette.backgroundColor, borderColor: tilePalette.borderColor },
-            ]}
-            onPress={() => onPressProduct(item)}
-          >
-            {quickQuantity > 0 && (
-              <View style={styles.productQuantityBadge}>
-                <Text style={styles.productQuantityText}>{quickQuantity}</Text>
-              </View>
-            )}
-            <View style={styles.productNameArea}>
-              <Text style={styles.productName} numberOfLines={3}>{item.name}</Text>
-            </View>
-            <View style={[styles.productPricePill, { backgroundColor: tilePalette.priceColor }]}>
-              <Text style={styles.productPrice}>${item.sale_price.toFixed(2)}</Text>
-            </View>
-          </TouchableOpacity>
-        );
-      }}
+      renderItem={({ item }) => <PosProductTile layout={layout} tileConfig={findPosProductConfig(layout, item.id, layoutCategoryId)} product={item} groupName={getGroupName?.(item) || 'Menu'} quantity={getQuantity(item.id)} hasAddons={Boolean(hasAddons?.(item.id))} accent={productTilePalette(item.id).borderColor} columns={gridColumns} onPress={() => onPressProduct(item)} />}
+
     />
   );
 }

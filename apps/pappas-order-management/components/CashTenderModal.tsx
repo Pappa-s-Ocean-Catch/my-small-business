@@ -1,6 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Button, Surface } from 'react-native-paper';
+import { ActionButton as Button } from '@/components/ui/ActionButton';
+import React, { useEffect, useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Icon } from 'react-native-paper';
+import { EditorSheet, FormField, designTokens as tokens } from '@/components/ui';
 
 type CashTenderModalProps = {
   visible: boolean;
@@ -11,166 +13,128 @@ type CashTenderModalProps = {
 
 const QUICK_NOTES = [5, 10, 20, 50, 100];
 const KEYS = ['7', '8', '9', '4', '5', '6', '1', '2', '3', '.', '0', 'back'];
+const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
-const money = (value: number) => `$${value.toFixed(2)}`;
+// Parse decimal digits directly so change and coverage are compared in whole cents.
+const centsFromText = (text: string) => {
+  const [dollars = '', fraction = ''] = text.split('.');
+  return Number(dollars || '0') * 100 + Number(fraction.padEnd(2, '0'));
+};
 
 export function CashTenderModal({ visible, total, onCancel, onConfirm }: CashTenderModalProps) {
-  const defaultTender = 50;
-  const [amountText, setAmountText] = useState(String(defaultTender));
+  const [amountText, setAmountText] = useState('50.00');
+  const [confirming, setConfirming] = useState(false);
+  const confirmed = useRef(false);
+  const replaceOnKey = useRef(true);
 
   useEffect(() => {
     if (visible) {
-      setAmountText(String(defaultTender));
+      setAmountText('50.00');
+      setConfirming(false);
+      confirmed.current = false;
+      replaceOnKey.current = true;
     }
-  }, [defaultTender, visible]);
+  }, [visible]);
 
-  const tendered = Number(amountText) || 0;
-  const change = tendered - total;
-  const canConfirm = tendered >= total;
+  const totalCents = Math.round(total * 100);
+  const tenderedCents = centsFromText(amountText);
+  const changeCents = tenderedCents - totalCents;
+  const canConfirm = Number.isSafeInteger(tenderedCents) && Number.isSafeInteger(totalCents)
+    && totalCents >= 0 && tenderedCents >= totalCents && !confirming;
 
-  const displayTender = useMemo(() => {
-    if (!amountText) return '$0.00';
-    return money(tendered);
-  }, [amountText, tendered]);
-
+  const updateAmount = (text: string) => {
+    if (!/^\d{0,7}(\.\d{0,2})?$/.test(text)) return;
+    replaceOnKey.current = false;
+    setAmountText(text);
+  };
+  const selectAmount = (text: string) => {
+    setAmountText(text);
+    replaceOnKey.current = true;
+  };
   const pressKey = (key: string) => {
     if (key === 'back') {
-      setAmountText((prev) => prev.slice(0, -1));
+      replaceOnKey.current = false;
+      setAmountText((previous) => previous.slice(0, -1));
       return;
     }
-
-    if (key === '.' && amountText.includes('.')) return;
-
-    setAmountText((prev) => {
-      const next = prev === '0' && key !== '.' ? key : `${prev}${key}`;
-      const [, decimals = ''] = next.split('.');
-      if (decimals.length > 2) return prev;
-      return next;
-    });
+    const previous = replaceOnKey.current ? '' : amountText;
+    updateAmount(key === '.' && !previous ? '0.' : previous === '0' && key !== '.' ? key : `${previous}${key}`);
+  };
+  const confirm = () => {
+    if (!canConfirm || confirmed.current) return;
+    confirmed.current = true;
+    setConfirming(true);
+    onConfirm(tenderedCents / 100);
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-      <View style={styles.overlay}>
-        <Surface style={styles.panel} elevation={4}>
-          <Text style={styles.title}>Cash tender</Text>
+    <EditorSheet
+      visible={visible}
+      title="Cash tender"
 
-          <View style={styles.summary}>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Total</Text>
-              <Text style={styles.totalValue}>{money(total)}</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Tendered</Text>
-              <Text style={styles.tenderValue}>{displayTender}</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Change</Text>
-              <Text style={[styles.changeValue, change < 0 && styles.shortValue]}>
-                {change >= 0 ? money(change) : `${money(Math.abs(change))} short`}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.quickRow}>
-            {QUICK_NOTES.map((note) => (
-              <TouchableOpacity
-                key={note}
-                style={[styles.quickNote, tendered === note && styles.quickNoteSelected]}
-                onPress={() => setAmountText(String(note))}
-              >
-                <Text style={[styles.quickNoteText, tendered === note && styles.quickNoteTextSelected]}>
-                  ${note}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <View style={styles.keypad}>
-            {KEYS.map((key) => (
-              <TouchableOpacity key={key} style={styles.key} onPress={() => pressKey(key)}>
-                <Text style={styles.keyText}>{key === 'back' ? 'DEL' : key}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <View style={styles.actions}>
-            <Button mode="outlined" onPress={onCancel} style={styles.actionButton}>
-              Cancel
-            </Button>
-            <Button
-              mode="contained"
-              disabled={!canConfirm}
-              onPress={() => onConfirm(tendered)}
-              style={styles.actionButton}
-              buttonColor="#16a34a"
-            >
-              Confirm cash
-            </Button>
-          </View>
-        </Surface>
+      onDismiss={onCancel}
+      pending={confirming}
+      footer={<>
+        <Button mode="outlined" onPress={onCancel} disabled={confirming} style={styles.action} contentStyle={styles.actionContent}>Cancel</Button>
+        <Button mode="contained" onPress={confirm} disabled={!canConfirm} loading={confirming} buttonColor={tokens.color.primary} style={styles.action} contentStyle={styles.actionContent}>Confirm cash payment</Button>
+      </>}
+    >
+      <View style={styles.summary}>
+        <Text style={styles.summaryLabel}>Amount due</Text>
+        <Text style={styles.totalValue}>{money(totalCents)}</Text>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Tendered</Text>
+          <Text style={styles.tenderValue}>{money(tenderedCents)}</Text>
+        </View>
+        <View style={styles.summaryRow} accessibilityLiveRegion="polite">
+          <Text style={styles.summaryLabel}>{changeCents < 0 ? 'Amount short' : 'Change'}</Text>
+          <Text style={[styles.changeValue, changeCents < 0 && styles.shortValue]}>{money(Math.abs(changeCents))}</Text>
+        </View>
       </View>
-    </Modal>
+      <FormField label="Amount tendered" value={amountText} onChangeText={updateAmount} keyboardType="decimal-pad" selectTextOnFocus disabled={confirming} />
+      <View style={styles.quickRow}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Tender exact amount" style={({ pressed }) => [styles.quickNote, pressed && styles.pressed]} onPress={() => selectAmount((totalCents / 100).toFixed(2))}>
+          <Text style={styles.quickNoteText}>Exact</Text>
+        </Pressable>
+        {QUICK_NOTES.map((note) => (
+          <Pressable key={note} accessibilityRole="button" accessibilityLabel={`Tender ${note} dollars`} accessibilityState={{ selected: tenderedCents === note * 100 }} style={({ pressed }) => [styles.quickNote, tenderedCents === note * 100 && styles.quickNoteSelected, pressed && styles.pressed]} onPress={() => selectAmount(note.toFixed(2))}>
+            <Text style={[styles.quickNoteText, tenderedCents === note * 100 && styles.quickNoteTextSelected]}>${note}</Text>
+          </Pressable>
+        ))}
+      </View>
+      <View style={styles.keypad}>
+        {Array.from({ length: 4 }, (_, row) => <View style={styles.keyRow} key={row}>
+          {KEYS.slice(row * 3, row * 3 + 3).map((key) => (
+            <Pressable accessibilityRole="button" accessibilityLabel={key === 'back' ? 'Backspace' : key === '.' ? 'Decimal point' : key} key={key} style={({ pressed }) => [styles.key, pressed && styles.pressed]} onPress={() => pressKey(key)}>
+              {key === 'back' ? <Icon source="backspace-outline" size={27} color={tokens.color.text} /> : <Text style={styles.keyText}>{key}</Text>}
+            </Pressable>
+          ))}
+        </View>)}
+      </View>
+      <Button mode="outlined" onPress={() => { replaceOnKey.current = false; setAmountText(''); }} style={styles.clear} contentStyle={styles.actionContent}>Clear tender</Button>
+    </EditorSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(17, 24, 39, 0.62)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 18,
-  },
-  panel: {
-    width: '100%',
-    maxWidth: 420,
-    borderRadius: 8,
-    backgroundColor: '#fff',
-    padding: 18,
-  },
-  title: { color: '#111827', fontSize: 22, fontWeight: '900', marginBottom: 14 },
-  summary: { borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, overflow: 'hidden' },
-  summaryRow: {
-    minHeight: 46,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-  },
-  summaryLabel: { color: '#6b7280', fontSize: 15, fontWeight: '700' },
-  totalValue: { color: '#111827', fontSize: 18, fontWeight: '900' },
-  tenderValue: { color: '#2563eb', fontSize: 22, fontWeight: '900' },
-  changeValue: { color: '#16a34a', fontSize: 22, fontWeight: '900' },
-  shortValue: { color: '#dc2626', fontSize: 18 },
-  quickRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
-  quickNote: {
-    flex: 1,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    backgroundColor: '#f9fafb',
-  },
-  quickNoteSelected: { borderColor: '#2563eb', backgroundColor: '#dbeafe' },
-  quickNoteText: { color: '#111827', fontSize: 15, fontWeight: '900' },
-  quickNoteTextSelected: { color: '#1d4ed8' },
-  keypad: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
-  key: {
-    width: '31.8%',
-    minHeight: 58,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
-    backgroundColor: '#f3f4f6',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  keyText: { color: '#111827', fontSize: 24, fontWeight: '900' },
-  actions: { flexDirection: 'row', gap: 10, marginTop: 16 },
-  actionButton: { flex: 1, borderRadius: 8 },
+  summary: { backgroundColor: tokens.color.navy, borderRadius: tokens.radius.card, padding: 20, gap: 10 },
+  summaryRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  summaryLabel: { color: tokens.color.surface, fontSize: 16 },
+  totalValue: { color: tokens.color.surface, fontSize: 39, fontWeight: '700', marginBottom: 8, fontVariant: ['tabular-nums'] },
+  tenderValue: { color: tokens.color.surface, fontSize: 17, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  changeValue: { color: '#A0DFC3', fontSize: 24, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  shortValue: { color: '#FFCECB' },
+  quickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  quickNote: { minWidth: 48, minHeight: 48, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', borderRadius: tokens.radius.control, borderWidth: 1, borderColor: tokens.color.border, backgroundColor: tokens.color.surface },
+  quickNoteSelected: { borderColor: tokens.color.primary, backgroundColor: tokens.color.primaryTint },
+  quickNoteText: { color: tokens.color.text, fontSize: 15, fontWeight: '700' },
+  quickNoteTextSelected: { color: tokens.color.primaryPressed },
+  keypad: { gap: 10 },
+  keyRow: { flexDirection: 'row', gap: 10 },
+  key: { flex: 1, minHeight: 62, alignItems: 'center', justifyContent: 'center', borderRadius: tokens.radius.control, backgroundColor: tokens.color.surface, borderWidth: 1, borderColor: tokens.color.border },
+  pressed: { opacity: 0.65 },
+  keyText: { color: tokens.color.text, fontSize: 24, fontWeight: '700' },
+  clear: { alignSelf: 'flex-start', borderRadius: tokens.radius.control, borderColor: tokens.color.border },
+  action: { borderRadius: tokens.radius.control },
+  actionContent: { minHeight: tokens.touch.primaryHeight },
 });

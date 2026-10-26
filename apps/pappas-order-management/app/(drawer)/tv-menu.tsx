@@ -1,15 +1,18 @@
+import { Switch } from '@/components/ui/Switch';
+import { ActionButton as Button } from '@/components/ui/ActionButton';
+import { EditorSheet } from '@/components/ui/EditorSheet';
+import { Panel, StatusBadge } from '@/components/ui';
+import { WorkspaceHeader } from '@/components/ui';
+import { designTokens as t } from '@/lib/redesign';
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, FlatList, Alert, Image, Modal, Platform, useWindowDimensions } from 'react-native';
-import { Text, Button, Card, ActivityIndicator, IconButton, Switch, useTheme, Appbar } from 'react-native-paper';
+import { View, StyleSheet, FlatList, Alert, Image, Platform, useWindowDimensions } from 'react-native';
+import { Text, ActivityIndicator } from 'react-native-paper';
 import { supabase } from '@/lib/supabase';
 import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { uploadTVMenuImage, getImageDownloadName, downloadAndShareMenuImage } from '@/lib/tv-menu-images';
-import { useNavigation } from '@react-navigation/native';
-import { DrawerNavigationProp } from '@react-navigation/drawer';
 
 type TVMenu = {
   id: string;
@@ -23,12 +26,16 @@ export default function TVMenuScreen() {
   const [menus, setMenus] = useState<TVMenu[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const theme = useTheme();
   const [preview, setPreview] = useState<TVMenu | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
-  const { height } = useWindowDimensions();
+  const { height, width } = useWindowDimensions();
+  const [contentWidth, setContentWidth] = useState(0);
+  const [dimensions, setDimensions] = useState<Record<string, { width: number; height: number }>>({});
+  const columns = contentWidth >= 1100 ? 3 : contentWidth >= 700 ? 2 : 1;
+  const gutter = contentWidth >= 1100 ? 16 : 12;
+  const cardWidth = Math.max(0, (contentWidth - gutter * 2 - (columns - 1) * 16) / columns);
 
   useEffect(() => {
     fetchMenus();
@@ -171,9 +178,9 @@ export default function TVMenuScreen() {
         .from('tv_menus')
         .update({ is_active: !currentStatus })
         .eq('id', id);
-      
+
       if (error) throw error;
-      
+
       setMenus(menus.map(m => m.id === id ? { ...m, is_active: !currentStatus } : m));
     } catch (error: any) {
       Alert.alert('Error', error.message);
@@ -187,7 +194,7 @@ export default function TVMenuScreen() {
 
     const newMenus = [...menus];
     const swapIndex = direction === 'up' ? index - 1 : index + 1;
-    
+
     // Swap items
     const temp = newMenus[index];
     newMenus[index] = newMenus[swapIndex];
@@ -210,106 +217,26 @@ export default function TVMenuScreen() {
   };
 
   const renderItem = ({ item, index }: { item: TVMenu; index: number }) => (
-    <Card style={styles.card}>
-      <View style={styles.cardContent}>
-        <Image source={{ uri: item.url }} style={styles.thumbnail} resizeMode="contain" accessibilityLabel={item.name} />
-        <View style={styles.menuInfo}>
-          <Text style={styles.menuName} numberOfLines={1}>{item.name}</Text>
-          <View style={styles.actionRow}>
-            <Text style={{ marginRight: 8, color: item.is_active ? theme.colors.primary : 'gray' }}>
-              {item.is_active ? 'Active' : 'Inactive'}
-            </Text>
-            <Switch
-              value={item.is_active}
-              onValueChange={() => toggleActive(item.id, item.is_active)}
-            />
-          </View>
-        </View>
-        <View style={styles.orderingControls}>
-          <IconButton
-            icon="chevron-up"
-            disabled={index === 0}
-            onPress={() => moveOrder(index, 'up')}
-          />
-          <IconButton
-            icon="chevron-down"
-            disabled={index === menus.length - 1}
-            onPress={() => moveOrder(index, 'down')}
-          />
-        </View>
-        <IconButton
-          icon="delete"
-          iconColor="red"
-          onPress={() => deleteMenu(item.id, item.url)}
-        />
-      </View>
-      <Card.Actions style={styles.imageActions}>
-        <Button icon="image-search" onPress={() => openPreview(item)} accessibilityLabel={`Preview ${item.name}`}>Preview</Button>
-        <Button icon="download" onPress={() => downloadMenu(item)} loading={downloadingId === item.id} disabled={downloadingId !== null} accessibilityLabel={`Download ${item.name}`}>Download</Button>
-      </Card.Actions>
-    </Card>
+    <Panel style={{ width: cardWidth, flexGrow: 0, flexShrink: 0, gap: 14, padding: width < 600 ? 18 : 20 }}>
+      <Image source={{ uri: item.url }} style={{ width: '100%', aspectRatio: 16 / 9, borderRadius: 10, backgroundColor: t.color.navy }} resizeMode="contain" accessibilityLabel={item.name} onLoad={(event) => { const { width, height } = event.nativeEvent.source; setDimensions((prev) => ({ ...prev, [item.id]: { width, height } })); }} />
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Text style={{ flex: 1, fontSize: 18, fontWeight: '700', color: t.color.text }}>{item.name}</Text><StatusBadge label={item.is_active ? 'Active' : 'Inactive'} tone={item.is_active ? 'success' : 'neutral'} /></View>
+      <Text style={{ color: t.color.muted, fontSize: 14 }}>{dimensions[item.id] ? `${dimensions[item.id].width} × ${dimensions[item.id].height} · ` : ''}Position {index + 1}</Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}><Button mode="outlined" contentStyle={{ minHeight: 48 }} onPress={() => openPreview(item)} accessibilityLabel={`Preview ${item.name}`}>Preview</Button><Button mode="outlined" contentStyle={{ minHeight: 48 }} onPress={() => downloadMenu(item)} loading={downloadingId === item.id} disabled={downloadingId !== null}>Download</Button></View>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}><Button mode="outlined" contentStyle={{ minHeight: 48 }} disabled={index === 0} accessibilityLabel={`Move ${item.name} up`} onPress={() => moveOrder(index, 'up')}>Move ↑</Button><Button mode="outlined" contentStyle={{ minHeight: 48 }} disabled={index === menus.length - 1} accessibilityLabel={`Move ${item.name} down`} onPress={() => moveOrder(index, 'down')}>Move ↓</Button><Button mode="outlined" contentStyle={{ minHeight: 48 }} textColor={t.color.danger} style={{ backgroundColor: t.color.dangerTint }} onPress={() => deleteMenu(item.id, item.url)}>Delete</Button></View>
+      <View style={{ minHeight: 64, borderBottomWidth: 1, borderColor: t.color.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text>Visible on TV</Text><Switch accessibilityLabel={`Show ${item.name} on TV`} value={item.is_active} onValueChange={() => toggleActive(item.id, item.is_active)} /></View>
+    </Panel>
   );
 
-  const navigation = useNavigation<DrawerNavigationProp<any>>();
 
-  return (
-    <>
-      <Modal visible={preview !== null} animationType="fade" onRequestClose={() => setPreview(null)}>
-        <SafeAreaView style={[styles.previewContainer, { backgroundColor: theme.colors.background }]}>
-          <Appbar.Header statusBarHeight={0}>
-            <Appbar.Content title={preview?.name || 'Image preview'} />
-            <Appbar.Action icon="close" accessibilityLabel="Close image preview" onPress={() => setPreview(null)} />
-          </Appbar.Header>
-          <View style={styles.previewBody}>
-            {preview && <Image
-              key={preview.id}
-              source={{ uri: preview.url }}
-              style={[styles.previewImage, { height: height * 0.65 }]}
-              resizeMode="contain"
-              accessibilityLabel={preview.name}
-              onLoad={() => setPreviewLoading(false)}
-              onError={() => { setPreviewLoading(false); setPreviewError(true); }}
-            />}
-            {previewLoading && <ActivityIndicator style={styles.previewIndicator} accessibilityLabel="Loading image preview" />}
-            {previewError && <Text role="alert">Could not load this image. Check your connection and reopen the preview.</Text>}
-          </View>
-          <Button style={styles.previewDownload} mode="contained" icon="download" loading={downloadingId === preview?.id} disabled={downloadingId !== null} onPress={() => preview && downloadMenu(preview)}>Download image</Button>
-          <Text style={styles.downloadHint}>Choose where to save or share the image.</Text>
-        </SafeAreaView>
-      </Modal>
-      <Appbar.Header style={{ backgroundColor: theme.colors.primary }}>
-        <Appbar.Action icon="menu" onPress={() => navigation.openDrawer()} iconColor="#fff" />
-        <Appbar.Content title="TV Menu Management" titleStyle={{ color: '#fff' }} />
-      </Appbar.Header>
-      <View style={styles.container}>
-      
-      <View style={styles.header}>
-        <Button
-          mode="contained"
-          icon="upload"
-          onPress={uploadMenu}
-          loading={uploading}
-          disabled={uploading}
-        >
-          Upload New Menu Image
-        </Button>
-      </View>
-
-      {loading ? (
-        <ActivityIndicator style={{ marginTop: 50 }} size="large" />
-      ) : menus.length === 0 ? (
-        <Text style={styles.emptyText}>No menu images found. Upload one to get started.</Text>
-      ) : (
-        <FlatList
-          data={menus}
-          keyExtractor={item => item.id}
-          renderItem={renderItem}
-          contentContainerStyle={styles.list}
-        />
-      )}
-    </View>
-    </>
-  );
+  return <View style={{ flex: 1, backgroundColor: t.color.background }} onLayout={(event) => setContentWidth(event.nativeEvent.layout.width)}>
+    <EditorSheet visible={preview !== null} title="Preview menu image" subtitle={preview?.name} size="wide" onDismiss={() => setPreview(null)} footer={<><Button mode="outlined" contentStyle={{ minHeight: 48 }} onPress={() => setPreview(null)}>Close</Button><Button mode="contained" contentStyle={{ minHeight: 48 }} loading={downloadingId === preview?.id} disabled={downloadingId !== null} onPress={() => preview && downloadMenu(preview)}>Download image</Button></>}>
+      <View style={{ alignItems: 'center', justifyContent: 'center' }}>{preview && <Image key={preview.id} source={{ uri: preview.url }} style={{ width: '100%', height: Math.min(480, height * 0.55), borderRadius: 10, backgroundColor: t.color.navy }} resizeMode="contain" accessibilityLabel={preview.name} onLoad={() => setPreviewLoading(false)} onError={() => { setPreviewLoading(false); setPreviewError(true); }} />}{previewLoading && <ActivityIndicator style={{ position: 'absolute' }} accessibilityLabel="Loading image preview" />}</View>
+      {previewError && <Text role="alert">Could not load this image. Check your connection and reopen the preview.</Text>}
+    </EditorSheet>
+    <WorkspaceHeader title="TV menus" />
+    <View style={{ paddingHorizontal: gutter, paddingVertical: width < 600 ? 24 : 16, flexDirection: width < 600 ? 'column' : 'row', gap: 16, alignItems: width < 600 ? 'stretch' : 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}><Text style={{ color: t.color.muted }}>Menu images displayed on your connected TVs.</Text><Button mode="contained" contentStyle={{ minHeight: 48 }} onPress={uploadMenu} loading={uploading} disabled={uploading}>Upload menu image</Button></View>
+    {loading ? <ActivityIndicator style={{ marginTop: 50 }} size="large" /> : menus.length === 0 ? <Text style={styles.emptyText}>No menu images found. Upload one to get started.</Text> : <FlatList key={columns} numColumns={columns} data={menus} keyExtractor={(item) => item.id} renderItem={renderItem} contentContainerStyle={{ paddingHorizontal: gutter, paddingBottom: 28, gap: 16 }} columnWrapperStyle={columns > 1 ? { gap: 16, alignItems: 'flex-start' } : undefined} />}
+  </View>;
 }
 
 const styles = StyleSheet.create({
@@ -322,34 +249,39 @@ const styles = StyleSheet.create({
   downloadHint: { textAlign: 'center', margin: 16 },
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: t.color.background,
   },
   header: {
     padding: 16,
     backgroundColor: 'white',
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: t.color.border,
   },
   list: {
     padding: 16,
   },
   card: {
     marginBottom: 12,
+    backgroundColor: t.color.surface,
+    borderWidth: 1, borderColor: t.color.border,
+    borderRadius: t.radius.card,
   },
   cardContent: {
     flexDirection: 'row',
-    padding: 12,
+    flexWrap: 'wrap', gap: 12,
+    padding: 16,
     alignItems: 'center',
   },
   thumbnail: {
     width: 80,
     height: 60,
-    borderRadius: 8,
+    borderRadius: t.radius.card,
     backgroundColor: '#e0e0e0',
   },
   menuInfo: {
     flex: 1,
-    marginLeft: 16,
+    minWidth: 140,
+    marginLeft: 0,
   },
   menuName: {
     fontSize: 16,

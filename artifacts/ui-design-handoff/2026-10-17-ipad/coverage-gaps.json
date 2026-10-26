@@ -1,0 +1,32 @@
+[
+  {
+    "area": "Data-changing actions",
+    "status": "Intentionally not triggered",
+    "detail": "Saving catalogue/customer/settings changes; creating or updating orders; sending marketing, payment links, or delivery requests; refunds, deletions, status changes, sign-out, physical printing and terminal pairing. Their success/failure/confirmation states cannot all be captured in a read-only session."
+  },
+  {
+    "area": "Integration-dependent screens",
+    "status": "Unavailable or error state captured",
+    "detail": "Marketplace credentials are not configured; delivery lists failed to load. No credentials were entered or integrations reconfigured."
+  },
+  {
+    "area": "Long-page content",
+    "status": "Partially captured",
+    "detail": "Printer scrolling succeeded through section routing and receipt options (103–106), and the journal is captured in 107. Paper-quality and instant-ticket controls below the receipt section are not captured. Later swipes did not move the visible view, including report content; customer rewards/coupons and product overview content below the current viewport are not confirmed."
+  },
+  {
+    "area": "Nested catalogue actions",
+    "status": "Blocked by interaction",
+    "detail": "Tapping nested add-on item/group edit and add-item icons selected/toggled the parent group instead of opening the form, with both computer control and Maestro. New group form is captured; individual add-on item forms and populated edit variants are not confirmed."
+  },
+  {
+    "area": "Conditional checkout overlays",
+    "status": "Not all triggered",
+    "detail": "In-store payment choice (120) and cash tender (121) are captured and cancelled. Smartpay processing, payment errors, pending online payments, free-item eligibility and pay-by-link states depend on data or business actions and are not all triggered."
+  },
+  {
+    "area": "Standalone order-detail route",
+    "status": "Not independently verified",
+    "detail": "The shared order-detail modal is captured for unpaid pickup and completed marketplace orders. The separate route requires an order ID and is not claimed as captured."
+  }
+]

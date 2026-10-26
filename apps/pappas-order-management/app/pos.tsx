@@ -1,8 +1,15 @@
+import { ActionButton as Button } from '@/components/ui/ActionButton';
+import { PosSearchSheet } from '@/components/pos/PosSearchSheet';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, FlatList, Platform, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { Alert, FlatList, KeyboardAvoidingView, Platform, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 
+import { useNavigation, usePreventRemove, type NavigationAction } from '@react-navigation/native';
 import { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { Appbar } from 'react-native-paper';
+import { Appbar, Menu } from 'react-native-paper';
+import { mergeEditableAddons, mergeEditableRemovals } from '@/components/pos/pos-draft';
+import { productGroupId } from '@/components/pos/pos-navigation';
+import { findPosProductConfig, getPosLayoutColumns, isPosTileVisible } from '@/lib/pos-layout-config';
+import { WorkspaceHeader, HeaderIconButton, EditorSheet } from '@/components/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
@@ -45,12 +52,14 @@ import { CallerIdAppbarAction } from '@/components/pos/CallerIdAppbarAction';
 import { PosCartPane } from '../components/pos/PosCartPane';
 import { useCallerId } from '@/providers/CallerIdListenerProvider';
 import { PosDialogs } from '../components/pos/PosDialogs';
+import { missingRequiredAddonGroup, planProductTap, updateAddedLine } from '../components/pos/pos-draft';
 import { PosMenuPane } from '../components/pos/PosMenuPane';
 import type { PosCheckoutTab } from '../components/pos/PosCheckoutPanel';
 import { usePendingOnlinePaymentsStore } from '../stores/pendingOnlinePaymentsStore';
 import { useMarketplacePosDraftStore } from '../stores/marketplacePosDraftStore';
 import { styles } from '../components/pos/pos.styles';
-import { isCompactPhoneWidth } from '../lib/responsive';
+import { designTokens as tokens, getPosWorkspaceLayout } from '../lib/redesign';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LIVE_ORDERS_QUERY_KEY } from '../hooks/useLiveOrdersQuery';
 import { useAppSettingsQuery } from '../hooks/useAppSettingsQuery';
 import { usePosMirrorPublisher } from '../hooks/usePosMirrorPublisher';
@@ -94,10 +103,6 @@ import type {
 } from './pos.types';
 
 const newLocalId = () => `pos-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
-const addonSelectionKey = (addons: OrderItemAddon[]) => (
-  JSON.stringify(addons.map((addon) => addon.addon_item_id).sort())
-);
 
 const addonTotal = (addons: OrderItemAddon[]) => (
   addons.reduce((sum, addon) => sum + (addon.addon_item_price || 0), 0)
@@ -273,7 +278,10 @@ export default function PosScreen() {
   const { printInstoreCustomerReceipt, printInstoreInstantTicket } = useInstoreCustomerReceiptPrint();
   const queryClient = useQueryClient();
   const router = useRouter();
-  const { width, height } = useWindowDimensions();
+  const { width, height, fontScale } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const workspaceBase = getPosWorkspaceLayout(width, fontScale);
+  const workspace = workspaceBase;
   const params = useLocalSearchParams<{ 
     orderId?: string | string[]; 
     incomingCallPhone?: string | string[];
@@ -288,12 +296,29 @@ export default function PosScreen() {
   const [products, setProducts] = useState<SaleProduct[]>([]);
   const [topSellers, setTopSellers] = useState<TopSellerProduct[]>([]);
   const [cartItems, setCartItems] = useState<PosCartItem[]>([]);
+  const cartItemsForTap = useRef(cartItems);
+  cartItemsForTap.current = cartItems;
+  const locallyChangedOptionLines = useRef(new Set<string>());
   const loadingProducts = false;
   const loadingSearchProducts = false;
   const [loadingTopSellers, setLoadingTopSellers] = useState(false);
   const [topSellerRefreshKey, setTopSellerRefreshKey] = useState(0);
   const [menuLevel, setMenuLevel] = useState<'groups' | 'subgroups' | 'items' | 'addons' | 'checkout' | 'search' | 'quick-list'>('groups');
+  const editorGroupId = useRef<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchVisible, setSearchVisible] = useState(false);
+  const [groupQuery, setGroupQuery] = useState('');
+  const [productQuery, setProductQuery] = useState('');
+  const groupScrollOffset = useRef(0);
+  const [editorQuantity, setEditorQuantity] = useState(1);
+  const [editorNote, setEditorNote] = useState('');
+  const [editorError, setEditorError] = useState<string | null>(null);
+  const [itemFeedback, setItemFeedback] = useState('');
+  useEffect(() => {
+    if (!itemFeedback) return;
+    const timer = setTimeout(() => setItemFeedback(''), 1800);
+    return () => clearTimeout(timer);
+  }, [itemFeedback]);
   const [instorePaymentDialogVisible, setInstorePaymentDialogVisible] = useState(false);
   const [searchProducts, setSearchProducts] = useState<SaleProduct[]>([]);
 
@@ -355,7 +380,26 @@ export default function PosScreen() {
   const upsertPendingOnlinePaymentSession = usePendingOnlinePaymentsStore((state) => state.upsertSession);
   const marketplaceDraft = useMarketplacePosDraftStore((state) => state.draft);
   const clearMarketplaceDraft = useMarketplacePosDraftStore((state) => state.clearDraft);
+  const [toolsVisible, setToolsVisible] = useState(false);
   const [phoneViewTab, setPhoneViewTab] = useState<'menu' | 'cart'>('menu');
+  const navigation = useNavigation();
+  const [allowLeave, setAllowLeave] = useState(false);
+  const [exitRequested, setExitRequested] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<NavigationAction | null>(null);
+  usePreventRemove(!allowLeave && (cartItems.length > 0 || Boolean(selectedProduct) || smartpayProcessing || creatingOrder), ({ data }) => {
+    if (smartpayProcessing || creatingOrder) { Alert.alert('Order in progress', 'Wait for the order or payment outcome before leaving.'); return; }
+    Alert.alert('Leave this order?', 'The current order and any unconfirmed item changes will be discarded.', [
+      { text: 'Keep ordering', style: 'cancel' },
+      { text: 'Discard and leave', style: 'destructive', onPress: () => { setPendingNavigation(data.action); setAllowLeave(true); } },
+    ]);
+  });
+  useEffect(() => {
+    if (!allowLeave) return;
+    if (pendingNavigation) navigation.dispatch(pendingNavigation);
+    else if (exitRequested) router.back();
+  }, [allowLeave, exitRequested, navigation, pendingNavigation, router]);
+  const leaveAfterSave = () => { setAllowLeave(true); setExitRequested(true); };
+
 
   const goHome = () => {
 
@@ -491,6 +535,7 @@ export default function PosScreen() {
     const ordered = (posLayout?.categories || [])
       .map((layoutCategory) => {
         if (hiddenSourceIds.has(layoutCategory.categoryId)) return null;
+        if (!isPosTileVisible(layoutCategory)) { usedIds.add(layoutCategory.categoryId); return null; }
         const sourceCategoryIds = layoutCategory.sourceCategoryIds?.length
           ? layoutCategory.sourceCategoryIds
           : [layoutCategory.categoryId];
@@ -499,7 +544,8 @@ export default function PosScreen() {
         sourceCategoryIds.forEach((categoryId) => usedIds.add(categoryId));
         return {
           id: layoutCategory.categoryId,
-          name: layoutCategory.title || categoriesById.get(sourceCategoryIds[0])?.name || 'Group',
+          productCount: catalog ? productsForCategories(catalog, sourceCategoryIds).length : 0,
+          name: layoutCategory.label || layoutCategory.title || categoriesById.get(sourceCategoryIds[0])?.name || 'Group',
           color: layoutCategory.color || DEFAULT_POS_BUTTON_COLOR,
           showProductsOnTopLevel: Boolean(layoutCategory.showProductsOnTopLevel),
         };
@@ -512,12 +558,13 @@ export default function PosScreen() {
         .filter((category) => !usedIds.has(category.id) && !hiddenSourceIds.has(category.id))
         .map((category) => ({
           id: category.id,
+          productCount: catalog ? productsForCategories(catalog, [category.id]).length : 0,
           name: category.name,
           color: DEFAULT_POS_BUTTON_COLOR,
           showProductsOnTopLevel: false,
         })),
     ];
-  }, [posLayout, topLevelCategories]);
+  }, [posLayout, topLevelCategories, catalog]);
 
   const layoutProducts = useMemo(() => {
     if (!activeLayoutCategory) return products;
@@ -529,7 +576,7 @@ export default function PosScreen() {
         const product = productsById.get(layoutProduct.productId);
         if (!product) return null;
         usedIds.add(product.id);
-        return product;
+        return isPosTileVisible(layoutProduct) ? product : null;
       })
       .filter((product): product is SaleProduct => Boolean(product));
 
@@ -680,15 +727,16 @@ export default function PosScreen() {
 
   const searchResults = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return searchProducts.slice(0, 24);
+    const visibleProducts = searchProducts.filter(product => isPosTileVisible(findPosProductConfig(posLayout, product.id)));
+    if (!query) return visibleProducts.slice(0, 24);
 
-    return searchProducts
+    return visibleProducts
       .filter((product) => (
         product.name.toLowerCase().includes(query)
         || product.search_term?.toLowerCase().includes(query)
       ))
       .slice(0, 24);
-  }, [searchProducts, searchQuery]);
+  }, [searchProducts, searchQuery, posLayout]);
 
   const quickAccessProducts = useMemo(() => {
     if (!posLayout) return [];
@@ -700,9 +748,9 @@ export default function PosScreen() {
     const seenProductIds = new Set<string>();
 
     return posLayout.categories
-      .flatMap((category) => category.products)
+      .filter(isPosTileVisible).flatMap((category) => category.products)
       .map((layoutProduct) => {
-        if (!layoutProduct.showOnQuickList) return null;
+        if (!layoutProduct.showOnQuickList || !isPosTileVisible(layoutProduct)) return null;
         if (seenProductIds.has(layoutProduct.productId)) return null;
         seenProductIds.add(layoutProduct.productId);
         return productsById.get(layoutProduct.productId) ?? null;
@@ -1213,22 +1261,7 @@ export default function PosScreen() {
     }
   }, [catalog]);
   const openCategory = (categoryId: string) => {
-    const layoutCategory = posLayout?.categories.find((category) => category.categoryId === categoryId) ?? null;
-    const sourceCategoryIds = layoutCategory?.sourceCategoryIds?.length
-      ? layoutCategory.sourceCategoryIds
-      : [categoryId];
-    const hasChildCategories = categories.some((category) => (
-      sourceCategoryIds.includes(category.parent_category_id || '')
-    ));
-
-    if (hasChildCategories && !layoutCategory?.showProductsOnTopLevel) {
-      setSelectedParentCatId(categoryId);
-      setSelectedCatId(null);
-      setProducts([]);
-      setMenuLevel('subgroups');
-      return;
-    }
-
+    setProductQuery('');
     setSelectedParentCatId(null);
     setSelectedCatId(categoryId);
     setProducts([]);
@@ -1243,9 +1276,7 @@ export default function PosScreen() {
 
   const openSearch = () => {
     setSearchQuery('');
-    setSelectedProduct(null);
-    setEditingItemId(null);
-    setMenuLevel('search');
+    setSearchVisible(true);
   };
 
   const backToGroups = () => {
@@ -1266,26 +1297,31 @@ export default function PosScreen() {
   };
 
   const backToItems = () => {
-    setMenuLevel(selectedCatId ? 'items' : selectedParentCatId ? 'subgroups' : 'groups');
+    clearEditor();
+    setSelectedParentCatId(null);
+    setSelectedCatId(editorGroupId.current);
+    setMenuLevel(editorGroupId.current ? 'items' : 'groups');
+    setPhoneViewTab('menu');
+  };
+
+  const clearEditor = () => {
     setSelectedProduct(null);
     setEditingItemId(null);
     setEditorAddonGroups([]);
     setEditorAddonQuantities({});
     setEditorRemovableIngredients([]);
     setEditorRemovedIngredientIds({});
+    setEditorError(null);
   };
+  const cancelEditor = () => backToItems();
+
 
   const openCheckout = () => {
     setMenuLevel('checkout');
     if (isPhoneLayout) {
       setPhoneViewTab('cart');
     }
-    setSelectedProduct(null);
-    setEditingItemId(null);
-    setEditorAddonGroups([]);
-    setEditorAddonQuantities({});
-    setEditorRemovableIngredients([]);
-    setEditorRemovedIngredientIds({});
+
   };
 
 
@@ -1298,6 +1334,7 @@ export default function PosScreen() {
     overridePrice: number | null = null
   ): PosCartItem => ({
     id: newLocalId(),
+    pos_group_name: activeLayoutCategory?.title || categories.find((category) => category.id === product.sale_category_id || category.id === product.sub_category_id)?.name || 'Menu',
     order_id: '',
     product_id: product.id,
     product_name: product.name,
@@ -1326,7 +1363,7 @@ export default function PosScreen() {
     pos_updated_at: Date.now(),
   });
 
-  const getPosCartItemDisplayName = useCallback((item: PosCartItem) => (
+  const getPosCartItemDisplayName = useCallback((item: Pick<PosCartItem, 'id' | 'product_name'>) => (
     selectedFreeItemId === item.id && freeItemPromotion?.item.id === item.id
       ? getFreeItemDisplayName(freeItemPromotion.promotion, item.product_name)
       : item.product_name
@@ -1393,37 +1430,25 @@ export default function PosScreen() {
     options: { skipCustomization?: boolean; forcePlainAdd?: boolean } = {}
   ) => {
     if (preventPendingCartEdit()) return;
-    const hasCustomizedCopy = cartItems.some((item) => (
-      item.product_id === product.id && cartItemHasCustomizations(item)
-    ));
-    const existingPlainItem = cartItems.find((item) => (
-      item.product_id === product.id
-      && item.id !== selectedFreeItemId
-      && !cartItemHasCustomizations(item)
-    ));
-
-    if (existingPlainItem && !hasCustomizedCopy) {
-      updateQuantity(existingPlainItem.id, 1);
-      return;
-    }
-
-    const newItem = buildCartItem(product, 1, [], '', []);
-    setCartItems((prev) => [...prev, newItem]);
-
-    if (options.forcePlainAdd) {
-      return;
-    }
-
-    if (
-      (!options.skipCustomization || hasCustomizedCopy)
-      && catalog?.customizableIds.has(product.id)
-    ) {
+    const added = buildCartItem(product, 1, [], '', []);
+    const currentCart = cartItemsForTap.current;
+    const plan = planProductTap(currentCart, added, selectedFreeItemId);
+    locallyChangedOptionLines.current.add(plan.lineId);
+    cartItemsForTap.current = plan.items;
+    setCartItems(plan.items);
+    setItemFeedback(`${product.name} added to order`);
+    if (!plan.inserted && editingItemId === plan.lineId) setEditorQuantity(plan.items.find((item) => item.id === plan.lineId)!.quantity);
+    if (!plan.inserted || options.forcePlainAdd) return;
+    const customizedCopy = currentCart.some((item) => item.product_id === product.id && cartItemHasCustomizations(item));
+    if ((!options.skipCustomization || customizedCopy) && catalog?.customizableIds.has(product.id)) {
+      editorGroupId.current = productGroupId(product, categories, posLayout, selectedParentCatId || selectedCatId);
       setQuickListVisible(false);
+      setSearchVisible(false);
       setSelectedProduct(product);
-      setEditingItemId(newItem.id);
-      setEditorAddonGroups([]);
-      setEditorRemovableIngredients([]);
-      setEditorRemovedIngredientIds({});
+      setEditingItemId(plan.lineId);
+      setEditorQuantity(1);
+      setEditorNote('');
+      setEditorError(null);
       setMenuLevel('addons');
       await loadCustomizations(product.id, [], []);
     }
@@ -1438,7 +1463,7 @@ export default function PosScreen() {
     }
     setQuickListVisible(false);
 
-    const catalogProduct = [...products, ...searchProducts, ...topSellers].find((product) => product.id === item.product_id);
+    const catalogProduct = catalog?.productsById.get(item.product_id) ?? [...products, ...searchProducts, ...topSellers].find((product) => product.id === item.product_id);
     const product: SaleProduct = {
       id: item.product_id,
       name: item.product_name,
@@ -1453,8 +1478,13 @@ export default function PosScreen() {
       is_active: true,
     };
 
+    editorGroupId.current = productGroupId(product, categories, posLayout, selectedParentCatId || selectedCatId);
     setSelectedProduct(product);
     setEditingItemId(item.id);
+    setEditorQuantity(item.quantity);
+    setEditorNote(item.comment || '');
+    setEditorError(null);
+    setPhoneViewTab('menu');
     setEditorAddonGroups([]);
     setEditorRemovableIngredients([]);
     setEditorRemovedIngredientIds({});
@@ -1462,71 +1492,50 @@ export default function PosScreen() {
     void loadCustomizations(item.product_id, item.addons || [], item.removed_ingredients || []);
   };
 
-  const addItemToCart = (
-    product: SaleProduct,
-    quantity: number,
-    addons: OrderItemAddon[],
-    comment: string,
-    removedIngredients: string[]
-  ) => {
-    if (preventPendingCartEdit()) return;
-    const lineSubtotal = (product.sale_price + addonTotal(addons)) * quantity;
-    const normalizedComment = comment.trim();
-    const existing = cartItems.find((item) => (
-      item.product_id === product.id
-      && item.id !== selectedFreeItemId
-      && addonSelectionKey(item.addons || []) === addonSelectionKey(addons)
-      && (item.comment ?? '') === normalizedComment
-      && JSON.stringify(item.removed_ingredients || []) === JSON.stringify(removedIngredients)
-    ));
-
-    if (existing) {
-      setCartItems((prev) => prev.map((item) => (
-        item.id === existing.id
-          ? { ...item, quantity: item.quantity + quantity, override_price: null, subtotal: item.subtotal + lineSubtotal }
-          : item
-      )));
-      return;
-    }
-
-    const newItem = buildCartItem(product, quantity, addons, normalizedComment, removedIngredients);
-    setCartItems((prev) => [...prev, newItem]);
+  const updateEditorLine = (changes: { quantity?: number; note?: string; quantities?: Record<string, number>; removedIds?: Record<string, boolean>; addonGroupId?: string }) => {
+    if (preventPendingCartEdit() || !selectedProduct || !editingItemId) return;
+    locallyChangedOptionLines.current.add(editingItemId);
+    const quantity = changes.quantity ?? editorQuantity;
+    const note = changes.note ?? editorNote;
+    setCartItems((current) => {
+      const line = current.find(item => item.id === editingItemId);
+      if (!line) return current;
+      const group = editorAddonGroups.find(group => group.id === changes.addonGroupId);
+      const addons = changes.quantities && group
+        ? mergeEditableAddons(line.addons || [], buildAddonsFromQuantities([group], changes.quantities), group.items.map(item => item.id))
+        : line.addons || [];
+      const removed = changes.removedIds
+        ? mergeEditableRemovals(line.removed_ingredients || [], editorRemovableIngredients.filter(ingredient => changes.removedIds![ingredient.id]).map(ingredient => ingredient.ingredient_name), editorRemovableIngredients.map(ingredient => ingredient.ingredient_name))
+        : line.removed_ingredients || [];
+      const configured = buildCartItem(selectedProduct, quantity, addons, note, removed);
+      return updateAddedLine(current, editingItemId, { quantity, addons, comment: note.trim() || null, removed_ingredients: removed, section: configured.section }, Date.now());
+    });
+    setEditorError(null);
   };
+  const changeEditorQuantity = (quantity: number) => { setEditorQuantity(quantity); updateEditorLine({ quantity }); };
+  const changeEditorNote = (note: string) => { setEditorNote(note); updateEditorLine({ note }); };
+  const confirmEditor = () => backToItems();
 
-  const applyEditorSelections = (
-    addons: OrderItemAddon[],
-    removedIngredients: string[]
-  ) => {
-    if (preventPendingCartEdit()) return;
-    if (!selectedProduct || !editingItemId) return;
-
-    setCartItems((prev) => prev.map((item) => {
-      if (item.id !== editingItemId) return item;
-      return {
-        ...item,
-        addons,
-        section: formatKitchenSectionValue(
-          selectedProduct.section,
-          addons,
-          getProductGroupSection(selectedProduct),
-          catalog ? getProductCombineSections(catalog, selectedProduct) : undefined,
-          {
-            productName: selectedProduct.name,
-            categoryName: categories.find((c) => c.id === selectedProduct.sale_category_id || c.id === selectedProduct.sub_category_id)?.name,
-            hasIngredients: Boolean(catalog?.productIncludesByParentId.get(selectedProduct.id)?.length),
-            ingredients: catalog?.productIncludesByParentId.get(selectedProduct.id),
-          }
-        ),
-        removed_ingredients: removedIngredients,
-        override_price: null,
-        subtotal: (selectedProduct.sale_price + addonTotal(addons)) * item.quantity,
-        pos_updated_at: Date.now(),
-      };
-    }));
+  const validateCartModifiers = () => {
+    // Imported orders already carry provider-specific choices; do not reinterpret those mappings.
+    if (isMarketplaceManualImport || pendingInstoreSmartpayOrder) return true;
+    for (const item of cartItems) {
+      if (!item.product_id || item.id === selectedFreeItemId || !locallyChangedOptionLines.current.has(item.id)) continue;
+      const groups = catalog?.customizations.get(item.product_id)?.groups || [];
+      const missing = missingRequiredAddonGroup(groups, addonQuantitiesFromAddons(item.addons || []));
+      if (!missing) continue;
+      openCartItemEditor(item);
+      const message = `Choose an option from ${missing.name} for ${item.product_name}.`;
+      setEditorError(message);
+      Alert.alert('Required item options', message);
+      return false;
+    }
+    return true;
   };
 
   const removeCartItem = (id: string) => {
     if (preventPendingCartEdit()) return;
+    if (selectedProduct && editingItemId === id) clearEditor();
     if (menuLevel === 'addons') backToItems();
     if (selectedFreeItemId === id) {
       setSelectedFreeItemId(null);
@@ -1549,6 +1558,7 @@ export default function PosScreen() {
     if (preventPendingCartEdit()) return;
     if (!noteItemId) return;
     const normalizedNote = noteDraft.trim();
+    if (noteItemId === editingItemId) setEditorNote(normalizedNote);
     setCartItems((prev) => prev.map((item) => (
       item.id === noteItemId
         ? { ...item, comment: normalizedNote || null, pos_updated_at: Date.now() }
@@ -1579,33 +1589,18 @@ export default function PosScreen() {
     setThirdPartyOrderAt(date);
   };
 
+  const [clearDraftVisible, setClearDraftVisible] = useState(false);
+  const clearDraft = () => {
+    if (orderId || preventPendingCartEdit()) return;
+    setClearDraftVisible(false);
+    setCartItems([]); clearEditor(); setSelectedFreeItemId(null); setQuickOrderNote(null); setOrderNoteText(''); setDiscountConfig(EMPTY_DISCOUNT); setRewardPointsToUse(0); setRewardPointsValue(0); setMarketplaceImportMetadata(null); backToGroups();
+  };
   const handleClearCart = () => {
     if (orderId) return;
     if (preventPendingCartEdit()) return;
 
     if (cartItems.length === 0) return;
-    Alert.alert(
-      'Clear cart?',
-      'Remove all items from the current order?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear',
-          style: 'destructive',
-          onPress: () => {
-            setCartItems([]);
-            setSelectedFreeItemId(null);
-            setQuickOrderNote(null);
-            setOrderNoteText('');
-            setDiscountConfig(EMPTY_DISCOUNT);
-            setRewardPointsToUse(0);
-            setRewardPointsValue(0);
-            setMarketplaceImportMetadata(null);
-            backToGroups();
-          },
-        },
-      ]
-    );
+    setClearDraftVisible(true);
   };
 
   const resetPosForNextOrder = useCallback(() => {
@@ -1634,6 +1629,7 @@ export default function PosScreen() {
     setEditorRemovableIngredients([]);
     setEditorRemovedIngredientIds({});
     setSearchQuery('');
+    setSearchVisible(false);
     setMenuLevel('groups');
     setSelectedParentCatId(null);
     setSelectedCatId(null);
@@ -1655,6 +1651,11 @@ export default function PosScreen() {
   const updateQuantity = (id: string, delta: number) => {
     if (preventPendingCartEdit()) return;
     const currentItem = cartItems.find((item) => item.id === id);
+    if (selectedProduct && editingItemId === id && currentItem) {
+      if (currentItem.quantity + delta <= 0) removeCartItem(id);
+      else changeEditorQuantity(currentItem.quantity + delta);
+      return;
+    }
     if (menuLevel === 'addons' && currentItem && currentItem.quantity + delta <= 0) {
       backToItems();
     }
@@ -1683,29 +1684,19 @@ export default function PosScreen() {
   };
 
   const changeEditorAddonQuantity = (group: AddonGroup, item: AddonItem, delta: number) => {
-    setEditorAddonQuantities((prev) => {
-      const next = changeSelectionQuantity(prev, group, item, delta);
-      const nextAddons = buildAddonsFromQuantities(editorAddonGroups, next);
-      applyEditorSelections(nextAddons, selectedRemovedIngredients);
-      return next;
-    });
+    const next = changeSelectionQuantity(editorAddonQuantities, group, item, delta);
+    setEditorAddonQuantities(next);
+    updateEditorLine({ quantities: next, addonGroupId: group.id });
   };
 
   const toggleRemovedIngredient = (ingredientId: string) => {
-    setEditorRemovedIngredientIds((prev) => {
-      const next = {
-        ...prev,
-        [ingredientId]: !prev[ingredientId],
-      };
-      const nextRemovedIngredients = editorRemovableIngredients
-        .filter((ingredient) => next[ingredient.id])
-        .map((ingredient) => ingredient.ingredient_name);
-      applyEditorSelections(selectedEditorAddons, nextRemovedIngredients);
-      return next;
-    });
+    const next = { ...editorRemovedIngredientIds, [ingredientId]: !editorRemovedIngredientIds[ingredientId] };
+    setEditorRemovedIngredientIds(next);
+    updateEditorLine({ removedIds: next });
   };
 
   const handleCheckout = async (paymentOverride?: PosCheckoutPaymentOverride) => {
+    if (!validateCartModifiers()) return;
     if (preventPendingIndependentCheckout()) return;
     if (freeItemSelectionRequired) {
       setFreeItemDialogVisible(true);
@@ -1825,7 +1816,7 @@ export default function PosScreen() {
     } as any;
 
     const result = orderId
-      ? await updatePosOrder(orderId, cartItems.map(({ pos_updated_at, ...item }) => ({
+      ? await updatePosOrder(orderId, cartItems.map(({ pos_updated_at, pos_group_name, ...item }) => ({
         ...item,
         product_name: getPosCartItemDisplayName(item),
       })), totals, {
@@ -1849,7 +1840,7 @@ export default function PosScreen() {
         reward_points_used: rewardPointsToUse || null,
         reward_points_value: rewardPointsValue || null,
       })
-      : await savePosOrder(orderPayload, cartItems.map(({ pos_updated_at, ...item }) => ({
+      : await savePosOrder(orderPayload, cartItems.map(({ pos_updated_at, pos_group_name, ...item }) => ({
         ...item,
         product_name: getPosCartItemDisplayName(item),
       })));
@@ -1874,7 +1865,7 @@ export default function PosScreen() {
       await queryClient.refetchQueries({ queryKey: LIVE_ORDERS_QUERY_KEY });
     }
     await clearMirrorAfterCheckout();
-    router.back();
+    leaveAfterSave();
     } catch (error) {
       console.error('Checkout failed', error);
       Alert.alert('Checkout', error instanceof Error ? error.message : 'Failed to complete checkout.');
@@ -1886,6 +1877,7 @@ export default function PosScreen() {
   };
 
   const handleSmartpayInstoreCheckout = async () => {
+    if (!validateCartModifiers()) return;
     if (freeItemSelectionRequired) {
       setFreeItemDialogVisible(true);
       Alert.alert('Free item available', 'Please choose the free promotion item before checkout.');
@@ -1986,7 +1978,7 @@ export default function PosScreen() {
         const pendingResult = await createOrReusePendingInstoreOrder({ savePosOrder }, {
           existingOrder: null,
           orderPayload,
-          items: cartItems.map(({ pos_updated_at, ...item }) => ({
+          items: cartItems.map(({ pos_updated_at, pos_group_name, ...item }) => ({
             ...item,
             product_name: getPosCartItemDisplayName(item),
           })),
@@ -2035,7 +2027,7 @@ export default function PosScreen() {
       setSmartpayApprovedOrderId(null);
       invalidateTopSellers();
       await clearMirrorAfterCheckout();
-      router.back();
+      leaveAfterSave();
     } catch (error) {
       console.error('SmartPay instore payment failed', error);
       Alert.alert(
@@ -2067,6 +2059,7 @@ export default function PosScreen() {
   };
 
   const handleInstoreCheckout = async (payment: PosInstorePaymentChoice) => {
+    if (!validateCartModifiers()) return;
     if (freeItemSelectionRequired) {
       setFreeItemDialogVisible(true);
       Alert.alert('Free item available', 'Please choose the free promotion item before checkout.');
@@ -2131,7 +2124,7 @@ export default function PosScreen() {
         setSmartpayApprovedOrderId(null);
         invalidateTopSellers();
         await clearMirrorAfterCheckout();
-        router.back();
+        leaveAfterSave();
       } catch (error) {
         Alert.alert('Instore Order', error instanceof Error ? error.message : 'Failed to settle in-store payment.');
       } finally {
@@ -2213,7 +2206,7 @@ export default function PosScreen() {
       scheduled_pickup_at: null,
     } as any;
 
-    const result = await savePosOrder(orderPayload, cartItems.map(({ pos_updated_at, ...item }) => ({
+    const result = await savePosOrder(orderPayload, cartItems.map(({ pos_updated_at, pos_group_name, ...item }) => ({
       ...item,
       product_name: getPosCartItemDisplayName(item),
     })));
@@ -2254,7 +2247,7 @@ export default function PosScreen() {
     invalidateTopSellers();
     await clearMirrorAfterCheckout();
     resetPosForNextOrder();
-    router.back();
+    leaveAfterSave();
     } catch (error) {
       console.error('Instore checkout failed', error);
       Alert.alert('Instore Order', error instanceof Error ? error.message : 'Failed to create in-store order.');
@@ -2265,6 +2258,7 @@ export default function PosScreen() {
   };
 
   const handleThirdPartyCheckout = async () => {
+    if (!validateCartModifiers()) return;
     if (preventPendingIndependentCheckout()) return;
     if (freeItemSelectionRequired) {
       setFreeItemDialogVisible(true);
@@ -2348,7 +2342,7 @@ export default function PosScreen() {
         scheduled_pickup_at: null,
       } as any;
 
-      const result = await savePosOrder(orderPayload, cartItems.map(({ pos_updated_at, ...item }) => ({
+      const result = await savePosOrder(orderPayload, cartItems.map(({ pos_updated_at, pos_group_name, ...item }) => ({
         ...item,
         product_name: getPosCartItemDisplayName(item),
       })));
@@ -2363,7 +2357,7 @@ export default function PosScreen() {
       setMarketplaceImportMetadata(null);
       invalidateTopSellers();
       await clearMirrorAfterCheckout();
-      router.back();
+      leaveAfterSave();
     } finally {
       setCreatingOrder(false);
     }
@@ -2372,6 +2366,7 @@ export default function PosScreen() {
   const handleDeliveryCheckout = useCallback(async (
     input: { address: DeliveryAddressDraft; quote: DeliveryQuoteResult }
   ): Promise<void> => {
+    if (!validateCartModifiers()) return;
     if (preventPendingIndependentCheckout()) return;
     if (freeItemSelectionRequired) {
       setFreeItemDialogVisible(true);
@@ -2460,7 +2455,7 @@ export default function PosScreen() {
         scheduled_pickup_at: null,
       } as any;
 
-      const saveResult = await savePosOrder(orderPayload, cartItems.map(({ pos_updated_at, ...item }) => ({
+      const saveResult = await savePosOrder(orderPayload, cartItems.map(({ pos_updated_at, pos_group_name, ...item }) => ({
         ...item,
         product_name: getPosCartItemDisplayName(item),
       })));
@@ -2556,6 +2551,7 @@ export default function PosScreen() {
     freeItemDiscountAmount,
     getPosCartItemDisplayName,
     preventPendingIndependentCheckout,
+    validateCartModifiers,
     resetPosForNextOrder,
     upsertPendingOnlinePaymentSession,
   ]);
@@ -2610,19 +2606,19 @@ export default function PosScreen() {
     void handleInstoreCheckout(choice as PosInstorePaymentChoice);
   };
 
-  const activeCategoryName = categories.find((category) => category.id === selectedCatId)?.name
-    || activeLayoutCategory?.title
+  const activeCategoryName = activeLayoutCategory?.label || activeLayoutCategory?.title
+    || categories.find((category) => category.id === selectedCatId)?.name
     || 'Menu';
-  const activeParentCategoryName = activeLayoutCategory?.title
+  const activeParentCategoryName = activeLayoutCategory?.label || activeLayoutCategory?.title
     || categories.find((category) => category.id === selectedParentCatId)?.name
     || 'Menu';
-  const itemsBackAction = selectedParentCatId ? backToSubgroups : backToGroups;
+  const itemsBackAction = backToGroups;
   const itemsBackLabel = selectedParentCatId ? activeParentCategoryName : 'Groups';
   const quickQuantitiesByProductId = useMemo(() => {
     const map = new Map<string, number>();
     for (const item of cartItems) {
       if (!cartItemHasCustomizations(item)) {
-        map.set(item.product_id, (map.get(item.product_id) ?? 0) + item.quantity);
+        map.set(item.product_id || '', (map.get(item.product_id || '') ?? 0) + item.quantity);
       }
     }
     return map;
@@ -2630,12 +2626,13 @@ export default function PosScreen() {
   const quickQuantityForProduct = useCallback((productId: string) => (
     quickQuantitiesByProductId.get(productId) ?? 0
   ), [quickQuantitiesByProductId]);
-  const isCompactLayout = width < 1000;
-  const isPhoneLayout = isCompactPhoneWidth(width);
+  const reviewingCart = workspace.split && phoneViewTab === 'cart' && menuLevel !== 'checkout';
+  const isCompactLayout = !workspace.split || reviewingCart;
+  const isPhoneLayout = !workspace.split || reviewingCart;
   const isNarrowLayout = width < 760;
-  const gridColumns = isNarrowLayout ? 2 : isCompactLayout ? 3 : 4;
-  const quickListColumns = isNarrowLayout ? 2 : 3;
-  const addonOptionWidth = isNarrowLayout ? '48%' : isCompactLayout ? '31%' : '23%';
+  const gridColumns = getPosLayoutColumns(posLayout, width, fontScale, workspace.menuWidth);
+  const quickListColumns = gridColumns;
+  const addonOptionWidth = workspace.menuWidth < 440 || fontScale > 1.3 ? '100%' : '48%';
   const activeCartItemId = noteItemId ?? editingItemId ?? cartItems[cartItems.length - 1]?.id ?? null;
   const checkoutPrimaryLabel = orderId
     ? 'Update Order'
@@ -2667,93 +2664,54 @@ export default function PosScreen() {
 
   if (!catalog) {
     return (
-      <View style={styles.container}>
-        <Appbar.Header style={styles.header}>
-          <Appbar.Content title="Take Order" titleStyle={styles.headerTitle} />
-          <Appbar.Action icon="home" onPress={goHome} iconColor="#fff" accessibilityLabel="Back home" />
-        </Appbar.Header>
+      <PosWorkspaceFrame bottomInset={insets.bottom}>
+        <WorkspaceHeader title="Take order" actions={<HeaderIconButton icon="home" onPress={goHome} accessibilityLabel="Back home" />} />
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <Text>{catalogStatus === 'error' ? `Catalogue unavailable: ${catalogError}` : 'Loading POS catalogue…'}</Text>
           {catalogStatus === 'error' && <TouchableOpacity onPress={() => void refreshCatalog('manual')} accessibilityRole="button"><Text>Retry catalogue load</Text></TouchableOpacity>}
         </View>
-      </View>
+      </PosWorkspaceFrame>
     );
   }
 
   return (
 
-    <View style={styles.container}>
-      <Appbar.Header style={styles.header}>
-        <Appbar.Content 
-          title={(() => {
-            if (customerPhone) {
-              if (customerName) {
-                return `Order for ${customerName} - ${customerPhone}`;
-              }
-              return `Order for - ${customerPhone}`;
-            }
-            return orderId ? 'Edit Order' : 'Take Order';
-          })()} 
-          titleStyle={styles.headerTitle} 
-        />
-        {smartpayProcessing && smartpayDialogMinimized ? (
-          <Appbar.Action
-            icon="credit-card-wireless-outline"
-            onPress={() => setSmartpayDialogMinimized(false)}
-            iconColor="#fff"
-            accessibilityLabel="Resume SmartPay payment"
-          />
-        ) : null}
-        <CallerIdAppbarAction />
-        <Appbar.Action icon="refresh" onPress={() => void refreshCatalog('manual')} disabled={catalogStatus === 'refreshing'} iconColor="#fff" accessibilityLabel="Refresh POS catalogue" />
-        <Appbar.Action icon="magnify" onPress={openSearch} iconColor="#fff" accessibilityLabel="Search items" />
-        <Appbar.Action icon="view-grid-plus-outline" onPress={openLayoutSettings} iconColor="#fff" accessibilityLabel="POS layout settings" />
-        <Appbar.Action icon="home" onPress={goHome} iconColor="#fff" accessibilityLabel="Back home" />
-      </Appbar.Header>
+    <PosWorkspaceFrame bottomInset={insets.bottom}>
+      <WorkspaceHeader
+        showNewOrder={false}
+        title={reviewingCart ? 'Current order · Full item details' : orderId ? 'Edit order' : menuLevel === 'addons' ? 'Update item' : menuLevel === 'checkout' ? 'Checkout' : 'Take order'}
+        hideTitleOnPhone
+        leading={!reviewingCart && menuLevel !== 'checkout' &&
+          <View style={{ flexDirection: 'row', backgroundColor: '#EDF2F1', borderRadius: 8, borderWidth: 1, borderColor: tokens.color.border, padding: 2, gap: 2 }}>
+            <TouchableOpacity accessibilityRole="tab" accessibilityState={{ selected: menuLevel !== 'quick-list' }} onPress={() => { backToGroups(); setPhoneViewTab('menu'); }} style={{ minHeight: 36, paddingHorizontal: width < 360 ? 8 : width < 600 ? 12 : 14, justifyContent: 'center', backgroundColor: menuLevel !== 'quick-list' ? tokens.color.surface : undefined, borderRadius: 8 }}><Text style={{ color: tokens.color.primaryPressed, fontWeight: '700', fontSize: 13 }}>Groups</Text></TouchableOpacity>
+            <TouchableOpacity accessibilityRole="tab" accessibilityState={{ selected: menuLevel === 'quick-list' }} onPress={() => { setQuickListVisible(true); setPhoneViewTab('menu'); }} style={{ minHeight: 36, paddingHorizontal: width < 360 ? 8 : width < 600 ? 12 : 14, justifyContent: 'center', backgroundColor: menuLevel === 'quick-list' ? tokens.color.surface : undefined, borderRadius: 8 }}><Text style={{ color: tokens.color.primaryPressed, fontWeight: '700', fontSize: 13 }}>Quick list</Text></TouchableOpacity>
+          </View>
+        }
+        actions={<>
+          {smartpayProcessing && smartpayDialogMinimized && <Appbar.Action icon="credit-card-wireless-outline" onPress={() => setSmartpayDialogMinimized(false)} accessibilityLabel="Resume SmartPay payment" />}
+          <HeaderIconButton icon="magnify" accessibilityLabel="Search menu" onPress={openSearch} />
+          {width >= 600 && <CallerIdAppbarAction />}
+          <Menu visible={toolsVisible} onDismiss={() => setToolsVisible(false)} anchor={<HeaderIconButton icon="dots-horizontal" accessibilityLabel="Order tools" onPress={() => setToolsVisible(true)} />}>
+            {width < 600 && <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 }}><Text style={{ flex: 1, color: tokens.color.muted }}>Caller ID status</Text><CallerIdAppbarAction /></View>}
+            <Menu.Item title="New order" leadingIcon="plus" onPress={() => { setToolsVisible(false); if (cartItems.length) handleClearCart(); else if (selectedProduct) cancelEditor(); else backToGroups(); }} />
+            <Menu.Item title="Current order · Full item details" leadingIcon="cart-outline" onPress={() => { setToolsVisible(false); setPhoneViewTab('cart'); }} />
+            <Menu.Item title="Search all products" leadingIcon="magnify" onPress={() => { setToolsVisible(false); openSearch(); }} />
+            <Menu.Item title="Refresh POS catalogue" leadingIcon="refresh" disabled={catalogStatus === 'refreshing'} onPress={() => { setToolsVisible(false); void refreshCatalog('manual'); }} />
+            <Menu.Item title="POS layout settings" leadingIcon="view-grid-plus-outline" onPress={() => { setToolsVisible(false); openLayoutSettings(); }} />
+            <Menu.Item title="Back to orders" leadingIcon="home-outline" onPress={() => { setToolsVisible(false); goHome(); }} />
+          </Menu>
+        </>}
+      />
       {catalogError && <Text style={{ padding: 8, backgroundColor: '#fff7ed', color: '#9a3412' }}>Catalogue refresh failed. Using the last loaded menu. Tap Refresh to retry.</Text>}
 
-      {isPhoneLayout && (
-        <View style={styles.phoneNavContainer}>
-          <View style={styles.phoneNavTabs}>
-            <TouchableOpacity
-              style={[styles.phoneNavTab, phoneViewTab === 'menu' && menuLevel !== 'checkout' && styles.phoneNavTabActive]}
-              onPress={() => {
-                if (menuLevel === 'checkout') setMenuLevel('groups');
-                setPhoneViewTab('menu');
-              }}
-              activeOpacity={0.8}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: phoneViewTab === 'menu' && menuLevel !== 'checkout' }}
-            >
-              <Text style={[styles.phoneNavTabText, phoneViewTab === 'menu' && menuLevel !== 'checkout' && styles.phoneNavTabTextActive]}>
-                🍔 Menu
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.phoneNavTab, (phoneViewTab === 'cart' || menuLevel === 'checkout') && styles.phoneNavTabActive]}
-              onPress={() => setPhoneViewTab('cart')}
-              activeOpacity={0.8}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: phoneViewTab === 'cart' || menuLevel === 'checkout' }}
-            >
-              <Text style={[styles.phoneNavTabText, (phoneViewTab === 'cart' || menuLevel === 'checkout') && styles.phoneNavTabTextActive]}>
-                🛒 Cart
-              </Text>
-              {cartItems.length > 0 && (
-                <View style={styles.phoneCartBadge}>
-                  <Text style={styles.phoneCartBadgeText}>{cartItems.length}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
 
       <View
         style={[
           styles.body,
+          { padding: workspace.gutter, gap: workspace.gap },
           isCompactLayout ? styles.bodyCompact : null,
           isPhoneLayout ? styles.bodyPhone : null,
+          reviewingCart ? { width: '100%', maxWidth: 912, alignSelf: 'center', paddingBottom: 16 } : null,
         ]}
       >
         {isPhoneLayout ? (
@@ -2761,14 +2719,26 @@ export default function PosScreen() {
             menuLevel === 'checkout' ? (
               <View style={[styles.menuPane, styles.menuPaneCompact]}>
                 <PosMenuPane
+                  quickItemNotes={quickItemNotes}
+                  layout={posLayout} layoutCategoryId={activeLayoutCategory?.categoryId}
                   isPhoneLayout={isPhoneLayout}
                   onOpenCart={() => setPhoneViewTab('cart')}
                   menuLevel={menuLevel}
+                  groupQuery={groupQuery} onGroupQueryChange={setGroupQuery}
+                  productQuery={productQuery} onProductQueryChange={setProductQuery}
+                  groupScrollOffset={groupScrollOffset} groupColumns={gridColumns}
+                  getProductGroupName={(product) => categories.find((category) => category.id === product.sub_category_id || category.id === product.sale_category_id)?.name || 'Menu'}
+                  hasAddons={(productId) => Boolean(catalog?.customizableIds.has(productId))}
+                  itemFeedback={itemFeedback} hasEditorDraft={Boolean(selectedProduct)} onResumeDraft={() => setMenuLevel('addons')}
+                  editorQuantity={editorQuantity} onEditorQuantityChange={changeEditorQuantity}
+                  editorNote={editorNote} onEditorNoteChange={changeEditorNote}
+                  editorError={editorError} editingItem={Boolean(editingItemId)}
+                  onConfirmEditor={confirmEditor} onCancelEditor={cancelEditor}
                   gridColumns={gridColumns}
                   quickListColumns={quickListColumns}
                   addonOptionWidth={addonOptionWidth}
                   layoutTopLevelCategories={layoutTopLevelCategories}
-                  topSellers={topSellers}
+                  topSellers={topSellers.filter(product => isPosTileVisible(findPosProductConfig(posLayout, product.id)))}
                   loadingTopSellers={loadingTopSellers}
                   quickQuantityForProduct={quickQuantityForProduct}
                   openCategory={openCategory}
@@ -2876,6 +2846,10 @@ export default function PosScreen() {
               </View>
             ) : (
               <PosCartPane
+                expandedReview={reviewingCart}
+                lockedItemId={selectedProduct ? editingItemId : null}
+                cartWidth={workspace.cartWidth}
+                getGroupName={(item) => item.pos_group_name || categories.find((category) => { const product = catalog?.productsById.get(item.product_id || ''); return category.id === product?.sale_category_id || category.id === product?.sub_category_id; })?.name || 'Menu'}
                 isCompactLayout={isCompactLayout}
                 isPhoneLayout={isPhoneLayout}
                 onBackToMenu={() => setPhoneViewTab('menu')}
@@ -2910,14 +2884,26 @@ export default function PosScreen() {
           ) : (
             <View style={[styles.menuPane, styles.menuPaneCompact]}>
               <PosMenuPane
+                  quickItemNotes={quickItemNotes}
+                  layout={posLayout} layoutCategoryId={activeLayoutCategory?.categoryId}
                 isPhoneLayout={isPhoneLayout}
                 onOpenCart={() => setPhoneViewTab('cart')}
                 menuLevel={menuLevel}
+                  groupQuery={groupQuery} onGroupQueryChange={setGroupQuery}
+                  productQuery={productQuery} onProductQueryChange={setProductQuery}
+                  groupScrollOffset={groupScrollOffset} groupColumns={gridColumns}
+                  getProductGroupName={(product) => categories.find((category) => category.id === product.sub_category_id || category.id === product.sale_category_id)?.name || 'Menu'}
+                  hasAddons={(productId) => Boolean(catalog?.customizableIds.has(productId))}
+                  itemFeedback={itemFeedback} hasEditorDraft={Boolean(selectedProduct)} onResumeDraft={() => setMenuLevel('addons')}
+                  editorQuantity={editorQuantity} onEditorQuantityChange={changeEditorQuantity}
+                  editorNote={editorNote} onEditorNoteChange={changeEditorNote}
+                  editorError={editorError} editingItem={Boolean(editingItemId)}
+                  onConfirmEditor={confirmEditor} onCancelEditor={cancelEditor}
                 gridColumns={gridColumns}
                 quickListColumns={quickListColumns}
                 addonOptionWidth={addonOptionWidth}
                 layoutTopLevelCategories={layoutTopLevelCategories}
-                topSellers={topSellers}
+                topSellers={topSellers.filter(product => isPosTileVisible(findPosProductConfig(posLayout, product.id)))}
                 loadingTopSellers={loadingTopSellers}
                 quickQuantityForProduct={quickQuantityForProduct}
                 openCategory={openCategory}
@@ -3028,14 +3014,26 @@ export default function PosScreen() {
           <>
             <View style={[styles.menuPane, isCompactLayout ? styles.menuPaneCompact : null]}>
               <PosMenuPane
+                  quickItemNotes={quickItemNotes}
+                  layout={posLayout} layoutCategoryId={activeLayoutCategory?.categoryId}
                 isPhoneLayout={isPhoneLayout}
                 onOpenCart={() => setPhoneViewTab('cart')}
                 menuLevel={menuLevel}
+                  groupQuery={groupQuery} onGroupQueryChange={setGroupQuery}
+                  productQuery={productQuery} onProductQueryChange={setProductQuery}
+                  groupScrollOffset={groupScrollOffset} groupColumns={gridColumns}
+                  getProductGroupName={(product) => categories.find((category) => category.id === product.sub_category_id || category.id === product.sale_category_id)?.name || 'Menu'}
+                  hasAddons={(productId) => Boolean(catalog?.customizableIds.has(productId))}
+                  itemFeedback={itemFeedback} hasEditorDraft={Boolean(selectedProduct)} onResumeDraft={() => setMenuLevel('addons')}
+                  editorQuantity={editorQuantity} onEditorQuantityChange={changeEditorQuantity}
+                  editorNote={editorNote} onEditorNoteChange={changeEditorNote}
+                  editorError={editorError} editingItem={Boolean(editingItemId)}
+                  onConfirmEditor={confirmEditor} onCancelEditor={cancelEditor}
                 gridColumns={gridColumns}
                 quickListColumns={quickListColumns}
                 addonOptionWidth={addonOptionWidth}
                 layoutTopLevelCategories={layoutTopLevelCategories}
-                topSellers={topSellers}
+                topSellers={topSellers.filter(product => isPosTileVisible(findPosProductConfig(posLayout, product.id)))}
                 loadingTopSellers={loadingTopSellers}
                 quickQuantityForProduct={quickQuantityForProduct}
                 openCategory={openCategory}
@@ -3143,6 +3141,10 @@ export default function PosScreen() {
             </View>
 
             <PosCartPane
+                expandedReview={reviewingCart}
+                lockedItemId={selectedProduct ? editingItemId : null}
+                cartWidth={workspace.cartWidth}
+                getGroupName={(item) => item.pos_group_name || categories.find((category) => { const product = catalog?.productsById.get(item.product_id || ''); return category.id === product?.sale_category_id || category.id === product?.sub_category_id; })?.name || 'Menu'}
               isCompactLayout={isCompactLayout}
               isPhoneLayout={isPhoneLayout}
               onBackToMenu={() => setPhoneViewTab('menu')}
@@ -3178,6 +3180,10 @@ export default function PosScreen() {
       </View>
 
 
+      {isPhoneLayout && phoneViewTab === 'menu' && menuLevel !== 'checkout' && <TouchableOpacity accessibilityRole="button" accessibilityLabel={`View order, ${cartItems.length} lines, $${totals.total.toFixed(2)}`} disabled={!cartItems.length} onPress={() => setPhoneViewTab('cart')} style={{ position: 'absolute', bottom: 12, left: 16, right: 16, backgroundColor: tokens.color.primary, opacity: cartItems.length ? 1 : 0.45, minHeight: 56, borderRadius: 10, padding: 16, flexDirection: 'row', justifyContent: 'space-between', zIndex: 2 }}><Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>{cartItems.length ? `View order · ${cartItems.reduce((n, i) => n + i.quantity, 0)} qty` : 'Order is empty'}</Text><Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>${totals.total.toFixed(2)} →</Text></TouchableOpacity>}
+      <EditorSheet visible={clearDraftVisible} title="Clear this draft?" size="confirm" onDismiss={() => setClearDraftVisible(false)} footer={<><Button mode="outlined" onPress={() => setClearDraftVisible(false)}>Cancel</Button><Button mode="outlined" textColor={tokens.color.danger} onPress={clearDraft}>Clear draft</Button></>}><View style={{ alignItems: 'center', paddingVertical: 16, gap: 16 }}><Text style={{ fontSize: 28, color: tokens.color.primary }}>⚠</Text><Text style={{ color: tokens.color.muted, textAlign: 'center' }}>Remove all draft items from this local order? This cannot be undone.</Text></View></EditorSheet>
+
+        <PosSearchSheet layout={posLayout} visible={searchVisible} onClose={() => setSearchVisible(false)} query={searchQuery} onQueryChange={setSearchQuery} groups={layoutTopLevelCategories} products={searchResults} onGroup={(id) => { setSearchVisible(false); openCategory(id); }} onProduct={(product) => void quickAddProduct(product)} quantity={quickQuantityForProduct} hasAddons={(id) => !!catalog?.customizableIds.has(id)} groupName={(product) => categories.find((category) => category.id === product.sale_category_id || category.id === product.sub_category_id)?.name || 'Menu'} accent={(id) => productButtonColor(id) || tokens.color.primary} feedback={itemFeedback} />
         <PosDialogs
           cashTenderMode={cashTenderMode}
           total={pendingInstoreSmartpayOrder?.total ?? totals.total}
@@ -3238,6 +3244,10 @@ export default function PosScreen() {
         onClearDiscount={() => setDiscountConfig(EMPTY_DISCOUNT)}
       />
 
-    </View>
+    </PosWorkspaceFrame>
   );
+}
+
+function PosWorkspaceFrame({ children, bottomInset }: { children: React.ReactNode; bottomInset: number }) {
+  return <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.container, { minWidth: 0, paddingBottom: bottomInset }]}>{children}</KeyboardAvoidingView>;
 }

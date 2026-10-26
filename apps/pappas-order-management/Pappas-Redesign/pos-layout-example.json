@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "note": "Readable sample keys; production must use stable existing IDs. This does not replace the app schema.",
+  "name": "Default POS layout",
+  "appearance": {
+    "background": "#FFFFFF",
+    "text": "#172E3A",
+    "fontSize": 16,
+    "fontWeight": 650,
+    "align": "left",
+    "height": 104
+  },
+  "columnsExpanded": 4,
+  "columnsMedium": "auto",
+  "columnsPhone": 2,
+  "groupOrder": [
+    "All packs",
+    "Fish",
+    "Chips",
+    "Chips & gravy",
+    "Sides",
+    "Seafood sides",
+    "Beef burgers",
+    "Chicken burgers",
+    "Fish burgers",
+    "Vegetarian",
+    "Steak sandwiches",
+    "Souvlaki",
+    "Chicken / lamb snack packs",
+    "Sweets",
+    "Drinks",
+    "Sauces",
+    "Egg & bacon bun",
+    "Salad"
+  ],
+  "groups": {
+    "Sides": {
+      "background": "#FFF2D6",
+      "text": "#88520B",
+      "label": "Sides",
+      "visible": true
+    }
+  },
+  "productOrder": {
+    "Sides": [
+      "Potato cake",
+      "Dim sim \u00b7 fried",
+      "Dim sim \u00b7 steamed"
+    ]
+  },
+  "products": {
+    "Potato cake": {
+      "fontWeight": 750,
+      "quickList": true,
+      "visible": true
+    }
+  }
+}

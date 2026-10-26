@@ -5,7 +5,7 @@ import 'react-native-gesture-handler';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect, useState, useRef } from 'react';
 import { StyleSheet } from 'react-native';
-import { MD3LightTheme, PaperProvider } from 'react-native-paper';
+import { PaperProvider } from 'react-native-paper';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { canAccessOrderManagement } from '@/lib/auth';
@@ -25,6 +25,8 @@ import {
 } from '@/lib/expo-push-notifications';
 import { CallerIdListenerProvider } from '@/providers/CallerIdListenerProvider';
 import { PosCatalogProvider } from '@/providers/PosCatalogProvider';
+import { pappasTheme } from '@/lib/redesign-theme';
+import { WorkspaceShell } from '@/components/ui/WorkspaceShell';
 
 export default function RootLayout() {
   const router = useRouter();
@@ -120,20 +122,28 @@ export default function RootLayout() {
       <QueryClientProvider client={appQueryClient}>
         <PerformanceTraceProvider>
         <OrderListSyncProvider>
-          <PaperProvider theme={MD3LightTheme}>
+          <PaperProvider theme={pappasTheme}>
             <AppSettingsProvider>
               <PosCatalogProvider authenticated={authenticatedStaffAccess}>
               <MarketplaceSyncGate authenticated={authenticatedStaffAccess}>
                 <CallerIdListenerProvider authenticated={authenticatedStaffAccess}>
                   <PrinterAutomationProvider>
-                    <Stack screenOptions={{ headerShown: false }}>
+                    <Stack
+                      screenOptions={{ headerShown: false }}
+                      screenLayout={({ children, route }) => (
+                        ['pos', 'pos-layout-settings', 'menu-management', 'addons-management', 'marketplace-resolver', 'POS-intergation'].includes(route.name)
+                          ? <WorkspaceShell>{children}</WorkspaceShell>
+                          : children
+                      )}
+                    >
                       <Stack.Screen name="login" />
                       <Stack.Screen name="(drawer)" />
                       <Stack.Screen
                         name="order-detail"
                         options={{
-                          presentation: 'fullScreenModal',
-                          animation: 'slide_from_bottom',
+                          presentation: 'transparentModal',
+                          animation: 'fade',
+                          contentStyle: { backgroundColor: 'transparent' },
                         }}
                       />
                       <Stack.Screen name="marketplace-resolver" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />

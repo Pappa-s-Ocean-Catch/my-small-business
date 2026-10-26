@@ -1,8 +1,19 @@
+import { ActionButton as Button } from '@/components/ui/ActionButton';
+import { EditorSheet } from '@/components/ui/EditorSheet';
+import { ChoiceTabs } from '@/components/ui/ChoiceTabs';
+import { PosGroupTile } from '@/components/pos/PosConfigurableTile';
+import { getPosLayoutColumns, getPosLayoutMenuWidth, resolvePosTileAppearance, updatePosTileAppearance, type PosTileAppearance, type PosTileConfig } from '@/lib/pos-layout-config';
+import { PosProductTile } from '@/components/pos/PosProductTile';
+import { WorkspaceHeader } from '@/components/ui';
+import { useWindowDimensions } from 'react-native';
+import { designTokens as t } from '@/lib/redesign';
+import { FormField } from '@/components/ui';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Appbar, Button, Checkbox, Dialog, IconButton, Menu, Portal, TextInput } from 'react-native-paper';
+import { Checkbox, IconButton, Menu } from 'react-native-paper';
 import { useRouter } from 'expo-router';
-import ColorPicker, { BrightnessSlider, HueSlider, Panel1, Preview } from 'reanimated-color-picker';
+import { useNavigation, usePreventRemove } from '@react-navigation/native';
+import ColorPicker, { BrightnessSlider, Preview } from 'reanimated-color-picker';
 import { usePosCatalog } from '@/providers/PosCatalogProvider';
 import { BRAND_COLORS } from '@/utils/brand';
 import {
@@ -13,7 +24,7 @@ import {
   PosLayoutData,
   PosLayoutRecord,
   savePosLayout,
-  setSelectedPosLayoutId,
+  applyPosLayout,
 } from '../lib/pos-layouts';
 
 type SaleCategory = {
@@ -85,8 +96,13 @@ const moveItemToIndex = <T,>(items: T[], index: number, targetIndex: number) => 
 };
 
 export default function PosLayoutSettingsScreen() {
+  const { width: deviceWidth, fontScale } = useWindowDimensions();
+  const [contentWidth, setContentWidth] = useState(0);
+  const compact = contentWidth / fontScale < 600;
+
   const { snapshot: catalog, refresh: refreshCatalog } = usePosCatalog();
   const router = useRouter();
+  const navigation = useNavigation();
   const [categories, setCategories] = useState<SaleCategory[]>([]);
   const [products, setProducts] = useState<SaleProduct[]>([]);
   const [layouts, setLayouts] = useState<PosLayoutRecord[]>([]);
@@ -112,8 +128,39 @@ export default function PosLayoutSettingsScreen() {
     color: string;
     apply: (color: string) => void;
   } | null>(null);
-  const [customColorDraft, setCustomColorDraft] = useState('#111827');
+  const [customColorDraft, setCustomColorDraft] = useState<string>('#111827');
   const initializedCatalog = useRef(false);
+  const [deviceMenuVisible, setDeviceMenuVisible] = useState(false);
+  const [previewDevice, setPreviewDevice] = useState(deviceWidth >= 1100 ? 'large' : 'tablet');
+  const [showHidden, setShowHidden] = useState(true);
+  const [appearanceScope, setAppearanceScope] = useState<'selected' | 'all'>('selected');
+  const [tileTarget, setTileTarget] = useState<{ categoryId: string; productId?: string } | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [status, setStatus] = useState('');
+  const baseline = useRef('');
+  const draftKey = JSON.stringify({ layout, layoutName, isDefault });
+  const dirty = !!baseline.current && baseline.current !== draftKey;
+  usePreventRemove(dirty, ({ data }) => {
+    Alert.alert('Leave layout draft?', 'Save the named layout to keep these changes for later.', [
+      { text: 'Keep editing', style: 'cancel' },
+      { text: 'Leave', style: 'destructive', onPress: () => navigation.dispatch(data.action) },
+    ]);
+  });
+  const previewDeviceWidth = previewDevice === 'phone' ? 390 : previewDevice === 'large' ? 1366 : 1024;
+  const previewMenuWidth = getPosLayoutMenuWidth(previewDeviceWidth, fontScale);
+  const previewColumns = getPosLayoutColumns(layout, previewDeviceWidth, fontScale, previewMenuWidth);
+  const targetCategory = layout.categories.find(c => c.categoryId === tileTarget?.categoryId);
+  const targetTile = tileTarget?.productId ? targetCategory?.products.find(p => p.productId === tileTarget.productId) : targetCategory;
+  const targetAppearance = resolvePosTileAppearance(layout, targetTile);
+  const confirmReplace = (action: () => void) => dirty ? Alert.alert('Discard draft changes?', 'Your changes have not been saved.', [{ text: 'Keep editing', style: 'cancel' }, { text: 'Discard', style: 'destructive', onPress: action }]) : action();
+  const changeAppearance = (patch: PosTileAppearance) => {
+    if (tileTarget) setLayout(current => updatePosTileAppearance(current, tileTarget, patch, appearanceScope));
+  };
+  const changeTile = (patch: Partial<PosTileConfig>) => {
+    if (!tileTarget) return;
+    setLayout(current => ({ ...current, categories: current.categories.map(c => c.categoryId !== tileTarget.categoryId ? c : tileTarget.productId ? { ...c, products: c.products.map(p => p.productId === tileTarget.productId ? { ...p, ...patch } : p) } : { ...c, ...patch }) }));
+  };
+
 
   const topLevelCategories = useMemo(
     () => categories.filter((category) => !category.parent_category_id),
@@ -136,7 +183,7 @@ export default function PosLayoutSettingsScreen() {
         return {
           ...layoutCategory,
           sourceCategoryIds,
-          displayName: layoutCategory.title || sourceNames[0],
+          displayName: layoutCategory.label || layoutCategory.title || sourceNames[0],
           sourceNames,
           isVirtual: !topLevelCategoryIds.has(layoutCategory.categoryId),
         };
@@ -146,8 +193,8 @@ export default function PosLayoutSettingsScreen() {
 
   const selectedLayoutCategory = layoutGroupViews.find((category) => category.categoryId === selectedCategoryId) ?? null;
   const selectedCategoryName = selectedLayoutCategory?.displayName ?? 'Items';
-  const quickOrderNotesText = (layout.quickOrderNotes?.length ? layout.quickOrderNotes : DEFAULT_POS_QUICK_ORDER_NOTES).join('\n');
-  const quickItemNotesText = (layout.quickItemNotes?.length ? layout.quickItemNotes : DEFAULT_POS_QUICK_ITEM_NOTES).join('\n');
+  const quickOrderNotesText = (layout.quickOrderNotes ?? DEFAULT_POS_QUICK_ORDER_NOTES).join('\n');
+  const quickItemNotesText = (layout.quickItemNotes ?? DEFAULT_POS_QUICK_ITEM_NOTES).join('\n');
 
   const categoryProducts = useMemo(() => {
     if (!selectedLayoutCategory) return [];
@@ -222,6 +269,7 @@ export default function PosLayoutSettingsScreen() {
         const missingProducts = defaultCategory.products.filter((product) => !sourceProductIds.has(product.productId));
 
         return {
+          ...sourceCategory,
           categoryId: defaultCategory.categoryId,
           title: sourceCategory.title || defaultCategory.title,
           sourceCategoryIds: sourceCategory.sourceCategoryIds || defaultCategory.sourceCategoryIds,
@@ -271,11 +319,12 @@ export default function PosLayoutSettingsScreen() {
       .filter((category) => !sourceCategoryIds.has(category.categoryId));
 
     return {
+      ...sourceLayout,
       version: 1,
-      quickOrderNotes: sourceLayout.quickOrderNotes?.length
+      quickOrderNotes: sourceLayout.quickOrderNotes !== undefined
         ? sourceLayout.quickOrderNotes
         : DEFAULT_POS_QUICK_ORDER_NOTES,
-      quickItemNotes: sourceLayout.quickItemNotes?.length
+      quickItemNotes: sourceLayout.quickItemNotes !== undefined
         ? sourceLayout.quickItemNotes
         : DEFAULT_POS_QUICK_ITEM_NOTES,
       categories: [...syncedExistingCategories, ...missingDefaultCategories],
@@ -295,11 +344,13 @@ export default function PosLayoutSettingsScreen() {
     setCategories(nextCategories);
     setProducts(nextProducts);
     setLayouts(nextLayouts);
-    setLayoutId(preferred?.id ?? null);
+    setLayoutId(nextLayouts.some(item => item.id === preferred?.id) ? preferred?.id ?? null : null);
     setLayoutName(preferred?.name ?? 'Default POS Layout');
     setIsDefault(preferred?.is_default ?? true);
     setLayout(nextLayout);
-    setSelectedCategoryId(nextLayout.categories[0]?.categoryId ?? null);
+    baseline.current = JSON.stringify({ layout: nextLayout, layoutName: preferred?.name ?? 'Default POS Layout', isDefault: preferred?.is_default ?? true });
+    setSelectedCategoryId(null);
+    setTileTarget(nextLayout.categories[0] ? { categoryId: nextLayout.categories[0].categoryId } : null);
   };
 
   useEffect(() => {
@@ -309,6 +360,8 @@ export default function PosLayoutSettingsScreen() {
     }
   }, [catalog]);
 
+  useEffect(() => { if (catalog) setLayouts(catalog.layouts); }, [catalog]);
+
   const selectLayout = (selected: PosLayoutRecord) => {
     const syncedLayout = syncLayoutWithCatalog(selected.layout, categories, products);
     setLayoutMenuVisible(false);
@@ -316,7 +369,9 @@ export default function PosLayoutSettingsScreen() {
     setLayoutName(selected.name);
     setIsDefault(selected.is_default);
     setLayout(syncedLayout);
-    setSelectedCategoryId(syncedLayout.categories[0]?.categoryId ?? null);
+    baseline.current = JSON.stringify({ layout: syncedLayout, layoutName: selected.name, isDefault: selected.is_default });
+    setSelectedCategoryId(null);
+    setTileTarget(syncedLayout.categories[0] ? { categoryId: syncedLayout.categories[0].categoryId } : null);
   };
 
   const updateCategory = (categoryId: string, updater: (category: PosLayoutCategory) => PosLayoutCategory) => {
@@ -329,7 +384,7 @@ export default function PosLayoutSettingsScreen() {
   };
 
   const updateCategoryColor = (categoryId: string, color: string) => {
-    updateCategory(categoryId, (category) => ({ ...category, color }));
+    setLayout(current => updatePosTileAppearance(current, { categoryId }, { background: color }, appearanceScope));
   };
 
   const updateCategoryTitle = (categoryId: string, title: string) => {
@@ -367,12 +422,7 @@ export default function PosLayoutSettingsScreen() {
 
   const updateProductColor = (productId: string, color: string) => {
     if (!selectedCategoryId) return;
-    updateCategory(selectedCategoryId, (category) => ({
-      ...category,
-      products: category.products.map((product) => (
-        product.productId === productId ? { ...product, color } : product
-      )),
-    }));
+    setLayout(current => updatePosTileAppearance(current, { categoryId: selectedCategoryId, productId }, { background: color }, appearanceScope));
   };
 
   const toggleProductQuickList = (productId: string) => {
@@ -421,8 +471,19 @@ export default function PosLayoutSettingsScreen() {
     setLayoutName('New POS Layout');
     setIsDefault(false);
     setLayout(nextLayout);
-    setSelectedCategoryId(nextLayout.categories[0]?.categoryId ?? null);
+    setSelectedCategoryId(null);
+    setTileTarget(nextLayout.categories[0] ? { categoryId: nextLayout.categories[0].categoryId } : null);
   };
+
+  const loadExample = (chip: boolean) => confirmReplace(() => {
+    const example = buildDefaultLayout(categories, products);
+    example.appearance = { background: '#FFFFFF', text: '#172E3A', fontSize: chip ? 14 : 16, fontWeight: 700, align: 'left', height: chip ? 88 : 104 };
+    example.categories = example.categories.map(({ color, ...category }) => category);
+    example.columnsExpanded = 4; example.columnsPhone = 2;
+    if (chip) example.categories.sort((a, b) => Number(!/chip/i.test(a.title || '')) - Number(!/chip/i.test(b.title || '')));
+    setLayoutId(null); setLayoutName(chip ? 'Default Chip' : 'Default POS'); setIsDefault(false); setLayout(example); setTileTarget(null); setLayoutMenuVisible(false);
+    setStatus('Example loaded as a draft. Save or Apply when ready.');
+  });
 
   const openVirtualGroupDialog = () => {
     setEditingVirtualCategoryId(null);
@@ -467,13 +528,13 @@ export default function PosLayoutSettingsScreen() {
     const syncedVirtualLayout = syncLayoutWithCatalog({
       version: 1,
       categories: [{
+        ...layout.categories.find(c => c.categoryId === virtualCategoryId),
         categoryId: virtualCategoryId,
         title,
         sourceCategoryIds,
         hideSourceCategories: virtualHideSourceCategories,
-        showProductsOnTopLevel: false,
-        color: DEFAULT_POS_BUTTON_COLOR,
-        products: [],
+        showProductsOnTopLevel: layout.categories.find(c => c.categoryId === virtualCategoryId)?.showProductsOnTopLevel ?? false,
+        products: layout.categories.find(c => c.categoryId === virtualCategoryId)?.products || [],
       }],
     }, categories, products);
     const virtualGroup = syncedVirtualLayout.categories.find((category) => category.categoryId === virtualCategoryId);
@@ -505,28 +566,29 @@ export default function PosLayoutSettingsScreen() {
 
   const handleSave = async () => {
     setSaving(true);
+    try {
     const result = await savePosLayout({ id: layoutId ?? undefined, name: layoutName, layout, isDefault });
-    setSaving(false);
 
     if (result.error) {
       Alert.alert('POS layout', result.error);
       return;
     }
 
-    Alert.alert('POS layout', 'Layout saved.');
-    initializedCatalog.current = false;
+    setLayoutId(result.data?.id || layoutId);
+    baseline.current = draftKey;
+    setStatus('Named layout saved. Apply to this POS to change the live tiles.');
     await refreshCatalog('manual');
+    } catch (error) { Alert.alert('POS layout', String(error)); } finally { setSaving(false); }
   };
 
   const handleUseLayout = async () => {
-    if (!layoutId) {
-      Alert.alert('POS layout', 'Save this layout before using it on POS.');
-      return;
-    }
-
-    await setSelectedPosLayoutId(layoutId);
-    await refreshCatalog('selection');
-    router.back();
+    setSaving(true);
+    try {
+      await applyPosLayout(layout, layoutName, layoutId);
+      await refreshCatalog('selection');
+      setStatus('Applied to this POS.');
+    } catch (error) { Alert.alert('POS layout', String(error)); }
+    finally { setSaving(false); }
   };
 
   const categoryColor = (categoryId: string) => (
@@ -578,37 +640,29 @@ export default function PosLayoutSettingsScreen() {
   );
 
   return (
-    <View style={styles.container}>
-      <Appbar.Header style={styles.header}>
-        <Appbar.BackAction onPress={() => router.back()} iconColor="#fff" />
-        <Appbar.Content title="POS Layout" titleStyle={styles.headerTitle} />
-        <Appbar.Action icon="content-save" onPress={handleSave} iconColor="#fff" disabled={saving} />
-      </Appbar.Header>
+    <View style={styles.container} onLayout={(event) => setContentWidth(event.nativeEvent.layout.width)}>
+      <WorkspaceHeader title="POS layout" />
 
-      <View style={styles.body}>
-        <View style={styles.previewPane}>
-          <View style={styles.previewToolbar}>
-            <Button mode="contained-tonal" icon="magnify" style={styles.searchButton} disabled>
-              Search preview
-            </Button>
-            <Text style={styles.previewHint}>Preview only. Search stays interactive on the live POS screen.</Text>
+      <View style={[styles.body, { padding: contentWidth >= 1100 ? 16 : 12 }, compact && { flexDirection: 'column' }]}>
+        <View style={[styles.previewPane, previewDevice === 'phone' && { maxWidth: 390, alignSelf: 'center', width: '100%' }, compact && { flexBasis: 0, minHeight: 150 }]}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 12 }}>
+            <View style={{ flexDirection: 'row', borderWidth: 1, borderColor: t.color.border, borderRadius: 8, padding: 2, backgroundColor: '#EDF2F1' }}>{[{ value: 'groups', label: 'Groups' }, { value: 'items', label: 'Products' }].map(tab => <TouchableOpacity key={tab.value} accessibilityRole="tab" accessibilityState={{ selected: (selectedCategoryId ? 'items' : 'groups') === tab.value }} onPress={() => setSelectedCategoryId(tab.value === 'groups' ? null : layout.categories[0]?.categoryId || null)} style={{ minHeight: 36, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 6, backgroundColor: (selectedCategoryId ? 'items' : 'groups') === tab.value ? '#fff' : undefined }}><Text style={{ color: t.color.primaryPressed, fontSize: 13, fontWeight: '700' }}>{tab.label}</Text></TouchableOpacity>)}</View>
+            <Menu visible={deviceMenuVisible} onDismiss={() => setDeviceMenuVisible(false)} anchor={<Button mode="outlined" compact onPress={() => setDeviceMenuVisible(true)} contentStyle={{ minHeight: 40 }}>{previewDevice === 'phone' ? 'Phone preview' : previewDevice === 'large' ? 'Large tablet' : 'Small tablet'}⌄</Button>}>{[{ value: 'tablet', label: 'Small tablet' }, { value: 'large', label: 'Large tablet' }, { value: 'phone', label: 'Phone preview' }].map(device => <Menu.Item key={device.value} title={device.label} onPress={() => { setPreviewDevice(device.value); setDeviceMenuVisible(false); }} />)}</Menu>
+            <Button mode="outlined" compact buttonColor={showHidden ? t.color.primaryTint : t.color.surface} onPress={() => setShowHidden(v => !v)} contentStyle={{ minHeight: 40 }}>Show hidden</Button>
+            {selectedCategoryId && <ScrollView horizontal><View style={{ flexDirection: 'row' }}>{orderedCategories.map(c => <Button key={c.categoryId} onPress={() => setSelectedCategoryId(c.categoryId)}>{c.displayName}</Button>)}</View></ScrollView>}
           </View>
-
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: t.color.surface, borderWidth: 1, borderColor: t.color.border, borderTopLeftRadius: 12, borderTopRightRadius: 12, minHeight: 48, paddingHorizontal: 16 }}><Text style={{ color: t.color.text, fontSize: 15, fontWeight: '700' }}>Take order</Text><Text style={{ color: t.color.muted }}>⌕</Text></View>
+          <ScrollView horizontal style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }}><View style={{ width: previewMenuWidth, height: '100%' }}>
           {!selectedCategoryId ? (
             <FlatList
-              data={orderedCategories}
+              data={orderedCategories.filter(c => showHidden || c.visible !== false)}
               keyExtractor={(item) => item.categoryId}
-              numColumns={3}
-              key="layout-groups"
+              numColumns={previewColumns}
+              key={`layout-groups-${previewColumns}`}
               contentContainerStyle={styles.tileGrid}
               ListEmptyComponent={<Text style={styles.emptyText}>{loading ? 'Loading layout...' : 'No categories'}</Text>}
               renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[styles.groupCard, { backgroundColor: categoryColor(item.categoryId) }]}
-                  onPress={() => setSelectedCategoryId(item.categoryId)}
-                >
-                  <Text style={styles.groupCardText} numberOfLines={3}>{item.displayName}</Text>
-                </TouchableOpacity>
+                <PosGroupTile label={item.label || item.displayName} columns={previewColumns} layout={layout} tileConfig={item} selected={tileTarget?.categoryId === item.categoryId && !tileTarget.productId} onPress={() => setTileTarget({ categoryId: item.categoryId })} />
               )}
             />
           ) : (
@@ -623,30 +677,26 @@ export default function PosLayoutSettingsScreen() {
                 </View>
               </View>
               <FlatList
-                data={orderedProducts}
+                data={orderedProducts.filter(p => showHidden || selectedLayoutCategory?.products.find(c => c.productId === p.id)?.visible !== false)}
                 keyExtractor={(item) => item.id}
-                numColumns={3}
-                key="layout-products"
+                numColumns={previewColumns}
+                key={`layout-products-${previewColumns}`}
                 contentContainerStyle={styles.tileGrid}
                 ListEmptyComponent={<Text style={styles.emptyText}>No items in this group</Text>}
                 renderItem={({ item }) => {
-                  const color = productColor(item.id);
-                  return (
-                    <View style={[styles.productCard, color ? { backgroundColor: color, borderColor: color } : null]}>
-                      <Text style={[styles.productName, color ? styles.customColorText : null]} numberOfLines={2}>{item.name}</Text>
-                      <Text style={[styles.productPrice, color ? styles.customColorText : null]}>${item.sale_price.toFixed(2)}</Text>
-                    </View>
-                  );
+                  return <PosProductTile product={item} groupName={selectedCategoryName} quantity={0} hasAddons={catalog?.customizableIds.has(item.id) || false} accent={productColor(item.id) || categoryColor(selectedCategoryId)} columns={previewColumns} layout={layout} tileConfig={selectedLayoutCategory?.products.find(p => p.productId === item.id)} onPress={() => setTileTarget({ categoryId: selectedCategoryId, productId: item.id })} preview />;
                 }}
               />
             </>
           )}
+          </View></ScrollView>
+          <Text style={{ color: t.color.muted, fontSize: 13, marginTop: 12 }}>Tap a tile to edit its appearance. Changes appear here before you apply them to this POS. {status}</Text>
         </View>
 
-        <ScrollView style={styles.settingsPane} contentContainerStyle={styles.settingsContent}>
+        <View style={[styles.settingsPane, { width: contentWidth >= 1100 ? 300 : 280 }, compact && { width: '100%', flexBasis: 0, minHeight: 200, flex: 1 }]}><ScrollView contentContainerStyle={styles.settingsContent}>
           <View style={styles.controlPanel}>
             <View style={styles.panelHeader}>
-              <Text style={styles.panelTitle}>Layout</Text>
+              <Text style={styles.panelTitle}>Layout settings</Text>
               {isDefault && <Text style={styles.defaultBadge}>Default</Text>}
             </View>
             <View style={styles.menuBox}>
@@ -660,23 +710,50 @@ export default function PosLayoutSettingsScreen() {
                 )}
               >
                 {layouts.map((item) => (
-                  <Menu.Item key={item.id} onPress={() => selectLayout(item)} title={`${item.name}${item.is_default ? ' (default)' : ''}`} />
+                  <Menu.Item key={item.id} onPress={() => confirmReplace(() => selectLayout(item))} title={`${item.name}${item.is_default ? ' (default)' : ''}`} />
                 ))}
-                <Menu.Item onPress={startNewLayout} title="New layout from menu" />
+                <Menu.Item onPress={() => confirmReplace(startNewLayout)} title="New layout from menu" /><Menu.Item onPress={() => loadExample(false)} title="Example · Default POS" /><Menu.Item onPress={() => loadExample(true)} title="Example · Default Chip" />
               </Menu>
             </View>
-            <TextInput
+            <FormField
               label="Layout name"
               mode="outlined"
               value={layoutName}
               onChangeText={setLayoutName}
               style={styles.input}
             />
+          </View>
+          <View style={styles.controlPanel}>
+
+            <Text style={styles.panelTitle}>{dirty ? 'Unsaved draft' : 'Layout draft'}</Text>
+            <Text style={styles.helperText}>{tileTarget ? `Selected ${tileTarget.productId ? 'product' : 'group'}` : 'Tap a preview tile to select it'}</Text>
+            {tileTarget && <>
+              <ChoiceTabs variant="choices" value={appearanceScope} onValueChange={v => setAppearanceScope(v as 'selected' | 'all')} buttons={[{ value: 'selected', label: 'Selected tile' }, { value: 'all', label: 'All tiles' }]} />
+              <Text style={styles.editorSectionLabel}>Button background</Text>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Edit button background" onPress={() => openCustomColorPicker(targetAppearance.background, background => changeAppearance({ background }))} style={{ height: 40, borderWidth: 1, borderColor: t.color.border, padding: 5, borderRadius: 8 }}><View style={{ flex: 1, backgroundColor: targetAppearance.background, borderWidth: 1, borderColor: t.color.border }} /></TouchableOpacity>
+              <Text style={styles.editorSectionLabel}>Text colour</Text>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Edit text colour" onPress={() => openCustomColorPicker(targetAppearance.text, text => changeAppearance({ text }))} style={{ height: 40, borderWidth: 1, borderColor: t.color.border, padding: 5, borderRadius: 8 }}><View style={{ flex: 1, backgroundColor: targetAppearance.text }} /></TouchableOpacity>
+              <FormField label="Display label" value={targetTile?.label ?? (tileTarget.productId ? products.find(p => p.id === tileTarget.productId)?.name : targetCategory?.title) ?? ''} onChangeText={label => changeTile({ label })} />
+              <Text style={styles.editorSectionLabel}>Text size</Text>
+              <ChoiceTabs variant="choices" value={String(targetAppearance.fontSize)} onValueChange={v => changeAppearance({ fontSize: Number(v) })} buttons={[14,16,18,20,22].map(v => ({ value: String(v), label: String(v) }))} />
+              <Text style={styles.editorSectionLabel}>Text weight</Text>
+              <ChoiceTabs variant="choices" value={String(targetAppearance.fontWeight)} onValueChange={v => changeAppearance({ fontWeight: Number(v) })} buttons={[{ value: '400', label: 'Regular' }, { value: '600', label: 'Semibold' }, { value: '700', label: 'Bold' }, { value: '800', label: 'Heavy' }]} />
+              <ChoiceTabs variant="choices" value={targetAppearance.align} onValueChange={v => changeAppearance({ align: v as 'left' | 'center' | 'right' })} buttons={['left','center','right'].map(v => ({ value: v, label: v }))} />
+              <Text style={styles.editorSectionLabel}>Minimum tile height</Text>
+              <ChoiceTabs variant="choices" value={String(targetAppearance.height)} onValueChange={v => changeAppearance({ height: Number(v) })} buttons={[88,104,128,152].map(v => ({ value: String(v), label: String(v) }))} />
+              {tileTarget.productId && <Button onPress={() => toggleProductQuickList(tileTarget.productId!)}>{targetTile && 'showOnQuickList' in targetTile && targetTile.showOnQuickList ? 'Hide from Quick List' : 'Show in Quick List'}</Button>}
+              <Button onPress={() => changeTile({ visible: targetTile?.visible === false })}>{targetTile?.visible === false ? 'Restore tile' : 'Hide tile'}</Button>
+            </>}
+            <Text style={styles.panelTitle}>Responsive columns</Text>
+            {(['columnsExpanded', 'columnsMedium', 'columnsPhone'] as const).map((key, i) => <View key={key}><Text style={styles.editorSectionLabel}>{['Large tablet', 'Small tablet', 'Phone'][i]}</Text><ChoiceTabs variant="choices" value={String(layout[key] ?? 'auto')} onValueChange={v => setLayout(current => ({ ...current, [key]: v === 'auto' ? undefined : Number(v) }))} buttons={['auto', ...(i === 2 ? ['1','2'] : ['2','3','4'])].map(v => ({ value: v, label: v === 'auto' ? 'Automatic' : v }))} /></View>)}
+          </View>
+          <Button mode="outlined" onPress={() => setShowAdvanced(v => !v)}>{showAdvanced ? 'Hide' : 'More'} layout settings</Button>
+          {showAdvanced && <><View style={styles.controlPanel}>
             <TouchableOpacity style={styles.defaultRow} onPress={() => setIsDefault((value) => !value)}>
-              <Checkbox status={isDefault ? 'checked' : 'unchecked'} />
+              <Checkbox.Android status={isDefault ? 'checked' : 'unchecked'} />
               <Text style={styles.defaultText}>Load as default layout</Text>
             </TouchableOpacity>
-            <TextInput
+            <FormField
               label="Quick order notes"
               mode="outlined"
               value={quickOrderNotesText}
@@ -686,7 +763,7 @@ export default function PosLayoutSettingsScreen() {
               style={[styles.input, styles.multilineInput]}
             />
             <Text style={styles.helperText}>One option per line. These appear in POS and print as order notes.</Text>
-            <TextInput
+            <FormField
               label="Quick item notes"
               mode="outlined"
               value={quickItemNotesText}
@@ -696,14 +773,7 @@ export default function PosLayoutSettingsScreen() {
               style={[styles.input, styles.multilineInput]}
             />
             <Text style={styles.helperText}>One option per line. These appear as shortcuts in the Item note dialog.</Text>
-            <View style={styles.actionRow}>
-              <Button mode="contained" icon="content-save" onPress={handleSave} loading={saving} disabled={saving} style={styles.actionButton}>
-                Save
-              </Button>
-              <Button mode="outlined" icon="play-box-outline" onPress={handleUseLayout} style={styles.actionButton}>
-                Use on POS
-              </Button>
-            </View>
+
           </View>
 
           <View style={styles.panelHeader}>
@@ -715,7 +785,7 @@ export default function PosLayoutSettingsScreen() {
 
           {!selectedCategoryId && (
             <View style={styles.editorHintRow}>
-              <Button mode="outlined" icon="plus-box-outline" onPress={startNewLayout} style={styles.fullButton}>
+              <Button mode="outlined" icon="plus-box-outline" onPress={() => confirmReplace(startNewLayout)} style={styles.fullButton}>
                 New layout from menu
               </Button>
               <Button mode="contained-tonal" icon="folder-plus-outline" onPress={openVirtualGroupDialog} style={styles.fullButton}>
@@ -741,7 +811,7 @@ export default function PosLayoutSettingsScreen() {
                 </View>
                 <View style={styles.editorSection}>
                   <Text style={styles.editorSectionLabel}>Label</Text>
-                  <TextInput
+                  <FormField
                     label="POS group name"
                     mode="outlined"
                     value={category.title || category.displayName}
@@ -760,7 +830,7 @@ export default function PosLayoutSettingsScreen() {
                     style={styles.inlineToggleRow}
                     onPress={() => toggleCategoryTopLevelProducts(category.categoryId)}
                   >
-                    <Checkbox status={category.showProductsOnTopLevel ? 'checked' : 'unchecked'} />
+                    <Checkbox.Android status={category.showProductsOnTopLevel ? 'checked' : 'unchecked'} />
                     <Text style={styles.inlineToggleText}>Skip next level and show items here</Text>
                   </TouchableOpacity>
                   <Text style={styles.editorSummaryText}>
@@ -820,7 +890,7 @@ export default function PosLayoutSettingsScreen() {
                         style={styles.inlineToggleRow}
                         onPress={() => toggleProductQuickList(product.id)}
                       >
-                        <Checkbox
+                        <Checkbox.Android
                           status={
                             selectedLayoutCategory?.products.find((layoutProduct) => layoutProduct.productId === product.id)?.showOnQuickList
                               ? 'checked'
@@ -850,28 +920,31 @@ export default function PosLayoutSettingsScreen() {
               ))}
             </>
           )}
-        </ScrollView>
+          </>}
+        </ScrollView><View style={{ padding: 16, borderTopWidth: 1, borderColor: t.color.border, flexDirection: 'column', gap: 8 }}><Button mode="outlined" contentStyle={{ minHeight: 48 }} loading={saving} disabled={saving || loading || !layoutName.trim()} onPress={handleSave}>Save layout</Button><Button mode="contained" contentStyle={{ minHeight: 48 }} onPress={handleUseLayout} disabled={saving || loading}>Apply to this POS</Button><Button mode="outlined" onPress={() => router.push('/pos')}>Open POS</Button></View></View>
       </View>
 
-      <Portal>
-        <Dialog visible={virtualDialogVisible} onDismiss={() => setVirtualDialogVisible(false)} style={styles.dialog}>
-          <Dialog.Title>{editingVirtualCategoryId ? 'Edit virtual group' : 'Create virtual group'}</Dialog.Title>
-          <Dialog.Content>
-            <TextInput
+        {virtualDialogVisible && <EditorSheet visible title={editingVirtualCategoryId ? 'Edit virtual group' : 'Create virtual group'} onDismiss={() => setVirtualDialogVisible(false)} footer={<><Button mode="outlined" contentStyle={{ minHeight: 48 }} onPress={() => setVirtualDialogVisible(false)}>Cancel</Button>{editingVirtualCategoryId && <Button textColor={t.color.danger} onPress={() => deleteVirtualGroup(editingVirtualCategoryId)}>Delete</Button>}<Button mode="contained" contentStyle={{ minHeight: 48 }} disabled={!virtualName.trim() || Object.values(virtualSourceIds).filter(Boolean).length < 2} onPress={saveVirtualGroup}>{editingVirtualCategoryId ? 'Save group' : 'Create group'}</Button></>}>
+            <FormField
               label="POS group name"
               mode="outlined"
               value={virtualName}
               onChangeText={setVirtualName}
               style={styles.input}
             />
+            <Text style={{ fontSize: 14, fontWeight: '700', color: t.color.text }}>Source groups</Text>
+            <Text style={{ color: t.color.muted, fontSize: 14 }}>Select at least two groups to combine.</Text>
             <View style={styles.virtualSourceList}>
               {topLevelCategories.map((category) => (
                 <TouchableOpacity
                   key={category.id}
+                  accessibilityRole="checkbox"
+                  accessibilityLabel={category.name}
+                  accessibilityState={{ checked: !!virtualSourceIds[category.id] }}
                   style={styles.virtualSourceRow}
                   onPress={() => toggleVirtualSource(category.id)}
                 >
-                  <Checkbox status={virtualSourceIds[category.id] ? 'checked' : 'unchecked'} />
+                  <Checkbox.Android status={virtualSourceIds[category.id] ? 'checked' : 'unchecked'} />
                   <Text style={styles.virtualSourceText}>{category.name}</Text>
                 </TouchableOpacity>
               ))}
@@ -880,105 +953,87 @@ export default function PosLayoutSettingsScreen() {
               style={styles.inlineToggleRow}
               onPress={() => setVirtualHideSourceCategories((value) => !value)}
             >
-              <Checkbox status={virtualHideSourceCategories ? 'checked' : 'unchecked'} />
+              <Checkbox.Android status={virtualHideSourceCategories ? 'checked' : 'unchecked'} />
               <Text style={styles.inlineToggleText}>Hide source groups on POS</Text>
             </TouchableOpacity>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => setVirtualDialogVisible(false)}>Cancel</Button>
-            {editingVirtualCategoryId && (
-              <Button textColor="#dc2626" onPress={() => deleteVirtualGroup(editingVirtualCategoryId)}>Delete</Button>
-            )}
-            <Button onPress={saveVirtualGroup}>{editingVirtualCategoryId ? 'Save' : 'Create'}</Button>
-          </Dialog.Actions>
-        </Dialog>
+        </EditorSheet>}
 
-        <Dialog visible={Boolean(customColorPicker)} onDismiss={() => setCustomColorPicker(null)} style={styles.dialog}>
-          <Dialog.Title>Custom color</Dialog.Title>
-          <Dialog.Content>
+        {customColorPicker && <EditorSheet visible title="Custom colour"  onDismiss={() => setCustomColorPicker(null)} footer={<><Button mode="outlined" contentStyle={{ minHeight: 48 }} onPress={() => setCustomColorPicker(null)}>Cancel</Button><Button mode="contained" contentStyle={{ minHeight: 48 }} disabled={!normalizeHexColor(customColorDraft)} onPress={applyCustomColor}>Apply colour</Button></>}>
+            <FormField label="Hex colour" value={customColorDraft} onChangeText={setCustomColorDraft} autoCapitalize="none" autoCorrect={false} />
+            <Text style={{ fontSize: 14, fontWeight: '700', color: t.color.text }}>Colour palette</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{[t.color.primary, t.color.navy, t.color.danger, '#C09235', '#81769B'].map((color) => <TouchableOpacity key={color} accessibilityRole="button" accessibilityLabel={`Use colour ${color}`} onPress={() => setCustomColorDraft(color)} style={{ width: 48, height: 48, borderRadius: 24, padding: 3, borderWidth: 1, borderColor: normalizeHexColor(customColorDraft)?.toUpperCase() === color.toUpperCase() ? t.color.primary : t.color.border }}><View style={{ flex: 1, borderRadius: 24, backgroundColor: color }} /></TouchableOpacity>)}</View>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: t.color.text }}>Brightness</Text>
             <ColorPicker
-              value={customColorDraft}
+              value={normalizeHexColor(customColorDraft) || DEFAULT_POS_BUTTON_COLOR}
               onChangeJS={(colors) => setCustomColorDraft(colors.hex)}
               onCompleteJS={(colors) => setCustomColorDraft(colors.hex)}
               thumbSize={28}
               sliderThickness={20}
               style={styles.colorPicker}
             >
-              <Preview style={styles.pickerPreview} textStyle={styles.pickerPreviewText} />
-              <Panel1 style={styles.pickerPanel} />
-              <HueSlider style={styles.pickerSlider} />
               <BrightnessSlider style={styles.pickerSlider} />
+              <Preview hideText style={{ height: 80, borderRadius: 16 }} />
             </ColorPicker>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => setCustomColorPicker(null)}>Cancel</Button>
-            <Button onPress={applyCustomColor}>Apply</Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+        </EditorSheet>}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f4f6f8' },
+  container: { flex: 1, backgroundColor: t.color.background },
   header: { backgroundColor: BRAND_COLORS.header },
-  headerTitle: { color: '#fff', fontWeight: '700' },
-  body: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 12, padding: 8 },
-  previewPane: { flex: 1, flexBasis: 300, minWidth: 0, backgroundColor: '#fff', borderRadius: 8, overflow: 'hidden' },
-  settingsPane: { flex: 1, flexBasis: 300, minWidth: 0, backgroundColor: '#fff', borderRadius: 8 },
-  settingsContent: { padding: 10, gap: 8 },
+  headerTitle: { color: t.color.surface, fontWeight: '700' },
+  body: { flex: 1, flexDirection: 'row', gap: 16, padding: 16, minHeight: 0 },
+  previewPane: { flex: 1, minWidth: 0, minHeight: 0, backgroundColor: 'transparent', borderRadius: t.radius.card, overflow: 'hidden' },
+  settingsPane: { flexShrink: 0, minWidth: 0, minHeight: 0, backgroundColor: t.color.surface, borderRadius: t.radius.card },
+  settingsContent: { padding: 16, gap: 16 },
   controlPanel: {
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 8,
-    padding: 8,
-    gap: 8,
-    backgroundColor: '#f9fafb',
+    gap: 12,
+    backgroundColor: t.color.surface,
   },
   panelHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' },
-  panelTitle: { color: '#111827', fontSize: 16, fontWeight: '900' },
+  panelTitle: { color: t.color.text, fontSize: 15, fontWeight: '700' },
   defaultBadge: {
-    color: '#166534',
-    backgroundColor: '#dcfce7',
-    borderRadius: 8,
+    color: t.color.success,
+    backgroundColor: t.color.successTint,
+    borderRadius: t.radius.card,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '900',
   },
   countBadge: {
-    color: '#374151',
-    backgroundColor: '#f3f4f6',
-    borderRadius: 8,
+    color: t.color.text,
+    backgroundColor: t.color.background,
+    borderRadius: t.radius.card,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '900',
   },
   actionRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  actionButton: { flexGrow: 1, minWidth: 130, borderRadius: 8 },
+  actionButton: { flexGrow: 1, minWidth: 130, borderRadius: t.radius.card },
   editorHintRow: { flexDirection: 'row', gap: 8, marginBottom: 2, flexWrap: 'wrap' },
-  previewToolbar: { padding: 10, paddingBottom: 0, gap: 8 },
-  searchButton: { borderRadius: 8 },
-  previewHint: { color: '#6b7280', fontSize: 12, fontWeight: '700' },
+  previewToolbar: { padding: 20, paddingBottom: 0, gap: 12 },
+  searchButton: { borderRadius: t.radius.card },
+  previewHint: { color: t.color.muted, fontSize: 14, fontWeight: '700' },
   tileGrid: { padding: 10, paddingBottom: 24 },
   groupCard: {
     flex: 1,
     minHeight: 132,
     margin: 5,
-    borderRadius: 8,
+    borderRadius: t.radius.card,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 14,
     borderWidth: 1,
-    borderColor: '#243244',
+    borderColor: t.color.border,
   },
-  groupCardText: { color: '#fff', fontSize: 22, fontWeight: '900', textAlign: 'center' },
+  groupCardText: { color: t.color.text, fontSize: 16, fontWeight: '700', textAlign: 'left' },
   menuHeader: {
     minHeight: 82,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: t.color.border,
     paddingHorizontal: 14,
     paddingVertical: 10,
     flexDirection: 'row',
@@ -986,99 +1041,91 @@ const styles = StyleSheet.create({
     gap: 12,
     flexWrap: 'wrap',
   },
-  backButton: { borderRadius: 8 },
+  backButton: { borderRadius: t.radius.card },
   menuHeaderText: { flex: 1 },
-  menuTitle: { color: '#111827', fontSize: 24, fontWeight: '800' },
-  menuSubtitle: { color: '#6b7280', marginTop: 2 },
+  menuTitle: { color: t.color.text, fontSize: 24, fontWeight: '800' },
+  menuSubtitle: { color: t.color.muted, marginTop: 2 },
   productCard: {
     flex: 1,
     minHeight: 132,
     margin: 5,
-    borderRadius: 8,
+    borderRadius: t.radius.card,
     backgroundColor: '#f9fafb',
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: t.color.border,
     padding: 12,
     justifyContent: 'space-between',
   },
-  productName: { color: '#111827', fontSize: 16, fontWeight: '800' },
-  productPrice: { color: '#dc2626', fontSize: 20, fontWeight: '900' },
-  customColorText: { color: '#fff' },
-  emptyText: { color: '#6b7280', fontSize: 16, fontWeight: '700', padding: 24, textAlign: 'center' },
+  productName: { color: t.color.text, fontSize: 16, fontWeight: '800' },
+  productPrice: { color: t.color.text, fontSize: 20, fontWeight: '900' },
+  customColorText: { color: t.color.surface },
+  emptyText: { color: t.color.muted, fontSize: 16, fontWeight: '700', padding: 24, textAlign: 'center' },
   menuBox: { zIndex: 10 },
-  input: { backgroundColor: '#fff' },
+  input: { backgroundColor: t.color.surface },
   multilineInput: { minHeight: 118 },
-  helperText: { color: '#6b7280', fontSize: 12, fontWeight: '700' },
-  inlineInput: { backgroundColor: '#fff' },
-  fullButton: { borderRadius: 8 },
+  helperText: { color: t.color.muted, fontSize: 14, fontWeight: '700' },
+  inlineInput: { backgroundColor: t.color.surface },
+  fullButton: { borderRadius: t.radius.card },
   defaultRow: { flexDirection: 'row', alignItems: 'center' },
-  defaultText: { color: '#111827', fontWeight: '700' },
-  inlineToggleRow: { flexDirection: 'row', alignItems: 'center', marginLeft: -8 },
-  inlineToggleText: { color: '#111827', fontSize: 12, fontWeight: '800' },
+  defaultText: { color: t.color.text, fontWeight: '700' },
+  inlineToggleRow: { flexDirection: 'row', alignItems: 'center', minHeight: 48, marginLeft: -8 },
+  inlineToggleText: { flex: 1, color: t.color.text, fontSize: 14, fontWeight: '700' },
   editorRow: {
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 8,
-    padding: 8,
-    flexDirection: 'row',
-    gap: 6,
-    flexWrap: 'wrap',
-    backgroundColor: '#f9fafb',
+    borderColor: t.color.border,
+    borderRadius: t.radius.card,
+    padding: 16,
+    flexDirection: 'column',
+    gap: 16,
+    backgroundColor: t.color.surface,
   },
-  editorRowMain: { flex: 1, gap: 6 },
-  editorSection: {
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 8,
-    padding: 8,
-    gap: 6,
-    backgroundColor: '#fff',
-  },
-  editorSectionLabel: { color: '#6b7280', fontSize: 11, fontWeight: '900', textTransform: 'uppercase' },
-  editorSummaryText: { color: '#374151', fontSize: 12, fontWeight: '700' },
+  editorRowMain: { gap: 16 },
+  editorSection: { gap: 8 },
+  editorSectionLabel: { color: t.color.muted, fontSize: 14, fontWeight: '700' },
+  editorSummaryText: { color: t.color.text, fontSize: 14, fontWeight: '700' },
   editorTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   editorColorDot: {
     width: 16,
     height: 16,
-    borderRadius: 8,
+    borderRadius: t.radius.card,
     borderWidth: 1,
     borderColor: '#d1d5db',
   },
-  editorTitle: { color: '#111827', fontSize: 14, fontWeight: '900' },
-  orderControls: { flexDirection: 'row', alignItems: 'center' },
+  editorTitle: { color: t.color.text, fontSize: 14, fontWeight: '900' },
+  orderControls: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end' },
   sourceBadgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   sourceBadge: {
-    color: '#374151',
-    backgroundColor: '#e5e7eb',
-    borderRadius: 8,
+    color: t.color.text,
+    backgroundColor: t.color.border,
+    borderRadius: t.radius.card,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: '800',
   },
   colorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 3 },
   colorSwatch: {
-    width: 20,
-    height: 20,
+    width: 48,
+    height: 48,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: '#fff',
+    borderColor: t.color.surface,
   },
-  colorSwatchSelected: { borderColor: '#111827' },
+  colorSwatchSelected: { borderColor: t.color.text },
   customColorSwatch: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: t.color.surface,
     borderColor: '#9ca3af',
   },
-  customColorPlusText: { color: '#111827', fontSize: 14, fontWeight: '900', lineHeight: 14 },
-  dialog: { backgroundColor: '#fff' },
+  customColorPlusText: { color: t.color.text, fontSize: 14, fontWeight: '900', lineHeight: 14 },
+  dialog: { backgroundColor: t.color.surface },
   colorPicker: { width: '100%', gap: 12 },
-  pickerPreview: { height: 42, borderRadius: 8 },
-  pickerPreviewText: { fontSize: 13, fontWeight: '800' },
-  pickerPanel: { height: 210, borderRadius: 8 },
-  pickerSlider: { borderRadius: 8 },
+  pickerPreview: { height: 42, borderRadius: t.radius.card },
+  pickerPreviewText: { fontSize: 14, fontWeight: '800' },
+  pickerPanel: { height: 210, borderRadius: t.radius.card },
+  pickerSlider: { borderRadius: t.radius.card },
   virtualSourceList: { marginTop: 12, gap: 4 },
-  virtualSourceRow: { flexDirection: 'row', alignItems: 'center' },
-  virtualSourceText: { color: '#111827', fontWeight: '800' },
+  virtualSourceRow: { flexDirection: 'row', alignItems: 'center', minHeight: 48 },
+  virtualSourceText: { color: t.color.text, fontWeight: '800' },
 });

@@ -28,6 +28,7 @@ export type PosCatalogSource = {
   promotions: PosPromotion[];
   layouts: PosLayoutRecord[];
   selectedLayoutId: string | null;
+  activeLayout?: PosLayoutRecord | null;
 };
 export type PosCatalogSnapshot = {
   categories: SaleCategory[];
@@ -134,7 +135,7 @@ export function buildPosCatalogSnapshot(source: PosCatalogSource): PosCatalogSna
   }
 
   const layouts = source.layouts;
-  const preferredLayout = layouts.find((layout) => layout.id === source.selectedLayoutId)
+  const preferredLayout = source.activeLayout ?? layouts.find((layout) => layout.id === source.selectedLayoutId)
     ?? layouts.find((layout) => layout.is_default)
     ?? layouts[0]
     ?? null;

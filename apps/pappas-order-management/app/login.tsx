@@ -1,20 +1,27 @@
+import { ActionButton as Button } from '@/components/ui/ActionButton';
+import { designTokens as t } from '@/lib/redesign';
+import { FormField } from '@/components/ui';
 import { useState, useEffect } from 'react';
 import {
   View,
-  Image,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  useWindowDimensions,
 } from 'react-native';
-import { Banner, Button, Text, TextInput } from 'react-native-paper';
+import { HelperText, Text, TextInput } from 'react-native-paper';
 import { supabase } from '@/lib/supabase';
 import { canAccessOrderManagement } from '@/lib/auth';
 import { useRouter } from 'expo-router';
 
 export default function LoginScreen() {
+  const { width, height } = useWindowDimensions();
+  const compact = width < 600;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [initError, setInitError] = useState<string | null>(null);
@@ -59,8 +66,9 @@ export default function LoginScreen() {
   }, []);
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      setError('Please enter both email and password');
+    setSubmitted(true);
+    if (!email.trim() || !password) {
+      setError('Enter your email and password to continue.');
       return;
     }
 
@@ -69,7 +77,7 @@ export default function LoginScreen() {
 
     try {
       const { data, error: loginError } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim(),
         password,
       });
 
@@ -117,126 +125,48 @@ export default function LoginScreen() {
     }
   };
 
-  return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-      >
-        <View style={styles.content}>
-          <Image
-            source={require('../assets/icon.png')}
-            style={styles.logo}
-            resizeMode="contain"
-            accessibilityLabel="App logo"
-          />
-          <Text style={styles.title}>Pappas Order Management</Text>
-
-          {(initError || error) && (
-            <Banner
-              visible
-              icon={initError ? 'alert-circle' : 'alert'}
-              style={styles.banner}
-              actions={[]}
-            >
-              {initError ?? error}
-            </Banner>
-          )}
-
+  return <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+      <View style={{ flex: 1, minHeight: height, flexDirection: compact ? 'column' : 'row' }}>
+        <View style={[styles.brandPane, compact && styles.brandCompact]}>
+          <Text style={[styles.brandName, compact && { fontSize: 30 }]}>Pappa’s Ocean Catch</Text>
+          <View style={compact ? { marginTop: 0 } : styles.brandStory}><Text style={styles.brandEyebrow}>YOUR COUNTER, CONNECTED</Text><Text style={[styles.brandHeadline, compact && { fontSize: 32, lineHeight: 32, marginTop: 18 }]}>A good service{`\n`}starts here.</Text>{!compact && <Text style={styles.brandDescription}>Orders, customers and your kitchen.{`\n`}Together in one calm workspace.</Text>}</View>
+          {!compact && <Text style={styles.brandFooter}>Pappa’s · Fish, Chips & Burgers</Text>}
+        </View>
+        <View style={[styles.formPane, compact && { width: '100%', flex: 1, padding: 24, justifyContent: 'flex-start' }]}>
           <View style={styles.form}>
-            <TextInput
-              mode="outlined"
-              label="Email"
-              value={email}
-              onChangeText={(text) => {
-                setEmail(text);
-                setError(null);
-              }}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              autoComplete="email"
-              editable={!loading && !initError}
-              style={styles.paperInput}
-            />
-
-            <TextInput
-              mode="outlined"
-              label="Password"
-              value={password}
-              onChangeText={(text) => {
-                setPassword(text);
-                setError(null);
-              }}
-              secureTextEntry
-              autoCapitalize="none"
-              autoComplete="password"
-              editable={!loading && !initError}
-              style={styles.paperInput}
-            />
-
-            <Button
-              mode="contained"
-              onPress={handleLogin}
-              disabled={loading || !!initError}
-              loading={loading}
-              contentStyle={styles.signInButtonContent}
-              style={styles.signInButton}
-            >
-              Sign In
-            </Button>
+            <Text style={styles.eyebrow}>PAPPAS ORDER MANAGEMENT</Text>
+            <Text accessibilityRole="header" style={styles.title}>Welcome back</Text>
+            <Text style={styles.subtitle}>Sign in to your store workspace.</Text>
+            {(initError || error) && <View accessibilityRole="alert" style={styles.banner}><Text style={{ color: t.color.text, lineHeight: 22 }}>{initError ?? error}</Text></View>}
+            <FormField label="Email" placeholder="Email" error={submitted && !email.trim()} textContentType="username" value={email} onChangeText={(text) => { setEmail(text); setError(null); }} autoCapitalize="none" keyboardType="email-address" autoComplete="email" editable={!loading && !initError} />
+            {submitted && !email.trim() && <HelperText type="error" style={styles.validation}>Enter your email address.</HelperText>}
+            <FormField label="Password" placeholder="Password" error={submitted && !password} textContentType="password" value={password} onChangeText={(text) => { setPassword(text); setError(null); }} secureTextEntry={!showPassword} right={<TextInput.Icon icon={showPassword ? 'eye-off' : 'eye'} accessibilityLabel={showPassword ? 'Hide password' : 'Show password'} onPress={() => setShowPassword((value) => !value)} />} autoCapitalize="none" autoComplete="password" editable={!loading && !initError} style={{ marginTop: 20 }} />
+            {submitted && !password && <HelperText type="error" style={styles.validation}>Enter your password.</HelperText>}
+            <Button mode="contained" onPress={handleLogin} disabled={loading || !!initError} loading={loading} contentStyle={{ minHeight: 48 }} style={{ marginTop: 22 }}>Sign in</Button>
+            <Text style={styles.footer}>Store access · Authorised team members</Text>
           </View>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
-  );
+      </View>
+    </ScrollView>
+  </KeyboardAvoidingView>;
 }
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingVertical: 24,
-  },
-  content: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  logo: {
-    width: 84,
-    height: 84,
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  banner: {
-    width: '100%',
-    maxWidth: 420,
-    marginBottom: 16,
-  },
-  form: {
-    width: '100%',
-    maxWidth: 400,
-  },
-  paperInput: {
-    marginBottom: 12,
-  },
-  signInButton: {
-    marginTop: 4,
-  },
-  signInButtonContent: {
-    paddingVertical: 10,
-  },
+  container: { flex: 1, backgroundColor: t.color.surface },
+  brandPane: { width: '50%', backgroundColor: t.color.navy, padding: 60, justifyContent: 'space-between' },
+  brandCompact: { width: '100%', minHeight: 180, padding: 24, justifyContent: 'flex-start' },
+  brandName: { fontFamily: 'Georgia', fontSize: 40, color: t.color.surface },
+  brandStory: { marginVertical: 48 },
+  brandEyebrow: { fontSize: 11, fontWeight: '700', letterSpacing: 1.5, color: '#BDD3DB' },
+  brandHeadline: { fontFamily: 'Georgia', fontSize: 56, lineHeight: 60, color: t.color.surface, marginTop: 22 },
+  brandDescription: { fontSize: 18, lineHeight: 28, color: '#BDD3DB', marginTop: 22 },
+  brandFooter: { fontSize: 14, color: '#BDD3DB' },
+  formPane: { width: '50%', padding: 40, alignItems: 'center', justifyContent: 'center' },
+  form: { width: '100%', maxWidth: 370 },
+  eyebrow: { fontSize: 11, fontWeight: '700', color: t.color.muted, letterSpacing: 1.4 },
+  title: { fontSize: 32, lineHeight: 40, fontWeight: '700', color: t.color.text, marginTop: 8 },
+  subtitle: { fontSize: 14, lineHeight: 22, color: t.color.muted, marginTop: 12, marginBottom: 32 },
+  banner: { padding: 16, borderWidth: 1, borderColor: '#E6D9AE', backgroundColor: '#FFF8E7', borderRadius: 12, marginBottom: 20 },
+  validation: { paddingHorizontal: 0, fontSize: 14 },
+  footer: { textAlign: 'center', fontSize: 12, lineHeight: 20, color: t.color.muted, marginTop: 36, marginBottom: 16 },
 });

@@ -1,16 +1,23 @@
+import { ActionButton as Button } from '@/components/ui/ActionButton';
 import React from 'react';
-import { FlatList, Text, TouchableOpacity, View } from 'react-native';
-import { Button, Divider, IconButton } from 'react-native-paper';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { FlatList, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { Divider, IconButton } from 'react-native-paper';
 import { styles } from './pos.styles';
 import { getFriendlyOrderNumber } from '../../utils/orderNumber';
 import { groupAddons } from '../../utils/orderUtils';
+import { designTokens as tokens } from '../../lib/redesign';
 import type {
   PosCartItem,
 } from '../../app/pos.types';
 
 type Props = {
+  lockedItemId: string | null;
+  cartWidth: number;
+  getGroupName: (item: PosCartItem) => string;
   isCompactLayout: boolean;
   isPhoneLayout?: boolean;
+  expandedReview?: boolean;
   onBackToMenu?: () => void;
   orderId?: string;
   editingOrderNumber?: string | null;
@@ -41,8 +48,12 @@ type Props = {
 };
 
 export const PosCartPane = React.memo(function PosCartPane({
+  lockedItemId,
+  cartWidth,
+  getGroupName,
   isCompactLayout,
   isPhoneLayout,
+  expandedReview = false,
   onBackToMenu,
   orderId,
   editingOrderNumber,
@@ -76,94 +87,50 @@ export const PosCartPane = React.memo(function PosCartPane({
     (item.base_price + (item.addons || []).reduce((sum, addon) => sum + (addon.addon_item_price || 0), 0)) * item.quantity
   );
 
-  return (
-    <View style={[styles.cartPane, isCompactLayout ? styles.cartPaneCompact : null]}>
-      {isPhoneLayout && onBackToMenu ? (
-        <View style={styles.phoneCartHeader}>
-          <Button
-            mode="text"
-            icon="arrow-left"
-            onPress={onBackToMenu}
-            compact
-            contentStyle={styles.phoneBackToMenuButton}
-          >
-            Menu
-          </Button>
-          <View style={styles.phoneCartHeaderSpacer} />
-          <Button
-            mode="outlined"
-            icon="trash-can-outline"
-            compact
-            disabled={Boolean(orderId) || cartItems.length === 0}
-            onPress={handleClearCart}
-            textColor="#dc2626"
-            style={styles.clearCartButton}
-          >
-            Clear
-          </Button>
-        </View>
-      ) : (
-        <View style={styles.cartHeader}>
-          <View style={styles.cartHeaderActions}>
-            <TouchableOpacity
-              style={[
-                styles.quickOrderNoteButton,
-                styles.cartSaltButton,
-                quickOrderNote && styles.quickOrderNoteButtonSelected,
-              ]}
-              onPress={() => setSaltOptionDialogVisible(true)}
-            >
-              <View style={styles.quickOrderNoteButtonText}>
-                <Text style={[styles.quickOrderNoteTitle, quickOrderNote && styles.quickOrderNoteTitleSelected]}>
-                  Salt option
-                </Text>
-                <Text style={[styles.quickOrderNoteValue, quickOrderNote && styles.quickOrderNoteValueSelected]} numberOfLines={1}>
-                  {quickOrderNote || 'Not selected'}
-                </Text>
-              </View>
-              <Text style={[styles.quickOrderNoteEdit, quickOrderNote && styles.quickOrderNoteEditSelected]}>
-                Change
-              </Text>
-            </TouchableOpacity>
-            <Button
-              mode="outlined"
-              icon="trash-can-outline"
-              compact
-              disabled={Boolean(orderId) || cartItems.length === 0}
-              onPress={handleClearCart}
-              textColor="#dc2626"
-              style={styles.clearCartButton}
-            >
-              Clear
-            </Button>
-          </View>
-        </View>
-      )}
-
-      {editingOrderNumber ? (
-        <Text style={styles.cartUpdateIndicator}>
-          You are updating order {getFriendlyOrderNumber(editingOrderNumber)}
-        </Text>
-      ) : null}
-
-      {isPhoneLayout ? (
-        <TouchableOpacity
-          style={[styles.quickOrderNoteButton, quickOrderNote && styles.quickOrderNoteButtonSelected]}
-          onPress={() => setSaltOptionDialogVisible(true)}
-        >
-          <View style={styles.quickOrderNoteButtonText}>
-            <Text style={[styles.quickOrderNoteTitle, quickOrderNote && styles.quickOrderNoteTitleSelected]}>
-              Salt option
-            </Text>
-            <Text style={[styles.quickOrderNoteValue, quickOrderNote && styles.quickOrderNoteValueSelected]} numberOfLines={1}>
-              {quickOrderNote || 'Not selected'}
-            </Text>
-          </View>
-          <Text style={[styles.quickOrderNoteEdit, quickOrderNote && styles.quickOrderNoteEditSelected]}>
-            Change
-          </Text>
+  const renderCartItem = ({ item }: { item: PosCartItem }) => {
+    const hasMarketplaceOverride = item.override_price != null;
+    return <View style={[styles.cartRow, item.id === activeCartItemId && { backgroundColor: tokens.color.primaryTint }]}>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+        <TouchableOpacity style={{ flex: 1, minHeight: 48, gap: 3 }} onPress={() => openCartItemEditor(item)} accessibilityRole="button" accessibilityLabel={`Edit ${item.product_name}`}>
+          <Text style={styles.cartItemName}>{getCartItemDisplayName(item)}</Text>
+          <Text style={styles.cartGroupName}>{getGroupName(item)}</Text>
+          {Array.from(new Set((item.addons || []).map(addon => addon.addon_group_name))).flatMap(group => groupAddons((item.addons || []).filter(addon => addon.addon_group_name === group))).map((addon, addonIndex) => <Text key={`${item.id}-addon-${addonIndex}`} style={styles.cartItemMeta}>{addon.group}: {addon.quantity > 1 ? `${addon.quantity}x ` : ''}{addon.name}{addon.price ? ` +$${addon.price.toFixed(2)} each` : ''}</Text>)}
+          {item.removed_ingredients?.map(ingredient => <Text key={ingredient} style={styles.cartItemRemoved}>No {ingredient}</Text>)}
+          {!!item.comment && <Text style={styles.cartItemNote}>Note: {item.comment}</Text>}
         </TouchableOpacity>
-      ) : null}
+        <View style={styles.cartItemPriceBlock}>
+          <Text style={styles.cartItemPrice}>{isFreePromotionItem(item) ? 'FREE' : `$${item.subtotal.toFixed(2)}`}</Text>
+          {hasMarketplaceOverride && <Text style={styles.cartItemSecondaryPrice}>POS ${getPosCalculatedSubtotal(item).toFixed(2)}</Text>}
+        </View>
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap', marginTop: 2 }}>
+        <View style={styles.qtyStepper}>
+          <IconButton icon="minus" size={16} hitSlop={6} accessibilityLabel={`Decrease ${item.product_name} quantity`} onPress={() => updateQuantity(item.id, -1)} style={styles.stepperButton} />
+          <Text style={styles.cartQuantity}>{item.quantity}</Text>
+          <IconButton icon="plus" size={16} hitSlop={6} accessibilityLabel={`Increase ${item.product_name} quantity`} onPress={() => updateQuantity(item.id, 1)} style={styles.stepperButton} />
+        </View>
+        <Text style={[styles.menuSubtitle, { flex: 1 }]}>${(item.subtotal / Math.max(1, item.quantity)).toFixed(2)} each</Text>
+        <IconButton icon={item.comment ? 'note-edit-outline' : 'note-plus-outline'} size={18} hitSlop={6} accessibilityLabel={`Note for ${item.product_name}`} onPress={() => openNoteEditor(item)} style={styles.stepperButton} />
+        <IconButton icon="trash-can-outline" size={18} hitSlop={6} iconColor={tokens.color.danger} accessibilityLabel={`Remove ${item.product_name}`} onPress={() => removeCartItem(item.id)} style={styles.stepperButton} />
+      </View>
+    </View>;
+  };
+
+  const header = <>
+      {isPhoneLayout && !expandedReview && onBackToMenu && <Button icon="arrow-left" onPress={onBackToMenu} contentStyle={{ minHeight: 48 }}>Continue ordering</Button>}
+      <View style={styles.cartHeadingRow}>
+        <Text style={styles.cartTitle}>Current order</Text>
+        <View style={styles.cartCountChip}><Text style={styles.cartCountText}>{cartItems.length} {cartItems.length === 1 ? 'line' : 'lines'}{cartItems.length ? ` · ${cartItems.reduce((sum, item) => sum + item.quantity, 0)} qty` : ''}</Text></View>
+      </View>
+      <View style={styles.cartDraftRow}>
+        <Text style={styles.menuSubtitle}>{orderId ? 'Editing order' : 'In-store · Draft'}</Text>
+        {!expandedReview && <Button mode="outlined" compact disabled={Boolean(orderId) || cartItems.length === 0} onPress={handleClearCart} textColor={tokens.color.danger} style={styles.cartClearAction} contentStyle={{ minHeight: 40 }} labelStyle={{ fontSize: 12 }} hitSlop={4}>Clear</Button>}
+      </View>
+      {editingOrderNumber ? <Text style={styles.cartUpdateIndicator}>You are updating order {getFriendlyOrderNumber(editingOrderNumber)}</Text> : null}
+      <View style={styles.cartSaltRow}>
+        <Text style={styles.cartSaltLabel}>Order salt: <Text style={{ fontWeight: '700' }}>{quickOrderNote || 'Not selected'}</Text></Text>
+        <Button mode="outlined" compact onPress={() => setSaltOptionDialogVisible(true)} contentStyle={{ minHeight: 40 }} labelStyle={{ fontSize: 12 }} hitSlop={4} textColor={tokens.color.text}>Change</Button>
+      </View>
       {freeItemPromotionTitle ? (
         <TouchableOpacity
           style={[styles.quickOrderNoteButton, freeItemSelectionRequired ? styles.discountCardActive : null]}
@@ -182,83 +149,10 @@ export const PosCartPane = React.memo(function PosCartPane({
           </Text>
         </TouchableOpacity>
       ) : null}
-      <FlatList
-        data={cartItems}
-        keyExtractor={(item) => item.id}
-        style={styles.cartList}
-        ListEmptyComponent={<Text style={styles.emptyCart}>No items yet</Text>}
-        renderItem={({ item }) => {
-          const showCartActions = item.id === activeCartItemId;
-          const hasMarketplaceOverride = item.override_price != null;
-          const posCalculatedSubtotal = getPosCalculatedSubtotal(item);
-          return (
-            <View style={styles.cartRow}>
-              <View style={styles.cartItemHeader}>
-                <View style={styles.cartItemText}>
-                  <View style={styles.cartItemTopLine}>
-                    <TouchableOpacity
-                      style={styles.cartItemNameButton}
-                      onPress={() => openCartItemEditor(item)}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Edit ${item.product_name}`}
-                    >
-                      <Text style={styles.cartItemName} numberOfLines={2}>{getCartItemDisplayName(item)}</Text>
-                    </TouchableOpacity>
-                    <View style={styles.qtyStepper}>
-                      <IconButton icon="minus" size={16} onPress={() => updateQuantity(item.id, -1)} style={styles.stepperButton} />
-                      <Text style={styles.cartQuantity}>{item.quantity}</Text>
-                      <IconButton icon="plus" size={16} onPress={() => updateQuantity(item.id, 1)} style={styles.stepperButton} />
-                    </View>
-                    <View style={styles.cartItemPriceBlock}>
-                      <Text style={styles.cartItemPrice}>
-                        {isFreePromotionItem(item) ? 'FREE' : `$${item.subtotal.toFixed(2)}`}
-                      </Text>
-                      {hasMarketplaceOverride ? (
-                        <Text style={styles.cartItemSecondaryPrice}>
-                          POS ${posCalculatedSubtotal.toFixed(2)}
-                        </Text>
-                      ) : null}
-                    </View>
-                  </View>
-                  <View style={styles.cartItemDetails}>
-                    {groupAddons(item.addons || []).map((addon, addonIndex) => (
-                      <Text key={`${item.id}-addon-${addonIndex}`} style={styles.cartItemMeta} numberOfLines={1}>
-                        {addon.quantity > 1 ? `${addon.quantity}x ` : '+ '}{addon.name}
-                        {addon.price > 0 ? ` $${addon.price.toFixed(2)}` : ''}
-                      </Text>
-                    ))}
-                    {item.removed_ingredients?.map((ingredient) => (
-                      <Text key={`${item.id}-removed-${ingredient}`} style={styles.cartItemRemoved} numberOfLines={1}>
-                        No {ingredient}
-                      </Text>
-                    ))}
-                    {item.comment && <Text style={styles.cartItemNote} numberOfLines={2}>{item.comment}</Text>}
-                  </View>
-                </View>
-              </View>
-              {showCartActions && (
-                <View style={styles.cartControls}>
-                  <Button mode="outlined" compact icon="pencil" onPress={() => openCartItemEditor(item)} style={styles.cartActionButton}>
-                    Edit
-                  </Button>
-                  <Button mode="outlined" compact icon={item.comment ? 'note-edit-outline' : 'note-plus-outline'} onPress={() => openNoteEditor(item)} style={styles.cartActionButton}>
-                    Note
-                  </Button>
-                  <Button mode="outlined" compact icon="trash-can-outline" textColor="#dc2626" onPress={() => removeCartItem(item.id)} style={styles.cartActionButton}>
-                    Remove
-                  </Button>
-                </View>
-              )}
-            </View>
-          );
-        }}
-      />
-      <Divider />
+  </>;
+  const footer = <>
+      {expandedReview && <Divider />}
       <View style={styles.totals}>
-        <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>Total items</Text>
-          <Text style={styles.totalValue}>{cartItems.length}</Text>
-        </View>
         <View style={styles.totalRow}>
           <Text style={styles.totalLabel}>Subtotal</Text>
           <Text style={styles.totalValue}>${totals.subtotal.toFixed(2)}</Text>
@@ -274,7 +168,7 @@ export const PosCartPane = React.memo(function PosCartPane({
           <Text style={styles.grandTotalValue}>${totals.total.toFixed(2)}</Text>
         </View>
       </View>
-      <View style={styles.cartCheckoutActions}>
+      <View style={[styles.cartCheckoutActions, expandedReview && { flexDirection: 'row', alignItems: 'center' }]}>
         {orderId && (
           <Button
             mode="outlined"
@@ -296,17 +190,18 @@ export const PosCartPane = React.memo(function PosCartPane({
           loading={Boolean(orderId) && creatingOrder}
           disabled={cartItems.length === 0 || creatingOrder || smartpayProcessing}
           onPress={orderId ? () => void handleCheckout() : openCheckout}
-          style={styles.cartCheckoutActionButton}
+          style={[styles.cartCheckoutPrimaryButton, expandedReview && { flex: 1 }, cartItems.length === 0 && { opacity: 0.45 }]}
+          theme={{ colors: { surfaceDisabled: tokens.color.primary, onSurfaceDisabled: tokens.color.surface } }}
           contentStyle={styles.cartCheckoutActionButtonContent}
           labelStyle={styles.cartCheckoutActionLabel}
-          buttonColor="#16a34a"
+          buttonColor={tokens.color.primary}
         >
           {orderId ? 'Update Order' : 'Checkout'}
         </Button>
         {!orderId && (
-          <>
+          <View style={[styles.cartCheckoutSecondaryActions, expandedReview && { flex: 0, width: 230 }]}>
             <Button
-              mode="contained-tonal"
+              mode="outlined"
               icon="check-circle-outline"
               compact
               loading={creatingOrder && !smartpayPreparing}
@@ -315,8 +210,7 @@ export const PosCartPane = React.memo(function PosCartPane({
               style={styles.cartCheckoutActionButton}
               contentStyle={styles.cartCheckoutActionButtonContent}
               labelStyle={styles.cartCheckoutActionLabel}
-              buttonColor="#dc2626"
-              textColor="#fff"
+              textColor={tokens.color.text}
             >
               Complete
             </Button>
@@ -330,13 +224,35 @@ export const PosCartPane = React.memo(function PosCartPane({
               style={styles.cartCheckoutActionButton}
               contentStyle={styles.cartCheckoutActionButtonContent}
               labelStyle={styles.cartCheckoutActionLabel}
-              buttonColor="#2563eb"
+              buttonColor={tokens.color.surface}
+              textColor={tokens.color.text}
             >
               SmartPay
             </Button>
-          </>
+          </View>
         )}
       </View>
+  </>;
+  if (expandedReview) {
+    const panelStyle = { backgroundColor: tokens.color.surface, borderWidth: 1, borderColor: tokens.color.border, borderRadius: 16, padding: 16 };
+    return <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 16, paddingBottom: 24 }}>
+      <View style={{ flexDirection: 'row', gap: 8 }}><Button mode="outlined" icon="arrow-left" onPress={onBackToMenu}>Continue ordering</Button><Button mode="outlined" disabled={Boolean(orderId) || !cartItems.length} textColor={tokens.color.danger} onPress={handleClearCart}>Clear draft</Button></View>
+      <View style={panelStyle}>{header}</View>
+      <View style={panelStyle}>{cartItems.length ? cartItems.map(item => <React.Fragment key={item.id}>{renderCartItem({ item })}</React.Fragment>) : <View style={styles.emptyCartState}><Text style={styles.emptyCartTitle}>Your order starts here</Text><Text style={styles.emptyCartDetail}>Tap a product to add it immediately.</Text></View>}</View>
+      <View style={panelStyle}>{footer}</View>
+    </ScrollView>;
+  }
+  return (
+    <View style={[styles.cartPane, { width: cartWidth }, isCompactLayout ? styles.cartPaneCompact : null]}>
+      {!isPhoneLayout && <View style={styles.cartSummaryHeader}>{header}</View>}
+      <FlatList
+        data={cartItems} keyExtractor={(item) => item.id} style={styles.cartList}
+        ListHeaderComponent={isPhoneLayout ? <View style={styles.cartSummaryHeader}>{header}</View> : undefined}
+        ListFooterComponent={isPhoneLayout ? <View style={styles.cartSummaryFooter}>{footer}</View> : undefined}
+        ListEmptyComponent={<View style={styles.emptyCartState}><MaterialCommunityIcons name="shopping-outline" size={28} color={tokens.color.muted} /><Text style={styles.emptyCartTitle}>Your order starts here</Text><Text style={styles.emptyCartDetail}>Tap a product to add it immediately.</Text></View>}
+        renderItem={({ item }) => <View style={{ paddingHorizontal: 16 }}>{renderCartItem({ item })}</View>}
+      />
+      {!isPhoneLayout && <View style={styles.cartSummaryFooter}>{footer}</View>}
     </View>
   );
 });

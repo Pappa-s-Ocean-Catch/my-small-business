@@ -1,6 +1,10 @@
+import { ActionButton as Button } from '@/components/ui/ActionButton';
+import { useWindowDimensions } from 'react-native';
+import { designTokens as t } from '@/lib/redesign';
+import { FormField, Panel, SectionHeader } from '@/components/ui';
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Alert } from 'react-native';
-import { Text, TextInput, Button, Surface, useTheme, ActivityIndicator, RadioButton, Divider, HelperText } from 'react-native-paper';
+import { Text, TextInput, Surface, useTheme, ActivityIndicator, RadioButton, Divider, HelperText } from 'react-native-paper';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { getDeliveryQuotes, requestDelivery, getDeliveryRequestStatus, lookupOrder } from '../../lib/delivery-management';
 import { canSubmitDelivery, addressKey, needsDeliveryRecovery, deliveryRequestMessage, selectedQuote } from '../../lib/delivery-management-state';
@@ -8,9 +12,11 @@ import type { DeliveryJobAddress, DeliveryRecipient, DeliveryRequest, DeliveryQu
 
 type Props = {
   onSuccess?: () => void;
+  onCancel?: () => void;
 };
 
-export function NewDeliveryForm({ onSuccess }: Props) {
+export function NewDeliveryForm({ onSuccess, onCancel }: Props) {
+  const compact = useWindowDimensions().width < 600;
   const theme = useTheme();
   const queryClient = useQueryClient();
 
@@ -148,40 +154,22 @@ export function NewDeliveryForm({ onSuccess }: Props) {
   const needsRecovery = currentRequest ? needsDeliveryRecovery(currentRequest.state) : false;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Surface style={styles.section} elevation={1}>
-        <Text variant="titleMedium" style={styles.sectionTitle}>Link POS Order (Optional)</Text>
-        <View style={styles.row}>
-          <TextInput
-            style={[styles.input, { flex: 1, marginRight: 8 }]}
-            mode="outlined"
-            label="Order Reference / ID"
-            value={orderReference}
-            onChangeText={setOrderReference}
-            disabled={isFormDisabled}
-          />
-          <Button mode="outlined" onPress={handleLookup} disabled={isFormDisabled || !orderReference} style={{ justifyContent: 'center' }}>
-            Lookup
-          </Button>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { padding: compact ? 12 : 16 }]} keyboardShouldPersistTaps="handled">
+      <Panel style={[styles.section, { maxWidth: 940, padding: compact ? 18 : 20, gap: 20 }]}>
+        <Panel style={{ backgroundColor: t.color.primaryTint, padding: 16 }}><Text>Get a quote before requesting a courier.</Text></Panel>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 20 }}>
+          <View style={{ flex: 1, flexBasis: compact ? '100%' : '45%', minWidth: compact ? '100%' : 260, gap: 12 }}><FormField label="POS order reference (optional)" value={orderReference} onChangeText={setOrderReference} disabled={isFormDisabled} />{orderReference.trim() && !orderId ? <Button mode="outlined" onPress={handleLookup} loading={lookupMutation.isPending} disabled={isFormDisabled}>Look up order</Button> : null}</View>
+          <FormField style={{ flex: 1, flexBasis: compact ? '100%' : '45%', minWidth: compact ? '100%' : 260 }} label="Address line 1" value={address.address_line1} onChangeText={(value) => setAddress({ ...address, address_line1: value })} disabled={isFormDisabled} />
+          <FormField style={{ flex: 1, flexBasis: compact ? '100%' : '45%', minWidth: compact ? '100%' : 260 }} label="Address line 2 (optional)" value={address.address_line2} onChangeText={(value) => setAddress({ ...address, address_line2: value })} disabled={isFormDisabled} />
+          <FormField style={{ flex: 1, flexBasis: compact ? '100%' : '45%', minWidth: compact ? '100%' : 260 }} label="City" value={address.city} onChangeText={(value) => setAddress({ ...address, city: value })} disabled={isFormDisabled} />
+          <FormField style={{ flex: 1, flexBasis: compact ? '100%' : '45%', minWidth: compact ? '100%' : 260 }} label="State" value={address.state} onChangeText={(value) => setAddress({ ...address, state: value })} disabled={isFormDisabled} />
+          <FormField style={{ flex: 1, flexBasis: compact ? '100%' : '45%', minWidth: compact ? '100%' : 260 }} label="Postcode" value={address.postcode} onChangeText={(value) => setAddress({ ...address, postcode: value })} disabled={isFormDisabled} keyboardType="number-pad" />
         </View>
-      </Surface>
-
-      <Surface style={styles.section} elevation={1}>
-        <Text variant="titleMedium" style={styles.sectionTitle}>Dropoff Address</Text>
-        <TextInput style={styles.input} mode="outlined" label="Address Line 1" value={address.address_line1} onChangeText={(t) => setAddress({ ...address, address_line1: t })} disabled={isFormDisabled} />
-        <TextInput style={styles.input} mode="outlined" label="Address Line 2 (Optional)" value={address.address_line2} onChangeText={(t) => setAddress({ ...address, address_line2: t })} disabled={isFormDisabled} />
-        <View style={styles.row}>
-          <TextInput style={[styles.input, { flex: 1, marginRight: 8 }]} mode="outlined" label="City" value={address.city} onChangeText={(t) => setAddress({ ...address, city: t })} disabled={isFormDisabled} />
-          <TextInput style={[styles.input, { flex: 1, marginRight: 8 }]} mode="outlined" label="State" value={address.state} onChangeText={(t) => setAddress({ ...address, state: t })} disabled={isFormDisabled} />
-          <TextInput style={[styles.input, { flex: 1 }]} mode="outlined" label="Postcode" value={address.postcode} onChangeText={(t) => setAddress({ ...address, postcode: t })} disabled={isFormDisabled} />
-        </View>
-        <Button mode="contained" onPress={handleGetQuotes} disabled={isFormDisabled} loading={quotesMutation.isPending} style={{ marginTop: 12 }}>
-          Get Quotes
-        </Button>
-      </Surface>
+      </Panel>
+      <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 12 }}>{onCancel && <Button mode="outlined" contentStyle={{ minHeight: 48 }} onPress={onCancel} disabled={isFormDisabled}>Cancel</Button>}<Button mode="contained" contentStyle={{ minHeight: 48 }} onPress={handleGetQuotes} disabled={isFormDisabled} loading={quotesMutation.isPending}>Get delivery quote</Button></View>
 
       {currentRequest && (
-        <Surface style={styles.section} elevation={1}>
+        <Panel style={styles.section}>
           <Text variant="titleMedium" style={styles.sectionTitle}>Select Provider</Text>
           {currentRequest.quotes.length === 0 ? (
             <Text variant="bodyMedium">No quotes available for this address.</Text>
@@ -192,7 +180,7 @@ export function NewDeliveryForm({ onSuccess }: Props) {
                   <RadioButton value={q.id || ''} />
                   <View style={{ flex: 1 }}>
                     <Text variant="bodyMedium">{q.provider}</Text>
-                    <Text variant="bodySmall" style={{ color: '#666' }}>
+                    <Text variant="bodySmall" style={{ color: t.color.muted }}>
                       {q.pickupMinutes ? `Pickup in ~${q.pickupMinutes}m` : 'Time unknown'}
                     </Text>
                   </View>
@@ -201,14 +189,14 @@ export function NewDeliveryForm({ onSuccess }: Props) {
               ))}
             </RadioButton.Group>
           )}
-        </Surface>
+        </Panel>
       )}
 
       {currentRequest && currentRequest.quotes.length > 0 && (
-        <Surface style={styles.section} elevation={1}>
+        <Panel style={styles.section}>
           <Text variant="titleMedium" style={styles.sectionTitle}>Recipient & Request</Text>
-          <TextInput style={styles.input} mode="outlined" label="Name" value={recipient.name} onChangeText={(t) => setRecipient({ ...recipient, name: t })} disabled={isFormDisabled} />
-          <TextInput style={styles.input} mode="outlined" label="Phone" keyboardType="phone-pad" value={recipient.phone} onChangeText={(t) => setRecipient({ ...recipient, phone: t })} disabled={isFormDisabled} />
+          <FormField style={styles.input} mode="outlined" label="Name" value={recipient.name} onChangeText={(t) => setRecipient({ ...recipient, name: t })} disabled={isFormDisabled} />
+          <FormField style={styles.input} mode="outlined" label="Phone" keyboardType="phone-pad" value={recipient.phone} onChangeText={(t) => setRecipient({ ...recipient, phone: t })} disabled={isFormDisabled} />
 
           {needsRecovery && (
             <View style={styles.recoveryBox}>
@@ -227,17 +215,17 @@ export function NewDeliveryForm({ onSuccess }: Props) {
             </HelperText>
           )}
 
-          <Button 
-            mode="contained" 
-            onPress={handleSubmit} 
-            disabled={!canSubmit} 
+          <Button
+            mode="contained"
+            onPress={handleSubmit}
+            disabled={!canSubmit}
             loading={requestMutation.isPending}
             style={styles.submitBtn}
             buttonColor={theme.colors.primary}
           >
             Request Delivery
           </Button>
-        </Surface>
+        </Panel>
       )}
     </ScrollView>
   );
@@ -246,16 +234,17 @@ export function NewDeliveryForm({ onSuccess }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f4f4f4',
+    backgroundColor: t.color.background,
   },
   content: {
-    padding: 12,
-    gap: 12,
+    padding: 16,
+    gap: 20,
+    width: '100%',
   },
   section: {
     padding: 16,
-    borderRadius: 8,
-    backgroundColor: '#ffffff',
+    borderRadius: t.radius.card,
+    backgroundColor: t.color.surface,
     marginBottom: 12,
   },
   sectionTitle: {
@@ -264,7 +253,7 @@ const styles = StyleSheet.create({
   },
   input: {
     marginBottom: 8,
-    backgroundColor: '#ffffff',
+    backgroundColor: t.color.surface,
   },
   row: {
     flexDirection: 'row',
@@ -274,7 +263,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: t.color.border,
   },
   submitBtn: {
     marginTop: 16,
@@ -284,7 +273,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     padding: 12,
     backgroundColor: '#fff0f0',
-    borderRadius: 8,
+    borderRadius: t.radius.card,
     borderWidth: 1,
     borderColor: '#ffcccc',
   }

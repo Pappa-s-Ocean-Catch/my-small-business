@@ -1,17 +1,11 @@
+import { ActionButton as Button } from '@/components/ui/ActionButton';
+import { OrderDetailController } from './OrderDetailController';
+import { WorkspaceHeader } from '@/components/ui';
+import { AppNavigation } from '@/components/navigation/AppNavigation';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Clipboard, Linking, Modal, ScrollView, StyleSheet, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  Avatar,
-  Button,
-  Card,
-  IconButton,
-  Surface,
-  Switch,
-  Text,
-  TextInput,
-  useTheme,
-} from 'react-native-paper';
+import { Avatar, Card, IconButton, Surface, Switch, Text, TextInput, useTheme } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { OrderStatus } from '@my-small-business/types';
 import { fetchCustomerSummary, type CustomerSummary, updateCustomerNameByContact } from '@/utils/customerSummary';
@@ -23,12 +17,13 @@ import { getCustomerCoupons, toggleCouponActive, type CustomerCouponItem } from 
 import { AddCustomerModal } from '@/components/customers/AddCustomerModal';
 import { supabase } from '@/lib/supabase';
 import { BRAND_COLORS } from '@/utils/brand';
+import { MetricCard, StatusBadge, FormField, designTokens as t } from '@/components/ui';
 
 function orderStatusColor(status: string): string {
   if (Object.prototype.hasOwnProperty.call(STATUS_COLORS, status)) {
     return STATUS_COLORS[status as OrderStatus];
   }
-  return '#64748b';
+  return t.color.muted;
 }
 
 function orderStatusLabel(status: string): string {
@@ -45,13 +40,13 @@ function formatMoney(value: number) {
 function rewardHistoryTone(type: string) {
   switch (type) {
     case 'earned':
-      return { label: 'Earned', color: '#15803d', background: '#dcfce7' };
+      return { label: 'Earned', color: t.color.success, background: t.color.successTint };
     case 'used':
-      return { label: 'Used', color: '#b45309', background: '#fef3c7' };
+      return { label: 'Used', color: t.color.warning, background: t.color.warningTint };
     case 'expired':
-      return { label: 'Expired', color: '#b91c1c', background: '#fee2e2' };
+      return { label: 'Expired', color: t.color.danger, background: t.color.dangerTint };
     default:
-      return { label: 'Manual Adjust', color: '#1d4ed8', background: '#dbeafe' };
+      return { label: 'Manual Adjust', color: t.color.primary, background: t.color.primaryTint };
   }
 }
 
@@ -61,7 +56,6 @@ export function CustomerModal({
   profileId,
   visible,
   onClose,
-  onOrderPress,
   allowRewardAdjustments = false,
   onCustomerUpdated,
 }: {
@@ -70,14 +64,24 @@ export function CustomerModal({
   profileId?: string;
   visible: boolean;
   onClose: () => void;
-  onOrderPress: (orderId: string) => void;
+  onOrderPress?: (orderId: string) => void;
   allowRewardAdjustments?: boolean;
   onCustomerUpdated?: () => void;
 }) {
+  // Present from this native Modal's controller. Sibling modals can appear behind
+  // the profile on iOS; keeping the profile mounted also preserves its scroll.
+  const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
+  useEffect(() => { if (!visible) setDetailOrderId(null); }, [visible]);
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 920;
+  const [showAllOrders, setShowAllOrders] = useState(false);
+  const [showAllRewards, setShowAllRewards] = useState(false);
+  const [showAllCoupons, setShowAllCoupons] = useState(false);
+  const [showContactDetails, setShowContactDetails] = useState(false);
+  const [expandedRewards, setExpandedRewards] = useState<Record<string, boolean>>({});
+  const [expandedCoupons, setExpandedCoupons] = useState<Record<string, boolean>>({});
   const isMedium = width >= 640;
   const [customer, setCustomer] = useState<CustomerSummary | null>(null);
   const [loading, setLoading] = useState(false);
@@ -324,18 +328,21 @@ export function CustomerModal({
 
   return (
     <Modal visible={visible} transparent={false} animationType="slide" onRequestClose={onClose}>
-      <View style={styles.container}>
-        <Surface style={[styles.header, { paddingTop: topPadding }]} elevation={1}>
-          <View style={styles.headerTop}>
+      <View accessibilityElementsHidden={!!detailOrderId || showEditCustomerModal} importantForAccessibility={detailOrderId || showEditCustomerModal ? 'no-hide-descendants' : 'auto'} pointerEvents={detailOrderId || showEditCustomerModal ? 'none' : 'auto'} style={{ flex: 1, flexDirection: width < 600 ? 'column' : 'row' }}>
+      {width >= 600 && <AppNavigation onNavigate={onClose} />}
+      <View accessibilityViewIsModal style={styles.container}>
+        <WorkspaceHeader title={error ? 'Customer not found' : 'Customer profile'} showNewOrder={false} onBack={onClose} />
+        {!error && <Surface style={[styles.header, { paddingTop: topPadding }]} elevation={0}>
+          <View style={[styles.headerTop, { paddingHorizontal: width < 1100 ? 12 : 16 }]}>
             <View style={styles.headerInfo}>
               <Avatar.Text
-                size={isMedium ? 60 : 52}
+                size={70}
                 label={customer ? getInitials(customer.name) : '??'}
-                style={styles.avatar}
+                style={[styles.avatar, { backgroundColor: t.color.primaryTint }]} labelStyle={{ color: t.color.primary }}
               />
               <View style={styles.headerTextContainer}>
                 <View style={styles.nameRow}>
-                  <Text variant={isMedium ? 'headlineSmall' : 'titleLarge'} style={styles.customerName}>
+                  <Text variant={isMedium ? 'headlineMedium' : 'headlineSmall'} style={styles.customerName}>
                     {loading ? 'Loading...' : customer?.name || 'Customer Summary'}
                   </Text>
                   {!!customer && (
@@ -343,25 +350,19 @@ export function CustomerModal({
                       icon="pencil-outline"
                       size={20}
                       onPress={handleStartEditName}
-                      style={styles.editNameButton}
+                      iconColor={t.color.primary} accessibilityLabel="Edit customer name" style={styles.editNameButton}
                     />
                   )}
                 </View>
 
                 <View style={styles.headerSub}>
-                  {customer?.email ? (
-                    <Text style={styles.headerMeta} onPress={() => handleEmail(customer.email)}>
-                      {customer.email}
-                    </Text>
-                  ) : (
-                    <Text style={styles.headerMeta}>{email || phone || 'Details'}</Text>
-                  )}
+                  <Text style={styles.headerMeta}>{customer?.signUpDate ? `Customer since ${new Date(customer.signUpDate).toLocaleDateString([], { month: 'long', year: 'numeric' })}` : email || phone || 'Customer details'}</Text>
                 </View>
               </View>
             </View>
-            <IconButton icon="close" size={24} iconColor="#f8fafc" onPress={onClose} style={styles.closeIcon} />
+            <IconButton icon="close" size={24} iconColor={t.color.text} onPress={onClose} hitSlop={4} accessibilityLabel="Close customer profile" style={styles.closeIcon} />
           </View>
-        </Surface>
+        </Surface>}
 
         <View style={styles.contentArea}>
           {loading && (
@@ -373,69 +374,53 @@ export function CustomerModal({
 
           {error && (
             <View style={styles.centerContainer}>
-              <MaterialCommunityIcons name="alert-circle-outline" size={48} color="#ef4444" />
-              <Text style={styles.errorText}>{error}</Text>
+              <View style={error.startsWith('No customer data') ? { width: 80, height: 80, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: t.color.primaryTint } : undefined}><MaterialCommunityIcons name={error.startsWith('No customer data') ? 'account-group-outline' : 'alert-circle-outline'} size={error.startsWith('No customer data') ? 32 : 64} color={error.startsWith('No customer data') ? t.color.primary : t.color.danger} /></View>
+              <Text style={[styles.sectionTitle, { fontSize: 24, marginTop: 20 }]}>{error.startsWith('No customer data') ? 'No linked customer' : 'Customer details unavailable'}</Text>
+              <Text style={[styles.emptyText, { textAlign: 'center', maxWidth: 360, lineHeight: 24, marginBottom: 20 }]}>{error.startsWith('No customer data') ? 'No customer is linked to this order. Return to the order to continue.' : error}</Text>
+              <Button mode="outlined" onPress={error.startsWith('No customer data') ? onClose : () => void loadCustomer()}>{error.startsWith('No customer data') ? 'Back to order' : 'Retry'}</Button>
             </View>
           )}
 
           {!loading && !error && customer && (
             <ScrollView
               style={styles.scrollView}
-              contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPadding + 24 }]}
+              contentContainerStyle={[styles.scrollContent, { paddingHorizontal: width < 1100 ? 12 : 16, paddingBottom: bottomPadding + 24 }]}
               showsVerticalScrollIndicator
             >
-              {customer.phone ? (
-                <View style={styles.phoneActionBox}>
-                  <View style={styles.phoneNumberContainer}>
-                    <MaterialCommunityIcons name="phone" size={24} color={theme.colors.primary} />
-                    <Text variant="titleLarge" style={styles.phoneNumberText}>
-                      {customer.phone}
-                    </Text>
-                  </View>
-                  <IconButton
-                    icon="phone-outline"
-                    mode="contained"
-                    containerColor={theme.colors.primary}
-                    iconColor="#fff"
-                    size={28}
-                    onPress={() => handleCall(customer.phone)}
-                  />
-                </View>
-              ) : null}
 
               <View style={[styles.statsContainer, !isMedium && styles.statsContainerCompact]}>
-                <View style={styles.statBox}>
-                  <MaterialCommunityIcons name="cart-outline" size={20} color={theme.colors.primary} />
-                  <Text variant="titleMedium" style={styles.statValue}>
-                    {customer.totalOrders}
-                  </Text>
-                  <Text variant="labelSmall" style={styles.statLabel}>
-                    Orders
-                  </Text>
-                </View>
-                <View style={styles.statBox}>
-                  <MaterialCommunityIcons name="currency-usd" size={20} color="#16a34a" />
-                  <Text variant="titleMedium" style={styles.statValue}>
-                    ${customer.totalAmount.toFixed(2)}
-                  </Text>
-                  <Text variant="labelSmall" style={styles.statLabel}>
-                    Spent
-                  </Text>
-                </View>
-                <View style={styles.statBox}>
-                  <MaterialCommunityIcons name="star-outline" size={20} color="#ca8a04" />
-                  <Text variant="titleMedium" style={styles.statValue}>
-                    {customer.rewardPoints}
-                  </Text>
-                  <Text variant="labelSmall" style={styles.statLabel}>
-                    Points
-                  </Text>
-                </View>
+                <MetricCard style={isMedium ? styles.metricTablet : styles.metricPhone} label="Orders" value={customer.totalOrders} />
+                <MetricCard style={isMedium ? styles.metricTablet : styles.metricPhone} label="Total spend" value={formatMoney(customer.totalAmount)} />
+                <MetricCard style={isMedium ? styles.metricTablet : styles.metricPhone} label="Reward points" value={customer.rewardPoints.toLocaleString()} /><MetricCard style={isMedium ? styles.metricTablet : styles.metricPhone} label="Last order" value={customer.lastOrderDate ? new Date(customer.lastOrderDate).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : '—'} />
               </View>
 
               <View style={[styles.contentGrid, isWide && styles.contentGridWide]}>
                 <View style={styles.primaryColumn}>
                   <View style={styles.section}>
+                    <View style={styles.sectionHeadingRow}><Text style={[styles.sectionTitle, styles.headingInRow]}>Contact details</Text><Button compact contentStyle={{ minHeight: 32 }} hitSlop={{ top: 8, bottom: 8 }} style={styles.headerSecondaryAction} labelStyle={styles.headerSecondaryLabel} onPress={() => setShowContactDetails((value) => !value)}>{showContactDetails ? 'Hide details' : 'Details'}</Button></View>
+              {customer.phone ? (
+                <View style={styles.phoneActionBox}>
+                  <View style={styles.phoneNumberContainer}>
+                    <MaterialCommunityIcons name="phone" size={18} color={t.color.muted} />
+                    <Text variant="bodyLarge" style={styles.phoneNumberText}>
+                      {customer.phone}
+                    </Text>
+                  </View>
+                  <IconButton
+                    icon="phone-outline"
+                    mode="outlined"
+                    iconColor={t.color.text}
+                    size={20}
+                    style={styles.contactCallButton}
+                    accessibilityLabel="Call customer"
+                    onPress={() => handleCall(customer.phone)}
+                  />
+                </View>
+              ) : null}
+
+                    {customer.email && <Text onPress={() => handleEmail(customer.email)} style={[styles.infoText, { marginLeft: 0, marginBottom: 16 }]}>{customer.email}</Text>}
+                    <Button mode="outlined" onPress={handleStartEditName} style={{ alignSelf: 'flex-start', marginBottom: 16 }} contentStyle={{ minHeight: 48 }}>Edit name</Button>
+                    {showContactDetails && <View>
                     <View style={styles.infoRow}>
                       <MaterialCommunityIcons name="calendar-account" size={18} color="#64748b" />
                       <Text variant="bodyMedium" style={styles.infoText}>
@@ -448,43 +433,29 @@ export function CustomerModal({
                         Last order: <Text style={styles.bold}>{formatDate(customer.lastOrderDate)}</Text>
                       </Text>
                     </View>
+                    </View>}
                   </View>
 
                   <View style={styles.section}>
-                    <Text variant="titleMedium" style={styles.sectionTitle}>
-                      Recent Orders
-                    </Text>
+                    <View style={styles.sectionHeadingRow}><Text variant="titleMedium" style={[styles.sectionTitle, styles.headingInRow]}>Recent orders</Text>
+                      {customer.orders.length > 2 && <Button compact contentStyle={{ minHeight: 32 }} hitSlop={{ top: 8, bottom: 8 }} style={styles.headerSecondaryAction} labelStyle={styles.headerSecondaryLabel} onPress={() => setShowAllOrders((value) => !value)}>{showAllOrders ? 'Show fewer' : 'View all'}</Button>}
+                    </View>
                     {customer.orders.length === 0 ? (
                       <Text variant="bodyMedium" style={styles.emptyText}>
                         No recent orders found.
                       </Text>
                     ) : (
-                      customer.orders.map((item) => (
-                        <Card key={item.id} style={styles.orderCard} mode="contained" onPress={() => onOrderPress(item.id)}>
+                      customer.orders.slice().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, showAllOrders ? undefined : 2).map((item) => (
+                        <Card key={item.id} nativeID={`customer-order-${item.id}`} accessibilityLabel={`View order ${getFriendlyOrderNumber(item.orderNumber)}`} style={styles.orderCard} mode="contained" onPress={() => setDetailOrderId(item.id)}>
                           <Card.Content style={styles.orderCardContent}>
                             <View style={styles.orderTopRow}>
                               <View style={styles.orderInfo}>
                                 <Text variant="titleSmall" style={styles.orderNumber}>
-                                  {getFriendlyOrderNumber(item.orderNumber)}
+                                  #{getFriendlyOrderNumber(item.orderNumber)}
                                 </Text>
-                                <View style={styles.orderDateStatusRow}>
-                                  <Text variant="bodySmall" style={styles.orderDateMuted}>
-                                    {formatDate(item.date)}
-                                  </Text>
-                                  <Text
-                                    variant="bodySmall"
-                                    style={[styles.orderStatusLabel, { color: orderStatusColor(item.status) }]}
-                                  >
-                                    {orderStatusLabel(item.status)}
-                                  </Text>
-                                </View>
+                                <Text variant="bodySmall" style={styles.orderSummary}>{new Date(item.date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} · {orderStatusLabel(item.status)} · ${item.total.toFixed(2)}</Text>
                               </View>
-                              <View style={styles.orderPriceChevron}>
-                                <Text variant="titleSmall" style={styles.orderPrice}>
-                                  ${item.total.toFixed(2)}
-                                </Text>
-                                <MaterialCommunityIcons name="chevron-right" size={18} color="#94a3b8" />
-                              </View>
+                              <Button mode="outlined" onPress={() => setDetailOrderId(item.id)}>View order</Button>
                             </View>
                           </Card.Content>
                         </Card>
@@ -492,20 +463,31 @@ export function CustomerModal({
                     )}
                   </View>
 
-                  <View style={styles.section}>
-                    <Text variant="titleMedium" style={styles.sectionTitle}>
-                      Reward History
-                    </Text>
+
+
+
+                </View>
+
+                <View style={styles.secondaryColumn}>
+<View style={styles.section}>
+                    <View style={styles.sectionHeadingRow}><Text variant="titleMedium" style={[styles.sectionTitle, styles.headingInRow]}>{editingPoints ? 'Adjust points' : 'Rewards'}</Text>
+                      {customer.rewardHistory.length > 2 && <Button compact contentStyle={{ minHeight: 32 }} hitSlop={{ top: 8, bottom: 8 }} style={styles.headerSecondaryAction} labelStyle={styles.headerSecondaryLabel} onPress={() => setShowAllRewards((value) => !value)}>{showAllRewards ? 'Show fewer' : 'View history'}</Button>}
+                    </View>
                     {customer.rewardHistory.length === 0 ? (
                       <Text variant="bodyMedium" style={styles.emptyText}>
                         No reward point activity yet.
                       </Text>
                     ) : (
-                      customer.rewardHistory.map((item) => {
+                      customer.rewardHistory.slice(0, showAllRewards ? undefined : 2).map((item) => {
                         const tone = rewardHistoryTone(item.type);
                         return (
-                          <Card key={item.id} style={styles.rewardCard} mode="contained">
-                            <Card.Content style={styles.rewardCardContent}>
+                          <View key={item.id} style={styles.rewardCard}>
+                            <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${tone.label} ${item.points} points. ${expandedRewards[item.id] ? 'Hide' : 'Show'} reward details`} accessibilityState={{ expanded: !!expandedRewards[item.id] }} onPress={() => setExpandedRewards((value) => ({ ...value, [item.id]: !value[item.id] }))} style={styles.compactSummaryRow}>
+                              <View style={styles.summaryInfo}><Text style={styles.summaryTitle}>{item.orderId && customer.orders.some((order) => order.id === item.orderId) ? `${tone.label} from order #${getFriendlyOrderNumber(customer.orders.find((order) => order.id === item.orderId)!.orderNumber)}` : item.description || `${tone.label} reward points`}</Text><Text style={styles.summaryMeta}>{formatDate(item.createdAt)}</Text></View>
+                              <StatusBadge label={`${item.points > 0 ? '+' : ''}${item.points.toLocaleString()} pts`} tone={item.points >= 0 ? 'success' : 'danger'} />
+                              <MaterialCommunityIcons name={expandedRewards[item.id] ? 'chevron-up' : 'chevron-down'} size={16} color={t.color.muted} />
+                            </TouchableOpacity>
+                            {expandedRewards[item.id] && <View style={styles.rewardCardContent}>
                               <View style={styles.rewardCardTopRow}>
                                 <View style={styles.rewardCardInfo}>
                                   <View style={[styles.rewardBadge, { backgroundColor: tone.background }]}>
@@ -545,21 +527,58 @@ export function CustomerModal({
                                 </Text>
                               ) : null}
                               {item.orderId ? (
-                                <Button mode="text" compact onPress={() => item.orderId && onOrderPress(item.orderId)} style={styles.rewardOrderButton}>
+                                <Button nativeID={`customer-reward-order-${item.orderId}`} mode="text" compact onPress={() => item.orderId && setDetailOrderId(item.orderId)} style={styles.rewardOrderButton}>
                                   View order
                                 </Button>
                               ) : null}
-                            </Card.Content>
-                          </Card>
+                            </View>}
+                          </View>
                         );
                       })
                     )}
+                    {allowRewardAdjustments ? (
+                      editingPoints ? (
+                        <View style={styles.pointsEditorCard}>
+                          <FormField
+                            mode="outlined"
+                            label="Points change"
+                            value={pointsDelta}
+                            onChangeText={setPointsDelta}
+                            keyboardType="numbers-and-punctuation"
+                            disabled={savingPoints}
+                            placeholder="Use 500 or -500"
+                          />
+                          <FormField
+                            mode="outlined"
+                            label="Reason"
+                            value={pointsReason}
+                            onChangeText={setPointsReason}
+                            disabled={savingPoints}
+                            multiline
+                          />
+                          {Number.isFinite(Number(pointsDelta)) && pointsDelta.trim() ? <Text accessibilityLiveRegion="polite" style={styles.infoText}>Current: {customer.rewardPoints.toLocaleString()} · Resulting: {(customer.rewardPoints + Number(pointsDelta)).toLocaleString()} points</Text> : null}
+                          <View style={styles.pointsEditorActions}>
+                            <Button mode="text" onPress={() => setEditingPoints(false)} disabled={savingPoints}>
+                              Cancel
+                            </Button>
+                            <Button mode="contained" onPress={handleAdjustPoints} loading={savingPoints} disabled={savingPoints}>
+                              Save points
+                            </Button>
+                          </View>
+                        </View>
+                      ) : (
+                        <Button
+                          mode="outlined"
+                          onPress={() => setEditingPoints(true)}
+                          style={[styles.actionButton, { alignSelf: 'flex-start' }]}
+                        >
+                          Adjust points
+                        </Button>
+                      )
+                    ) : null}
                   </View>
-
-                  <View style={styles.section}>
-                    <Text variant="titleMedium" style={styles.sectionTitle}>
-                      Associated Coupons & Offers
-                    </Text>
+<View style={styles.section}>
+                    <View style={styles.sectionHeadingRow}><Text variant="titleMedium" style={[styles.sectionTitle, styles.headingInRow]}>Coupons & offers</Text>{customerCoupons.length > 2 && <Button compact contentStyle={{ minHeight: 32 }} hitSlop={{ top: 8, bottom: 8 }} style={styles.headerSecondaryAction} labelStyle={styles.headerSecondaryLabel} onPress={() => setShowAllCoupons((value) => !value)}>{showAllCoupons ? 'Show fewer' : 'View all'}</Button>}</View>
                     {loadingCoupons ? (
                       <ActivityIndicator size="small" style={{ marginVertical: 12 }} />
                     ) : customerCoupons.length === 0 ? (
@@ -567,7 +586,7 @@ export function CustomerModal({
                         No coupons assigned to this customer.
                       </Text>
                     ) : (
-                      customerCoupons.map((item) => {
+                      customerCoupons.slice(0, showAllCoupons ? undefined : 2).map((item) => {
                         const isToggling = togglingCouponId === item.coupon.id;
                         const badgeColor =
                           item.status === 'active' ? '#2e7d32' :
@@ -579,8 +598,13 @@ export function CustomerModal({
                           item.status === 'expired' ? '#ffebee' : '#fff3e0';
 
                         return (
-                          <Card key={item.coupon.id} style={styles.rewardCard} mode="contained">
-                            <Card.Content style={styles.rewardCardContent}>
+                          <View key={item.coupon.id} style={styles.rewardCard}>
+                            <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${item.coupon.code}. ${expandedCoupons[item.coupon.id] ? 'Hide' : 'Show'} coupon details and controls`} accessibilityState={{ expanded: !!expandedCoupons[item.coupon.id] }} onPress={() => setExpandedCoupons((value) => ({ ...value, [item.coupon.id]: !value[item.coupon.id] }))} style={styles.compactSummaryRow}>
+                              <View style={styles.summaryInfo}><Text style={styles.summaryTitle}>{item.coupon.code}</Text><Text style={styles.summaryMeta}>{item.coupon.discount_type === 'percent' ? `${item.coupon.discount_value}% off` : `${formatMoney(item.coupon.discount_value)} off`}{item.coupon.ends_at ? ` · Ends ${new Date(item.coupon.ends_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}` : ''}</Text></View>
+                              <StatusBadge label={item.statusLabel} tone={item.status === 'active' ? 'success' : item.status === 'expired' ? 'danger' : 'neutral'} />
+                              <MaterialCommunityIcons name={expandedCoupons[item.coupon.id] ? 'chevron-up' : 'chevron-down'} size={16} color={t.color.muted} />
+                            </TouchableOpacity>
+                            {expandedCoupons[item.coupon.id] && <View style={styles.rewardCardContent}>
                               <View style={styles.rewardCardTopRow}>
                                 <View style={styles.rewardCardInfo}>
                                   <View style={[styles.rewardBadge, { backgroundColor: badgeBg }]}>
@@ -601,7 +625,7 @@ export function CustomerModal({
                                 <Text variant="titleSmall" style={{ fontWeight: 'bold', color: '#2e7d32' }}>
                                   {item.coupon.discount_type === 'percent'
                                     ? `${item.coupon.discount_value}% OFF`
-                                    : `$${item.coupon.discount_value.toFixed(2)} OFF`}
+                                    : `${item.coupon.discount_value.toFixed(2)} OFF`}
                                 </Text>
                               </View>
                               <View style={styles.rewardCardBottomRow}>
@@ -622,78 +646,22 @@ export function CustomerModal({
                                   disabled={isToggling}
                                 />
                               </View>
-                            </Card.Content>
-                          </Card>
+                            </View>}
+                          </View>
                         );
                       })
                     )}
-                  </View>
-                </View>
-
-                <View style={styles.secondaryColumn}>
-                  <View style={styles.section}>
-                    <Text variant="titleMedium" style={styles.sectionTitle}>
-                      Actions
-                    </Text>
                     <Button
-                      mode="contained-tonal"
-                      icon="pencil-outline"
-                      onPress={handleStartEditName}
-                      style={styles.actionButton}
-                    >
-                      Edit Customer Name
-                    </Button>
-                    <Button
-                      mode="contained-tonal"
-                      icon="email-fast"
+                      mode="outlined"
                       loading={sendingMarketing}
                       disabled={sendingMarketing || !customer.profileId}
                       onPress={handleSendMarketing}
-                      style={styles.actionButton}
+                      style={[styles.actionButton, { alignSelf: 'flex-start' }]}
                     >
-                      Send Marketing Email
+                      Marketing email
                     </Button>
-                    {allowRewardAdjustments ? (
-                      editingPoints ? (
-                        <View style={styles.pointsEditorCard}>
-                          <TextInput
-                            mode="outlined"
-                            label="Points change"
-                            value={pointsDelta}
-                            onChangeText={setPointsDelta}
-                            keyboardType="numbers-and-punctuation"
-                            disabled={savingPoints}
-                            placeholder="Use 500 or -500"
-                          />
-                          <TextInput
-                            mode="outlined"
-                            label="Reason"
-                            value={pointsReason}
-                            onChangeText={setPointsReason}
-                            disabled={savingPoints}
-                            multiline
-                          />
-                          <View style={styles.pointsEditorActions}>
-                            <Button mode="text" onPress={() => setEditingPoints(false)} disabled={savingPoints}>
-                              Cancel
-                            </Button>
-                            <Button mode="contained" onPress={handleAdjustPoints} loading={savingPoints} disabled={savingPoints}>
-                              Save Points
-                            </Button>
-                          </View>
-                        </View>
-                      ) : (
-                        <Button
-                          mode="contained-tonal"
-                          icon="star-cog-outline"
-                          onPress={() => setEditingPoints(true)}
-                          style={styles.actionButton}
-                        >
-                          Adjust Reward Points
-                        </Button>
-                      )
-                    ) : null}
                   </View>
+
                 </View>
               </View>
             </ScrollView>
@@ -701,10 +669,12 @@ export function CustomerModal({
         </View>
       </View>
 
+      {width < 600 && <AppNavigation onNavigate={onClose} />}
+      </View>
       <AddCustomerModal
         visible={showEditCustomerModal}
         saving={savingName}
-        title="Edit Customer Name"
+        title="Edit customer name"
         subtitle="Update the saved customer name for this profile."
         submitLabel="Save Name"
         requireContact={false}
@@ -719,6 +689,7 @@ export function CustomerModal({
         }}
         onSubmit={handleSaveName}
       />
+      {visible && detailOrderId && <OrderDetailController orderId={detailOrderId} onClose={() => setDetailOrderId(null)} />}
     </Modal>
   );
 }
@@ -726,18 +697,18 @@ export function CustomerModal({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: t.color.background,
   },
   header: {
-    backgroundColor: BRAND_COLORS.header,
-    paddingBottom: 18,
+    backgroundColor: t.color.background,
+    paddingBottom: 0,
   },
   headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    paddingLeft: 20,
-    paddingRight: 8,
+    paddingHorizontal: 16,
+    gap: 12,
   },
   headerInfo: {
     flexDirection: 'row',
@@ -746,7 +717,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   avatar: {
-    backgroundColor: '#1e40af',
+    backgroundColor: t.color.primary,
     marginRight: 16,
   },
   headerTextContainer: {
@@ -759,8 +730,10 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   customerName: {
-    fontWeight: 'bold',
-    color: '#f8fafc',
+    fontWeight: '700',
+    fontSize: 28,
+    lineHeight: 34,
+    color: t.color.text,
     flexShrink: 1,
   },
   editNameButton: {
@@ -772,13 +745,13 @@ const styles = StyleSheet.create({
   },
   headerMeta: {
     fontSize: 14,
-    color: '#b9c8dd',
-    fontWeight: '600',
+    color: t.color.muted,
+    fontWeight: '400',
   },
-  closeIcon: {
-    margin: 0,
-    marginLeft: 12,
-  },
+  closeIcon: { width: 40, height: 40, margin: 0, borderRadius: 20, backgroundColor: '#F0F4F3' },
+  contactCallButton: { width: 48, height: 48, margin: 0, borderColor: t.color.border, borderRadius: 10 },
+  metricTablet: { flex: 1, minWidth: 120 },
+  metricPhone: { flexBasis: '46%', flexGrow: 1, minWidth: 120 },
   contentArea: {
     flex: 1,
   },
@@ -790,30 +763,28 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 12,
-    color: '#64748b',
+    color: t.color.muted,
   },
   errorText: {
     marginTop: 12,
-    color: '#ef4444',
+    color: t.color.danger,
     textAlign: 'center',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingTop: 20,
   },
   phoneActionBox: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
-    padding: 16,
-    backgroundColor: '#eff6ff',
+    marginBottom: 12,
+    padding: 0,
+    backgroundColor: t.color.surface,
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#bfdbfe',
     gap: 12,
   },
   phoneNumberContainer: {
@@ -823,9 +794,8 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   phoneNumberText: {
-    marginLeft: 12,
-    fontWeight: 'bold',
-    color: '#1e3a8a',
+    marginLeft: 10,
+    color: t.color.text,
     flexShrink: 1,
   },
   statsContainer: {
@@ -844,15 +814,15 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 100,
     borderRadius: 16,
-    backgroundColor: '#f8fafc',
+    backgroundColor: t.color.background,
   },
   statValue: {
     fontWeight: 'bold',
     marginTop: 4,
-    color: '#1e293b',
+    color: t.color.text,
   },
   statLabel: {
-    color: '#64748b',
+    color: t.color.muted,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -864,7 +834,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   primaryColumn: {
-    flex: 1.6,
+    flex: 1,
     minWidth: 0,
   },
   secondaryColumn: {
@@ -874,15 +844,16 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: 20,
     padding: 20,
-    borderRadius: 20,
-    backgroundColor: '#fff',
+    borderRadius: t.radius.card,
+    backgroundColor: t.color.surface,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: t.color.border,
   },
   sectionTitle: {
-    fontWeight: 'bold',
+    fontWeight: '700',
+    fontSize: 18,
     marginBottom: 12,
-    color: '#1e293b',
+    color: t.color.text,
   },
   infoRow: {
     flexDirection: 'row',
@@ -891,24 +862,19 @@ const styles = StyleSheet.create({
   },
   infoText: {
     marginLeft: 10,
-    color: '#64748b',
+    color: t.color.muted,
     flexShrink: 1,
   },
   bold: {
     fontWeight: 'bold',
-    color: '#1e293b',
+    color: t.color.text,
   },
   actionButton: {
     marginTop: 8,
   },
   pointsEditorCard: {
     marginTop: 12,
-    gap: 10,
-    padding: 14,
-    borderRadius: 16,
-    backgroundColor: '#f8fafc',
-    borderWidth: 1,
-    borderColor: '#dbeafe',
+    gap: 16,
   },
   pointsEditorActions: {
     flexDirection: 'row',
@@ -916,23 +882,33 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   emptyText: {
-    color: '#64748b',
+    color: t.color.muted,
   },
+  sectionHeadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
+  headingInRow: { marginBottom: 0 },
+  headerSecondaryAction: { alignSelf: 'flex-start' },
+  headerSecondaryLabel: { fontSize: 13, marginHorizontal: 6 },
+  orderSummary: { fontSize: 13, lineHeight: 19, color: t.color.muted, marginTop: 4 },
+  compactSummaryRow: { flexDirection: 'row', alignItems: 'center', minHeight: 78, gap: 10, paddingVertical: 14, paddingHorizontal: 16 },
+  summaryInfo: { flex: 1, minWidth: 0 },
+  summaryTitle: { color: t.color.text, fontSize: 16, lineHeight: 21, fontWeight: '700' },
+  summaryMeta: { color: t.color.muted, fontSize: 13, lineHeight: 19, marginTop: 4 },
   orderCard: {
-    marginBottom: 10,
-    borderRadius: 12,
-    backgroundColor: '#f8fafc',
+    marginBottom: 0,
+    borderRadius: 0,
+    backgroundColor: t.color.surface, borderBottomWidth: 1, borderBottomColor: t.color.border,
   },
   orderCardContent: {
     paddingVertical: 10,
   },
   rewardCard: {
-    marginBottom: 10,
-    borderRadius: 12,
-    backgroundColor: '#f8fafc',
+    marginBottom: 0,
+    borderRadius: 0,
+    backgroundColor: t.color.surface, borderBottomWidth: 1, borderBottomColor: t.color.border,
   },
   rewardCardContent: {
     paddingVertical: 12,
+    paddingHorizontal: 16,
     gap: 8,
   },
   rewardCardTopRow: {
@@ -953,11 +929,11 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   rewardBadgeText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '700',
   },
   rewardDateMuted: {
-    color: '#64748b',
+    color: t.color.muted,
   },
   rewardCardAmountBlock: {
     alignItems: 'flex-end',
@@ -968,10 +944,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   rewardDollarValue: {
-    color: '#64748b',
+    color: t.color.muted,
   },
   rewardManualFlag: {
-    color: '#1d4ed8',
+    color: t.color.primary,
     fontWeight: '600',
   },
   rewardCardBottomRow: {
@@ -981,15 +957,15 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   rewardDescription: {
-    color: '#0f172a',
+    color: t.color.text,
     flex: 1,
   },
   rewardBalanceText: {
-    color: '#475569',
+    color: t.color.muted,
     flexShrink: 0,
   },
   rewardAuditText: {
-    color: '#64748b',
+    color: t.color.muted,
   },
   rewardOrderButton: {
     alignSelf: 'flex-start',
@@ -1006,7 +982,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   orderNumber: {
-    color: '#1e293b',
+    color: t.color.text,
     fontWeight: '700',
   },
   orderDateStatusRow: {
@@ -1018,7 +994,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   orderDateMuted: {
-    color: '#64748b',
+    color: t.color.muted,
     flexShrink: 0,
   },
   orderStatusLabel: {
@@ -1035,7 +1011,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   orderPrice: {
-    color: '#1e293b',
+    color: t.color.text,
     fontWeight: '700',
   },
 });

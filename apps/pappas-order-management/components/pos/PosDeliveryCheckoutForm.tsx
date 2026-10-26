@@ -1,6 +1,8 @@
+import { ActionButton as Button } from '@/components/ui/ActionButton';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import { Button, TextInput } from 'react-native-paper';
+import { FormField } from '@/components/ui';
+import { designTokens as tokens } from '@/lib/redesign';
 
 import { styles } from './pos.styles';
 import type { CustomerLookupStatus } from './PosCheckoutPanel';
@@ -223,7 +225,7 @@ export function PosDeliveryCheckoutForm({
 
         <View style={styles.deliveryPanel}>
           <Text style={styles.checkoutSectionTitle}>Delivery address</Text>
-          <TextInput
+          <FormField
             label="Search address"
             mode="outlined"
             value={addressQuery}
@@ -275,7 +277,7 @@ export function PosDeliveryCheckoutForm({
             </View>
           )}
 
-          <TextInput
+          <FormField
             label="Delivery instructions"
             mode="outlined"
             value={selectedAddress?.delivery_instructions || ''}
@@ -344,7 +346,7 @@ export function PosDeliveryCheckoutForm({
           )}
         </View>
 
-        <TextInput
+        <FormField
           label="Order note"
           mode="outlined"
           value={orderNoteText}
@@ -370,7 +372,7 @@ export function PosDeliveryCheckoutForm({
           }
           onPress={() => void handleRequestDelivery()}
           style={styles.placeOrderButton}
-          buttonColor="#2563eb"
+          buttonColor={tokens.color.primary}
         >
           Request Online Delivery
         </Button>

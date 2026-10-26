@@ -1,44 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
 
-export type PosLayoutProduct = {
-  productId: string;
-  color?: string;
-  showOnQuickList?: boolean;
-};
-
-export type PosLayoutCategory = {
-  categoryId: string;
-  title?: string;
-  sourceCategoryIds?: string[];
-  hideSourceCategories?: boolean;
-  showProductsOnTopLevel?: boolean;
-  color?: string;
-  products: PosLayoutProduct[];
-};
-
-export type PosLayoutData = {
-  version: 1;
-  quickOrderNotes?: string[];
-  quickItemNotes?: string[];
-  categories: PosLayoutCategory[];
-};
-
-export const DEFAULT_POS_QUICK_ORDER_NOTES = [
-  'Chicken salt',
-  'Salt',
-  'Both Salt',
-  'No salt at all',
-  'Extra Salt',
-  'Extra chicken salt',
-];
-
-export const DEFAULT_POS_QUICK_ITEM_NOTES = [
-  'Cut in half',
-  'Pack separately',
-  'Extra sauce',
-  'No salt',
-];
+import { normalizePosLayout, type PosLayoutData } from './pos-layout-config';
+export * from './pos-layout-config';
 
 export type PosLayoutRecord = {
   id: string;
@@ -51,45 +15,13 @@ export type PosLayoutRecord = {
 
 export const SELECTED_POS_LAYOUT_KEY = 'selectedPosLayoutId';
 export const DEFAULT_POS_BUTTON_COLOR = '#111827';
+const ACTIVE_POS_LAYOUT_KEY = 'activePosLayoutSnapshot';
 
-export const normalizePosLayout = (layout: unknown): PosLayoutData => {
-  const candidate = layout as Partial<PosLayoutData> | null | undefined;
-  return {
-    version: 1,
-    quickOrderNotes: Array.isArray(candidate?.quickOrderNotes)
-      ? candidate.quickOrderNotes
-        .filter((note): note is string => typeof note === 'string' && note.trim().length > 0)
-        .map((note) => note.trim())
-      : DEFAULT_POS_QUICK_ORDER_NOTES,
-    quickItemNotes: Array.isArray(candidate?.quickItemNotes)
-      ? candidate.quickItemNotes
-        .filter((note): note is string => typeof note === 'string' && note.trim().length > 0)
-        .map((note) => note.trim())
-      : DEFAULT_POS_QUICK_ITEM_NOTES,
-    categories: Array.isArray(candidate?.categories)
-      ? candidate.categories
-        .filter((category): category is PosLayoutCategory => Boolean(category?.categoryId))
-        .map((category) => ({
-          categoryId: category.categoryId,
-          title: category.title,
-          sourceCategoryIds: Array.isArray(category.sourceCategoryIds) && category.sourceCategoryIds.length > 0
-            ? category.sourceCategoryIds
-            : [category.categoryId],
-          hideSourceCategories: Boolean(category.hideSourceCategories),
-          showProductsOnTopLevel: Boolean(category.showProductsOnTopLevel),
-          color: category.color,
-          products: Array.isArray(category.products)
-            ? category.products
-              .filter((product): product is PosLayoutProduct => Boolean(product?.productId))
-              .map((product) => ({
-                productId: product.productId,
-                color: product.color,
-                showOnQuickList: Boolean(product.showOnQuickList),
-              }))
-            : [],
-        }))
-      : [],
-  };
+export const applyPosLayout = async (layout: PosLayoutData, name = 'Local POS layout', id: string | null = null) => {
+  const now = new Date().toISOString();
+  const record: PosLayoutRecord = { id: id || 'local-active', name, layout: normalizePosLayout(layout), is_default: false, created_at: now, updated_at: now };
+  await AsyncStorage.setItem(ACTIVE_POS_LAYOUT_KEY, JSON.stringify(record));
+  await setSelectedPosLayoutId(id);
 };
 
 export const getSelectedPosLayoutId = async () => AsyncStorage.getItem(SELECTED_POS_LAYOUT_KEY);
@@ -121,7 +53,17 @@ export const fetchPosLayouts = async () => {
   };
 };
 
+export const getAppliedPosLayout = async (): Promise<PosLayoutRecord | null> => {
+  const active = await AsyncStorage.getItem(ACTIVE_POS_LAYOUT_KEY);
+  if (active) {
+    try { const record = JSON.parse(active) as PosLayoutRecord; if (record.layout) return { ...record, layout: normalizePosLayout(record.layout) }; } catch { /* Fall back to saved preference. */ }
+  }
+  return null;
+};
+
 export const fetchPreferredPosLayout = async () => {
+  const active = await getAppliedPosLayout();
+  if (active) return { data: active, error: null };
   const selectedId = await getSelectedPosLayoutId();
   const { data: layouts, error } = await fetchPosLayouts();
   if (error) return { data: null, error };
@@ -136,6 +78,13 @@ export const fetchPreferredPosLayout = async () => {
 export const savePosLayout = async (
   payload: { id?: string; name: string; layout: PosLayoutData; isDefault: boolean }
 ) => {
+  // Freeze the current render before editing a named record, including the selected/default record.
+  if (!await AsyncStorage.getItem(ACTIVE_POS_LAYOUT_KEY)) {
+    const current = await fetchPreferredPosLayout();
+    if (current.error) return { data: null, error: current.error };
+    if (current.data) await applyPosLayout(current.data.layout, current.data.name, current.data.id);
+    else await applyPosLayout({ version: 1, categories: [] });
+  }
   const { data: userResult } = await supabase.auth.getUser();
   const basePayload = {
     name: payload.name.trim() || 'POS Layout',
@@ -170,6 +119,5 @@ export const savePosLayout = async (
       .neq('id', result.data.id);
   }
 
-  if (result.data?.id) await setSelectedPosLayoutId(result.data.id);
   return { data: result.data, error: null };
 };

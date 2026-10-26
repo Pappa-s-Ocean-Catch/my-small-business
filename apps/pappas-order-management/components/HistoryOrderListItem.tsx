@@ -1,274 +1,51 @@
+import { ActionButton as Button } from '@/components/ui/ActionButton';
 import React from 'react';
-import { View, Text, StyleSheet, useWindowDimensions, TouchableOpacity } from 'react-native';
-import { Card, IconButton } from 'react-native-paper';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Card } from 'react-native-paper';
 import type { Order } from '@my-small-business/types';
 import { getFriendlyOrderNumber } from '../utils/orderNumber';
-import { STATUS_COLORS, STATUS_LABELS, PAYMENT_STATUS_COLORS, PAYMENT_STATUS_LABELS } from '../utils/constants';
-import { getPaymentMethodType } from '../utils/orderUtils';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-
+import { STATUS_LABELS, PAYMENT_STATUS_LABELS } from '../utils/constants';
+import { paymentSummary } from '../utils/orderUtils';
+import { StatusBadge } from '@/components/ui';
+import { fulfilmentTone, paymentTone, orderPaymentLabel } from '@/components/orders/presentation';
+import { designTokens as t } from '@/lib/redesign';
 interface HistoryOrderListItemProps {
   order: Order;
   successfulOrderCount?: number;
+  compact?: boolean;
   onOrderPress: (order: Order) => void;
   onCustomerPress: (order: Order) => void;
 }
-
-export const HistoryOrderListItem: React.FC<HistoryOrderListItemProps> = ({
-  order,
-  successfulOrderCount,
-  onOrderPress,
-  onCustomerPress,
-}) => {
-  const { width } = useWindowDimensions();
-  const isLandscape = width > 600; // Threshold for 1-line layout
-
-  const statusColor = STATUS_COLORS[order.order_status];
-  const statusLabel = STATUS_LABELS[order.order_status];
-  const paymentColor = PAYMENT_STATUS_COLORS[order.payment_status];
-  const paymentLabel = PAYMENT_STATUS_LABELS[order.payment_status];
-  const isPaid = order.payment_status === 'paid';
-  const paymentMethodType = getPaymentMethodType(order);
-  const thirdPartyLabel = order.order_channel === 'third_party'
-    ? (order.delivery_partner_name?.trim() || '3rd Party')
-    : null;
-  const externalOrderLabel = order.external_order_number?.trim()
-    ? `ID ${order.external_order_number.trim()}`
-    : null;
-
-  if (isLandscape) {
-    // 1-line layout
-    return (
-      <Card style={styles.card} onPress={() => onOrderPress(order)}>
-        <Card.Content style={styles.landscapeContent}>
-          <View style={styles.orderNumContainer}>
-            <Text style={styles.orderNumber}>#{getFriendlyOrderNumber(order.order_number)}</Text>
-          </View>
-          
-          <TouchableOpacity 
-            style={styles.customerContainer} 
-            onPress={() => onCustomerPress(order)}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Text style={styles.customerName} numberOfLines={1}>
-              {order.customer_name || order.customer_email}
-            </Text>
-            {successfulOrderCount != null ? <Text style={styles.customerOrderCount}>{successfulOrderCount} successful orders</Text> : null}
-          </TouchableOpacity>
-
-          <View style={styles.statusContainer}>
-            <View style={[styles.badge, { backgroundColor: statusColor }]}>
-              <Text style={styles.badgeText}>{statusLabel}</Text>
-            </View>
-          </View>
-
-          <View style={styles.paymentContainer}>
-            <View style={[styles.badge, { backgroundColor: paymentColor, flexDirection: 'row', gap: 4 }]}>
-              <MaterialCommunityIcons 
-                name={paymentMethodType === 'card' ? 'credit-card' : 'cash'} 
-                size={12} 
-                color="#fff" 
-              />
-              <Text style={styles.badgeText}>{paymentLabel}</Text>
-            </View>
-          </View>
-
-          <View style={styles.timeContainer}>
-            <Text style={styles.orderTime}>{new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
-          </View>
-
-          <View style={styles.totalContainer}>
-            <Text style={styles.orderTotal}>${order.total.toFixed(2)}</Text>
-            {thirdPartyLabel ? (
-              <Text style={styles.thirdPartyText} numberOfLines={1}>
-                {thirdPartyLabel}{externalOrderLabel ? ` • ${externalOrderLabel}` : ''}
-              </Text>
-            ) : null}
-            {order.scheduled_pickup_at && (
-              <View style={styles.preOrderBadge}>
-                <Text style={styles.preOrderBadgeText}>Pre-Order</Text>
-              </View>
-            )}
-          </View>
-        </Card.Content>
-      </Card>
-    );
-  }
-
-  // 2-line portrait layout
-  return (
-    <Card style={styles.card} onPress={() => onOrderPress(order)}>
-      <Card.Content style={styles.portraitContent}>
-        <View style={styles.portraitRow}>
-          <Text style={styles.orderNumber}>#{getFriendlyOrderNumber(order.order_number)}</Text>
-          <TouchableOpacity 
-            style={styles.portraitCustomerWrapper} 
-            onPress={() => onCustomerPress(order)}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Text style={styles.customerName} numberOfLines={1}>
-              {order.customer_name || order.customer_email}
-            </Text>
-            {successfulOrderCount != null ? <Text style={styles.customerOrderCount}>{successfulOrderCount} successful orders</Text> : null}
-          </TouchableOpacity>
-          <Text style={styles.orderTime}>{new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
-        </View>
-        <View style={[styles.portraitRow, { marginTop: 8 }]}>
-          <View style={styles.badgesGroup}>
-            <View style={[styles.badge, { backgroundColor: statusColor, marginRight: 6 }]}>
-              <Text style={styles.badgeText}>{statusLabel}</Text>
-            </View>
-            <View style={[styles.badge, { backgroundColor: paymentColor, flexDirection: 'row', gap: 4 }]}>
-              <MaterialCommunityIcons 
-                name={paymentMethodType === 'card' ? 'credit-card' : 'cash'} 
-                size={12} 
-                color="#fff" 
-              />
-              <Text style={styles.badgeText}>{paymentLabel}</Text>
-            </View>
-          </View>
-          <View style={styles.totalGroup}>
-            <Text style={styles.orderTotal}>${order.total.toFixed(2)}</Text>
-            {thirdPartyLabel ? (
-              <Text style={styles.thirdPartyText} numberOfLines={1}>
-                {thirdPartyLabel}{externalOrderLabel ? ` • ${externalOrderLabel}` : ''}
-              </Text>
-            ) : null}
-            {order.scheduled_pickup_at && (
-              <View style={[styles.preOrderBadge, { marginLeft: 8 }]}>
-                <Text style={styles.preOrderBadgeText}>Pre-Order</Text>
-              </View>
-            )}
-          </View>
-        </View>
-      </Card.Content>
-    </Card>
-  );
-};
-
-const styles = StyleSheet.create({
-  card: {
-    marginBottom: 8,
-    backgroundColor: '#fff',
-    elevation: 1,
-    borderRadius: 8,
-  },
-  landscapeContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-  },
-  portraitContent: {
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-  },
-  portraitRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  orderNumContainer: {
-    width: 70,
-  },
-  orderNumber: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginRight: 12,
-  },
-  customerContainer: {
-    flex: 2,
-    paddingRight: 12,
-  },
-  portraitCustomerWrapper: {
-    flex: 1,
-    paddingHorizontal: 12,
-  },
-  customerName: {
-    fontSize: 15,
-    color: '#10b981',
-    fontWeight: '600',
-    flex: 1,
-  },
-  customerOrderCount: {
-    fontSize: 11,
-    color: '#64748b',
-    fontWeight: '600',
-  },
-  statusContainer: {
-    width: 100,
-    alignItems: 'center',
-  },
-  paymentContainer: {
-    width: 100,
-    alignItems: 'center',
-  },
-  totalContainer: {
-    width: 80,
-    alignItems: 'flex-end',
-  },
-  orderTotal: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#2563eb',
-  },
-  thirdPartyText: {
-    marginTop: 4,
-    fontSize: 11,
-    color: '#0f766e',
-    fontWeight: '700',
-    textAlign: 'right',
-  },
-  timeContainer: {
-    width: 80,
-    alignItems: 'flex-end',
-  },
-  orderTime: {
-    fontSize: 13,
-    color: '#6b7280',
-  },
-  badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-    minWidth: 80,
-    alignItems: 'center',
-  },
-  badgeText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: 'bold',
-  },
-  printIcon: {
-    margin: 0,
-    marginLeft: 8,
-  },
-  badgesGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  totalGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  preOrderBadge: {
-    backgroundColor: '#fff7ed',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: '#f97316',
-    marginTop: 2,
-  },
-  preOrderBadgeText: {
-    fontSize: 9,
-    color: '#f97316',
-    fontWeight: '800',
-    textTransform: 'uppercase',
-  },
-  printIconPortrait: {
-    margin: 0,
-    marginLeft: 4,
-  },
+export const HistoryOrderListItem: React.FC<HistoryOrderListItemProps> = ({ order, successfulOrderCount, onOrderPress, onCustomerPress, compact = false }) => compact ? (
+  <View style={s.historyRow}>
+    <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+      <TouchableOpacity accessibilityRole="button" onPress={() => onCustomerPress(order)} style={{ minHeight: 44, justifyContent: 'center', gap: 6 }}><Text style={s.rowTitle}>#{getFriendlyOrderNumber(order.order_number)} · {order.customer_name || order.customer_email || 'Walk-in'}</Text><Text style={s.rowMeta}>{new Date(order.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} · {paymentSummary(order)} · {order.items?.length || 0} items</Text></TouchableOpacity>
+    </View>
+    <View style={s.rowActions}><StatusBadge label={STATUS_LABELS[order.order_status]} tone={order.order_status === 'completed' ? 'neutral' : fulfilmentTone(order.order_status)} /><StatusBadge label={orderPaymentLabel(order.payment_status, order.order_status)} tone={paymentTone(order.payment_status)} /><Text style={s.rowTitle}>${order.total.toFixed(2)}</Text><Button mode="outlined" compact contentStyle={{ minHeight: 44 }} labelStyle={{ fontSize: 13, marginHorizontal: 12 }} hitSlop={2} onPress={() => onOrderPress(order)}>View</Button></View>
+  </View>
+) : (
+  <Card style={s.card} mode="outlined" onPress={() => onOrderPress(order)}>
+    <Card.Content style={s.content}>
+      <View style={s.row}><Text style={s.reference}>#{getFriendlyOrderNumber(order.order_number)}</Text><Text style={s.total}>${order.total.toFixed(2)}</Text></View>
+      {order.scheduled_pickup_at && <View style={s.scheduled}><Text style={s.scheduledText}>Collection · {new Date(order.scheduled_pickup_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</Text></View>}
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel={`View customer ${order.customer_name || order.customer_email || ''}`} style={s.customerTarget} onPress={() => onCustomerPress(order)}>
+        <Text style={s.customer}>{order.customer_name || order.customer_email || 'Walk-in customer'}</Text>
+        {successfulOrderCount != null && <Text style={s.meta}>{successfulOrderCount} successful orders</Text>}
+      </TouchableOpacity>
+      <Text style={s.meta}>{paymentSummary(order)} · {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+      {order.order_channel === 'third_party' && <Text style={s.meta}>{order.delivery_partner_name?.trim() || 'Marketplace'}{order.external_order_number ? ` · ID ${order.external_order_number}` : ''}</Text>}
+      <View style={s.row}><View style={s.badges}><StatusBadge label={STATUS_LABELS[order.order_status]} tone={fulfilmentTone(order.order_status)} /><StatusBadge label={orderPaymentLabel(order.payment_status, order.order_status)} tone={paymentTone(order.payment_status)} /></View><Button mode="outlined" onPress={() => onOrderPress(order)}>View order</Button></View>
+    </Card.Content>
+  </Card>
+);
+const s = StyleSheet.create({
+  historyRow: { backgroundColor: t.color.surface, minHeight: 78, borderBottomWidth: 1, borderColor: t.color.border, paddingVertical: 17, paddingHorizontal: 18, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 14 },
+  rowTitle: { fontSize: 15, fontWeight: '700', color: t.color.text },
+  rowMeta: { fontSize: 13, color: t.color.muted },
+  rowActions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  card: { backgroundColor: t.color.surface, borderColor: t.color.border, borderRadius: t.radius.card, marginBottom: 12 },
+  content: { gap: 10, paddingVertical: 16 }, row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  reference: { fontSize: 23, fontWeight: '700', color: t.color.text }, total: { fontSize: 23, color: t.color.text, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  customerTarget: { minHeight: 48, justifyContent: 'center', gap: 4 }, customer: { fontSize: 18, fontWeight: '600', color: t.color.primary },
+  meta: { fontSize: 14, lineHeight: 21, color: t.color.muted }, badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, scheduled: { padding: 12, borderRadius: 10, backgroundColor: t.color.primaryTint }, scheduledText: { fontSize: 16, fontWeight: '600', color: t.color.primary },
 });

@@ -1,6 +1,9 @@
+import { WorkspaceHeader } from '@/components/ui';
+import { designTokens as t } from '@/lib/redesign';
+import { PageHeader } from '@/components/ui';
 import React, { useState, useCallback, useEffect } from 'react';
 import { View, StyleSheet, Alert } from 'react-native';
-import { Appbar } from 'react-native-paper';
+import { Appbar, Banner } from 'react-native-paper';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { useRouter } from 'expo-router';
@@ -23,7 +26,8 @@ const PAGE_SIZE = 20;
 export default function CustomersScreen() {
   const navigation = useNavigation<DrawerNavigationProp<any>>();
   const router = useRouter();
-  
+
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -36,7 +40,7 @@ export default function CustomersScreen() {
   const [canAdjustRewardPoints, setCanAdjustRewardPoints] = useState(false);
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
   const [savingCustomer, setSavingCustomer] = useState(false);
-  
+
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<{ email?: string; phone?: string; profileId?: string } | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -85,15 +89,17 @@ export default function CustomersScreen() {
 
   const loadCustomers = async (p: number, search: string, append = false) => {
     try {
+      setLoadError(null);
       if (p === 0) setLoading(true);
       else setLoadingMore(true);
 
       const { data, error } = search.trim()
         ? await searchCustomers(search, p, PAGE_SIZE)
         : await getRecentCustomers(p, PAGE_SIZE);
-      
+
       if (error) {
         console.error('Error fetching customers:', error);
+        setLoadError(typeof error === 'string' ? error : 'Please check your connection and try again.');
       } else {
         const newData = data || [];
         setCustomers(prev => append ? [...prev, ...newData] : newData);
@@ -162,7 +168,6 @@ export default function CustomersScreen() {
   };
 
   const handleOpenOrderFromCustomerModal = async (orderId: string) => {
-    setShowCustomerModal(false);
     const result = await getOrder(orderId);
     if (result.error) {
       Alert.alert('Error', result.error);
@@ -206,13 +211,12 @@ export default function CustomersScreen() {
 
   return (
     <View style={styles.container}>
-      <Appbar.Header style={styles.appbar}>
-        <Appbar.Action icon="menu" onPress={() => navigation.openDrawer()} iconColor="#fff" />
-        <Appbar.Content title="Customers" titleStyle={styles.appbarTitle} />
-        <Appbar.Action icon="home" onPress={() => router.replace('/(drawer)/(tabs)/live-orders')} iconColor="#fff" />
-      </Appbar.Header>
+      <WorkspaceHeader title="Customers" actions={<>
+      </>} />
 
       <CustomerDirectoryList
+        headerNotice={loadError ? <Banner visible icon="alert-circle-outline" actions={[{ label: 'Retry', onPress: handleRefresh }]}>{customers.length ? 'Could not refresh customers. Showing the last loaded results. ' : 'Could not load customers. '}{loadError}</Banner> : undefined}
+        emptyText={loadError ? 'Customer results are unavailable. Retry to load the directory.' : undefined}
         customers={customers}
         searchQuery={searchQuery}
         onChangeSearchQuery={setSearchQuery}
@@ -279,13 +283,13 @@ export default function CustomersScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: t.color.background,
   },
   appbar: {
     backgroundColor: BRAND_COLORS.header,
   },
   appbarTitle: {
-    color: '#fff',
+    color: t.color.surface,
     fontWeight: 'bold',
   },
 });

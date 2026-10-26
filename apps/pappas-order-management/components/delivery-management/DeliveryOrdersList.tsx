@@ -1,35 +1,42 @@
+import { ActionButton as Button } from '@/components/ui/ActionButton';
+import { SearchField as Searchbar } from '@/components/ui';
+import { formatDateToLocalISO } from '@/utils/orderUtils';
+import { AsyncState, StatusBadge } from '@/components/ui';
+import { designTokens as t } from '@/lib/redesign';
 import React, { useState } from 'react';
-import { View, StyleSheet, FlatList, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, StyleSheet, FlatList, ActivityIndicator, RefreshControl, useWindowDimensions } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
-import { Text, Card, Button, Surface, useTheme, Chip, Searchbar } from 'react-native-paper';
+import { Text, Card, Surface, useTheme, Chip } from 'react-native-paper';
 import { getDeliveryOrders } from '../../lib/delivery-management';
 import { dateRangeBounds } from '../../lib/delivery-management-state';
 import type { ShipdayDeliveryRecord } from '../../../../libs/types/delivery-management';
 
 type Props = {
   onSelectOrder: (order: ShipdayDeliveryRecord) => void;
+  onNewDelivery?: () => void;
 };
 
-export function DeliveryOrdersList({ onSelectOrder }: Props) {
+export function DeliveryOrdersList({ onSelectOrder, onNewDelivery }: Props) {
   const theme = useTheme();
+  const { width } = useWindowDimensions();
   const [search, setSearch] = useState('');
-  
+
   // Date range state (simple toggle for now: Today vs Last 7 Days)
   const [dateRange, setDateRange] = useState<'today' | 'week'>('today');
-  
+
+  const todayDate = formatDateToLocalISO(new Date());
   const { from, to } = React.useMemo(() => {
-    const today = new Date();
-    const toStr = today.toISOString().split('T')[0];
-    
+    const toStr = todayDate;
+
     if (dateRange === 'today') {
       return dateRangeBounds(toStr, toStr);
     } else {
-      const weekAgo = new Date();
+      const weekAgo = new Date(`${todayDate}T12:00:00`);
       weekAgo.setDate(weekAgo.getDate() - 6);
-      const fromStr = weekAgo.toISOString().split('T')[0];
+      const fromStr = formatDateToLocalISO(weekAgo);
       return dateRangeBounds(fromStr, toStr);
     }
-  }, [dateRange]);
+  }, [dateRange, todayDate]);
 
   const { data, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ['delivery-orders', from, to, 1], // only fetching page 1 for simplicity here
@@ -37,7 +44,7 @@ export function DeliveryOrdersList({ onSelectOrder }: Props) {
   });
 
   const orders = data?.orders || [];
-  
+
   const filteredOrders = orders.filter(o => {
     if (!search) return true;
     const lowerSearch = search.toLowerCase();
@@ -53,11 +60,11 @@ export function DeliveryOrdersList({ onSelectOrder }: Props) {
       <Card.Content>
         <View style={styles.cardHeader}>
           <Text variant="titleMedium" style={{ fontWeight: 'bold' }}>{item.reference}</Text>
-          <Chip compact mode="outlined" style={styles.chip}>{item.status}</Chip>
+          <StatusBadge label={item.status} />
         </View>
         <View style={styles.cardBody}>
           <Text variant="bodyMedium">To: {item.customerName}</Text>
-          <Text variant="bodySmall" numberOfLines={1} ellipsizeMode="tail">Dropoff: {item.deliveryAddress}</Text>
+          <Text variant="bodySmall">Dropoff: {item.deliveryAddress}</Text>
           {item.deliveryFee !== null && (
             <Text variant="labelMedium" style={{ marginTop: 4 }}>Fee: ${item.deliveryFee.toFixed(2)}</Text>
           )}
@@ -68,41 +75,15 @@ export function DeliveryOrdersList({ onSelectOrder }: Props) {
 
   return (
     <View style={styles.container}>
-      <Surface style={styles.filterBar} elevation={1}>
-        <View style={styles.row}>
-          <Chip 
-            selected={dateRange === 'today'} 
-            onPress={() => setDateRange('today')}
-            style={styles.filterChip}
-          >
-            Today
-          </Chip>
-          <Chip 
-            selected={dateRange === 'week'} 
-            onPress={() => setDateRange('week')}
-            style={styles.filterChip}
-          >
-            Last 7 Days
-          </Chip>
-        </View>
-        <Searchbar
-          placeholder="Search ref/customer/address"
-          onChangeText={setSearch}
-          value={search}
-          style={styles.searchbar}
-          inputStyle={{ minHeight: 40 }}
-        />
-      </Surface>
+      <View style={{ padding: width >= 1100 ? 16 : 12, gap: 20, backgroundColor: t.color.background }}>
+        <View style={{ flexDirection: width < 600 ? 'column' : 'row', alignItems: 'stretch', gap: 8 }}><Searchbar placeholder="Search customer or address" onChangeText={setSearch} value={search} style={{ flex: width < 600 ? undefined : 1 }} />{onNewDelivery && <Button mode="contained" contentStyle={{ minHeight: 48 }} onPress={onNewDelivery}>New delivery</Button>}</View>
+        <View style={{ flexDirection: 'row', gap: 8 }}><Button mode="outlined" contentStyle={{ minHeight: 44 }} style={{ backgroundColor: dateRange === 'today' ? t.color.primaryTint : t.color.surface }} onPress={() => setDateRange('today')}>Today</Button><Button mode="outlined" contentStyle={{ minHeight: 44 }} style={{ backgroundColor: dateRange === 'week' ? t.color.primaryTint : t.color.surface }} onPress={() => setDateRange('week')}>Last 7 days</Button></View>
+      </View>
 
       {isLoading ? (
-        <View style={styles.centerContent}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-        </View>
+        <AsyncState loading title="Loading deliveries" />
       ) : isError ? (
-        <View style={styles.centerContent}>
-          <Text variant="bodyLarge" style={{ color: theme.colors.error }}>Failed to load deliveries</Text>
-          <Button mode="contained" onPress={() => refetch()} style={{ marginTop: 16 }}>Retry</Button>
-        </View>
+        <AsyncState title="Deliveries couldn’t load" icon="alert-outline" description="Check your connection and try again. Your selected date range is saved." retryLabel="Try again" retryMode="contained" onRetry={() => void refetch()} />
       ) : (
         <FlatList
           data={filteredOrders}
@@ -124,11 +105,11 @@ export function DeliveryOrdersList({ onSelectOrder }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f4f4f4',
+    backgroundColor: t.color.background,
   },
   filterBar: {
     padding: 12,
-    backgroundColor: '#ffffff',
+    backgroundColor: t.color.surface,
     zIndex: 10,
   },
   row: {
@@ -147,11 +128,15 @@ const styles = StyleSheet.create({
   },
   card: {
     marginBottom: 12,
+    backgroundColor: t.color.surface,
+    borderWidth: 1, borderColor: t.color.border,
+    borderRadius: t.radius.card,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    flexWrap: 'wrap', gap: 8,
     marginBottom: 8,
   },
   chip: {

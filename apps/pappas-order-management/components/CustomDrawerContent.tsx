@@ -1,16 +1,17 @@
+import { designTokens as t } from '@/lib/redesign';
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, Alert } from 'react-native';
-import { 
-  DrawerContentScrollView, 
-  DrawerItemList, 
-  DrawerItem 
+import {
+  DrawerContentScrollView,
+  DrawerItemList,
+  DrawerItem
 } from '@react-navigation/drawer';
-import { 
-  Avatar, 
-  Title, 
-  Caption, 
-  Paragraph, 
-  Drawer as PaperDrawer, 
+import {
+  Avatar,
+  Title,
+  Caption,
+  Paragraph,
+  Drawer as PaperDrawer,
   Divider,
   useTheme,
 } from 'react-native-paper';
@@ -35,7 +36,7 @@ export function CustomDrawerContent(props: any) {
   const handleLogout = () => {
     Alert.alert(
       'Sign Out',
-      'Are you sure you want to sign out?',
+      'Your session will end. Any unsaved order draft will be discarded. Sign out?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -58,14 +59,14 @@ export function CustomDrawerContent(props: any) {
         <View style={styles.drawerContent}>
           <View style={styles.userInfoSection}>
             <View style={{ flexDirection: 'row', marginTop: 15 }}>
-              <Avatar.Text 
-                label={userInitial} 
-                size={50} 
-                style={{ backgroundColor: theme.colors.primary }} 
+              <Avatar.Text
+                label={userInitial}
+                size={50}
+                style={{ backgroundColor: theme.colors.primary }}
               />
               <View style={{ marginLeft: 15, flexDirection: 'column' }}>
                 <Title style={styles.title}>{user?.email?.split('@')[0] || 'User'}</Title>
-                <Caption style={styles.caption}>{user?.email || 'pappa@oceancatch.com'}</Caption>
+                <Caption style={styles.caption}>{user?.email || 'Signed-in staff'}</Caption>
               </View>
             </View>
 
@@ -79,13 +80,15 @@ export function CustomDrawerContent(props: any) {
 
           <PaperDrawer.Section style={styles.drawerSection}>
             <DrawerItemList {...props} />
+            <DrawerItem label="Order history" icon={({ color, size }) => <MaterialCommunityIcons name="history" color={color} size={size} />} onPress={() => { props.navigation.closeDrawer(); router.navigate('/(drawer)/(tabs)/orders'); }} />
+            <DrawerItem label="Menu catalogue" icon={({ color, size }) => <MaterialCommunityIcons name="food-outline" color={color} size={size} />} onPress={() => { props.navigation.closeDrawer(); router.navigate('/menu-management'); }} />
           </PaperDrawer.Section>
         </View>
       </DrawerContentScrollView>
 
       <PaperDrawer.Section style={styles.bottomDrawerSection}>
         <Divider />
-        <DrawerItem 
+        <DrawerItem
           icon={({ color, size }) => (
             <MaterialCommunityIcons name="account-outline" color={color} size={size} />
           )}
@@ -94,7 +97,7 @@ export function CustomDrawerContent(props: any) {
             Alert.alert('Profile', `Logged in as: ${user?.email}`);
           }}
         />
-        <DrawerItem 
+        <DrawerItem
           icon={({ color, size }) => (
             <MaterialCommunityIcons name="logout" color={color} size={size} />
           )}

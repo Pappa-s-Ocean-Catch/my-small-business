@@ -1,10 +1,12 @@
+import { ActionButton as Button } from '@/components/ui/ActionButton';
+import { WorkspaceHeader } from '@/components/ui';
+import { designTokens as t } from '@/lib/redesign';
+import { Panel, SectionHeader, DetailRow } from '@/components/ui';
 import { useState, useEffect, useRef } from 'react';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { DrawerNavigationProp } from '@react-navigation/drawer';
+import { Alert, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Constants from 'expo-constants';
 import * as Updates from 'expo-updates';
-import { Appbar, Button, Card, List, Text } from 'react-native-paper';
+import { Text } from 'react-native-paper';
 import NetInfo from '@react-native-community/netinfo';
 import { getNativeAppMemory } from '@my-small-business/app-memory';
 import { BRAND_COLORS } from '@/utils/brand';
@@ -86,8 +88,12 @@ function MemoryDistributionBar({ snapshot }: { snapshot: Extract<AppMemorySnapsh
   );
 }
 
+function BuildDetail({ label, value, hint, border = true }: { label: string; value: string; hint?: string; border?: boolean }) {
+  return <View style={{ minHeight: 78, paddingVertical: 17, paddingHorizontal: 18, borderBottomWidth: border ? 1 : 0, borderColor: t.color.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}><View style={{ flexShrink: 1, gap: 6 }}><Text style={{ fontSize: 16, fontWeight: '700', color: t.color.text }}>{label}</Text>{hint && <Text style={{ fontSize: 13, color: t.color.muted }}>{hint}</Text>}</View><Text style={{ fontSize: 16, color: t.color.text, flexShrink: 1 }}>{value}</Text></View>;
+}
+
 export default function AboutScreen() {
-  const navigation = useNavigation<DrawerNavigationProp<any>>();
+  const { width } = useWindowDimensions();
   const [active, setActive] = useState(false);
   const restartRequested = useRef(false);
   const [memorySnapshot, setMemorySnapshot] = useState<AppMemorySnapshot | null>(null);
@@ -172,61 +178,25 @@ export default function AboutScreen() {
           ? `Unavailable: ${memorySnapshot.message}`
           : 'Tap Refresh to measure this device.';
 
-  return (
-    <>
-      <Appbar.Header style={styles.appbar}>
-        <Appbar.Action icon="menu" onPress={() => navigation.openDrawer()} accessibilityLabel="Open menu" iconColor="#fff" />
-        <Appbar.Content title="About" titleStyle={styles.appbarTitle} />
-      </Appbar.Header>
-      <ScrollView contentContainerStyle={styles.content}>
-        <Button mode="outlined" icon="restart" onPress={confirmRestart} disabled={active}>
-          Restart app
-        </Button>
-        <Button mode="contained" icon="download" onPress={() => void handleCheckForUpdate()} disabled={active} loading={active}>
-          Check for update
-        </Button>
-
-        <Card>
-          <Card.Content>
-            <Text variant="titleMedium">Installed build</Text>
-          </Card.Content>
-          <List.Item title="Version" description={metadata.appVersion} left={(props) => <List.Icon {...props} icon="tag-outline" />} />
-          <List.Item title="Build/update date" description={metadata.buildDate} left={(props) => <List.Icon {...props} icon="calendar-outline" />} />
-          <List.Item title="Revision" description={metadata.gitSha} left={(props) => <List.Icon {...props} icon="source-branch" />} />
-          {updateDetails.updateId ? <List.Item title="Update ID" description={updateDetails.updateId} left={(props) => <List.Icon {...props} icon="identifier" />} /> : null}
-          {updateDetails.channel ? <List.Item title="Update channel" description={updateDetails.channel} left={(props) => <List.Icon {...props} icon="broadcast" />} /> : null}
-        </Card>
-
-        <Card>
-          <Card.Content>
-            <Text variant="titleMedium">Network</Text>
-          </Card.Content>
-          <List.Item title="Local IP Address" description={ipAddress || 'Unknown / Not connected'} left={(props) => <List.Icon {...props} icon="wifi" />} />
-        </Card>
-
-        <Card>
-          <Card.Content>
-            <Text variant="titleMedium">App memory footprint</Text>
-            <Text variant="bodySmall">Device process memory, including JavaScript, images, and native UI.</Text>
-            {memorySnapshot?.kind === 'available' ? <MemoryDistributionBar snapshot={memorySnapshot} /> : null}
-          </Card.Content>
-          <List.Item
-            title={memorySnapshot?.kind === 'available' ? 'Total memory' : 'Memory diagnostic'}
-            description={memoryDescription}
-            left={(props) => <List.Icon {...props} icon="memory" />}
-          />
-          {memorySnapshot?.kind === 'available' ? <List.Item title="App memory" description={memorySnapshot.formattedAppFootprint} left={(props) => <List.Icon {...props} icon="application-outline" />} /> : null}
-          {memorySnapshot?.kind === 'available' ? <List.Item title="Available memory" description={memorySnapshot.formattedAvailable} left={(props) => <List.Icon {...props} icon="memory" />} /> : null}
-          <Card.Actions>
-            <Button icon="refresh" onPress={() => void refreshMemory()} disabled={memoryLoading} loading={memoryLoading}>
-              Refresh
-            </Button>
-          </Card.Actions>
-        </Card>
-
-      </ScrollView>
-    </>
-  );
+  return <View style={{ flex: 1, backgroundColor: t.color.background }}>
+    <WorkspaceHeader title="About this register" />
+    <ScrollView contentContainerStyle={{ padding: width >= 1100 ? 16 : 12 }}>
+      <View style={{ flexDirection: width >= 1000 ? 'row' : 'column', gap: 20, alignItems: 'flex-start' }}>
+        <Panel style={{ flex: 1, width: '100%', padding: width < 600 ? 18 : 20, gap: 0 }}><SectionHeader title="Installed build" />
+          <BuildDetail label="Version" hint="Read from app build metadata" value={metadata.appVersion} /><BuildDetail label="Build date" value={metadata.buildDate} /><BuildDetail label="Revision" value={metadata.gitSha} />
+          {updateDetails.updateId && <DetailRow label="Update ID" value={updateDetails.updateId} />}{updateDetails.channel && <DetailRow label="Update channel" value={updateDetails.channel} />}
+          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 20 }}><Button mode="contained" contentStyle={{ minHeight: 48 }} onPress={() => void handleCheckForUpdate()} disabled={active} loading={active}>Check for update</Button><Button mode="outlined" contentStyle={{ minHeight: 48 }} onPress={confirmRestart} disabled={active}>Restart app</Button></View>
+        </Panel>
+        <View style={{ flex: 1, width: '100%', gap: 16 }}>
+          <Panel style={{ padding: width < 600 ? 18 : 20, minHeight: 174 }}><SectionHeader title="Network" /><BuildDetail label="Local IP address" value={ipAddress || 'Unknown / Not connected'} border={false} /></Panel>
+          <Panel style={{ padding: width < 600 ? 18 : 20, minHeight: 180 }}><SectionHeader title="Memory diagnostics" /><Text style={{ color: t.color.muted, lineHeight: 22 }}>Device memory, native heap and JavaScript memory appear here when available.</Text>
+            {memorySnapshot?.kind === 'available' ? <><MemoryDistributionBar snapshot={memorySnapshot} /><DetailRow label="Total memory" value={memorySnapshot.formattedTotal} /><DetailRow label="App memory" value={memorySnapshot.formattedAppFootprint} /><DetailRow label="Available memory" value={memorySnapshot.formattedAvailable} /></> : memorySnapshot ? <Text style={{ color: t.color.muted }}>{memoryDescription}</Text> : null}
+            <Button mode="outlined" contentStyle={{ minHeight: 48 }} style={{ alignSelf: 'flex-start', marginTop: 16 }} onPress={() => void refreshMemory()} disabled={memoryLoading} loading={memoryLoading}>Refresh diagnostics</Button>
+          </Panel>
+        </View>
+      </View>
+    </ScrollView>
+  </View>;
 }
 
 const styles = StyleSheet.create({
@@ -234,7 +204,7 @@ const styles = StyleSheet.create({
     backgroundColor: BRAND_COLORS.header,
   },
   appbarTitle: {
-    color: '#fff',
+    color: t.color.surface,
   },
   content: {
     gap: 16,
@@ -245,7 +215,7 @@ const styles = StyleSheet.create({
     height: 12,
     marginTop: 16,
     overflow: 'hidden',
-    borderRadius: 6,
+    borderRadius: t.radius.card,
   },
   memorySegment: {
     minWidth: 1,

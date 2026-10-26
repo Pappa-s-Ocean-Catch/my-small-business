@@ -1,0 +1,494 @@
+[
+  {
+    "file": "001__orders__live__default.png",
+    "note": ""
+  },
+  {
+    "file": "002__orders__live__filter-menu.png",
+    "note": ""
+  },
+  {
+    "file": "003__orders__detail__unpaid-pickup.png",
+    "note": ""
+  },
+  {
+    "file": "004__orders__detail__print-type-prompt.png",
+    "note": "No print option selected."
+  },
+  {
+    "file": "005__orders__on-the-way__empty.png",
+    "note": ""
+  },
+  {
+    "file": "006__orders__completed__today-empty.png",
+    "note": ""
+  },
+  {
+    "file": "007__orders__completed__date-picker.png",
+    "note": ""
+  },
+  {
+    "file": "008__orders__completed__filters-modal.png",
+    "note": ""
+  },
+  {
+    "file": "009__orders__completed__today-loaded.png",
+    "note": ""
+  },
+  {
+    "file": "010__pos__take-order__empty-cart.png",
+    "note": ""
+  },
+  {
+    "file": "011__pos__catalogue__search.png",
+    "note": ""
+  },
+  {
+    "file": "012__pos__cart__salt-option-modal.png",
+    "note": ""
+  },
+  {
+    "file": "013__settings__pos-layout__item-preview.png",
+    "note": ""
+  },
+  {
+    "file": "014__settings__pos-layout__layout-selector.png",
+    "note": ""
+  },
+  {
+    "file": "015__settings__pos-layout__custom-colour-modal.png",
+    "note": ""
+  },
+  {
+    "file": "016__settings__pos-layout__groups.png",
+    "note": ""
+  },
+  {
+    "file": "017__settings__pos-layout__create-virtual-group-modal.png",
+    "note": ""
+  },
+  {
+    "file": "018__pos__item__customisation.png",
+    "note": "Unsaved local cart only; no order created."
+  },
+  {
+    "file": "019__pos__item__note-modal.png",
+    "note": ""
+  },
+  {
+    "file": "020__pos__checkout__pickup.png",
+    "note": ""
+  },
+  {
+    "file": "021__pos__checkout__discount-modal.png",
+    "note": ""
+  },
+  {
+    "file": "022__pos__checkout__pre-order.png",
+    "note": ""
+  },
+  {
+    "file": "023__pos__customer__phone-keypad-modal.png",
+    "note": ""
+  },
+  {
+    "file": "024__pos__customer__name-keyboard-modal.png",
+    "note": ""
+  },
+  {
+    "file": "025__pos__checkout__delivery.png",
+    "note": ""
+  },
+  {
+    "file": "026__pos__checkout__third-party.png",
+    "note": ""
+  },
+  {
+    "file": "027__pos__checkout__instore.png",
+    "note": ""
+  },
+  {
+    "file": "028__pos__customer__search-modal.png",
+    "note": ""
+  },
+  {
+    "file": "029__pos__customer__recent-calls-modal.png",
+    "note": ""
+  },
+  {
+    "file": "030__pos__cart__clear-draft-confirmation.png",
+    "note": ""
+  },
+  {
+    "file": "031__navigation__drawer__expanded.png",
+    "note": ""
+  },
+  {
+    "file": "032__orders__pre-orders__empty.png",
+    "note": ""
+  },
+  {
+    "file": "033__customers__directory__default.png",
+    "note": ""
+  },
+  {
+    "file": "034__customers__add__form-modal.png",
+    "note": ""
+  },
+  {
+    "file": "035__customers__profile__overview.png",
+    "note": ""
+  },
+  {
+    "file": "036__customers__profile__edit-name-modal.png",
+    "note": ""
+  },
+  {
+    "file": "037__customers__profile__adjust-rewards-modal.png",
+    "note": ""
+  },
+  {
+    "file": "038__customers__profile__rewards-and-coupons.png",
+    "note": ""
+  },
+  {
+    "file": "039__marketing__campaign__empty.png",
+    "note": ""
+  },
+  {
+    "file": "040__marketing__recipients__directory.png",
+    "note": ""
+  },
+  {
+    "file": "041__marketing__recipients__filters-sort-modal.png",
+    "note": ""
+  },
+  {
+    "file": "042__marketing__review__unsent-preview.png",
+    "note": "Local preview only. No campaign generated, saved, or sent."
+  },
+  {
+    "file": "043__coupons__directory__all.png",
+    "note": ""
+  },
+  {
+    "file": "044__coupons__detail__modal.png",
+    "note": ""
+  },
+  {
+    "file": "045__coupons__directory__active-filter.png",
+    "note": ""
+  },
+  {
+    "file": "046__marketplace__orders__uber-active.png",
+    "note": ""
+  },
+  {
+    "file": "047__marketplace__settings__uber-cookies-modal.png",
+    "note": ""
+  },
+  {
+    "file": "048__marketplace__settings__doordash-modal.png",
+    "note": ""
+  },
+  {
+    "file": "049__marketplace__mapping__unmatched-names.png",
+    "note": ""
+  },
+  {
+    "file": "050__marketplace__orders__history.png",
+    "note": ""
+  },
+  {
+    "file": "051__marketplace__orders__status-menu.png",
+    "note": ""
+  },
+  {
+    "file": "052__marketplace__orders__date-menu.png",
+    "note": ""
+  },
+  {
+    "file": "053__marketplace__orders__scheduled.png",
+    "note": ""
+  },
+  {
+    "file": "054__deliveries__list__today.png",
+    "note": ""
+  },
+  {
+    "file": "055__deliveries__list__last-seven-days.png",
+    "note": ""
+  },
+  {
+    "file": "056__deliveries__new__address-form.png",
+    "note": ""
+  },
+  {
+    "file": "057__reports__sales__overview.png",
+    "note": ""
+  },
+  {
+    "file": "058__reports__sales__date-modal.png",
+    "note": ""
+  },
+  {
+    "file": "059__reports__weekly__overview.png",
+    "note": ""
+  },
+  {
+    "file": "060__reports__monthly__overview.png",
+    "note": ""
+  },
+  {
+    "file": "061__reports__last-x-days__overview.png",
+    "note": ""
+  },
+  {
+    "file": "062__reports__print__printer-picker-modal.png",
+    "note": ""
+  },
+  {
+    "file": "063__reports__print__simulator-preview.png",
+    "note": ""
+  },
+  {
+    "file": "064__reports__last-x-days__help-modal.png",
+    "note": ""
+  },
+  {
+    "file": "065__reports__sales__payment-and-channel-breakdown.png",
+    "note": ""
+  },
+  {
+    "file": "066__settings__hub__default.png",
+    "note": ""
+  },
+  {
+    "file": "067__settings__store-information__modal.png",
+    "note": ""
+  },
+  {
+    "file": "068__settings__refresh-interval__modal.png",
+    "note": ""
+  },
+  {
+    "file": "069__settings__order-sound__modal.png",
+    "note": ""
+  },
+  {
+    "file": "070__settings__live-order-cards__modal.png",
+    "note": ""
+  },
+  {
+    "file": "071__settings__marketplace-auto-sync__modal.png",
+    "note": ""
+  },
+  {
+    "file": "072__settings__caller-id__modal.png",
+    "note": ""
+  },
+  {
+    "file": "073__settings__print-diagnostics__modal.png",
+    "note": ""
+  },
+  {
+    "file": "074__settings__kitchen-printer__overview.png",
+    "note": ""
+  },
+  {
+    "file": "075__settings__kitchen-printer__edit-saved-printer.png",
+    "note": ""
+  },
+  {
+    "file": "076__settings__smartpay__pairing.png",
+    "note": ""
+  },
+  {
+    "file": "077__catalogue__menu-management__products.png",
+    "note": ""
+  },
+  {
+    "file": "078__catalogue__product-new__overview-modal.png",
+    "note": ""
+  },
+  {
+    "file": "079__catalogue__product-new__seo-tab.png",
+    "note": ""
+  },
+  {
+    "file": "080__catalogue__product-new__ingredients-tab.png",
+    "note": ""
+  },
+  {
+    "file": "081__catalogue__product-new__inventory-picker-modal.png",
+    "note": ""
+  },
+  {
+    "file": "082__catalogue__product-new__bundle-tab.png",
+    "note": ""
+  },
+  {
+    "file": "083__catalogue__product-new__addons-tab.png",
+    "note": ""
+  },
+  {
+    "file": "084__catalogue__menu-management__categories.png",
+    "note": ""
+  },
+  {
+    "file": "085__catalogue__category-new__modal.png",
+    "note": ""
+  },
+  {
+    "file": "086__catalogue__addons-management__groups.png",
+    "note": ""
+  },
+  {
+    "file": "087__catalogue__addons-group-new__modal.png",
+    "note": ""
+  },
+  {
+    "file": "088__catalogue__addons-management__group-expanded.png",
+    "note": ""
+  },
+  {
+    "file": "089__calls__history__today.png",
+    "note": ""
+  },
+  {
+    "file": "090__calls__history__yesterday.png",
+    "note": ""
+  },
+  {
+    "file": "091__calls__history__all-time.png",
+    "note": ""
+  },
+  {
+    "file": "092__about__app-information__default.png",
+    "note": ""
+  },
+  {
+    "file": "093__tv-menu__management__default.png",
+    "note": ""
+  },
+  {
+    "file": "094__tv-menu__preview__image-modal.png",
+    "note": ""
+  },
+  {
+    "file": "095__tv-menu__upload__system-file-picker.png",
+    "note": ""
+  },
+  {
+    "file": "096__navigation__profile__information-prompt.png",
+    "note": ""
+  },
+  {
+    "file": "097__navigation__sign-out__confirmation.png",
+    "note": ""
+  },
+  {
+    "file": "098__navigation__deep-link__system-open-prompt.png",
+    "note": ""
+  },
+  {
+    "file": "099__auth__login__default.png",
+    "note": ""
+  },
+  {
+    "file": "100__auth__login__required-fields-validation.png",
+    "note": ""
+  },
+  {
+    "file": "101__settings__order-sound__selection-prompt.png",
+    "note": ""
+  },
+  {
+    "file": "102__settings__hub__storage-and-integrations.png",
+    "note": ""
+  },
+  {
+    "file": "103__settings__kitchen-printer__saved-printers.png",
+    "note": "Native Maestro screenshot; lower printer settings. No settings changed.",
+    "native": true
+  },
+  {
+    "file": "104__settings__kitchen-printer__section-routing-01.png",
+    "note": "Native Maestro screenshot; lower printer settings. No settings changed.",
+    "native": true
+  },
+  {
+    "file": "105__settings__kitchen-printer__section-routing-02.png",
+    "note": "Native Maestro screenshot; lower printer settings. No settings changed.",
+    "native": true
+  },
+  {
+    "file": "106__settings__kitchen-printer__receipt-options.png",
+    "note": "Native Maestro screenshot; lower printer settings. No settings changed.",
+    "native": true
+  },
+  {
+    "file": "107__settings__kitchen-printer__journal.png",
+    "note": "Read-only device journal, captured before the offline overlay appeared. No journal entries cleared."
+  },
+  {
+    "file": "108__orders__live__empty.png",
+    "note": "App reconnected after restart; no live orders on 18 October."
+  },
+  {
+    "file": "109__reports__sales__payment-and-channel-breakdown.png",
+    "note": "Read-only report scroll capture for 17 October 2026.",
+    "native": true
+  },
+  {
+    "file": "110__reports__sales__channel-financials.png",
+    "note": "Read-only report scroll capture for 17 October 2026.",
+    "native": true
+  },
+  {
+    "file": "111__reports__sales__bottom.png",
+    "note": "Read-only report scroll capture for 17 October 2026.",
+    "native": true
+  },
+  {
+    "file": "112__orders__history-route__empty.png",
+    "note": ""
+  },
+  {
+    "file": "113__orders__history-route__loaded.png",
+    "note": ""
+  },
+  {
+    "file": "114__customers__summary__missing-contact.png",
+    "note": ""
+  },
+  {
+    "file": "115__orders__detail__completed-marketplace.png",
+    "note": ""
+  },
+  {
+    "file": "116__settings__kitchen-printer__paper-quality-and-journal.png",
+    "native": true,
+    "note": "Bottom printer settings; no values changed."
+  },
+  {
+    "file": "117__marketplace__resolver-route__empty.png",
+    "note": ""
+  },
+  {
+    "file": "118__pos__catalogue__category-items.png",
+    "note": ""
+  },
+  {
+    "file": "119__pos__catalogue__quick-list.png",
+    "note": ""
+  },
+  {
+    "file": "120__pos__checkout__in-store-payment-choice.png",
+    "note": "Opened choice dialog only; no order submitted."
+  },
+  {
+    "file": "121__pos__checkout__cash-tender-modal.png",
+    "note": "Cash-tender preview only; cancelled without confirming or creating an order."
+  }
+]

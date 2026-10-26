@@ -1,7 +1,7 @@
+import { ActionButton as Button } from '@/components/ui/ActionButton';
 import React from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
-
-import { styles } from './pos.styles';
+import { StyleSheet, Text, View } from 'react-native';
+import { designTokens as t } from '@/lib/redesign';
 
 type Props = {
   discountLabel: string;
@@ -10,55 +10,8 @@ type Props = {
   onSelectPreset: (percent: number) => void;
   onOpenMore: () => void;
 };
-
-const PRESET_DISCOUNTS = [10, 15, 20, 25];
-
-export function PosDiscountSection({
-  discountLabel,
-  discountAmount,
-  activeDiscountPercent,
-  onSelectPreset,
-  onOpenMore,
-}: Props) {
-  return (
-    <View style={[styles.discountCard, discountAmount > 0 ? styles.discountCardActive : null]}>
-      <View style={styles.discountCardText}>
-        <Text style={[styles.discountCardTitle, discountAmount > 0 ? styles.discountCardTitleActive : null]}>
-          Discount
-        </Text>
-        <Text style={[styles.discountCardValue, discountAmount > 0 ? styles.discountCardValueActive : null]}>
-          {discountLabel}
-        </Text>
-      </View>
-      <Text style={[styles.discountCardAmount, discountAmount > 0 ? styles.discountCardAmountActive : null]}>
-        {discountAmount > 0 ? `-$${discountAmount.toFixed(2)}` : 'Add'}
-      </Text>
-      <View style={styles.discountPresetRow}>
-        {PRESET_DISCOUNTS.map((percent) => {
-          const selected = activeDiscountPercent === percent;
-          return (
-            <TouchableOpacity
-              key={percent}
-              style={[styles.discountPresetChip, selected ? styles.discountPresetChipActive : null]}
-              onPress={() => onSelectPreset(percent)}
-              accessibilityRole="button"
-              accessibilityLabel={`Apply ${percent} percent discount`}
-            >
-              <Text style={[styles.discountPresetChipText, selected ? styles.discountPresetChipTextActive : null]}>
-                {percent}%
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-        <TouchableOpacity
-          style={styles.discountPresetChip}
-          onPress={onOpenMore}
-          accessibilityRole="button"
-          accessibilityLabel="More discount options"
-        >
-          <Text style={styles.discountPresetChipText}>More</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+/** Every discount mode and preset lives in the shared discount editor. */
+export function PosDiscountSection({ discountLabel, discountAmount, onOpenMore }: Props) {
+  return <View style={s.row}><View style={s.label}><Text style={s.title}>Discount</Text>{discountAmount > 0 && <Text style={s.applied}>{discountLabel} · −${discountAmount.toFixed(2)}</Text>}</View><Button mode="outlined" onPress={onOpenMore} contentStyle={{ minHeight: 48 }} textColor={t.color.text}>{discountAmount > 0 ? 'Edit discount' : 'Add discount'}</Button></View>;
 }
+const s = StyleSheet.create({ row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, paddingVertical: 6 }, label: { flex: 1, gap: 4 }, title: { fontSize: 18, fontWeight: '700', color: t.color.text }, applied: { fontSize: 14, color: t.color.primaryPressed } });

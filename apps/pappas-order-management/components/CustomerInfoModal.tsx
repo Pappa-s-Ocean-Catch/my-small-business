@@ -1,7 +1,9 @@
+import { ActionButton as Button } from '@/components/ui/ActionButton';
 import React, { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { TextInput, Button, Dialog, Portal, Text } from 'react-native-paper';
+import { TextInput, Dialog, Portal, Text } from 'react-native-paper';
 import type { Customer } from '@/lib/customers';
+import { EditorSheet, FormField, designTokens as t } from '@/components/ui';
 
 type Props = {
   visible: boolean;
@@ -40,33 +42,19 @@ export default function CustomerInfoModal({ visible, onClose, onSubmit }: Props)
   };
 
   return (
-    <Portal>
-      <Dialog visible={visible} onDismiss={onClose} style={styles.dialog}>
-        <Dialog.Title>Customer Info</Dialog.Title>
-        <Dialog.Content>
-          <TextInput
-            label="Phone"
-            value={phone}
-            onChangeText={setPhone}
-            keyboardType="phone-pad"
-            mode="outlined"
-            style={styles.input}
-          />
-          <TextInput
-            label="Name"
-            value={name}
-            onChangeText={setName}
-            mode="outlined"
-            style={styles.input}
-          />
-          {error && <Text style={styles.error}>{error}</Text>}
-        </Dialog.Content>
-        <Dialog.Actions>
-          <Button onPress={onClose} disabled={loading}>Cancel</Button>
-          <Button onPress={handleConfirm} loading={loading} disabled={loading || !phone}>Ok</Button>
-        </Dialog.Actions>
-      </Dialog>
-    </Portal>
+    <EditorSheet
+      visible={visible}
+      title="Customer information"
+      subtitle="Find or create the customer for this order."
+      onDismiss={onClose}
+      dirty={Boolean(phone || name)}
+      pending={loading}
+      footer={(requestDismiss) => <><Button onPress={requestDismiss} disabled={loading}>Cancel</Button><Button mode="contained" onPress={handleConfirm} loading={loading} disabled={loading || !phone} contentStyle={{ minHeight: 52 }}>Use customer</Button></>}
+    >
+      <FormField label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" disabled={loading} />
+      <FormField label="Name" value={name} onChangeText={setName} disabled={loading} />
+      {error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
+    </EditorSheet>
   );
 }
 
@@ -78,7 +66,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   error: {
-    color: '#b91c1c',
+    color: t.color.danger,
     marginTop: 8,
   },
 });

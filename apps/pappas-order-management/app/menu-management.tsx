@@ -1,7 +1,17 @@
+import { ActionButton as Button } from '@/components/ui/ActionButton';
+import { EditorSheet } from '@/components/ui/EditorSheet';
+import { ChoiceTabs } from '@/components/ui/ChoiceTabs';
+import { CatalogueTabs } from '@/components/ui/CatalogueTabs';
+import { SearchField } from '@/components/ui';
+import { ManagementRow } from '@/components/ui/ManagementRow';
+import { WorkspaceHeader } from '@/components/ui';
+import { useWindowDimensions } from 'react-native';
+import { designTokens as t } from '@/lib/redesign';
+import { FormField, SectionHeader, Panel } from '@/components/ui';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { Appbar, Button, Card, Checkbox, Chip, Dialog, FAB, IconButton, Portal, SegmentedButtons, Switch, Text, TextInput } from 'react-native-paper';
-import { useRouter } from 'expo-router';
+import { Card, Checkbox, Chip, Icon, IconButton, Portal, Switch, Text } from 'react-native-paper';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   createMobileSaleCategory,
   createMobileSaleProduct,
@@ -151,7 +161,10 @@ const toIncludeRow = (row: MobileSaleProductInclude): ProductIncludeFormRow => (
 });
 
 export default function MenuManagementScreen() {
+  const { width: windowWidth } = useWindowDimensions();
+  const compact = windowWidth < 600;
   const router = useRouter();
+  const { tab: requestedTab } = useLocalSearchParams<{ tab?: string }>();
   const [categories, setCategories] = useState<MobileSaleCategory[]>([]);
   const [products, setProducts] = useState<MobileSaleProduct[]>([]);
   const [addonGroups, setAddonGroups] = useState<MobileAddonGroup[]>([]);
@@ -159,10 +172,16 @@ export default function MenuManagementScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<'products' | 'categories'>('products');
+  useEffect(() => {
+    if (requestedTab === 'products' || requestedTab === 'categories') setActiveTab(requestedTab);
+  }, [requestedTab]);
   const [productEditorTab, setProductEditorTab] = useState<'overview' | 'seo' | 'ingredients' | 'addons' | 'bundle'>('overview');
   const [searchQuery, setSearchQuery] = useState('');
+  const [categorySearch, setCategorySearch] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
   const [categoryDialogVisible, setCategoryDialogVisible] = useState(false);
+  const [parentCategoryExpanded, setParentCategoryExpanded] = useState(false);
+  useEffect(() => { setParentCategoryExpanded(false); }, [categoryDialogVisible]);
   const [productDialogVisible, setProductDialogVisible] = useState(false);
   const [pickerDialogVisible, setPickerDialogVisible] = useState(false);
   const [pickerSearch, setPickerSearch] = useState('');
@@ -172,6 +191,11 @@ export default function MenuManagementScreen() {
   const [editingProduct, setEditingProduct] = useState<MobileSaleProduct | null>(null);
   const [categoryForm, setCategoryForm] = useState<CategoryFormState>(emptyCategoryForm);
   const [productForm, setProductForm] = useState<ProductFormState>(emptyProductForm);
+  const [productBaseline, setProductBaseline] = useState('');
+  const [categoryBaseline, setCategoryBaseline] = useState('');
+  useEffect(() => { if (productDialogVisible) setProductBaseline(JSON.stringify(productForm)); }, [productDialogVisible]);
+  useEffect(() => { if (categoryDialogVisible) setCategoryBaseline(JSON.stringify(categoryForm)); }, [categoryDialogVisible]);
+
 
   const loadData = async (showRefresh = false) => {
     try {
@@ -219,6 +243,15 @@ export default function MenuManagementScreen() {
     })),
     [categories, topLevelCategories]
   );
+
+  const visibleCategories = useMemo(() => {
+    const query = categorySearch.trim().toLowerCase();
+    return groupedCategories.flatMap((category) => {
+      const parentMatches = !query || category.name.toLowerCase().includes(query);
+      const children = parentMatches ? category.children : category.children.filter((child) => child.name.toLowerCase().includes(query));
+      return parentMatches || children.length ? [category, ...children] : [];
+    });
+  }, [groupedCategories, categorySearch]);
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
@@ -399,6 +432,7 @@ export default function MenuManagementScreen() {
 
   const saveProduct = async () => {
     if (!productForm.name.trim()) {
+      setProductEditorTab('overview');
       Alert.alert('Name required', 'Please enter a product name.');
       return;
     }
@@ -464,77 +498,42 @@ export default function MenuManagementScreen() {
     if (pickerTarget.type === 'ingredient') {
       setProductForm((prev) => {
         const next = [...prev.ingredients];
-        next[pickerTarget.index] = { ...next[pickerTarget.index], productId: id, productName: name };
+        next[pickerTarget.index] = { ...(next[pickerTarget.index] ?? { quantityRequired: '1', unitOfMeasure: 'units', isOptional: false, customerCanRemove: false, notes: '' }), productId: id, productName: name };
         return { ...prev, ingredients: next };
       });
     } else {
       setProductForm((prev) => {
         const next = [...prev.includedProducts];
-        next[pickerTarget.index] = { ...next[pickerTarget.index], saleProductId: id, productName: name };
+        next[pickerTarget.index] = { ...(next[pickerTarget.index] ?? { quantity: '1' }), saleProductId: id, productName: name };
         return { ...prev, includedProducts: next };
       });
     }
     setPickerDialogVisible(false);
   };
 
-  const renderCategoryRow = (category: MobileSaleCategory, isChild = false) => (
-    <Card key={category.id} style={[styles.listCard, isChild ? styles.childCard : null]}>
-      <Card.Content style={styles.rowHeader}>
-        <View style={styles.rowText}>
-          <Text variant="titleMedium">{category.name}</Text>
-          <Text variant="bodySmall" style={styles.mutedText}>
-            {isChild ? `Sub-category of ${categoryNameById.get(category.parent_category_id || '') || 'Unknown'}` : 'Main category'}
-          </Text>
-          <Text variant="bodySmall" style={styles.mutedText}>
-            {formatSectionList(parseSectionList(category.section)) || 'No section fallback'}
-          </Text>
-          <Text variant="bodySmall" style={styles.mutedText}>
-            Sort #{category.sort_order ?? 0} • {category.is_active === false ? 'Inactive' : 'Active'}
-          </Text>
-        </View>
-        <View style={styles.rowActions}>
-          <IconButton icon="pencil" onPress={() => openEditCategory(category)} />
-          <IconButton icon="delete-outline" onPress={() => confirmDeleteCategory(category)} />
-        </View>
-      </Card.Content>
-    </Card>
+  const renderCategoryRow = (category: MobileSaleCategory, index: number) => (
+    <ManagementRow key={category.id} first={index === 0} last={index === visibleCategories.length - 1} title={category.name} description={`${category.parent_category_id ? `Sub-category of ${categoryNameById.get(category.parent_category_id) || 'Unknown'}` : 'Main category'} · ${formatSectionList(parseSectionList(category.section)) || 'No section fallback'} · Sort ${category.sort_order ?? 0}`} active={category.is_active !== false} indent={!!category.parent_category_id} onEdit={() => openEditCategory(category)} onDelete={() => confirmDeleteCategory(category)} />
   );
 
   const renderOverviewTab = () => (
     <View style={styles.tabContent}>
-      <TextInput mode="outlined" label="Name" value={productForm.name} onChangeText={(value) => setProductForm((prev) => ({ ...prev, name: value }))} />
-      <TextInput mode="outlined" label="Description" value={productForm.description} onChangeText={(value) => setProductForm((prev) => ({ ...prev, description: value }))} multiline />
-      <Text variant="labelMedium">Kitchen sections</Text>
-      <View style={styles.checkboxList}>
-        {KITCHEN_SECTION_OPTIONS.map((option) => {
-          const selectedSections = parseSectionList(productForm.section);
-          const checked = selectedSections.includes(option);
-          return (
-            <Checkbox.Item
-              key={option}
-              label={option}
-              status={checked ? 'checked' : 'unchecked'}
-              onPress={() => setProductForm((prev) => {
-                const current = parseSectionList(prev.section);
-                const next = current.includes(option)
-                  ? current.filter((item) => item !== option)
-                  : [...current, option];
-                return { ...prev, section: formatSectionList(next) };
-              })}
-              style={styles.checkboxItem}
-            />
-          );
-        })}
+      <View style={{ flexDirection: compact ? 'column' : 'row', gap: 20 }}>
+        <View style={{ flex: 1, gap: 16 }}>
+          <FormField label="Name" value={productForm.name} onChangeText={(name) => setProductForm((prev) => ({ ...prev, name }))} />
+          <FormField label="Description" multiline value={productForm.description} onChangeText={(description) => setProductForm((prev) => ({ ...prev, description }))} />
+          <FormField label="Search terms" value={productForm.searchTerm} onChangeText={(searchTerm) => setProductForm((prev) => ({ ...prev, searchTerm }))} />
+          <FormField label="Sort order" keyboardType="number-pad" value={productForm.sortOrder} onChangeText={(sortOrder) => setProductForm((prev) => ({ ...prev, sortOrder }))} />
+        </View>
+        <View style={{ flex: 1, gap: 16 }}>
+          <FormField label="Price" keyboardType="decimal-pad" value={productForm.price} onChangeText={(price) => setProductForm((prev) => ({ ...prev, price }))} />
+          <View style={{ minHeight: 130, gap: 20 }}><Text style={{ fontWeight: '700' }}>Kitchen section</Text><View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>{KITCHEN_SECTION_OPTIONS.map((option) => {
+            const selected = parseSectionList(productForm.section).includes(option);
+            return <Button key={option} mode="outlined" hitSlop={2} buttonColor={selected ? t.color.primaryTint : t.color.surface} textColor={selected ? t.color.primary : t.color.text} contentStyle={{ height: 44, minHeight: 44 }} labelStyle={{ fontSize: 14, marginHorizontal: 15, marginVertical: 9 }} style={{ height: 44, borderColor: selected ? '#80B9B5' : t.color.border }} accessibilityState={{ selected }} onPress={() => setProductForm((prev) => { const current = parseSectionList(prev.section); return { ...prev, section: formatSectionList(current.includes(option) ? current.filter((item) => item !== option) : [...current, option]) }; })}>{option}</Button>;
+          })}</View></View>
+          <FormField label="Image URL" value={productForm.imageUrl} onChangeText={(imageUrl) => setProductForm((prev) => ({ ...prev, imageUrl }))} />
+          <FormField label="Preparation time (minutes)" keyboardType="number-pad" value={productForm.prepMinutes} onChangeText={(prepMinutes) => setProductForm((prev) => ({ ...prev, prepMinutes }))} />
+        </View>
       </View>
-      <Text variant="bodySmall" style={styles.helperText}>
-        Select one or more sections. Leave everything unchecked to keep the default fried behavior.
-      </Text>
-      <TextInput mode="outlined" label="Search terms" value={productForm.searchTerm} onChangeText={(value) => setProductForm((prev) => ({ ...prev, searchTerm: value }))} />
-      <TextInput mode="outlined" label="Price" value={productForm.price} onChangeText={(value) => setProductForm((prev) => ({ ...prev, price: value }))} keyboardType="decimal-pad" />
-      <TextInput mode="outlined" label="Image URL" value={productForm.imageUrl} onChangeText={(value) => setProductForm((prev) => ({ ...prev, imageUrl: value }))} />
-      <TextInput mode="outlined" label="Sort order" value={productForm.sortOrder} onChangeText={(value) => setProductForm((prev) => ({ ...prev, sortOrder: value }))} keyboardType="number-pad" />
-      <TextInput mode="outlined" label="Preparation minutes" value={productForm.prepMinutes} onChangeText={(value) => setProductForm((prev) => ({ ...prev, prepMinutes: value }))} keyboardType="number-pad" />
-
       <Text variant="labelMedium">Main category</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
         {topLevelCategories.map((category) => (
@@ -579,23 +578,21 @@ export default function MenuManagementScreen() {
 
   const renderSeoTab = () => (
     <View style={styles.tabContent}>
-      <TextInput mode="outlined" label="Slug" value={productForm.slug} onChangeText={(value) => setProductForm((prev) => ({ ...prev, slug: value }))} />
-      <TextInput mode="outlined" label="SEO title" value={productForm.seoTitle} onChangeText={(value) => setProductForm((prev) => ({ ...prev, seoTitle: value }))} />
-      <TextInput mode="outlined" label="SEO description" value={productForm.seoDescription} onChangeText={(value) => setProductForm((prev) => ({ ...prev, seoDescription: value }))} multiline />
-      <TextInput mode="outlined" label="SEO text" value={productForm.seoText} onChangeText={(value) => setProductForm((prev) => ({ ...prev, seoText: value }))} multiline />
+      <FormField mode="outlined" label="Slug" value={productForm.slug} onChangeText={(value) => setProductForm((prev) => ({ ...prev, slug: value }))} />
+      <FormField mode="outlined" label="SEO title" value={productForm.seoTitle} onChangeText={(value) => setProductForm((prev) => ({ ...prev, seoTitle: value }))} />
+      <FormField mode="outlined" label="SEO description" value={productForm.seoDescription} onChangeText={(value) => setProductForm((prev) => ({ ...prev, seoDescription: value }))} multiline />
+      <FormField mode="outlined" label="SEO text" value={productForm.seoText} onChangeText={(value) => setProductForm((prev) => ({ ...prev, seoText: value }))} multiline />
     </View>
   );
 
   const renderIngredientsTab = () => (
     <View style={styles.tabContent}>
-      <TextInput mode="outlined" label="Warning threshold units" value={productForm.warningThresholdUnits} onChangeText={(value) => setProductForm((prev) => ({ ...prev, warningThresholdUnits: value }))} keyboardType="number-pad" />
-      <TextInput mode="outlined" label="Alert threshold units" value={productForm.alertThresholdUnits} onChangeText={(value) => setProductForm((prev) => ({ ...prev, alertThresholdUnits: value }))} keyboardType="number-pad" />
-      <Button mode="outlined" icon="plus" onPress={() => setProductForm((prev) => ({
-        ...prev,
-        ingredients: [...prev.ingredients, { productId: '', productName: '', quantityRequired: '1', unitOfMeasure: 'units', isOptional: false, customerCanRemove: false, notes: '' }],
-      }))}>
-        Add Ingredient
-      </Button>
+      <View style={{ flexDirection: compact ? 'column' : 'row', gap: 20 }}>
+        <FormField style={{ flex: 1 }} label="Warning threshold units" value={productForm.warningThresholdUnits} onChangeText={(value) => setProductForm((prev) => ({ ...prev, warningThresholdUnits: value }))} keyboardType="number-pad" />
+        <FormField style={{ flex: 1 }} label="Alert threshold units" value={productForm.alertThresholdUnits} onChangeText={(value) => setProductForm((prev) => ({ ...prev, alertThresholdUnits: value }))} keyboardType="number-pad" />
+      </View>
+      <SectionHeader title="Inventory ingredients" action={<Button mode="outlined" contentStyle={{ minHeight: 48 }} onPress={() => openPicker({ type: 'ingredient', index: productForm.ingredients.length })}>Link inventory product</Button>} />
+      {!productForm.ingredients.length && <Panel><Text style={styles.mutedText}>No inventory products linked yet.</Text></Panel>}
 
       {productForm.ingredients.map((row, index) => (
         <Card key={`ingredient-${index}`} style={styles.nestedCard}>
@@ -607,7 +604,7 @@ export default function MenuManagementScreen() {
             <Button mode="outlined" onPress={() => openPicker({ type: 'ingredient', index })}>
               {row.productName ? 'Change Inventory Product' : 'Select Inventory Product'}
             </Button>
-            <TextInput mode="outlined" label="Quantity required" value={row.quantityRequired} onChangeText={(value) => setProductForm((prev) => {
+            <FormField mode="outlined" label="Quantity required" value={row.quantityRequired} onChangeText={(value) => setProductForm((prev) => {
               const next = [...prev.ingredients];
               next[index] = { ...next[index], quantityRequired: value };
               return { ...prev, ingredients: next };
@@ -627,7 +624,7 @@ export default function MenuManagementScreen() {
                 </Chip>
               ))}
             </ScrollView>
-            <TextInput mode="outlined" label="Notes" value={row.notes} onChangeText={(value) => setProductForm((prev) => {
+            <FormField mode="outlined" label="Notes" value={row.notes} onChangeText={(value) => setProductForm((prev) => {
               const next = [...prev.ingredients];
               next[index] = { ...next[index], notes: value };
               return { ...prev, ingredients: next };
@@ -656,31 +653,17 @@ export default function MenuManagementScreen() {
 
   const renderAddonsTab = () => (
     <View style={styles.tabContent}>
-      {addonGroups.map((group) => (
-        <Checkbox.Item
-          key={group.id}
-          label={`${group.name}${group.description ? ` • ${group.description}` : ''}`}
-          status={productForm.addonGroupIds.includes(group.id) ? 'checked' : 'unchecked'}
-          onPress={() => setProductForm((prev) => ({
-            ...prev,
-            addonGroupIds: prev.addonGroupIds.includes(group.id)
-              ? prev.addonGroupIds.filter((id) => id !== group.id)
-              : [...prev.addonGroupIds, group.id],
-          }))}
-          style={styles.checkboxItem}
-        />
-      ))}
+      <Text style={styles.mutedText}>Choose modifier groups available for this product.</Text>
+      {addonGroups.map((group) => <View key={group.id} style={{ minHeight: 68, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderColor: t.color.border, gap: 16 }}>
+        <View style={{ flex: 1 }}><Text>{group.name}</Text>{group.description && <Text style={styles.mutedText}>{group.description}</Text>}</View>
+        <Switch accessibilityLabel={group.name} value={productForm.addonGroupIds.includes(group.id)} onValueChange={(value) => setProductForm((prev) => ({ ...prev, addonGroupIds: value ? [...prev.addonGroupIds, group.id] : prev.addonGroupIds.filter((id) => id !== group.id) }))} />
+      </View>)}
     </View>
   );
 
   const renderBundleTab = () => (
     <View style={styles.tabContent}>
-      <Button mode="outlined" icon="plus" onPress={() => setProductForm((prev) => ({
-        ...prev,
-        includedProducts: [...prev.includedProducts, { saleProductId: '', productName: '', quantity: '1' }],
-      }))}>
-        Add Included Item
-      </Button>
+      {productForm.includedProducts.length > 0 ? <SectionHeader title="Included menu items" action={<Button mode="outlined" contentStyle={{ minHeight: 48 }} onPress={() => openPicker({ type: 'include', index: productForm.includedProducts.length })}>Add included item</Button>} /> : <View style={{ minHeight: 280, justifyContent: 'center', alignItems: 'center', gap: 14 }}><View style={{ width: 80, height: 80, borderRadius: 24, backgroundColor: t.color.primaryTint, alignItems: 'center', justifyContent: 'center' }}><Icon source="shopping-outline" size={34} color={t.color.primary} /></View><Text style={{ fontSize: 25, fontWeight: '700', color: t.color.text }}>Build a bundle</Text><Text style={{ color: t.color.muted, fontSize: 16 }}>Add included products and quantities.</Text><Button mode="outlined" onPress={() => openPicker({ type: 'include', index: 0 })}>Add included item</Button></View>}
       {productForm.includedProducts.map((row, index) => (
         <Card key={`include-${index}`} style={styles.nestedCard}>
           <Card.Content style={styles.tabContent}>
@@ -691,7 +674,7 @@ export default function MenuManagementScreen() {
             <Button mode="outlined" onPress={() => openPicker({ type: 'include', index })}>
               {row.productName ? 'Change Included Item' : 'Select Included Item'}
             </Button>
-            <TextInput mode="outlined" label="Quantity" value={row.quantity} onChangeText={(value) => setProductForm((prev) => {
+            <FormField mode="outlined" label="Quantity" value={row.quantity} onChangeText={(value) => setProductForm((prev) => {
               const next = [...prev.includedProducts];
               next[index] = { ...next[index], quantity: value };
               return { ...prev, includedProducts: next };
@@ -704,198 +687,90 @@ export default function MenuManagementScreen() {
 
   return (
     <View style={styles.screen}>
-      <Appbar.Header>
-        <Appbar.BackAction onPress={() => router.back()} />
-        <Appbar.Content title="Menu Management" subtitle="Categories and products" />
-      </Appbar.Header>
-
-      <View style={styles.managementNavWrap}>
-        <SegmentedButtons
-          value="menu"
-          onValueChange={(value) => {
-            if (value === 'addons') router.push('/addons-management');
-          }}
-          buttons={[
-            { value: 'menu', label: 'Menu' },
-            { value: 'addons', label: 'Add-ons' },
-          ]}
-        />
+      <WorkspaceHeader title={activeTab === 'products' ? 'Menu products' : 'Menu categories'} />
+      <CatalogueTabs value={activeTab} compact={compact} onValueChange={(value) => { if (value === 'addons') router.replace('/addons-management'); else setActiveTab(value); }} />
+      <View style={{ paddingHorizontal: compact ? 12 : 16, paddingVertical: 20, flexDirection: compact ? 'column' : 'row', alignItems: 'stretch', gap: 8 }}>
+        {activeTab === 'products' ? <SearchField placeholder="Search products" value={searchQuery} onChangeText={setSearchQuery} style={{ flex: compact ? undefined : 1 }} /> : <SearchField placeholder="Search categories" value={categorySearch} onChangeText={setCategorySearch} style={{ flex: compact ? undefined : 1 }} />}
+        <Button mode="contained" contentStyle={{ minHeight: 48 }} onPress={activeTab === 'products' ? openCreateProduct : openCreateCategory}>{activeTab === 'products' ? 'Add product' : 'Add category'}</Button>
       </View>
-
-      <Card style={styles.infoBanner}>
-        <Card.Content style={styles.infoBannerContent}>
-          <Text variant="titleSmall">Manage products and groups</Text>
-          <Text variant="bodySmall" style={styles.mutedText}>
-            Use `Categories` to edit group fallback kitchen sections. Item priority is add-on, then product, then group.
-          </Text>
-        </Card.Content>
-      </Card>
-
-      <View style={styles.segmentedWrap}>
-        <SegmentedButtons
-          value={activeTab}
-          onValueChange={(value) => setActiveTab(value as 'products' | 'categories')}
-          buttons={[
-            { value: 'products', label: 'Products' },
-            { value: 'categories', label: 'Categories' },
-          ]}
-        />
-      </View>
-
       {activeTab === 'products' ? (
         <FlatList
           data={filteredProducts}
           keyExtractor={(item) => item.id}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void loadData(true)} />}
           ListHeaderComponent={
-            <View style={styles.content}>
-              <TextInput mode="outlined" label="Search products" value={searchQuery} onChangeText={setSearchQuery} style={styles.input} />
+            <View style={{ paddingBottom: 20 }}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-                <Chip selected={selectedCategoryId === 'all'} onPress={() => setSelectedCategoryId('all')}>All</Chip>
+                <Button mode="outlined" contentStyle={{ minHeight: 48 }} style={{ backgroundColor: selectedCategoryId === 'all' ? t.color.primaryTint : t.color.surface }} onPress={() => setSelectedCategoryId('all')}>All</Button>
                 {groupedCategories.map((category) => (
-                  <Chip key={category.id} selected={selectedCategoryId === category.id} onPress={() => setSelectedCategoryId(category.id)}>
+                  <Button mode="outlined" contentStyle={{ minHeight: 48 }} style={{ backgroundColor: selectedCategoryId === category.id ? t.color.primaryTint : t.color.surface }} key={category.id} onPress={() => setSelectedCategoryId(category.id)}>
                     {category.name}
-                  </Chip>
+                  </Button>
                 ))}
               </ScrollView>
             </View>
           }
-          contentContainerStyle={styles.listContent}
-          renderItem={({ item }) => (
-            <Card style={styles.listCard}>
-              <Card.Content style={styles.rowHeader}>
-                <View style={styles.rowText}>
-                  <Text variant="titleMedium">{item.name}</Text>
-                  <Text variant="bodySmall" style={styles.mutedText}>
-                    ${(item.sale_price ?? 0).toFixed(2)} • {categoryNameById.get(item.sub_category_id || '') || categoryNameById.get(item.sale_category_id || '') || 'Uncategorised'}
-                  </Text>
-                  <Text variant="bodySmall" style={styles.mutedText}>
-                    {formatSectionList(parseSectionList(item.section)) || 'Default Fried'} • {item.is_featured ? 'Featured' : 'Standard'} • {item.is_active === false ? 'Inactive' : 'Active'}
-                  </Text>
-                </View>
-                <View style={styles.rowActions}>
-                  <IconButton icon="pencil" onPress={() => void openEditProduct(item)} />
-                  <IconButton icon="delete-outline" onPress={() => confirmDeleteProduct(item)} />
-                </View>
-              </Card.Content>
-            </Card>
+          contentContainerStyle={[styles.listContent, { paddingHorizontal: compact ? 12 : 16 }]}
+          renderItem={({ item, index }) => (
+            <ManagementRow first={index === 0} last={index === filteredProducts.length - 1} title={item.name} description={`${categoryNameById.get(item.sub_category_id || '') || categoryNameById.get(item.sale_category_id || '') || 'Uncategorised'} · $${(item.sale_price ?? 0).toFixed(2)}`} active={item.is_active !== false} onEdit={() => void openEditProduct(item)} onDelete={() => confirmDeleteProduct(item)} />
           )}
           ListEmptyComponent={!loading ? <Text style={styles.emptyText}>No products found.</Text> : null}
         />
       ) : (
-        <ScrollView style={styles.flex} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void loadData(true)} />}>
-          {groupedCategories.map((category) => (
-            <View key={category.id}>
-              {renderCategoryRow(category)}
-              {category.children.map((child) => renderCategoryRow(child, true))}
-            </View>
-          ))}
-          {!loading && groupedCategories.length === 0 && <Text style={styles.emptyText}>No categories found.</Text>}
+        <ScrollView style={styles.flex} contentContainerStyle={{ paddingHorizontal: compact ? 12 : 16, paddingBottom: 24 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void loadData(true)} />}>
+          {visibleCategories.map(renderCategoryRow)}
+          {!loading && visibleCategories.length === 0 && <Text style={styles.emptyText}>No categories found.</Text>}
         </ScrollView>
       )}
 
-      <FAB icon={activeTab === 'products' ? 'plus' : 'shape-plus'} label={activeTab === 'products' ? 'Add Product' : 'Add Category'} style={styles.fab} onPress={activeTab === 'products' ? openCreateProduct : openCreateCategory} />
+
 
       <Portal>
-        <Dialog visible={categoryDialogVisible} onDismiss={() => setCategoryDialogVisible(false)} style={styles.dialog}>
-          <Dialog.Title>{editingCategory ? 'Edit Category' : 'New Category'}</Dialog.Title>
-          <Dialog.ScrollArea>
-            <ScrollView contentContainerStyle={styles.dialogContent}>
-              <TextInput mode="outlined" label="Name" value={categoryForm.name} onChangeText={(value) => setCategoryForm((prev) => ({ ...prev, name: value }))} />
-              <TextInput mode="outlined" label="Description" value={categoryForm.description} onChangeText={(value) => setCategoryForm((prev) => ({ ...prev, description: value }))} multiline />
-              <Text variant="labelMedium">Kitchen sections</Text>
-              <View style={styles.checkboxList}>
-                {KITCHEN_SECTION_OPTIONS.map((option) => {
-                  const selectedSections = parseSectionList(categoryForm.section);
-                  const checked = selectedSections.includes(option);
-                  return (
-                    <Checkbox.Item
-                      key={`category-${option}`}
-                      label={option}
-                      status={checked ? 'checked' : 'unchecked'}
-                      onPress={() => setCategoryForm((prev) => {
-                        const current = parseSectionList(prev.section);
-                        const next = current.includes(option)
-                          ? current.filter((item) => item !== option)
-                          : [...current, option];
-                        return { ...prev, section: formatSectionList(next) };
-                      })}
-                      style={styles.checkboxItem}
-                    />
-                  );
-                })}
+        <EditorSheet visible={categoryDialogVisible} title={editingCategory ? 'Edit category' : 'New category'} pending={saving} dirty={JSON.stringify(categoryForm) !== categoryBaseline} onDismiss={() => setCategoryDialogVisible(false)} footer={(dismiss) => <><Button mode="outlined" contentStyle={{ minHeight: 48 }} disabled={saving} onPress={dismiss}>Cancel</Button><Button mode="contained" contentStyle={{ minHeight: 48 }} disabled={saving || !categoryForm.name.trim()} loading={saving} onPress={() => void saveCategory()}>Save category</Button></>}>
+              <FormField mode="outlined" label="Name" value={categoryForm.name} onChangeText={(value) => setCategoryForm((prev) => ({ ...prev, name: value }))} />
+              <FormField mode="outlined" label="Description" value={categoryForm.description} onChangeText={(value) => setCategoryForm((prev) => ({ ...prev, description: value }))} multiline />
+              <View style={{ gap: 8 }}><Text style={{ fontSize: 14, fontWeight: '700', color: t.color.text }}>Kitchen section</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {KITCHEN_SECTION_OPTIONS.map((option) => {
+                    const selected = parseSectionList(categoryForm.section).includes(option);
+                    return <Button key={`category-${option}`} mode="outlined" hitSlop={2} accessibilityState={{ selected }} buttonColor={selected ? t.color.primaryTint : t.color.surface} textColor={selected ? t.color.primary : t.color.text} style={{ height: 44, borderColor: selected ? '#80B9B5' : t.color.border }} contentStyle={{ height: 44, minHeight: 44 }} labelStyle={{ fontSize: 14, marginHorizontal: 15, marginVertical: 9 }} onPress={() => setCategoryForm((prev) => {
+                      const current = parseSectionList(prev.section);
+                      return { ...prev, section: formatSectionList(current.includes(option) ? current.filter((item) => item !== option) : [...current, option]) };
+                    })}>{option}</Button>;
+                  })}
+                </View>
               </View>
               <Text variant="bodySmall" style={styles.helperText}>
                 Group fallback section used when add-ons and products do not define one.
               </Text>
-              <TextInput mode="outlined" label="Sort order" value={categoryForm.sortOrder} onChangeText={(value) => setCategoryForm((prev) => ({ ...prev, sortOrder: value }))} keyboardType="number-pad" />
-              <Text variant="labelMedium">Parent category</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-                <Chip selected={categoryForm.parentCategoryId === ''} onPress={() => setCategoryForm((prev) => ({ ...prev, parentCategoryId: '' }))}>Main category</Chip>
-                {topLevelCategories.filter((category) => category.id !== editingCategory?.id).map((category) => (
-                  <Chip key={category.id} selected={categoryForm.parentCategoryId === category.id} onPress={() => setCategoryForm((prev) => ({ ...prev, parentCategoryId: category.id }))}>
-                    {category.name}
-                  </Chip>
-                ))}
-              </ScrollView>
+              <FormField mode="outlined" label="Sort order" value={categoryForm.sortOrder} onChangeText={(value) => setCategoryForm((prev) => ({ ...prev, sortOrder: value }))} keyboardType="number-pad" />
+              <View style={{ gap: 8 }}>
+                <Button mode="outlined" icon={parentCategoryExpanded ? 'chevron-up' : 'chevron-down'} accessibilityLabel={`Parent category: ${categoryForm.parentCategoryId ? categoryNameById.get(categoryForm.parentCategoryId) || 'Unknown category' : 'Main category'}`} accessibilityState={{ expanded: parentCategoryExpanded }} onPress={() => setParentCategoryExpanded((expanded) => !expanded)} contentStyle={{ minHeight: 48, flexDirection: 'row-reverse', justifyContent: 'space-between' }} labelStyle={{ flex: 1, textAlign: 'left', fontWeight: '400' }}>{categoryForm.parentCategoryId ? categoryNameById.get(categoryForm.parentCategoryId) || 'Unknown category' : 'Parent category · Main category'}</Button>
+                {parentCategoryExpanded && <View style={{ maxHeight: 220, borderWidth: 1, borderColor: t.color.border, borderRadius: 10, overflow: 'hidden', backgroundColor: t.color.surface }}><ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                  {[{ id: '', name: 'Main category' }, ...topLevelCategories.filter((category) => category.id !== editingCategory?.id)].map((category) => <Button key={category.id || 'main-category'} mode="text" icon={categoryForm.parentCategoryId === category.id ? 'radiobox-marked' : 'radiobox-blank'} textColor={categoryForm.parentCategoryId === category.id ? t.color.primary : t.color.text} contentStyle={{ minHeight: 48, justifyContent: 'flex-start' }} onPress={() => { setCategoryForm((prev) => ({ ...prev, parentCategoryId: category.id })); setParentCategoryExpanded(false); }}>{category.name}</Button>)}
+                </ScrollView></View>}
+              </View>
               <View style={styles.switchRow}>
                 <Text>Active</Text>
                 <Switch value={categoryForm.isActive} onValueChange={(value) => setCategoryForm((prev) => ({ ...prev, isActive: value }))} />
               </View>
-            </ScrollView>
-          </Dialog.ScrollArea>
-          <Dialog.Actions>
-            <Button onPress={() => setCategoryDialogVisible(false)}>Cancel</Button>
-            <Button loading={saving} onPress={() => void saveCategory()}>Save</Button>
-          </Dialog.Actions>
-        </Dialog>
+        </EditorSheet>
 
-        <Dialog visible={productDialogVisible} onDismiss={() => setProductDialogVisible(false)} style={styles.dialog}>
-          <Dialog.Title>{editingProduct ? 'Edit Product' : 'New Product'}</Dialog.Title>
-          <Dialog.ScrollArea>
-            <ScrollView contentContainerStyle={styles.dialogContent}>
-              <SegmentedButtons
-                value={productEditorTab}
-                onValueChange={(value) => setProductEditorTab(value as typeof productEditorTab)}
-                buttons={[
-                  { value: 'overview', label: 'Overview' },
-                  { value: 'seo', label: 'SEO' },
-                  { value: 'ingredients', label: 'Ingredients' },
-                  { value: 'addons', label: 'Add-ons' },
-                  { value: 'bundle', label: 'Bundle' },
-                ]}
-              />
-              {productEditorTab === 'overview' && renderOverviewTab()}
-              {productEditorTab === 'seo' && renderSeoTab()}
-              {productEditorTab === 'ingredients' && renderIngredientsTab()}
-              {productEditorTab === 'addons' && renderAddonsTab()}
-              {productEditorTab === 'bundle' && renderBundleTab()}
-            </ScrollView>
-          </Dialog.ScrollArea>
-          <Dialog.Actions>
-            <Button onPress={() => setProductDialogVisible(false)}>Cancel</Button>
-            <Button loading={saving} onPress={() => void saveProduct()}>Save</Button>
-          </Dialog.Actions>
-        </Dialog>
+        <EditorSheet visible={productDialogVisible} title={editingProduct ? 'Edit product' : 'New product'} subtitle={editingProduct?.name} size="wide" pending={saving} dirty={JSON.stringify(productForm) !== productBaseline} onDismiss={() => setProductDialogVisible(false)} footer={(dismiss) => <><Button mode="outlined" contentStyle={{ minHeight: 48 }} disabled={saving} onPress={dismiss}>Cancel</Button><Button mode="contained" contentStyle={{ minHeight: 48 }} disabled={saving || !productForm.name.trim()} loading={saving} onPress={() => void saveProduct()}>Save product</Button></>}>
+          <ChoiceTabs value={productEditorTab} onValueChange={(value) => setProductEditorTab(value as typeof productEditorTab)} buttons={[{ value: 'overview', label: 'Overview' }, { value: 'seo', label: 'SEO' }, { value: 'ingredients', label: 'Ingredients' }, { value: 'addons', label: 'Add-ons' }, { value: 'bundle', label: 'Bundle' }]} />
+          {productEditorTab === 'overview' && renderOverviewTab()}
+          {productEditorTab === 'seo' && renderSeoTab()}
+          {productEditorTab === 'ingredients' && renderIngredientsTab()}
+          {productEditorTab === 'addons' && renderAddonsTab()}
+          {productEditorTab === 'bundle' && renderBundleTab()}
+        <EditorSheet visible={pickerDialogVisible} size="wide" title={pickerTarget?.type === 'ingredient' ? 'Select inventory product' : 'Select menu product'} onDismiss={() => setPickerDialogVisible(false)} footer={<Button mode="outlined" contentStyle={{ minHeight: 48 }} onPress={() => setPickerDialogVisible(false)}>Cancel</Button>}>
+          <SearchField placeholder={pickerTarget?.type === 'ingredient' ? 'Search inventory products' : 'Search menu products'} value={pickerSearch} onChangeText={setPickerSearch} />
+          <View style={{ borderWidth: 1, borderColor: t.color.border, borderRadius: 16, overflow: 'hidden' }}>{pickerOptions.map((option, index) => <View key={option.id} style={{ minHeight: 70, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: t.color.surface, borderTopWidth: index ? 1 : 0, borderColor: t.color.border }}><View style={{ flex: 1, minWidth: 0, gap: 4 }}><Text style={{ color: t.color.text, fontSize: 16, fontWeight: '700' }}>{option.name}{option.subtitle ? ` · ${option.subtitle}` : ''}</Text><Text style={styles.mutedText}>{pickerTarget?.type === 'ingredient' ? 'Inventory product' : 'Menu product'}</Text></View><Button mode="outlined" onPress={() => applyPickerSelection(option.id, option.name)} accessibilityLabel={`Select ${option.name}`}>Select</Button></View>)}</View>
+          {!pickerOptions.length && <Text style={styles.mutedText}>No products found.</Text>}
+        </EditorSheet>
+        </EditorSheet>
 
-        <Dialog visible={pickerDialogVisible} onDismiss={() => setPickerDialogVisible(false)} style={styles.dialog}>
-          <Dialog.Title>{pickerTarget?.type === 'ingredient' ? 'Select Inventory Product' : 'Select Menu Product'}</Dialog.Title>
-          <Dialog.Content>
-            <TextInput mode="outlined" label="Search" value={pickerSearch} onChangeText={setPickerSearch} />
-          </Dialog.Content>
-          <Dialog.ScrollArea>
-            <ScrollView contentContainerStyle={styles.dialogContent}>
-              {pickerOptions.map((option) => (
-                <Button key={option.id} mode="outlined" style={styles.pickerButton} onPress={() => applyPickerSelection(option.id, option.name)}>
-                  {option.name}{option.subtitle ? ` • ${option.subtitle}` : ''}
-                </Button>
-              ))}
-            </ScrollView>
-          </Dialog.ScrollArea>
-          <Dialog.Actions>
-            <Button onPress={() => setPickerDialogVisible(false)}>Close</Button>
-          </Dialog.Actions>
-        </Dialog>
+
       </Portal>
     </View>
   );
@@ -904,7 +779,7 @@ export default function MenuManagementScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: t.color.background,
   },
   flex: {
     flex: 1,
@@ -920,7 +795,7 @@ const styles = StyleSheet.create({
   infoBanner: {
     marginHorizontal: 12,
     marginTop: 12,
-    backgroundColor: '#fff',
+    backgroundColor: t.color.surface,
   },
   infoBannerContent: {
     gap: 4,
@@ -930,7 +805,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   input: {
-    backgroundColor: '#fff',
+    backgroundColor: t.color.surface,
   },
   chipRow: {
     gap: 8,
@@ -942,6 +817,9 @@ const styles = StyleSheet.create({
   listCard: {
     marginHorizontal: 12,
     marginBottom: 12,
+    backgroundColor: t.color.surface,
+    borderWidth: 1, borderColor: t.color.border,
+    borderRadius: t.radius.card,
   },
   childCard: {
     marginLeft: 20,
@@ -961,10 +839,10 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   mutedText: {
-    color: '#6b7280',
+    color: t.color.muted,
   },
   helperText: {
-    color: '#6b7280',
+    color: t.color.muted,
     marginTop: -4,
   },
   checkboxList: {
@@ -972,7 +850,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     textAlign: 'center',
-    color: '#6b7280',
+    color: t.color.muted,
     marginTop: 24,
   },
   fab: {
@@ -1000,7 +878,9 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   nestedCard: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: t.color.background,
+    borderWidth: 1, borderColor: t.color.border,
+    borderRadius: t.radius.card,
   },
   inlineRow: {
     flexDirection: 'row',

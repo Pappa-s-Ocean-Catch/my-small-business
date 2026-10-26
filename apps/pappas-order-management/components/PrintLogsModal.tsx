@@ -1,6 +1,9 @@
+import { WorkspaceHeader } from '@/components/ui';
+import { ActionButton as Button } from '@/components/ui/ActionButton';
+import { designTokens as t } from '@/lib/redesign';
 import React from 'react';
 import { Modal, ScrollView, StyleSheet, View } from 'react-native';
-import { Appbar, Button, Text } from 'react-native-paper';
+import { Appbar, Text } from 'react-native-paper';
 import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
 import { BRAND_COLORS } from '@/utils/brand';
 
@@ -32,10 +35,7 @@ export function JournalLogsModal({ visible, onClose }: PrintLogsModalProps) {
       onRequestClose={onClose}
     >
       <View style={styles.modalScreen}>
-        <Appbar.Header style={styles.modalHeader}>
-          <Appbar.BackAction onPress={onClose} iconColor="#fff" />
-          <Appbar.Content title="Journal" titleStyle={styles.modalHeaderTitle} />
-        </Appbar.Header>
+        <WorkspaceHeader title="Journal" onBack={onClose} showProfile={false} />
         <ScrollView contentContainerStyle={styles.modalContent}>
           <View style={styles.logsHeaderRow}>
             <Text style={styles.helper}>
@@ -80,7 +80,7 @@ export function JournalLogsModal({ visible, onClose }: PrintLogsModalProps) {
           )}
         </ScrollView>
         <View style={styles.modalFooter}>
-          <Button mode="text" onPress={onClose}>
+          <Button mode="outlined" onPress={onClose}>
             Done
           </Button>
         </View>
@@ -92,31 +92,26 @@ export function JournalLogsModal({ visible, onClose }: PrintLogsModalProps) {
 const styles = StyleSheet.create({
   modalScreen: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: t.color.background,
   },
   modalHeader: {
     backgroundColor: BRAND_COLORS.header,
   },
   modalHeaderTitle: {
-    color: '#fff',
+    color: t.color.surface,
     fontSize: 20,
     fontWeight: '700',
   },
   modalContent: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 120,
+    padding: 16,
   },
   modalFooter: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
+
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderTopWidth: 1,
-    borderTopColor: '#d7dee7',
-    backgroundColor: '#fbfdff',
+    borderTopColor: t.color.border,
+    backgroundColor: t.color.surface,
     alignItems: 'flex-end',
   },
   label: {
@@ -125,7 +120,7 @@ const styles = StyleSheet.create({
   },
   helper: {
     marginTop: 6,
-    fontSize: 12,
+    fontSize: 14,
     color: '#666',
   },
   logsHeaderRow: {
@@ -135,16 +130,16 @@ const styles = StyleSheet.create({
   logsEmptyState: {
     marginTop: 8,
     padding: 16,
-    borderRadius: 12,
-    backgroundColor: '#fff',
+    borderRadius: t.radius.card,
+    backgroundColor: t.color.surface,
     borderWidth: 1,
     borderColor: '#ececec',
   },
   logCard: {
     marginTop: 10,
     padding: 12,
-    borderRadius: 12,
-    backgroundColor: '#fff',
+    borderRadius: t.radius.card,
+    backgroundColor: t.color.surface,
     borderWidth: 1,
     borderColor: '#ececec',
     gap: 6,
@@ -162,45 +157,45 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   logLevelBadgeinfo: {
-    backgroundColor: '#dbeafe',
+    backgroundColor: t.color.primaryTint,
   },
   logLevelBadgedecision: {
     backgroundColor: '#ede9fe',
   },
   logLevelBadgesuccess: {
-    backgroundColor: '#dcfce7',
+    backgroundColor: t.color.successTint,
   },
   logLevelBadgeerror: {
-    backgroundColor: '#fee2e2',
+    backgroundColor: t.color.dangerTint,
   },
   logLevelBadgeText: {
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: '700',
     color: '#334155',
   },
   logTimestamp: {
     flex: 1,
     textAlign: 'right',
-    fontSize: 11,
-    color: '#64748b',
+    fontSize: 14,
+    color: t.color.muted,
   },
   logScope: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '700',
-    color: '#475569',
+    color: t.color.muted,
     textTransform: 'uppercase',
   },
   logMessage: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#0f172a',
+    color: t.color.text,
   },
   logMeta: {
-    fontSize: 12,
-    color: '#475569',
+    fontSize: 14,
+    color: t.color.muted,
   },
   logDetails: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#334155',
   },
 });

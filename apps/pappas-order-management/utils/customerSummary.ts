@@ -66,9 +66,11 @@ export async function fetchCustomerSummary({ email, phone, profileId }: { email?
     const rowPhone = (orders[0].customer_phone ?? '').trim();
     let rewardPoints = 0;
     let resolvedProfileId: string | undefined = normalizedProfileId;
-    if (!resolvedProfileId && (rowEmail || rowPhone)) {
+    if (resolvedProfileId || rowEmail || rowPhone) {
         let summaryQuery = supabase.from('customer_summary').select('rewardPoints, profileId');
-        if (rowEmail) {
+        if (resolvedProfileId) {
+            summaryQuery = summaryQuery.eq('profileId', resolvedProfileId);
+        } else if (rowEmail) {
             summaryQuery = summaryQuery.eq('email', rowEmail);
         } else if (rowPhone) {
             summaryQuery = summaryQuery.eq('phone', rowPhone);
@@ -79,7 +81,7 @@ export async function fetchCustomerSummary({ email, phone, profileId }: { email?
         }
         const raw = (summaryRows as any[] | null)?.[0]?.rewardPoints;
         rewardPoints = Number(raw ?? 0);
-        resolvedProfileId = (summaryRows as any[] | null)?.[0]?.profileId;
+        resolvedProfileId = resolvedProfileId || (summaryRows as any[] | null)?.[0]?.profileId;
     }
     const orderList = orders.map((o: Order) => ({
         id: o.id,

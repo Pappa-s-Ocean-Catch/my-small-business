@@ -24,6 +24,8 @@ export type JournalEntry = {
 
 export type PrintJob = {
   id: string;
+  copyType?: 'kitchen' | 'customer' | 'ticket' | 'report';
+  reportId?: string;
   createdAt: number;
   updatedAt: number;
   orderId: string | null;

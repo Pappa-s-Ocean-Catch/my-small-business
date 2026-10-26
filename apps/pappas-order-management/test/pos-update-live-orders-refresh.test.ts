@@ -12,6 +12,6 @@ const checkoutFlow = posSource.slice(
 test('refreshes Live Orders before leaving a completed order update', () => {
   assert.match(
     checkoutFlow,
-    /if \(isEditingExistingOrder\) \{\s*await queryClient\.refetchQueries\(\{ queryKey: LIVE_ORDERS_QUERY_KEY \}\);\s*\}[\s\S]*router\.back\(\);/,
+    /if \(isEditingExistingOrder\) \{\s*await queryClient\.refetchQueries\(\{ queryKey: LIVE_ORDERS_QUERY_KEY \}\);\s*\}[\s\S]*leaveAfterSave\(\);/,
   );
 });

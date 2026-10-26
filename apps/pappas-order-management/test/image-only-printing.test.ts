@@ -72,7 +72,8 @@ test('report printing uses the existing image pipeline at 80mm', () => {
 
   assert.match(reportSource, /ReportPrintTemplate/);
   assert.match(reportSource, /captureReceiptForPrinter/);
-  assert.match(reportSource, /escposPrintOrderImage/);
+  assert.match(reportSource, /enqueuePreparedPrintJobs/);
+  assert.match(reportSource, /waitForPrintJobs/);
   assert.match(reportSource, /REPORT_RECEIPT_WIDTH/);
   assert.match(reportSource, /isSimulatorPrinter/);
   assert.doesNotMatch(reportSource, /Print\.printAsync|generatePrintHTML/);
@@ -86,5 +87,5 @@ test('in-store checkout awaits an instant ticket for every newly created in-stor
   );
 
   assert.match(instoreCheckout, /if \(result\.error \|\| !result\.data\?\.id\) \{[\s\S]*return;/);
-  assert.match(instoreCheckout, /try \{[\s\S]*await printInstoreInstantTicket\(result\.data\);[\s\S]*catch \(error\) \{[\s\S]*Instore checkout post-save work failed[\s\S]*resetPosForNextOrder\(\);[\s\S]*router\.back\(\);/);
+  assert.match(instoreCheckout, /try \{[\s\S]*await printInstoreInstantTicket\(result\.data\);[\s\S]*catch \(error\) \{[\s\S]*Instore checkout post-save work failed[\s\S]*resetPosForNextOrder\(\);[\s\S]*leaveAfterSave\(\);/);
 });

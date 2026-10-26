@@ -1,6 +1,10 @@
+import { ActionButton as Button } from '@/components/ui/ActionButton';
+import { WorkspaceHeader, AsyncState } from '@/components/ui';
+import { designTokens as t } from '@/lib/redesign';
+import { PageHeader } from '@/components/ui';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Appbar, Button, Card, Text } from 'react-native-paper';
+import { Appbar, Card, Text } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 
 import { supabase } from '@/lib/supabase';
@@ -32,7 +36,7 @@ function formatResolverError(cause: unknown, fallback: string) {
 }
 
 export default function MarketplaceResolverScreen() {
-  const { snapshot: catalog } = usePosCatalog();
+  const { snapshot: catalog, refresh: refreshCatalog } = usePosCatalog();
   const router = useRouter();
   const marketplaceDraft = useMarketplacePosDraftStore((state) => state.draft);
   const setMarketplacePosDraft = useMarketplacePosDraftStore((state) => state.setDraft);
@@ -170,15 +174,15 @@ export default function MarketplaceResolverScreen() {
   ))), [targets]);
 
   if (!marketplaceDraft && !mappingEdit) {
-    return <View style={styles.center}><Text>No marketplace order is ready to resolve.</Text><Button onPress={() => router.back()}>Back</Button></View>;
+    return <View style={styles.container}><WorkspaceHeader title="Menu name resolver" /><View style={{ padding: 16, alignItems: 'flex-end' }}><Button mode="outlined" onPress={() => void refreshCatalog('manual')}>Refresh</Button></View><AsyncState icon="check" title="Nothing to resolve" description="Nothing to resolve. Return to Marketplace; this empty list does not imply that service credentials are configured." onRetry={() => router.replace('/marketplace')} retryLabel="Back to Marketplace" /></View>;
   }
 
   return (
     <View style={styles.container}>
-      <Appbar.Header style={styles.appbar}>
-        <Appbar.BackAction color="#fff" onPress={() => { clearMarketplaceDraft(); clearMappingEdit(); router.back(); }} disabled={saving} />
-        <Appbar.Content title="Resolve marketplace order" titleStyle={styles.appbarTitle} />
-      </Appbar.Header>
+      <WorkspaceHeader title="Resolve marketplace order" actions={<>
+        <Appbar.BackAction color={t.color.text} onPress={() => { clearMarketplaceDraft(); clearMappingEdit(); router.back(); }} disabled={saving} />
+
+      </>} />
       <ScrollView contentContainerStyle={styles.content}>
         <Card style={styles.summary}><Card.Content>
           <Text style={styles.kicker}>MARKETPLACE ORDER</Text>
@@ -228,20 +232,20 @@ export default function MarketplaceResolverScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f4f6f8' }, center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  appbar: { backgroundColor: BRAND_COLORS.header }, appbarTitle: { color: '#fff', fontWeight: '700' }, content: { padding: 16, gap: 12 },
-  summary: { backgroundColor: '#fff' }, kicker: { color: '#557084', fontWeight: '700', fontSize: 12, letterSpacing: 1 },
-  muted: { color: '#64748b', marginTop: 6 }, loader: { marginVertical: 28 }, step: { color: '#36566b', fontWeight: '700', marginTop: 4 },
+  container: { flex: 1, backgroundColor: t.color.background }, center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  appbar: { backgroundColor: BRAND_COLORS.header }, appbarTitle: { color: t.color.surface, fontWeight: '700' }, content: { padding: 16, gap: 12 },
+  summary: { backgroundColor: t.color.surface }, kicker: { color: '#557084', fontWeight: '700', fontSize: 14, letterSpacing: 1 },
+  muted: { color: t.color.muted, marginTop: 6 }, loader: { marginVertical: 28 }, step: { color: '#36566b', fontWeight: '700', marginTop: 4 },
   issue: { backgroundColor: '#e8f2f8', borderColor: '#b8d5e6', borderWidth: 1 }, parent: { color: '#36566b', fontWeight: '700', marginBottom: 6 },
-  price: { color: '#0f766e', fontWeight: '700', marginTop: 8 }, target: { backgroundColor: '#fff', marginBottom: 10 },
-  addonGroup: { marginTop: 10, borderRadius: 8, borderWidth: 1, borderColor: '#bfdbfe', backgroundColor: '#eff6ff', paddingHorizontal: 10, paddingTop: 18, paddingBottom: 10 },
-  removableBlock: { marginTop: 10, borderRadius: 8, borderWidth: 1, borderColor: '#fecaca', backgroundColor: '#fff1f2', paddingHorizontal: 10, paddingTop: 18, paddingBottom: 10 },
-  addonGroupLabel: { position: 'absolute', top: -9, left: 10, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 3, backgroundColor: '#1d4ed8' },
-  removeGroupLabel: { backgroundColor: '#dc2626' }, addonGroupTitle: { color: '#fff', fontSize: 13, lineHeight: 16, fontWeight: '900' },
+  price: { color: '#0f766e', fontWeight: '700', marginTop: 8 }, target: { backgroundColor: t.color.surface, marginBottom: 10 },
+  addonGroup: { marginTop: 10, borderRadius: t.radius.card, borderWidth: 1, borderColor: '#bfdbfe', backgroundColor: t.color.primaryTint, paddingHorizontal: 10, paddingTop: 18, paddingBottom: 10 },
+  removableBlock: { marginTop: 10, borderRadius: t.radius.card, borderWidth: 1, borderColor: '#fecaca', backgroundColor: '#fff1f2', paddingHorizontal: 10, paddingTop: 18, paddingBottom: 10 },
+  addonGroupLabel: { position: 'absolute', top: -9, left: 10, borderRadius: t.radius.card, paddingHorizontal: 10, paddingVertical: 3, backgroundColor: t.color.primary },
+  removeGroupLabel: { backgroundColor: t.color.danger }, addonGroupTitle: { color: t.color.surface, fontSize: 14, lineHeight: 16, fontWeight: '900' },
   optionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  optionButton: { width: '31%', minHeight: 52, borderRadius: 8, borderWidth: 1, borderColor: '#d1d5db', backgroundColor: '#fff', paddingHorizontal: 8, paddingVertical: 7, justifyContent: 'center' },
-  optionText: { color: '#111827', fontSize: 13, lineHeight: 16, fontWeight: '900', textAlign: 'center' }, optionPrice: { color: '#6b7280', fontSize: 12, marginTop: 2, fontWeight: '800', textAlign: 'center' },
+  optionButton: { width: '31%', minHeight: 52, borderRadius: t.radius.card, borderWidth: 1, borderColor: '#d1d5db', backgroundColor: t.color.surface, paddingHorizontal: 8, paddingVertical: 7, justifyContent: 'center' },
+  optionText: { color: t.color.text, fontSize: 14, lineHeight: 16, fontWeight: '900', textAlign: 'center' }, optionPrice: { color: t.color.muted, fontSize: 14, marginTop: 2, fontWeight: '800', textAlign: 'center' },
   error: { color: '#b91c1c', marginTop: 12, fontWeight: '600' },
-  errorPanel: { marginTop: 12, padding: 12, borderRadius: 8, backgroundColor: '#fff1f2', borderColor: '#fecaca', borderWidth: 1 },
+  errorPanel: { marginTop: 12, padding: 12, borderRadius: t.radius.card, backgroundColor: '#fff1f2', borderColor: '#fecaca', borderWidth: 1 },
   errorTitle: { color: '#991b1b', fontWeight: '800' },
 });

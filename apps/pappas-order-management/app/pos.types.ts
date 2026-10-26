@@ -57,6 +57,7 @@ export type PosCartItem = OrderItem & {
   id: string;
   addons: OrderItemAddon[];
   pos_updated_at: number;
+  pos_group_name?: string;
 };
 
 export type PosPaymentChoice = 'card' | 'cash' | 'no_pay';
@@ -66,6 +67,7 @@ export type CashTenderMode = 'pickup' | 'instore';
 export type PosThirdPartySource = 'Uber Eats' | 'DoorDash';
 
 export type LayoutCategoryButton = {
+  productCount: number;
   id: string;
   name: string;
   color: string;

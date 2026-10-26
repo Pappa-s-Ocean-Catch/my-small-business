@@ -1,6 +1,11 @@
+import { EditorSheet, FormField } from '@/components/ui';
+import { ChoiceTabs } from '@/components/ui/ChoiceTabs';
+import { designTokens as t } from '@/lib/redesign';
+import { ActionButton as Button } from '@/components/ui/ActionButton';
+import { ResponsiveDialog as Dialog } from '@/components/ui/ResponsiveDialog';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import { Button, Dialog, Portal, TextInput } from 'react-native-paper';
+import { Portal, TextInput } from 'react-native-paper';
 
 import { getCouponsList, validateCouponCode, type Coupon } from '../../lib/coupons';
 import { findCustomerById, findCustomerByEmail, type Customer } from '../../lib/customers';
@@ -97,6 +102,11 @@ export function PosDialogs({
   onApplyCouponDiscount,
   onClearDiscount,
 }: Props) {
+  const [saltDraft, setSaltDraft] = useState<string | null>(quickOrderNote);
+  const [paymentDraft, setPaymentDraft] = useState<PosInstorePaymentChoice | EditedOrderPaymentChoice>('cash');
+  useEffect(() => { if (saltOptionDialogVisible) setSaltDraft(quickOrderNote); }, [saltOptionDialogVisible, quickOrderNote]);
+  useEffect(() => { if (instorePaymentDialogVisible) setPaymentDraft('cash'); }, [instorePaymentDialogVisible]);
+  const [discountType, setDiscountType] = useState('percent');
   const [customPercent, setCustomPercent] = useState('');
   const [customAmount, setCustomAmount] = useState('');
   const [couponCodeInput, setCouponCodeInput] = useState('');
@@ -115,6 +125,7 @@ export function PosDialogs({
   useEffect(() => {
     if (!discountDialogVisible) return;
     setCustomPercent('');
+    setDiscountType('percent');
     setCustomAmount('');
     setCouponCodeInput('');
     setCouponError(null);
@@ -213,21 +224,20 @@ export function PosDialogs({
           onDismiss={() => setSaltOptionDialogVisible(false)}
           style={styles.noteDialog}
         >
-          <Dialog.Title>Salt option</Dialog.Title>
+          <Dialog.Title>Salt preference</Dialog.Title>
           <Dialog.Content>
-            <View style={styles.quickOrderNoteGrid}>
+            <View style={{ gap: 10 }}>
               {quickOrderNotes.map((note) => {
-                const selected = quickOrderNote === note;
+                const selected = saltDraft === note;
                 return (
                   <TouchableOpacity
                     key={note}
-                    style={[styles.quickOrderNoteChip, selected && styles.quickOrderNoteChipSelected]}
+                    accessibilityRole="radio" accessibilityState={{ checked: selected }} style={{ minHeight: 50, borderWidth: 1, borderColor: selected ? t.color.primary : t.color.border, borderRadius: 10, backgroundColor: selected ? t.color.primaryTint : t.color.surface, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 14 }}
                     onPress={() => {
-                      setQuickOrderNote(selected ? null : note);
-                      setSaltOptionDialogVisible(false);
+                      setSaltDraft(note);
                     }}
                   >
-                    <Text style={[styles.quickOrderNoteChipText, selected && styles.quickOrderNoteChipTextSelected]} numberOfLines={2}>
+                    <Text style={{ color: selected ? t.color.primary : t.color.muted }}>{selected ? '◉' : '○'}</Text><Text style={{ color: t.color.text, fontSize: 16 }}>
                       {note}
                     </Text>
                   </TouchableOpacity>
@@ -236,23 +246,17 @@ export function PosDialogs({
             </View>
           </Dialog.Content>
           <Dialog.Actions>
-            {quickOrderNote && (
-              <Button onPress={() => {
-                setQuickOrderNote(null);
-                setSaltOptionDialogVisible(false);
-              }}>
-                Clear
-              </Button>
-            )}
-            <Button onPress={() => setSaltOptionDialogVisible(false)}>Close</Button>
+            <Button mode="outlined" onPress={() => setSaltOptionDialogVisible(false)}>Cancel</Button>
+            <Button mode="contained" onPress={() => { setQuickOrderNote(saltDraft); setSaltOptionDialogVisible(false); }}>Use preference</Button>
           </Dialog.Actions>
         </Dialog>
 
         <Dialog visible={Boolean(noteItemId)} onDismiss={closeNoteEditor} style={styles.noteDialog}>
           <Dialog.Title>Item note</Dialog.Title>
           <Dialog.Content>
+            <Text style={{ color: t.color.text, fontSize: 13, fontWeight: '700', marginBottom: 10 }}>Quick notes</Text>
             {quickItemNotes.length > 0 && (
-              <View style={styles.itemNotePresetLinks}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.itemNotePresetLinks, { flexWrap: 'nowrap', gap: 8 }]}>
                 {quickItemNotes.map((note) => {
                   const selected = hasNotePreset(noteDraft, note);
                   return (
@@ -260,7 +264,7 @@ export function PosDialogs({
                       key={note}
                       accessibilityRole="button"
                       accessibilityLabel={`${selected ? 'Remove' : 'Add'} note: ${note}`}
-                      style={styles.itemNotePresetLink}
+                      style={[styles.itemNotePresetLink, { borderWidth: 1, borderColor: selected ? t.color.primary : t.color.border, backgroundColor: selected ? t.color.primaryTint : t.color.surface, padding: 12, borderRadius: 8, minHeight: 44 }]}
                       onPress={() => setNoteDraft(toggleNotePreset(noteDraft, note))}
                     >
                       <Text style={[styles.itemNotePresetLinkText, selected && styles.itemNotePresetLinkTextSelected]} numberOfLines={1}>
@@ -269,10 +273,10 @@ export function PosDialogs({
                     </TouchableOpacity>
                   );
                 })}
-              </View>
+              </ScrollView>
             )}
-            <TextInput
-              label="Note"
+            <FormField
+              label="Item note"
               mode="outlined"
               value={noteDraft}
               onChangeText={setNoteDraft}
@@ -281,8 +285,8 @@ export function PosDialogs({
             />
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={closeNoteEditor}>Cancel</Button>
-            <Button onPress={saveNote}>Save</Button>
+            <Button mode="outlined" onPress={closeNoteEditor}>Cancel</Button>
+            <Button mode="contained" onPress={saveNote}>Save note</Button>
           </Dialog.Actions>
         </Dialog>
 
@@ -291,38 +295,9 @@ export function PosDialogs({
           onDismiss={() => setInstorePaymentDialogVisible(false)}
           style={styles.noteDialog}
         >
-          <Dialog.Title>{isEditingOrder ? 'Update Order Payment' : 'Complete In-store Order'}</Dialog.Title>
-          <Dialog.Content>
-            <Text style={styles.smartpayDialogText}>
-              {isEditingOrder
-                ? 'Choose how to collect payment before this order is updated.'
-                : 'Choose how this order should be recorded before it is created.'}
-            </Text>
-            <View style={styles.dialogActionStack}>
-              <Button mode="contained" icon="cash" onPress={() => onChooseInstorePayment('cash')}>
-                Cash
-              </Button>
-              <Button mode="contained-tonal" icon="credit-card-outline" onPress={() => onChooseInstorePayment('card')}>
-                Card
-              </Button>
-              {isEditingOrder ? (
-                <>
-                  <Button mode="outlined" icon="credit-card-wireless-outline" onPress={() => onChooseInstorePayment('smartpay')}>
-                    SmartPay
-                  </Button>
-                  <Button mode="outlined" icon="clock-outline" onPress={() => onChooseInstorePayment('unpaid')}>
-                    Unpaid
-                  </Button>
-                </>
-              ) : (
-                <Button mode="outlined" icon="clock-outline" onPress={() => onChooseInstorePayment('unpaid')}>
-                  Unpaid
-                </Button>
-              )}
-            </View>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => setInstorePaymentDialogVisible(false)}>Cancel</Button>
+          <Dialog.Title>{isEditingOrder ? 'Update order payment' : 'Complete in-store order'}</Dialog.Title>
+          <Dialog.Content><View style={{ gap: 10 }}>{(['cash', 'card', ...(isEditingOrder ? ['smartpay'] : []), 'unpaid'] as (PosInstorePaymentChoice | EditedOrderPaymentChoice)[]).map(choice => <TouchableOpacity key={choice} accessibilityRole="radio" accessibilityState={{ checked: paymentDraft === choice }} onPress={() => setPaymentDraft(choice)} style={{ minHeight: 50, borderWidth: 1, borderColor: paymentDraft === choice ? t.color.primary : t.color.border, borderRadius: 10, backgroundColor: paymentDraft === choice ? t.color.primaryTint : t.color.surface, padding: 14, flexDirection: 'row', gap: 14 }}><Text style={{ color: t.color.primary }}>{paymentDraft === choice ? '◉' : '○'}</Text><Text style={{ color: t.color.text }}>{choice === 'smartpay' ? 'Smartpay' : choice[0].toUpperCase() + choice.slice(1)}</Text></TouchableOpacity>)}</View></Dialog.Content>
+          <Dialog.Actions><Button mode="outlined" onPress={() => setInstorePaymentDialogVisible(false)}>Cancel</Button><Button mode="contained" onPress={() => onChooseInstorePayment(paymentDraft)}>Continue</Button>
           </Dialog.Actions>
         </Dialog>
 
@@ -355,171 +330,22 @@ export function PosDialogs({
           </Dialog.Actions>
         </Dialog>
 
-        <Dialog
-          visible={discountDialogVisible}
-          onDismiss={() => setDiscountDialogVisible(false)}
-          style={styles.noteDialog}
-        >
-          <Dialog.Title>Apply discount</Dialog.Title>
-          <Dialog.Content>
-            <Text style={styles.smartpayDialogText}>
-              Current: {discountAmount > 0 ? `${discountLabel} (-$${discountAmount.toFixed(2)})` : 'No discount'}
-            </Text>
-            <View style={styles.discountPresetGrid}>
-              {[5, 10, 15, 20, 25].map((percent) => (
-                <TouchableOpacity
-                  key={percent}
-                  style={styles.discountPresetButton}
-                  onPress={() => {
-                    onApplyPresetDiscount(percent);
-                    setDiscountDialogVisible(false);
-                  }}
-                >
-                  <Text style={styles.discountPresetButtonText}>{percent}%</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <View style={styles.discountInputGroup}>
-              <TextInput
-                label="Custom percent"
-                mode="outlined"
-                value={customPercent}
-                onChangeText={setCustomPercent}
-                keyboardType="decimal-pad"
-                style={styles.checkoutInput}
-                right={<TextInput.Affix text="%" />}
-              />
-              <Button
-                mode="contained-tonal"
-                disabled={!Number.isFinite(Number(customPercent)) || Number(customPercent) <= 0}
-                onPress={() => {
-                  onApplyCustomPercentDiscount(Number(customPercent));
-                  setDiscountDialogVisible(false);
-                }}
-              >
-                Apply %
-              </Button>
-            </View>
-
-            <View style={styles.discountInputGroup}>
-              <TextInput
-                label="Fixed amount"
-                mode="outlined"
-                value={customAmount}
-                onChangeText={setCustomAmount}
-                keyboardType="decimal-pad"
-                style={styles.checkoutInput}
-                left={<TextInput.Affix text="$" />}
-              />
-              <Button
-                mode="contained-tonal"
-                disabled={!Number.isFinite(Number(customAmount)) || Number(customAmount) <= 0}
-                onPress={() => {
-                  onApplyCustomFixedDiscount(Number(customAmount));
-                  setDiscountDialogVisible(false);
-                }}
-              >
-                Apply $
-              </Button>
-            </View>
-
-            <View style={{ marginTop: 14, borderTopWidth: 1, borderTopColor: '#e2e8f0', paddingTop: 12 }}>
-              <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#1e293b', marginBottom: 6 }}>
-                Find & Apply Coupon Code
-              </Text>
-              <View style={styles.discountInputGroup}>
-                <TextInput
-                  label="Enter Coupon Code"
-                  mode="outlined"
-                  value={couponCodeInput}
-                  onChangeText={(text) => {
-                    setCouponCodeInput(text.toUpperCase());
-                    if (couponError) setCouponError(null);
-                    if (foundCoupon) setFoundCoupon(null);
-                  }}
-                  autoCapitalize="characters"
-                  placeholder="e.g. SUMMER20"
-                  style={styles.checkoutInput}
-                />
-                <Button
-                  mode="contained-tonal"
-                  loading={couponValidating}
-                  disabled={couponValidating || !couponCodeInput.trim()}
-                  onPress={handleSearchCoupon}
-                >
-                  Search
-                </Button>
-              </View>
-              {couponError ? (
-                <Text style={{ color: '#d32f2f', marginTop: 6, fontSize: 13, fontWeight: '500' }}>
-                  {couponError}
-                </Text>
-              ) : null}
-
-              {/* Found Coupon Card Preview */}
-              {foundCoupon ? (
-                <View style={{ marginTop: 12, padding: 12, backgroundColor: '#f0fdf4', borderRadius: 8, borderWidth: 1, borderColor: '#bbf7d0' }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <View style={{ flex: 1, marginRight: 8 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Text style={{ fontWeight: 'bold', fontSize: 16, color: '#166534' }}>
-                          {foundCoupon.coupon.code}
-                        </Text>
-                        <Text style={{ fontWeight: '700', fontSize: 12, color: '#15803d', backgroundColor: '#dcfce7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                          {foundCoupon.coupon.discount_type === 'percent'
-                            ? `${foundCoupon.coupon.discount_value}% OFF (-$${foundCoupon.discountAmount.toFixed(2)})`
-                            : `$${foundCoupon.coupon.discount_value.toFixed(2)} OFF`}
-                        </Text>
-                      </View>
-                      <Text style={{ fontSize: 13, color: '#334155', marginTop: 4, fontWeight: '500' }}>
-                        {foundCoupon.coupon.title}
-                      </Text>
-                    </View>
-                    <Button
-                      mode="contained"
-                      style={{ backgroundColor: '#15803d' }}
-                      onPress={handleApplyFoundCoupon}
-                    >
-                      Apply Coupon
-                    </Button>
-                  </View>
-
-                  {foundCoupon.coupon.target_email || foundCoupon.coupon.user_id ? (
-                    <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#dcfce7' }}>
-                      <Text style={{ fontSize: 12, fontWeight: '700', color: '#166534' }}>
-                        Targeted Customer Record:
-                      </Text>
-                      <Text style={{ fontSize: 13, fontWeight: '600', color: '#1e293b', marginTop: 2 }}>
-                        {foundCoupon.linkedCustomer?.name || foundCoupon.coupon.target_email || 'Targeted Customer'} {foundCoupon.linkedCustomer?.phone ? `(${foundCoupon.linkedCustomer.phone})` : ''}
-                      </Text>
-                      {foundCoupon.coupon.target_email || foundCoupon.linkedCustomer?.email ? (
-                        <Text style={{ fontSize: 12, color: '#64748b' }}>
-                          Email: {foundCoupon.linkedCustomer?.email || foundCoupon.coupon.target_email}
-                        </Text>
-                      ) : null}
-                    </View>
-                  ) : (
-                    <Text style={{ fontSize: 11, color: '#64748b', marginTop: 6, fontStyle: 'italic' }}>
-                      Public coupon (Applies discount to current order)
-                    </Text>
-                  )}
-                </View>
-              ) : null}
-            </View>
-          </Dialog.Content>
-          <Dialog.Actions>
-            {discountAmount > 0 && (
-              <Button onPress={() => {
-                onClearDiscount();
-                setDiscountDialogVisible(false);
-              }}>
-                Remove
-              </Button>
-            )}
-            <Button onPress={() => setDiscountDialogVisible(false)}>Close</Button>
-          </Dialog.Actions>
-        </Dialog>
+        <EditorSheet visible={discountDialogVisible} title="Apply a discount" onDismiss={() => setDiscountDialogVisible(false)} footer={<>
+          {discountAmount > 0 && <Button onPress={() => { onClearDiscount(); setDiscountDialogVisible(false); }}>Remove</Button>}
+          <Button mode="outlined" onPress={() => setDiscountDialogVisible(false)}>Cancel</Button>
+          <Button mode="contained" disabled={couponValidating || (discountType === 'coupon' ? !foundCoupon : !Number.isFinite(Number(discountType === 'percent' ? customPercent : customAmount)) || Number(discountType === 'percent' ? customPercent : customAmount) <= 0 || (discountType === 'percent' && Number(customPercent) > 100))} onPress={() => { if (discountType === 'coupon') { handleApplyFoundCoupon(); return; } if (discountType === 'percent') onApplyCustomPercentDiscount(Number(customPercent)); else onApplyCustomFixedDiscount(Number(customAmount)); setDiscountDialogVisible(false); }}>Apply discount</Button>
+        </>}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{[5,10,15,20,25].map(percent => <Button key={percent} mode="outlined" buttonColor={discountType === 'percent' && Number(customPercent) === percent ? t.color.primaryTint : t.color.surface} onPress={() => { setCustomPercent(String(percent)); setDiscountType('percent'); }}>{percent}%</Button>)}</View>
+          <Text style={{ fontSize: 13, fontWeight: '700', color: t.color.text }}>Discount type</Text>
+          <ChoiceTabs value={discountType} onValueChange={setDiscountType} buttons={[{ value: 'percent', label: 'Percent' }, { value: 'fixed', label: 'Fixed amount' }, { value: 'coupon', label: 'Coupon' }]} />
+          <FormField label="Percentage" value={customPercent} onChangeText={value => { setCustomPercent(value); setDiscountType('percent'); }} keyboardType="decimal-pad" right={<TextInput.Affix text="%" />} />
+          <FormField label="Fixed amount" value={customAmount} onChangeText={value => { setCustomAmount(value); setDiscountType('fixed'); }} keyboardType="decimal-pad" left={<TextInput.Affix text="$" />} />
+          <FormField label="Coupon code" value={couponCodeInput} onChangeText={text => { setCouponCodeInput(text.toUpperCase()); setCouponError(null); setFoundCoupon(null); setDiscountType('coupon'); }} autoCapitalize="characters" />
+          {discountType === 'coupon' && <Button mode="outlined" loading={couponValidating} disabled={couponValidating || !couponCodeInput.trim()} onPress={handleSearchCoupon}>Validate coupon</Button>}
+          {!!couponError && <Text accessibilityRole="alert" style={{ color: t.color.danger }}>{couponError}</Text>}
+          {foundCoupon && <View style={{ backgroundColor: t.color.successTint, padding: 14, borderRadius: 10, gap: 6 }}><Text style={{ fontWeight: '700', color: t.color.success }}>{foundCoupon.coupon.code} · {foundCoupon.coupon.title}</Text><Text style={{ color: t.color.text }}>Discount: ${foundCoupon.discountAmount.toFixed(2)}</Text>{foundCoupon.linkedCustomer && <Text style={{ color: t.color.muted }}>Customer: {foundCoupon.linkedCustomer.name}{foundCoupon.linkedCustomer.phone ? ` · ${foundCoupon.linkedCustomer.phone}` : ''}</Text>}</View>}
+          <View style={{ padding: 16, backgroundColor: t.color.primaryTint, borderWidth: 1, borderColor: t.color.border, borderRadius: 10 }}><Text style={{ color: t.color.text }}>Subtotal ${(cartSubtotal ?? total).toFixed(2)} − {discountType === 'percent' ? `${Number(customPercent) || 0}%` : discountType === 'coupon' ? 'coupon' : 'fixed discount'} = <Text style={{ fontWeight: '700' }}>${Math.max(0, (cartSubtotal ?? total) - (discountType === 'percent' ? (cartSubtotal ?? total) * Math.min(100, Math.max(0, Number(customPercent) || 0)) / 100 : discountType === 'coupon' ? foundCoupon?.discountAmount || 0 : Number(customAmount) || 0)).toFixed(2)}</Text></Text></View>
+        </EditorSheet>
       </Portal>
     </>
   );

@@ -1,0 +1,9 @@
+import React from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { designTokens as t } from '@/lib/redesign';
+export function ChoiceTabs({ value, onValueChange, buttons, style, variant = 'tabs' }: { value: string; onValueChange: (value: string) => void; buttons: { value: string; label?: string; disabled?: boolean }[]; style?: StyleProp<ViewStyle>; variant?: 'tabs' | 'choices' }) {
+  const choices = variant === 'choices';
+  const controls = buttons.map((button) => <Pressable key={button.value} accessibilityRole="tab" accessibilityState={{ selected: value === button.value, disabled: !!button.disabled }} disabled={button.disabled} hitSlop={choices ? 2 : undefined} onPress={() => onValueChange(button.value)} style={[s.tab, choices && s.choice, value === button.value && s.selected]}><Text style={[s.label, choices && { fontSize: 13 }, value === button.value && { color: t.color.primary }]}>{button.label}</Text></Pressable>);
+  return <View style={[choices ? undefined : s.container, style]}>{choices ? <View style={s.choices}>{controls}</View> : <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabs}>{controls}</ScrollView>}</View>;
+}
+const s = StyleSheet.create({ container: { borderBottomWidth: 1, borderColor: t.color.border, paddingBottom: 12 }, tabs: { gap: 8 }, choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, choice: { minHeight: 44, paddingHorizontal: 10, borderColor: t.color.border, backgroundColor: t.color.surface }, tab: { minHeight: 48, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'transparent', borderRadius: 10 }, selected: { borderColor: t.color.primary, backgroundColor: t.color.primaryTint }, label: { color: t.color.text, fontSize: 14, fontWeight: '700' } });

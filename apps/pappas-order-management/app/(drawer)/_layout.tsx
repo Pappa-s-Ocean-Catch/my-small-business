@@ -1,36 +1,27 @@
 import { Drawer } from 'expo-router/drawer';
-import { View, StyleSheet, Alert } from 'react-native';
-import { 
-  DrawerContentScrollView, 
-  DrawerItemList, 
-  DrawerItem 
-} from '@react-navigation/drawer';
-import { 
-  Avatar, 
-  Title, 
-  Caption, 
-  Paragraph, 
-  Drawer as PaperDrawer, 
-  Divider,
-  useTheme,
-} from 'react-native-paper';
+import { View, useWindowDimensions } from 'react-native';
+import { useTheme } from 'react-native-paper';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { supabase } from '@/lib/supabase';
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-
 import { CustomDrawerContent } from '@/components/CustomDrawerContent';
+import { AppNavigation } from '@/components/navigation/AppNavigation';
+import { designTokens as t } from '@/lib/redesign';
 
 export default function DrawerLayout() {
   const theme = useTheme();
+  const { width } = useWindowDimensions();
+  const compact = width < 600;
 
   return (
+    <View style={{ flex: 1, flexDirection: compact ? 'column' : 'row', backgroundColor: t.color.background }}>
+      {!compact && <AppNavigation />}
+      <View style={{ flex: 1, minWidth: 0 }}>
     <Drawer
       drawerContent={(props) => <CustomDrawerContent {...props} />}
       screenOptions={{
         headerShown: false,
+        swipeEnabled: false,
         drawerActiveTintColor: theme.colors.primary,
-        drawerInactiveTintColor: '#666',
+        drawerInactiveTintColor: t.color.muted,
         drawerLabelStyle: {
           marginLeft: -10,
         },
@@ -39,7 +30,7 @@ export default function DrawerLayout() {
       <Drawer.Screen
         name="(tabs)"
         options={{
-          drawerLabel: 'Home',
+          drawerLabel: 'Orders',
           drawerIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="home-outline" color={color} size={size} />
           ),
@@ -145,7 +136,8 @@ export default function DrawerLayout() {
         }}
       />
     </Drawer>
+      </View>
+      {compact && <AppNavigation />}
+    </View>
   );
 }
-
-const styles = StyleSheet.create({});

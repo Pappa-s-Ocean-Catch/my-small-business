@@ -231,15 +231,15 @@ test('clears the mirror at all six completed checkout boundaries', () => {
 
   assert.match(
     pickup,
-    /await applyRewardPointsForSavedOrder[\s\S]*if \(isEditingExistingOrder\)[\s\S]*await clearMirrorAfterCheckout\(\);\s*router\.back\(\);/,
+    /await applyRewardPointsForSavedOrder[\s\S]*if \(isEditingExistingOrder\)[\s\S]*await clearMirrorAfterCheckout\(\);\s*leaveAfterSave\(\);/,
   );
   assert.match(
     smartpay,
-    /await printInstoreCustomerReceipt\(completedOrder\);[\s\S]*await clearMirrorAfterCheckout\(\);\s*router\.back\(\);/,
+    /await printInstoreCustomerReceipt\(completedOrder\);[\s\S]*await clearMirrorAfterCheckout\(\);\s*leaveAfterSave\(\);/,
   );
   assert.match(
     instore,
-    /if \(pendingInstoreSmartpayOrder && pendingPaymentPlan\)[\s\S]*await printInstoreCustomerReceipt\(completedOrder\);[\s\S]*await clearMirrorAfterCheckout\(\);\s*router\.back\(\);/,
+    /if \(pendingInstoreSmartpayOrder && pendingPaymentPlan\)[\s\S]*await printInstoreCustomerReceipt\(completedOrder\);[\s\S]*await clearMirrorAfterCheckout\(\);\s*leaveAfterSave\(\);/,
   );
   assert.match(
     instore,
@@ -247,7 +247,7 @@ test('clears the mirror at all six completed checkout boundaries', () => {
   );
   assert.match(
     thirdParty,
-    /if \(result\.error\)[\s\S]*return;[\s\S]*await clearMirrorAfterCheckout\(\);\s*router\.back\(\);/,
+    /if \(result\.error\)[\s\S]*return;[\s\S]*await clearMirrorAfterCheckout\(\);\s*leaveAfterSave\(\);/,
   );
   assert.match(
     delivery,

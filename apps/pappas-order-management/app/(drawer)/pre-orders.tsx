@@ -1,3 +1,9 @@
+import { ActionButton as PaperButton } from '@/components/ui/ActionButton';
+import { AsyncState, StatusBadge } from '@/components/ui';
+import { orderPaymentLabel, paymentTone } from '@/components/orders/presentation';
+import { getFriendlyOrderNumber } from '@/utils/orderNumber';
+import { designTokens as t } from '@/lib/redesign';
+import { OrdersWorkspaceHeader } from '@/components/navigation/OrdersWorkspaceHeader';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
@@ -5,19 +11,12 @@ import {
   FlatList,
   StyleSheet,
   RefreshControl,
-  ActivityIndicator,
   Alert,
   useWindowDimensions,
+  Pressable,
 } from 'react-native';
-import {
-  Button as PaperButton,
-  Surface,
-} from 'react-native-paper';
-import { Appbar } from 'react-native-paper';
-import { useNavigation, useFocusEffect, useIsFocused } from '@react-navigation/native';
-import { DrawerNavigationProp } from '@react-navigation/drawer';
-import { useRouter } from 'expo-router';
-import { BRAND_COLORS } from '@/utils/brand';
+
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { supabase } from '@/lib/supabase';
 import {
   claimOrderForAutoPrint,
@@ -27,7 +26,6 @@ import {
 } from '@/lib/orders';
 import type { Order } from '@my-small-business/types';
 import { CustomerModal } from '@/components/CustomerModal';
-import { LiveOrderListItem } from '@/components/LiveOrderListItem';
 import { OrderDetailModal } from '@/components/OrderDetailModal';
 import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
 import { useOrderActions } from '@/hooks/useOrderActions';
@@ -45,28 +43,20 @@ import { getSectionPrintImageCaptureKey } from '@/lib/section-print-image-captur
 import { getPrintDeviceId } from '@/lib/print-device';
 import { useQueryClient } from '@tanstack/react-query';
 import { enqueuePreparedPrintJobs, waitForPrintJobs } from '@/lib/print-queue';
-import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
 import {
   buildKitchenPrintDebugContext,
   createPrintDebugSessionId,
   type KitchenPrintDebugContext,
 } from '@/lib/print-debug-footer';
-import {
-  getLiveOrderCardRailWidth,
-  shouldUseCompactLiveOrderCards,
-  shouldUseLiveOrderCardRail,
-  shouldUseVerticalLiveOrderCards,
-} from '@/lib/live-orders-layout';
-
 const RECEIPT_REF_WAIT_MS = 120;
 const RECEIPT_REF_MAX_ATTEMPTS = 8;
 const RECEIPT_RENDER_SETTLE_MS = 300;
 const RECEIPT_RENDER_FRAME_COUNT = 2;
 
 export default function PreOrdersScreen() {
-  const { width, height } = useWindowDimensions();
-  const router = useRouter();
-  const navigation = useNavigation<DrawerNavigationProp<any>>();
+  const { width } = useWindowDimensions();
+  const columns = width >= 800 ? 2 : 1;
+  const gutter = width >= 1100 ? 16 : 12;
   const isFocused = useIsFocused();
   const [refreshing, setRefreshing] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -87,28 +77,12 @@ export default function PreOrdersScreen() {
   const {
     data: orders = [],
     isLoading: loading,
+    error: preOrdersError,
     refetch: refetchOrders,
   } = usePreOrdersQuery();
   const { data: successfulOrderCounts } = useCustomerOrderCounts(orders);
   const appSettingsRef = useRef(appSettings);
   const printDeviceIdRef = useRef<string | null>(null);
-  const orderPrintStates = usePrinterAutomationStore((state) => state.orderPrintStates);
-  const isVerticalCardLayout = shouldUseVerticalLiveOrderCards(
-    appSettings.liveOrderCardLayout === 'vertical',
-    width,
-  );
-  const useVerticalCardRail = shouldUseLiveOrderCardRail(
-    appSettings.liveOrderCardLayout === 'vertical',
-    width,
-    height,
-  );
-  const liveOrderCardWidth = getLiveOrderCardRailWidth(width, height, appSettings.liveOrderCardsPerScreen);
-  const useCompactVerticalCards = shouldUseCompactLiveOrderCards(
-    appSettings.liveOrderCardLayout === 'vertical',
-    width,
-    height,
-  );
-
   const waitForReceiptTemplateRef = useCallback(async () => {
     for (let attempt = 0; attempt < RECEIPT_REF_MAX_ATTEMPTS; attempt++) {
       if (globalReceiptRef.current) {
@@ -172,6 +146,7 @@ export default function PreOrdersScreen() {
       }
       claimedDeviceId = printDeviceIdRef.current;
 
+      if (!isSimulatorPrinter(selectedPrinter)) {
       const claim = await claimOrderForAutoPrint(order.id, claimedDeviceId);
       if (!claim.claimed) {
         if (claim.error) {
@@ -180,9 +155,10 @@ export default function PreOrdersScreen() {
         } else {
           Alert.alert('Already printing', 'Another POS has already claimed or finished this order print.');
         }
-        return;
+        return false;
       }
       shouldReleaseClaim = true;
+      }
 
       let freshOrder = order;
       const latestOrderResult = await getOrder(order.id);
@@ -219,11 +195,14 @@ export default function PreOrdersScreen() {
         if (s.printerReceiptMode === 'text' && !isSimulatorPrinter(selectedPrinter)) {
           const queuedJobs = enqueuePreparedPrintJobs({ order: freshOrder, source: 'manual', scope: 'pre-orders:manual-direct', jobs: [{ document: buildKitchenReceiptDocument(freshOrder, { paperWidth: s.printerPaperWidth, duplicateBySections: false, printDebugContext: null }), printer: selectedPrinter, width: targetDots, label: selectedPrinter.deviceName }] });
           const queueResult = await waitForPrintJobs(queuedJobs.map((job) => job.id));
-          if (!queueResult.success) throw new Error(queueResult.failedJobs[0]?.error || 'Queued text print job failed');
+          if (!queueResult.success) {
+            if (queueResult.failedJobs.length === 0) shouldReleaseClaim = false;
+            throw new Error(queueResult.failedJobs[0]?.error || `Print outcome unknown. Check request ${queuedJobs.map((job) => job.id).join(', ')} in the printer journal before retrying.`);
+          }
           const completion = await completeKitchenPrintClaim(order.id, claimedDeviceId);
           if (!completion.completed) throw new Error(completion.error || 'Failed to complete kitchen print claim');
           shouldReleaseClaim = false;
-          return;
+          return true;
         }
         setTempPrintTicketIndex(0);
         setTempPrintDuplicateBySections(false);
@@ -259,19 +238,14 @@ export default function PreOrdersScreen() {
           setPrintImageUris([uri]);
           setPrintImageLabels([selectedPrinter.deviceName]);
           setShowSimulator(true);
-          const completion = await completeKitchenPrintClaim(order.id, claimedDeviceId);
-          if (!completion.completed) {
-            throw new Error(completion.error || 'Failed to complete kitchen print claim');
-          }
-          shouldReleaseClaim = false;
-          return;
+          return true;
         }
 
         const image = await captureReceiptForPrinter(receiptRef, selectedPrinter, targetDots * scale, s.printerHighQuality);
 
         if (!s.printerEnabled) {
           Alert.alert('Printer error', `No printer is selected. ${printSettingsDetails}`);
-          return;
+          return false;
         }
 
         const queuedJobs = enqueuePreparedPrintJobs({
@@ -287,14 +261,15 @@ export default function PreOrdersScreen() {
         });
         const queueResult = await waitForPrintJobs(queuedJobs.map((job) => job.id));
         if (!queueResult.success) {
-          throw new Error(queueResult.failedJobs[0]?.error || 'Queued print job failed');
+          if (queueResult.failedJobs.length === 0) shouldReleaseClaim = false;
+          throw new Error(queueResult.failedJobs[0]?.error || `Print outcome unknown. Check request ${queuedJobs.map((job) => job.id).join(', ')} in the printer journal before retrying.`);
         }
         const completion = await completeKitchenPrintClaim(order.id, claimedDeviceId);
         if (!completion.completed) {
           throw new Error(completion.error || 'Failed to complete kitchen print claim');
         }
         shouldReleaseClaim = false;
-        return;
+        return true;
       }
 
       const jobs = buildSectionPrintJobs(s, freshOrder);
@@ -381,13 +356,13 @@ export default function PreOrdersScreen() {
           throw new Error(completion.error || 'Failed to complete kitchen print claim');
         }
         shouldReleaseClaim = false;
-        return;
+        return true;
       }
 
       if (!s.printerEnabled) {
         console.log('[PreOrders] Manual print blocked because no printer was resolved:', printSettingsDetails);
         Alert.alert('Printer error', `No printer is selected. ${printSettingsDetails}`);
-        return;
+        return false;
       }
 
       const queuedJobs = enqueuePreparedPrintJobs({
@@ -403,16 +378,19 @@ export default function PreOrdersScreen() {
       });
       const queueResult = await waitForPrintJobs(queuedJobs.map((job) => job.id));
       if (!queueResult.success) {
-        throw new Error(queueResult.failedJobs[0]?.error || 'Queued print job failed');
+        if (queueResult.failedJobs.length === 0) shouldReleaseClaim = false;
+        throw new Error(queueResult.failedJobs[0]?.error || `Print outcome unknown. Check request ${queuedJobs.map((job) => job.id).join(', ')} in the printer journal before retrying.`);
       }
       const completion = await completeKitchenPrintClaim(order.id, claimedDeviceId);
       if (!completion.completed) {
         throw new Error(completion.error || 'Failed to complete kitchen print claim');
       }
       shouldReleaseClaim = false;
+      return true;
     } catch (error) {
       console.error('Quick print failed:', error);
-      Alert.alert('Print error', 'Failed to capture receipt template image for printing.');
+      Alert.alert('Print error', error instanceof Error ? error.message : 'Failed to prepare receipt for printing.');
+      return false;
     } finally {
       if (claimedDeviceId && shouldReleaseClaim) {
         const released = await releaseKitchenPrintClaim(order.id, claimedDeviceId);
@@ -480,7 +458,6 @@ export default function PreOrdersScreen() {
   };
 
   const handleOpenOrderFromCustomerModal = async (orderId: string) => {
-    setShowCustomerModal(false);
     const result = await getOrder(orderId);
     if (result.error) {
       Alert.alert('Error', result.error);
@@ -502,53 +479,54 @@ export default function PreOrdersScreen() {
         onOrderPress={handleOpenOrderFromCustomerModal}
       />
 
-      <Appbar.Header style={styles.appbar}>
-        <Appbar.Action icon="menu" onPress={() => navigation.openDrawer()} iconColor="#fff" />
-        <Appbar.Content title="Pre-Orders" titleStyle={styles.appbarTitle} />
-        <Appbar.Action icon="home" onPress={() => router.replace('/(drawer)/(tabs)/live-orders')} iconColor="#fff" />
-      </Appbar.Header>
+      <OrdersWorkspaceHeader actions={{ onRefresh: handleRefresh, refreshing: loading || refreshing }} />
 
-      <Surface style={styles.subHeader} elevation={1}>
-        <View style={styles.headerRow}>
-          <Text style={styles.countText}>{orders.length} orders scheduled</Text>
-          <PaperButton mode="contained" onPress={() => void loadOrders()} loading={loading} style={styles.refreshButton}>
-            Refresh
-          </PaperButton>
+      {orders.length > 0 && <View style={[styles.subHeader, { paddingHorizontal: gutter }]}>
+        <View style={styles.heading}>
+          <Text accessibilityRole="header" style={styles.title}>Upcoming collections</Text>
+          <Text style={styles.countText}>{orders.length} scheduled {orders.length === 1 ? 'order' : 'orders'} · Sorted by collection time</Text>
         </View>
-      </Surface>
+      </View>}
 
       <FlatList
-        data={orders}
-        horizontal={useVerticalCardRail}
-        showsHorizontalScrollIndicator={false}
-        ItemSeparatorComponent={useVerticalCardRail ? () => <View style={styles.cardRailSeparator} /> : undefined}
+        key={columns}
+        data={[...orders].sort((a, b) => new Date(a.scheduled_pickup_at || a.created_at).getTime() - new Date(b.scheduled_pickup_at || b.created_at).getTime())}
+        numColumns={columns}
+        columnWrapperStyle={columns > 1 ? styles.cardRow : undefined}
         renderItem={({ item }) => (
-          <LiveOrderListItem
-            order={item}
-            successfulOrderCount={successfulOrderCounts?.[item.id]}
-            printState={orderPrintStates[item.id] || null}
-            nowMs={nowMs}
-            updatingStatus={updatingStatus}
-            layout={isVerticalCardLayout ? 'vertical' : 'horizontal'}
-            compact={useCompactVerticalCards}
-            cardWidth={useVerticalCardRail ? liveOrderCardWidth : undefined}
-            previewItemsLimit={appSettings.liveOrderCardPreviewItems}
-            onOrderPress={handleOrderPress}
-            onCustomerPress={handleCustomerPress}
-            onPrintPress={(order, printer) => void quickPrintOrder(order, printer)}
-            availablePrinters={appSettings.printerSaved}
-            onQuickAction={handleQuickAction}
-            onStatusUpdate={handleStatusUpdate}
-            onPaymentStatusUpdate={handlePaymentStatusUpdate}
-          />
+          <View style={[styles.scheduledCard, columns > 1 && styles.gridCard]}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.orderNumber}>#{getFriendlyOrderNumber(item.order_number)}</Text>
+              <StatusBadge label="Pre-order" tone="primary" />
+            </View>
+            <View style={styles.scheduledTime}>
+              <Text style={styles.scheduledTimeText}>{formatCollectionTime(item.scheduled_pickup_at, nowMs)}</Text>
+            </View>
+            <Pressable accessibilityRole="button" accessibilityLabel={`View customer ${item.customer_name || item.customer_email || 'Walk-in'}`} onPress={() => handleCustomerPress(item)} style={styles.customerButton}>
+              <Text style={styles.customerName}>{item.customer_name || item.customer_email || 'Walk-in'}</Text>
+            </Pressable>
+            <Text style={styles.itemSummary}>{item.order_type === 'delivery' ? 'Delivery' : 'Pickup'}{item.items?.length ? ` · ${item.items.map((line) => line.product_name).join(', ')}` : ''}</Text>
+            <View style={styles.totalRow}>
+              <Text style={styles.total}>${item.total.toFixed(2)}</Text>
+              <StatusBadge label={orderPaymentLabel(item.payment_status, item.order_status)} tone={paymentTone(item.payment_status)} />
+            </View>
+            <View style={styles.cardFooter}>
+              <PaperButton mode="outlined" onPress={() => handleOrderPress(item)} style={styles.viewButton} contentStyle={styles.buttonContent}>View order</PaperButton>
+            </View>
+          </View>
         )}
         keyExtractor={(item) => item.id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
-        contentContainerStyle={[styles.listContent, useCompactVerticalCards ? styles.listContentCompact : null]}
+        contentContainerStyle={[styles.listContent, { paddingHorizontal: gutter }]}
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No pre-orders found</Text>
-          </View>
+          <AsyncState
+            loading={loading}
+            icon="check"
+            title={loading ? 'Loading scheduled orders' : preOrdersError ? 'Scheduled orders unavailable' : 'No upcoming orders'}
+            description={preOrdersError instanceof Error ? preOrdersError.message : 'Scheduled orders will appear here, sorted by collection time.'}
+            onRetry={() => void loadOrders()}
+            retryLabel={preOrdersError ? 'Try again' : 'Refresh'}
+          />
         }
       />
 
@@ -617,19 +595,41 @@ export default function PreOrdersScreen() {
   );
 }
 
+function formatCollectionTime(scheduledAt: string | null | undefined, nowMs: number): string {
+  if (!scheduledAt) return 'Collection time not set';
+  const collection = new Date(scheduledAt);
+  if (Number.isNaN(collection.getTime())) return 'Collection time unavailable';
+  const today = new Date(nowMs);
+  const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+  const day = collection.toDateString() === today.toDateString() ? 'Today'
+    : collection.toDateString() === tomorrow.toDateString() ? 'Tomorrow'
+    : collection.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
+  return `${day} · ${collection.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })}`;
+}
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
-  appbar: { backgroundColor: BRAND_COLORS.header },
-  appbarTitle: { color: '#fff', fontWeight: 'bold' },
-  subHeader: { padding: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e5e5e5' },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  countText: { fontSize: 14, color: '#6b7280', fontWeight: '600' },
-  refreshButton: { borderRadius: 8 },
-  listContent: { flexGrow: 1, alignItems: 'stretch', padding: 16 },
-  listContentCompact: { padding: 12 },
-  cardRailSeparator: { width: 12 },
-  emptyContainer: { flex: 1, alignItems: 'center', marginTop: 100 },
-  emptyText: { fontSize: 16, color: '#6b7280' },
+  container: { flex: 1, backgroundColor: t.color.background },
+  subHeader: { paddingTop: 16, paddingBottom: 32, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 16, flexWrap: 'wrap' },
+  heading: { flex: 1, minWidth: 220, gap: 12 },
+  title: { fontSize: 26, color: t.color.text, fontWeight: '700' },
+  countText: { fontSize: 14, color: t.color.muted, lineHeight: 21 },
+  refreshButton: { borderRadius: t.radius.control, borderColor: t.color.border, backgroundColor: t.color.surface },
+  buttonContent: { minHeight: 48 },
+  listContent: { flexGrow: 1, paddingBottom: 24, gap: 20 },
+  cardRow: { gap: 20, alignItems: 'flex-start' },
+  scheduledCard: { padding: 20, borderWidth: 1, borderColor: t.color.border, borderRadius: t.radius.card, backgroundColor: t.color.surface, gap: 8 },
+  gridCard: { width: '48%', flexGrow: 1, maxWidth: '50%' },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  orderNumber: { fontSize: 18, color: t.color.text, fontWeight: '700', flexShrink: 1 },
+  scheduledTime: { backgroundColor: t.color.primaryTint, borderRadius: t.radius.control, paddingHorizontal: 16, paddingVertical: 12 },
+  scheduledTimeText: { fontSize: 16, fontWeight: '700', color: t.color.primary },
+  customerButton: { minHeight: 40, justifyContent: 'center' },
+  customerName: { fontSize: 16, color: t.color.text, fontWeight: '700' },
+  itemSummary: { fontSize: 14, lineHeight: 21, color: t.color.muted },
+  totalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 8 },
+  total: { fontSize: 16, color: t.color.text, fontWeight: '700' },
+  cardFooter: { borderTopWidth: 1, borderColor: t.color.border, paddingTop: 18, marginTop: 2, alignItems: 'flex-start' },
+  viewButton: { borderRadius: t.radius.control, borderColor: t.color.border },
   hiddenReceiptContainer: {
     position: 'absolute',
     top: -9999,
@@ -637,6 +637,6 @@ const styles = StyleSheet.create({
     opacity: 0,
   },
   printingOverlay: { position: 'absolute', top: 24, left: 0, right: 0, alignItems: 'center', zIndex: 100 },
-  printingChip: { backgroundColor: '#2563eb', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8 },
+  printingChip: { backgroundColor: t.color.primary, borderRadius: t.radius.card, paddingHorizontal: 16, paddingVertical: 8 },
   printingText: { color: '#fff', fontWeight: 'bold' },
 });

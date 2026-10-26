@@ -1,15 +1,18 @@
+import { ActionButton as Button } from '@/components/ui/ActionButton';
 import React from 'react';
 import { Platform, ScrollView, Text, View } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { Button, TextInput } from 'react-native-paper';
+import { FormField } from '@/components/ui';
 
 import { styles } from './pos.styles';
+import { designTokens as tokens } from '@/lib/redesign';
 import type { CustomerLookupStatus } from './PosCheckoutPanel';
 import { PosDiscountSection } from './PosDiscountSection';
 import { PosCustomerSelector } from './PosCustomerSelector';
 import type { Customer } from '../../lib/customers';
 
 type Props = {
+  onBackToOrder: () => void;
   customerLookupStatus: CustomerLookupStatus;
   customerPhone: string;
   onChangeCustomerPhone: (value: string) => void;
@@ -51,6 +54,7 @@ type Props = {
 };
 
 export function PosPickupCheckoutForm({
+  onBackToOrder,
   customerLookupStatus,
   customerPhone,
   onChangeCustomerPhone,
@@ -124,20 +128,23 @@ export function PosPickupCheckoutForm({
         />
 
         <View style={styles.pickupPanel}>
-          <Text style={styles.checkoutSectionTitle}>Pickup timing</Text>
+          <Text style={styles.checkoutSectionTitle}>Pickup time</Text>
           <View style={styles.pickupModeRow}>
-            <Button mode={!isPreOrder ? 'contained' : 'outlined'} onPress={() => setIsPreOrder(false)} style={styles.pickupModeButton}>
+            <Button mode="outlined" onPress={() => setIsPreOrder(false)} style={[styles.pickupModeButton, !isPreOrder && { borderColor: tokens.color.primary }]} buttonColor={!isPreOrder ? tokens.color.primaryTint : tokens.color.surface} textColor={!isPreOrder ? tokens.color.primaryPressed : tokens.color.text} contentStyle={{ minHeight: 44 }} labelStyle={{ fontSize: 13 }} hitSlop={2}>
               ASAP
             </Button>
             <Button
-              mode={isPreOrder ? 'contained' : 'outlined'}
+              mode="outlined"
+              buttonColor={isPreOrder ? tokens.color.primaryTint : tokens.color.surface}
+              textColor={isPreOrder ? tokens.color.primaryPressed : tokens.color.text}
+              contentStyle={{ minHeight: 44 }} labelStyle={{ fontSize: 13 }} hitSlop={2}
               onPress={() => {
                 setIsPreOrder(true);
                 setScheduledPickupAt((current) => (
                   current.getTime() > Date.now() ? current : defaultPickupTime()
                 ));
               }}
-              style={styles.pickupModeButton}
+              style={[styles.pickupModeButton, isPreOrder && { borderColor: tokens.color.primary }]}
             >
               Pre-order
             </Button>
@@ -167,7 +174,7 @@ export function PosPickupCheckoutForm({
           )}
         </View>
 
-        <TextInput
+        <FormField
           label="Order note"
           mode="outlined"
           value={orderNoteText}
@@ -176,17 +183,20 @@ export function PosPickupCheckoutForm({
           style={[styles.checkoutInput, styles.checkoutNoteInput, styles.checkoutNoteInputLarge]}
         />
 
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginTop: 16 }}>
+          <Button mode="outlined" onPress={onBackToOrder} contentStyle={{ minHeight: 48 }} textColor={tokens.color.text}>Back to order</Button>
         <Button
           mode="contained"
-          icon="check"
           loading={creatingOrder}
           disabled={creatingOrder || smartpayProcessing || cartItemsCount === 0 || (!orderId && !customerPhone.trim())}
           onPress={() => void handleCheckout('no_pay')}
-          style={styles.placeOrderButton}
-          buttonColor="#16a34a"
+          style={{ borderRadius: 10 }}
+          contentStyle={{ minHeight: 52 }}
+          buttonColor={tokens.color.primary}
         >
-          {checkoutPrimaryLabel}
+          {orderId ? 'Update order' : 'Create pickup order'}
         </Button>
+        </View>
       </View>
     </ScrollView>
   );

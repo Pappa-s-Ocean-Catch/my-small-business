@@ -1,6 +1,9 @@
+import { WorkspaceHeader } from '@/components/ui';
+import { designTokens as t } from '@/lib/redesign';
+import { PageHeader } from '@/components/ui';
 import React, { useState } from 'react';
 import { View, StyleSheet, SafeAreaView, Platform, StatusBar } from 'react-native';
-import { Appbar, SegmentedButtons, useTheme } from 'react-native-paper';
+import { Appbar, useTheme } from 'react-native-paper';
 import { DrawerToggleButton } from '@react-navigation/drawer';
 import { DeliveryOrdersList } from '../../components/delivery-management/DeliveryOrdersList';
 import { DeliveryOrderDetail } from '../../components/delivery-management/DeliveryOrderDetail';
@@ -9,7 +12,7 @@ import type { ShipdayDeliveryRecord } from '../../../../libs/types/delivery-mana
 
 export default function DeliveryManagementScreen() {
   const theme = useTheme();
-  
+
   const [view, setView] = useState('list');
   const [selectedOrder, setSelectedOrder] = useState<ShipdayDeliveryRecord | null>(null);
 
@@ -29,40 +32,24 @@ export default function DeliveryManagementScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <Appbar.Header style={{ backgroundColor: theme.colors.surface }}>
-        {Platform.OS !== 'web' && <DrawerToggleButton tintColor={theme.colors.onSurface} />}
-        <Appbar.Content title="Delivery Management" />
-      </Appbar.Header>
+      <WorkspaceHeader title={view === 'new' ? 'New delivery' : view === 'detail' ? 'Delivery details' : 'Deliveries'} onBack={view !== 'list' ? handleBackToList : undefined} />
 
-      {view !== 'detail' && (
-        <View style={styles.segmentContainer}>
-          <SegmentedButtons
-            value={view}
-            onValueChange={setView}
-            buttons={[
-              { value: 'list', label: 'Deliveries' },
-              { value: 'new', label: 'New Delivery' },
-            ]}
-            style={styles.segmentedButtons}
-          />
-        </View>
-      )}
 
       <View style={styles.content}>
         {view === 'list' && (
-          <DeliveryOrdersList onSelectOrder={handleSelectOrder} />
+          <DeliveryOrdersList onSelectOrder={handleSelectOrder} onNewDelivery={() => setView('new')} />
         )}
-        
+
         {view === 'detail' && selectedOrder && (
-          <DeliveryOrderDetail 
-            id={selectedOrder.id} 
-            reference={selectedOrder.reference} 
-            onBack={handleBackToList} 
+          <DeliveryOrderDetail
+            id={selectedOrder.id}
+            reference={selectedOrder.reference}
+            onBack={handleBackToList}
           />
         )}
 
         {view === 'new' && (
-          <NewDeliveryForm onSuccess={handleDeliveryCreated} />
+          <NewDeliveryForm onSuccess={handleDeliveryCreated} onCancel={handleBackToList} />
         )}
       </View>
     </SafeAreaView>
@@ -72,15 +59,15 @@ export default function DeliveryManagementScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: t.color.surface,
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
   segmentContainer: {
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#ffffff',
+    backgroundColor: t.color.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: t.color.border,
   },
   segmentedButtons: {
     maxWidth: 400,

@@ -268,7 +268,7 @@ export const useOrderActions = (
     return false;
   };
 
-  const handlePrintImage = async (order: Order, image: PrinterImageSource, selectedPrinter?: SavedPrinter | null): Promise<boolean> => {
+  const handlePrintImage = async (order: Order, image: PrinterImageSource, selectedPrinter?: SavedPrinter | null, copyType: 'kitchen' | 'customer' = 'kitchen'): Promise<boolean> => {
     try {
       const effectiveSettings = await getEffectiveSettings();
       if (selectedPrinter) {
@@ -285,9 +285,10 @@ export const useOrderActions = (
           const targetDots = effectiveSettings.printerPaperWidth === '58mm' ? 384 : 576;
           const queuedJobs = enqueuePreparedPrintJobs({
             order,
-            source: 'manual',
+            source: copyType === 'customer' ? 'customer-copy' : 'manual',
             scope: 'order-actions:manual-image-direct',
             jobs: [{
+              copyType,
               image,
               printer: selectedPrinter,
               width: targetDots,
@@ -296,7 +297,7 @@ export const useOrderActions = (
           });
           const queueResult = await waitForPrintJobs(queuedJobs.map((job) => job.id));
           if (!queueResult.success) {
-            throw new Error(queueResult.failedJobs[0]?.error || 'Queued print job failed');
+            throw new Error(queueResult.failedJobs[0]?.error || `Print outcome unknown. Check request ${queuedJobs.map((job) => job.id).join(', ')} in the printer journal before retrying.`);
           }
           return true;
         }
@@ -328,9 +329,10 @@ export const useOrderActions = (
           const targetDots = effectiveSettings.printerPaperWidth === '58mm' ? 384 : 576;
           const queuedJobs = enqueuePreparedPrintJobs({
             order,
-            source: 'manual',
+            source: copyType === 'customer' ? 'customer-copy' : 'manual',
             scope: 'order-actions:manual-image-routed',
             jobs: [{
+              copyType,
               image,
               printer: firstPrinterJob.printer!,
               width: targetDots,
@@ -339,7 +341,7 @@ export const useOrderActions = (
           });
           const queueResult = await waitForPrintJobs(queuedJobs.map((job) => job.id));
           if (!queueResult.success) {
-            throw new Error(queueResult.failedJobs[0]?.error || 'Queued print job failed');
+            throw new Error(queueResult.failedJobs[0]?.error || `Print outcome unknown. Check request ${queuedJobs.map((job) => job.id).join(', ')} in the printer journal before retrying.`);
           }
           return true;
         } catch (printerError) {
@@ -353,7 +355,7 @@ export const useOrderActions = (
       return false;
     } catch (error) {
       console.error('Print image error:', error);
-      Alert.alert('Error', 'Failed to print receipt image');
+      Alert.alert('Print error', error instanceof Error ? error.message : 'Print could not be confirmed. Check the printer journal before retrying.');
       return false;
     }
   };

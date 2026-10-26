@@ -1,7 +1,10 @@
-import React from 'react';
+import { ActionButton as Button } from '@/components/ui/ActionButton';
+import React, { useState } from 'react';
 import { Platform, ScrollView, Text, View } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { Button, TextInput } from 'react-native-paper';
+import { FormField } from '@/components/ui';
+import { ChoiceTabs } from '@/components/ui/ChoiceTabs';
+import { designTokens as tokens } from '@/lib/redesign';
 
 import { styles } from './pos.styles';
 import type { PosThirdPartySource } from '../../app/pos.types';
@@ -48,6 +51,7 @@ export function PosThirdPartyCheckoutForm({
   onSubmit,
 }: Props) {
   const externalOrderIdValue = externalOrderId.trim();
+  const [timeExpanded, setTimeExpanded] = useState(false);
 
   return (
     <ScrollView
@@ -56,49 +60,41 @@ export function PosThirdPartyCheckoutForm({
       keyboardShouldPersistTaps="handled"
     >
       <View style={styles.checkoutFormFull}>
-        <View style={styles.paymentPanel}>
-          <Text style={styles.checkoutSectionTitle}>Third-party source</Text>
-          <View style={styles.paymentModeRow}>
-            <Button
-              mode={partyName === 'Uber Eats' ? 'contained' : 'outlined'}
-              icon="storefront-outline"
-              onPress={() => onChangePartyName('Uber Eats')}
-              style={styles.paymentModeButton}
-            >
-              UBER EATS
-            </Button>
-            <Button
-              mode={partyName === 'DoorDash' ? 'contained' : 'outlined'}
-              icon="storefront-outline"
-              onPress={() => onChangePartyName('DoorDash')}
-              style={styles.paymentModeButton}
-            >
-              DOORDASH
-            </Button>
-          </View>
-          <Text style={styles.lookupText}>These orders are saved as paid because payment is handled on the marketplace.</Text>
+        <View style={styles.pickupPanel}>
+          <Text style={styles.checkoutSectionTitle}>External order</Text>
+          <ChoiceTabs
+            variant="choices"
+            value={partyName}
+            onValueChange={(value) => onChangePartyName(value as PosThirdPartySource)}
+            buttons={[{ value: 'Uber Eats', label: 'Uber Eats' }, { value: 'DoorDash', label: 'DoorDash' }]}
+          />
+          <FormField
+            label="Customer name"
+            placeholder="Customer name"
+            value={customerName}
+            onChangeText={onChangeCustomerName}
+            style={styles.checkoutInput}
+          />
+          <FormField
+            label="External order ID"
+            placeholder="External order ID"
+            value={externalOrderId}
+            onChangeText={onChangeExternalOrderId}
+            autoCapitalize="characters"
+            style={styles.checkoutInput}
+          />
+          <Text style={{ color: tokens.color.muted, fontSize: 13, lineHeight: 20 }}>
+            Payment is handled by the selected marketplace.
+          </Text>
         </View>
 
-        <TextInput
-          label="Customer name"
-          mode="outlined"
-          value={customerName}
-          onChangeText={onChangeCustomerName}
-          style={styles.checkoutInput}
-        />
-
-        <TextInput
-          label="External order ID"
-          mode="outlined"
-          value={externalOrderId}
-          onChangeText={onChangeExternalOrderId}
-          autoCapitalize="characters"
-          style={styles.checkoutInput}
-        />
-
         <View style={styles.pickupPanel}>
-          <Text style={styles.checkoutSectionTitle}>Order time</Text>
-          <View style={styles.preOrderPanel}>
+          <Button mode="text" onPress={() => setTimeExpanded((expanded) => !expanded)}
+            icon={timeExpanded ? 'chevron-up' : 'chevron-down'}
+            contentStyle={{ justifyContent: 'flex-start', minHeight: 44 }}>
+            Order time · {formatOrderTime(thirdPartyOrderAt)}
+          </Button>
+          {timeExpanded && <View style={styles.preOrderPanel}>
             <Text style={styles.preOrderBadge}>ORDER TIME</Text>
             <Text style={styles.pickupTimeText}>{formatOrderTime(thirdPartyOrderAt)}</Text>
             <View style={styles.pickupPickerButtons}>
@@ -117,12 +113,13 @@ export function PosThirdPartyCheckoutForm({
                 onChange={handleOrderAtPickerChange}
               />
             )}
-          </View>
+          </View>}
         </View>
 
-        <TextInput
+        <FormField
           label="Order note"
           mode="outlined"
+          placeholder="Order note"
           value={orderNoteText}
           onChangeText={setOrderNoteText}
           multiline
@@ -136,7 +133,7 @@ export function PosThirdPartyCheckoutForm({
           disabled={creatingOrder || smartpayProcessing || cartItemsCount === 0 || !externalOrderIdValue}
           onPress={() => void onSubmit()}
           style={styles.placeOrderButton}
-          buttonColor="#0f766e"
+          buttonColor={tokens.color.primary}
         >
           Create Third-Party Order • Paid
         </Button>
