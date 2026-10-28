@@ -50,7 +50,6 @@ type Props = {
 export const PosCartPane = React.memo(function PosCartPane({
   lockedItemId,
   cartWidth,
-  getGroupName,
   isCompactLayout,
   isPhoneLayout,
   expandedReview = false,
@@ -93,7 +92,6 @@ export const PosCartPane = React.memo(function PosCartPane({
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
         <TouchableOpacity style={{ flex: 1, minHeight: 48, gap: 3 }} onPress={() => openCartItemEditor(item)} accessibilityRole="button" accessibilityLabel={`Edit ${item.product_name}`}>
           <Text style={styles.cartItemName}>{getCartItemDisplayName(item)}</Text>
-          <Text style={styles.cartGroupName}>{getGroupName(item)}</Text>
           {Array.from(new Set((item.addons || []).map(addon => addon.addon_group_name))).flatMap(group => groupAddons((item.addons || []).filter(addon => addon.addon_group_name === group))).map((addon, addonIndex) => <Text key={`${item.id}-addon-${addonIndex}`} style={styles.cartItemMeta}>{addon.group}: {addon.quantity > 1 ? `${addon.quantity}x ` : ''}{addon.name}{addon.price ? ` +$${addon.price.toFixed(2)} each` : ''}</Text>)}
           {item.removed_ingredients?.map(ingredient => <Text key={ingredient} style={styles.cartItemRemoved}>No {ingredient}</Text>)}
           {!!item.comment && <Text style={styles.cartItemNote}>Note: {item.comment}</Text>}
@@ -119,12 +117,9 @@ export const PosCartPane = React.memo(function PosCartPane({
   const header = <>
       {isPhoneLayout && !expandedReview && onBackToMenu && <Button icon="arrow-left" onPress={onBackToMenu} contentStyle={{ minHeight: 48 }}>Continue ordering</Button>}
       <View style={styles.cartHeadingRow}>
-        <Text style={styles.cartTitle}>Current order</Text>
+        <Text style={styles.cartTitle} numberOfLines={1}>Current order</Text>
         <View style={styles.cartCountChip}><Text style={styles.cartCountText}>{cartItems.length} {cartItems.length === 1 ? 'line' : 'lines'}{cartItems.length ? ` · ${cartItems.reduce((sum, item) => sum + item.quantity, 0)} qty` : ''}</Text></View>
-      </View>
-      <View style={styles.cartDraftRow}>
-        <Text style={styles.menuSubtitle}>{orderId ? 'Editing order' : 'In-store · Draft'}</Text>
-        {!expandedReview && <Button mode="outlined" compact disabled={Boolean(orderId) || cartItems.length === 0} onPress={handleClearCart} textColor={tokens.color.danger} style={styles.cartClearAction} contentStyle={{ minHeight: 40 }} labelStyle={{ fontSize: 12 }} hitSlop={4}>Clear</Button>}
+        {!expandedReview && <Button mode="outlined" compact disabled={Boolean(orderId) || cartItems.length === 0} onPress={handleClearCart} textColor={tokens.color.danger} style={styles.cartClearAction} contentStyle={{ minHeight: 40 }} labelStyle={{ fontSize: 12, marginHorizontal: 8 }} hitSlop={4}>Clear</Button>}
       </View>
       {editingOrderNumber ? <Text style={styles.cartUpdateIndicator}>You are updating order {getFriendlyOrderNumber(editingOrderNumber)}</Text> : null}
       <View style={styles.cartSaltRow}>

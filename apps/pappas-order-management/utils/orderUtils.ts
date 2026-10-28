@@ -156,6 +156,15 @@ export const isScheduledPreOrder = (
   return lead != null && lead > leadMinutes;
 };
 
+/** Display fulfilment from the sales channel; imported marketplace orders use legacy pickup storage. */
+export const getOrderFulfilmentLabel = (order: Order): string => {
+  const channel = getOrderChannel(order);
+  if (channel === 'third_party') return 'Market Delivery';
+  if (channel === 'instore') return 'Instore';
+  if (channel === 'online') return order.order_type === 'delivery' ? 'Online Delivery' : 'Online Pickup';
+  return channel === 'phone_delivery' || order.order_type === 'delivery' ? 'Phone Delivery' : 'Phone Pickup';
+};
+
 export const getOrderChannelLabel = (order: Order): string => {
   if (order.order_type === 'delivery') return 'Delivery';
 

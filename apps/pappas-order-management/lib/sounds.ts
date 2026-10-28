@@ -13,11 +13,10 @@ export type { SoundId };
 let soundObject: Audio.Sound | null = null;
 let cachedSoundId: SoundId | null = null;
 let audioModeInitialized = false;
-let playingSequence = false;
+let playbackQueue: Promise<void> = Promise.resolve();
 
 async function ensureAudioMode() {
   if (audioModeInitialized) return;
-  audioModeInitialized = true;
   try {
     await Audio.setAudioModeAsync({
       allowsRecordingIOS: false,
@@ -26,6 +25,7 @@ async function ensureAudioMode() {
       shouldDuckAndroid: true,
       playThroughEarpieceAndroid: false,
     });
+    audioModeInitialized = true;
   } catch (error) {
     console.error('Error setting audio mode:', error);
   }
@@ -58,29 +58,38 @@ function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
-async function waitForFinish(sound: Audio.Sound): Promise<void> {
-  return new Promise((resolve) => {
-    const onStatus = (status: any) => {
-      if (!status?.isLoaded) return;
-      if (status.didJustFinish) {
-        sound.setOnPlaybackStatusUpdate(null);
-        resolve();
-      }
+async function playAndWaitForFinish(sound: Audio.Sound): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let finished = false;
+    const finish = (error?: Error) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timeout);
+      sound.setOnPlaybackStatusUpdate(null);
+      if (error) reject(error); else resolve();
     };
-
-    sound.setOnPlaybackStatusUpdate(onStatus);
+    // Release the queue even if the native player never delivers its completion event.
+    const timeout = setTimeout(() => finish(new Error('Order sound playback timed out')), 60000);
+    sound.setOnPlaybackStatusUpdate(status => {
+      if (!status.isLoaded) {
+        if (status.error) finish(new Error(status.error));
+      } else if (status.didJustFinish) finish();
+    });
+    // Register completion before playback so very short sounds cannot finish unnoticed.
+    void sound.playAsync().catch(error => finish(error instanceof Error ? error : new Error(String(error))));
   });
 }
 
-export async function playNewOrderSound(options?: {
-  soundId?: SoundId;
-  repeatCount?: number;
-  delayMs?: number;
-}) {
-  try {
-    if (playingSequence) return;
-    playingSequence = true;
+type OrderSoundOptions = { soundId?: SoundId; repeatCount?: number; delayMs?: number };
 
+export function playNewOrderSound(options?: OrderSoundOptions): Promise<void> {
+  const playback = playbackQueue.then(() => playSoundSequence(options));
+  playbackQueue = playback.catch(() => {});
+  return playback;
+}
+
+async function playSoundSequence(options?: OrderSoundOptions) {
+  try {
     await ensureAudioMode();
 
     const soundId: SoundId = options?.soundId ?? 'so-proud-notification';
@@ -100,8 +109,7 @@ export async function playNewOrderSound(options?: {
       }
 
       // iOS sometimes blocks autoplay until an interaction; in that case this can fail.
-      await sound.playAsync();
-      await waitForFinish(sound);
+      await playAndWaitForFinish(sound);
 
       // Delay between repeats (but not after the last play)
       if (i < repeatCount - 1 && delayMs > 0) {
@@ -122,9 +130,7 @@ export async function playNewOrderSound(options?: {
     }
   } catch (error) {
     console.error('Error playing sound:', error);
-    // Silently fail - sound is not critical
-  } finally {
-    playingSequence = false;
+    // Keep later queued alerts playable if this sequence fails.
   }
 }
 

@@ -3,10 +3,10 @@ import { View } from 'react-native';
 import { Dialog as PaperDialog } from 'react-native-paper';
 import { EditorSheet } from './EditorSheet';
 
-type Props = React.ComponentProps<typeof PaperDialog>;
+type Props = React.ComponentProps<typeof PaperDialog> & { size?: React.ComponentProps<typeof EditorSheet>['size'] };
 
 /** Preserve the existing compound API while sharing the reference modal frame. */
-function DialogFrame({ children, visible, onDismiss, dismissable = true }: Props) {
+function DialogFrame({ children, visible, onDismiss, dismissable = true, size }: Props) {
   let title = '';
   let footer: React.ReactNode;
   const body: React.ReactNode[] = [];
@@ -23,7 +23,7 @@ function DialogFrame({ children, visible, onDismiss, dismissable = true }: Props
       body.push(child);
     }
   });
-  return <EditorSheet visible={visible} title={title} onDismiss={() => { if (dismissable) onDismiss?.(); }} footer={footer}>
+  return <EditorSheet visible={visible} size={size} title={title} onDismiss={() => { if (dismissable) onDismiss?.(); }} footer={footer}>
     {body}
   </EditorSheet>;
 }

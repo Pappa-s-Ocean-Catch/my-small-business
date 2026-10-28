@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { buildStaffAuthorizationHeader } from './pos-api-auth';
+import { getApiUrl } from '../utils/orderUtils';
 import type { 
   DeliveryJobAddress, 
   DeliveryRecipient, 
@@ -8,19 +9,13 @@ import type {
   ShipdayDeliveryDetail
 } from '../../../libs/types/delivery-management';
 
-const DEFAULT_SITE_URL = 'https://www.pappasfishnchips.com.au';
-
-function getWebBaseUrl() {
-  return (process.env.EXPO_PUBLIC_SITE_URL || DEFAULT_SITE_URL).trim();
-}
-
 async function posAuthenticatedFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const { data: { session }, error: sessionError } = await supabase.auth.getSession();
   if (sessionError || !session?.access_token) {
     throw new Error(sessionError?.message || 'Missing authenticated session');
   }
 
-  const response = await fetch(`${getWebBaseUrl()}${path}`, {
+  const response = await fetch(getApiUrl(path), {
     ...init,
     headers: {
       'Content-Type': 'application/json',

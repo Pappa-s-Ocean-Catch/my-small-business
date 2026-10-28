@@ -1,3 +1,4 @@
+import { tileTextColor } from './pos-tile-palette';
 import { getPosWorkspaceLayout } from './redesign';
 
 /** Pure configuration shared by the editor preview and the live catalogue. */
@@ -18,7 +19,7 @@ export type PosLayoutData = {
 };
 export const DEFAULT_POS_QUICK_ORDER_NOTES = ['Chicken salt', 'Salt', 'Both Salt', 'No salt at all', 'Extra Salt', 'Extra chicken salt'];
 export const DEFAULT_POS_QUICK_ITEM_NOTES = ['Cut in half', 'Pack separately', 'Extra sauce', 'No salt'];
-export const DEFAULT_TILE_APPEARANCE = { background: '#FFFFFF', text: '#172E3A', fontSize: 16, fontWeight: 700, align: 'left' as const, height: 104 };
+export const DEFAULT_TILE_APPEARANCE = { background: '#FFFFFF', text: '#172E3A', fontSize: 16, fontWeight: 700, align: 'center' as const, height: 116 };
 const bounded = (value: unknown, min: number, max: number) => typeof value === 'number' && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : undefined;
 export function normalizeTileAppearance(value: unknown): PosTileAppearance {
   const v = value && typeof value === 'object' ? value as PosTileAppearance : {};
@@ -45,13 +46,12 @@ export function normalizePosLayout(value: unknown): PosLayoutData {
     })) : [],
   };
 }
-export function resolvePosTileAppearance(layout?: PosLayoutData | null, tile?: PosTileConfig) {
-  const appearance = { ...DEFAULT_TILE_APPEARANCE, ...normalizeTileAppearance(layout?.appearance),
+export function resolvePosTileAppearance(layout?: PosLayoutData | null, tile?: PosTileConfig, fallback?: PosTileAppearance) {
+  const appearance = { ...DEFAULT_TILE_APPEARANCE, ...normalizeTileAppearance(fallback), ...normalizeTileAppearance(layout?.appearance),
     ...(tile?.color ? { background: tile.color } : {}), ...normalizeTileAppearance(tile), label: tile?.label, visible: tile?.visible !== false };
-  // Legacy layouts supplied only a fill; keep their labels readable until a text colour is chosen.
-  if (tile?.color && !tile.text && !layout?.appearance?.text && /^#[\da-f]{6}$/i.test(appearance.background)) {
-    const rgb = [1, 3, 5].map(offset => parseInt(appearance.background.slice(offset, offset + 2), 16));
-    appearance.text = (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000 < 145 ? '#FFFFFF' : DEFAULT_TILE_APPEARANCE.text;
+  // Automatic product fills and legacy fill-only layouts need contrast against the resolved background.
+  if ((fallback?.background || tile?.color) && !tile?.text && !layout?.appearance?.text && /^#[\da-f]{6}$/i.test(appearance.background)) {
+    appearance.text = tileTextColor(appearance.background);
   }
   return appearance;
 }

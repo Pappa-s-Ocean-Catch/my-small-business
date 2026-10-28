@@ -33,7 +33,7 @@ import {
   getDeliveryStatusColor,
   getDeliveryStatusLabel,
 } from '../utils/constants';
-import { formatOrderPaymentMethod, paymentSummary, getNextQuickAction, groupAddons, getOrderLineItemCount, getOrderNotes, getOrderOptions } from '../utils/orderUtils';
+import { getOrderFulfilmentLabel, formatOrderPaymentMethod, paymentSummary, getNextQuickAction, groupAddons, getOrderLineItemCount, getOrderNotes, getOrderOptions } from '../utils/orderUtils';
 import { getOrderActionFeedback } from '../lib/order-status-feedback';
 import type { AppSettings } from '../lib/settings';
 import { DEFAULT_APP_SETTINGS, loadAppSettings } from '../lib/settings';
@@ -542,7 +542,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
           ]}
           elevation={0}
         >
-          <View style={[styles.headerTop, width < 600 && { minHeight: 60, paddingHorizontal: 16 }]}><View style={styles.headerTitleBlock}><Text accessibilityRole="header" style={styles.headerTitle}>Order #{getFriendlyOrderNumber(order.order_number)}</Text><Text style={styles.headerMeta}>{order.customer_name || 'Customer'} · {order.order_type.replace(/_/g, ' ')}</Text></View><IconButton icon="close" hitSlop={4} accessibilityLabel="Close order details" disabled={isCapturing || smartpayProcessing} onPress={closeModal} style={styles.closeControl} /></View>
+          <View style={[styles.headerTop, width < 600 && { minHeight: 60, paddingHorizontal: 16 }]}><View style={styles.headerTitleBlock}><Text accessibilityRole="header" style={styles.headerTitle}>Order #{getFriendlyOrderNumber(order.order_number)}</Text><Text style={styles.headerMeta}>{order.customer_name || 'Customer'} · {getOrderFulfilmentLabel(order)}</Text></View><IconButton icon="close" hitSlop={4} accessibilityLabel="Close order details" disabled={isCapturing || smartpayProcessing} onPress={closeModal} style={styles.closeControl} /></View>
 
         </Surface>
 
@@ -550,7 +550,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
           <View style={styles.headerSub}>
             <StatusBadge label={statusLabel} tone={fulfilmentTone(order.order_status)} />
             <StatusBadge label={paymentLabel} tone={paymentTone(order.payment_status)} />
-            <Text style={styles.timeText}>Order #{getFriendlyOrderNumber(order.order_number)} · {new Date(order.created_at).toLocaleString()}</Text>
+            <Text style={styles.timeText}>{new Date(order.created_at).toLocaleString()}</Text>
           </View>
           {order.scheduled_pickup_at && (
             <View style={styles.scheduledInfo}>

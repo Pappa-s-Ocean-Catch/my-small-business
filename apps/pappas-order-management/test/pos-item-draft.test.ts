@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mergeEditableAddons, mergeEditableRemovals, missingRequiredAddonGroup, planProductTap, updateAddedLine } from '../components/pos/pos-draft';
-import type { AddonGroup, PosCartItem } from '../app/pos.types';
+import { mergeEditableAddons, mergeEditableRemovals, planProductTap, updateAddedLine } from '../components/pos/pos-draft';
+import type { PosCartItem } from '../app/pos.types';
 
 const line = (id: string, note = '') => ({ id, order_id: 'order', product_id: 'fish', product_name: 'Fish', quantity: 1, base_price: 8, subtotal: 8, addons: [], comment: note, pos_updated_at: 1, pos_group_name: 'Fish' } as unknown as PosCartItem);
 
@@ -36,15 +36,6 @@ test('modifier, quantity and note updates change only the already-added line', (
   assert.equal(changed[1], original[1]);
   assert.equal(updateAddedLine([], 'removed', { quantity: 2 }, 3).length, 0);
 });
-
-test('optional groups allow confirmation while required groups identify the missing choice', () => {
-  const groups = [{ id: 'salt', name: 'Salt', is_required: true, items: [{ id: 'none' }] }, { id: 'sauce', name: 'Sauce', is_required: false, items: [{ id: 'tomato' }] }] as AddonGroup[];
-  assert.equal(missingRequiredAddonGroup(groups, {})?.name, 'Salt');
-  assert.equal(missingRequiredAddonGroup(groups, { none: 1 }), undefined);
-  assert.equal(missingRequiredAddonGroup(groups, { none: 0 })?.name, 'Salt');
-});
-
-
 
 test('historical add-ons retain their price when quantity or notes change', () => {
   const historical = { ...line('old'), addons: [{ addon_item_id: 'inactive', addon_item_price: 2 } as any], removed_ingredients: ['Old ingredient'] };

@@ -54,3 +54,10 @@ test('device preview reserves the same navigation rail, gutters and cart as the 
   assert.equal(getPosLayoutMenuWidth(768), 380);
   assert.equal(getPosLayoutMenuWidth(1024, 2), 636);
 });
+test('default POS tiles centre labels with a little more vertical room', () => {
+  const appearance = resolvePosTileAppearance();
+  assert.equal(appearance.align, 'center');
+  assert.equal(appearance.height, 116);
+  assert.equal(resolvePosTileAppearance(undefined, { align: 'left', height: 88 }).align, 'left');
+  assert.equal(resolvePosTileAppearance(undefined, { align: 'left', height: 88 }).height, 88);
+});

@@ -361,12 +361,10 @@ export const PosMenuPane = React.memo(function PosMenuPane(props: Props) {
 
       {menuLevel === 'subgroups' && (
         <>
-          <View style={styles.menuHeader}>
-            <Button mode="outlined" icon="arrow-left" onPress={backToGroups} style={styles.backButton}>
-              Groups
-            </Button>
-            <View style={styles.menuHeaderText}>
-              <Text style={styles.menuTitle}>{activeParentCategoryName}</Text>
+          <View style={styles.productContext}>
+            <HeaderIconButton icon="arrow-left" accessibilityLabel="Back to groups" onPress={backToGroups} />
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={styles.contextTitle}>{activeParentCategoryName}</Text>
               <Text style={styles.menuSubtitle}>{childCategoriesForSelectedGroup.length} sub-categories</Text>
             </View>
           </View>
@@ -381,14 +379,12 @@ export const PosMenuPane = React.memo(function PosMenuPane(props: Props) {
                 <Text style={styles.emptyTitle}>No sub-categories in this group</Text>
               </View>
             )}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={[styles.groupCard, activeLayoutCategory?.color ? { backgroundColor: activeLayoutCategory.color } : null]}
-                onPress={() => openSubcategory(item.id)}
-              >
-                <Text style={styles.groupCardText}>{item.name}</Text><Text style={styles.menuSubtitle}>Choose products  →</Text>
-              </TouchableOpacity>
-            )}
+            renderItem={({ item }) => {
+              const ownConfig = props.layout?.categories.find(category => category.categoryId === item.id);
+              const parentConfig = props.layout?.categories.find(category => category.categoryId === props.layoutCategoryId);
+              return <PosGroupTile label={item.name} subtitle="Choose products" columns={gridColumns} layout={props.layout}
+                tileConfig={{ ...parentConfig, ...ownConfig, label: ownConfig?.label }} onPress={() => openSubcategory(item.id)} />;
+            }}
           />
         </>
       )}
@@ -396,7 +392,7 @@ export const PosMenuPane = React.memo(function PosMenuPane(props: Props) {
       {menuLevel === 'items' && (
         <>
           <View style={styles.productContext}>
-            <HeaderIconButton icon="arrow-left" accessibilityLabel="Back to groups" onPress={backToGroups} />
+            <HeaderIconButton icon="arrow-left" accessibilityLabel={`Back to ${itemsBackLabel}`} onPress={itemsBackAction} />
             <View style={{ flex: 1, gap: 4 }}><Text style={styles.contextTitle}>{activeCategoryName}</Text></View>
           </View>
           <ProductGrid
@@ -469,8 +465,8 @@ export const PosMenuPane = React.memo(function PosMenuPane(props: Props) {
                   >
                     <View style={styles.modifierHeading}>
                       <Text style={styles.addonGroupTitle}>{group.name}</Text>
-                      <Text style={[styles.modifierRequirement, group.is_required && styles.modifierRequirementRequired]}>
-                        {group.is_required ? 'Required' : 'Optional'} · {group.multiple_choice ? 'Choose multiple' : 'Choose 1'}
+                      <Text style={styles.modifierRequirement}>
+                        Optional · {group.multiple_choice ? 'Choose multiple' : 'Choose 1'}
                       </Text>
                     </View>
                     <View style={styles.optionGrid}>
@@ -554,7 +550,7 @@ export const PosMenuPane = React.memo(function PosMenuPane(props: Props) {
         </>
       )}
 
-      <EditorSheet visible={noteVisible} title="Item note" onDismiss={() => setNoteVisible(false)} footer={(dismiss) => <><Button onPress={dismiss}>Cancel</Button><Button mode="contained" onPress={() => { props.onEditorNoteChange(noteDraft); setNoteVisible(false); }} contentStyle={{ minHeight: 52 }}>Save note</Button></>}>
+      <EditorSheet size="options" visible={noteVisible} title="Item note" onDismiss={() => setNoteVisible(false)} footer={(dismiss) => <><Button onPress={dismiss}>Cancel</Button><Button mode="contained" onPress={() => { props.onEditorNoteChange(noteDraft); setNoteVisible(false); }} contentStyle={{ minHeight: 52 }}>Save note</Button></>}>
         <Text style={{ color: tokens.color.text, fontWeight: '700', fontSize: 13 }}>Quick notes</Text><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{(props.quickItemNotes || []).map(note => <Button mode="outlined" key={note} onPress={() => setNoteDraft(current => toggleNotePreset(current, note))}>{note}</Button>)}</View><FormField label="Item note" value={noteDraft} onChangeText={setNoteDraft} multiline autoFocus />
       </EditorSheet>
 
@@ -674,7 +670,7 @@ export const PosMenuPane = React.memo(function PosMenuPane(props: Props) {
         </>
       )}
 
-      {menuLevel !== 'groups' && menuLevel !== 'items' && menuLevel !== 'addons' && menuLevel !== 'quick-list' && menuLevel !== 'checkout' && (
+      {menuLevel !== 'groups' && menuLevel !== 'subgroups' && menuLevel !== 'items' && menuLevel !== 'addons' && menuLevel !== 'quick-list' && menuLevel !== 'checkout' && (
         <View pointerEvents="box-none" style={styles.quickListButtonWrap}>
           <Button
             mode="contained"

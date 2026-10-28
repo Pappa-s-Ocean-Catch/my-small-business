@@ -6,6 +6,7 @@ import {
   formatKitchenSectionValue,
   formatOrderPaymentMethod,
   getPaymentStatType,
+  getOrderFulfilmentLabel,
   getReceiptHeader,
   groupAddons,
   isCombineProduct,
@@ -254,3 +255,18 @@ test('resolveKitchenSections extracts sections directly from ingredient products
 });
 
 
+
+
+test('order detail labels combine channel and fulfilment rather than showing raw pickup', () => {
+  const cases: [Partial<Order>, string][] = [
+    [{ order_channel: 'instore', order_type: 'pickup' }, 'Instore'],
+    [{ order_channel: 'online', order_type: 'pickup' }, 'Online Pickup'],
+    [{ order_channel: 'phone_pickup', order_type: 'pickup' }, 'Phone Pickup'],
+    [{ order_channel: 'online', order_type: 'delivery' }, 'Online Delivery'],
+    [{ order_channel: 'third_party', order_type: 'pickup', delivery_partner_name: 'Uber Eats' }, 'Market Delivery'],
+    [{ order_channel: 'third_party', order_type: 'delivery', delivery_partner_name: 'DoorDash' }, 'Market Delivery'],
+    [{ order_channel: 'phone_delivery', order_type: 'delivery' }, 'Phone Delivery'],
+    [{ order_channel: undefined, payment_method: 'online', order_type: 'pickup' }, 'Online Pickup'],
+  ];
+  for (const [fields, expected] of cases) assert.equal(getOrderFulfilmentLabel(makeOrder(fields)), expected);
+});

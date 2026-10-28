@@ -1,4 +1,4 @@
-import type { AddonGroup, PosCartItem } from '../../app/pos.types';
+import type { PosCartItem } from '../../app/pos.types';
 
 const hasCustomizations = (item: PosCartItem) => Boolean(item.addons?.length || item.removed_ingredients?.length || item.comment);
 
@@ -21,10 +21,6 @@ export function updateAddedLine(cart: PosCartItem[], id: string, changes: Partia
     const next = { ...item, ...changes };
     return { ...next, override_price: null, subtotal: (next.base_price + (next.addons || []).reduce((sum, addon) => sum + Number(addon.addon_item_price || 0), 0)) * next.quantity, pos_updated_at: updatedAt };
   });
-}
-
-export function missingRequiredAddonGroup(groups: AddonGroup[], quantities: Record<string, number>): AddonGroup | undefined {
-  return groups.find((group) => group.is_required && !group.items.some((item) => (quantities[item.id] || 0) > 0));
 }
 
 /** Keep historical choices that today's menu no longer exposes. */

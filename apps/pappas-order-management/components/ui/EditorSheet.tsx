@@ -15,7 +15,7 @@ type Props = {
   onDismiss: () => void;
   dirty?: boolean;
   pending?: boolean;
-  size?: 'confirm' | 'form' | 'wide';
+  size?: 'confirm' | 'form' | 'wide' | 'options';
 };
 
 /** Native editor with a scrolling body and actions that stay above the keyboard. */
@@ -58,7 +58,7 @@ export function EditorSheet({ visible, title, subtitle, children, footer, onDism
   });
   return <Modal visible={visible} transparent animationType="fade" onRequestClose={dismiss} onShow={focusTitle} statusBarTranslucent>
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[s.scrim, Platform.OS === 'web' && ({ backdropFilter: 'blur(3px)' } as any), { paddingTop: compact ? insets.top : 32, paddingBottom: compact ? insets.bottom : 32, paddingHorizontal: compact ? 0 : 32 }]}>
-      <View ref={panel} accessibilityViewIsModal importantForAccessibility="yes" style={[s.sheet, { maxWidth: compact ? undefined : size === 'wide' ? 920 : size === 'confirm' ? 460 : 620, maxHeight: height - (compact ? insets.top + insets.bottom : 64) }, compact && s.compact]}>
+      <View ref={panel} accessibilityViewIsModal importantForAccessibility="yes" style={[s.sheet, { maxWidth: compact ? undefined : size === 'options' ? width * 0.75 : size === 'wide' ? 920 : size === 'confirm' ? 460 : 620, maxHeight: height - (compact ? insets.top + insets.bottom : 64) }, compact && s.compact]}>
         <View style={s.header}>
           <View ref={heading} accessible accessibilityRole="header" accessibilityLabel={title} style={s.heading}><Text style={s.title}>{title}</Text>{subtitle && <Text style={s.subtitle}>{subtitle}</Text>}</View>
           <IconButton icon="close" accessibilityLabel={`Close ${title}`} onPress={dismiss} disabled={pending} size={22} hitSlop={4} style={s.close} />

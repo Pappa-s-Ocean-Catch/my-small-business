@@ -251,12 +251,12 @@ export function PosDialogs({
           </Dialog.Actions>
         </Dialog>
 
-        <Dialog visible={Boolean(noteItemId)} onDismiss={closeNoteEditor} style={styles.noteDialog}>
+        <Dialog size="options" visible={Boolean(noteItemId)} onDismiss={closeNoteEditor} style={styles.noteDialog}>
           <Dialog.Title>Item note</Dialog.Title>
           <Dialog.Content>
             <Text style={{ color: t.color.text, fontSize: 13, fontWeight: '700', marginBottom: 10 }}>Quick notes</Text>
             {quickItemNotes.length > 0 && (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.itemNotePresetLinks, { flexWrap: 'nowrap', gap: 8 }]}>
+              <View style={[styles.itemNotePresetLinks, { flexWrap: 'wrap', gap: 8 }]}>
                 {quickItemNotes.map((note) => {
                   const selected = hasNotePreset(noteDraft, note);
                   return (
@@ -273,7 +273,7 @@ export function PosDialogs({
                     </TouchableOpacity>
                   );
                 })}
-              </ScrollView>
+              </View>
             )}
             <FormField
               label="Item note"

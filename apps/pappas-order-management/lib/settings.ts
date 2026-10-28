@@ -1,3 +1,4 @@
+import { DEFAULT_MARKETPLACE_SOUND_SETTINGS, normalizeMarketplaceSoundSettings, type MarketplaceSoundSettings } from './order-sound-settings';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
@@ -131,7 +132,7 @@ function normalizePrinterSectionAssignments(
 
 export type { MarketplaceFetchMode } from './marketplace-auto-sync-settings';
 
-export type AppSettings = MarketplaceAutoSyncSettings & {
+export type AppSettings = MarketplaceAutoSyncSettings & MarketplaceSoundSettings & {
     /** Optional label displayed on printed diagnostic information for this device. */
     registerName: string;
     refreshIntervalSec: number;
@@ -214,6 +215,7 @@ export function subscribeAppSettings(listener: (settings: AppSettings) => void) 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
     registerName: '',
     refreshIntervalSec: 30,
+    ...DEFAULT_MARKETPLACE_SOUND_SETTINGS,
     soundEnabled: true,
     soundId: 'so-proud-notification',
     soundRepeatCount: 3,
@@ -389,6 +391,7 @@ export async function loadAppSettings(): Promise<AppSettings> {
         const result: AppSettings = {
             registerName: diagnosticSettings.registerName,
             refreshIntervalSec,
+            ...normalizeMarketplaceSoundSettings(parsed, SOUND_OPTIONS),
             soundEnabled,
             soundId,
             soundRepeatCount,
@@ -442,6 +445,7 @@ export async function saveAppSettings(settings: AppSettings): Promise<void> {
     const normalized: AppSettings = {
         registerName: diagnosticSettings.registerName,
         refreshIntervalSec: clampInt(settings.refreshIntervalSec, 5, 600),
+        ...normalizeMarketplaceSoundSettings(settings, SOUND_OPTIONS),
         soundEnabled: !!settings.soundEnabled,
         soundId: settings.soundId,
         soundRepeatCount: clampInt(settings.soundRepeatCount, 1, 10),

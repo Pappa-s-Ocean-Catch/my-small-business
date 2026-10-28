@@ -29,7 +29,7 @@ import { enqueuePreparedPrintJobs, processReadyPendingPrintJobs, waitForPrintJob
 import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
 import { ReceiptTemplate } from '@/components/ReceiptTemplate';
 import { CustomerReceiptTemplate } from '@/components/CustomerReceiptTemplate';
-import { shouldPlayOrderSound } from '@/utils/orderUtils';
+import { getOrderSoundOptions } from '@/lib/order-sound-settings';
 import { getPrintDeviceId } from '@/lib/print-device';
 import { getInstoreCustomerReceiptPrintJob } from '@/lib/instore-customer-receipt';
 import { buildKitchenReceiptDocument } from '@/lib/kitchen-receipt-document';
@@ -272,18 +272,13 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
     }
   }, [appSettings, logOrderEvent, showToast]);
 
-  const playAttentionSoundForOrder = useCallback((order: Pick<Order, 'id' | 'order_channel' | 'payment_method' | 'customer_name' | 'scheduled_pickup_at'>) => {
-    if (!appSettings.soundEnabled) return;
+  const playAttentionSoundForOrder = useCallback((order: Pick<Order, 'id' | 'order_channel' | 'payment_method' | 'customer_name' | 'scheduled_pickup_at' | 'delivery_partner_name' | 'payment_method_detail'>) => {
     if (soundedOrderIdsRef.current.has(order.id)) return;
-    if (!shouldPlayOrderSound(order)) return;
-
+    const options = getOrderSoundOptions(order, appSettings);
+    if (!options) return;
     soundedOrderIdsRef.current.add(order.id);
-    playNewOrderSound({
-      soundId: appSettings.soundId,
-      repeatCount: appSettings.soundRepeatCount,
-      delayMs: 1000,
-    });
-  }, [appSettings.soundEnabled, appSettings.soundId, appSettings.soundRepeatCount]);
+    void playNewOrderSound(options);
+  }, [appSettings]);
 
   const quickPrintAutoOrder = useCallback(async (order: Order) => {
     let releaseRender: (() => void) | null = null;
@@ -831,6 +826,8 @@ export function PrinterAutomationProvider({ children }: PropsWithChildren) {
             payment_method: (payload.new as any)?.payment_method,
             customer_name: (payload.new as any)?.customer_name,
             scheduled_pickup_at: scheduledPickupAt ?? null,
+            delivery_partner_name: (payload.new as any)?.delivery_partner_name,
+            payment_method_detail: (payload.new as any)?.payment_method_detail,
           });
 
           if (isPreOrderFarAway) {

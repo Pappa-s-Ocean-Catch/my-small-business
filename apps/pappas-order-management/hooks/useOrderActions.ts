@@ -10,8 +10,8 @@ import { formatSmartpayError, isSmartpayPaired, processSmartpayCardPayment } fro
 import { enqueuePreparedPrintJobs, waitForPrintJobs } from '@/lib/print-queue';
 import { supabase } from '@/lib/supabase';
 import { buildStaffAuthorizationHeader } from '@/lib/pos-api-auth';
+import { getApiUrl } from '@/utils/orderUtils';
 
-const webBaseUrl = process.env.EXPO_PUBLIC_SITE_URL;
 const CLOSED_ORDER_STATUSES: OrderStatus[] = ['completed', 'cancelled'];
 
 export const useOrderActions = (
@@ -75,8 +75,8 @@ export const useOrderActions = (
   };
 
   const triggerOrderStatusEmail = async (orderId: string, status: string) => {
-    if (!webBaseUrl) {
-      console.warn('[OrderActions] EXPO_PUBLIC_SITE_URL is not configured; skipping status email.');
+    if (!process.env.EXPO_PUBLIC_API_URL) {
+      console.warn('[OrderActions] EXPO_PUBLIC_API_URL is not configured; skipping status email.');
       return;
     }
     try {
@@ -86,7 +86,7 @@ export const useOrderActions = (
         return;
       }
 
-      const response = await fetch(`${webBaseUrl}/api/pos/orders/status-email`, {
+      const response = await fetch(getApiUrl('/api/pos/orders/status-email'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

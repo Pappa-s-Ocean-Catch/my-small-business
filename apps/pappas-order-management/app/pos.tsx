@@ -1,3 +1,4 @@
+import { productTilePalette } from '@/lib/pos-tile-palette';
 import { ActionButton as Button } from '@/components/ui/ActionButton';
 import { PosSearchSheet } from '@/components/pos/PosSearchSheet';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -7,7 +8,7 @@ import { useNavigation, usePreventRemove, type NavigationAction } from '@react-n
 import { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Appbar, Menu } from 'react-native-paper';
 import { mergeEditableAddons, mergeEditableRemovals } from '@/components/pos/pos-draft';
-import { productGroupId } from '@/components/pos/pos-navigation';
+import { categoryMenuContext, productMenuContext, type ProductMenuContext } from '@/components/pos/pos-navigation';
 import { findPosProductConfig, getPosLayoutColumns, isPosTileVisible } from '@/lib/pos-layout-config';
 import { WorkspaceHeader, HeaderIconButton, EditorSheet } from '@/components/ui';
 import { useQueryClient } from '@tanstack/react-query';
@@ -52,7 +53,7 @@ import { CallerIdAppbarAction } from '@/components/pos/CallerIdAppbarAction';
 import { PosCartPane } from '../components/pos/PosCartPane';
 import { useCallerId } from '@/providers/CallerIdListenerProvider';
 import { PosDialogs } from '../components/pos/PosDialogs';
-import { missingRequiredAddonGroup, planProductTap, updateAddedLine } from '../components/pos/pos-draft';
+import { planProductTap, updateAddedLine } from '../components/pos/pos-draft';
 import { PosMenuPane } from '../components/pos/PosMenuPane';
 import type { PosCheckoutTab } from '../components/pos/PosCheckoutPanel';
 import { usePendingOnlinePaymentsStore } from '../stores/pendingOnlinePaymentsStore';
@@ -114,14 +115,6 @@ const cartItemHasCustomizations = (item: Pick<OrderItem, 'addons' | 'removed_ing
   || Boolean(item.comment)
 );
 
-const PRODUCT_TILE_PALETTE = [
-  { backgroundColor: '#fff7ed', borderColor: '#fed7aa', priceColor: '#c2410c' },
-  { backgroundColor: '#ecfdf5', borderColor: '#bbf7d0', priceColor: '#047857' },
-  { backgroundColor: '#eff6ff', borderColor: '#bfdbfe', priceColor: '#1d4ed8' },
-  { backgroundColor: '#fdf2f8', borderColor: '#fbcfe8', priceColor: '#be185d' },
-  { backgroundColor: '#f0fdfa', borderColor: '#99f6e4', priceColor: '#0f766e' },
-  { backgroundColor: '#fefce8', borderColor: '#fde68a', priceColor: '#a16207' },
-];
 const ADDON_GROUP_PALETTE = [
   { backgroundColor: '#eff6ff', borderColor: '#93c5fd', labelColor: '#1d4ed8' },
   { backgroundColor: '#ecfdf5', borderColor: '#86efac', labelColor: '#047857' },
@@ -136,11 +129,6 @@ const defaultPickupTime = () => {
   next.setMinutes(next.getMinutes() + 30);
   next.setSeconds(0, 0);
   return next;
-};
-
-const productTilePalette = (productId: string) => {
-  const hash = productId.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  return PRODUCT_TILE_PALETTE[hash % PRODUCT_TILE_PALETTE.length];
 };
 
 const addonGroupPalette = (groupId: string) => {
@@ -298,13 +286,12 @@ export default function PosScreen() {
   const [cartItems, setCartItems] = useState<PosCartItem[]>([]);
   const cartItemsForTap = useRef(cartItems);
   cartItemsForTap.current = cartItems;
-  const locallyChangedOptionLines = useRef(new Set<string>());
   const loadingProducts = false;
   const loadingSearchProducts = false;
   const [loadingTopSellers, setLoadingTopSellers] = useState(false);
   const [topSellerRefreshKey, setTopSellerRefreshKey] = useState(0);
   const [menuLevel, setMenuLevel] = useState<'groups' | 'subgroups' | 'items' | 'addons' | 'checkout' | 'search' | 'quick-list'>('groups');
-  const editorGroupId = useRef<string | null>(null);
+  const editorMenuContext = useRef<ProductMenuContext | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchVisible, setSearchVisible] = useState(false);
   const [groupQuery, setGroupQuery] = useState('');
@@ -1262,10 +1249,11 @@ export default function PosScreen() {
   }, [catalog]);
   const openCategory = (categoryId: string) => {
     setProductQuery('');
-    setSelectedParentCatId(null);
-    setSelectedCatId(categoryId);
+    const context = categoryMenuContext(categoryId, categories, posLayout);
+    setSelectedParentCatId(context.parentCategoryId);
+    setSelectedCatId(context.categoryId);
     setProducts([]);
-    setMenuLevel('items');
+    setMenuLevel(context.level);
   };
 
   const openSubcategory = (categoryId: string) => {
@@ -1298,9 +1286,10 @@ export default function PosScreen() {
 
   const backToItems = () => {
     clearEditor();
-    setSelectedParentCatId(null);
-    setSelectedCatId(editorGroupId.current);
-    setMenuLevel(editorGroupId.current ? 'items' : 'groups');
+    const context = editorMenuContext.current;
+    setSelectedParentCatId(context?.parentCategoryId ?? null);
+    setSelectedCatId(context?.categoryId ?? null);
+    setMenuLevel(context?.categoryId ? 'items' : 'groups');
     setPhoneViewTab('menu');
   };
 
@@ -1433,7 +1422,6 @@ export default function PosScreen() {
     const added = buildCartItem(product, 1, [], '', []);
     const currentCart = cartItemsForTap.current;
     const plan = planProductTap(currentCart, added, selectedFreeItemId);
-    locallyChangedOptionLines.current.add(plan.lineId);
     cartItemsForTap.current = plan.items;
     setCartItems(plan.items);
     setItemFeedback(`${product.name} added to order`);
@@ -1441,7 +1429,7 @@ export default function PosScreen() {
     if (!plan.inserted || options.forcePlainAdd) return;
     const customizedCopy = currentCart.some((item) => item.product_id === product.id && cartItemHasCustomizations(item));
     if ((!options.skipCustomization || customizedCopy) && catalog?.customizableIds.has(product.id)) {
-      editorGroupId.current = productGroupId(product, categories, posLayout, selectedParentCatId || selectedCatId);
+      editorMenuContext.current = productMenuContext(product, categories, posLayout, selectedParentCatId || selectedCatId);
       setQuickListVisible(false);
       setSearchVisible(false);
       setSelectedProduct(product);
@@ -1478,7 +1466,7 @@ export default function PosScreen() {
       is_active: true,
     };
 
-    editorGroupId.current = productGroupId(product, categories, posLayout, selectedParentCatId || selectedCatId);
+    editorMenuContext.current = productMenuContext(product, categories, posLayout, selectedParentCatId || selectedCatId);
     setSelectedProduct(product);
     setEditingItemId(item.id);
     setEditorQuantity(item.quantity);
@@ -1494,7 +1482,6 @@ export default function PosScreen() {
 
   const updateEditorLine = (changes: { quantity?: number; note?: string; quantities?: Record<string, number>; removedIds?: Record<string, boolean>; addonGroupId?: string }) => {
     if (preventPendingCartEdit() || !selectedProduct || !editingItemId) return;
-    locallyChangedOptionLines.current.add(editingItemId);
     const quantity = changes.quantity ?? editorQuantity;
     const note = changes.note ?? editorNote;
     setCartItems((current) => {
@@ -1515,23 +1502,6 @@ export default function PosScreen() {
   const changeEditorQuantity = (quantity: number) => { setEditorQuantity(quantity); updateEditorLine({ quantity }); };
   const changeEditorNote = (note: string) => { setEditorNote(note); updateEditorLine({ note }); };
   const confirmEditor = () => backToItems();
-
-  const validateCartModifiers = () => {
-    // Imported orders already carry provider-specific choices; do not reinterpret those mappings.
-    if (isMarketplaceManualImport || pendingInstoreSmartpayOrder) return true;
-    for (const item of cartItems) {
-      if (!item.product_id || item.id === selectedFreeItemId || !locallyChangedOptionLines.current.has(item.id)) continue;
-      const groups = catalog?.customizations.get(item.product_id)?.groups || [];
-      const missing = missingRequiredAddonGroup(groups, addonQuantitiesFromAddons(item.addons || []));
-      if (!missing) continue;
-      openCartItemEditor(item);
-      const message = `Choose an option from ${missing.name} for ${item.product_name}.`;
-      setEditorError(message);
-      Alert.alert('Required item options', message);
-      return false;
-    }
-    return true;
-  };
 
   const removeCartItem = (id: string) => {
     if (preventPendingCartEdit()) return;
@@ -1696,7 +1666,6 @@ export default function PosScreen() {
   };
 
   const handleCheckout = async (paymentOverride?: PosCheckoutPaymentOverride) => {
-    if (!validateCartModifiers()) return;
     if (preventPendingIndependentCheckout()) return;
     if (freeItemSelectionRequired) {
       setFreeItemDialogVisible(true);
@@ -1877,7 +1846,6 @@ export default function PosScreen() {
   };
 
   const handleSmartpayInstoreCheckout = async () => {
-    if (!validateCartModifiers()) return;
     if (freeItemSelectionRequired) {
       setFreeItemDialogVisible(true);
       Alert.alert('Free item available', 'Please choose the free promotion item before checkout.');
@@ -2059,7 +2027,6 @@ export default function PosScreen() {
   };
 
   const handleInstoreCheckout = async (payment: PosInstorePaymentChoice) => {
-    if (!validateCartModifiers()) return;
     if (freeItemSelectionRequired) {
       setFreeItemDialogVisible(true);
       Alert.alert('Free item available', 'Please choose the free promotion item before checkout.');
@@ -2258,7 +2225,6 @@ export default function PosScreen() {
   };
 
   const handleThirdPartyCheckout = async () => {
-    if (!validateCartModifiers()) return;
     if (preventPendingIndependentCheckout()) return;
     if (freeItemSelectionRequired) {
       setFreeItemDialogVisible(true);
@@ -2366,7 +2332,6 @@ export default function PosScreen() {
   const handleDeliveryCheckout = useCallback(async (
     input: { address: DeliveryAddressDraft; quote: DeliveryQuoteResult }
   ): Promise<void> => {
-    if (!validateCartModifiers()) return;
     if (preventPendingIndependentCheckout()) return;
     if (freeItemSelectionRequired) {
       setFreeItemDialogVisible(true);
@@ -2551,7 +2516,6 @@ export default function PosScreen() {
     freeItemDiscountAmount,
     getPosCartItemDisplayName,
     preventPendingIndependentCheckout,
-    validateCartModifiers,
     resetPosForNextOrder,
     upsertPendingOnlinePaymentSession,
   ]);
@@ -2606,13 +2570,13 @@ export default function PosScreen() {
     void handleInstoreCheckout(choice as PosInstorePaymentChoice);
   };
 
-  const activeCategoryName = activeLayoutCategory?.label || activeLayoutCategory?.title
+  const activeCategoryName = (selectedParentCatId ? categories.find((category) => category.id === selectedCatId)?.name : activeLayoutCategory?.label || activeLayoutCategory?.title)
     || categories.find((category) => category.id === selectedCatId)?.name
     || 'Menu';
   const activeParentCategoryName = activeLayoutCategory?.label || activeLayoutCategory?.title
     || categories.find((category) => category.id === selectedParentCatId)?.name
     || 'Menu';
-  const itemsBackAction = backToGroups;
+  const itemsBackAction = selectedParentCatId ? backToSubgroups : backToGroups;
   const itemsBackLabel = selectedParentCatId ? activeParentCategoryName : 'Groups';
   const quickQuantitiesByProductId = useMemo(() => {
     const map = new Map<string, number>();

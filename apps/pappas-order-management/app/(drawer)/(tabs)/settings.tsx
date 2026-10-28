@@ -51,11 +51,13 @@ function SettingsChoice({ selected, style, contentStyle, labelStyle, ...props }:
     return <Button {...props} mode="outlined" accessibilityState={{ ...props.accessibilityState, selected }} hitSlop={2} buttonColor={selected ? t.color.primaryTint : t.color.surface} textColor={selected ? t.color.primary : t.color.text} style={[{ height: 44, borderColor: selected ? '#80B9B5' : t.color.border }, style]} contentStyle={[contentStyle, { height: 44, minHeight: 44 }]} labelStyle={[{ fontSize: 14, marginHorizontal: 15, marginVertical: 9 }, labelStyle]} />;
 }
 
-type SettingsDialogKey = 'refresh' | 'sound' | 'printer' | 'savedPrinters' | 'liveOrders' | 'marketplace' | 'printDiagnostics' | 'journal' | 'storeInfo' | 'callerId' | 'routing' | 'receipts' | null;
+type SettingsDialogKey = 'refresh' | 'sound' | 'uberSound' | 'doorDashSound' | 'printer' | 'savedPrinters' | 'liveOrders' | 'marketplace' | 'printDiagnostics' | 'journal' | 'storeInfo' | 'callerId' | 'routing' | 'receipts' | null;
 
 const SETTINGS_MODAL_TITLES: Record<Exclude<SettingsDialogKey, null>, string> = {
     refresh: 'Refresh interval',
     sound: 'Order sound',
+    uberSound: 'Uber Eats alarm',
+    doorDashSound: 'DoorDash alarm',
     printer: 'Kitchen printer',
     savedPrinters: 'Kitchen printer',
     routing: 'Printer section routing',
@@ -84,6 +86,12 @@ export default function SettingsScreen() {
     const [soundEnabled, setSoundEnabled] = useState<boolean>(DEFAULT_APP_SETTINGS.soundEnabled);
     const [soundId, setSoundId] = useState<SoundId>(DEFAULT_APP_SETTINGS.soundId);
     const [repeatCountText, setRepeatCountText] = useState(String(DEFAULT_APP_SETTINGS.soundRepeatCount));
+    const [marketplaceUberSoundEnabled, setMarketplaceUberSoundEnabled] = useState(DEFAULT_APP_SETTINGS.marketplaceUberSoundEnabled);
+    const [marketplaceUberSoundId, setMarketplaceUberSoundId] = useState<SoundId>(DEFAULT_APP_SETTINGS.marketplaceUberSoundId);
+    const [uberRepeatCountText, setUberRepeatCountText] = useState(String(DEFAULT_APP_SETTINGS.marketplaceUberSoundRepeatCount));
+    const [marketplaceDoorDashSoundEnabled, setMarketplaceDoorDashSoundEnabled] = useState(DEFAULT_APP_SETTINGS.marketplaceDoorDashSoundEnabled);
+    const [marketplaceDoorDashSoundId, setMarketplaceDoorDashSoundId] = useState<SoundId>(DEFAULT_APP_SETTINGS.marketplaceDoorDashSoundId);
+    const [doorDashRepeatCountText, setDoorDashRepeatCountText] = useState(String(DEFAULT_APP_SETTINGS.marketplaceDoorDashSoundRepeatCount));
     const [liveOrderCardLayout, setLiveOrderCardLayout] = useState<'horizontal' | 'vertical'>(DEFAULT_APP_SETTINGS.liveOrderCardLayout);
     const [liveOrderCardsPerScreen, setLiveOrderCardsPerScreen] = useState<3 | 4>(DEFAULT_APP_SETTINGS.liveOrderCardsPerScreen);
     const [liveOrderCardPreviewItems, setLiveOrderCardPreviewItems] = useState(DEFAULT_APP_SETTINGS.liveOrderCardPreviewItems);
@@ -145,6 +153,12 @@ export default function SettingsScreen() {
         setSoundEnabled(currentSettings.soundEnabled);
         setSoundId(currentSettings.soundId);
         setRepeatCountText(String(currentSettings.soundRepeatCount));
+        setMarketplaceUberSoundEnabled(currentSettings.marketplaceUberSoundEnabled);
+        setMarketplaceUberSoundId(currentSettings.marketplaceUberSoundId);
+        setUberRepeatCountText(String(currentSettings.marketplaceUberSoundRepeatCount));
+        setMarketplaceDoorDashSoundEnabled(currentSettings.marketplaceDoorDashSoundEnabled);
+        setMarketplaceDoorDashSoundId(currentSettings.marketplaceDoorDashSoundId);
+        setDoorDashRepeatCountText(String(currentSettings.marketplaceDoorDashSoundRepeatCount));
         setLiveOrderCardLayout(currentSettings.liveOrderCardLayout);
         setLiveOrderCardsPerScreen(currentSettings.liveOrderCardsPerScreen);
         setLiveOrderCardPreviewItems(currentSettings.liveOrderCardPreviewItems);
@@ -195,6 +209,12 @@ export default function SettingsScreen() {
             setSoundEnabled(soundEnabled);
             setSoundId(soundId);
             setRepeatCountText(repeatCountText);
+            setMarketplaceUberSoundEnabled(marketplaceUberSoundEnabled);
+            setMarketplaceUberSoundId(marketplaceUberSoundId);
+            setUberRepeatCountText(uberRepeatCountText);
+            setMarketplaceDoorDashSoundEnabled(marketplaceDoorDashSoundEnabled);
+            setMarketplaceDoorDashSoundId(marketplaceDoorDashSoundId);
+            setDoorDashRepeatCountText(doorDashRepeatCountText);
             setLiveOrderCardLayout(liveOrderCardLayout);
             setLiveOrderCardsPerScreen(liveOrderCardsPerScreen);
             setLiveOrderCardPreviewItems(liveOrderCardPreviewItems);
@@ -285,6 +305,11 @@ export default function SettingsScreen() {
     })();
     const refreshSummary = `Every ${refreshIntervalSecText} seconds`;
     const soundSummary = soundEnabled ? `${selectedSoundLabel} • ${repeatCountText} plays` : 'Disabled';
+    const marketplaceSoundControls = {
+        uberSound: { label: 'Uber Eats', enabled: marketplaceUberSoundEnabled, setEnabled: setMarketplaceUberSoundEnabled, soundId: marketplaceUberSoundId, setSoundId: setMarketplaceUberSoundId, repeats: uberRepeatCountText, setRepeats: setUberRepeatCountText },
+        doorDashSound: { label: 'DoorDash', enabled: marketplaceDoorDashSoundEnabled, setEnabled: setMarketplaceDoorDashSoundEnabled, soundId: marketplaceDoorDashSoundId, setSoundId: setMarketplaceDoorDashSoundId, repeats: doorDashRepeatCountText, setRepeats: setDoorDashRepeatCountText },
+    };
+    const marketplaceSoundEditor = activeDialog === 'uberSound' || activeDialog === 'doorDashSound' ? marketplaceSoundControls[activeDialog] : null;
     const liveOrdersSummary = liveOrderCardLayout === 'vertical'
         ? `Vertical (${liveOrderCardsPerScreen} cards)`
         : 'Horizontal';
@@ -687,6 +712,8 @@ export default function SettingsScreen() {
         const resolvedMarketplaceAutoSyncEnabled = marketplaceDoorDashSyncEnabled || marketplaceUberSyncEnabled;
         const resolvedMarketplaceSyncIntervalSec = Math.min(marketplaceDoorDashSyncIntervalSec, marketplaceUberSyncIntervalSec);
         const soundRepeatCount = parseIntOr(repeatCountText, DEFAULT_APP_SETTINGS.soundRepeatCount);
+        const marketplaceUberSoundRepeatCount = parseIntOr(uberRepeatCountText, DEFAULT_APP_SETTINGS.marketplaceUberSoundRepeatCount);
+        const marketplaceDoorDashSoundRepeatCount = parseIntOr(doorDashRepeatCountText, DEFAULT_APP_SETTINGS.marketplaceDoorDashSoundRepeatCount);
         const callerIdPort = parseIntOr(callerIdPortText, DEFAULT_APP_SETTINGS.callerIdPort);
         const callerIdDisplaySeconds = parseIntOr(callerIdDisplaySecondsText, DEFAULT_APP_SETTINGS.callerIdDisplaySeconds);
         const callerIdSipResponses = callerIdSipResponsesText.split(',').map(s => s.trim()).filter(s => s.length > 0);
@@ -712,7 +739,7 @@ export default function SettingsScreen() {
             Alert.alert('Invalid marketplace sync window', 'Set a start and end time in HH:MM format, with the end time after the start time.');
             return;
         }
-        if (soundRepeatCount < 1 || soundRepeatCount > 10) {
+        if ([soundRepeatCount, marketplaceUberSoundRepeatCount, marketplaceDoorDashSoundRepeatCount].some(count => count < 1 || count > 10)) {
             Alert.alert('Invalid play count', 'Please enter a value between 1 and 10.');
             return;
         }
@@ -787,6 +814,12 @@ export default function SettingsScreen() {
                 soundEnabled,
                 soundId,
                 soundRepeatCount,
+                marketplaceUberSoundEnabled,
+                marketplaceUberSoundId,
+                marketplaceUberSoundRepeatCount,
+                marketplaceDoorDashSoundEnabled,
+                marketplaceDoorDashSoundId,
+                marketplaceDoorDashSoundRepeatCount,
                 liveOrderCardLayout,
                 liveOrderCardsPerScreen,
                 liveOrderCardPreviewItems,
@@ -966,6 +999,11 @@ export default function SettingsScreen() {
                         icon="volume-high"
                         onPress={() => setActiveDialog('sound')}
                     />
+                    {(['uberSound', 'doorDashSound'] as const).map(key => {
+                        const alarm = marketplaceSoundControls[key];
+                        const label = SOUND_OPTIONS.find(option => option.id === alarm.soundId)?.label ?? alarm.soundId;
+                        return <SettingsActionTile key={key} title={`${alarm.label} alarm`} description={alarm.enabled ? `${label} • ${alarm.repeats} plays` : 'Disabled'} icon="bell-ring-outline" onPress={() => setActiveDialog(key)} />;
+                    })}
                     <SettingsActionTile
                         title="Live order cards"
                         description={liveOrdersSummary}
@@ -1125,6 +1163,22 @@ export default function SettingsScreen() {
                                         ))}
                                     </View>)}
 
+                                </>
+                            )}
+
+                            {marketplaceSoundEditor && (
+                                <>
+                                    <Text style={styles.helper}>Independent of online orders and the other marketplace. Applies on this device, even when auto-print is off.</Text>
+                                    <View style={styles.switchRow}>
+                                        <Text style={styles.label}>{marketplaceSoundEditor.label} sound alarm</Text>
+                                        <Switch accessibilityLabel={`${marketplaceSoundEditor.label} sound alarm`} value={marketplaceSoundEditor.enabled} onValueChange={marketplaceSoundEditor.setEnabled} />
+                                    </View>
+                                    <Button mode="outlined" style={styles.selectButton} onPress={() => setSelection({ title: `Choose ${marketplaceSoundEditor.label} sound`, value: marketplaceSoundEditor.soundId, options: SOUND_OPTIONS.map(option => ({ value: option.id, label: option.label })), confirmLabel: 'Use selected sound', onSelect: value => marketplaceSoundEditor.setSoundId(value as SoundId) })}>
+                                        {SOUND_OPTIONS.find(option => option.id === marketplaceSoundEditor.soundId)?.label ?? marketplaceSoundEditor.soundId}
+                                    </Button>
+                                    <FormField mode="outlined" label="Play times" value={marketplaceSoundEditor.repeats} onChangeText={marketplaceSoundEditor.setRepeats} keyboardType="number-pad" style={styles.input} />
+                                    <Text style={styles.helper}>1 to 10 plays. New order alarms use a 1 second gap between plays.</Text>
+                                    <Button mode="contained-tonal" style={styles.previewButton} onPress={() => playNewOrderSound({ soundId: marketplaceSoundEditor.soundId, repeatCount: parseIntOr(marketplaceSoundEditor.repeats, 3), delayMs: 1000 })}>Preview sound</Button>
                                 </>
                             )}
 

@@ -1,6 +1,31 @@
 import type { SaleCategory, SaleProduct } from '../../app/pos.types';
 import type { PosLayoutData } from '../../lib/pos-layout-config';
 
+export type ProductMenuContext = { level: 'items' | 'subgroups'; categoryId: string | null; parentCategoryId: string | null };
+
+export function categoryMenuContext(categoryId: string, categories: SaleCategory[], layout: PosLayoutData | null): ProductMenuContext {
+  const group = layout?.categories.find(category => category.categoryId === categoryId);
+  const sources = group?.sourceCategoryIds?.length ? group.sourceCategoryIds : [categoryId];
+  const hasChildren = categories.some(category => sources.includes(category.parent_category_id || ''));
+  return hasChildren && !group?.showProductsOnTopLevel
+    ? { level: 'subgroups', categoryId: null, parentCategoryId: categoryId }
+    : { level: 'items', categoryId, parentCategoryId: null };
+}
+
+/** Keep modifier returns in the product's child category, including search/cart origins. */
+export function productMenuContext(product: SaleProduct, categories: SaleCategory[], layout: PosLayoutData | null, preferredId?: string | null): ProductMenuContext {
+  const groupId = productGroupId(product, categories, layout, preferredId);
+  if (!groupId) return { level: 'items', categoryId: null, parentCategoryId: null };
+  const context = categoryMenuContext(groupId, categories, layout);
+  if (context.level === 'subgroups') {
+    const group = layout?.categories.find(category => category.categoryId === groupId);
+    const sources = group?.sourceCategoryIds?.length ? group.sourceCategoryIds : [groupId];
+    const child = categories.find(category => category.id === (product.sub_category_id || product.sale_category_id) && sources.includes(category.parent_category_id || ''));
+    if (child) return { level: 'items', categoryId: child.id, parentCategoryId: groupId };
+  }
+  return { level: 'items', categoryId: groupId, parentCategoryId: null };
+}
+
 /** Return modifiers to the same visible group, including virtual groups and search origins. */
 export function productGroupId(product: SaleProduct, categories: SaleCategory[], layout: PosLayoutData | null, preferredId?: string | null): string | null {
   const hiddenSourceIds = new Set(layout?.categories.filter(c => c.hideSourceCategories).flatMap(c => c.sourceCategoryIds?.length ? c.sourceCategoryIds : [c.categoryId]));

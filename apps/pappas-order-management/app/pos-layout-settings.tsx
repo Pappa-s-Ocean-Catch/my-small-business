@@ -1,3 +1,4 @@
+import { POS_TILE_COLORS as COLOR_OPTIONS } from '@/lib/pos-tile-palette';
 import { ActionButton as Button } from '@/components/ui/ActionButton';
 import { EditorSheet } from '@/components/ui/EditorSheet';
 import { ChoiceTabs } from '@/components/ui/ChoiceTabs';
@@ -49,25 +50,6 @@ type LayoutGroupView = Omit<PosLayoutCategory, 'sourceCategoryIds'> & {
   sourceNames: string[];
   isVirtual: boolean;
 };
-
-const COLOR_OPTIONS = [
-  '#1f2937',
-  '#1d4ed8',
-  '#047857',
-  '#b91c1c',
-  '#7e22ce',
-  '#c2410c',
-  '#0f766e',
-  '#ca8a04',
-  '#be123c',
-  '#4338ca',
-  '#0369a1',
-  '#15803d',
-  '#a16207',
-  '#0e7490',
-  '#6d28d9',
-  '#9f1239',
-];
 
 const normalizeHexColor = (value: string) => {
   const trimmed = value.trim();
@@ -477,7 +459,7 @@ export default function PosLayoutSettingsScreen() {
 
   const loadExample = (chip: boolean) => confirmReplace(() => {
     const example = buildDefaultLayout(categories, products);
-    example.appearance = { background: '#FFFFFF', text: '#172E3A', fontSize: chip ? 14 : 16, fontWeight: 700, align: 'left', height: chip ? 88 : 104 };
+    example.appearance = { background: '#FFFFFF', text: '#172E3A', fontSize: chip ? 14 : 16, fontWeight: 700, align: 'center', height: chip ? 88 : 116 };
     example.categories = example.categories.map(({ color, ...category }) => category);
     example.columnsExpanded = 4; example.columnsPhone = 2;
     if (chip) example.categories.sort((a, b) => Number(!/chip/i.test(a.title || '')) - Number(!/chip/i.test(b.title || '')));
@@ -740,7 +722,7 @@ export default function PosLayoutSettingsScreen() {
               <ChoiceTabs variant="choices" value={String(targetAppearance.fontWeight)} onValueChange={v => changeAppearance({ fontWeight: Number(v) })} buttons={[{ value: '400', label: 'Regular' }, { value: '600', label: 'Semibold' }, { value: '700', label: 'Bold' }, { value: '800', label: 'Heavy' }]} />
               <ChoiceTabs variant="choices" value={targetAppearance.align} onValueChange={v => changeAppearance({ align: v as 'left' | 'center' | 'right' })} buttons={['left','center','right'].map(v => ({ value: v, label: v }))} />
               <Text style={styles.editorSectionLabel}>Minimum tile height</Text>
-              <ChoiceTabs variant="choices" value={String(targetAppearance.height)} onValueChange={v => changeAppearance({ height: Number(v) })} buttons={[88,104,128,152].map(v => ({ value: String(v), label: String(v) }))} />
+              <ChoiceTabs variant="choices" value={String(targetAppearance.height)} onValueChange={v => changeAppearance({ height: Number(v) })} buttons={[88,104,116,128,152].map(v => ({ value: String(v), label: String(v) }))} />
               {tileTarget.productId && <Button onPress={() => toggleProductQuickList(tileTarget.productId!)}>{targetTile && 'showOnQuickList' in targetTile && targetTile.showOnQuickList ? 'Hide from Quick List' : 'Show in Quick List'}</Button>}
               <Button onPress={() => changeTile({ visible: targetTile?.visible === false })}>{targetTile?.visible === false ? 'Restore tile' : 'Hide tile'}</Button>
             </>}

@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'expo-router';
 import { useAppSettingsQuery } from '@/hooks/useAppSettingsQuery';
 import { supabase } from '@/lib/supabase';
 import { DEFAULT_APP_SETTINGS } from '@/lib/settings';
+import { getApiUrl } from '@/utils/orderUtils';
 import { searchCustomers, findCustomerByPhone } from '@/lib/customers';
 import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
 import * as CallerIdListener from '@my-small-business/caller-id-listener';
@@ -218,16 +219,7 @@ export const CallerIdListenerProvider: React.FC<{ children: React.ReactNode; aut
       // Fetch the ephemeral token for OpenAI Realtime
       const fetchToken = async () => {
         try {
-          // Assuming POS apps run against the production/staging backend URL via NEXT_PUBLIC_API_URL or relative
-          // We'll just try hitting /api/pos/realtime-session assuming it's available locally or handled via proxy
-          // Wait, the POS app might not have a direct route without a domain. 
-          // I will use a simple fetch to the backend if configured, but for safety in the template, I'll catch errors.
-          // Wait, the POS app usually has a NEXT_PUBLIC_API_URL or similar for fetching from backend. 
-          // We can use a generic fetch since we're in the React Native layer. 
-          // Actually, this app uses `supabase` for DB, does it have an API URL? I'll just use a placeholder domain or relative path if not available.
-          // Let's assume the API URL is known or handled by an environment variable.
-          const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
-          const res = await fetch(`${apiUrl}/api/pos/realtime-session`, { method: 'POST' });
+          const res = await fetch(getApiUrl('/api/pos/realtime-session'), { method: 'POST' });
           if (!res.ok) throw new Error('Failed to get realtime session token');
           const data = await res.json();
           CallerIdListener.start(targetPort, targetResponses, true, data.client_secret?.value, settings.fallbackNumber);

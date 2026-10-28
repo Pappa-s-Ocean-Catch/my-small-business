@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import type { Order, OrderItem, OrderItemAddon, OrderStatus, PaymentStatus } from '@my-small-business/types';
-import { getOrderNotes, getOrderOptions } from '../utils/orderUtils';
+import { getApiUrl, getOrderNotes, getOrderOptions } from '../utils/orderUtils';
 import { getSettlementPaymentMethod } from './order-payment-status';
 import type { DeliveryAddressDraft, DeliveryQuoteResult } from './delivery';
 import { isMarketplaceImportDuplicateError } from './marketplace-pos-import';
@@ -533,9 +533,9 @@ export async function updatePendingDeliveryOrder(
 
 export async function notifyDeliveryReady(orderId: string): Promise<{ success: boolean; trackingUrl?: string | null; error: string | null }> {
   try {
-    const base = process.env.EXPO_PUBLIC_SITE_URL;
+    const base = process.env.EXPO_PUBLIC_API_URL;
     if (!base) {
-      return { success: false, error: 'EXPO_PUBLIC_SITE_URL is not configured' };
+      return { success: false, error: 'EXPO_PUBLIC_API_URL is not configured' };
     }
 
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -543,7 +543,7 @@ export async function notifyDeliveryReady(orderId: string): Promise<{ success: b
       return { success: false, error: sessionError?.message || 'Missing authenticated session' };
     }
 
-    const response = await fetch(`${base}/api/delivery/ready`, {
+    const response = await fetch(getApiUrl('/api/delivery/ready'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -575,9 +575,9 @@ export async function notifyDeliveryReady(orderId: string): Promise<{ success: b
 
 export async function refreshDeliveryStatus(orderId: string): Promise<{ data: Order | null; error: string | null; synced?: boolean }> {
   try {
-    const base = process.env.EXPO_PUBLIC_SITE_URL;
+    const base = process.env.EXPO_PUBLIC_API_URL;
     if (!base) {
-      return { data: null, error: 'EXPO_PUBLIC_SITE_URL is not configured' };
+      return { data: null, error: 'EXPO_PUBLIC_API_URL is not configured' };
     }
 
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -585,7 +585,7 @@ export async function refreshDeliveryStatus(orderId: string): Promise<{ data: Or
       return { data: null, error: sessionError?.message || 'Missing authenticated session' };
     }
 
-    const response = await fetch(`${base}/api/delivery/status`, {
+    const response = await fetch(getApiUrl('/api/delivery/status'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

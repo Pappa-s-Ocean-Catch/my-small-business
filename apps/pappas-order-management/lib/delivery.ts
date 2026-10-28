@@ -1,8 +1,8 @@
 import { Linking } from 'react-native';
 import { supabase } from './supabase';
 import { buildStaffAuthorizationHeader } from './pos-api-auth';
+import { getApiUrl } from '../utils/orderUtils';
 
-const DEFAULT_SITE_URL = 'https://www.pappasfishnchips.com.au';
 const DEFAULT_STORE_ADDRESS = {
   address_line1: 'Shop 2/87 Unitt Street',
   city: 'Melton',
@@ -49,12 +49,8 @@ export type DeliveryFeeSummary = {
   totalAmount: number;
 };
 
-function getWebBaseUrl() {
-  return (process.env.EXPO_PUBLIC_SITE_URL || DEFAULT_SITE_URL).trim();
-}
-
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${getWebBaseUrl()}${path}`, {
+  const response = await fetch(getApiUrl(path), {
     ...init,
     headers: {
       'Content-Type': 'application/json',
