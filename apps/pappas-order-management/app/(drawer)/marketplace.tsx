@@ -1,3 +1,5 @@
+import { AppModal as NativeModal } from '@/components/ui/AppModal';
+import { appDialog as Alert } from '@/lib/app-dialog';
 import { ActionButton as Button } from '@/components/ui/ActionButton';
 import { WorkspaceShell } from '@/components/ui/WorkspaceShell';
 import { SearchField } from '@/components/ui';
@@ -8,8 +10,8 @@ import { useWindowDimensions } from 'react-native';
 import { designTokens as t } from '@/lib/redesign';
 import { FormField, PageHeader } from '@/components/ui';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Modal as NativeModal, RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Appbar, Card, Checkbox, IconButton, Menu, Modal, Portal, Surface, Text, TextInput } from 'react-native-paper';
+import { RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Appbar, Card, Checkbox, IconButton, Menu, Portal, Surface, Text, TextInput } from 'react-native-paper';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { useRouter } from 'expo-router';

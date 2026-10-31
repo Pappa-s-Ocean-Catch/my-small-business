@@ -2,6 +2,8 @@ import { ActionButton as Button } from '@/components/ui/ActionButton';
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, type GestureResponderEvent } from 'react-native';
 
+import { Icon } from 'react-native-paper';
+
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import type { SavedPrinter } from '@/lib/escpos-printer';
 import type { OrderPrintState } from '@/stores/printerAutomationStore';
@@ -78,7 +80,8 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
   const remaining = Math.max(0, (order.items?.length || 0) - items.length);
   const pickup = order.scheduled_pickup_at ? `Pickup ${new Date(order.scheduled_pickup_at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : 'ASAP';
   const delivery = [order.delivery_driver_name ? `Driver ${order.delivery_driver_name}` : null, order.delivery_driver_pin ? `PIN ${order.delivery_driver_pin}` : null].filter(Boolean).join(' · ');
-  const printLabel = printState ? ({ failed: 'Print failed', printing: 'Printing…', queued: 'Print queued', success: 'Printed' } as Record<string, string>)[printState.status] : null;
+  const printed = printState?.status === 'success';
+  const printLabel = printState ? ({ failed: 'Print failed', printing: 'Printing…', queued: 'Print queued' } as Record<string, string>)[printState.status] : null;
   return <Pressable accessible={false} onPress={() => onOrderPress(order)} style={[s.card, { height: cardHeight, borderTopColor: tone === 'success' ? t.color.success : tone === 'danger' ? t.color.danger : t.color.warning }, layout === 'horizontal' && s.wide, cardWidth != null && { width: cardWidth }, compact && { marginBottom: 8 }]}>
     <ScrollView style={[s.identity, { height: headerHeight }]} contentContainerStyle={s.identityContent} nestedScrollEnabled>
       <Pressable accessibilityRole="button" accessibilityLabel={`Open order ${getFriendlyOrderNumber(order.order_number)}`} onPress={separateAction(() => onOrderPress(order))} style={s.row}><Text style={s.number}>#{getFriendlyOrderNumber(order.order_number)}</Text><StatusBadge label={elapsed.text} tone={elapsedTone} /></Pressable>
@@ -114,10 +117,10 @@ export const LiveOrderListItem: React.FC<LiveOrderListItemProps> = ({
       {quickAction && <Button mode="contained" onPress={separateAction(() => onQuickAction(order, quickAction.action))} loading={feedback?.isUpdating} disabled={feedback?.isUpdating || smartpayProcessing} contentStyle={controlContent}>{feedback?.label ?? quickAction.label}</Button>}
       </View>
       <View style={[s.actions, { height: controlHeight }]}>
-        <ManualPrintButton printers={availablePrinters} mode="button" label="Print" style={secondaryStyle} renderTrigger={({ onPress, disabled, loading }) => <Button mode="outlined" icon="printer" style={secondaryStyle} contentStyle={controlContent} disabled={disabled} loading={loading} onPress={separateAction(onPress)}>Print</Button>} onSelectPrinter={(printer) => onPrintPress(order, printer)} />
+        <ManualPrintButton printers={availablePrinters} mode="button" label="Print" style={secondaryStyle} renderTrigger={({ onPress, disabled, loading }) => <Button mode="outlined" accessibilityLabel={printed ? 'Print order, already printed' : 'Print order'} icon={printed ? ({ size }) => <Icon source="printer-check" size={size} color={t.color.success} /> : 'printer'} style={secondaryStyle} contentStyle={controlContent} disabled={disabled} loading={loading} onPress={separateAction(onPress)}>Print</Button>} onSelectPrinter={(printer) => onPrintPress(order, printer)} />
       {canSmartpay && <Button mode="outlined" icon="credit-card-wireless-outline" accessibilityHint={!smartpayPaired ? 'Pair a SmartPay terminal in Settings to take payment' : 'Start payment on the paired terminal'} onPress={separateAction(() => onSmartpayPayment?.(order))} loading={smartpayProcessing} disabled={!smartpayPaired || smartpayProcessing || busy} style={secondaryStyle} contentStyle={controlContent}>SmartPay</Button>}
       </View>
-      <View style={s.printSlot}>{printLabel && <StatusBadge label={printLabel} tone={printState?.status === 'failed' ? 'danger' : printState?.status === 'success' ? 'success' : 'neutral'} />}</View>
+      <View style={s.printSlot}>{printLabel && <StatusBadge label={printLabel} tone={printState?.status === 'failed' ? 'danger' : 'neutral'} />}</View>
     </View>
   </Pressable>;
 };

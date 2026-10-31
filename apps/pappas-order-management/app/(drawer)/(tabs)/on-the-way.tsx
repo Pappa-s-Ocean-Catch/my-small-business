@@ -1,9 +1,10 @@
+import { appDialog as Alert } from '@/lib/app-dialog';
 import { ActionButton as PaperButton } from '@/components/ui/ActionButton';
 import { useOrderHeaderActions } from '@/components/navigation/order-header-actions';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { designTokens as t } from '@/lib/redesign';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, RefreshControl, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { useQueryClient } from '@tanstack/react-query';
 

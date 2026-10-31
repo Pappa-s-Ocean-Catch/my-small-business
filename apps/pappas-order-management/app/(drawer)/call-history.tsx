@@ -1,10 +1,11 @@
+import { appDialog as Alert } from '@/lib/app-dialog';
 import { ActionButton as Button } from '@/components/ui/ActionButton';
 import { SearchField, AsyncState } from '@/components/ui';
 import { WorkspaceHeader } from '@/components/ui';
 import { designTokens as t } from '@/lib/redesign';
 import { StatusBadge } from '@/components/ui';
 import React, { useEffect, useState, useRef } from 'react';
-import { View, StyleSheet, FlatList, RefreshControl, Alert, useWindowDimensions } from 'react-native';
+import { View, StyleSheet, FlatList, RefreshControl, useWindowDimensions } from 'react-native';
 import { Text, IconButton } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';

@@ -22,6 +22,7 @@ export const applyPosLayout = async (layout: PosLayoutData, name = 'Local POS la
   const record: PosLayoutRecord = { id: id || 'local-active', name, layout: normalizePosLayout(layout), is_default: false, created_at: now, updated_at: now };
   await AsyncStorage.setItem(ACTIVE_POS_LAYOUT_KEY, JSON.stringify(record));
   await setSelectedPosLayoutId(id);
+  return record;
 };
 
 export const getSelectedPosLayoutId = async () => AsyncStorage.getItem(SELECTED_POS_LAYOUT_KEY);

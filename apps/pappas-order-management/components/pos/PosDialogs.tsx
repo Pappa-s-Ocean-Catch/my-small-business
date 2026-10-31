@@ -1,3 +1,4 @@
+import { SelectionSheet } from '@/components/ui/SelectionSheet';
 import { EditorSheet, FormField } from '@/components/ui';
 import { ChoiceTabs } from '@/components/ui/ChoiceTabs';
 import { designTokens as t } from '@/lib/redesign';
@@ -27,6 +28,7 @@ type Props = {
   onCancelCashTender: () => void;
   onConfirmCashTender: () => void;
   smartpayProcessing: boolean;
+  smartpayPaired: boolean;
   smartpayOrderNumber: string | null;
   smartpayProgressStage: SmartpayCheckoutProgressStage | null;
   smartpayDialogMinimized: boolean;
@@ -69,6 +71,7 @@ export function PosDialogs({
   onCancelCashTender,
   onConfirmCashTender,
   smartpayProcessing,
+  smartpayPaired,
   smartpayOrderNumber,
   smartpayProgressStage,
   smartpayDialogMinimized,
@@ -102,10 +105,6 @@ export function PosDialogs({
   onApplyCouponDiscount,
   onClearDiscount,
 }: Props) {
-  const [saltDraft, setSaltDraft] = useState<string | null>(quickOrderNote);
-  const [paymentDraft, setPaymentDraft] = useState<PosInstorePaymentChoice | EditedOrderPaymentChoice>('cash');
-  useEffect(() => { if (saltOptionDialogVisible) setSaltDraft(quickOrderNote); }, [saltOptionDialogVisible, quickOrderNote]);
-  useEffect(() => { if (instorePaymentDialogVisible) setPaymentDraft('cash'); }, [instorePaymentDialogVisible]);
   const [discountType, setDiscountType] = useState('percent');
   const [customPercent, setCustomPercent] = useState('');
   const [customAmount, setCustomAmount] = useState('');
@@ -219,37 +218,10 @@ export function PosDialogs({
           </Dialog.Actions>
         </Dialog>
 
-        <Dialog
-          visible={saltOptionDialogVisible}
+        <SelectionSheet
+          selection={saltOptionDialogVisible ? { title: 'Salt preference', value: quickOrderNote || '', options: quickOrderNotes.map(note => ({ value: note, label: note })), onSelect: setQuickOrderNote } : null}
           onDismiss={() => setSaltOptionDialogVisible(false)}
-          style={styles.noteDialog}
-        >
-          <Dialog.Title>Salt preference</Dialog.Title>
-          <Dialog.Content>
-            <View style={{ gap: 10 }}>
-              {quickOrderNotes.map((note) => {
-                const selected = saltDraft === note;
-                return (
-                  <TouchableOpacity
-                    key={note}
-                    accessibilityRole="radio" accessibilityState={{ checked: selected }} style={{ minHeight: 50, borderWidth: 1, borderColor: selected ? t.color.primary : t.color.border, borderRadius: 10, backgroundColor: selected ? t.color.primaryTint : t.color.surface, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 14 }}
-                    onPress={() => {
-                      setSaltDraft(note);
-                    }}
-                  >
-                    <Text style={{ color: selected ? t.color.primary : t.color.muted }}>{selected ? '◉' : '○'}</Text><Text style={{ color: t.color.text, fontSize: 16 }}>
-                      {note}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button mode="outlined" onPress={() => setSaltOptionDialogVisible(false)}>Cancel</Button>
-            <Button mode="contained" onPress={() => { setQuickOrderNote(saltDraft); setSaltOptionDialogVisible(false); }}>Use preference</Button>
-          </Dialog.Actions>
-        </Dialog>
+        />
 
         <Dialog size="options" visible={Boolean(noteItemId)} onDismiss={closeNoteEditor} style={styles.noteDialog}>
           <Dialog.Title>Item note</Dialog.Title>
@@ -290,16 +262,20 @@ export function PosDialogs({
           </Dialog.Actions>
         </Dialog>
 
-        <Dialog
-          visible={instorePaymentDialogVisible}
+        <SelectionSheet
+          selection={instorePaymentDialogVisible ? {
+            title: isEditingOrder ? 'Update order payment' : 'Complete in-store order',
+            value: '',
+            options: [
+              { value: 'cash', label: 'Cash' },
+              { value: 'card', label: 'Card' },
+              { value: 'smartpay', label: 'SmartPay', disabled: !smartpayPaired || smartpayProcessing, description: !smartpayPaired ? 'Pair a SmartPay terminal in Settings to use this option.' : undefined },
+              { value: 'unpaid', label: 'Unpaid' },
+            ],
+            onSelect: choice => onChooseInstorePayment(choice as EditedOrderPaymentChoice),
+          } : null}
           onDismiss={() => setInstorePaymentDialogVisible(false)}
-          style={styles.noteDialog}
-        >
-          <Dialog.Title>{isEditingOrder ? 'Update order payment' : 'Complete in-store order'}</Dialog.Title>
-          <Dialog.Content><View style={{ gap: 10 }}>{(['cash', 'card', ...(isEditingOrder ? ['smartpay'] : []), 'unpaid'] as (PosInstorePaymentChoice | EditedOrderPaymentChoice)[]).map(choice => <TouchableOpacity key={choice} accessibilityRole="radio" accessibilityState={{ checked: paymentDraft === choice }} onPress={() => setPaymentDraft(choice)} style={{ minHeight: 50, borderWidth: 1, borderColor: paymentDraft === choice ? t.color.primary : t.color.border, borderRadius: 10, backgroundColor: paymentDraft === choice ? t.color.primaryTint : t.color.surface, padding: 14, flexDirection: 'row', gap: 14 }}><Text style={{ color: t.color.primary }}>{paymentDraft === choice ? '◉' : '○'}</Text><Text style={{ color: t.color.text }}>{choice === 'smartpay' ? 'Smartpay' : choice[0].toUpperCase() + choice.slice(1)}</Text></TouchableOpacity>)}</View></Dialog.Content>
-          <Dialog.Actions><Button mode="outlined" onPress={() => setInstorePaymentDialogVisible(false)}>Cancel</Button><Button mode="contained" onPress={() => onChooseInstorePayment(paymentDraft)}>Continue</Button>
-          </Dialog.Actions>
-        </Dialog>
+        />
 
         <Dialog
           visible={freeItemDialogVisible}

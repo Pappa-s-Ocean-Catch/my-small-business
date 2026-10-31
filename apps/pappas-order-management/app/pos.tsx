@@ -1,14 +1,15 @@
+import { appDialog as Alert } from '@/lib/app-dialog';
 import { productTilePalette } from '@/lib/pos-tile-palette';
 import { ActionButton as Button } from '@/components/ui/ActionButton';
 import { PosSearchSheet } from '@/components/pos/PosSearchSheet';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, FlatList, KeyboardAvoidingView, Platform, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { FlatList, KeyboardAvoidingView, Platform, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 
 import { useNavigation, usePreventRemove, type NavigationAction } from '@react-navigation/native';
 import { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Appbar, Menu } from 'react-native-paper';
 import { mergeEditableAddons, mergeEditableRemovals } from '@/components/pos/pos-draft';
-import { categoryMenuContext, productMenuContext, type ProductMenuContext } from '@/components/pos/pos-navigation';
+import { categoryMenuContext, productMenuContext, productTapSkipsCustomization, type ProductMenuContext } from '@/components/pos/pos-navigation';
 import { findPosProductConfig, getPosLayoutColumns, isPosTileVisible } from '@/lib/pos-layout-config';
 import { WorkspaceHeader, HeaderIconButton, EditorSheet } from '@/components/ui';
 import { useQueryClient } from '@tanstack/react-query';
@@ -1428,7 +1429,8 @@ export default function PosScreen() {
     if (!plan.inserted && editingItemId === plan.lineId) setEditorQuantity(plan.items.find((item) => item.id === plan.lineId)!.quantity);
     if (!plan.inserted || options.forcePlainAdd) return;
     const customizedCopy = currentCart.some((item) => item.product_id === product.id && cartItemHasCustomizations(item));
-    if ((!options.skipCustomization || customizedCopy) && catalog?.customizableIds.has(product.id)) {
+    const skipLayoutCustomization = productTapSkipsCustomization(product, categories, posLayout, selectedParentCatId || selectedCatId);
+    if (!skipLayoutCustomization && (!options.skipCustomization || customizedCopy) && catalog?.customizableIds.has(product.id)) {
       editorMenuContext.current = productMenuContext(product, categories, posLayout, selectedParentCatId || selectedCatId);
       setQuickListVisible(false);
       setSearchVisible(false);
@@ -2562,6 +2564,11 @@ export default function PosScreen() {
       return;
     }
 
+    if (choice === 'smartpay') {
+      void handleSmartpayInstoreCheckout();
+      return;
+    }
+
     if (choice === 'cash') {
       setCashTenderMode('instore');
       return;
@@ -2675,6 +2682,7 @@ export default function PosScreen() {
           { padding: workspace.gutter, gap: workspace.gap },
           isCompactLayout ? styles.bodyCompact : null,
           isPhoneLayout ? styles.bodyPhone : null,
+          isPhoneLayout && (phoneViewTab === 'cart' || menuLevel === 'checkout') ? styles.bodyPhoneContent : null,
           reviewingCart ? { width: '100%', maxWidth: 912, alignSelf: 'center', paddingBottom: 16 } : null,
         ]}
       >
@@ -3144,7 +3152,7 @@ export default function PosScreen() {
       </View>
 
 
-      {isPhoneLayout && phoneViewTab === 'menu' && menuLevel !== 'checkout' && <TouchableOpacity accessibilityRole="button" accessibilityLabel={`View order, ${cartItems.length} lines, $${totals.total.toFixed(2)}`} disabled={!cartItems.length} onPress={() => setPhoneViewTab('cart')} style={{ position: 'absolute', bottom: 12, left: 16, right: 16, backgroundColor: tokens.color.primary, opacity: cartItems.length ? 1 : 0.45, minHeight: 56, borderRadius: 10, padding: 16, flexDirection: 'row', justifyContent: 'space-between', zIndex: 2 }}><Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>{cartItems.length ? `View order · ${cartItems.reduce((n, i) => n + i.quantity, 0)} qty` : 'Order is empty'}</Text><Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>${totals.total.toFixed(2)} →</Text></TouchableOpacity>}
+      {isPhoneLayout && phoneViewTab === 'menu' && menuLevel !== 'checkout' && <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Open cart, ${cartItems.length} lines, $${totals.total.toFixed(2)}`} disabled={!cartItems.length} onPress={() => setPhoneViewTab('cart')} style={{ position: 'absolute', bottom: 12, left: 16, right: 16, backgroundColor: tokens.color.primary, opacity: cartItems.length ? 1 : 0.45, minHeight: 56, borderRadius: 10, padding: 16, flexDirection: 'row', justifyContent: 'space-between', zIndex: 2 }}><Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>{cartItems.length ? `Order · ${cartItems.reduce((n, i) => n + i.quantity, 0)} qty` : 'Order is empty'}</Text><Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>${totals.total.toFixed(2)} →</Text></TouchableOpacity>}
       <EditorSheet visible={clearDraftVisible} title="Clear this draft?" size="confirm" onDismiss={() => setClearDraftVisible(false)} footer={<><Button mode="outlined" onPress={() => setClearDraftVisible(false)}>Cancel</Button><Button mode="outlined" textColor={tokens.color.danger} onPress={clearDraft}>Clear draft</Button></>}><View style={{ alignItems: 'center', paddingVertical: 16, gap: 16 }}><Text style={{ fontSize: 28, color: tokens.color.primary }}>⚠</Text><Text style={{ color: tokens.color.muted, textAlign: 'center' }}>Remove all draft items from this local order? This cannot be undone.</Text></View></EditorSheet>
 
         <PosSearchSheet layout={posLayout} visible={searchVisible} onClose={() => setSearchVisible(false)} query={searchQuery} onQueryChange={setSearchQuery} groups={layoutTopLevelCategories} products={searchResults} onGroup={(id) => { setSearchVisible(false); openCategory(id); }} onProduct={(product) => void quickAddProduct(product)} quantity={quickQuantityForProduct} hasAddons={(id) => !!catalog?.customizableIds.has(id)} groupName={(product) => categories.find((category) => category.id === product.sale_category_id || category.id === product.sub_category_id)?.name || 'Menu'} accent={(id) => productButtonColor(id) || tokens.color.primary} feedback={itemFeedback} />
@@ -3157,6 +3165,7 @@ export default function PosScreen() {
         }}
         onConfirmCashTender={handleCashTenderConfirm}
         smartpayProcessing={smartpayProcessing}
+        smartpayPaired={smartpayPaired}
         smartpayOrderNumber={getSmartpayDisplayOrderNumber(pendingInstoreSmartpayOrder)}
         smartpayProgressStage={smartpayProgressStage}
         smartpayDialogMinimized={smartpayDialogMinimized}

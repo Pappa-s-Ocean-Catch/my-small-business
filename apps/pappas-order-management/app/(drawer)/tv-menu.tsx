@@ -1,3 +1,4 @@
+import { appDialog as Alert } from '@/lib/app-dialog';
 import { Switch } from '@/components/ui/Switch';
 import { ActionButton as Button } from '@/components/ui/ActionButton';
 import { EditorSheet } from '@/components/ui/EditorSheet';
@@ -5,7 +6,7 @@ import { Panel, StatusBadge } from '@/components/ui';
 import { WorkspaceHeader } from '@/components/ui';
 import { designTokens as t } from '@/lib/redesign';
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, FlatList, Alert, Image, Platform, useWindowDimensions } from 'react-native';
+import { View, StyleSheet, FlatList, Image, Platform, useWindowDimensions } from 'react-native';
 import { Text, ActivityIndicator } from 'react-native-paper';
 import { supabase } from '@/lib/supabase';
 import * as DocumentPicker from 'expo-document-picker';

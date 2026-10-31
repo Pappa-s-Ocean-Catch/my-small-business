@@ -1,23 +1,33 @@
 import { ActionButton as Button } from '@/components/ui/ActionButton';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { RadioButton } from 'react-native-paper';
 import { EditorSheet } from './EditorSheet';
 import { designTokens as t } from '@/lib/redesign';
 
 export type SheetSelection = {
   title: string;
   value: string;
-  options: { value: string; label: string }[];
-  confirmLabel?: string;
+  options: { value: string; label: string; description?: string; disabled?: boolean }[];
   onSelect: (value: string) => void;
 };
 
-/** Stage one selection until the operator explicitly applies it. */
+/** A single choice applies immediately; Cancel always leaves the current value unchanged. */
 export function SelectionSheet({ selection, onDismiss }: { selection: SheetSelection | null; onDismiss: () => void }) {
-  const [value, setValue] = useState('');
-  useEffect(() => { if (selection) setValue(selection.value); }, [selection]);
-  return <EditorSheet visible={!!selection} title={selection?.title || 'Choose an option'} onDismiss={onDismiss} footer={<><Button mode="outlined" contentStyle={{ minHeight: 48 }} onPress={onDismiss}>Cancel</Button><Button mode="contained" contentStyle={{ minHeight: 48 }} disabled={!selection?.options.some((option) => option.value === value)} onPress={() => { selection?.onSelect(value); onDismiss(); }}>{selection?.confirmLabel || 'Use selection'}</Button></>}>
-    <View style={{ gap: 10 }}>{selection?.options.map((option) => <Pressable key={option.value} accessibilityRole="radio" accessibilityLabel={option.label} accessibilityState={{ checked: value === option.value }} onPress={() => setValue(option.value)} style={{ minHeight: 50, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, gap: 8, borderRadius: t.radius.control, borderWidth: 1, borderColor: value === option.value ? t.color.primary : t.color.border, backgroundColor: value === option.value ? t.color.primaryTint : t.color.surface }}><RadioButton.Android value={option.value} status={value === option.value ? 'checked' : 'unchecked'} color={t.color.primary} onPress={() => setValue(option.value)} /><Text style={{ flex: 1, color: t.color.text, fontSize: 16, paddingVertical: 12 }}>{option.label}</Text></Pressable>)}</View>
+  const choosing = useRef(false);
+  const visible = !!selection;
+  useEffect(() => { if (!visible) choosing.current = false; }, [visible]);
+  const choose = (option: NonNullable<SheetSelection>['options'][number]) => {
+    if (!selection || option.disabled || choosing.current) return;
+    choosing.current = true;
+    try {
+      selection.onSelect(option.value);
+      onDismiss();
+    } catch (error) {
+      choosing.current = false;
+      throw error;
+    }
+  };
+  return <EditorSheet visible={visible} title={selection?.title || 'Choose an option'} onDismiss={onDismiss} footer={<Button mode="outlined" contentStyle={{ minHeight: 48 }} onPress={onDismiss}>Cancel</Button>}>
+    <View style={{ gap: 10 }}>{selection?.options.map(option => <Pressable key={option.value} accessibilityRole="button" accessibilityLabel={option.label} accessibilityHint={option.description} accessibilityState={{ disabled: !!option.disabled }} disabled={option.disabled} onPress={() => choose(option)} style={({ pressed }) => ({ minHeight: 54, padding: 14, gap: 4, borderRadius: t.radius.control, borderWidth: 1, borderColor: t.color.border, backgroundColor: t.color.surface, opacity: option.disabled ? 0.45 : pressed ? 0.75 : 1 })}><Text style={{ color: t.color.text, fontSize: 16, fontWeight: '700' }}>{option.label}</Text>{option.description && <Text style={{ color: t.color.muted, fontSize: 13 }}>{option.description}</Text>}</Pressable>)}</View>
   </EditorSheet>;
 }

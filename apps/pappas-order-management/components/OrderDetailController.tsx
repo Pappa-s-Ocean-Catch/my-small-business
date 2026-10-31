@@ -1,7 +1,9 @@
+import { AppModal as Modal } from '@/components/ui/AppModal';
+import { appDialog as Alert } from '@/lib/app-dialog';
 import { designTokens as t } from '@/lib/redesign';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { usePreventRemove } from '@react-navigation/native';
-import { Alert, Modal, View } from 'react-native';
+import { View } from 'react-native';
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { ActivityIndicator, Text } from 'react-native-paper';
 import { getOrder, refreshDeliveryStatus, updateOrderStatus, updatePaymentStatus } from '../lib/orders';

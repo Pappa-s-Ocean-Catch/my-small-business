@@ -41,3 +41,10 @@ export function productGroupId(product: SaleProduct, categories: SaleCategory[],
   const category = categories.find(c => c.id === (product.sub_category_id || product.sale_category_id));
   return category?.parent_category_id || category?.id || product.sale_category_id || null;
 }
+
+
+/** The same layout preference flattens the menu and makes product tiles add directly. Cart editing is independent. */
+export function productTapSkipsCustomization(product: SaleProduct, categories: SaleCategory[], layout: PosLayoutData | null, preferredId?: string | null): boolean {
+  const groupId = productGroupId(product, categories, layout, preferredId);
+  return layout?.categories.find(category => category.categoryId === groupId)?.showProductsOnTopLevel === true;
+}

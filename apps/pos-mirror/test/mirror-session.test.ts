@@ -135,3 +135,12 @@ test('expires at more than five minutes and skips stale waiting carts without re
   session.apply('a', cart(1));
   assert.equal(session.snapshot, null);
 });
+
+
+test('reading a snapshot drops an expired cart even with no network updates', () => {
+  let now = Date.parse('2026-10-02T00:05:00Z');
+  const session = new MirrorSession(() => now);
+  session.apply('a', cart(1));
+  now += 60_001;
+  assert.equal(session.snapshot, null);
+});

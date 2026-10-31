@@ -1,8 +1,9 @@
+import { AppModal as Modal } from '@/components/ui/AppModal';
 import { WorkspaceHeader } from '@/components/ui';
 import { ActionButton as Button } from '@/components/ui/ActionButton';
 import { designTokens as t } from '@/lib/redesign';
 import React from 'react';
-import { Modal, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { Appbar, Text } from 'react-native-paper';
 import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
 import { BRAND_COLORS } from '@/utils/brand';

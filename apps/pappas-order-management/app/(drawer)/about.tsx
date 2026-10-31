@@ -1,9 +1,10 @@
+import { appDialog as Alert } from '@/lib/app-dialog';
 import { ActionButton as Button } from '@/components/ui/ActionButton';
 import { WorkspaceHeader } from '@/components/ui';
 import { designTokens as t } from '@/lib/redesign';
 import { Panel, SectionHeader, DetailRow } from '@/components/ui';
 import { useState, useEffect, useRef } from 'react';
-import { Alert, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Constants from 'expo-constants';
 import * as Updates from 'expo-updates';
 import { Text } from 'react-native-paper';

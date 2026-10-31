@@ -37,3 +37,28 @@ test('explicit flattened and virtual POS groups retain their configured navigati
   assert.deepEqual(categoryMenuContext('bar', drinks, virtual), { level: 'subgroups', categoryId: null, parentCategoryId: 'bar' });
   assert.deepEqual(productMenuContext(coke, drinks, virtual), { level: 'items', categoryId: 'cans', parentCategoryId: 'bar' });
 });
+
+import { productTapSkipsCustomization } from '../components/pos/pos-navigation';
+test('Sides and Seafood Sides direct-add preferences follow the product group', () => {
+  const groups = [{ id: 'sides', name: 'Sides' }, { id: 'seafood', name: 'Seafood Sides' }, { id: 'fish', name: 'Fish' }] as SaleCategory[];
+  const preferences: PosLayoutData = { version: 1, categories: [
+    { categoryId: 'sides', showProductsOnTopLevel: true, products: [] },
+    { categoryId: 'seafood', showProductsOnTopLevel: true, products: [] },
+    { categoryId: 'fish', showProductsOnTopLevel: false, products: [] },
+  ] };
+  for (const categoryId of ['sides', 'seafood']) {
+    const item = { id: `item-${categoryId}`, sale_category_id: categoryId } as SaleProduct;
+    assert.equal(productTapSkipsCustomization(item, groups, preferences, categoryId), true);
+    assert.equal(productTapSkipsCustomization(item, groups, preferences, 'fish'), true, 'Search/Quick list must use the product group, not an unrelated selected group');
+  }
+  assert.equal(productTapSkipsCustomization({ id: 'flake', sale_category_id: 'fish' } as SaleProduct, groups, preferences, 'fish'), false);
+  assert.equal(productTapSkipsCustomization(product, categories, null, 'sides'), false);
+});
+test('direct-add preference follows the visible virtual group and preserves ordinary Drinks navigation', () => {
+  const preferences: PosLayoutData = { version: 1, categories: [
+    { categoryId: 'sides', products: [] },
+    { categoryId: 'favourites', sourceCategoryIds: ['sides'], hideSourceCategories: true, showProductsOnTopLevel: true, products: [] },
+  ] };
+  assert.equal(productTapSkipsCustomization(product, categories, preferences, 'sides'), true);
+  assert.equal(productTapSkipsCustomization(coke, drinks, null, 'drinks'), false);
+});

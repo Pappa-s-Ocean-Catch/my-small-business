@@ -4,7 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
-import android.widget.RadioButton
+import android.widget.CheckBox
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -31,7 +31,7 @@ class SettingsActivity : AppCompatActivity() {
     private val supabaseRepo = SupabaseRepository()
 
     private var availableRegisters: List<RegisterOption> = emptyList()
-    private var selectedRegisterId: String = ""
+    private var selectedRegisterIds = mutableSetOf<String>()
     private var currentIdleMode: String = "image"
     private var currentIdleImageUri: String? = null
 
@@ -55,12 +55,12 @@ class SettingsActivity : AppCompatActivity() {
 
         val initialSettings = settingsRepo.getSettings()
 
-        selectedRegisterId = initialSettings.registerId
+        selectedRegisterIds = initialSettings.registerIds.toMutableSet()
         currentIdleMode = initialSettings.idleMode
         currentIdleImageUri = initialSettings.idleImageUri
 
         // Show back to display button if we already had a configured register
-        if (selectedRegisterId.isNotEmpty()) {
+        if (selectedRegisterIds.isNotEmpty()) {
             binding.btnBackToDisplay.visibility = View.VISIBLE
             binding.btnBackToDisplay.setOnClickListener {
                 startActivity(Intent(this, DisplayActivity::class.java))
@@ -145,24 +145,28 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun renderRegisterChoices() {
-        binding.rgRegisters.setOnCheckedChangeListener(null)
         binding.rgRegisters.removeAllViews()
+        val allSelected = ALL_REGISTERS in selectedRegisterIds
         for (reg in listOf(RegisterOption(ALL_REGISTERS, "Listen to all POS")) + availableRegisters) {
-            val rb = RadioButton(this).apply {
-                id = View.generateViewId()
+            val checkbox = CheckBox(this).apply {
                 text = if (reg.id == ALL_REGISTERS) reg.name else "${reg.name} (${reg.id})"
-                tag = reg.id
+                isChecked = allSelected || reg.id in selectedRegisterIds
                 textSize = 16f
                 minHeight = (48 * resources.displayMetrics.density).toInt()
                 setTextColor(ContextCompat.getColor(this@SettingsActivity, R.color.brand_text))
                 setButtonTintList(ContextCompat.getColorStateList(this@SettingsActivity, R.color.brand_primary))
                 setPadding(16, 16, 16, 16)
+                setOnCheckedChangeListener { _, checked ->
+                    if (reg.id == ALL_REGISTERS) {
+                        selectedRegisterIds = if (checked) mutableSetOf(ALL_REGISTERS) else mutableSetOf()
+                    } else {
+                        if (ALL_REGISTERS in selectedRegisterIds) selectedRegisterIds = availableRegisters.map { it.id }.toMutableSet()
+                        if (checked) selectedRegisterIds.add(reg.id) else selectedRegisterIds.remove(reg.id)
+                    }
+                    renderRegisterChoices()
+                }
             }
-            binding.rgRegisters.addView(rb)
-            if (reg.id == selectedRegisterId) rb.isChecked = true
-        }
-        binding.rgRegisters.setOnCheckedChangeListener { group, checkedId ->
-            group.findViewById<RadioButton>(checkedId)?.let { selectedRegisterId = it.tag as? String ?: "" }
+            binding.rgRegisters.addView(checkbox)
         }
     }
 
@@ -186,20 +190,21 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun saveAndProceed() {
-        val regId = selectedRegisterId.trim()
-        if (regId.isEmpty()) {
+        val regIds = selectedRegisterIds.map { it.trim() }.filter { it.isNotEmpty() }
+        if (regIds.isEmpty()) {
             showError("Choose a mother POS register from the list.")
             return
         }
 
-        if (regId != ALL_REGISTERS && !availableRegisters.any { it.id == regId }) {
+        if (ALL_REGISTERS !in regIds && regIds.any { id -> availableRegisters.none { it.id == id } }) {
             showError("Selected register is not available. Please pick one from the list.")
             return
         }
 
         settingsRepo.saveSettings(
             MirrorSettings(
-                registerId = regId,
+                registerId = regIds.first(),
+                registerIds = regIds,
                 idleMode = currentIdleMode,
                 idleImageUri = currentIdleImageUri,
                 showClock = binding.switchShowClock.isChecked

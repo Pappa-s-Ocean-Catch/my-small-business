@@ -1,9 +1,11 @@
+import { AppModal as Modal } from '@/components/ui/AppModal';
+import { appDialog as Alert } from '@/lib/app-dialog';
 import { ActionButton as PaperButton } from '@/components/ui/ActionButton';
 import { StatusBadge } from '@/components/ui';
 import { fulfilmentTone, paymentTone, orderPaymentLabel } from '@/components/orders/presentation';
 import { designTokens as t } from '@/lib/redesign';
 import React from 'react';
-import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity, useWindowDimensions, Alert, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions, ActivityIndicator, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IconButton, Surface, Card, Divider } from 'react-native-paper';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -542,7 +544,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
           ]}
           elevation={0}
         >
-          <View style={[styles.headerTop, width < 600 && { minHeight: 60, paddingHorizontal: 16 }]}><View style={styles.headerTitleBlock}><Text accessibilityRole="header" style={styles.headerTitle}>Order #{getFriendlyOrderNumber(order.order_number)}</Text><Text style={styles.headerMeta}>{order.customer_name || 'Customer'} · {getOrderFulfilmentLabel(order)}</Text></View><IconButton icon="close" hitSlop={4} accessibilityLabel="Close order details" disabled={isCapturing || smartpayProcessing} onPress={closeModal} style={styles.closeControl} /></View>
+          <View style={[styles.headerTop, width < 600 && { minHeight: 60, paddingHorizontal: 16 }]}><View style={styles.headerTitleBlock}><Text accessibilityRole="header" style={styles.headerTitle}>Order #{getFriendlyOrderNumber(order.order_number)}</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel={`Open customer ${order.customer_name || 'Customer'}`} disabled={isCapturing || smartpayProcessing} hitSlop={8} onPress={() => onCustomerPress(order)}><Text style={styles.headerMeta}>{order.customer_name || 'Customer'} · {getOrderFulfilmentLabel(order)}</Text></TouchableOpacity></View><IconButton icon="close" hitSlop={4} accessibilityLabel="Close order details" disabled={isCapturing || smartpayProcessing} onPress={closeModal} style={styles.closeControl} /></View>
 
         </Surface>
 
@@ -580,6 +582,10 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 <Card.Title title="Customer" titleStyle={styles.cardTitle} />
                 <Card.Content>
                   <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel={`Open customer ${order.customer_name || 'Customer'}`}
+                    disabled={isCapturing || smartpayProcessing}
+                    style={{ minHeight: 44, justifyContent: 'center' }}
                     onPress={() => onCustomerPress(order)}
                     hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   >
@@ -588,7 +594,6 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                   {!!order.customer_email && <Text style={styles.contactText}>{order.customer_email}</Text>}
                   {!!order.customer_phone && <Text style={styles.contactText}>{order.customer_phone}</Text>}
                   {successfulOrderCount != null && successfulOrderCount > 0 ? <Text style={styles.successfulOrderCount}>{successfulOrderCount} successful orders</Text> : null}
-                  <PaperButton mode="outlined" onPress={() => onCustomerPress(order)} style={{ alignSelf: 'flex-start', marginVertical: 12 }} contentStyle={{ minHeight: 48 }}>View customer</PaperButton>
                 </Card.Content>
               </Card>
 

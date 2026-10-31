@@ -151,12 +151,12 @@ class SupabaseRepository(
         map.map { RegisterOption(it.key, it.value) }.sortedBy { it.id }
     }
 
-    suspend fun fetchCurrentOrders(registerId: String): List<MirrorStateUpdate> = withContext(Dispatchers.IO) {
-        val cleanId = registerId.trim()
+    suspend fun fetchCurrentOrders(registerIds: List<String>): List<MirrorStateUpdate> = withContext(Dispatchers.IO) {
+        val cleanIds = registerIds.map { it.trim() }.filter { it.isNotEmpty() }
         authenticatedMirrorFetch({ client.auth.currentAccessTokenOrNull() }) {
             client.postgrest["pos_mirror_state"]
                 .select(columns = Columns.list("register_id", "current_order")) {
-                    if (cleanId != ALL_REGISTERS) filter { eq("register_id", cleanId) }
+                    if (ALL_REGISTERS !in cleanIds) filter { isIn("register_id", cleanIds) }
                 }
                 .decodeList<PosMirrorStateRow>()
                 .map { MirrorStateUpdate(it.register_id, parseOrder(it.current_order)) }
@@ -214,24 +214,27 @@ class SupabaseRepository(
 
     fun subscribeMirrorState(
         scope: CoroutineScope,
-        registerId: String,
+        registerIds: List<String>,
         onSnapshot: (String, MirrorOrderSnapshot?) -> Unit
     ): RealtimeChannel {
-        val cleanId = registerId.trim()
-        val channel = client.realtime.channel("pos-mirror-state-$cleanId-${UUID.randomUUID()}")
+        val cleanIds = registerIds.map { it.trim() }.filter { it.isNotEmpty() }
+        val channel = client.realtime.channel("pos-mirror-state-${UUID.randomUUID()}")
 
         val changeFlow = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
             table = "pos_mirror_state"
-            if (cleanId != ALL_REGISTERS) filter(FilterOperation("register_id", FilterOperator.EQ, cleanId))
+            if (ALL_REGISTERS !in cleanIds && cleanIds.size == 1) filter(FilterOperation("register_id", FilterOperator.EQ, cleanIds.first()))
         }
 
+        val emitSelected: (String, MirrorOrderSnapshot?) -> Unit = { id, snapshot ->
+            if (ALL_REGISTERS in cleanIds || id in cleanIds) onSnapshot(id, snapshot)
+        }
         changeFlow.onEach { action ->
             when (action) {
-                is PostgresAction.Insert -> parseRecordAndEmit(action.record, onSnapshot)
-                is PostgresAction.Update -> parseRecordAndEmit(action.record, onSnapshot)
-                is PostgresAction.Select -> parseRecordAndEmit(action.record, onSnapshot)
+                is PostgresAction.Insert -> parseRecordAndEmit(action.record, emitSelected)
+                is PostgresAction.Update -> parseRecordAndEmit(action.record, emitSelected)
+                is PostgresAction.Select -> parseRecordAndEmit(action.record, emitSelected)
                 is PostgresAction.Delete -> action.oldRecord["register_id"]?.jsonPrimitive?.contentOrNull?.let {
-                    onSnapshot(it, MirrorOrderSnapshot())
+                    emitSelected(it, MirrorOrderSnapshot())
                 }
                 else -> {}
             }

@@ -1,8 +1,10 @@
+import { AppModal as Modal } from '@/components/ui/AppModal';
+import { appDialog as Alert } from '@/lib/app-dialog';
 import { ActionButton as PaperButton } from '@/components/ui/ActionButton';
 import { useModalFocus } from '@/hooks/useModalFocus';
 import { designTokens as t } from '@/lib/redesign';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, Modal, Image, ScrollView, Alert, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Image, ScrollView, useWindowDimensions } from 'react-native';
 import { IconButton } from 'react-native-paper';
 import * as Sharing from 'expo-sharing';
 import type { Order } from '@my-small-business/types';

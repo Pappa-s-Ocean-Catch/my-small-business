@@ -54,3 +54,10 @@ The actual component render/handler tests cover 1, 5 and 10 items, long names, p
 - Product borders now use a darker shade of the effective tile fill instead of a fixed gold stripe. Configured global/product colours and explicit text colours retain priority. Automatic text chooses the higher-contrast foreground; quantity badges retain their own readable foreground.
 - Verification: 366 unit tests passed, including all 16 reachable colours, unique coordinated borders, automatic contrast of at least 4.5:1, and configuration precedence. Full app typecheck still reports the same 13 existing receipt/caller-ID errors; no new errors. `git diff --check` passed.
 - Reloaded the simulator through localhost after its saved LAN server address became stale. Visually checked the CHIPS catalogue with saturated fills, coordinated borders and readable labels/prices. Screenshot: `artifacts/pos-regressions-2026-10-28/product-16-colour-palette.png`. Cart stayed empty; no order/payment/status actions performed.
+
+
+### Simulator printer modal handoff
+
+- ManualPrintButton previously invoked its print callback while its native picker remained presented. On iOS a simulator callback can present PrintSimulatorModal before that picker dismisses. Simulator selections now wait for native onDismiss before preparing/opening the preview. Physical dispatch ordering and duplicate-request protections are preserved.
+- Preview failures reopen printer choices for retry without marking a physical request as unresolved. Tests exercise actual component handlers for dismissal ordering, duplicate taps, retry, and immediate physical dispatch. An additional rendered order-detail test confirms the embedded preview is outside inert ancestors (the first suspected cause was ruled out).
+- 383 unit tests passed; diff check passed. TypeScript diagnostics remain the existing 13 receipt/caller-ID errors. Native simulator validation could not be completed: controls did not respond reliably, then the computer-use service returned timeoutReached on two consecutive observations. No physical printer, payment, or order-status action was invoked. End-to-end preview validation remains outstanding.

@@ -1,6 +1,8 @@
+import { EditorSheet } from '@/components/ui/EditorSheet';
+import { appDialog as Alert } from '@/lib/app-dialog';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Button, Card, IconButton, Modal, Portal, Surface, Text, TextInput } from 'react-native-paper';
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Button, Card, IconButton, Portal, Surface, Text, TextInput } from 'react-native-paper';
 import type { Order } from '@my-small-business/types';
 
 import { getOrder, updateOrderStatus, updatePendingDeliveryOrder } from '@/lib/orders';
@@ -605,9 +607,8 @@ export function PendingOnlinePaymentsOverlay() {
       )}
 
       <Portal>
-        <Modal visible={editAddressVisible} onDismiss={closeAddressEditor} contentContainerStyle={styles.addressModal}>
+        <EditorSheet visible={editAddressVisible} title="Update delivery address" onDismiss={closeAddressEditor} pending={savingAddress}>
           <ScrollView contentContainerStyle={styles.addressModalContent} keyboardShouldPersistTaps="handled">
-            <Text style={styles.addressModalTitle}>Update Delivery Address</Text>
             <TextInput
               label="Search address"
               mode="outlined"
@@ -697,7 +698,7 @@ export function PendingOnlinePaymentsOverlay() {
               </Button>
             </View>
           </ScrollView>
-        </Modal>
+        </EditorSheet>
       </Portal>
     </>
   );

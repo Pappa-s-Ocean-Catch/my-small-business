@@ -1,6 +1,7 @@
+import { appDialog as Alert } from '@/lib/app-dialog';
 import { ActionButton as Button } from '@/components/ui/ActionButton';
 import React, { useState } from 'react';
-import { Alert, ScrollView, View, useWindowDimensions } from 'react-native';
+import { ScrollView, View, useWindowDimensions } from 'react-native';
 import { Icon, Text } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { WorkspaceHeader, Panel, SectionHeader } from '@/components/ui';

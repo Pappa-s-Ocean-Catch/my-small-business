@@ -1,3 +1,4 @@
+import { appDialog as Alert } from '@/lib/app-dialog';
 import { POS_TILE_COLORS as COLOR_OPTIONS } from '@/lib/pos-tile-palette';
 import { ActionButton as Button } from '@/components/ui/ActionButton';
 import { EditorSheet } from '@/components/ui/EditorSheet';
@@ -10,7 +11,7 @@ import { useWindowDimensions } from 'react-native';
 import { designTokens as t } from '@/lib/redesign';
 import { FormField } from '@/components/ui';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Checkbox, IconButton, Menu } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { useNavigation, usePreventRemove } from '@react-navigation/native';
@@ -82,7 +83,7 @@ export default function PosLayoutSettingsScreen() {
   const [contentWidth, setContentWidth] = useState(0);
   const compact = contentWidth / fontScale < 600;
 
-  const { snapshot: catalog, refresh: refreshCatalog } = usePosCatalog();
+  const { snapshot: catalog, applyLayout: applyCachedLayout, saveLayoutRecord } = usePosCatalog();
   const router = useRouter();
   const navigation = useNavigation();
   const [categories, setCategories] = useState<SaleCategory[]>([]);
@@ -559,15 +560,21 @@ export default function PosLayoutSettingsScreen() {
     setLayoutId(result.data?.id || layoutId);
     baseline.current = draftKey;
     setStatus('Named layout saved. Apply to this POS to change the live tiles.');
-    await refreshCatalog('manual');
+    const savedId = result.data?.id || layoutId;
+    if (savedId) {
+      const now = new Date().toISOString();
+      const record: PosLayoutRecord = { id: savedId, name: layoutName, layout, is_default: isDefault, created_at: catalog?.layouts.find(item => item.id === savedId)?.created_at || now, updated_at: now };
+      saveLayoutRecord(record);
+      setLayouts(current => [...current.filter(item => item.id !== savedId).map(item => isDefault ? { ...item, is_default: false } : item), record]);
+    }
     } catch (error) { Alert.alert('POS layout', String(error)); } finally { setSaving(false); }
   };
 
   const handleUseLayout = async () => {
     setSaving(true);
     try {
-      await applyPosLayout(layout, layoutName, layoutId);
-      await refreshCatalog('selection');
+      const applied = await applyPosLayout(layout, layoutName, layoutId);
+      applyCachedLayout(applied);
       setStatus('Applied to this POS.');
     } catch (error) { Alert.alert('POS layout', String(error)); }
     finally { setSaving(false); }
@@ -816,7 +823,7 @@ export default function PosLayoutSettingsScreen() {
                     <Text style={styles.inlineToggleText}>Skip next level and show items here</Text>
                   </TouchableOpacity>
                   <Text style={styles.editorSummaryText}>
-                    {category.showProductsOnTopLevel ? 'Shows items immediately on POS' : 'Keeps the next category level on POS'}
+                    {category.showProductsOnTopLevel ? 'Shows items here and adds them directly to cart. Tap a cart item to edit its add-ons.' : 'Keeps the next category level on POS'}
                   </Text>
                   {category.isVirtual && (
                     <TouchableOpacity

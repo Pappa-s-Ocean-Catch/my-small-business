@@ -1,3 +1,4 @@
+import { appDialog as Alert } from '@/lib/app-dialog';
 import { ActionButton as Button } from '@/components/ui/ActionButton';
 import { SearchField as Searchbar } from '@/components/ui';
 import { WorkspaceHeader, StatusBadge, EditorSheet, DetailRow } from '@/components/ui';
@@ -5,15 +6,7 @@ import { ResponsiveDialog as Dialog } from '@/components/ui/ResponsiveDialog';
 import { designTokens as t } from '@/lib/redesign';
 import { PageHeader } from '@/components/ui';
 import React, { useEffect, useState, useCallback } from 'react';
-import {
-  Alert,
-  Clipboard,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { Clipboard, RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import {
   Appbar,
   Card,
@@ -176,11 +169,11 @@ export default function CouponsScreen() {
 
               return (
                 <View key={coupon.id} style={[styles.couponCard, { width: cardWidth }]}>
-                  <View style={styles.cardHeaderRow}><Text style={{ flex: 1, fontSize: 14, fontWeight: '700', letterSpacing: 1.5, color: t.color.text }}>{coupon.code}</Text>{getStatusBadge(coupon)}</View>
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Open coupon ${coupon.code}`} onPress={() => setSelectedCoupon(coupon)} style={[styles.cardHeaderRow, { minHeight: 44 }]}><Text style={{ flex: 1, fontSize: 14, fontWeight: '700', letterSpacing: 1.5, color: t.color.text }}>{coupon.code}</Text>{getStatusBadge(coupon)}</TouchableOpacity>
                   <Text style={{ fontSize: 32, color: t.color.text, fontWeight: '700', marginTop: 22, marginBottom: 8 }}>{discountText.toLowerCase()}</Text>
                   <Text style={{ fontSize: 14, color: t.color.muted, marginBottom: 16 }}>{coupon.title} · Min ${coupon.min_cart_subtotal.toFixed(2)}</Text>
                   <Text style={{ fontSize: 14, color: t.color.muted }}>{coupon.usage_count}{coupon.max_uses != null ? ` / ${coupon.max_uses}` : ''} uses · Ends {formatDate(coupon.ends_at)}</Text>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12, borderTopWidth: 1, borderColor: t.color.border, paddingTop: 18, marginTop: 20 }}><Button mode="outlined" contentStyle={{ minHeight: 48 }} onPress={() => handleCopyCode(coupon.code)}>Copy code</Button><Button mode="outlined" contentStyle={{ minHeight: 48 }} onPress={() => setSelectedCoupon(coupon)}>Details</Button></View>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12, borderTopWidth: 1, borderColor: t.color.border, paddingTop: 18, marginTop: 20 }}><Button mode="outlined" contentStyle={{ minHeight: 48 }} onPress={() => handleCopyCode(coupon.code)}>Copy code</Button></View>
                 </View>
               );
             })}

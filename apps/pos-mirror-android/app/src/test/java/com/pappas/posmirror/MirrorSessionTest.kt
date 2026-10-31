@@ -116,4 +116,20 @@ class MirrorSessionTest {
         session.apply("c", MirrorOrderSnapshot()); session.apply("a", cart(1))
         assertTrue(session.snapshot.isEmpty)
     }
+    @Test fun snapshotReadExpiresWithoutNetworkActivity() {
+        var now = java.time.Instant.parse("2026-10-02T00:05:00Z").toEpochMilli()
+        val session = MirrorSession { now }
+        session.apply("a", cart(1))
+        now += 60_001
+        assertTrue(session.snapshot.isEmpty)
+        session.apply("a", cart(1))
+        assertTrue(session.snapshot.isEmpty)
+    }
+
+    @Test fun legacySettingsKeepOneRegisterAndSeveralCanBeSelected() {
+        val legacy = com.pappas.posmirror.data.model.MirrorSettings(registerId = "a")
+        assertEquals(listOf("a"), legacy.registerIds)
+        val multiple = legacy.copy(registerIds = listOf("a", "b"))
+        assertEquals(listOf("a", "b"), multiple.registerIds)
+    }
 }

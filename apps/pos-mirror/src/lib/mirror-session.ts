@@ -12,7 +12,7 @@ export class MirrorSession {
   constructor(private readonly now: () => number = Date.now) {}
 
   get registerId() { return this.owner; }
-  get snapshot() { return this.owner ? this.registers.get(this.owner)?.snapshot ?? null : null; }
+  get snapshot() { this.expire(); return this.owner ? this.registers.get(this.owner)?.snapshot ?? null : null; }
 
   apply(registerId: string, incoming: unknown) {
     this.update(registerId, incoming);

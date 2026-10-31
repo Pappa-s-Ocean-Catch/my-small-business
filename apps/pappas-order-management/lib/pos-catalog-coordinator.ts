@@ -1,3 +1,4 @@
+import type { PosLayoutRecord } from './pos-layouts';
 import { buildPosCatalogSnapshot, type PosCatalogSnapshot, type PosCatalogSource } from './pos-catalog-snapshot';
 
 export type PosCatalogState = {
@@ -12,6 +13,7 @@ export function createPosCatalogCoordinator(load: () => Promise<PosCatalogSource
   let epoch = 0;
   let inFlight: Promise<void> | null = null;
   let queued = false;
+  let startupAttempted = false;
   const listeners = new Set<() => void>();
   const publish = (next: PosCatalogState) => {
     state = next;
@@ -47,18 +49,29 @@ export function createPosCatalogCoordinator(load: () => Promise<PosCatalogSource
   return {
     getState: () => state,
     subscribe: (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
-    refresh: (reason: 'startup' | 'manual' | 'realtime' | 'selection') => {
+    refresh: (reason: 'startup' | 'manual') => {
+      if (reason !== 'startup' && reason !== 'manual') return Promise.resolve();
+      if (reason === 'startup' && (startupAttempted || state.snapshot)) return inFlight ?? Promise.resolve();
+      startupAttempted = true;
       if (inFlight) {
         if (reason !== 'startup') queued = true;
         return inFlight;
       }
       return start();
     },
-    reportConnectionError: (message: string) => {
-      publish({ ...state, error: message });
+    applyLayout: (record: PosLayoutRecord) => {
+      if (state.snapshot) publish({ ...state, snapshot: { ...state.snapshot, preferredLayout: record } });
+    },
+    saveLayoutRecord: (record: PosLayoutRecord) => {
+      if (!state.snapshot) return;
+      const layouts = [...state.snapshot.layouts.filter(layout => layout.id !== record.id), record]
+        .map(layout => record.is_default && layout.id !== record.id ? { ...layout, is_default: false } : layout)
+        .sort((a, b) => Number(b.is_default) - Number(a.is_default) || b.updated_at.localeCompare(a.updated_at));
+      publish({ ...state, snapshot: { ...state.snapshot, layouts } });
     },
     reset: () => {
       epoch += 1;
+      startupAttempted = false;
       queued = false;
       inFlight = null;
       publish({ status: 'idle', snapshot: null, error: null, lastUpdatedAt: null });

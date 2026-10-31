@@ -1,21 +1,11 @@
+import { appDialog as Alert } from '@/lib/app-dialog';
 import { ActionButton as PaperButton } from '@/components/ui/ActionButton';
 import { useOrderHeaderActions } from '@/components/navigation/order-header-actions';
 import { countActiveOrderFilters } from '@/components/orders/filter-state';
 import { AsyncState } from '@/components/ui';
 import { designTokens as t } from '@/lib/redesign';
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import {
-  View,
-  Text,
-  FlatList,
-  StyleSheet,
-  RefreshControl,
-  ActivityIndicator,
-  Alert,
-  TouchableOpacity,
-  ScrollView,
-  useWindowDimensions,
-} from 'react-native';
+import { View, Text, FlatList, StyleSheet, RefreshControl, ActivityIndicator, TouchableOpacity, ScrollView, useWindowDimensions } from 'react-native';
 import { Surface, Badge } from 'react-native-paper';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';

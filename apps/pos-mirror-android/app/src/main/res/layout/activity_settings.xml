@@ -44,7 +44,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
                         android:fontFamily="sans-serif"
-                        android:text="Listen to one POS or all POS registers."
+                        android:text="Listen to one, several or all POS registers."
                         android:textColor="@color/brand_muted_text"
                         android:textSize="15sp" />
                 </LinearLayout>
@@ -101,7 +101,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="The current POS keeps the display until its cart clears. Other active POS carts wait their turn."
+                    android:text="The current POS keeps the display until its cart clears or becomes inactive for five minutes. Other selected POS carts wait their turn."
                     android:textColor="@color/brand_muted_text"
                     android:textSize="14sp" />
 
@@ -126,7 +126,8 @@
                     android:textSize="14sp"
                     android:visibility="gone" />
 
-                <RadioGroup
+                <LinearLayout
+                    android:orientation="vertical"
                     android:id="@+id/rgRegisters"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"

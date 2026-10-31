@@ -1,3 +1,4 @@
+import { appDialog as Alert } from '@/lib/app-dialog';
 import { ActionButton as Button } from '@/components/ui/ActionButton';
 import { EditorSheet } from '@/components/ui/EditorSheet';
 import { ChoiceTabs } from '@/components/ui/ChoiceTabs';
@@ -9,7 +10,7 @@ import { useWindowDimensions } from 'react-native';
 import { designTokens as t } from '@/lib/redesign';
 import { FormField, SectionHeader, Panel } from '@/components/ui';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { FlatList, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Card, Checkbox, Chip, Icon, IconButton, Portal, Switch, Text } from 'react-native-paper';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {

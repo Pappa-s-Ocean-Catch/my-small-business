@@ -99,6 +99,15 @@ class DisplayActivity : AppCompatActivity() {
             }
             observeAuthentication()
             loadInitialState()
+            // Local expiry must continue while a refresh is suspended on the network.
+            lifecycleScope.launch {
+                while (isActive) {
+                    mirrorSession.expire()
+                    val freshSnapshot = mirrorSession.snapshot
+                    if (freshSnapshot != currentSnapshot) updateSnapshot(freshSnapshot)
+                    delay(1000)
+                }
+            }
             startRealtimeSubscriptions()
             startQueueCountPolling()
         }
@@ -262,7 +271,7 @@ class DisplayActivity : AppCompatActivity() {
     }
 
     private fun loadInitialState() {
-        binding.tvWaitingMessage.text = if (settings.registerId == ALL_REGISTERS) "Waiting for POS activity..." else "Waiting for register ${settings.registerId}..."
+        binding.tvWaitingMessage.text = if (settings.registerId == ALL_REGISTERS) "Waiting for POS activity..." else "Waiting for selected POS activity..."
         binding.tvWaitingMessage.visibility = View.VISIBLE
 
         lifecycleScope.launch {
@@ -281,8 +290,8 @@ class DisplayActivity : AppCompatActivity() {
     }
 
     private fun startRealtimeSubscriptions() {
-        mirrorChannel = supabaseRepo.subscribeMirrorState(lifecycleScope, settings.registerId) { registerId, snapshot ->
-            if (settings.registerId == ALL_REGISTERS || registerId == settings.registerId) {
+        mirrorChannel = supabaseRepo.subscribeMirrorState(lifecycleScope, settings.registerIds) { registerId, snapshot ->
+            if (ALL_REGISTERS in settings.registerIds || registerId in settings.registerIds) {
                 mirrorSession.apply(registerId, snapshot)
                 updateSnapshot(mirrorSession.snapshot)
             }
@@ -336,7 +345,7 @@ class DisplayActivity : AppCompatActivity() {
         mirrorRefreshInFlight = true
         val revision = mirrorSession.revision
         try {
-            val rows = supabaseRepo.fetchCurrentOrders(settings.registerId)
+            val rows = supabaseRepo.fetchCurrentOrders(settings.registerIds)
             mirrorSession.refresh(rows, revision)
             updateSnapshot(mirrorSession.snapshot)
             hideConnectionWarning()

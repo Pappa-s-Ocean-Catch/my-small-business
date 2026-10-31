@@ -230,7 +230,7 @@ export const PosCartPane = React.memo(function PosCartPane({
   </>;
   if (expandedReview) {
     const panelStyle = { backgroundColor: tokens.color.surface, borderWidth: 1, borderColor: tokens.color.border, borderRadius: 16, padding: 16 };
-    return <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 16, paddingBottom: 24 }}>
+    return <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ gap: 16, paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
       <View style={{ flexDirection: 'row', gap: 8 }}><Button mode="outlined" icon="arrow-left" onPress={onBackToMenu}>Continue ordering</Button><Button mode="outlined" disabled={Boolean(orderId) || !cartItems.length} textColor={tokens.color.danger} onPress={handleClearCart}>Clear draft</Button></View>
       <View style={panelStyle}>{header}</View>
       <View style={panelStyle}>{cartItems.length ? cartItems.map(item => <React.Fragment key={item.id}>{renderCartItem({ item })}</React.Fragment>) : <View style={styles.emptyCartState}><Text style={styles.emptyCartTitle}>Your order starts here</Text><Text style={styles.emptyCartDetail}>Tap a product to add it immediately.</Text></View>}</View>
@@ -239,15 +239,15 @@ export const PosCartPane = React.memo(function PosCartPane({
   }
   return (
     <View style={[styles.cartPane, { width: cartWidth }, isCompactLayout ? styles.cartPaneCompact : null]}>
-      {!isPhoneLayout && <View style={styles.cartSummaryHeader}>{header}</View>}
       <FlatList
         data={cartItems} keyExtractor={(item) => item.id} style={styles.cartList}
-        ListHeaderComponent={isPhoneLayout ? <View style={styles.cartSummaryHeader}>{header}</View> : undefined}
-        ListFooterComponent={isPhoneLayout ? <View style={styles.cartSummaryFooter}>{footer}</View> : undefined}
+        ListHeaderComponent={<View style={styles.cartSummaryHeader}>{header}</View>}
+        ListFooterComponent={<View style={styles.cartSummaryFooter}>{footer}</View>}
+        contentContainerStyle={{ paddingBottom: 12 }}
+        keyboardShouldPersistTaps="handled"
         ListEmptyComponent={<View style={styles.emptyCartState}><MaterialCommunityIcons name="shopping-outline" size={28} color={tokens.color.muted} /><Text style={styles.emptyCartTitle}>Your order starts here</Text><Text style={styles.emptyCartDetail}>Tap a product to add it immediately.</Text></View>}
         renderItem={({ item }) => <View style={{ paddingHorizontal: 16 }}>{renderCartItem({ item })}</View>}
       />
-      {!isPhoneLayout && <View style={styles.cartSummaryFooter}>{footer}</View>}
     </View>
   );
 });

@@ -3,7 +3,7 @@ import { SearchField as Searchbar } from '@/components/ui';
 import { StatusBadge } from '@/components/ui';
 import { designTokens as t } from '@/lib/redesign';
 import React from 'react';
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View, Pressable, useWindowDimensions } from 'react-native';
 import { Avatar, Card, IconButton, Surface, Text, useTheme } from 'react-native-paper';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
@@ -62,12 +62,11 @@ export function CustomerDirectoryList({
   const gutter = width < 1100 ? 12 : 16;
 
   const renderCustomerItem = ({ item, index }: { item: Customer; index: number }) => (
-    <View style={[styles.card, compact && styles.cardCompact, index === 0 && { borderTopLeftRadius: 16, borderTopRightRadius: 16, borderTopWidth: 1 }, index === customers.length - 1 && { borderBottomLeftRadius: 16, borderBottomRightRadius: 16 } ]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={`Open customer ${item.name || 'Unknown'}`} onPress={() => onSelectCustomer(item)} style={[styles.card, compact && styles.cardCompact, index === 0 && { borderTopLeftRadius: 16, borderTopRightRadius: 16, borderTopWidth: 1 }, index === customers.length - 1 && { borderBottomLeftRadius: 16, borderBottomRightRadius: 16 } ]}>
       <Avatar.Text size={44} label={getInitials(item.name || 'Unknown')} style={[styles.avatar, { backgroundColor: t.color.primaryTint }]} labelStyle={{ color: t.color.primary, fontSize: 16, fontWeight: '700' }} />
       <View style={[styles.infoContainer, compact && styles.infoCompact]}><Text style={styles.name}>{item.name || 'Unknown'}</Text><Text style={styles.contact}>{item.phone || item.email || 'No contact details'} · {item.totalOrders ?? 0} orders{item.lastOrderDate ? ` · Last visit ${new Date(item.lastOrderDate).toLocaleDateString([], { day: 'numeric', month: 'short' })}` : ''}</Text></View>
       <StatusBadge label={`${item.rewardPoints ?? 0} pts`} tone="primary" />
-      <Button mode="outlined" contentStyle={{ minHeight: 48 }} onPress={() => onSelectCustomer(item)}>View</Button>
-    </View>
+    </Pressable>
   );
 
   const renderFooter = () => {

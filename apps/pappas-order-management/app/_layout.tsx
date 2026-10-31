@@ -1,3 +1,4 @@
+import { AppDialogHost, AppDialogScreen } from '@/components/ui/AppDialogHost';
 import '@/lib/newrelic';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-gesture-handler';
@@ -131,9 +132,9 @@ export default function RootLayout() {
                     <Stack
                       screenOptions={{ headerShown: false }}
                       screenLayout={({ children, route }) => (
-                        ['pos', 'pos-layout-settings', 'menu-management', 'addons-management', 'marketplace-resolver', 'POS-intergation'].includes(route.name)
+                        <AppDialogScreen>{['pos', 'pos-layout-settings', 'menu-management', 'addons-management', 'marketplace-resolver', 'POS-intergation'].includes(route.name)
                           ? <WorkspaceShell>{children}</WorkspaceShell>
-                          : children
+                          : children}</AppDialogScreen>
                       )}
                     >
                       <Stack.Screen name="login" />
@@ -153,6 +154,7 @@ export default function RootLayout() {
                     <StatusBar hidden />
                     <OfflineAttentionOverlay appName="Pappas Order" />
                     <PendingOnlinePaymentsOverlay />
+                    <AppDialogHost />
                   </PrinterAutomationProvider>
                 </CallerIdListenerProvider>
               </MarketplaceSyncGate>

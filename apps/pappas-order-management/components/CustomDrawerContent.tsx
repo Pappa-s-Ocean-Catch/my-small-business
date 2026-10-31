@@ -1,6 +1,7 @@
+import { appDialog as Alert } from '@/lib/app-dialog';
 import { designTokens as t } from '@/lib/redesign';
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, Alert } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import {
   DrawerContentScrollView,
   DrawerItemList,

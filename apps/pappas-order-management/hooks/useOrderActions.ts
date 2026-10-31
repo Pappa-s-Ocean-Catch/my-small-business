@@ -1,5 +1,6 @@
+import { appDialog as Alert } from '@/lib/app-dialog';
 import { useEffect, useState } from 'react';
-import { Alert } from 'react-native';
+
 import type { Order, OrderStatus, PaymentStatus } from '@my-small-business/types';
 import { updateOrderStatus, updatePaymentStatus, getOrder, notifyDeliveryReady } from '@/lib/orders';
 import { formatPrinterError, isSimulatorPrinter, type SavedPrinter } from '@/lib/escpos-printer';

@@ -5,6 +5,7 @@ export type IdleMode = 'image' | 'queue';
 
 export type MirrorSettings = {
   registerId: string;
+  registerIds?: string[];
   idleMode: IdleMode;
   idleImageUri?: string;
 };
@@ -24,9 +25,17 @@ export function normalizeMirrorSettings(value: unknown): MirrorSettings {
   }
 
   const candidate = value as Record<string, unknown>;
+  const registerIds = Array.isArray(candidate.registerIds)
+    ? [...new Set(candidate.registerIds.map(getString).filter(Boolean))] : undefined;
+  const normalizedIds = registerIds?.includes(ALL_REGISTERS) ? [ALL_REGISTERS] : registerIds;
   return {
-    registerId: getString(candidate.registerId),
+    registerId: normalizedIds ? normalizedIds[0] ?? '' : getString(candidate.registerId),
+    ...(normalizedIds ? { registerIds: normalizedIds } : {}),
     idleMode: candidate.idleMode === 'queue' ? 'queue' : 'image',
     idleImageUri: typeof candidate.idleImageUri === 'string' && candidate.idleImageUri ? candidate.idleImageUri : undefined,
   };
+}
+
+export function selectedRegisters(settings: MirrorSettings): string[] {
+  return settings.registerIds ?? (settings.registerId ? [settings.registerId] : []);
 }

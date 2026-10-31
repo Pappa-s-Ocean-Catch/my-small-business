@@ -1,5 +1,7 @@
+import { AppModal as Modal } from '@/components/ui/AppModal';
+import { appDialog as Alert } from '@/lib/app-dialog';
 import React, { useEffect, useRef } from 'react';
-import { Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Platform, Keyboard, KeyboardAvoidingView, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppNavigation } from '@/components/navigation/AppNavigation';
 import { ActionButton } from '@/components/ui/ActionButton';
@@ -25,14 +27,10 @@ export function CustomerWorkspaceEditor({ visible, title, children, footer, onDi
   const dismiss = () => {
     if (pending) return;
     if (!dirty) { onDismiss(); return; }
-    if (Platform.OS === 'web') {
-      if (window.confirm('Discard changes? Your changes have not been saved.')) onDismiss();
-    } else {
-      Alert.alert('Discard changes?', 'Your changes have not been saved.', [
-        { text: 'Keep editing', style: 'cancel' },
-        { text: 'Discard changes', style: 'destructive', onPress: onDismiss },
-      ]);
-    }
+    Alert.alert('Discard changes?', 'Your changes have not been saved.', [
+      { text: 'Keep editing', style: 'cancel' },
+      { text: 'Discard changes', style: 'destructive', onPress: onDismiss },
+    ]);
   };
   useModalFocus(panel, visible, dismiss);
   useEffect(() => { if (pending) Keyboard.dismiss(); }, [pending]);

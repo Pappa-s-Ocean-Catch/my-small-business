@@ -1,9 +1,10 @@
+import { appDialog as Alert } from '@/lib/app-dialog';
 import { ActionButton as Button } from '@/components/ui/ActionButton';
 import { useWindowDimensions } from 'react-native';
 import { designTokens as t } from '@/lib/redesign';
 import { FormField, Panel, SectionHeader } from '@/components/ui';
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView } from 'react-native';
 import { Text, TextInput, Surface, useTheme, ActivityIndicator, RadioButton, Divider, HelperText } from 'react-native-paper';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { getDeliveryQuotes, requestDelivery, getDeliveryRequestStatus, lookupOrder } from '../../lib/delivery-management';

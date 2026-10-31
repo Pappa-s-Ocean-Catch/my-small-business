@@ -1,3 +1,4 @@
+import { appDialog as Alert } from '@/lib/app-dialog';
 import { EditorSheet } from '@/components/ui/EditorSheet';
 import { ActionButton as PaperButton } from '@/components/ui/ActionButton';
 import { useOrderHeaderActions } from '@/components/navigation/order-header-actions';
@@ -7,19 +8,7 @@ import { getFriendlyOrderNumber } from '@/utils/orderNumber';
 import { AsyncState } from '@/components/ui';
 import { designTokens as t } from '@/lib/redesign';
 import { useState, useEffect, useMemo, useRef } from 'react';
-import {
-  View,
-  Text,
-  FlatList,
-  StyleSheet,
-  RefreshControl,
-  ActivityIndicator,
-  Alert,
-  Modal,
-  Platform,
-  useWindowDimensions,
-  TouchableOpacity,
-} from 'react-native';
+import { View, Text, FlatList, StyleSheet, RefreshControl, ActivityIndicator, Platform, useWindowDimensions, TouchableOpacity } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { IconButton, Surface } from 'react-native-paper';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';

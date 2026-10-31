@@ -1,6 +1,7 @@
+import { AppModal as Modal } from '@/components/ui/AppModal';
 import { ActionButton as Button } from '@/components/ui/ActionButton';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Modal, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IconButton, Surface } from 'react-native-paper';
 
@@ -66,6 +67,7 @@ export function PosCustomerSelector({
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const isWide = width >= 920;
+  const compact = width < 600;
   const [phoneModalVisible, setPhoneModalVisible] = useState(false);
   const [nameModalVisible, setNameModalVisible] = useState(false);
   const [searchDialogVisible, setSearchDialogVisible] = useState(false);
@@ -76,13 +78,11 @@ export function PosCustomerSelector({
 
   const [recentCallsVisible, setRecentCallsVisible] = useState(false);
   const [recentCalls, setRecentCalls] = useState<{ caller_number: string, caller_name: string | null, created_at: string }[]>([]);
-  const [selectedCall, setSelectedCall] = useState<number | null>(null);
   const [loadingRecentCalls, setLoadingRecentCalls] = useState(false);
 
   const loadRecentCalls = async () => {
     setLoadingRecentCalls(true);
     setRecentCallsVisible(true);
-    setSelectedCall(null);
     const { data } = await getRecentCalls(3);
     setRecentCalls(data || []);
     setLoadingRecentCalls(false);
@@ -134,22 +134,28 @@ export function PosCustomerSelector({
 
   return (
     <>
-      <View style={styles.customerCard}>
-        <Text style={styles.checkoutSectionTitle}>Customer</Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16 }}>
-          <View style={{ flex: 1, minWidth: 140 }}>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: tokens.color.text, marginBottom: 8 }}>{allowEmptyPhone ? 'Phone (optional)' : 'Phone'}</Text>
+      <View style={[styles.customerCard, compact && styles.customerCardPhone]}>
+        {compact ? <View style={styles.customerCardHeader}>
+          <Text style={styles.checkoutSectionTitle}>Customer</Text>
+          <View style={{ flexDirection: 'row' }}>
+            <IconButton icon="account-search-outline" accessibilityLabel="Find customer" onPress={() => setSearchDialogVisible(true)} style={styles.customerPhoneAction} />
+            <IconButton icon="phone-clock-outline" accessibilityLabel="Recent calls" onPress={loadRecentCalls} style={styles.customerPhoneAction} />
+          </View>
+        </View> : <Text style={styles.checkoutSectionTitle}>Customer</Text>}
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: compact ? 8 : 16 }}>
+          <View style={{ flex: 1, minWidth: compact ? 0 : 140 }}>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: tokens.color.text, marginBottom: compact ? 4 : 8 }}>{allowEmptyPhone ? 'Phone (optional)' : 'Phone'}</Text>
             <TouchableOpacity accessibilityRole="button" accessibilityLabel="Enter customer phone" style={styles.customerInputTrigger} onPress={() => setPhoneModalVisible(true)}><Text style={styles.customerInputValue}>{customerPhone || '04'}</Text></TouchableOpacity>
           </View>
-          <View style={{ flex: 1, minWidth: 140 }}>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: tokens.color.text, marginBottom: 8 }}>Customer name</Text>
+          <View style={{ flex: 1, minWidth: compact ? 0 : 140 }}>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: tokens.color.text, marginBottom: compact ? 4 : 8 }}>{compact ? 'Name' : 'Customer name'}</Text>
             <TouchableOpacity accessibilityRole="button" accessibilityLabel="Enter customer name" style={styles.customerInputTrigger} onPress={() => setNameModalVisible(true)}><Text style={[styles.customerInputValue, !customerName && { color: tokens.color.muted }]}>{customerName || 'Customer name'}</Text></TouchableOpacity>
           </View>
         </View>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 4 }}>
+        {!compact && <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 4 }}>
           <Button mode="outlined" compact onPress={() => setSearchDialogVisible(true)} contentStyle={{ minHeight: 44 }} labelStyle={{ fontSize: 13 }} hitSlop={2} textColor={tokens.color.text}>Find customer</Button>
           <Button mode="outlined" compact onPress={loadRecentCalls} contentStyle={{ minHeight: 44 }} labelStyle={{ fontSize: 13 }} hitSlop={2} textColor={tokens.color.text}>Recent calls</Button>
-        </View>
+        </View>}
 
         {customerLookupStatus !== 'idle' && <View style={styles.customerInlineState}>
           {customerLookupStatus === 'loading' ? <ActivityIndicator size="small" color="#2563eb" /> : null}
@@ -157,7 +163,7 @@ export function PosCustomerSelector({
         </View>}
 
         {(selectedCustomer || customerName.trim()) && (
-          <View style={styles.customerSummaryCompact}>
+          <View style={[styles.customerSummaryCompact, compact && { gap: 4, paddingVertical: 4 }]}>
             <View style={styles.customerSummaryTopRow}>
               <Text style={styles.customerSummaryCaption}>
                 {selectedCustomer ? 'Customer selected' : 'Customer details entered'}
@@ -173,20 +179,20 @@ export function PosCustomerSelector({
                 ) : null}
               </View>
             </View>
-            <View style={styles.customerSummaryStatsRow}>
-              <View style={styles.customerSummaryStatPill}>
+            <View style={[styles.customerSummaryStatsRow, compact && { flexWrap: 'wrap' }]}>
+              <View style={[styles.customerSummaryStatPill, compact && styles.customerSummaryStatPhone]}>
                 <Text style={styles.customerSummaryStatLabel}>Points</Text>
                 <Text style={styles.customerSummaryStatValue}>{rewardPointsBalance.toLocaleString()}</Text>
               </View>
-              <View style={styles.customerSummaryStatPill}>
+              <View style={[styles.customerSummaryStatPill, compact && styles.customerSummaryStatPhone]}>
                 <Text style={styles.customerSummaryStatLabel}>Orders</Text>
                 <Text style={styles.customerSummaryStatValue}>{selectedCustomer?.totalOrders ?? 0}</Text>
               </View>
-              <View style={styles.customerSummaryStatPill}>
+              <View style={[styles.customerSummaryStatPill, compact && styles.customerSummaryStatPhone]}>
                 <Text style={styles.customerSummaryStatLabel}>Spent</Text>
                 <Text style={styles.customerSummaryStatValue}>{formatMoney(selectedCustomer?.totalSpent)}</Text>
               </View>
-              <View style={styles.customerSummaryStatPill}>
+              <View style={[styles.customerSummaryStatPill, compact && styles.customerSummaryStatPhone]}>
                 <Text style={styles.customerSummaryStatLabel}>Last</Text>
                 <Text style={styles.customerSummaryStatValue}>{selectedLastOrder || '-'}</Text>
               </View>
@@ -264,8 +270,8 @@ export function PosCustomerSelector({
         </View>
       </Modal>
 
-      <EditorSheet visible={recentCallsVisible} title="Recent calls" onDismiss={() => setRecentCallsVisible(false)} footer={<><Button mode="outlined" onPress={() => setRecentCallsVisible(false)}>Cancel</Button><Button mode="contained" disabled={selectedCall === null} onPress={() => { const call = selectedCall === null ? null : recentCalls[selectedCall]; if (call) { onChangePhone(call.caller_number); if (call.caller_name) onChangeName(call.caller_name); } setRecentCallsVisible(false); }}>Use selected number</Button></>}>
-        {loadingRecentCalls ? <ActivityIndicator /> : recentCalls.length === 0 ? <Text style={{ color: tokens.color.muted }}>No recent calls</Text> : recentCalls.map((call, index) => <TouchableOpacity key={`${call.caller_number}-${call.created_at}`} accessibilityRole="radio" accessibilityState={{ checked: selectedCall === index }} onPress={() => setSelectedCall(index)} style={{ minHeight: 50, borderWidth: 1, borderColor: selectedCall === index ? tokens.color.primary : tokens.color.border, backgroundColor: selectedCall === index ? tokens.color.primaryTint : tokens.color.surface, padding: 14, borderRadius: 10, flexDirection: 'row', gap: 12 }}><Text style={{ color: tokens.color.primary }}>{selectedCall === index ? '◉' : '○'}</Text><View style={{ flex: 1 }}><Text style={{ color: tokens.color.text }}>{call.caller_name || 'Unknown caller'} · {call.caller_number}</Text><Text style={{ color: tokens.color.muted, fontSize: 12 }}>{new Date(call.created_at).toLocaleString('en-AU')}</Text></View></TouchableOpacity>)}
+      <EditorSheet visible={recentCallsVisible} title="Recent calls" onDismiss={() => setRecentCallsVisible(false)} footer={<Button mode="outlined" onPress={() => setRecentCallsVisible(false)}>Cancel</Button>}>
+        {loadingRecentCalls ? <ActivityIndicator /> : recentCalls.length === 0 ? <Text style={{ color: tokens.color.muted }}>No recent calls</Text> : recentCalls.map(call => <TouchableOpacity key={`${call.caller_number}-${call.created_at}`} accessibilityRole="button" accessibilityLabel={`Use ${call.caller_name || call.caller_number}`} onPress={() => { onChangePhone(call.caller_number); if (call.caller_name) onChangeName(call.caller_name); setRecentCallsVisible(false); }} style={{ minHeight: 50, borderWidth: 1, borderColor: tokens.color.border, backgroundColor: tokens.color.surface, padding: 14, borderRadius: 10, gap: 4 }}><Text style={{ color: tokens.color.text }}>{call.caller_name || 'Unknown caller'} · {call.caller_number}</Text><Text style={{ color: tokens.color.muted, fontSize: 12 }}>{new Date(call.created_at).toLocaleString('en-AU')}</Text></TouchableOpacity>)}
       </EditorSheet>
     </>
   );

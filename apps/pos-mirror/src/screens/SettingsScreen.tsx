@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, View, useWindowDimensions, Image } from 'react-native';
-import { Button, RadioButton, Text } from 'react-native-paper';
+import { Button, Checkbox, RadioButton, Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { documentDirectory, copyAsync } from 'expo-file-system/legacy';
 
-import { ALL_REGISTERS, type MirrorSettings } from '../lib/mirror-settings';
+import { ALL_REGISTERS, selectedRegisters, type MirrorSettings } from '../lib/mirror-settings';
 import { listMirrorRegisterIds } from '../lib/mirror-registers';
 import { colors, radius, spacing } from '../theme';
 
@@ -18,7 +18,8 @@ type Props = {
 
 export function SettingsScreen({ initialSettings, onSave, onSignOut, onCancel }: Props) {
   const { width } = useWindowDimensions();
-  const [registerId, setRegisterId] = useState(initialSettings.registerId);
+  const [selectedIds, setSelectedIds] = useState(() => selectedRegisters(initialSettings));
+  const allSelected = selectedIds.includes(ALL_REGISTERS);
   const [idleMode, setIdleMode] = useState(initialSettings.idleMode);
   const [idleImageUri, setIdleImageUri] = useState(initialSettings.idleImageUri);
   const [saving, setSaving] = useState(false);
@@ -26,7 +27,7 @@ export function SettingsScreen({ initialSettings, onSave, onSignOut, onCancel }:
   const [registerIds, setRegisterIds] = useState<{ id: string; name: string }[]>([]);
   const [registersLoading, setRegistersLoading] = useState(true);
   const [registersError, setRegistersError] = useState<string | null>(null);
-  const selectedRegisterIsAvailable = registerId === ALL_REGISTERS || registerIds.some(r => r.id === registerId.trim());
+  const selectedRegisterIsAvailable = allSelected || (selectedIds.length > 0 && selectedIds.every(id => registerIds.some(r => r.id === id)));
 
   const loadRegisters = useCallback(async () => {
     setRegistersLoading(true);
@@ -45,15 +46,14 @@ export function SettingsScreen({ initialSettings, onSave, onSignOut, onCancel }:
   }, [loadRegisters]);
 
   const save = async () => {
-    const normalizedRegisterId = registerId.trim();
-    if (normalizedRegisterId !== ALL_REGISTERS && !registerIds.some(r => r.id === normalizedRegisterId)) {
+    if (!selectedRegisterIsAvailable) {
       setError('Choose a mother POS register from the available list.');
       return;
     }
     setSaving(true);
     setError(null);
     try {
-      await onSave({ registerId: normalizedRegisterId, idleMode, idleImageUri });
+      await onSave({ registerId: selectedIds[0] ?? '', registerIds: selectedIds, idleMode, idleImageUri });
     } catch {
       setError('Could not save this display configuration. Please try again.');
     } finally {
@@ -90,22 +90,23 @@ export function SettingsScreen({ initialSettings, onSave, onSignOut, onCancel }:
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
           <View style={styles.titleRow}>
-            <View style={styles.titleBlock}><Text variant="headlineMedium" style={styles.title}>Display settings</Text><Text variant="bodyLarge" style={styles.subtitle}>Listen to one POS or all POS registers.</Text></View>
+            <View style={styles.titleBlock}><Text variant="headlineMedium" style={styles.title}>Display settings</Text><Text variant="bodyLarge" style={styles.subtitle}>Listen to one, several or all POS registers.</Text></View>
             {onCancel && <Button mode="text" onPress={onCancel}>Back to display</Button>}
           </View>
           <View style={styles.registerHeading}>
             <Text variant="titleMedium" style={styles.sectionTitle}>Mother POS register</Text>
             <Button mode="text" compact onPress={() => void loadRegisters()} loading={registersLoading} disabled={registersLoading}>Refresh</Button>
           </View>
-          <Text variant="bodyMedium" style={styles.helper}>The current POS keeps the display until its cart clears. Other active POS carts wait their turn.</Text>
+          <Text variant="bodyMedium" style={styles.helper}>The current POS keeps the display until its cart clears or becomes inactive for five minutes. Other selected POS carts wait their turn.</Text>
           {registersLoading && <View style={styles.loadingRegisters} accessibilityState={{ busy: true }}><ActivityIndicator color={colors.primary} /><Text variant="bodyMedium">Loading available registers…</Text></View>}
           {!registersLoading && registersError && <Text accessibilityLiveRegion="polite" style={styles.error}>{registersError}</Text>}
           {!registersLoading && !registersError && registerIds.length === 0 && <Text style={styles.emptyState}>No mother POS registers yet. Start a cart on a mother POS, then refresh this list.</Text>}
-          <RadioButton.Group value={registerId} onValueChange={setRegisterId}>
-            <RadioButton.Item label="Listen to all POS" value={ALL_REGISTERS} position="leading" style={styles.registerChoice} accessibilityLabel="Listen to all POS registers" />
-            {registerIds.map(({ id, name }) => <RadioButton.Item key={id} label={`${name} (${id})`} value={id} position="leading" style={styles.registerChoice} accessibilityLabel={`Use mother POS register ${name}`} />)}
-          </RadioButton.Group>
-          {!registersLoading && registerId && registerId !== ALL_REGISTERS && !registerIds.some(r => r.id === registerId) && <Text style={styles.error}>The saved register is no longer available. Choose one from the list.</Text>}
+          <Checkbox.Item label="Listen to all POS" status={allSelected ? 'checked' : 'unchecked'} onPress={() => setSelectedIds(allSelected ? [] : [ALL_REGISTERS])} position="leading" style={styles.registerChoice} />
+          {registerIds.map(({ id, name }) => <Checkbox.Item key={id} label={`${name} (${id})`} status={allSelected || selectedIds.includes(id) ? 'checked' : 'unchecked'} onPress={() => setSelectedIds(current => {
+            const explicit = current.includes(ALL_REGISTERS) ? registerIds.map(r => r.id) : current;
+            return explicit.includes(id) ? explicit.filter(value => value !== id) : [...explicit, id];
+          })} position="leading" style={styles.registerChoice} accessibilityLabel={`Use mother POS register ${name}`} />)}
+          {!registersLoading && selectedIds.length > 0 && !selectedRegisterIsAvailable && <Text style={styles.error}>A saved register is no longer available. Update your selection.</Text>}
           <Text variant="titleMedium" style={styles.sectionTitle}>When no POS cart is active</Text>
           <RadioButton.Group value={idleMode} onValueChange={(value) => setIdleMode(value === 'queue' ? 'queue' : 'image')}>
             <View style={styles.choice}>

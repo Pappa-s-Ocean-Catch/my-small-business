@@ -16,7 +16,10 @@ class MirrorSession(private val now: () -> Long = System::currentTimeMillis) {
     var revision = 0L
         private set
     val snapshot: MirrorOrderSnapshot
-        get() = registers[registerId]?.snapshot ?: MirrorOrderSnapshot()
+        get() {
+            expire()
+            return registers[registerId]?.snapshot ?: MirrorOrderSnapshot()
+        }
 
     fun apply(id: String, incoming: MirrorOrderSnapshot?) {
         update(id, incoming)

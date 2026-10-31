@@ -1,9 +1,11 @@
+import { AppModal as Modal } from '@/components/ui/AppModal';
+import { appDialog as Alert } from '@/lib/app-dialog';
 import { ActionButton as Button } from '@/components/ui/ActionButton';
 import { OrderDetailController } from './OrderDetailController';
 import { WorkspaceHeader } from '@/components/ui';
 import { AppNavigation } from '@/components/navigation/AppNavigation';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Clipboard, Linking, Modal, ScrollView, StyleSheet, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Clipboard, Linking, ScrollView, StyleSheet, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar, Card, IconButton, Surface, Switch, Text, TextInput, useTheme } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -446,7 +448,7 @@ export function CustomerModal({
                       </Text>
                     ) : (
                       customer.orders.slice().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, showAllOrders ? undefined : 2).map((item) => (
-                        <Card key={item.id} nativeID={`customer-order-${item.id}`} accessibilityLabel={`View order ${getFriendlyOrderNumber(item.orderNumber)}`} style={styles.orderCard} mode="contained" onPress={() => setDetailOrderId(item.id)}>
+                        <Card key={item.id} nativeID={`customer-order-${item.id}`} accessibilityRole="button" accessibilityLabel={`Open order ${getFriendlyOrderNumber(item.orderNumber)}`} style={styles.orderCard} mode="contained" onPress={() => setDetailOrderId(item.id)}>
                           <Card.Content style={styles.orderCardContent}>
                             <View style={styles.orderTopRow}>
                               <View style={styles.orderInfo}>
@@ -455,7 +457,6 @@ export function CustomerModal({
                                 </Text>
                                 <Text variant="bodySmall" style={styles.orderSummary}>{new Date(item.date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} · {orderStatusLabel(item.status)} · ${item.total.toFixed(2)}</Text>
                               </View>
-                              <Button mode="outlined" onPress={() => setDetailOrderId(item.id)}>View order</Button>
                             </View>
                           </Card.Content>
                         </Card>
@@ -480,13 +481,17 @@ export function CustomerModal({
                     ) : (
                       customer.rewardHistory.slice(0, showAllRewards ? undefined : 2).map((item) => {
                         const tone = rewardHistoryTone(item.type);
+                        const linkedOrder = customer.orders.find(order => order.id === item.orderId);
+                        const rewardTitle = item.orderId ? linkedOrder ? `${tone.label} from order #${getFriendlyOrderNumber(linkedOrder.orderNumber)}` : `${tone.label} · Linked order` : item.description || `${tone.label} reward points`;
                         return (
                           <View key={item.id} style={styles.rewardCard}>
-                            <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${tone.label} ${item.points} points. ${expandedRewards[item.id] ? 'Hide' : 'Show'} reward details`} accessibilityState={{ expanded: !!expandedRewards[item.id] }} onPress={() => setExpandedRewards((value) => ({ ...value, [item.id]: !value[item.id] }))} style={styles.compactSummaryRow}>
-                              <View style={styles.summaryInfo}><Text style={styles.summaryTitle}>{item.orderId && customer.orders.some((order) => order.id === item.orderId) ? `${tone.label} from order #${getFriendlyOrderNumber(customer.orders.find((order) => order.id === item.orderId)!.orderNumber)}` : item.description || `${tone.label} reward points`}</Text><Text style={styles.summaryMeta}>{formatDate(item.createdAt)}</Text></View>
+                            <View style={styles.compactSummaryRow}>
+                              <TouchableOpacity style={[styles.summaryInfo, { minHeight: 44, justifyContent: 'center' }]} nativeID={item.orderId ? `customer-reward-order-${item.orderId}` : undefined} accessibilityRole="button" accessibilityLabel={item.orderId ? linkedOrder ? `Open order ${getFriendlyOrderNumber(linkedOrder.orderNumber)}` : 'Open linked order' : `${tone.label} reward details`} onPress={() => { if (item.orderId) setDetailOrderId(item.orderId); else setExpandedRewards(value => ({ ...value, [item.id]: !value[item.id] })); }}>
+                                <Text style={[styles.summaryTitle, item.orderId && { color: t.color.primary }]}>{rewardTitle}</Text><Text style={styles.summaryMeta}>{formatDate(item.createdAt)}</Text>
+                              </TouchableOpacity>
                               <StatusBadge label={`${item.points > 0 ? '+' : ''}${item.points.toLocaleString()} pts`} tone={item.points >= 0 ? 'success' : 'danger'} />
-                              <MaterialCommunityIcons name={expandedRewards[item.id] ? 'chevron-up' : 'chevron-down'} size={16} color={t.color.muted} />
-                            </TouchableOpacity>
+                              <IconButton icon={expandedRewards[item.id] ? 'chevron-up' : 'chevron-down'} size={20} style={{ margin: 0 }} accessibilityLabel={`${expandedRewards[item.id] ? 'Hide' : 'Show'} reward details`} accessibilityState={{ expanded: !!expandedRewards[item.id] }} onPress={() => setExpandedRewards(value => ({ ...value, [item.id]: !value[item.id] }))} />
+                            </View>
                             {expandedRewards[item.id] && <View style={styles.rewardCardContent}>
                               <View style={styles.rewardCardTopRow}>
                                 <View style={styles.rewardCardInfo}>
@@ -525,11 +530,6 @@ export function CustomerModal({
                                 <Text variant="bodySmall" style={styles.rewardAuditText}>
                                   Updated by {item.adjustedByName}
                                 </Text>
-                              ) : null}
-                              {item.orderId ? (
-                                <Button nativeID={`customer-reward-order-${item.orderId}`} mode="text" compact onPress={() => item.orderId && setDetailOrderId(item.orderId)} style={styles.rewardOrderButton}>
-                                  View order
-                                </Button>
                               ) : null}
                             </View>}
                           </View>

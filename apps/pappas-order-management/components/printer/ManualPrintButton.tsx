@@ -1,6 +1,7 @@
+import { AppModal as Modal } from '@/components/ui/AppModal';
 import { ActionButton as PaperButton } from '@/components/ui/ActionButton';
 import React from 'react';
-import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View, type StyleProp, type ViewStyle } from 'react-native';
 import { IconButton, Icon } from 'react-native-paper';
 import { isSimulatorPrinter, type SavedPrinter } from '@/lib/escpos-printer';
 import { designTokens as t } from '@/lib/redesign';
@@ -38,6 +39,13 @@ export function ManualPrintButton({ printers, disabled = false, loading = false,
   const [error, setError] = React.useState<string | null>(null);
   // A ref closes the duplicate-tap window before React commits disabled controls.
   const submitting = React.useRef(false);
+  const pickerDismissed = React.useRef<(() => void) | null>(null);
+  const dismissBeforePreview = () => new Promise<void>((resolve) => {
+    // UIKit cannot present the preview until this native modal finishes dismissing.
+    if (Platform.OS === 'ios') pickerDismissed.current = resolve;
+    setOpen(false);
+    if (Platform.OS !== 'ios') resolve();
+  });
   const unresolvedJobIds = React.useRef<string[]>([]);
   const [needsReview, setNeedsReview] = React.useState(false);
   const queue = usePrinterAutomationStore((state) => state.printJobs);
@@ -62,15 +70,23 @@ export function ManualPrintButton({ printers, disabled = false, loading = false,
     submitting.current = true;
     setPending(true);
     setError(null);
+    const preview = isSimulatorPrinter(printer);
     try {
+      if (preview) await dismissBeforePreview();
       const result = await selectedMode.onSelectPrinter(printer);
       if (result === false) {
-        setError('The print could not be confirmed. Check this job in the printer journal before sending another copy.' + recordUnconfirmed(before, printer));
+        if (preview) {
+          setError('Could not open the receipt preview. Please try again.');
+          setOpen(true);
+        } else setError('The print could not be confirmed. Check this job in the printer journal before sending another copy.' + recordUnconfirmed(before, printer));
       } else {
         setOpen(false);
       }
     } catch (cause) {
-      setError((cause instanceof Error ? cause.message : 'The print could not be confirmed. Check the printer journal before retrying.') + recordUnconfirmed(before, printer));
+      if (preview) {
+        setError(cause instanceof Error ? cause.message : 'Could not open the receipt preview. Please try again.');
+        setOpen(true);
+      } else setError((cause instanceof Error ? cause.message : 'The print could not be confirmed. Check the printer journal before retrying.') + recordUnconfirmed(before, printer));
     } finally {
       submitting.current = false;
       setPending(false);
@@ -79,7 +95,11 @@ export function ManualPrintButton({ printers, disabled = false, loading = false,
   const busy = pending || loading;
   return <>
     {renderTrigger ? renderTrigger({ onPress: begin, disabled: disabled || busy, loading: loading || pending }) : mode === 'icon' ? <IconButton icon={icon} size={18} onPress={begin} loading={loading} disabled={disabled || busy} accessibilityLabel={label} style={style} /> : <PaperButton mode="outlined" icon={icon} onPress={begin} loading={loading} disabled={disabled || busy} style={style} accessibilityLabel={label} contentStyle={{ minHeight: 48 }}>{label}</PaperButton>}
-    <Modal visible={open} transparent animationType="fade" onRequestClose={close}>
+    <Modal visible={open} transparent animationType="fade" onRequestClose={close} onDismiss={() => {
+      const resolve = pickerDismissed.current;
+      pickerDismissed.current = null;
+      resolve?.();
+    }}>
       <View style={styles.overlay}>
         <View ref={panelRef} style={styles.panel} accessibilityViewIsModal>
           <View style={styles.header}><Text accessibilityRole="header" style={styles.title}>{selectedMode ? 'Choose printer' : 'Print order'}</Text><IconButton icon="close" hitSlop={4} accessibilityLabel="Close printer choices" disabled={busy} onPress={close} style={styles.closeControl} /></View>
@@ -93,6 +113,7 @@ export function ManualPrintButton({ printers, disabled = false, loading = false,
             {needsReview && <PaperButton disabled={busy || !canRetry} onPress={() => { setNeedsReview(false); setError(null); unresolvedJobIds.current = []; }}>Retry confirmed failed request</PaperButton>}
             {needsReview && !canRetry && <Text style={styles.hint}>This request is still queued, printing, or cannot be reconciled. Printer choices stay disabled to avoid a duplicate.</Text>}
             {selectedMode && !!printModes?.length && <PaperButton disabled={busy} onPress={() => { setSelectedMode(null); setError(null); }}>Back to copy types</PaperButton>}
+            <PaperButton mode="outlined" accessibilityLabel="Cancel printing" disabled={busy} onPress={close}>Cancel</PaperButton>
           </ScrollView>
         </View>
       </View>

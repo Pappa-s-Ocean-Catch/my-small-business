@@ -1,9 +1,10 @@
+import { appDialog as Alert } from '@/lib/app-dialog';
 import { ActionButton as Button } from '@/components/ui/ActionButton';
 import { WorkspaceHeader, Panel } from '@/components/ui';
 import { designTokens as t } from '@/lib/redesign';
 import { FormField, PageHeader } from '@/components/ui';
 import React, { useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Appbar, Card, Text, TextInput } from 'react-native-paper';
 import { BRAND_COLORS } from '@/utils/brand';

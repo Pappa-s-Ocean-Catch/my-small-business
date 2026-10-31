@@ -1,3 +1,4 @@
+import { appDialog as Alert } from '@/lib/app-dialog';
 import { ActionButton as Button } from '@/components/ui/ActionButton';
 import { ManualPrintButton } from '@/components/printer/ManualPrintButton';
 import { enqueuePreparedPrintJobs, waitForPrintJobs } from '@/lib/print-queue';
@@ -7,17 +8,7 @@ import { WorkspaceHeader } from '@/components/ui';
 import { designTokens as t } from '@/lib/redesign';
 import { FormField, MetricCard, Panel, SectionHeader } from '@/components/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Platform,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  View,
-  useWindowDimensions,
-} from 'react-native';
+import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useNavigation } from '@react-navigation/native';
 import { isCompactPhoneWidth } from '@/lib/responsive';

@@ -1,3 +1,4 @@
+import { useProductTilePress } from '@/hooks/useProductTilePress';
 import { toggleNotePreset } from '@/lib/note-presets';
 import { ActionButton as Button } from '@/components/ui/ActionButton';
 import React from 'react';
@@ -283,6 +284,7 @@ export const PosMenuPane = React.memo(function PosMenuPane(props: Props) {
     handleThirdPartyCheckout,
     initialCheckoutTab,
   } = props;
+  const pressTopSeller = useProductTilePress(topSellers, quickAddProduct);
 
   const addonListRef = React.useRef<FlatList<AddonGroup>>(null);
   const [noteVisible, setNoteVisible] = React.useState(false);
@@ -640,7 +642,7 @@ export const PosMenuPane = React.memo(function PosMenuPane(props: Props) {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.topSellersList}
                 renderItem={({ item }) => {
-                  return <View style={{ width: 190 }}><PosProductTile accent={productTilePalette(item.id).borderColor} layout={props.layout} tileConfig={findPosProductConfig(props.layout, item.id)} product={item} groupName={`${item.total_quantity_sold} sold`} columns={1} quantity={quickQuantityForProduct(item.id)} hasAddons={props.hasAddons(item.id)} onPress={() => void quickAddProduct(item)} /></View>;
+                  return <View style={{ width: 190 }}><PosProductTile accent={productTilePalette(item.id).borderColor} layout={props.layout} tileConfig={findPosProductConfig(props.layout, item.id)} product={item} groupName={`${item.total_quantity_sold} sold`} columns={1} quantity={quickQuantityForProduct(item.id)} hasAddons={props.hasAddons(item.id)} onProductPress={pressTopSeller} /></View>;
                 }}
               />
             </View>
@@ -704,7 +706,7 @@ export const PosMenuPane = React.memo(function PosMenuPane(props: Props) {
             </Text>
           </View>
           <View style={styles.phoneFloatingCartButton}>
-            <Text style={styles.phoneFloatingCartButtonText}>View order →</Text>
+            <Text style={styles.phoneFloatingCartButtonText}>→</Text>
           </View>
         </TouchableOpacity>
       )}
@@ -737,6 +739,7 @@ function ProductGrid({
   onPressProduct: (product: SaleProduct) => void;
   productTilePalette: (productId: string) => { backgroundColor: string; borderColor: string; priceColor: string };
 }) {
+  const pressProduct = useProductTilePress(data, onPressProduct);
   return (
     <FlatList
       data={data}
@@ -749,7 +752,7 @@ function ProductGrid({
           <Text style={styles.emptyTitle}>{emptyText}</Text>
         </View>
       ) : null}
-      renderItem={({ item }) => <PosProductTile layout={layout} tileConfig={findPosProductConfig(layout, item.id, layoutCategoryId)} product={item} groupName={getGroupName?.(item) || 'Menu'} quantity={getQuantity(item.id)} hasAddons={Boolean(hasAddons?.(item.id))} accent={productTilePalette(item.id).borderColor} columns={gridColumns} onPress={() => onPressProduct(item)} />}
+      renderItem={({ item }) => <PosProductTile layout={layout} tileConfig={findPosProductConfig(layout, item.id, layoutCategoryId)} product={item} groupName={getGroupName?.(item) || 'Menu'} quantity={getQuantity(item.id)} hasAddons={Boolean(hasAddons?.(item.id))} accent={productTilePalette(item.id).borderColor} columns={gridColumns} onProductPress={pressProduct} />}
 
     />
   );

@@ -1,3 +1,4 @@
+import { appDialog as Alert } from '@/lib/app-dialog';
 import { ActionButton as PaperButton } from '@/components/ui/ActionButton';
 import { AsyncState, StatusBadge } from '@/components/ui';
 import { orderPaymentLabel, paymentTone } from '@/components/orders/presentation';
@@ -5,16 +6,7 @@ import { getFriendlyOrderNumber } from '@/utils/orderNumber';
 import { designTokens as t } from '@/lib/redesign';
 import { OrdersWorkspaceHeader } from '@/components/navigation/OrdersWorkspaceHeader';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import {
-  View,
-  Text,
-  FlatList,
-  StyleSheet,
-  RefreshControl,
-  Alert,
-  useWindowDimensions,
-  Pressable,
-} from 'react-native';
+import { View, Text, FlatList, StyleSheet, RefreshControl, useWindowDimensions, Pressable } from 'react-native';
 
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { supabase } from '@/lib/supabase';
@@ -494,15 +486,15 @@ export default function PreOrdersScreen() {
         numColumns={columns}
         columnWrapperStyle={columns > 1 ? styles.cardRow : undefined}
         renderItem={({ item }) => (
-          <View style={[styles.scheduledCard, columns > 1 && styles.gridCard]}>
+          <Pressable accessible={false} onPress={() => handleOrderPress(item)} style={[styles.scheduledCard, columns > 1 && styles.gridCard]}>
             <View style={styles.cardHeader}>
-              <Text style={styles.orderNumber}>#{getFriendlyOrderNumber(item.order_number)}</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel={`Open order ${getFriendlyOrderNumber(item.order_number)}`} hitSlop={8} onPress={event => { event.stopPropagation(); handleOrderPress(item); }}><Text style={styles.orderNumber}>#{getFriendlyOrderNumber(item.order_number)}</Text></Pressable>
               <StatusBadge label="Pre-order" tone="primary" />
             </View>
             <View style={styles.scheduledTime}>
               <Text style={styles.scheduledTimeText}>{formatCollectionTime(item.scheduled_pickup_at, nowMs)}</Text>
             </View>
-            <Pressable accessibilityRole="button" accessibilityLabel={`View customer ${item.customer_name || item.customer_email || 'Walk-in'}`} onPress={() => handleCustomerPress(item)} style={styles.customerButton}>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Open customer ${item.customer_name || item.customer_email || 'Walk-in'}`} onPress={event => { event.stopPropagation(); handleCustomerPress(item); }} style={styles.customerButton}>
               <Text style={styles.customerName}>{item.customer_name || item.customer_email || 'Walk-in'}</Text>
             </Pressable>
             <Text style={styles.itemSummary}>{item.order_type === 'delivery' ? 'Delivery' : 'Pickup'}{item.items?.length ? ` · ${item.items.map((line) => line.product_name).join(', ')}` : ''}</Text>
@@ -510,10 +502,7 @@ export default function PreOrdersScreen() {
               <Text style={styles.total}>${item.total.toFixed(2)}</Text>
               <StatusBadge label={orderPaymentLabel(item.payment_status, item.order_status)} tone={paymentTone(item.payment_status)} />
             </View>
-            <View style={styles.cardFooter}>
-              <PaperButton mode="outlined" onPress={() => handleOrderPress(item)} style={styles.viewButton} contentStyle={styles.buttonContent}>View order</PaperButton>
-            </View>
-          </View>
+          </Pressable>
         )}
         keyExtractor={(item) => item.id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}

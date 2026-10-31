@@ -1,3 +1,4 @@
+import { appDialog as Alert } from '@/lib/app-dialog';
 import { ActionButton as Button } from '@/components/ui/ActionButton';
 import { EditorSheet } from '@/components/ui/EditorSheet';
 import { SearchField as Searchbar } from '@/components/ui';
@@ -5,7 +6,7 @@ import { WorkspaceHeader, WorkflowSteps, StatusBadge } from '@/components/ui';
 import { designTokens as t } from '@/lib/redesign';
 import { FormField, PageHeader, Panel, SectionHeader } from '@/components/ui';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Image, Modal, RefreshControl, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Image, RefreshControl, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Appbar, Card, Checkbox, Chip, HelperText, IconButton, RadioButton, SegmentedButtons, Surface, Text, TextInput } from 'react-native-paper';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';

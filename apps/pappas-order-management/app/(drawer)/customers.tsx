@@ -1,8 +1,9 @@
+import { appDialog as Alert } from '@/lib/app-dialog';
 import { WorkspaceHeader } from '@/components/ui';
 import { designTokens as t } from '@/lib/redesign';
 import { PageHeader } from '@/components/ui';
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, StyleSheet, Alert } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { Appbar, Banner } from 'react-native-paper';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';

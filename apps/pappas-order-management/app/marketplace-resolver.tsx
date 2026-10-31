@@ -3,7 +3,7 @@ import { WorkspaceHeader, AsyncState } from '@/components/ui';
 import { designTokens as t } from '@/lib/redesign';
 import { PageHeader } from '@/components/ui';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Appbar, Card, Text } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 

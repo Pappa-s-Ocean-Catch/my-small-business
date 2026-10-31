@@ -1,3 +1,4 @@
+import { appDialog as Alert } from '@/lib/app-dialog';
 import { ActionButton as Button } from '@/components/ui/ActionButton';
 import { EditorSheet } from '@/components/ui/EditorSheet';
 import { useRouter } from 'expo-router';
@@ -8,7 +9,7 @@ import { useWindowDimensions } from 'react-native';
 import { designTokens as t } from '@/lib/redesign';
 import { FormField } from '@/components/ui';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Checkbox, IconButton, Portal, Switch, Text } from 'react-native-paper';
 import {
   createMobileAddonGroup,

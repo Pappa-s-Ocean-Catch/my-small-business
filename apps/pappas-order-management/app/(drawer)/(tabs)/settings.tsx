@@ -1,3 +1,4 @@
+import { appDialog as Alert } from '@/lib/app-dialog';
 import { Switch } from '@/components/ui/Switch';
 import { ActionButton as Button } from '@/components/ui/ActionButton';
 import { SelectionSheet, type SheetSelection } from '@/components/ui/SelectionSheet';
@@ -9,7 +10,7 @@ import { useWindowDimensions } from 'react-native';
 import { designTokens as t } from '@/lib/redesign';
 import { FormField } from '@/components/ui';
 import { useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
-import { Alert, ScrollView, StyleSheet, View, Platform, TextInput as NativeTextInput } from 'react-native';
+import { ScrollView, StyleSheet, View, Platform, TextInput as NativeTextInput } from 'react-native';
 import { Text, Chip } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
@@ -339,7 +340,7 @@ export default function SettingsScreen() {
         error: styles.logLevelBadgeerror,
     };
 
-    const openSoundPicker = () => setSelection({ title: 'Choose notification sound', value: soundId, options: SOUND_OPTIONS.map((option) => ({ value: option.id, label: option.label })), confirmLabel: 'Use selected sound', onSelect: (value) => setSoundId(value as SoundId) });
+    const openSoundPicker = () => setSelection({ title: 'Choose notification sound', value: soundId, options: SOUND_OPTIONS.map((option) => ({ value: option.id, label: option.label })), onSelect: (value) => setSoundId(value as SoundId) });
 
     const parseIntOr = (value: string, fallback: number) => {
         const n = Number.parseInt(value, 10);
@@ -1173,7 +1174,7 @@ export default function SettingsScreen() {
                                         <Text style={styles.label}>{marketplaceSoundEditor.label} sound alarm</Text>
                                         <Switch accessibilityLabel={`${marketplaceSoundEditor.label} sound alarm`} value={marketplaceSoundEditor.enabled} onValueChange={marketplaceSoundEditor.setEnabled} />
                                     </View>
-                                    <Button mode="outlined" style={styles.selectButton} onPress={() => setSelection({ title: `Choose ${marketplaceSoundEditor.label} sound`, value: marketplaceSoundEditor.soundId, options: SOUND_OPTIONS.map(option => ({ value: option.id, label: option.label })), confirmLabel: 'Use selected sound', onSelect: value => marketplaceSoundEditor.setSoundId(value as SoundId) })}>
+                                    <Button mode="outlined" style={styles.selectButton} onPress={() => setSelection({ title: `Choose ${marketplaceSoundEditor.label} sound`, value: marketplaceSoundEditor.soundId, options: SOUND_OPTIONS.map(option => ({ value: option.id, label: option.label })), onSelect: value => marketplaceSoundEditor.setSoundId(value as SoundId) })}>
                                         {SOUND_OPTIONS.find(option => option.id === marketplaceSoundEditor.soundId)?.label ?? marketplaceSoundEditor.soundId}
                                     </Button>
                                     <FormField mode="outlined" label="Play times" value={marketplaceSoundEditor.repeats} onChangeText={marketplaceSoundEditor.setRepeats} keyboardType="number-pad" style={styles.input} />

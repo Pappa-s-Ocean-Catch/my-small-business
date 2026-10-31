@@ -7,7 +7,8 @@ import type {
   TopSellerProduct,
 } from '../app/pos.types';
 
-export const CATALOG_CACHE_TTL_MS = 60 * 60 * 1000;
+// Catalogue values remain valid for the app session; only top sellers have a TTL.
+export const CATALOG_CACHE_TTL_MS = Number.POSITIVE_INFINITY;
 export const TOP_SELLERS_CACHE_TTL_MS = 15 * 60 * 1000;
 
 const DEFAULT_CATEGORY_LIMIT = 24;
@@ -22,15 +23,15 @@ type PosCatalogCacheState = {
   customizations: Map<string, CacheEntry<CustomizationData>>;
   topSellers: CacheEntry<TopSellerProduct[]> | null;
   getCategories: () => SaleCategory[] | null;
-  setCategories: (data: SaleCategory[], ttlMs?: number) => void;
+  setCategories: (data: SaleCategory[]) => void;
   getAllProducts: () => SaleProduct[] | null;
-  setAllProducts: (data: SaleProduct[], ttlMs?: number) => void;
+  setAllProducts: (data: SaleProduct[]) => void;
   getProductsByCategory: (key: string) => SaleProduct[] | null;
-  setProductsByCategory: (key: string, data: SaleProduct[], ttlMs?: number) => void;
+  setProductsByCategory: (key: string, data: SaleProduct[]) => void;
   getCustomizationAvailability: (productId: string) => boolean | null;
-  setCustomizationAvailability: (productId: string, value: boolean, ttlMs?: number) => void;
+  setCustomizationAvailability: (productId: string, value: boolean) => void;
   getCustomization: (productId: string) => CustomizationData | null;
-  setCustomization: (productId: string, data: CustomizationData, ttlMs?: number) => void;
+  setCustomization: (productId: string, data: CustomizationData) => void;
   getTopSellers: () => TopSellerProduct[] | null;
   setTopSellers: (data: TopSellerProduct[], ttlMs?: number) => void;
   clearTopSellers: () => void;
@@ -104,8 +105,8 @@ export const createPosCatalogCacheStore = (
       set({ categories: null });
       return null;
     },
-    setCategories: (data, ttlMs = CATALOG_CACHE_TTL_MS) => set({
-      categories: createCacheEntry(data, ttlMs, now()),
+    setCategories: (data) => set({
+      categories: createCacheEntry(data, CATALOG_CACHE_TTL_MS, now()),
     }),
     getAllProducts: () => {
       const entry = get().allProducts;
@@ -113,8 +114,8 @@ export const createPosCatalogCacheStore = (
       set({ allProducts: null });
       return null;
     },
-    setAllProducts: (data, ttlMs = CATALOG_CACHE_TTL_MS) => set({
-      allProducts: createCacheEntry(data, ttlMs, now()),
+    setAllProducts: (data) => set({
+      allProducts: createCacheEntry(data, CATALOG_CACHE_TTL_MS, now()),
     }),
     getProductsByCategory: (key) => {
       const productsByCategory = new Map(get().productsByCategory);
@@ -122,9 +123,9 @@ export const createPosCatalogCacheStore = (
       if (productsByCategory.size !== get().productsByCategory.size) set({ productsByCategory });
       return value;
     },
-    setProductsByCategory: (key, data, ttlMs = CATALOG_CACHE_TTL_MS) => {
+    setProductsByCategory: (key, data) => {
       const productsByCategory = new Map(get().productsByCategory);
-      setBoundedMapValue(productsByCategory, key, createCacheEntry(data, ttlMs, now()), categoryLimit);
+      setBoundedMapValue(productsByCategory, key, createCacheEntry(data, CATALOG_CACHE_TTL_MS, now()), categoryLimit);
       set({ productsByCategory });
     },
     getCustomizationAvailability: (productId) => {
@@ -133,9 +134,9 @@ export const createPosCatalogCacheStore = (
       if (customizationAvailability.size !== get().customizationAvailability.size) set({ customizationAvailability });
       return value;
     },
-    setCustomizationAvailability: (productId, value, ttlMs = CATALOG_CACHE_TTL_MS) => {
+    setCustomizationAvailability: (productId, value) => {
       const customizationAvailability = new Map(get().customizationAvailability);
-      setBoundedMapValue(customizationAvailability, productId, createCacheEntry(value, ttlMs, now()), availabilityLimit);
+      setBoundedMapValue(customizationAvailability, productId, createCacheEntry(value, CATALOG_CACHE_TTL_MS, now()), availabilityLimit);
       set({ customizationAvailability });
     },
     getCustomization: (productId) => {
@@ -144,9 +145,9 @@ export const createPosCatalogCacheStore = (
       if (customizations.size !== get().customizations.size) set({ customizations });
       return value;
     },
-    setCustomization: (productId, data, ttlMs = CATALOG_CACHE_TTL_MS) => {
+    setCustomization: (productId, data) => {
       const customizations = new Map(get().customizations);
-      setBoundedMapValue(customizations, productId, createCacheEntry(data, ttlMs, now()), customizationLimit);
+      setBoundedMapValue(customizations, productId, createCacheEntry(data, CATALOG_CACHE_TTL_MS, now()), customizationLimit);
       set({ customizations });
     },
     getTopSellers: () => {

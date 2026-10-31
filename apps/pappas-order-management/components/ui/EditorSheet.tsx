@@ -1,5 +1,7 @@
+import { AppModal as Modal } from '@/components/ui/AppModal';
+import { appDialog as Alert } from '@/lib/app-dialog';
 import React, { useEffect, useRef } from 'react';
-import { AccessibilityInfo, Alert, findNodeHandle, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, findNodeHandle, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Button, IconButton, Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useModalFocus } from '@/hooks/useModalFocus';
@@ -29,10 +31,6 @@ export function EditorSheet({ visible, title, subtitle, children, footer, onDism
   const dismiss = () => {
     if (pending) return;
     if (dirty) {
-      if (Platform.OS === 'web') {
-        if (window.confirm('Discard changes? Your changes have not been saved.')) onDismiss();
-        return;
-      }
       Alert.alert('Discard changes?', 'Your changes have not been saved.', [
         { text: 'Keep editing', style: 'cancel' },
         { text: 'Discard changes', style: 'destructive', onPress: onDismiss },

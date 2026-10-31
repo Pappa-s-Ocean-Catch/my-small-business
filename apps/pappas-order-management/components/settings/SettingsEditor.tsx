@@ -1,5 +1,6 @@
+import { AppModal as Modal } from '@/components/ui/AppModal';
 import React, { useState } from 'react';
-import { Modal, ScrollView, View, useWindowDimensions } from 'react-native';
+import { ScrollView, View, useWindowDimensions } from 'react-native';
 import { ActionButton as Button } from '@/components/ui/ActionButton';
 import { WorkspaceHeader, Panel } from '@/components/ui';
 import { AppNavigation } from '@/components/navigation/AppNavigation';

@@ -71,6 +71,7 @@ data class RegisterOption(
 @Serializable
 data class MirrorSettings(
     val registerId: String = "",
+    val registerIds: List<String> = if (registerId.isBlank()) emptyList() else listOf(registerId),
     val idleMode: String = "image", // "image" or "queue"
     val idleImageUri: String? = null,
     val showClock: Boolean = true

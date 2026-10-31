@@ -1,5 +1,6 @@
+import { AppModal as Modal } from '@/components/ui/AppModal';
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, Modal } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { Surface, IconButton, useTheme, Chip, ActivityIndicator } from 'react-native-paper';
 import { useRouter, usePathname } from 'expo-router';
 import { useAppSettingsQuery } from '@/hooks/useAppSettingsQuery';

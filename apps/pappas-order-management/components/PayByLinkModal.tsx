@@ -1,6 +1,7 @@
+import { appDialog as Alert } from '@/lib/app-dialog';
 import { ActionButton as Button } from '@/components/ui/ActionButton';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import type { Order } from '@my-small-business/types';
 import { findCustomerByPhone, createCustomerIfNotExists, type Customer } from '../lib/customers';

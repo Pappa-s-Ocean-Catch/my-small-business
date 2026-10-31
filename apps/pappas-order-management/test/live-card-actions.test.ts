@@ -11,12 +11,13 @@ const componentModule = { exports: {} as any };
 new Function('require', 'module', 'exports', output)((id: string) => {
   if (id === 'react/jsx-runtime') return { jsx, jsxs: jsx };
   if (id === 'react') return {};
+  if (id === 'react-native-paper') return { Icon: 'Icon' };
   if (id === 'react-native') return { View: 'View', Text: 'Text', Pressable: 'Pressable', ScrollView: 'ScrollView', StyleSheet: { create: (styles: any) => styles } };
   if (id.endsWith('/ActionButton')) return { ActionButton: 'Button' };
   if (id.endsWith('/ManualPrintButton')) return { ManualPrintButton: 'Print' };
   if (id.endsWith('/ui')) return { StatusBadge: 'Badge' };
   if (id.endsWith('/presentation')) return { fulfilmentTone: () => 'neutral', paymentTone: () => 'neutral', orderPaymentLabel: (value: string) => value };
-  if (id.endsWith('/redesign')) return { designTokens: { color: {}, radius: {} } };
+  if (id.endsWith('/redesign')) return { designTokens: { color: { success: '#12805c' }, radius: {} } };
   if (id.endsWith('/orderNumber')) return { getFriendlyOrderNumber: (value: string) => value };
   if (id.endsWith('/constants')) return { STATUS_LABELS: { preparing: 'Preparing' }, getDeliveryStatusLabel: () => '' };
   if (id.endsWith('/orderUtils')) return { getOrderChannel: (order: any) => order.order_channel || 'instore', paymentSummary: () => 'Pickup', getNextQuickAction: () => ({ action: 'ready', label: 'Mark ready' }), formatElapsed: () => ({ text: '1m', minutes: 1 }) };
@@ -122,4 +123,25 @@ test('marketplace header handles missing external ID without hiding the provider
   assert.equal(labels.filter(label => label.includes('Uber Eats')).length, 1);
   assert.ok(labels.includes('Uber Eats'));
   assert.ok(!labels.some(label => label.includes('External ID')));
+});
+
+test('successful printing appears as a green printer-check icon on the Print button', () => {
+  const { all } = render({ printState: { status: 'success' } });
+  const trigger = all.find(node => node.type === 'Print')!.props.renderTrigger({ onPress() {}, disabled: false, loading: false });
+  assert.equal(text(trigger), 'Print');
+  assert.equal(trigger.props.accessibilityLabel, 'Print order, already printed');
+  assert.equal(typeof trigger.props.icon, 'function');
+  const icon = trigger.props.icon({ size: 20, color: 'default' });
+  assert.equal(icon.props.source, 'printer-check');
+  assert.equal(icon.props.color, '#12805c');
+  assert.equal(all.some(node => node.type === 'Badge' && node.props.label === 'Printed'), false);
+});
+
+test('print failure and pending messages remain visible, without a success icon', () => {
+  for (const [status, label] of [['failed', 'Print failed'], ['printing', 'Printing…'], ['queued', 'Print queued']]) {
+    const { all } = render({ printState: { status } });
+    assert.ok(all.some(node => node.type === 'Badge' && node.props.label === label));
+    const trigger = all.find(node => node.type === 'Print')!.props.renderTrigger({ onPress() {}, disabled: false, loading: false });
+    assert.equal(trigger.props.icon, 'printer');
+  }
 });

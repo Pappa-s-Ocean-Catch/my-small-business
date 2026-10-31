@@ -10,6 +10,8 @@ class SettingsRepository(context: Context) {
     fun getSettings(): MirrorSettings {
         return MirrorSettings(
             registerId = prefs.getString("register_id", "") ?: "",
+            registerIds = prefs.getStringSet("register_ids", null)?.toList()?.sorted()
+                ?: listOfNotNull(prefs.getString("register_id", null)?.takeIf { it.isNotBlank() }),
             idleMode = prefs.getString("idle_mode", "image") ?: "image",
             idleImageUri = prefs.getString("idle_image_uri", null),
             showClock = prefs.getBoolean("show_clock", true)
@@ -19,6 +21,7 @@ class SettingsRepository(context: Context) {
     fun saveSettings(settings: MirrorSettings) {
         prefs.edit()
             .putString("register_id", settings.registerId.trim())
+            .putStringSet("register_ids", settings.registerIds.toSet())
             .putString("idle_mode", settings.idleMode)
             .putString("idle_image_uri", settings.idleImageUri)
             .putBoolean("show_clock", settings.showClock)

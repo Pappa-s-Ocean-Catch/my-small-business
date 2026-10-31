@@ -12,13 +12,13 @@ import { IdleImageDisplay } from '../components/IdleImageDisplay';
 import { useCustomerQueue } from '../hooks/useCustomerQueue';
 import { useMirrorState } from '../hooks/useMirrorState';
 import { selectDisplayState } from '../lib/display-state';
-import { ALL_REGISTERS, type MirrorSettings } from '../lib/mirror-settings';
+import { ALL_REGISTERS, selectedRegisters, type MirrorSettings } from '../lib/mirror-settings';
 import { colors, spacing } from '../theme';
 
 export function DisplayScreen({ settings, onOpenSettings }: { settings: MirrorSettings; onOpenSettings: () => void }) {
   useKeepAwake();
   const insets = useSafeAreaInsets();
-  const mirror = useMirrorState(settings.registerId);
+  const mirror = useMirrorState(selectedRegisters(settings));
   const queue = useCustomerQueue(settings.idleMode === 'queue');
   const display = selectDisplayState(mirror.snapshot, settings.idleMode, queue.orders);
   const warning = mirror.warning ?? queue.warning;
@@ -39,7 +39,7 @@ export function DisplayScreen({ settings, onOpenSettings }: { settings: MirrorSe
       {display.kind === 'cart' && <ActiveCartDisplay snapshot={display.snapshot} onRevealSettings={() => setShowSettings(true)} />}
       {display.kind === 'queue' && <CustomerQueueDisplay orders={display.orders} />}
       {display.kind === 'image' && <IdleImageDisplay onOpenSettings={onOpenSettings} imageUri={settings.idleImageUri} />}
-      {mirror.status === 'loading' && <View style={[styles.waiting, { top: insets.top + spacing.md, right: insets.right + 72 }]}><Text style={styles.waitingText}>{settings.registerId === ALL_REGISTERS ? 'Waiting for POS activity' : `Waiting for register ${settings.registerId}`} </Text></View>}
+      {mirror.status === 'loading' && <View style={[styles.waiting, { top: insets.top + spacing.md, right: insets.right + 72 }]}><Text style={styles.waitingText}>{settings.registerId === ALL_REGISTERS ? 'Waiting for POS activity' : 'Waiting for selected POS activity'} </Text></View>}
       {showSettings && <IconButton icon="cog-outline" size={24} mode="contained" containerColor="rgba(255,255,255,0.92)" iconColor={colors.accent} onPress={onOpenSettings} style={[styles.settings, { top: insets.top + spacing.sm, right: insets.right + spacing.sm }]} accessibilityLabel="Open display settings" />}
       <ConnectionBanner message={warning} />
     </SafeAreaView>

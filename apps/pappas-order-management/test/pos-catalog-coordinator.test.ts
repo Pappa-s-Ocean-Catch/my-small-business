@@ -14,14 +14,14 @@ const source = (name: string): PosCatalogSource => ({
   addonLinks: [], ingredients: [], promotions: [], layouts: [], selectedLayoutId: null,
 });
 
-test('invalidation during loading schedules one follow-up and publishes its result', async () => {
+test('manual reload during loading schedules one follow-up and publishes its result', async () => {
   const first = deferred<PosCatalogSource>();
   const second = deferred<PosCatalogSource>();
   let calls = 0;
   const coordinator = createPosCatalogCoordinator(async () => ++calls === 1 ? first.promise : second.promise);
   const start = coordinator.refresh('startup');
-  const later = coordinator.refresh('realtime');
-  coordinator.refresh('realtime');
+  const later = coordinator.refresh('manual');
+  coordinator.refresh('manual');
   first.resolve(source('old'));
   await new Promise<void>((resolve) => setImmediate(resolve));
   assert.equal(calls, 2);
@@ -52,4 +52,52 @@ test('logout discards an in-flight response', async () => {
   pending.resolve(source('private'));
   await load;
   assert.equal(coordinator.getState().snapshot, null);
+});
+
+
+test('startup requests reuse the catalogue indefinitely until an explicit manual reload', async () => {
+  let calls = 0;
+  const coordinator = createPosCatalogCoordinator(async () => source(`load-${++calls}`));
+  await coordinator.refresh('startup');
+  const first = coordinator.getState().snapshot;
+  for (let i = 0; i < 100; i++) await coordinator.refresh('startup');
+  assert.equal(calls, 1);
+  assert.equal(coordinator.getState().snapshot, first);
+  await coordinator.refresh('manual');
+  assert.equal(calls, 2);
+  assert.notEqual(coordinator.getState().snapshot, first);
+});
+test('failed startup waits for manual retry instead of refetching automatically', async () => {
+  let calls = 0;
+  const coordinator = createPosCatalogCoordinator(async () => { calls++; throw new Error('Offline'); });
+  await coordinator.refresh('startup');
+  await coordinator.refresh('startup');
+  assert.equal(calls, 1);
+  await coordinator.refresh('manual');
+  assert.equal(calls, 2);
+});
+test('applying and saving layout choices update local metadata without reloading catalogue data', async () => {
+  let calls = 0;
+  const coordinator = createPosCatalogCoordinator(async () => source(`load-${++calls}`));
+  await coordinator.refresh('startup');
+  const first = coordinator.getState().snapshot!;
+  const record = { id: 'local', name: 'Counter', layout: { version: 1 as const, categories: [] }, is_default: true, created_at: '', updated_at: '' };
+  coordinator.saveLayoutRecord(record);
+  assert.equal(coordinator.getState().snapshot?.preferredLayout, first.preferredLayout);
+  coordinator.applyLayout(record);
+  assert.equal(coordinator.getState().snapshot?.preferredLayout, record);
+  assert.equal(coordinator.getState().snapshot?.products, first.products);
+  assert.equal(coordinator.getState().snapshot?.customizations, first.customizations);
+  assert.equal(calls, 1);
+});
+
+
+test('legacy background/selection requests cannot bypass the manual-only refresh rule', async () => {
+  let calls = 0;
+  const coordinator = createPosCatalogCoordinator(async () => source(`load-${++calls}`));
+  await coordinator.refresh('startup');
+  const refresh = coordinator.refresh as (reason: string) => Promise<void>;
+  await refresh('realtime');
+  await refresh('selection');
+  assert.equal(calls, 1);
 });
