@@ -1,5 +1,4 @@
-import { AppModal as Modal } from '@/components/ui/AppModal';
-import { WorkspaceHeader } from '@/components/ui';
+import { FullScreenModal } from '@/components/ui/FullScreenModal';
 import { ActionButton as Button } from '@/components/ui/ActionButton';
 import { designTokens as t } from '@/lib/redesign';
 import React from 'react';
@@ -29,14 +28,8 @@ export function JournalLogsModal({ visible, onClose }: PrintLogsModalProps) {
   };
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="fullScreen"
-      onRequestClose={onClose}
-    >
+    <FullScreenModal visible={visible} title="Journal" onClose={onClose} closeLabel="Close journal">
       <View style={styles.modalScreen}>
-        <WorkspaceHeader title="Journal" onBack={onClose} showProfile={false} />
         <ScrollView contentContainerStyle={styles.modalContent}>
           <View style={styles.logsHeaderRow}>
             <Text style={styles.helper}>
@@ -86,7 +79,7 @@ export function JournalLogsModal({ visible, onClose }: PrintLogsModalProps) {
           </Button>
         </View>
       </View>
-    </Modal>
+    </FullScreenModal>
   );
 }
 

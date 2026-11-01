@@ -8,12 +8,14 @@ import { WorkspaceHeader } from '@/components/ui';
 import { designTokens as t } from '@/lib/redesign';
 import { FormField, MetricCard, Panel, SectionHeader } from '@/components/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, AppState, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useNavigation } from '@react-navigation/native';
 import { isCompactPhoneWidth } from '@/lib/responsive';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { IconButton, Menu, Surface, Text } from 'react-native-paper';
+import Svg, { Line } from 'react-native-svg';
+import { getDailyReportNowMarker } from '@/lib/report-current-time';
 import { LineChart, type lineDataItem } from 'react-native-gifted-charts';
 import type { Order } from '@my-small-business/types';
 import { ReportPrintTemplate } from '@/components/ReportPrintTemplate';
@@ -282,12 +284,23 @@ function ComparisonChart({
   current,
   compare,
   chartKey,
+  reportDate,
 }: {
   current: ChartBucket[];
   compare: ChartBucket[];
   chartKey: string;
+  reportDate?: string;
 }) {
   const [availableWidth, setAvailableWidth] = useState(0);
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    if (!reportDate) return;
+    const tick = () => setNow(new Date());
+    tick();
+    const timer = setInterval(tick, 60_000);
+    const listener = AppState.addEventListener('change', state => { if (state === 'active') tick(); });
+    return () => { clearInterval(timer); listener.remove(); };
+  }, [reportDate]);
   const { fontScale } = useWindowDimensions();
   const maxValue = Math.max(1, ...current.map((b) => b.total), ...compare.map((b) => b.total));
   const roundedMaxValue = Math.ceil(maxValue / 50) * 50 || 50;
@@ -297,8 +310,17 @@ function ComparisonChart({
   const chartWidth = Math.max(1, availableWidth - axisLabelWidth - 12);
   const spacing = Math.max(0, (chartWidth - 48) / Math.max(1, Math.max(current.length, compare.length) - 1));
 
+  const marker = getDailyReportNowMarker(reportDate, now, REPORT_START_HOUR, REPORT_END_HOUR);
+  // Match the plot's Y-axis gutter, 24px initial spacing and half-hour data spacing.
+  const markerX = marker ? axisLabelWidth + 1 + 24 + marker.index * spacing : 0;
+  const showMarker = !!marker && availableWidth > 0;
+  const markerLabelWidth = Math.min(availableWidth, 112 * fontScale);
   return (
     <View style={styles.chartWrap} onLayout={(event) => setAvailableWidth(event.nativeEvent.layout.width)}>
+      {showMarker && <View pointerEvents="none" style={{ height: Math.ceil(26 * Math.max(1, fontScale)) }}>
+        <Text numberOfLines={1} accessibilityLabel={`Current Melbourne time, ${marker!.label.replace('Now · ', '')}`} style={[styles.chartNowLabel, { width: markerLabelWidth, left: Math.max(0, Math.min(markerX - markerLabelWidth / 2, availableWidth - markerLabelWidth)) }]}>{marker!.label}</Text>
+      </View>}
+      <View style={{ position: 'relative' }}>
       {availableWidth > 0 && <LineChart
         key={chartKey}
         data={buildChartData(current)}
@@ -355,6 +377,10 @@ function ComparisonChart({
           ),
         }}
       />}
+      {showMarker && <Svg pointerEvents="none" accessible={false} width={availableWidth} height={190} style={{ position: 'absolute', left: 0, top: 0 }}>
+        <Line x1={markerX} x2={markerX} y1={0} y2={190} stroke={t.color.success} strokeWidth={2} strokeDasharray="5 4" />
+      </Svg>}
+      </View>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingLeft: axisLabelWidth, paddingTop: 8 }}>
         {[0, Math.floor((current.length - 1) / 2), current.length - 1].map((index) => <Text key={index} style={styles.chartAxisText}>{current[index]?.label}</Text>)}
       </View>
@@ -724,6 +750,7 @@ export default function ReportScreen() {
               </View>
               <ComparisonChart
                 current={currentBuckets}
+                reportDate={selectedReport === 'daily' ? selectedDate : undefined}
                 compare={compareBuckets}
                 chartKey={`${selectedReport}-${currentRange.start}-${currentRange.end}-${compareRange.start}-${compareRange.end}-${currentTotal}-${compareTotal}`}
               />
@@ -950,6 +977,7 @@ const styles = StyleSheet.create({
   legend: { flexDirection: 'row', alignItems: 'center', gap: 12, flexShrink: 1, flexWrap: 'wrap' },
   legendCurrent: { color: t.color.primary, fontWeight: '800' },
   legendCompare: { color: t.color.muted, fontWeight: '800' },
+  chartNowLabel: { position: 'absolute', width: 112, textAlign: 'center', color: t.color.success, fontSize: 12, fontWeight: '700' },
   chartWrap: { marginTop: 6, minWidth: 0, width: '100%' },
   chartAxisText: { color: t.color.muted, fontSize: 14 },
   chartXAxisLabel: { color: t.color.muted, fontSize: 14, marginTop: 14 },

@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { JournalLogsModal } from '@/components/PrintLogsModal';
+import { JOURNAL_LOGS_ENABLED } from '@/lib/journal-config';
 import { ScrollView, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 import { HeaderStrokeIcon } from '@/components/ui';
@@ -8,6 +10,7 @@ import { designTokens as t, getWindowSizeClass } from '@/lib/redesign';
 
 /** Shared chrome; navigate retains existing screens (including a mounted POS draft). */
 export function AppNavigation({ onNavigate }: { onNavigate?: () => void }) {
+  const [showJournal, setShowJournal] = useState(false);
   const { width } = useWindowDimensions();
   const compact = getWindowSizeClass(width) === 'compact';
   const insets = useSafeAreaInsets();
@@ -19,10 +22,11 @@ export function AppNavigation({ onNavigate }: { onNavigate?: () => void }) {
     { label: 'Customers', icon: 'account-group-outline', href: '/customers', selected: pathname.startsWith('/customers') },
     { label: 'Reports', icon: 'chart-bar', href: '/report', selected: pathname === '/report' },
     { label: 'More', icon: 'menu', href: '/more', selected: (compact || pathname !== '/settings') && !/live-orders|on-the-way|completed|pre-orders|\/orders$|\/pos$|\/customers|\/report$/.test(pathname) },
+    ...(!compact && JOURNAL_LOGS_ENABLED ? [{ label: 'Journal', icon: 'text-box-search-outline', href: '', selected: false }] : []),
     ...(!compact ? [{ label: 'Settings', icon: 'cog-outline', href: '/settings', selected: pathname === '/settings' }] : []),
   ];
-  const navigationItems = entries.map((entry) => <Pressable key={entry.label} accessibilityRole="button" accessibilityLabel={entry.label} accessibilityState={{ selected: entry.selected }} onPress={() => { onNavigate?.(); router.navigate(entry.href as any); }} style={[s.item, compact && s.bottomItem, entry.selected && (compact ? s.selectedBottom : s.selectedRail), entry.label === 'Settings' && s.settings]}>
-      {entry.icon === 'cog-outline' ? <MaterialCommunityIcons name="cog-outline" size={23} color="#B5C9D1" /> : <HeaderStrokeIcon name={entry.icon} size={23} color={entry.selected && compact ? t.color.primary : compact ? t.color.muted : entry.selected ? t.color.surface : '#B5C9D1'} />}
+  const navigationItems = entries.map((entry) => <Pressable key={entry.label} accessibilityRole="button" accessibilityLabel={entry.label} accessibilityState={{ selected: entry.selected }} onPress={() => { if (entry.label === 'Journal') { setShowJournal(true); return; } onNavigate?.(); router.navigate(entry.href as any); }} style={[s.item, compact && s.bottomItem, entry.selected && (compact ? s.selectedBottom : s.selectedRail), entry.label === 'Settings' && s.settings]}>
+      {entry.icon === 'cog-outline' || entry.label === 'Journal' ? <MaterialCommunityIcons name={entry.icon as any} size={23} color="#B5C9D1" /> : <HeaderStrokeIcon name={entry.icon} size={23} color={entry.selected && compact ? t.color.primary : compact ? t.color.muted : entry.selected ? t.color.surface : '#B5C9D1'} />}
       <Text numberOfLines={!compact && entry.label === 'Take order' ? 2 : 1} adjustsFontSizeToFit minimumFontScale={0.85} style={[s.label, { color: entry.selected && compact ? t.color.primary : compact ? t.color.muted : entry.selected ? t.color.surface : '#B5C9D1' }]}>{!compact && entry.label === 'Take order' ? 'Take\norder' : entry.label}</Text>
     </Pressable>);
   return <><View style={[s.nav, compact ? [s.bottom, { paddingBottom: insets.bottom }] : [s.rail, { width: width >= 1100 ? 72 : 64, paddingTop: Math.max(insets.top, 14) }]]}>
@@ -31,6 +35,7 @@ export function AppNavigation({ onNavigate }: { onNavigate?: () => void }) {
       {navigationItems}
     </ScrollView>}
   </View>
+    {showJournal && <JournalLogsModal visible onClose={() => setShowJournal(false)} />}
   </>;
 }
 const s = StyleSheet.create({

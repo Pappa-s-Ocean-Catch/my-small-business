@@ -5,6 +5,7 @@ import { AccessibilityInfo, findNodeHandle, Keyboard, KeyboardAvoidingView, Plat
 import { Button, IconButton, Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useModalFocus } from '@/hooks/useModalFocus';
+import { getModalLayout } from '@/lib/modal-layout';
 import { ActionButton } from './ActionButton';
 import { designTokens as t } from '@/lib/redesign';
 
@@ -18,15 +19,16 @@ type Props = {
   dirty?: boolean;
   pending?: boolean;
   size?: 'confirm' | 'form' | 'wide' | 'options';
+  scrollable?: boolean;
 };
 
 /** Native editor with a scrolling body and actions that stay above the keyboard. */
-export function EditorSheet({ visible, title, subtitle, children, footer, onDismiss, dirty = false, pending = false, size = 'form' }: Props) {
+export function EditorSheet({ visible, title, subtitle, children, footer, onDismiss, dirty = false, pending = false, scrollable = true }: Props) {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const heading = useRef<View>(null);
   const panel = useRef<View>(null);
-  const compact = width < 600;
+  const { compact, width: modalWidth, maxHeight } = getModalLayout(width, height, insets);
   useEffect(() => { if (pending) Keyboard.dismiss(); }, [pending]);
   const dismiss = () => {
     if (pending) return;
@@ -55,13 +57,13 @@ export function EditorSheet({ visible, title, subtitle, children, footer, onDism
     return child;
   });
   return <Modal visible={visible} transparent animationType="fade" onRequestClose={dismiss} onShow={focusTitle} statusBarTranslucent>
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[s.scrim, Platform.OS === 'web' && ({ backdropFilter: 'blur(3px)' } as any), { paddingTop: compact ? insets.top : 32, paddingBottom: compact ? insets.bottom : 32, paddingHorizontal: compact ? 0 : 32 }]}>
-      <View ref={panel} accessibilityViewIsModal importantForAccessibility="yes" style={[s.sheet, { maxWidth: compact ? undefined : size === 'options' ? width * 0.75 : size === 'wide' ? 920 : size === 'confirm' ? 460 : 620, maxHeight: height - (compact ? insets.top + insets.bottom : 64) }, compact && s.compact]}>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[s.scrim, Platform.OS === 'web' && ({ backdropFilter: 'blur(3px)' } as any), { paddingTop: insets.top + (compact ? 0 : 24), paddingBottom: insets.bottom + (compact ? 0 : 24), paddingHorizontal: 0 }]}>
+      <View ref={panel} accessibilityViewIsModal importantForAccessibility="yes" style={[s.sheet, { width: modalWidth, maxHeight, ...(!scrollable ? { height: maxHeight } : {}) }, compact && s.compact]}>
         <View style={s.header}>
           <View ref={heading} accessible accessibilityRole="header" accessibilityLabel={title} style={s.heading}><Text style={s.title}>{title}</Text>{subtitle && <Text style={s.subtitle}>{subtitle}</Text>}</View>
           <IconButton icon="close" accessibilityLabel={`Close ${title}`} onPress={dismiss} disabled={pending} size={22} hitSlop={4} style={s.close} />
         </View>
-        <ScrollView pointerEvents={pending ? 'none' : 'auto'} keyboardShouldPersistTaps="handled" contentContainerStyle={s.body} style={[s.scroll, compact && { flex: 1 }]}>{children}</ScrollView>
+        {scrollable ? <ScrollView pointerEvents={pending ? 'none' : 'auto'} keyboardShouldPersistTaps="handled" contentContainerStyle={s.body} style={s.scroll}>{children}</ScrollView> : <View pointerEvents={pending ? 'none' : 'auto'} style={[s.body, { flex: 1, minHeight: 0 }]}>{children}</View>}
         {footer && <View style={s.footer}>{footerControls(typeof footer === 'function' ? footer(dismiss) : footer)}</View>}
       </View>
     </KeyboardAvoidingView>
@@ -70,7 +72,7 @@ export function EditorSheet({ visible, title, subtitle, children, footer, onDism
 const s = StyleSheet.create({
   scrim: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: t.color.scrim },
   sheet: { width: '100%', backgroundColor: '#F7F9F8', borderRadius: t.radius.dialog, overflow: 'hidden', flexShrink: 1 },
-  compact: { flex: 1, borderRadius: 0 },
+  compact: { borderRadius: 0 },
   header: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 18, minHeight: 64, backgroundColor: t.color.surface, gap: 16, borderBottomWidth: 1, borderBottomColor: t.color.border },
   heading: { flex: 1, minWidth: 0, gap: 4 }, title: { fontSize: 19, color: t.color.text, fontWeight: '700' }, subtitle: { fontSize: 14, lineHeight: 21, color: t.color.muted },
   close: { margin: 0, width: 40, height: 40, borderRadius: 20, backgroundColor: '#F0F4F3' }, scroll: { flexShrink: 1 }, body: { padding: 18, gap: 16 },

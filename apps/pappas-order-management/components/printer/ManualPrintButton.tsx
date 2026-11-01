@@ -1,9 +1,11 @@
 import { AppModal as Modal } from '@/components/ui/AppModal';
 import { ActionButton as PaperButton } from '@/components/ui/ActionButton';
 import React from 'react';
-import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native';
 import { IconButton, Icon } from 'react-native-paper';
 import { isSimulatorPrinter, type SavedPrinter } from '@/lib/escpos-printer';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getModalLayout } from '@/lib/modal-layout';
 import { designTokens as t } from '@/lib/redesign';
 import { canRetryManualPrintRequest } from '@/lib/manual-print-reconciliation';
 import { usePrinterAutomationStore } from '@/stores/printerAutomationStore';
@@ -32,6 +34,9 @@ type ManualPrintButtonProps = {
 
 /** A printer is an action: selection submits exactly once, with no second Print step. */
 export function ManualPrintButton({ printers, disabled = false, loading = false, label = 'Print', icon = 'printer', mode = 'button', style, renderTrigger, onSelectPrinter, printModes, onVisibilityChange }: ManualPrintButtonProps) {
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const layout = getModalLayout(width, height, insets);
   const [open, setOpen] = React.useState(false);
   React.useEffect(() => { onVisibilityChange?.(open); }, [open, onVisibilityChange]);
   const [selectedMode, setSelectedMode] = React.useState<ManualPrintMode | null>(null);
@@ -100,8 +105,8 @@ export function ManualPrintButton({ printers, disabled = false, loading = false,
       pickerDismissed.current = null;
       resolve?.();
     }}>
-      <View style={styles.overlay}>
-        <View ref={panelRef} style={styles.panel} accessibilityViewIsModal>
+      <View style={[styles.overlay, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+        <View ref={panelRef} style={[styles.panel, { width: layout.width, maxHeight: layout.maxHeight, borderRadius: layout.compact ? 0 : 24 }]} accessibilityViewIsModal>
           <View style={styles.header}><Text accessibilityRole="header" style={styles.title}>{selectedMode ? 'Choose printer' : 'Print order'}</Text><IconButton icon="close" hitSlop={4} accessibilityLabel="Close printer choices" disabled={busy} onPress={close} style={styles.closeControl} /></View>
           <ScrollView contentContainerStyle={styles.body}>
             <Text style={styles.hint}>{pending ? 'Submitting one print job. Please wait…' : selectedMode ? `${selectedMode.label} · Tap a printer to print immediately.` : 'Choose the copy, then tap a printer.'}</Text>
@@ -121,8 +126,8 @@ export function ManualPrintButton({ printers, disabled = false, loading = false,
   </>;
 }
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(15, 35, 42, 0.48)', justifyContent: 'center', alignItems: 'center', padding: 16 },
-  panel: { width: '100%', maxWidth: 620, maxHeight: '90%', borderRadius: 24, backgroundColor: t.color.background, overflow: 'hidden' },
+  overlay: { flex: 1, backgroundColor: 'rgba(15, 35, 42, 0.48)', justifyContent: 'center', alignItems: 'center', padding: 0 },
+  panel: { width: '100%', borderRadius: 24, backgroundColor: t.color.background, overflow: 'hidden' },
   header: { minHeight: 64, paddingVertical: 12, paddingLeft: 18, paddingRight: 18, backgroundColor: t.color.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: t.color.border },
   closeControl: { width: 40, height: 40, margin: 0, borderRadius: 20, backgroundColor: '#F0F4F3' },
   title: { flex: 1, fontSize: 19, fontWeight: '800', color: t.color.text },

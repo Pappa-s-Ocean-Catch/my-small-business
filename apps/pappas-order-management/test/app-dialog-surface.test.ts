@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import ts from 'typescript';
+import { getModalLayout } from '../lib/modal-layout';
 import { createAppDialogStore } from '../lib/app-dialog';
 const jsx = (type: string, props: any) => ({ type, props });
 const nodes = (tree: any): any[] => !tree || typeof tree !== 'object' ? [] : Array.isArray(tree) ? tree.flatMap(nodes) : [tree, ...nodes(tree.props?.children)];
@@ -12,8 +13,10 @@ function surface(store: ReturnType<typeof createAppDialogStore>) {
   new Function('require', 'module', 'exports', code)((id: string) => {
     if (id === 'react') return { createContext: () => ({}), useContext: () => 0, useEffect: () => {}, useRef: (v: unknown) => ({ current: v }), useSyncExternalStore: (_subscribe: unknown, snapshot: () => unknown) => snapshot() };
     if (id === 'react/jsx-runtime') return { jsx, jsxs: jsx };
-    if (id === 'react-native') return { View: 'View', Text: 'Text', Pressable: 'Pressable', ScrollView: 'ScrollView', StyleSheet: { create: (v: unknown) => v } };
+    if (id === 'react-native') return { useWindowDimensions: () => ({ width: 1200, height: 900 }), View: 'View', Text: 'Text', Pressable: 'Pressable', ScrollView: 'ScrollView', StyleSheet: { create: (v: unknown) => v } };
     if (id === 'react-native-paper') return { IconButton: 'IconButton' };
+    if (id.endsWith('/modal-layout')) return { getModalLayout };
+    if (id.includes('safe-area-context')) return { useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) };
     if (id.endsWith('/app-dialog')) return { appDialogStore: store };
     if (id.endsWith('/redesign')) return { designTokens: { color: {}, radius: {} } };
     if (id.endsWith('/useModalFocus')) return { useModalFocus: (_ref: unknown, _visible: boolean, close: () => void) => { escape = close; } };
@@ -56,4 +59,14 @@ test('only the topmost modal renders the queued dialog', () => {
   const view = surface(store);
   assert.equal(view.render(parent).length, 0);
   assert.ok(view.render(child).some(n => n.props.children === 'Nested error'));
+});
+
+test('confirmation panel uses the shared 75-percent tablet width', () => {
+  const store = createAppDialogStore();
+  const hostId = store.registerHost(1);
+  store.alert('Confirm change', 'Review this change first.');
+  const all = surface(store).render(hostId);
+  const panel = all.find(n => Array.isArray(n.props.style) && n.props.style.some((style: any) => style?.width === 900));
+  assert.ok(panel);
+  assert.equal(Object.assign({}, ...panel.props.style).maxHeight, 852);
 });

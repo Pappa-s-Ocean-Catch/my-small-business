@@ -17,6 +17,8 @@ import {
   useTheme,
 } from 'react-native-paper';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { JournalLogsModal } from '@/components/PrintLogsModal';
+import { JOURNAL_LOGS_ENABLED } from '@/lib/journal-config';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'expo-router';
 
@@ -24,6 +26,7 @@ import { useRouter } from 'expo-router';
  * Custom Drawer Content to include Profile and Sign Out
  */
 export function CustomDrawerContent(props: any) {
+  const [showJournal, setShowJournal] = useState(false);
   const router = useRouter();
   const theme = useTheme();
   const [user, setUser] = useState<any>(null);
@@ -81,6 +84,7 @@ export function CustomDrawerContent(props: any) {
 
           <PaperDrawer.Section style={styles.drawerSection}>
             <DrawerItemList {...props} />
+            {JOURNAL_LOGS_ENABLED && <DrawerItem label="Journal" icon={({ color, size }) => <MaterialCommunityIcons name="text-box-search-outline" color={color} size={size} />} onPress={() => { props.navigation.closeDrawer(); setShowJournal(true); }} />}
             <DrawerItem label="Order history" icon={({ color, size }) => <MaterialCommunityIcons name="history" color={color} size={size} />} onPress={() => { props.navigation.closeDrawer(); router.navigate('/(drawer)/(tabs)/orders'); }} />
             <DrawerItem label="Menu catalogue" icon={({ color, size }) => <MaterialCommunityIcons name="food-outline" color={color} size={size} />} onPress={() => { props.navigation.closeDrawer(); router.navigate('/menu-management'); }} />
           </PaperDrawer.Section>
@@ -106,6 +110,7 @@ export function CustomDrawerContent(props: any) {
           onPress={handleLogout}
         />
       </PaperDrawer.Section>
+      {showJournal && <JournalLogsModal visible onClose={() => setShowJournal(false)} />}
     </View>
   );
 }

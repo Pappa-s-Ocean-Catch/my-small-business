@@ -1,3 +1,4 @@
+import { FullScreenModal } from '@/components/ui/FullScreenModal';
 import { SelectionSheet } from '@/components/ui/SelectionSheet';
 import { EditorSheet, FormField } from '@/components/ui';
 import { ChoiceTabs } from '@/components/ui/ChoiceTabs';
@@ -197,26 +198,13 @@ export function PosDialogs({
       />
 
       <Portal>
-        <Dialog
-          visible={smartpayProcessing && !smartpayDialogMinimized}
-          dismissable
-          onDismiss={confirmDismissSmartpayLock}
-          style={styles.smartpayDialog}
-        >
-          <Dialog.Title>{smartpayProgress.title}</Dialog.Title>
-          <Dialog.Content>
-            <Text style={styles.smartpayDialogText}>
-              {smartpayProgress.message}
-            </Text>
-            {smartpayOrderNumber && (
-              <Text style={styles.smartpayDialogText}>Order #{smartpayOrderNumber}</Text>
-            )}
+        <FullScreenModal visible={smartpayProcessing && !smartpayDialogMinimized} title={smartpayProgress.title} subtitle={smartpayOrderNumber ? `Order #${smartpayOrderNumber}` : 'SmartPay payment'} onClose={confirmDismissSmartpayLock} closeLabel="Minimise SmartPay payment" closeIcon="window-minimize" footer={<Button icon="window-minimize" onPress={confirmDismissSmartpayLock} contentStyle={{ minHeight: 48 }}>Minimise & keep waiting</Button>}>
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 16 }}>
+            <Text style={styles.smartpayDialogText}>{smartpayProgress.message}</Text>
             <Text style={styles.smartpayAmount}>${total.toFixed(2)}</Text>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={confirmDismissSmartpayLock}>Hide</Button>
-          </Dialog.Actions>
-        </Dialog>
+            <Text style={styles.smartpayDialogText}>Payment monitoring continues when minimised.</Text>
+          </View>
+        </FullScreenModal>
 
         <SelectionSheet
           selection={saltOptionDialogVisible ? { title: 'Salt preference', value: quickOrderNote || '', options: quickOrderNotes.map(note => ({ value: note, label: note })), onSelect: setQuickOrderNote } : null}

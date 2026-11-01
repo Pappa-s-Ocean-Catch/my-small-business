@@ -2018,14 +2018,7 @@ export default function PosScreen() {
   const confirmDismissSmartpayLock = () => {
     if (!smartpayProcessing) return;
 
-    Alert.alert(
-      'Minimize SmartPay payment?',
-      'Order creation or payment polling will continue in the background. Use the payment button in the header to reopen this screen.',
-      [
-        { text: 'Keep waiting', style: 'cancel' },
-        { text: 'Minimize', onPress: () => setSmartpayDialogMinimized(true) },
-      ]
-    );
+    setSmartpayDialogMinimized(true);
   };
 
   const handleInstoreCheckout = async (payment: PosInstorePaymentChoice) => {

@@ -1,7 +1,6 @@
-import { AppModal as NativeModal } from '@/components/ui/AppModal';
+import { FullScreenModal } from '@/components/ui/FullScreenModal';
 import { appDialog as Alert } from '@/lib/app-dialog';
 import { ActionButton as Button } from '@/components/ui/ActionButton';
-import { WorkspaceShell } from '@/components/ui/WorkspaceShell';
 import { SearchField } from '@/components/ui';
 import { ChoiceTabs as SegmentedButtons } from '@/components/ui/ChoiceTabs';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -826,19 +825,7 @@ export default function MarketplaceScreen() {
         {historyStatusOptions.map((status) => <Button key={status} mode="outlined" icon={draftHistoryStatuses.includes(status) ? 'checkbox-marked-outline' : 'checkbox-blank-outline'} contentStyle={{ justifyContent: 'flex-start' }} style={{ backgroundColor: draftHistoryStatuses.includes(status) ? t.color.primaryTint : t.color.surface }} onPress={() => setDraftHistoryStatuses((current) => current.includes(status) ? current.filter((value) => value !== status) : [...current, status])}>{status}</Button>)}
       </EditorSheet>
       <Portal>
-        <NativeModal
-          visible={showMappingsModal}
-          animationType="slide"
-          presentationStyle="fullScreen"
-          onRequestClose={() => {
-            if (savingMappingId) return;
-            setShowMappingsModal(false);
-          }}
-        >
-          <WorkspaceShell onNavigate={() => setShowMappingsModal(false)}><View style={styles.detailScreen}>
-            <View style={styles.detailShell}>
-              <WorkspaceHeader title="Resolve menu names" showNewOrder={false} onBack={() => { if (!savingMappingId) setShowMappingsModal(false); }} />
-
+        <EditorSheet visible={showMappingsModal} title="Resolve menu names" scrollable={false} pending={!!savingMappingId} onDismiss={() => setShowMappingsModal(false)}>
               <ScrollView style={styles.detailScrollContent} contentContainerStyle={[styles.detailScrollContainer, { padding: compact ? 12 : 16, gap: 20 }]}>
                 <SearchField placeholder="Search unresolved names" value={mappingSearch} onChangeText={setMappingSearch} />
                 <Panel style={{ padding: 16, backgroundColor: t.color.warningTint }}><Text>{unmatchedNames.length} names need a match. Suggestions are not saved automatically.</Text></Panel>
@@ -937,45 +924,10 @@ export default function MarketplaceScreen() {
                   </View>
                 ) : null}
               </ScrollView>
-            </View>
-          </View>
-          </WorkspaceShell>
-        </NativeModal>
+        </EditorSheet>
 
-        <NativeModal
-          visible={showDetailModal}
-          animationType="slide"
-          presentationStyle="fullScreen"
-          onRequestClose={() => {
-            if (detailLoading) return;
-            setShowDetailModal(false);
-            setSelectedOrderDetail(null);
-          }}
-        >
-          <View style={styles.detailScreen}>
-            <View style={styles.detailShell}>
-              <Surface style={styles.detailTopBar} elevation={1}>
-                <View style={styles.detailTopBarHeader}>
-                  <View style={styles.detailHeaderCopy}>
-                    <Text style={styles.detailHeaderTitle}>
-                      Order {selectedOrderDetail?.orderId || 'Detail'}
-                    </Text>
-                    <Text style={styles.detailHeaderMeta}>
-                      {selectedOrderDetail
-                        ? `${selectedOrderDetail.customerName} • ${formatOrderState(selectedOrderDetail.orderJobState)}`
-                        : 'Loading marketplace order details'}
-                    </Text>
-                  </View>
-                  <IconButton
-                    icon="close"
-                    size={24}
-                    onPress={() => {
-                      setShowDetailModal(false);
-                      setSelectedOrderDetail(null);
-                    }}
-                    disabled={detailLoading}
-                  />
-                </View>
+        <FullScreenModal visible={showDetailModal} title={`Order ${selectedOrderDetail?.orderId || 'Detail'}`} subtitle={selectedOrderDetail ? `${selectedOrderDetail.customerName} • ${formatOrderState(selectedOrderDetail.orderJobState)}` : 'Loading marketplace order details'} disabled={detailLoading} onClose={() => { if (detailLoading) return; setShowDetailModal(false); setSelectedOrderDetail(null); }} closeLabel="Close marketplace order details">
+              <Surface style={styles.detailTopBar} elevation={0}>
                 {selectedOrderDetail ? (
                   <View style={styles.detailHeaderBadges}>
                     <View style={[styles.detailStatusBadge, styles.detailStatusBadgePrimary]}>
@@ -1090,9 +1042,7 @@ export default function MarketplaceScreen() {
                   <Text style={styles.placeholderText}>{detailLoading ? 'Loading order details...' : 'No order selected.'}</Text>
                 </View>
               )}
-            </View>
-          </View>
-        </NativeModal>
+        </FullScreenModal>
 
         <EditorSheet visible={showSettingsModal} title={`Connect ${providerLabel}`} pending={saving} dirty={!!cookieInput.trim() || businessIdInput !== String(currentStatus.providerConfig.businessId || '') || storeIdInput !== String(currentStatus.providerConfig.storeId || '') || ddAttKeyInput !== String(currentStatus.providerConfig.ddAttKey || '')} onDismiss={() => { setShowSettingsModal(false); setCookieInput(''); setBusinessIdInput(''); setStoreIdInput(''); setDdAttKeyInput(''); }} footer={(dismiss) => <>
           <Button mode="outlined" onPress={dismiss} disabled={saving} contentStyle={{ minHeight: 48 }}>Cancel</Button>

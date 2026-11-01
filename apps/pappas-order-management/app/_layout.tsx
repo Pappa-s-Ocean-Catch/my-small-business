@@ -142,9 +142,8 @@ export default function RootLayout() {
                       <Stack.Screen
                         name="order-detail"
                         options={{
-                          presentation: 'transparentModal',
-                          animation: 'fade',
-                          contentStyle: { backgroundColor: 'transparent' },
+                          presentation: 'fullScreenModal',
+                          animation: 'slide_from_bottom',
                         }}
                       />
                       <Stack.Screen name="marketplace-resolver" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />

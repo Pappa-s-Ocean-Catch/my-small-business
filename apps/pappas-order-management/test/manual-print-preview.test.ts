@@ -18,7 +18,9 @@ function picker(simulator = true, result = true, withModes = false) {
   new Function('require', 'module', 'exports', output)((id: string) => {
     if (id === 'react') return { useState: (initial: unknown) => { const i = index++; if (!(i in state)) state[i] = initial; return [state[i], (value: unknown) => { state[i] = value; }]; }, useRef: (initial: unknown) => { const i = index++; return state[i] ??= { current: initial }; }, useEffect: effects, useCallback: (fn: unknown) => fn };
     if (id === 'react/jsx-runtime') return { jsx, jsxs: jsx };
-    if (id === 'react-native') return { Modal: 'Modal', View: 'View', Text: 'Text', ScrollView: 'ScrollView', TouchableOpacity: 'TouchableOpacity', Platform: { OS: 'ios' }, StyleSheet: { create: (v: unknown) => v } };
+    if (id === 'react-native') return { useWindowDimensions: () => ({ width: 1200, height: 900 }), Modal: 'Modal', View: 'View', Text: 'Text', ScrollView: 'ScrollView', TouchableOpacity: 'TouchableOpacity', Platform: { OS: 'ios' }, StyleSheet: { create: (v: unknown) => v } };
+    if (id.endsWith('/modal-layout')) return { getModalLayout: (width: number, height: number) => ({ compact: false, width: width * 0.75, maxHeight: height - 48 }) };
+    if (id.includes('safe-area-context')) return { useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) };
     if (id === 'react-native-paper') return { IconButton: 'IconButton', Icon: 'Icon' };
     if (id.endsWith('/AppModal')) return { AppModal: 'Modal' };
     if (id.endsWith('/ActionButton')) return { ActionButton: 'Button' };

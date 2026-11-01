@@ -1,3 +1,4 @@
+import { FullScreenModalHeader } from '@/components/ui/FullScreenModal';
 import { AppModal as Modal } from '@/components/ui/AppModal';
 import { appDialog as Alert } from '@/lib/app-dialog';
 import { designTokens as t } from '@/lib/redesign';
@@ -311,13 +312,15 @@ export function OrderDetailController({ orderId, onClose, renderInModal = true }
   };
 
   const wrap = (content: ReactNode) => renderInModal
-    ? <Modal visible transparent animationType="fade" presentationStyle="overFullScreen" onRequestClose={requestClose}>{content}</Modal>
+    ? <Modal visible transparent={false} animationType="slide" presentationStyle="fullScreen" onRequestClose={requestClose}>{content}</Modal>
     : content;
 
   if (loading || !order) {
-    const loadingContent = <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(15, 35, 42, 0.48)' }} accessibilityViewIsModal>
-      <ActivityIndicator size="large" accessibilityLabel="Loading order details" />
-      {!order && !loading ? <Text>Order not found</Text> : null}
+    const loadingContent = <View style={{ flex: 1, backgroundColor: t.color.background }} accessibilityViewIsModal>
+      <FullScreenModalHeader title="Order details" onClose={requestClose} closeLabel="Close order details" />
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        {loading ? <ActivityIndicator size="large" accessibilityLabel="Loading order details" /> : <Text>Order not found</Text>}
+      </View>
     </View>;
     return wrap(loadingContent);
   }

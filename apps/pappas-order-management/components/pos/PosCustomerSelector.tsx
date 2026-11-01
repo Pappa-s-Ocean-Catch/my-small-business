@@ -1,9 +1,7 @@
-import { AppModal as Modal } from '@/components/ui/AppModal';
 import { ActionButton as Button } from '@/components/ui/ActionButton';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { IconButton, Surface } from 'react-native-paper';
+import { ActivityIndicator, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { IconButton } from 'react-native-paper';
 
 import type { Customer } from '../../lib/customers';
 import { getRecentCustomers, searchCustomers, getRecentCalls } from '../../lib/customers';
@@ -12,8 +10,7 @@ import type { CustomerLookupStatus } from './PosCheckoutPanel';
 import { PosPhoneInputModal } from './PosPhoneInputModal';
 import { PosTextInputModal } from './PosTextInputModal';
 import { styles } from './pos.styles';
-import { WorkspaceHeader, HeaderIconButton, EditorSheet } from '@/components/ui';
-import { BRAND_COLORS } from '@/utils/brand';
+import { EditorSheet } from '@/components/ui';
 import { designTokens as tokens } from '@/lib/redesign';
 
 type Props = {
@@ -65,8 +62,6 @@ export function PosCustomerSelector({
   onToggleRewardPoints,
 }: Props) {
   const { width } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
-  const isWide = width >= 920;
   const compact = width < 600;
   const [phoneModalVisible, setPhoneModalVisible] = useState(false);
   const [nameModalVisible, setNameModalVisible] = useState(false);
@@ -131,6 +126,12 @@ export function PosCustomerSelector({
       : styles.lookupText;
 
   const selectedLastOrder = formatShortDate(selectedCustomer?.lastOrderDate);
+
+  const recentCallsSheet = (
+    <EditorSheet visible={recentCallsVisible} title="Recent calls" onDismiss={() => setRecentCallsVisible(false)} footer={<Button mode="outlined" onPress={() => setRecentCallsVisible(false)}>Cancel</Button>}>
+        {loadingRecentCalls ? <ActivityIndicator /> : recentCalls.length === 0 ? <Text style={{ color: tokens.color.muted }}>No recent calls</Text> : recentCalls.map(call => <TouchableOpacity key={`${call.caller_number}-${call.created_at}`} accessibilityRole="button" accessibilityLabel={`Use ${call.caller_name || call.caller_number}`} onPress={() => { onChangePhone(call.caller_number); if (call.caller_name) onChangeName(call.caller_name); setRecentCallsVisible(false); }} style={{ minHeight: 50, borderWidth: 1, borderColor: tokens.color.border, backgroundColor: tokens.color.surface, padding: 14, borderRadius: 10, gap: 4 }}><Text style={{ color: tokens.color.text }}>{call.caller_name || 'Unknown caller'} · {call.caller_number}</Text><Text style={{ color: tokens.color.muted, fontSize: 12 }}>{new Date(call.created_at).toLocaleString('en-AU')}</Text></TouchableOpacity>)}
+      </EditorSheet>
+  );
 
   return (
     <>
@@ -233,128 +234,17 @@ export function PosCustomerSelector({
         }}
       />
 
-      <Modal
-        visible={searchDialogVisible}
-        animationType="slide"
-        presentationStyle="fullScreen"
-        onRequestClose={() => setSearchDialogVisible(false)}
-      >
-        <View style={modalStyles.container}>
-          <View style={modalStyles.modalShell}>
-            <WorkspaceHeader title="Find a customer" actions={<><Button mode="outlined" compact onPress={loadRecentCalls}>Recent calls</Button><HeaderIconButton icon="close" accessibilityLabel="Close customer search" onPress={() => setSearchDialogVisible(false)} /></>} />
-
-            <View
-              style={[
-                modalStyles.contentArea,
-                isWide ? modalStyles.contentAreaWide : null,
-                { paddingBottom: Math.max(insets.bottom, 20) + 24 },
-              ]}
-            >
-              <View style={modalStyles.resultsArea}>
-                {!!modalError && <Text style={styles.errorText}>{modalError}</Text>}
-                <CustomerDirectoryList
-                  customers={modalMatches}
-                  searchQuery={searchQuery}
-                  onChangeSearchQuery={setSearchQuery}
-                  onSelectCustomer={(nextCustomer) => {
-                    onSelectCustomer(nextCustomer);
-                    setSearchDialogVisible(false);
-                  }}
-                  loading={loadingModalMatches}
-                  emptyText="No customers found."
-                  searchPlaceholder="Search by name or phone"
-                />
-              </View>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <EditorSheet visible={recentCallsVisible} title="Recent calls" onDismiss={() => setRecentCallsVisible(false)} footer={<Button mode="outlined" onPress={() => setRecentCallsVisible(false)}>Cancel</Button>}>
-        {loadingRecentCalls ? <ActivityIndicator /> : recentCalls.length === 0 ? <Text style={{ color: tokens.color.muted }}>No recent calls</Text> : recentCalls.map(call => <TouchableOpacity key={`${call.caller_number}-${call.created_at}`} accessibilityRole="button" accessibilityLabel={`Use ${call.caller_name || call.caller_number}`} onPress={() => { onChangePhone(call.caller_number); if (call.caller_name) onChangeName(call.caller_name); setRecentCallsVisible(false); }} style={{ minHeight: 50, borderWidth: 1, borderColor: tokens.color.border, backgroundColor: tokens.color.surface, padding: 14, borderRadius: 10, gap: 4 }}><Text style={{ color: tokens.color.text }}>{call.caller_name || 'Unknown caller'} · {call.caller_number}</Text><Text style={{ color: tokens.color.muted, fontSize: 12 }}>{new Date(call.created_at).toLocaleString('en-AU')}</Text></TouchableOpacity>)}
+      <EditorSheet visible={searchDialogVisible} title="Find a customer" scrollable={false} onDismiss={() => setSearchDialogVisible(false)} footer={<><Button mode="outlined" onPress={() => setSearchDialogVisible(false)}>Cancel</Button><Button mode="outlined" onPress={loadRecentCalls}>Recent calls</Button></>}>
+        {!!modalError && <Text style={styles.errorText}>{modalError}</Text>}
+        <CustomerDirectoryList
+          customers={modalMatches} searchQuery={searchQuery} onChangeSearchQuery={setSearchQuery}
+          onSelectCustomer={(nextCustomer) => { onSelectCustomer(nextCustomer); setSearchDialogVisible(false); }}
+          loading={loadingModalMatches} emptyText="No customers found." searchPlaceholder="Search by name or phone"
+        />
+        {searchDialogVisible && recentCallsSheet}
       </EditorSheet>
+
+      {!searchDialogVisible && recentCallsSheet}
     </>
   );
 }
-
-const modalStyles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#eef2f6' },
-  modalShell: { flex: 1, backgroundColor: '#eef2f6' },
-  header: {
-    paddingBottom: 18,
-    backgroundColor: tokens.color.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: '#183457',
-  },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingLeft: 20,
-    paddingRight: 8,
-  },
-  headerTitleBlock: {
-    flex: 1,
-    paddingRight: 12,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: tokens.color.text,
-  },
-  headerMeta: {
-    fontSize: 14,
-    color: '#b9c8dd',
-    fontWeight: '600',
-    marginTop: 4,
-  },
-  contentArea: {
-    flex: 1,
-    padding: 16,
-    gap: 14,
-  },
-  contentAreaWide: {
-    padding: 18,
-  },
-  resultsArea: {
-    flex: 1,
-    minHeight: 0,
-  },
-  dropdownOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  dropdownMenu: {
-    width: 300,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    elevation: 4,
-  },
-  dropdownTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 12,
-  },
-  dropdownEmpty: {
-    color: '#666',
-    marginVertical: 20,
-    textAlign: 'center',
-  },
-  dropdownItem: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  dropdownItemPhone: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  dropdownItemName: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 4,
-  },
-});

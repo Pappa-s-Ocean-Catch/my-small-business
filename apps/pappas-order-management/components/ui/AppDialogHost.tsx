@@ -1,10 +1,12 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { AccessibilityInfo, findNodeHandle, Keyboard, Platform, BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, findNodeHandle, Keyboard, Platform, BackHandler, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { IconButton } from 'react-native-paper';
 import { appDialogStore } from '@/lib/app-dialog';
 import { designTokens as t } from '@/lib/redesign';
 import { useModalFocus } from '@/hooks/useModalFocus';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getModalLayout } from '@/lib/modal-layout';
 import { ActionButton } from './ActionButton';
 
 export const DialogLayerContext = createContext(0);
@@ -20,6 +22,9 @@ export function useAppDialogHost(visible: boolean, layer: number) {
   return { hostId, active: visible && hostId !== null && snapshot.hostId === hostId && !!snapshot.dialog };
 }
 export function AppDialogOverlay({ hostId }: { hostId: number | null }) {
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const layout = getModalLayout(width, height, insets);
   const snapshot = useSyncExternalStore(appDialogStore.subscribe, appDialogStore.getSnapshot, appDialogStore.getSnapshot);
   const request = snapshot.hostId === hostId && hostId !== null ? snapshot.dialog : null;
   const panel = useRef<View>(null);
@@ -45,9 +50,9 @@ export function AppDialogOverlay({ hostId }: { hostId: number | null }) {
   const cancellable = !!cancel || request.options.cancelable;
   const choices = request.buttons.filter(button => button.style !== 'cancel').length > 1;
   const action = (button: typeof request.buttons[number], index: number) => <ActionButton key={`${request.id}-${index}`} accessibilityLabel={button.text || 'OK'} mode={button.style === 'cancel' || choices ? 'outlined' : 'contained'} textColor={button.style === 'destructive' ? t.color.danger : undefined} buttonColor={button.style === 'destructive' ? t.color.dangerTint : undefined} style={choices ? s.choice : s.action} contentStyle={{ minHeight: 48 }} onPress={() => { void appDialogStore.choose(request.id, index); }}>{button.text || 'OK'}</ActionButton>;
-  return <View style={s.overlay} accessibilityViewIsModal importantForAccessibility="yes" testID="app-dialog-overlay">
+  return <View style={[s.overlay, { paddingTop: insets.top, paddingBottom: insets.bottom }]} accessibilityViewIsModal importantForAccessibility="yes" testID="app-dialog-overlay">
     <Pressable style={StyleSheet.absoluteFill} accessible={false} onPress={() => { if (cancellable) appDialogStore.dismiss(); }} />
-    <View ref={panel} style={s.panel} accessibilityViewIsModal>
+    <View ref={panel} style={[s.panel, { width: layout.width, maxHeight: layout.maxHeight, borderRadius: layout.compact ? 0 : t.radius.dialog }]} accessibilityViewIsModal>
       <View style={s.header}><Text ref={heading} accessibilityRole="header" style={s.title}>{request.title}</Text>{cancellable && <IconButton icon="close" accessibilityLabel={`Close ${request.title}`} onPress={() => { appDialogStore.dismiss(); }} style={s.close} />}</View>
       {!!request.message && <ScrollView style={s.messageScroll} contentContainerStyle={s.messageBody}><Text selectable style={s.message}>{request.message}</Text></ScrollView>}
       {choices ? <>
@@ -69,8 +74,8 @@ export function AppDialogScreen({ children }: { children: React.ReactNode }) {
   return <View style={{ flex: 1 }}><View style={{ flex: 1 }} pointerEvents={host.active ? 'none' : 'auto'} accessibilityElementsHidden={host.active} importantForAccessibility={host.active ? 'no-hide-descendants' : 'auto'}>{children}</View><AppDialogOverlay hostId={host.active ? host.hostId : null} /></View>;
 }
 const s = StyleSheet.create({
-  overlay: { ...StyleSheet.absoluteFillObject, zIndex: 10000, elevation: 10000, backgroundColor: t.color.scrim, alignItems: 'center', justifyContent: 'center', padding: 20 },
-  panel: { width: '100%', maxWidth: 560, maxHeight: '90%', backgroundColor: t.color.surface, borderRadius: t.radius.dialog, overflow: 'hidden', flexShrink: 1 },
+  overlay: { ...StyleSheet.absoluteFillObject, zIndex: 10000, elevation: 10000, backgroundColor: t.color.scrim, alignItems: 'center', justifyContent: 'center', padding: 0 },
+  panel: { width: '100%', backgroundColor: t.color.surface, borderRadius: t.radius.dialog, overflow: 'hidden', flexShrink: 1 },
   header: { minHeight: 64, paddingLeft: 22, paddingRight: 14, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: 1, borderBottomColor: t.color.border },
   title: { flex: 1, minWidth: 0, fontSize: 20, lineHeight: 27, fontWeight: '700', color: t.color.text },
   close: { margin: 0, width: 40, height: 40, backgroundColor: t.color.background },

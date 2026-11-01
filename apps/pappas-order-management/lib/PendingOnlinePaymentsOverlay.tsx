@@ -1,8 +1,11 @@
+import { FullScreenModal } from '@/components/ui/FullScreenModal';
+import { refreshPendingPayment } from '@/lib/pending-payment-monitor';
 import { EditorSheet } from '@/components/ui/EditorSheet';
 import { appDialog as Alert } from '@/lib/app-dialog';
 import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Button, Card, IconButton, Portal, Surface, Text, TextInput } from 'react-native-paper';
+import { ScrollView, StyleSheet, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Button, Card, Surface, Text, TextInput } from 'react-native-paper';
 import type { Order } from '@my-small-business/types';
 
 import { getOrder, updateOrderStatus, updatePendingDeliveryOrder } from '@/lib/orders';
@@ -39,9 +42,11 @@ function formatElapsed(createdAt: number, now: number) {
 }
 
 export function PendingOnlinePaymentsOverlay() {
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const compact = width < 760;
   const sessions = usePendingOnlinePaymentsStore((state) => state.sessions);
   const setMinimized = usePendingOnlinePaymentsStore((state) => state.setMinimized);
-  const updateStatus = usePendingOnlinePaymentsStore((state) => state.updateStatus);
   const setSmsState = usePendingOnlinePaymentsStore((state) => state.setSmsState);
   const removeSession = usePendingOnlinePaymentsStore((state) => state.removeSession);
   const upsertSession = usePendingOnlinePaymentsStore((state) => state.upsertSession);
@@ -73,21 +78,12 @@ export function PendingOnlinePaymentsOverlay() {
 
     const interval = setInterval(() => {
       pendingSessions.forEach((session) => {
-        void getOrder(session.orderId).then((result) => {
-          if (result.error || !result.data) {
-            updateStatus(session.orderId, 'failed');
-            return;
-          }
-
-          if (result.data.payment_status === 'paid') {
-            removeSession(session.orderId);
-          }
-        });
+        void refreshPendingPayment(session.orderId, getOrder, removeSession);
       });
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [sessions, updateStatus, removeSession]);
+  }, [sessions, removeSession]);
 
   const activeSession = sessions.find((session) => !session.minimized && session.status === 'pending') || null;
   const minimizedSessions = sessions.filter((session) => session.minimized && session.status === 'pending');
@@ -99,6 +95,7 @@ export function PendingOnlinePaymentsOverlay() {
   useEffect(() => {
     if (!activeSession?.orderId) {
       setActiveOrder(null);
+      setEditAddressVisible(false);
       return;
     }
 
@@ -378,17 +375,8 @@ export function PendingOnlinePaymentsOverlay() {
   return (
     <>
       {activeSession && (
-        <View style={styles.overlay} pointerEvents="auto">
-          <View style={styles.fullscreenShell}>
-            <View style={styles.fullscreenPanel}>
-              <Surface style={styles.header} elevation={1}>
-                <View style={styles.headerTop}>
-                  <View style={styles.headerTitleBlock}>
-                    <Text style={styles.headerTitle}>Order {activeSession.orderNumber}</Text>
-                    <Text style={styles.headerMeta}>Pending online payment</Text>
-                  </View>
-                  <IconButton icon="close" size={24} iconColor="#f8fafc" onPress={() => setMinimized(activeSession.orderId, true)} />
-                </View>
+        <FullScreenModal visible title={`Order ${activeSession.orderNumber}`} subtitle="Pending online payment" onClose={() => setMinimized(activeSession.orderId, true)} closeLabel="Minimise payment" closeIcon="window-minimize">
+              <Surface style={styles.header} elevation={0}>
                 <View style={styles.headerSub}>
                   <View style={[styles.badge, styles.badgeWarning]}>
                     <Text style={styles.badgeText}>Awaiting Payment</Text>
@@ -410,8 +398,8 @@ export function PendingOnlinePaymentsOverlay() {
               </Surface>
 
               <ScrollView style={styles.scrollContent} contentContainerStyle={styles.scrollContainer}>
-                <View style={styles.twoColumnLayout}>
-                  <View style={styles.leftColumn}>
+                <View style={[styles.twoColumnLayout, compact && { flexDirection: 'column' }]}>
+                  <View style={[styles.leftColumn, compact && { flex: 0, width: '100%' }]}>
                     <View style={styles.summaryGrid}>
                       <Card style={styles.infoCard}>
                         <Card.Content>
@@ -470,7 +458,7 @@ export function PendingOnlinePaymentsOverlay() {
                     </Card>
                   </View>
 
-                  <View style={styles.rightColumn}>
+                  <View style={[styles.rightColumn, compact && { flex: 0, width: '100%' }]}>
                     <Card style={styles.infoCard}>
                       <Card.Content>
                         <Text style={styles.cardTitle}>Order Items</Text>
@@ -569,44 +557,8 @@ export function PendingOnlinePaymentsOverlay() {
                 <Button mode="text" icon="close-circle-outline" textColor="#dc2626" onPress={() => handleCancelOrder(activeSession.orderId)}>
                   Cancel Order
                 </Button>
+                <Button mode="outlined" icon="window-minimize" onPress={() => setMinimized(activeSession.orderId, true)}>Minimise & keep waiting</Button>
               </View>
-            </View>
-          </View>
-        </View>
-      )}
-
-      {minimizedSessions.length > 0 && (
-        <View style={styles.minimizedStack} pointerEvents="box-none">
-          {minimizedSessions.map((session) => (
-            <Card key={session.orderId} style={styles.minimizedCard}>
-              <Card.Content style={styles.minimizedContent}>
-                <View style={styles.minimizedText}>
-                  <Text style={styles.minimizedTitle}>Awaiting Payment</Text>
-                  <Text style={styles.minimizedMeta}>{session.orderNumber} • ${session.totalAmount.toFixed(2)}</Text>
-                  {session.isTestPayment && <Text style={styles.minimizedTest}>Test payment mode</Text>}
-                  <Text style={styles.minimizedMeta}>{formatElapsed(session.createdAt, now)}</Text>
-                  <Text style={session.smsStatus === 'error' ? styles.minimizedError : styles.minimizedSms}>
-                    {getSmsStatusText(session.orderId)}
-                  </Text>
-                </View>
-                <View style={styles.minimizedActions}>
-                  <Button compact mode="text" onPress={() => setMinimized(session.orderId, false)}>
-                    Open
-                  </Button>
-                  <Button compact mode="text" onPress={() => void handleSendSms(session.orderId)}>
-                    SMS
-                  </Button>
-                  <Button compact mode="text" textColor="#dc2626" onPress={() => handleCancelOrder(session.orderId)}>
-                    Cancel
-                  </Button>
-                </View>
-              </Card.Content>
-            </Card>
-          ))}
-        </View>
-      )}
-
-      <Portal>
         <EditorSheet visible={editAddressVisible} title="Update delivery address" onDismiss={closeAddressEditor} pending={savingAddress}>
           <ScrollView contentContainerStyle={styles.addressModalContent} keyboardShouldPersistTaps="handled">
             <TextInput
@@ -699,7 +651,41 @@ export function PendingOnlinePaymentsOverlay() {
             </View>
           </ScrollView>
         </EditorSheet>
-      </Portal>
+        </FullScreenModal>
+      )}
+
+      {minimizedSessions.length > 0 && (
+        <ScrollView style={[styles.minimizedStack, { width: Math.min(width - 24, 340), maxHeight: height * 0.5, left: width < 600 ? 12 : width >= 1100 ? 84 : 76, bottom: insets.bottom + (width < 600 ? 80 : 12) }]} contentContainerStyle={{ gap: 8 }} pointerEvents="box-none" keyboardShouldPersistTaps="handled">
+          {minimizedSessions.map((session) => (
+            <Card key={session.orderId} style={styles.minimizedCard}>
+              <Card.Content style={styles.minimizedContent}>
+                <View style={styles.minimizedText}>
+                  <Text style={styles.minimizedTitle}>Awaiting Payment</Text>
+                  <Text style={styles.minimizedMeta}>{session.orderNumber} • ${session.totalAmount.toFixed(2)}</Text>
+                  {session.isTestPayment && <Text style={styles.minimizedTest}>Test payment mode</Text>}
+                  <Text style={styles.minimizedMeta}>{formatElapsed(session.createdAt, now)}</Text>
+                  <Text style={session.smsStatus === 'error' ? styles.minimizedError : styles.minimizedSms}>
+                    {getSmsStatusText(session.orderId)}
+                  </Text>
+                </View>
+                <View style={styles.minimizedActions}>
+                  <Button compact mode="text" onPress={() => setMinimized(session.orderId, false)}>
+                    Open
+                  </Button>
+                  <Button compact mode="text" onPress={() => void handleSendSms(session.orderId)}>
+                    SMS
+                  </Button>
+                  <Button compact mode="text" textColor="#dc2626" onPress={() => handleCancelOrder(session.orderId)}>
+                    Cancel
+                  </Button>
+                </View>
+              </Card.Content>
+            </Card>
+          ))}
+        </ScrollView>
+      )}
+
+
     </>
   );
 }
@@ -729,8 +715,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#eef2f6',
   },
   header: {
-    paddingTop: 14,
-    paddingBottom: 18,
+    paddingTop: 0,
+    paddingBottom: 14,
     backgroundColor: '#10243f',
     borderBottomWidth: 1,
     borderBottomColor: '#183457',
@@ -784,7 +770,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   scrollContent: { flex: 1 },
-  scrollContainer: { padding: 16, paddingBottom: 132, gap: 14 },
+  scrollContainer: { padding: 16, gap: 14 },
   twoColumnLayout: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -917,10 +903,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   actionBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+    flexShrink: 0,
+    paddingBottom: 14,
     paddingHorizontal: 18,
     paddingTop: 14,
     backgroundColor: '#fbfdff',
@@ -1004,7 +988,7 @@ const styles = StyleSheet.create({
     zIndex: 9997,
   },
   minimizedCard: {
-    width: 280,
+    width: '100%',
     borderRadius: 14,
     backgroundColor: '#fffbeb',
     borderWidth: 1,

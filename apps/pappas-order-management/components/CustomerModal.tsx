@@ -2,12 +2,11 @@ import { AppModal as Modal } from '@/components/ui/AppModal';
 import { appDialog as Alert } from '@/lib/app-dialog';
 import { ActionButton as Button } from '@/components/ui/ActionButton';
 import { OrderDetailController } from './OrderDetailController';
-import { WorkspaceHeader } from '@/components/ui';
-import { AppNavigation } from '@/components/navigation/AppNavigation';
+import { FullScreenModalHeader } from '@/components/ui/FullScreenModal';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Clipboard, Linking, ScrollView, StyleSheet, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Avatar, Card, IconButton, Surface, Switch, Text, TextInput, useTheme } from 'react-native-paper';
+import { Card, IconButton, Switch, Text, TextInput, useTheme } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { OrderStatus } from '@my-small-business/types';
 import { fetchCustomerSummary, type CustomerSummary, updateCustomerNameByContact } from '@/utils/customerSummary';
@@ -18,7 +17,6 @@ import { adjustCustomerRewardPoints } from '@/lib/reward-points';
 import { getCustomerCoupons, toggleCouponActive, type CustomerCouponItem } from '@/lib/coupons';
 import { AddCustomerModal } from '@/components/customers/AddCustomerModal';
 import { supabase } from '@/lib/supabase';
-import { BRAND_COLORS } from '@/utils/brand';
 import { MetricCard, StatusBadge, FormField, designTokens as t } from '@/components/ui';
 
 function orderStatusColor(status: string): string {
@@ -325,46 +323,18 @@ export function CustomerModal({
     }
   };
 
-  const topPadding = isWide ? 14 : Math.max(insets.top, 8);
   const bottomPadding = Math.max(insets.bottom, 16);
 
   return (
-    <Modal visible={visible} transparent={false} animationType="slide" onRequestClose={onClose}>
-      <View accessibilityElementsHidden={!!detailOrderId || showEditCustomerModal} importantForAccessibility={detailOrderId || showEditCustomerModal ? 'no-hide-descendants' : 'auto'} pointerEvents={detailOrderId || showEditCustomerModal ? 'none' : 'auto'} style={{ flex: 1, flexDirection: width < 600 ? 'column' : 'row' }}>
-      {width >= 600 && <AppNavigation onNavigate={onClose} />}
+    <Modal visible={visible} transparent={false} presentationStyle="fullScreen" animationType="slide" onRequestClose={onClose}>
+      <View accessibilityElementsHidden={!!detailOrderId || showEditCustomerModal} importantForAccessibility={detailOrderId || showEditCustomerModal ? 'no-hide-descendants' : 'auto'} pointerEvents={detailOrderId || showEditCustomerModal ? 'none' : 'auto'} style={{ flex: 1 }}>
       <View accessibilityViewIsModal style={styles.container}>
-        <WorkspaceHeader title={error ? 'Customer not found' : 'Customer profile'} showNewOrder={false} onBack={onClose} />
-        {!error && <Surface style={[styles.header, { paddingTop: topPadding }]} elevation={0}>
-          <View style={[styles.headerTop, { paddingHorizontal: width < 1100 ? 12 : 16 }]}>
-            <View style={styles.headerInfo}>
-              <Avatar.Text
-                size={70}
-                label={customer ? getInitials(customer.name) : '??'}
-                style={[styles.avatar, { backgroundColor: t.color.primaryTint }]} labelStyle={{ color: t.color.primary }}
-              />
-              <View style={styles.headerTextContainer}>
-                <View style={styles.nameRow}>
-                  <Text variant={isMedium ? 'headlineMedium' : 'headlineSmall'} style={styles.customerName}>
-                    {loading ? 'Loading...' : customer?.name || 'Customer Summary'}
-                  </Text>
-                  {!!customer && (
-                    <IconButton
-                      icon="pencil-outline"
-                      size={20}
-                      onPress={handleStartEditName}
-                      iconColor={t.color.primary} accessibilityLabel="Edit customer name" style={styles.editNameButton}
-                    />
-                  )}
-                </View>
-
-                <View style={styles.headerSub}>
-                  <Text style={styles.headerMeta}>{customer?.signUpDate ? `Customer since ${new Date(customer.signUpDate).toLocaleDateString([], { month: 'long', year: 'numeric' })}` : email || phone || 'Customer details'}</Text>
-                </View>
-              </View>
-            </View>
-            <IconButton icon="close" size={24} iconColor={t.color.text} onPress={onClose} hitSlop={4} accessibilityLabel="Close customer profile" style={styles.closeIcon} />
-          </View>
-        </Surface>}
+        <FullScreenModalHeader
+          title={error ? 'Customer not found' : loading ? 'Loading customer…' : customer?.name || 'Customer profile'}
+          subtitle={customer?.signUpDate ? `Customer since ${new Date(customer.signUpDate).toLocaleDateString([], { month: 'long', year: 'numeric' })}` : email || phone || 'Customer details'}
+          onClose={onClose} closeLabel="Close customer profile"
+          actions={customer ? <IconButton icon="pencil-outline" accessibilityLabel="Edit customer name" iconColor="#f8fafc" onPress={handleStartEditName} /> : undefined}
+        />
 
         <View style={styles.contentArea}>
           {loading && (
@@ -486,9 +456,9 @@ export function CustomerModal({
                         return (
                           <View key={item.id} style={styles.rewardCard}>
                             <View style={styles.compactSummaryRow}>
-                              <TouchableOpacity style={[styles.summaryInfo, { minHeight: 44, justifyContent: 'center' }]} nativeID={item.orderId ? `customer-reward-order-${item.orderId}` : undefined} accessibilityRole="button" accessibilityLabel={item.orderId ? linkedOrder ? `Open order ${getFriendlyOrderNumber(linkedOrder.orderNumber)}` : 'Open linked order' : `${tone.label} reward details`} onPress={() => { if (item.orderId) setDetailOrderId(item.orderId); else setExpandedRewards(value => ({ ...value, [item.id]: !value[item.id] })); }}>
+                              <View style={styles.summaryInfo} nativeID={item.orderId ? `customer-reward-order-${item.orderId}` : undefined}><TouchableOpacity style={{ minHeight: 44, justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={item.orderId ? linkedOrder ? `Open order ${getFriendlyOrderNumber(linkedOrder.orderNumber)}` : 'Open linked order' : `${tone.label} reward details`} onPress={() => { if (item.orderId) setDetailOrderId(item.orderId); else setExpandedRewards(value => ({ ...value, [item.id]: !value[item.id] })); }}>
                                 <Text style={[styles.summaryTitle, item.orderId && { color: t.color.primary }]}>{rewardTitle}</Text><Text style={styles.summaryMeta}>{formatDate(item.createdAt)}</Text>
-                              </TouchableOpacity>
+                              </TouchableOpacity></View>
                               <StatusBadge label={`${item.points > 0 ? '+' : ''}${item.points.toLocaleString()} pts`} tone={item.points >= 0 ? 'success' : 'danger'} />
                               <IconButton icon={expandedRewards[item.id] ? 'chevron-up' : 'chevron-down'} size={20} style={{ margin: 0 }} accessibilityLabel={`${expandedRewards[item.id] ? 'Hide' : 'Show'} reward details`} accessibilityState={{ expanded: !!expandedRewards[item.id] }} onPress={() => setExpandedRewards(value => ({ ...value, [item.id]: !value[item.id] }))} />
                             </View>
@@ -669,7 +639,6 @@ export function CustomerModal({
         </View>
       </View>
 
-      {width < 600 && <AppNavigation onNavigate={onClose} />}
       </View>
       <AddCustomerModal
         visible={showEditCustomerModal}

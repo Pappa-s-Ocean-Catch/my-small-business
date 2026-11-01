@@ -1,3 +1,4 @@
+import { FullScreenModalHeader, FullScreenModal } from '@/components/ui/FullScreenModal';
 import { AppModal as Modal } from '@/components/ui/AppModal';
 import { appDialog as Alert } from '@/lib/app-dialog';
 import { ActionButton as PaperButton } from '@/components/ui/ActionButton';
@@ -138,6 +139,8 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const [printDebugContext, setPrintDebugContext] = React.useState<KitchenPrintDebugContext | null>(null);
   const [printPreviewOrder, setPrintPreviewOrder] = React.useState<Order | null>(null);
   const [showPrinterChoice, setShowPrinterChoice] = React.useState(false);
+  const [smartpayMinimized, setSmartpayMinimized] = React.useState(false);
+  React.useEffect(() => { if (!smartpayProcessing) setSmartpayMinimized(false); }, [smartpayProcessing]);
   const [showPayByLink, setShowPayByLink] = React.useState(false);
   const [refreshedOrder, setRefreshedOrder] = React.useState<Order | null>(orderProp);
   const [isMarketplaceSyncing, setIsMarketplaceSyncing] = React.useState(false);
@@ -533,20 +536,15 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   };
 
   const content = (
-      <View style={[styles.container, width < 600 && { padding: 0 }]}>
-        <View ref={modalRef} accessibilityViewIsModal style={[styles.modalShell, (width < 600 || forceFullScreen) && styles.modalShellFullScreen]}>
+      <View style={[styles.container, { paddingBottom: insets.bottom }]}>
+        <View ref={modalRef} accessibilityViewIsModal style={[styles.modalShell, styles.modalShellFullScreen]}>
         <View style={{ flex: 1 }} accessibilityElementsHidden={!!showSimulator || showPayByLink || showPrinterChoice || backgroundInert} importantForAccessibility={showSimulator || showPayByLink || showPrinterChoice || backgroundInert ? 'no-hide-descendants' : 'auto'} pointerEvents={showSimulator || showPayByLink || showPrinterChoice || backgroundInert ? 'none' : 'auto'}>
-        {/* Header */}
-        <Surface
-          style={[
-            styles.header,
-            { paddingTop: width < 600 ? Math.max(insets.top, 0) : 0 }
-          ]}
-          elevation={0}
-        >
-          <View style={[styles.headerTop, width < 600 && { minHeight: 60, paddingHorizontal: 16 }]}><View style={styles.headerTitleBlock}><Text accessibilityRole="header" style={styles.headerTitle}>Order #{getFriendlyOrderNumber(order.order_number)}</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel={`Open customer ${order.customer_name || 'Customer'}`} disabled={isCapturing || smartpayProcessing} hitSlop={8} onPress={() => onCustomerPress(order)}><Text style={styles.headerMeta}>{order.customer_name || 'Customer'} · {getOrderFulfilmentLabel(order)}</Text></TouchableOpacity></View><IconButton icon="close" hitSlop={4} accessibilityLabel="Close order details" disabled={isCapturing || smartpayProcessing} onPress={closeModal} style={styles.closeControl} /></View>
-
-        </Surface>
+        <FullScreenModalHeader
+          title={`Order #${getFriendlyOrderNumber(order.order_number)}`}
+          subtitle={<TouchableOpacity accessibilityRole="button" accessibilityLabel={`Open customer ${order.customer_name || 'Customer'}`} disabled={isCapturing || smartpayProcessing} hitSlop={8} onPress={() => onCustomerPress(order)}><Text style={[styles.headerMeta, { color: '#b9c8dd' }]}>{order.customer_name || 'Customer'} · {getOrderFulfilmentLabel(order)}</Text></TouchableOpacity>}
+          onClose={closeModal} closeLabel="Close order details" disabled={isCapturing || smartpayProcessing}
+          actions={smartpayProcessing && smartpayMinimized ? <IconButton icon="credit-card-wireless-outline" iconColor="#f8fafc" accessibilityLabel="Resume SmartPay payment" onPress={() => setSmartpayMinimized(false)} /> : undefined}
+        />
 
         <ScrollView style={styles.scrollContent} contentContainerStyle={[styles.scrollContainer, isWide && styles.scrollContainerWide, width < 600 && { padding: 14 }]}>
           <View style={styles.headerSub}>
@@ -945,16 +943,13 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
           onDismiss={() => setShowPayByLink(false)}
           onOrderRefresh={(updatedOrder) => onOrderRefresh?.(updatedOrder)}
         />
-        {smartpayProcessing && (
-          <View style={styles.smartpayOverlay} pointerEvents="auto">
-            <View style={styles.smartpayPanel}>
-              <ActivityIndicator size="large" color={t.color.primary} />
-              <Text style={styles.smartpayTitle}>SmartPay payment</Text>
-              <Text style={styles.smartpayText}>Waiting for terminal transaction to finish.</Text>
-              <Text style={styles.smartpayAmount}>${order.total.toFixed(2)}</Text>
-            </View>
+        <FullScreenModal visible={smartpayProcessing && !smartpayMinimized} title="SmartPay payment" subtitle={`Order #${getFriendlyOrderNumber(order.order_number)}`} onClose={() => setSmartpayMinimized(true)} closeLabel="Minimise SmartPay payment" closeIcon="window-minimize" footer={<PaperButton onPress={() => setSmartpayMinimized(true)} icon="window-minimize" contentStyle={{ minHeight: 48 }}>Minimise & keep waiting</PaperButton>}>
+          <View style={[styles.smartpayPanel, { flex: 1, justifyContent: 'center', alignSelf: 'center' }]}>
+            <ActivityIndicator size="large" color={t.color.primary} />
+            <Text style={styles.smartpayText}>Waiting for terminal transaction to finish. Payment monitoring continues when minimised.</Text>
+            <Text style={styles.smartpayAmount}>${order.total.toFixed(2)}</Text>
           </View>
-        )}
+        </FullScreenModal>
         </View>
       </View>
   );
@@ -964,14 +959,14 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   }
 
   return (
-    <Modal visible={visible} transparent animationType="fade" presentationStyle="overFullScreen" onRequestClose={closeModal}>
+    <Modal visible={visible} transparent={false} animationType="slide" presentationStyle="fullScreen" onRequestClose={closeModal}>
       {content}
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'rgba(15, 35, 42, 0.48)', padding: 12, alignItems: 'center', justifyContent: 'center' },
+  container: { flex: 1, backgroundColor: t.color.background, padding: 0, alignItems: 'center', justifyContent: 'center' },
   modalShell: { flex: 1, width: '100%', maxWidth: 1600, backgroundColor: t.color.background, borderRadius: 24, overflow: 'hidden' },
   modalShellFullScreen: {
     width: '100%',
