@@ -1,7 +1,7 @@
 import { AppModal as Modal } from '@/components/ui/AppModal';
 import { appDialog as Alert } from '@/lib/app-dialog';
 import React, { useEffect, useRef } from 'react';
-import { AccessibilityInfo, findNodeHandle, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, findNodeHandle, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View, useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native';
 import { Button, IconButton, Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useModalFocus } from '@/hooks/useModalFocus';
@@ -16,14 +16,17 @@ type Props = {
   children: React.ReactNode;
   footer?: React.ReactNode | ((requestDismiss: () => void) => React.ReactNode);
   onDismiss: () => void;
+  onDismissed?: () => void;
   dirty?: boolean;
   pending?: boolean;
   size?: 'confirm' | 'form' | 'wide' | 'options';
   scrollable?: boolean;
+  bodyStyle?: StyleProp<ViewStyle>;
+  headerStyle?: StyleProp<ViewStyle>;
 };
 
 /** Native editor with a scrolling body and actions that stay above the keyboard. */
-export function EditorSheet({ visible, title, subtitle, children, footer, onDismiss, dirty = false, pending = false, scrollable = true }: Props) {
+export function EditorSheet({ visible, title, subtitle, children, footer, onDismiss, onDismissed, dirty = false, pending = false, scrollable = true, bodyStyle, headerStyle }: Props) {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const heading = useRef<View>(null);
@@ -56,14 +59,14 @@ export function EditorSheet({ visible, title, subtitle, children, footer, onDism
     if (element.type === Button || element.type === ActionButton) return React.cloneElement(element, { style: [{ minWidth: compact ? 0 : 120, borderRadius: 10, ...(compact ? { flexGrow: 1, flexBasis: 120 } : {}) }, element.props.style], contentStyle: [{ minHeight: 48 }, element.props.contentStyle] });
     return child;
   });
-  return <Modal visible={visible} transparent animationType="fade" onRequestClose={dismiss} onShow={focusTitle} statusBarTranslucent>
+  return <Modal visible={visible} transparent animationType="fade" onRequestClose={dismiss} onDismiss={onDismissed} onShow={focusTitle} statusBarTranslucent>
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[s.scrim, Platform.OS === 'web' && ({ backdropFilter: 'blur(3px)' } as any), { paddingTop: insets.top + (compact ? 0 : 24), paddingBottom: insets.bottom + (compact ? 0 : 24), paddingHorizontal: 0 }]}>
       <View ref={panel} accessibilityViewIsModal importantForAccessibility="yes" style={[s.sheet, { width: modalWidth, maxHeight, ...(!scrollable ? { height: maxHeight } : {}) }, compact && s.compact]}>
-        <View style={s.header}>
+        <View style={[s.header, headerStyle]}>
           <View ref={heading} accessible accessibilityRole="header" accessibilityLabel={title} style={s.heading}><Text style={s.title}>{title}</Text>{subtitle && <Text style={s.subtitle}>{subtitle}</Text>}</View>
           <IconButton icon="close" accessibilityLabel={`Close ${title}`} onPress={dismiss} disabled={pending} size={22} hitSlop={4} style={s.close} />
         </View>
-        {scrollable ? <ScrollView pointerEvents={pending ? 'none' : 'auto'} keyboardShouldPersistTaps="handled" contentContainerStyle={s.body} style={s.scroll}>{children}</ScrollView> : <View pointerEvents={pending ? 'none' : 'auto'} style={[s.body, { flex: 1, minHeight: 0 }]}>{children}</View>}
+        {scrollable ? <ScrollView pointerEvents={pending ? 'none' : 'auto'} keyboardShouldPersistTaps="handled" contentContainerStyle={[s.body, bodyStyle]} style={s.scroll}>{children}</ScrollView> : <View pointerEvents={pending ? 'none' : 'auto'} style={[s.body, { flex: 1, minHeight: 0 }, bodyStyle]}>{children}</View>}
         {footer && <View style={s.footer}>{footerControls(typeof footer === 'function' ? footer(dismiss) : footer)}</View>}
       </View>
     </KeyboardAvoidingView>

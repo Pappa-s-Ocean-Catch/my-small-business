@@ -251,6 +251,7 @@ export function PosDialogs({
         </Dialog>
 
         <SelectionSheet
+          deferSelectionUntilDismissed
           selection={instorePaymentDialogVisible ? {
             title: isEditingOrder ? 'Update order payment' : 'Complete in-store order',
             value: '',

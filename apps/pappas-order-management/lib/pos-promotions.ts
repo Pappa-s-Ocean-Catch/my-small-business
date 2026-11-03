@@ -181,8 +181,8 @@ export function findSelectedFreeItemPromotion(params: {
     const unitPrice = clampCurrency((Number(selectedItem.subtotal) || 0) / quantity);
     if (unitPrice <= 0) continue;
 
-    const configuredCap = Number(promotion.discount_value || 0);
-    const discountAmount = clampCurrency(configuredCap > 0 ? Math.min(unitPrice, configuredCap) : unitPrice);
+    // A free-item promotion covers one selected unit at its current cart price.
+    const discountAmount = unitPrice;
     if (discountAmount <= 0) continue;
 
     if (

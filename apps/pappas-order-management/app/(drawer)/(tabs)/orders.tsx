@@ -8,7 +8,7 @@ import { getFriendlyOrderNumber } from '@/utils/orderNumber';
 import { AsyncState } from '@/components/ui';
 import { designTokens as t } from '@/lib/redesign';
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { View, Text, FlatList, StyleSheet, RefreshControl, ActivityIndicator, Platform, useWindowDimensions, TouchableOpacity } from 'react-native';
+import { View, Text, FlatList, StyleSheet, RefreshControl, ActivityIndicator, Platform, useWindowDimensions, TouchableOpacity, ScrollView } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { IconButton, Surface } from 'react-native-paper';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -28,9 +28,7 @@ import { useCustomerOrderCounts } from '@/hooks/useCustomerOrderCounts';
 
 export default function HistoryScreen() {
   const { width, height } = useWindowDimensions();
-  const isPortrait = height >= width;
-  const isNarrow = width < 420;
-  const isTablet = width >= 600;
+  const isCompact = width < 600 || height < 500;
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -196,9 +194,16 @@ export default function HistoryScreen() {
   return (
     <View style={styles.container}>
 
-      <Surface style={styles.header} elevation={0}>
+      <Surface style={[styles.header, isCompact && styles.compactHeader]} elevation={0}>
         <View style={styles.headerTop}>
-          <View style={styles.dateNavigation}>
+          <View style={[styles.dateNavigation, isCompact && styles.compactDateNavigation]}>
+            {isCompact ? <>
+              <IconButton icon="chevron-left" accessibilityLabel="Previous day" onPress={() => navigateDate('prev')} style={styles.dateArrow} />
+              <PaperButton mode="outlined" accessibilityLabel="Choose order date" onPress={openDatePicker} style={styles.compactDateButton} contentStyle={styles.compactDateContent} labelStyle={styles.compactDateLabel}>
+                {new Date(selectedDate + 'T12:00:00').toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })}
+              </PaperButton>
+              <IconButton icon="chevron-right" accessibilityLabel="Next day" onPress={() => navigateDate('next')} disabled={selectedDate === getTodayDateString()} style={styles.dateArrow} />
+            </> : <>
             <PaperButton mode="outlined" contentStyle={{ minHeight: 48 }} onPress={() => navigateDate('prev')}>‹ Previous</PaperButton>
             <PaperButton mode="outlined" onPress={openDatePicker} style={styles.dateButton}>
               {new Date(selectedDate + 'T12:00:00').toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -207,15 +212,33 @@ export default function HistoryScreen() {
               onPress={() => navigateDate('next')}
               disabled={selectedDate === getTodayDateString()}
             >Next ›</PaperButton>
-            {filtersExpanded && <PaperButton mode="text" onPress={() => navigateDate('today')}>Today</PaperButton>}
+            </>}
+            {!isCompact && filtersExpanded && <PaperButton mode="text" onPress={() => navigateDate('today')}>Today</PaperButton>}
           </View>
-          <View style={styles.headerActions}>
-            {filtersExpanded && <PaperButton mode="outlined" contentStyle={{ minHeight: 48 }} onPress={() => setIsFiltersModalVisible(true)}>More filters</PaperButton>}
+          {filtersExpanded && <View style={styles.headerActions}>
+            {isCompact && <PaperButton mode="text" onPress={() => navigateDate('today')}>Today</PaperButton>}
+            <PaperButton mode="outlined" contentStyle={{ minHeight: 48 }} onPress={() => setIsFiltersModalVisible(true)}>More filters</PaperButton>
 
-          </View>
+          </View>}
         </View>
 
-        {quickStats && (
+        {isCompact && quickStats && <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.compactStats} contentContainerStyle={styles.compactStatsRow}>
+          {[
+            { label: 'Paid orders', value: String(quickStats.totalOrders), method: 'all' as const },
+            { label: 'Paid sales', value: `$${quickStats.totalSales.toFixed(2)}` },
+            { label: 'Card', value: `$${quickStats.totalCard.toFixed(2)}`, method: 'card' as const },
+            { label: 'Cash', value: `$${quickStats.totalCash.toFixed(2)}`, method: 'cash' as const },
+            ...(filtersExpanded ? [{ label: 'Marketplace', value: `$${quickStats.totalMarketplace.toFixed(2)}`, method: 'marketplace' as const }] : []),
+          ].map((stat) => stat.method === undefined ? <View key={stat.label} style={[styles.compactStatBox, { width: (width - 36) / 4 }]}>
+            <Text numberOfLines={1} style={styles.compactStatLabel}>{stat.label}</Text>
+            <Text numberOfLines={1} adjustsFontSizeToFit style={styles.compactStatValue}>{stat.value}</Text>
+          </View> : <TouchableOpacity key={stat.label} accessibilityRole="button" accessibilityLabel={`${stat.label}, ${stat.value}`} accessibilityState={{ selected: paymentMethodFilter === stat.method }} onPress={() => setPaymentMethodFilter(paymentMethodFilter === stat.method ? 'all' : stat.method!)} style={[styles.compactStatBox, { width: (width - 36) / 4 }, paymentMethodFilter === stat.method && styles.statBoxActive]}>
+            <Text numberOfLines={1} style={styles.compactStatLabel}>{stat.label}</Text>
+            <Text numberOfLines={1} adjustsFontSizeToFit style={styles.compactStatValue}>{stat.value}</Text>
+          </TouchableOpacity>)}
+        </ScrollView>}
+
+        {!isCompact && quickStats && (
           <View style={styles.statsContainer}>
             <View style={styles.statsRow}>
               <TouchableOpacity
@@ -289,8 +312,8 @@ export default function HistoryScreen() {
         )}
       </Surface>
 
-      <Searchbar placeholder="Search order or customer" value={searchQuery} onChangeText={setSearchQuery} style={{ marginHorizontal: 16, marginTop: 8, marginBottom: 16 }} />
-      <View style={[styles.listFrame, filteredOrders.length > 0 && styles.populatedListFrame]}><FlatList
+      <Searchbar placeholder="Search order or customer" value={searchQuery} onChangeText={setSearchQuery} style={isCompact ? styles.compactSearch : styles.search} />
+      <View style={[styles.listFrame, isCompact && styles.compactListFrame, filteredOrders.length > 0 && styles.populatedListFrame]}><FlatList
         data={filteredOrders}
         renderItem={({ item }) => (
           <HistoryOrderListItem
@@ -371,6 +394,20 @@ export default function HistoryScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: t.color.background },
+  compactHeader: { paddingHorizontal: 12, paddingVertical: 4 },
+  compactDateNavigation: { flex: 1, flexWrap: 'nowrap', gap: 4 },
+  dateArrow: { margin: 0, width: 44, height: 44 },
+  compactDateButton: { flex: 1, minWidth: 0 },
+  compactDateContent: { minHeight: 44 },
+  compactDateLabel: { fontSize: 14, marginHorizontal: 8 },
+  compactStats: { marginTop: 4 },
+  compactStatsRow: { flexGrow: 1, gap: 4 },
+  compactStatBox: { flexShrink: 0, minWidth: 0, minHeight: 56, padding: 6, borderWidth: 1, borderColor: t.color.border, borderRadius: 8, backgroundColor: t.color.surface, justifyContent: 'center', gap: 4 },
+  compactStatLabel: { fontSize: 10, color: t.color.muted },
+  compactStatValue: { fontSize: 12, fontWeight: '700', color: t.color.text, fontVariant: ['tabular-nums'] },
+  search: { marginHorizontal: 16, marginTop: 8, marginBottom: 16 },
+  compactSearch: { marginHorizontal: 12, marginVertical: 4, height: 44 },
+  compactListFrame: { marginHorizontal: 12, marginBottom: 8 },
   header: { padding: 12, paddingHorizontal: 16, backgroundColor: t.color.background },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
   dateNavigation: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1, flexWrap: 'wrap' },

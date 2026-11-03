@@ -34,6 +34,7 @@ type MarketplaceOrderDetail = {
   netPayout: string;
   subtotalAmount: number | null;
   discountAmount: number;
+  deliveryJobCurrentState?: { type: string | null } | null;
   orderJobState: string | null;
   statusDescription: string | null;
   orderStateChanges: Array<{
@@ -86,6 +87,25 @@ const NON_ADVANCING_UPSTREAM_ORDER_STATUSES: OrderStatus[] = [
   'preparing',
   'ready',
 ];
+
+function getMarketplaceDetailOrderStatus(
+  detail: MarketplaceOrderDetail
+): ReturnType<typeof getMarketplaceOrderStatus> {
+  const status = getMarketplaceOrderStatus(
+    detail.orderJobState,
+    detail.statusDescription,
+    detail.orderStateChanges
+  );
+  // Uber can keep the order timeline at READY after the courier picks up food.
+  if (
+    detail.provider === 'uber_eats'
+    && detail.deliveryJobCurrentState?.type === 'PICKED_UP_FOOD'
+    && NON_ADVANCING_UPSTREAM_ORDER_STATUSES.includes(status)
+  ) {
+    return 'on_the_way';
+  }
+  return status;
+}
 
 export function shouldReconcileMarketplaceOrderStatus(
   localStatus: OrderStatus,
@@ -648,11 +668,7 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
       metadata: {
         source: getMarketplaceSource(detail.provider),
         externalOrderNumber,
-        orderStatus: getMarketplaceOrderStatus(
-          detail.orderJobState,
-          detail.statusDescription,
-          detail.orderStateChanges
-        ),
+        orderStatus: getMarketplaceDetailOrderStatus(detail),
         grossSales: detail.totalAmount,
         grossPayout: parseMarketplaceMoney(detail.netPayout),
       },
@@ -667,11 +683,7 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
     order: Order,
     detail: MarketplaceOrderDetail
   ): Promise<{ order: Order | null; error: string | null }> => {
-    const orderStatus = getMarketplaceOrderStatus(
-      detail.orderJobState,
-      detail.statusDescription,
-      detail.orderStateChanges
-    );
+    const orderStatus = getMarketplaceDetailOrderStatus(detail);
     if (!shouldReconcileMarketplaceOrderStatus(order.order_status, orderStatus)) {
       return { order, error: null };
     }

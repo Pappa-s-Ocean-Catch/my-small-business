@@ -126,6 +126,7 @@ export type MarketplaceOrderDetail = {
   netPayout: string;
   marketplaceFeeRate: string | null;
   fulfillmentType: string;
+  deliveryJobCurrentState?: { type: string | null } | null;
   orderJobState: string | null;
   statusDescription: string | null;
   checkoutInfo: Array<{ key: string; amount: string; label: string }>;

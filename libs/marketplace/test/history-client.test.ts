@@ -99,3 +99,22 @@ test('restores DoorDash detail status timeline from provider timestamps', async 
   const detail = await client.getOrderDetail('doordash', 'delivery-1');
   assert.deepEqual(detail.orderStateChanges, [{ changedAt: 1787619723000, orderState: 'PICKED_UP' }]);
 });
+
+
+test('requests and preserves the Uber live delivery job state', async () => {
+  let query = '';
+  const client = createMarketplaceProviderClient({
+    getSession: async () => ({ provider: 'uber_eats', cookies: 'selectedRestaurant=store-1', providerConfig: {}, updatedAt: null }),
+    transport: async ({ init }) => {
+      query = JSON.parse(String(init.body)).query;
+      return new Response(JSON.stringify({ data: { liveOrderDetails: {
+        orderId: 'UE-1',
+        deliveryJobCurrentState: { type: 'PICKED_UP_FOOD' },
+        orderStateChanges: [{ changedAt: 1793510934211, orderState: 'READY' }],
+      } } }), { status: 200 });
+    },
+  });
+  const detail = await client.getOrderDetail('uber_eats', 'workflow-1', { mode: 'live' });
+  assert.match(query, /deliveryJobCurrentState\s*\{\s*type\s*\}/);
+  assert.deepEqual(detail.deliveryJobCurrentState, { type: 'PICKED_UP_FOOD' });
+});

@@ -122,11 +122,12 @@ type MarketplaceUpdateCall = {
 
 function createExistingOrderService(
   existing: Order,
-  updateCalls: MarketplaceUpdateCall[]
+  updateCalls: MarketplaceUpdateCall[],
+  expectedProvider: 'uber_eats' | 'doordash' = 'uber_eats'
 ) {
   return createMarketplacePosOrderService({
     findMarketplaceOrder: async (provider, externalOrderId) => {
-      assert.equal(provider, 'uber_eats');
+      assert.equal(provider, expectedProvider);
       assert.equal(externalOrderId, 'UE-123');
       return { data: existing, error: null };
     },
@@ -812,5 +813,47 @@ test('does not reopen terminal local marketplace orders', async () => {
 
     assert.equal(result.order, localOrder, localStatus);
     assert.deepEqual(updateCalls, [], localStatus);
+  }
+});
+
+
+test('advances Uber READY orders using the picked-up delivery job state', async () => {
+  const updateCalls: MarketplaceUpdateCall[] = [];
+  const service = createExistingOrderService(existingOrder, updateCalls);
+  const pickedUpDetail = {
+    ...detail,
+    orderJobState: null,
+    statusDescription: null,
+    orderStateChanges: [{ changedAt: 1793510934211, orderState: 'READY' }],
+    deliveryJobCurrentState: { type: 'PICKED_UP_FOOD' },
+  };
+  const draft = await createFailOpenService().service.buildMarketplacePosOrderDraft(pickedUpDetail);
+  assert.equal(draft.metadata.orderStatus, 'on_the_way');
+  const result = await service.syncMarketplaceOrderStatus('uber_eats', 'UE-123', pickedUpDetail);
+  assert.equal(result.order?.order_status, 'on_the_way');
+  assert.deepEqual(updateCalls, [{ orderId: 'pos-existing', update: { order_status: 'on_the_way' } }]);
+});
+
+test('keeps existing status rules for DoorDash, unpicked Uber jobs, and terminal states', async () => {
+  const cases = [
+    { provider: 'doordash', type: 'PICKED_UP_FOOD', state: 'READY', want: 'ready' },
+    { provider: 'uber_eats', type: 'ARRIVED_AT_STORE', state: 'READY', want: 'ready' },
+    { provider: 'uber_eats', type: null, state: 'READY', want: 'ready' },
+    { provider: 'uber_eats', type: 'PICKED_UP_FOOD', state: 'COMPLETED', want: 'completed' },
+    { provider: 'uber_eats', type: 'PICKED_UP_FOOD', state: 'CANCELLED', want: 'cancelled' },
+    { provider: 'uber_eats', type: 'PICKED_UP_FOOD', state: 'REFUNDED', want: 'refunded' },
+  ] as const;
+  for (const row of cases) {
+    const service = createExistingOrderService({ ...existingOrder, order_status: 'confirmed' } as Order, [], row.provider);
+    const input = {
+      ...detail,
+      provider: row.provider,
+      orderJobState: row.state,
+      deliveryJobCurrentState: row.type ? { type: row.type } : null,
+    };
+    const draft = await createFailOpenService().service.buildMarketplacePosOrderDraft(input);
+    assert.equal(draft.metadata.orderStatus, row.want, JSON.stringify(row));
+    const result = await service.syncMarketplaceOrderStatus(row.provider, 'UE-123', input);
+    assert.equal(result.order?.order_status, row.want, JSON.stringify(row));
   }
 });

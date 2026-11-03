@@ -32,8 +32,8 @@ export function OrdersWorkspaceHeader({ title: headingTitle, onNavigate, actions
   ];
   const content = <View accessibilityRole="tablist" style={[s.tabs, { gap: width >= 1100 ? 12 : width >= 600 ? 8 : 4, paddingHorizontal: width < 600 ? 8 : 16 }]}>{tabs.map((tab) => {
     const selected = pathname.endsWith('/' + tab.path) || (tab.path === 'completed' && pathname.endsWith('/orders'));
-    return <Pressable key={tab.path} accessibilityRole="tab" accessibilityState={{ selected }} onPress={() => { onNavigate?.(); router.navigate((tab.path === 'pre-orders' ? '/pre-orders' : `/(drawer)/(tabs)/${tab.path}`) as any); }} style={[s.tab, selected && s.active, width < 600 && s.compactTab, width < 600 && tabs.length === 4 && s.fourCompactTabs]}>
-      <Text style={[s.tabText, width < 600 && { fontSize: 12 }, selected && s.activeText]}>{tab.label}</Text>{tab.count !== undefined && <Text style={[s.count, selected && s.activeCount, width < 600 && { fontSize: tabs.length === 4 ? 10 : 11, minWidth: 20, paddingHorizontal: 5 }]}>{tab.count}</Text>}
+    return <Pressable key={tab.path} accessibilityRole="tab" accessibilityLabel={`${tab.label}${tab.count !== undefined ? `, ${tab.count}` : ''}`} accessibilityState={{ selected }} onPress={() => { onNavigate?.(); router.navigate((tab.path === 'pre-orders' ? '/pre-orders' : `/(drawer)/(tabs)/${tab.path}`) as any); }} style={[s.tab, selected && s.active, width < 600 && s.compactTab, fontScale > 1.25 && { flex: 0, flexShrink: 0 }, width < 600 && tabs.length === 4 && s.fourCompactTabs]}>
+      <Text numberOfLines={fontScale > 1.25 ? undefined : 1} style={[s.tabText, width < 600 && { fontSize: tabs.length === 4 ? 11 : 12 }, selected && s.activeText]}>{width < 360 && tabs.length === 4 ? tab.path === 'on-the-way' ? 'On way' : tab.path === 'pre-orders' ? 'Preorder' : tab.label : tab.label}</Text>{tab.count !== undefined && <Text style={[s.count, selected && s.activeCount, width < 600 && { fontSize: tabs.length === 4 ? 10 : 11, minWidth: tabs.length === 4 ? 16 : 20, paddingHorizontal: tabs.length === 4 ? 3 : 5 }]}>{tab.count}</Text>}
     </Pressable>;
   })}</View>;
   const title = headingTitle || 'Orders';
@@ -50,7 +50,7 @@ const s = StyleSheet.create({
   header: { backgroundColor: t.color.surface, borderBottomWidth: 1, borderColor: t.color.border },
   tabs: { flexDirection: 'row', paddingHorizontal: 16 }, tab: { minHeight: 46, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderBottomWidth: 3, borderColor: 'transparent' },
   compactTab: { flex: 1, minHeight: 44, paddingHorizontal: 6, paddingVertical: 9, gap: 4 },
-  fourCompactTabs: { flexDirection: 'column', minHeight: 60, paddingHorizontal: 5, paddingVertical: 7 },
+  fourCompactTabs: { paddingHorizontal: 2, gap: 2 },
   active: { borderBottomColor: t.color.primary }, tabText: { color: t.color.muted, fontSize: 14, fontWeight: '700', textAlign: 'center' }, activeText: { color: t.color.primary }, count: { fontSize: 12, minWidth: 24, textAlign: 'center', color: t.color.muted, backgroundColor: '#EDF1F3', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
   activeCount: { color: t.color.primaryPressed, backgroundColor: t.color.primaryTint },
 });

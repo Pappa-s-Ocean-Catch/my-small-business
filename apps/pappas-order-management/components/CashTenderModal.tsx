@@ -1,8 +1,8 @@
 import { ActionButton as Button } from '@/components/ui/ActionButton';
 import React, { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Icon } from 'react-native-paper';
-import { EditorSheet, FormField, designTokens as tokens } from '@/components/ui';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Icon, TextInput } from 'react-native-paper';
+import { EditorSheet, designTokens as tokens } from '@/components/ui';
 
 type CashTenderModalProps = {
   visible: boolean;
@@ -22,6 +22,9 @@ const centsFromText = (text: string) => {
 };
 
 export function CashTenderModal({ visible, total, onCancel, onConfirm }: CashTenderModalProps) {
+  const { width, height } = useWindowDimensions();
+  const landscape = width > height;
+  const short = height < 500;
   const [amountText, setAmountText] = useState('50.00');
   const [confirming, setConfirming] = useState(false);
   const confirmed = useRef(false);
@@ -67,74 +70,113 @@ export function CashTenderModal({ visible, total, onCancel, onConfirm }: CashTen
     onConfirm(tenderedCents / 100);
   };
 
+  const quickNotes = (
+    <View style={[styles.quickRow, landscape && styles.quickColumn]}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Tender exact amount" style={({ pressed }) => [styles.quickNote, landscape && styles.quickNoteLandscape, pressed && styles.pressed]} onPress={() => selectAmount((totalCents / 100).toFixed(2))}>
+        <Text style={styles.quickNoteText}>Exact</Text>
+      </Pressable>
+      {QUICK_NOTES.map((note) => (
+        <Pressable key={note} accessibilityRole="button" accessibilityLabel={`Tender ${note} dollars`} accessibilityState={{ selected: tenderedCents === note * 100 }} style={({ pressed }) => [styles.quickNote, landscape && styles.quickNoteLandscape, tenderedCents === note * 100 && styles.quickNoteSelected, pressed && styles.pressed]} onPress={() => selectAmount(note.toFixed(2))}>
+          <Text style={[styles.quickNoteText, tenderedCents === note * 100 && styles.quickNoteTextSelected]}>${note}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+
   return (
     <EditorSheet
       visible={visible}
       title="Cash tender"
-
       onDismiss={onCancel}
       pending={confirming}
-      footer={<>
-        <Button mode="outlined" onPress={onCancel} disabled={confirming} style={styles.action} contentStyle={styles.actionContent}>Cancel</Button>
-        <Button mode="contained" onPress={confirm} disabled={!canConfirm} loading={confirming} buttonColor={tokens.color.primary} style={styles.action} contentStyle={styles.actionContent}>Confirm cash payment</Button>
-      </>}
+      scrollable={false}
+      headerStyle={[styles.header, short && styles.headerShort]}
+      bodyStyle={[styles.body, short && styles.bodyShort]}
     >
-      <View style={styles.summary}>
-        <Text style={styles.summaryLabel}>Amount due</Text>
-        <Text style={styles.totalValue}>{money(totalCents)}</Text>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Tendered</Text>
-          <Text style={styles.tenderValue}>{money(tenderedCents)}</Text>
+      <View style={[styles.layout, landscape && styles.landscape]}>
+        <View style={[styles.summary, landscape && styles.summaryLandscape]}>
+          <View style={styles.due}>
+            <Text style={styles.summaryLabel}>Amount due</Text>
+            <Text adjustsFontSizeToFit numberOfLines={1} style={[styles.totalValue, landscape && styles.totalValueLandscape]}>{money(totalCents)}</Text>
+          </View>
+          <View style={styles.balances}>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Tendered</Text>
+              <Text adjustsFontSizeToFit numberOfLines={1} style={styles.tenderValue}>{money(tenderedCents)}</Text>
+            </View>
+            <View style={styles.summaryRow} accessibilityLiveRegion="polite">
+              <Text style={styles.summaryLabel}>{changeCents < 0 ? 'Amount short' : 'Change'}</Text>
+              <Text adjustsFontSizeToFit numberOfLines={1} style={[styles.changeValue, changeCents < 0 && styles.shortValue]}>{money(Math.abs(changeCents))}</Text>
+            </View>
+          </View>
+          {landscape && quickNotes}
         </View>
-        <View style={styles.summaryRow} accessibilityLiveRegion="polite">
-          <Text style={styles.summaryLabel}>{changeCents < 0 ? 'Amount short' : 'Change'}</Text>
-          <Text style={[styles.changeValue, changeCents < 0 && styles.shortValue]}>{money(Math.abs(changeCents))}</Text>
+        <View style={[styles.controls, short && styles.controlsShort]}>
+          <View style={styles.inputRow}>
+            <TextInput mode="outlined" dense label="Amount tendered" accessibilityLabel="Amount tendered" value={amountText} onChangeText={updateAmount} keyboardType="decimal-pad" showSoftInputOnFocus={false} selectTextOnFocus disabled={confirming} style={styles.input} />
+            <Button mode="outlined" accessibilityLabel="Clear tender" onPress={() => { replaceOnKey.current = false; setAmountText(''); }} style={styles.clear} contentStyle={styles.actionContent}>Clear</Button>
+          </View>
+          {!landscape && quickNotes}
+          <View style={[styles.keypad, short && styles.keypadShort]}>
+            {Array.from({ length: 4 }, (_, row) => <View style={[styles.keyRow, short && styles.keyRowShort]} key={row}>
+              {KEYS.slice(row * 3, row * 3 + 3).map((key) => (
+                <Pressable accessibilityRole="button" accessibilityLabel={key === 'back' ? 'Backspace' : key === '.' ? 'Decimal point' : key} key={key} style={({ pressed }) => [styles.key, short && styles.keyShort, pressed && styles.pressed]} onPress={() => pressKey(key)}>
+                  {key === 'back' ? <Icon source="backspace-outline" size={27} color={tokens.color.text} /> : <Text style={styles.keyText}>{key}</Text>}
+                </Pressable>
+              ))}
+            </View>)}
+          </View>
+          <View style={styles.actions}>
+            <Button mode="outlined" onPress={onCancel} disabled={confirming} style={styles.action} contentStyle={styles.actionContent} labelStyle={styles.actionLabel}>Cancel</Button>
+            <Button mode="contained" onPress={confirm} disabled={!canConfirm} loading={confirming} buttonColor={tokens.color.primary} style={[styles.action, styles.confirmAction]} contentStyle={styles.actionContent} labelStyle={styles.actionLabel}>Confirm cash payment</Button>
+          </View>
         </View>
       </View>
-      <FormField label="Amount tendered" value={amountText} onChangeText={updateAmount} keyboardType="decimal-pad" selectTextOnFocus disabled={confirming} />
-      <View style={styles.quickRow}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Tender exact amount" style={({ pressed }) => [styles.quickNote, pressed && styles.pressed]} onPress={() => selectAmount((totalCents / 100).toFixed(2))}>
-          <Text style={styles.quickNoteText}>Exact</Text>
-        </Pressable>
-        {QUICK_NOTES.map((note) => (
-          <Pressable key={note} accessibilityRole="button" accessibilityLabel={`Tender ${note} dollars`} accessibilityState={{ selected: tenderedCents === note * 100 }} style={({ pressed }) => [styles.quickNote, tenderedCents === note * 100 && styles.quickNoteSelected, pressed && styles.pressed]} onPress={() => selectAmount(note.toFixed(2))}>
-            <Text style={[styles.quickNoteText, tenderedCents === note * 100 && styles.quickNoteTextSelected]}>${note}</Text>
-          </Pressable>
-        ))}
-      </View>
-      <View style={styles.keypad}>
-        {Array.from({ length: 4 }, (_, row) => <View style={styles.keyRow} key={row}>
-          {KEYS.slice(row * 3, row * 3 + 3).map((key) => (
-            <Pressable accessibilityRole="button" accessibilityLabel={key === 'back' ? 'Backspace' : key === '.' ? 'Decimal point' : key} key={key} style={({ pressed }) => [styles.key, pressed && styles.pressed]} onPress={() => pressKey(key)}>
-              {key === 'back' ? <Icon source="backspace-outline" size={27} color={tokens.color.text} /> : <Text style={styles.keyText}>{key}</Text>}
-            </Pressable>
-          ))}
-        </View>)}
-      </View>
-      <Button mode="outlined" onPress={() => { replaceOnKey.current = false; setAmountText(''); }} style={styles.clear} contentStyle={styles.actionContent}>Clear tender</Button>
     </EditorSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  summary: { backgroundColor: tokens.color.navy, borderRadius: tokens.radius.card, padding: 20, gap: 10 },
-  summaryRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  summaryLabel: { color: tokens.color.surface, fontSize: 16 },
-  totalValue: { color: tokens.color.surface, fontSize: 39, fontWeight: '700', marginBottom: 8, fontVariant: ['tabular-nums'] },
-  tenderValue: { color: tokens.color.surface, fontSize: 17, fontWeight: '700', fontVariant: ['tabular-nums'] },
-  changeValue: { color: '#A0DFC3', fontSize: 24, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  header: { paddingVertical: 8, minHeight: 56 },
+  headerShort: { paddingVertical: 4, minHeight: 48 },
+  body: { padding: 12, gap: 0 },
+  bodyShort: { padding: 8 },
+  layout: { flex: 1, minHeight: 0, gap: 8 },
+  landscape: { flexDirection: 'row', gap: 12 },
+  summary: { backgroundColor: tokens.color.navy, borderRadius: tokens.radius.card, padding: 8, gap: 12, flexDirection: 'row', alignItems: 'center' },
+  summaryLandscape: { flex: 1, padding: 12, flexDirection: 'column', alignItems: 'stretch', justifyContent: 'center' },
+  due: { flexShrink: 1, minWidth: 0 },
+  balances: { flexGrow: 1, minWidth: 0, gap: 4 },
+  summaryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 4 },
+  summaryLabel: { color: tokens.color.surface, fontSize: 12 },
+  totalValue: { color: tokens.color.surface, fontSize: 28, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  totalValueLandscape: { fontSize: 36 },
+  tenderValue: { flexShrink: 1, color: tokens.color.surface, fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  changeValue: { flexShrink: 1, color: '#A0DFC3', fontSize: 18, fontWeight: '700', fontVariant: ['tabular-nums'] },
   shortValue: { color: '#FFCECB' },
-  quickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  quickNote: { minWidth: 48, minHeight: 48, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', borderRadius: tokens.radius.control, borderWidth: 1, borderColor: tokens.color.border, backgroundColor: tokens.color.surface },
+  controls: { flex: 2, minWidth: 0, minHeight: 0, gap: 8 },
+  controlsShort: { gap: 4 },
+  inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  input: { flex: 1, minWidth: 0, height: 48, backgroundColor: tokens.color.surface },
+  quickRow: { flexDirection: 'row', gap: 4 },
+  quickColumn: { flexWrap: 'wrap', gap: 6 },
+  quickNote: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: tokens.radius.control, borderWidth: 1, borderColor: tokens.color.border, backgroundColor: tokens.color.surface },
+  quickNoteLandscape: { flexBasis: '30%', minHeight: 44 },
   quickNoteSelected: { borderColor: tokens.color.primary, backgroundColor: tokens.color.primaryTint },
-  quickNoteText: { color: tokens.color.text, fontSize: 15, fontWeight: '700' },
+  quickNoteText: { color: tokens.color.text, fontSize: 14, fontWeight: '700' },
   quickNoteTextSelected: { color: tokens.color.primaryPressed },
-  keypad: { gap: 10 },
-  keyRow: { flexDirection: 'row', gap: 10 },
-  key: { flex: 1, minHeight: 62, alignItems: 'center', justifyContent: 'center', borderRadius: tokens.radius.control, backgroundColor: tokens.color.surface, borderWidth: 1, borderColor: tokens.color.border },
+  keypad: { flex: 1, minHeight: 216, gap: 8 },
+  keypadShort: { minHeight: 188, gap: 4 },
+  keyRow: { flex: 1, flexDirection: 'row', gap: 8 },
+  keyRowShort: { gap: 4 },
+  key: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: tokens.radius.control, backgroundColor: tokens.color.surface, borderWidth: 1, borderColor: tokens.color.border },
+  keyShort: { minHeight: 44 },
   pressed: { opacity: 0.65 },
   keyText: { color: tokens.color.text, fontSize: 24, fontWeight: '700' },
-  clear: { alignSelf: 'flex-start', borderRadius: tokens.radius.control, borderColor: tokens.color.border },
+  clear: { borderRadius: tokens.radius.control, borderColor: tokens.color.border },
+  actions: { flexDirection: 'row', gap: 8 },
   action: { borderRadius: tokens.radius.control },
-  actionContent: { minHeight: tokens.touch.primaryHeight },
+  confirmAction: { flex: 1 },
+  actionContent: { minHeight: 48 },
+  actionLabel: { fontSize: 14, marginHorizontal: 10 },
 });

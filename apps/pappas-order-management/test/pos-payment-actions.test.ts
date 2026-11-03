@@ -65,3 +65,8 @@ test('edited orders preserve existing payment mappings', () => {
     assert.deepEqual(flow.calls, [['visible', false], [...expected]]);
   }
 });
+
+test('POS payment picker defers the next native payment surface until dismissal', () => {
+  const { sheets } = dialogs(true);
+  assert.equal(sheets.find(n => n.props.selection?.title === 'Complete in-store order')!.props.deferSelectionUntilDismissed, true);
+});
