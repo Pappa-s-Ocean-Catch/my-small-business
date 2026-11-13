@@ -8,7 +8,7 @@ import { findPosProductConfig, type PosLayoutData } from '@/lib/pos-layout-confi
 import { EditorSheet, FormField, HeaderIconButton } from '@/components/ui';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { designTokens as tokens } from '../../lib/redesign';
-import { FlatList, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, Platform, Text, TouchableOpacity, View } from 'react-native';
 import type { DimensionValue } from 'react-native';
 import { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { TextInput } from 'react-native-paper';
@@ -553,7 +553,16 @@ export const PosMenuPane = React.memo(function PosMenuPane(props: Props) {
       )}
 
       <EditorSheet size="options" visible={noteVisible} title="Item note" onDismiss={() => setNoteVisible(false)} footer={(dismiss) => <><Button onPress={dismiss}>Cancel</Button><Button mode="contained" onPress={() => { props.onEditorNoteChange(noteDraft); setNoteVisible(false); }} contentStyle={{ minHeight: 52 }}>Save note</Button></>}>
-        <Text style={{ color: tokens.color.text, fontWeight: '700', fontSize: 13 }}>Quick notes</Text><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{(props.quickItemNotes || []).map(note => <Button mode="outlined" key={note} onPress={() => setNoteDraft(current => toggleNotePreset(current, note))}>{note}</Button>)}</View><FormField label="Item note" value={noteDraft} onChangeText={setNoteDraft} multiline autoFocus />
+        <Text style={{ color: tokens.color.text, fontWeight: '700', fontSize: 13 }}>Quick notes</Text><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{(props.quickItemNotes || []).map(note => <Button mode="outlined" key={note} onPress={() => setNoteDraft(current => toggleNotePreset(current, note))}>{note}</Button>)}</View>
+        <FormField
+          label="Item note"
+          value={noteDraft}
+          onChangeText={setNoteDraft}
+          // Android predictive keyboards can recommit composing words in controlled inputs.
+          autoCorrect={Platform.OS === 'android' ? false : undefined}
+          multiline
+          autoFocus
+        />
       </EditorSheet>
 
       {menuLevel === 'checkout' && (

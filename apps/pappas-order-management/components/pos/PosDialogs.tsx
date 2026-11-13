@@ -6,7 +6,7 @@ import { designTokens as t } from '@/lib/redesign';
 import { ActionButton as Button } from '@/components/ui/ActionButton';
 import { ResponsiveDialog as Dialog } from '@/components/ui/ResponsiveDialog';
 import React, { useCallback, useEffect, useState } from 'react';
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { Portal, TextInput } from 'react-native-paper';
 
 import { getCouponsList, validateCouponCode, type Coupon } from '../../lib/coupons';
@@ -240,6 +240,8 @@ export function PosDialogs({
               mode="outlined"
               value={noteDraft}
               onChangeText={setNoteDraft}
+              // Android predictive keyboards can recommit composing words in controlled inputs.
+              autoCorrect={Platform.OS === 'android' ? false : undefined}
               multiline
               style={styles.noteInput}
             />

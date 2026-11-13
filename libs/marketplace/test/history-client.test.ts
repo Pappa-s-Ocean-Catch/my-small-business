@@ -118,3 +118,22 @@ test('requests and preserves the Uber live delivery job state', async () => {
   assert.match(query, /deliveryJobCurrentState\s*\{\s*type\s*\}/);
   assert.deepEqual(detail.deliveryJobCurrentState, { type: 'PICKED_UP_FOOD' });
 });
+
+for (const mode of ['live', 'history'] as const) {
+  test(`requests and preserves Uber store instructions in ${mode} detail`, async () => {
+    const client = createMarketplaceProviderClient({
+      getSession: async () => ({ provider: 'uber_eats', cookies: 'selectedRestaurant=store-1', providerConfig: {}, updatedAt: null }),
+      transport: async ({ init }) => {
+        const query = JSON.parse(String(init.body)).query as string;
+        assert.match(query, /storeInstructions/);
+        return new Response(JSON.stringify({ data: { [mode === 'live' ? 'liveOrderDetails' : 'orderDetails']: {
+          orderId: 'UE-note', storeInstructions: '2 potato cakes please 🙏 NO DIM SIMS ',
+          items: [{ name: 'Value Pack', specialInstructions: 'Cut in half' }],
+        } } }), { status: 200 });
+      },
+    });
+    const detail = await client.getOrderDetail('uber_eats', 'workflow-note', { mode });
+    assert.equal(detail.storeInstructions, '2 potato cakes please 🙏 NO DIM SIMS');
+    assert.equal((detail.items as Array<{ specialInstructions: string }>)[0].specialInstructions, 'Cut in half');
+  });
+}

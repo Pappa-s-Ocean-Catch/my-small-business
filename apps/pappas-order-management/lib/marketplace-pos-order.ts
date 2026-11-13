@@ -24,6 +24,7 @@ type MarketplaceOrderDetailItemOption = {
 type MarketplaceOrderDetail = {
   provider: MarketplaceProvider;
   sourceName: string;
+  storeInstructions?: string | null;
   orderId: string;
   orderUUID: string;
   workflowUuid?: string;
@@ -151,6 +152,7 @@ export type MarketplaceImportMetadata = {
 };
 
 export type MarketplacePosOrderDraft = {
+  orderNotes: string;
   cartItems: PosCartItem[];
   customerName: string;
   requestedAt: Date;
@@ -659,6 +661,16 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
 
     const requestedAt = new Date(detail.requestedAt);
     return {
+      orderNotes: [
+        detail.storeInstructions?.trim(),
+        unmatchedProducts.length > 0
+          ? `Unmatched items: ${unmatchedProducts.join(', ')}`
+          : '',
+        unmatchedOptions.length > 0
+          ? `Check modifiers: ${unmatchedOptions.join(', ')}`
+          : '',
+        ...resolutionNotes,
+      ].filter(Boolean).join('\n'),
       cartItems,
       customerName: detail.customerName || '',
       requestedAt: Number.isFinite(requestedAt.getTime()) ? requestedAt : dependencies.now(),
@@ -742,15 +754,6 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
       const subtotal = draft.cartItems.reduce((sum, item) => sum + item.subtotal, 0);
       const discountAmount = Math.max(0, Math.min(subtotal, draft.discountAmount));
       const total = Math.max(0, subtotal - discountAmount);
-      const notes = [
-        draft.unmatchedProducts.length > 0
-          ? `Unmatched items: ${draft.unmatchedProducts.join(', ')}`
-          : '',
-        draft.unmatchedOptions.length > 0
-          ? `Check modifiers: ${draft.unmatchedOptions.join(', ')}`
-          : '',
-        ...draft.resolutionNotes,
-      ].filter(Boolean).join('\n');
 
       const externalCustomerId = detail.marketplaceCustomerId?.trim();
       let marketplaceCustomerProfileId: string | null = null;
@@ -800,7 +803,7 @@ export function createMarketplacePosOrderService(dependencies: MarketplacePosOrd
         reward_points_used: null,
         reward_points_value: null,
         order_options: null,
-        special_instructions: notes || null,
+        special_instructions: draft.orderNotes || null,
         delivery_address_id: null,
         delivery_address_line1: null,
         delivery_address_line2: null,

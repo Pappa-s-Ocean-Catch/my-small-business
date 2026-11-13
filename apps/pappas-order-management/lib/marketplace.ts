@@ -113,6 +113,7 @@ export type MarketplaceOrderDetail = {
   marketplaceCustomerId?: string | null;
   customerPhone: string | null;
   customerAddress: string | null;
+  storeInstructions?: string | null;
   courierName: string | null;
   courierPhone: string | null;
   restaurantName: string;

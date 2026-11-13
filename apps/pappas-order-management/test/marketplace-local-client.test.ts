@@ -67,3 +67,18 @@ test('does not retry a second provider 401', async () => {
   await assert.rejects(() => client.getActiveOrders('uber_eats'), /401/);
   assert.equal(calls, 2);
 });
+
+test('local Uber detail preserves store instructions through the shared native transport', async () => {
+  const client = createMarketplaceLocalClient({
+    getSessionBundle: async () => ({ ...session, cookies: 'selectedRestaurant=store-1' }),
+    invalidate: () => undefined,
+    transport: async ({ init }) => {
+      assert.match(JSON.parse(String(init.body)).query, /storeInstructions/);
+      return new Response(JSON.stringify({ data: { liveOrderDetails: {
+        orderId: 'UE-note', storeInstructions: '2 potato cakes please 🙏 NO DIM SIMS ',
+      } } }), { status: 200 });
+    },
+  });
+  const detail = await client.getOrderDetail('uber_eats', 'workflow-note', { mode: 'live' });
+  assert.equal(detail.storeInstructions, '2 potato cakes please 🙏 NO DIM SIMS');
+});

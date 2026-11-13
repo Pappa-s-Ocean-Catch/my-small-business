@@ -870,14 +870,7 @@ export default function PosScreen() {
         setMarketplaceImportMetadata(draft.metadata);
         setInitialCheckoutTab('third_party');
         setMenuLevel('checkout');
-        setOrderNoteText([
-          draft.unmatchedProducts.length > 0
-            ? `Unmatched items: ${draft.unmatchedProducts.join(', ')}`
-            : '',
-          draft.unmatchedOptions.length > 0
-            ? `Check modifiers: ${draft.unmatchedOptions.join(', ')}`
-            : '',
-        ].filter(Boolean).join('\n'));
+        setOrderNoteText(draft.orderNotes);
         clearMarketplaceDraft();
 
         if (draft.unmatchedProducts.length > 0 || draft.unmatchedOptions.length > 0) {

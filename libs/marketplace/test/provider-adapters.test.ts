@@ -84,3 +84,9 @@ test('DoorDash active adapter retains a detail-capable order without a display o
   assert.equal(result.orders.length, 1);
   assert.equal(result.orders[0].orderId, 'doordash-workflow-fallback');
 });
+
+test('Uber detail normalizes absent, null and blank store instructions', () => {
+  for (const storeInstructions of [undefined, null, '', '   ']) {
+    assert.equal(adaptUberDetail({ storeInstructions }, 'wf').storeInstructions, null);
+  }
+});

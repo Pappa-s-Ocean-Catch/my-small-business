@@ -16,7 +16,7 @@ export type MarketplaceActiveOrder = { orderId: string; workflowUuid: string; or
 export type MarketplaceActiveResult = { provider: MarketplaceProvider; orders: MarketplaceActiveOrder[]; nextCursor: string | null };
 export type MarketplaceHistoryOrder = { orderId: string; workflowUuid: string; orderUuid: string; customerName: string; salesTotal: string; netPayout: string; requestedAt: string; courierName: string; fulfillmentType: string; issueType: string; orderChannel: string; isSubscriber: boolean; subscriptionPass: string };
 export type MarketplaceHistoryResult = { provider: MarketplaceProvider; orders: MarketplaceHistoryOrder[]; nextCursor: string | null };
-export type MarketplaceOrderDetail = Record<string, unknown> & { provider: MarketplaceProvider; workflowUuid: string; orderId: string; orderUUID: string };
+export type MarketplaceOrderDetail = Record<string, unknown> & { provider: MarketplaceProvider; workflowUuid: string; orderId: string; orderUUID: string; storeInstructions?: string | null };
 export type MarketplaceTransport = (input: { url: string; init: RequestInit }) => Promise<Response>;
 export type MarketplaceProviderClient = {
   getActiveOrders(provider: MarketplaceProvider, cursor?: string): Promise<MarketplaceActiveResult>;

@@ -857,3 +857,43 @@ test('keeps existing status rules for DoorDash, unpicked Uber jobs, and terminal
     assert.equal(result.order?.order_status, row.want, JSON.stringify(row));
   }
 });
+
+test('imports Uber store instructions into order notes alongside resolution warnings', async () => {
+  const { service, saveCalls } = createFailOpenService();
+  const input = { ...detail, storeInstructions: '2 potato cakes please 🙏 NO DIM SIMS ' };
+  const result = await service.importMarketplaceOrder(input);
+  assert.equal(result.error, null);
+  assert.equal(result.created, true);
+  const notes = String(saveCalls[0].orderPayload.special_instructions);
+  assert.match(notes, /^2 potato cakes please 🙏 NO DIM SIMS\n/);
+  assert.match(notes, /Check modifiers:/);
+  assert.match(String(saveCalls[0].items[0].comment), /Cut in half/);
+  assert.doesNotMatch(String(saveCalls[0].items[0].comment), /NO DIM SIMS/);
+  assert.equal(saveCalls[0].orderPayload.delivery_instructions, null);
+});
+
+test('creates no order note for absent or blank store instructions without resolution warnings', async () => {
+  for (const storeInstructions of [undefined, null, '', '   ']) {
+    const { service, saveCalls } = createFailOpenService();
+    const input = { ...detail, storeInstructions, items: [{ ...detail.items[0], customizations: [] }] };
+    const draft = await service.buildMarketplacePosOrderDraft(input);
+    assert.equal(draft.orderNotes, '');
+    await service.importMarketplaceOrder(input);
+    assert.equal(saveCalls[0].orderPayload.special_instructions, null);
+  }
+});
+
+test('preserves existing staff notes when reimporting provider store instructions', async () => {
+  const updateCalls: MarketplaceUpdateCall[] = [];
+  const service = createExistingOrderService(existingOrder, updateCalls);
+  await service.importMarketplaceOrder({ ...detail, ...{ storeInstructions: 'New provider note' }, orderJobState: 'PICKED_UP' });
+  assert.deepEqual(updateCalls[0].update, { order_status: 'on_the_way' });
+});
+
+test('manual POS drafts retain Uber store instructions with resolution notes', async () => {
+  const { service } = createFailOpenService();
+  const draft = await service.buildMarketplacePosOrderDraft({ ...detail, ...{ storeInstructions: '2 potato cakes please 🙏 NO DIM SIMS ' } });
+  const notes = String(draft.orderNotes);
+  assert.match(notes, /^2 potato cakes please 🙏 NO DIM SIMS\n/);
+  assert.match(notes, /Check modifiers:/);
+});

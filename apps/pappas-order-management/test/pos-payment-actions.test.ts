@@ -12,7 +12,7 @@ function dialogs(paired: boolean) {
   new Function('require', 'module', 'exports', code)((id: string) => {
     if (id === 'react') return { useState: (value: unknown) => [value, () => {}], useEffect: () => {}, useCallback: (fn: unknown) => fn };
     if (id === 'react/jsx-runtime') return { jsx, jsxs: jsx };
-    if (id === 'react-native') return { Text: 'Text', View: 'View', ScrollView: 'ScrollView', TouchableOpacity: 'TouchableOpacity' };
+    if (id === 'react-native') return { Platform: { OS: 'android' }, Text: 'Text', View: 'View', ScrollView: 'ScrollView', TouchableOpacity: 'TouchableOpacity' };
     if (id === 'react-native-paper') return { Portal: 'Portal', TextInput: { Affix: 'Affix' } };
     if (id.endsWith('/SelectionSheet')) return { SelectionSheet: 'SelectionSheet' };
     if (id.endsWith('/ResponsiveDialog')) return { ResponsiveDialog: Object.assign('Dialog', { Title: 'Title', Content: 'Content', Actions: 'Actions' }) };
