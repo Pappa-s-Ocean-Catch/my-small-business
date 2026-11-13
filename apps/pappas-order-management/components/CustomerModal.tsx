@@ -1,3 +1,7 @@
+import { CouponEmailButton } from '@/components/customers/CouponEmailButton';
+import { findCustomerByPhone } from '@/lib/customers';
+import { CreateCouponModal } from '@/components/customers/CreateCouponModal';
+import { useCouponAdmin } from '@/hooks/useCouponAdmin';
 import { AppModal as Modal } from '@/components/ui/AppModal';
 import { appDialog as Alert } from '@/lib/app-dialog';
 import { ActionButton as Button } from '@/components/ui/ActionButton';
@@ -73,6 +77,9 @@ export function CustomerModal({
   const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
   useEffect(() => { if (!visible) setDetailOrderId(null); }, [visible]);
   const theme = useTheme();
+  const canCreateCoupon = useCouponAdmin(visible);
+  const [showCreateCoupon, setShowCreateCoupon] = useState(false);
+  useEffect(() => { if (!visible || !canCreateCoupon) setShowCreateCoupon(false); }, [visible, canCreateCoupon]);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 920;
@@ -112,12 +119,15 @@ export function CustomerModal({
       return;
     }
     setLoadingCoupons(true);
-    const { data } = await getCustomerCoupons({ userId: c.profileId, customerEmail: c.email });
+    // Legacy orders may use a local phone format while the profile stores +61.
+    const matchedProfile = !c.profileId && c.phone ? await findCustomerByPhone(c.phone) : null;
+    const { data } = await getCustomerCoupons({ userId: c.profileId || matchedProfile?.data?.id, customerEmail: c.email });
     setCustomerCoupons(data);
     setLoadingCoupons(false);
   };
 
   const handleToggleCustomerCoupon = async (item: CustomerCouponItem) => {
+    if (!canCreateCoupon) return;
     const newStatus = !item.coupon.is_active;
     setTogglingCouponId(item.coupon.id);
     const { success, error: toggleErr } = await toggleCouponActive(item.coupon.id, newStatus);
@@ -327,13 +337,13 @@ export function CustomerModal({
 
   return (
     <Modal visible={visible} transparent={false} presentationStyle="fullScreen" animationType="slide" onRequestClose={onClose}>
-      <View accessibilityElementsHidden={!!detailOrderId || showEditCustomerModal} importantForAccessibility={detailOrderId || showEditCustomerModal ? 'no-hide-descendants' : 'auto'} pointerEvents={detailOrderId || showEditCustomerModal ? 'none' : 'auto'} style={{ flex: 1 }}>
+      <View accessibilityElementsHidden={!!detailOrderId || showEditCustomerModal || showCreateCoupon} importantForAccessibility={detailOrderId || showEditCustomerModal || showCreateCoupon ? 'no-hide-descendants' : 'auto'} pointerEvents={detailOrderId || showEditCustomerModal || showCreateCoupon ? 'none' : 'auto'} style={{ flex: 1 }}>
       <View accessibilityViewIsModal style={styles.container}>
         <FullScreenModalHeader
           title={error ? 'Customer not found' : loading ? 'Loading customer…' : customer?.name || 'Customer profile'}
           subtitle={customer?.signUpDate ? `Customer since ${new Date(customer.signUpDate).toLocaleDateString([], { month: 'long', year: 'numeric' })}` : email || phone || 'Customer details'}
           onClose={onClose} closeLabel="Close customer profile"
-          actions={customer ? <IconButton icon="pencil-outline" accessibilityLabel="Edit customer name" iconColor="#f8fafc" onPress={handleStartEditName} /> : undefined}
+          actions={customer ? <IconButton icon="pencil-outline" accessibilityLabel="Edit customer name" iconColor="#f8fafc" onPress={handleStartEditName} /> : !loading && canCreateCoupon && (profileId || email || phone) ? <Button mode="contained" icon="plus" onPress={() => setShowCreateCoupon(true)}>Create coupon</Button> : undefined}
         />
 
         <View style={styles.contentArea}>
@@ -548,7 +558,7 @@ export function CustomerModal({
                     ) : null}
                   </View>
 <View style={styles.section}>
-                    <View style={styles.sectionHeadingRow}><Text variant="titleMedium" style={[styles.sectionTitle, styles.headingInRow]}>Coupons & offers</Text>{customerCoupons.length > 2 && <Button compact contentStyle={{ minHeight: 32 }} hitSlop={{ top: 8, bottom: 8 }} style={styles.headerSecondaryAction} labelStyle={styles.headerSecondaryLabel} onPress={() => setShowAllCoupons((value) => !value)}>{showAllCoupons ? 'Show fewer' : 'View all'}</Button>}</View>
+                    <View style={styles.sectionHeadingRow}><Text variant="titleMedium" style={[styles.sectionTitle, styles.headingInRow]}>Coupons & offers</Text>{canCreateCoupon && <Button mode="outlined" icon="plus" onPress={() => setShowCreateCoupon(true)}>Create coupon</Button>}{customerCoupons.length > 2 && <Button compact contentStyle={{ minHeight: 32 }} hitSlop={{ top: 8, bottom: 8 }} style={styles.headerSecondaryAction} labelStyle={styles.headerSecondaryLabel} onPress={() => setShowAllCoupons((value) => !value)}>{showAllCoupons ? 'Show fewer' : 'View all'}</Button>}</View>
                     {loadingCoupons ? (
                       <ActivityIndicator size="small" style={{ marginVertical: 12 }} />
                     ) : customerCoupons.length === 0 ? (
@@ -606,6 +616,7 @@ export function CustomerModal({
                                   Used {item.userRedemptionsCount} {item.coupon.max_uses_per_user != null ? `/ ${item.coupon.max_uses_per_user}` : ''} times
                                 </Text>
                               </View>
+                              <CouponEmailButton coupon={item.coupon} isAdmin={canCreateCoupon} disabled={isToggling || item.status !== 'active'} />
                               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 6, borderTopWidth: 1, borderTopColor: '#f0f0f0' }}>
                                 <Text variant="bodySmall" style={{ color: '#555' }}>
                                   Active Status
@@ -613,7 +624,7 @@ export function CustomerModal({
                                 <Switch
                                   value={item.coupon.is_active}
                                   onValueChange={() => handleToggleCustomerCoupon(item)}
-                                  disabled={isToggling}
+                                  disabled={!canCreateCoupon || isToggling}
                                 />
                               </View>
                             </View>}
@@ -640,6 +651,19 @@ export function CustomerModal({
       </View>
 
       </View>
+      <CreateCouponModal
+        visible={visible && showCreateCoupon && canCreateCoupon}
+        customer={customer ? { profileId: customer.profileId, name: customer.name, email: customer.email, phone: customer.phone } : { profileId, email, phone }}
+        onClose={() => setShowCreateCoupon(false)}
+        onCreated={(coupon, deliveryMessage) => {
+          setShowCreateCoupon(false);
+          const updatedCustomer = customer ? { ...customer, profileId: customer.profileId || coupon.user_id || undefined } : null;
+          if (updatedCustomer) setCustomer(updatedCustomer);
+          void loadCoupons(updatedCustomer);
+          onCustomerUpdated?.();
+          Alert.alert('Coupon created', `Coupon ${coupon.code} is ready to use.${deliveryMessage ? `\n\n${deliveryMessage}` : ''}`);
+        }}
+      />
       <AddCustomerModal
         visible={showEditCustomerModal}
         saving={savingName}

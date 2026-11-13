@@ -468,6 +468,9 @@ importers:
       '@babel/core':
         specifier: ^7.25.0
         version: 7.28.6
+      '@testing-library/react':
+        specifier: ^16.1.0
+        version: 16.3.3(@testing-library/dom@10.4.2)(@types/react-dom@19.1.11(@types/react@19.1.17))(@types/react@19.1.17)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       '@types/react':
         specifier: ~19.1.10
         version: 19.1.17
@@ -477,6 +480,9 @@ importers:
       dotenv-cli:
         specifier: ^11.0.0
         version: 11.0.0
+      jsdom:
+        specifier: ^26.0.0
+        version: 26.1.0
       sharp:
         specifier: ^0.34.5
         version: 0.34.5

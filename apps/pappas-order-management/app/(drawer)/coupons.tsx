@@ -1,3 +1,6 @@
+import { CouponEmailButton } from '@/components/customers/CouponEmailButton';
+import { CreateCouponModal } from '@/components/customers/CreateCouponModal';
+import { useCouponAdmin } from '@/hooks/useCouponAdmin';
 import { appDialog as Alert } from '@/lib/app-dialog';
 import { ActionButton as Button } from '@/components/ui/ActionButton';
 import { SearchField as Searchbar } from '@/components/ui';
@@ -32,6 +35,10 @@ type FilterType = 'all' | 'active' | 'inactive' | 'expired';
 
 export default function CouponsScreen() {
   const theme = useTheme();
+  const isAdmin = useCouponAdmin();
+  const [showCreateCoupon, setShowCreateCoupon] = useState(false);
+  const [couponRevision, setCouponRevision] = useState(0);
+  useEffect(() => { if (!isAdmin) setShowCreateCoupon(false); }, [isAdmin]);
   const [contentWidth, setContentWidth] = useState(0);
   const columns = contentWidth < 600 ? 1 : contentWidth < 1000 ? 2 : 3;
   const gutter = contentWidth >= 1100 ? 16 : 12;
@@ -70,7 +77,7 @@ export default function CouponsScreen() {
 
   useEffect(() => {
     loadCoupons();
-  }, [loadCoupons]);
+  }, [loadCoupons, couponRevision]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -98,6 +105,7 @@ export default function CouponsScreen() {
 
   const saveCouponDetails = async () => {
     if (!selectedCoupon || togglingId) return;
+    if (!isAdmin) { setSelectedCoupon(null); return; }
     if (activeDraft === selectedCoupon.is_active) { setSelectedCoupon(null); return; }
     const coupon = selectedCoupon;
     setTogglingId(coupon.id);
@@ -126,7 +134,7 @@ export default function CouponsScreen() {
 
   return (
     <View style={styles.container} onLayout={(event) => setContentWidth(event.nativeEvent.layout.width)}>
-      <WorkspaceHeader title="Coupons" />
+      <WorkspaceHeader title="Coupons" actions={isAdmin ? <Button mode="contained" icon="plus" onPress={() => setShowCreateCoupon(true)}>Create coupon</Button> : undefined} />
 
       <View style={[styles.filterSection, { padding: gutter }]}>
         <View style={{ flexDirection: contentWidth < 600 ? 'column' : 'row', alignItems: 'stretch', gap: 8, marginBottom: 24 }}><Searchbar
@@ -237,6 +245,13 @@ export default function CouponsScreen() {
         </View>
       </View>
 
+      <CreateCouponModal visible={showCreateCoupon && isAdmin} onClose={() => setShowCreateCoupon(false)} onCreated={(coupon, deliveryMessage) => {
+        setShowCreateCoupon(false);
+        setSearchQuery(''); setFilter('all'); setPage(1);
+        setCouponRevision((value) => value + 1);
+        Alert.alert('Coupon created', `Coupon ${coupon.code} is ready to use.${deliveryMessage ? `\n\n${deliveryMessage}` : ''}`);
+      }} />
+
       <EditorSheet visible={selectedCoupon !== null} title="Coupon details" onDismiss={() => setSelectedCoupon(null)} dirty={!!selectedCoupon && activeDraft !== selectedCoupon.is_active} pending={!!togglingId} footer={(dismiss) => <>
         <Button mode="outlined" onPress={dismiss} disabled={!!togglingId} contentStyle={{ minHeight: 48 }}>Cancel</Button>
         <Button mode="contained" onPress={() => void saveCouponDetails()} loading={!!togglingId} disabled={!!togglingId} contentStyle={{ minHeight: 48 }}>Done</Button>
@@ -251,7 +266,8 @@ export default function CouponsScreen() {
           {selectedCoupon.target_email && <DetailRow label="Target email" value={selectedCoupon.target_email} />}
           <DetailRow label="Starts" value={formatDate(selectedCoupon.starts_at)} />
           <DetailRow label="Ends" value={formatDate(selectedCoupon.ends_at)} />
-          <DetailRow label="Active status" value={<Switch accessibilityLabel="Active status" value={activeDraft} onValueChange={setActiveDraft} disabled={!!togglingId} />} />
+          <View style={{ marginTop: 16 }}><CouponEmailButton coupon={selectedCoupon} isAdmin={isAdmin} disabled={!!togglingId || activeDraft !== selectedCoupon.is_active} /></View>
+          <DetailRow label="Active status" value={<Switch accessibilityLabel="Active status" value={activeDraft} onValueChange={setActiveDraft} disabled={!isAdmin || !!togglingId} />} />
         </View>}
       </EditorSheet>
 
