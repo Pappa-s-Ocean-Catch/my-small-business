@@ -1,3 +1,4 @@
+import { isInstoreCustomerReceiptTimeWindowEnabled, normalizeTimeWindowValue } from './instore-customer-receipt';
 import type { Order } from '@my-small-business/types';
 import { getFriendlyOrderNumber } from '../utils/orderNumber';
 
@@ -6,9 +7,11 @@ export type InstoreInstantTicketSettings = {
   instoreOrderAutoPrintEnabled?: boolean;
   instoreInstantTicketEnabled: boolean;
   instoreInstantTicketPrinterTarget: string | null;
+  instoreInstantTicketEnabledFromTime?: string | null;
+  instoreInstantTicketEnabledToTime?: string | null;
 };
 
-export function normalizeInstoreInstantTicketSettings(value: unknown): InstoreInstantTicketSettings {
+export function normalizeInstoreInstantTicketSettings(value: unknown) {
   const settings = value as Partial<InstoreInstantTicketSettings> | null;
   const printerTarget = typeof settings?.instoreInstantTicketPrinterTarget === 'string'
     ? settings.instoreInstantTicketPrinterTarget.trim() || null
@@ -17,6 +20,8 @@ export function normalizeInstoreInstantTicketSettings(value: unknown): InstoreIn
   return {
     instoreInstantTicketEnabled: settings?.instoreInstantTicketEnabled === true,
     instoreInstantTicketPrinterTarget: printerTarget,
+    instoreInstantTicketEnabledFromTime: normalizeTimeWindowValue(settings?.instoreInstantTicketEnabledFromTime),
+    instoreInstantTicketEnabledToTime: normalizeTimeWindowValue(settings?.instoreInstantTicketEnabledToTime),
   };
 }
 
@@ -24,10 +29,16 @@ export function getInstoreInstantTicketPrintJob(
   order: Pick<Order, 'order_channel' | 'payment_method' | 'payment_status'>,
   settings: InstoreInstantTicketSettings,
   savedTargets: string[],
+  now = new Date(),
 ): { printerTarget: string; priority: 'instant-ticket' } | null {
   const printerTarget = settings.instoreInstantTicketPrinterTarget;
   if (settings.instoreOrderAutoPrintEnabled === false
     || !settings.instoreInstantTicketEnabled
+    || !isInstoreCustomerReceiptTimeWindowEnabled(
+      settings.instoreInstantTicketEnabledFromTime ?? null,
+      settings.instoreInstantTicketEnabledToTime ?? null,
+      now,
+    )
     || !printerTarget
     || order.order_channel !== 'instore'
     || order.payment_method !== 'store'
@@ -43,11 +54,12 @@ export function getInstoreInstantTicketDebugDetails(
   order: Pick<Order, 'order_channel' | 'payment_method' | 'payment_status'>,
   settings: InstoreInstantTicketSettings,
   savedTargets: string[],
+  now = new Date(),
 ): string {
   const target = settings.instoreInstantTicketPrinterTarget;
   const saved = Boolean(target && savedTargets.includes(target));
-  const eligible = Boolean(getInstoreInstantTicketPrintJob(order, settings, savedTargets));
-  return `enabled=${settings.instoreInstantTicketEnabled} target=${target ?? 'none'} saved=${saved} channel=${order.order_channel} method=${order.payment_method} payment=${order.payment_status} eligible=${eligible}`;
+  const eligible = Boolean(getInstoreInstantTicketPrintJob(order, settings, savedTargets, now));
+  return `enabled=${settings.instoreInstantTicketEnabled} target=${target ?? 'none'} saved=${saved} channel=${order.order_channel} method=${order.payment_method} payment=${order.payment_status} window=${settings.instoreInstantTicketEnabledFromTime ?? 'all'}-${settings.instoreInstantTicketEnabledToTime ?? 'all'} eligible=${eligible}`;
 }
 
 export function buildInstoreInstantTicketDocument(

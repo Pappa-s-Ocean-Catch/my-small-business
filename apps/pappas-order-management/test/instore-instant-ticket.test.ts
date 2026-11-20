@@ -28,6 +28,8 @@ test('defaults instant tickets to disabled with no target', () => {
   assert.deepEqual(normalizeInstoreInstantTicketSettings(null), {
     instoreInstantTicketEnabled: false,
     instoreInstantTicketPrinterTarget: null,
+    instoreInstantTicketEnabledFromTime: null,
+    instoreInstantTicketEnabledToTime: null,
   });
 });
 
@@ -73,7 +75,7 @@ test('reports the exact instant ticket eligibility inputs for the print journal'
       instoreInstantTicketEnabled: true,
       instoreInstantTicketPrinterTarget: 'TCP:192.168.1.20',
     }, ['TCP:192.168.1.20']),
-    'enabled=true target=TCP:192.168.1.20 saved=true channel=phone_pickup method=store payment=paid eligible=false',
+    'enabled=true target=TCP:192.168.1.20 saved=true channel=phone_pickup method=store payment=paid window=all-all eligible=false',
   );
 });
 
@@ -130,4 +132,52 @@ test('preserves document newline nodes for Epson text printing', () => {
     source('lib/escpos-printer.ts'),
     /device\.addText\(node\.newline !== false \? `\$\{node\.text\}\\n` : node\.text\)/,
   );
+});
+
+
+test('normalizes instant ticket hours and rejects invalid clock values', () => {
+  const normalized = normalizeInstoreInstantTicketSettings({
+    instoreInstantTicketEnabledFromTime: ' 17:00 ',
+    instoreInstantTicketEnabledToTime: '20:30',
+  });
+  assert.equal(normalized.instoreInstantTicketEnabledFromTime, '17:00');
+  assert.equal(normalized.instoreInstantTicketEnabledToTime, '20:30');
+  for (const value of ['24:00', '17:60', '5:00', 'invalid']) {
+    assert.equal(normalizeInstoreInstantTicketSettings({ instoreInstantTicketEnabledFromTime: value }).instoreInstantTicketEnabledFromTime, null);
+  }
+});
+
+test('instant ticket hours include start and exclude end using local time', () => {
+  const settings = {
+    instoreInstantTicketEnabled: true,
+    instoreInstantTicketPrinterTarget: 'TCP:192.168.1.20',
+    instoreInstantTicketEnabledFromTime: '17:00',
+    instoreInstantTicketEnabledToTime: '20:00',
+  };
+  for (const [hour, minute, expected] of [[16, 59, false], [17, 0, true], [19, 59, true], [20, 0, false]] as const) {
+    const now = new Date(2026, 10, 20, hour, minute);
+    assert.equal(Boolean(getInstoreInstantTicketPrintJob(makeOrder({ payment_status: 'paid' }), settings, [settings.instoreInstantTicketPrinterTarget], now)), expected);
+    assert.match(getInstoreInstantTicketDebugDetails(makeOrder({ payment_status: 'paid' }), settings, [settings.instoreInstantTicketPrinterTarget], now), new RegExp(`window=17:00-20:00.*eligible=${expected}`));
+  }
+});
+
+test('instant tickets support overnight and all-day hours while respecting the toggle', () => {
+  const settings = {
+    instoreInstantTicketEnabled: true,
+    instoreInstantTicketPrinterTarget: 'TCP:192.168.1.20',
+    instoreInstantTicketEnabledFromTime: '20:00',
+    instoreInstantTicketEnabledToTime: '06:00',
+  };
+  const job = (from: string | null, to: string | null, hour: number, enabled = true) => getInstoreInstantTicketPrintJob(
+    makeOrder({ payment_status: 'paid' }),
+    { ...settings, instoreInstantTicketEnabled: enabled, instoreInstantTicketEnabledFromTime: from, instoreInstantTicketEnabledToTime: to },
+    [settings.instoreInstantTicketPrinterTarget], new Date(2026, 10, 20, hour),
+  );
+  assert.ok(job('20:00', '06:00', 20));
+  assert.ok(job('20:00', '06:00', 2));
+  assert.equal(job('20:00', '06:00', 6), null);
+  assert.equal(job('20:00', '06:00', 12), null);
+  assert.ok(job(null, null, 12));
+  assert.ok(job('17:00', '17:00', 12));
+  assert.equal(job(null, null, 12, false), null);
 });

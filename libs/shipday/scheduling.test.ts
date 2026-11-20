@@ -27,3 +27,13 @@ test('customer delivery time derives pickup and ready time ten minutes earlier',
   assert.equal(getPickupTimeForDelivery(null), null);
   assert.equal(getPickupTimeForDelivery('invalid'), null);
 });
+
+
+for (const eta of [null, 5, 25, 45, 50, 90]) {
+  test(`ASAP requests delivery 30 minutes after placement regardless of ETA ${eta}`, () => {
+    assert.deepEqual(getDeliverySchedule({ created_at: '2026-11-20T23:40:00Z', delivery_eta_minutes: eta }), {
+      expected_pickup_at: '2026-11-20T23:50:00.000Z',
+      expected_delivery_at: '2026-11-21T00:10:00.000Z',
+    });
+  });
+}

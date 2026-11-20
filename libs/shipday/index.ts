@@ -137,8 +137,10 @@ class ShipdayClient {
     console.log('[Shipday] Requesting availability quote:', { pickupStr, dropoffStr });
 
     try {
-      const requestedPickupTime = schedule.pickup_at || new Date(Date.now() + 10 * 60 * 1000).toISOString();
-      const deliveryTime = schedule.delivery_at || new Date(new Date(requestedPickupTime).getTime() + 30 * 60 * 1000).toISOString();
+      const requestedAt = Date.now();
+      const requestedPickupTime = schedule.pickup_at || new Date(requestedAt + 10 * 60 * 1000).toISOString();
+      const deliveryBaseTime = schedule.pickup_at ? new Date(requestedPickupTime).getTime() : requestedAt;
+      const deliveryTime = schedule.delivery_at || new Date(deliveryBaseTime + 30 * 60 * 1000).toISOString();
       console.log(JSON.stringify({
         pickupAddress: pickupStr,
         deliveryAddress: dropoffStr,
@@ -302,7 +304,8 @@ class ShipdayClient {
     const placedAt = this.parseIsoDate(req.placed_at) ?? new Date();
     const expectedPickupAt =
       this.parseIsoDate(req.expected_pickup_at) ?? new Date(placedAt.getTime() + 10 * 60 * 1000);
-    const expectedDeliveryAt = this.parseIsoDate(req.expected_delivery_at) ?? new Date(expectedPickupAt.getTime() + 30 * 60000);
+    const deliveryBaseTime = req.expected_pickup_at ? expectedPickupAt.getTime() : placedAt.getTime();
+    const expectedDeliveryAt = this.parseIsoDate(req.expected_delivery_at) ?? new Date(deliveryBaseTime + 30 * 60000);
     const paymentMethod = this.normalizePaymentMethod(req.payment_method);
 
     const payload = {

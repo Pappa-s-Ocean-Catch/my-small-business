@@ -9,7 +9,7 @@ export type InstoreCustomerReceiptSettings = {
   instoreCustomerReceiptEnabledToTime: string | null;
 };
 
-function normalizeTimeWindowValue(value: unknown): string | null {
+export function normalizeTimeWindowValue(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const normalized = value.trim();
   if (!/^\d{2}:\d{2}$/.test(normalized)) return null;

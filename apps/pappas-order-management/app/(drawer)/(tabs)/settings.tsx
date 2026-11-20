@@ -1,3 +1,4 @@
+import { normalizeTimeWindowValue } from '@/lib/instore-customer-receipt';
 import { appDialog as Alert } from '@/lib/app-dialog';
 import { Switch } from '@/components/ui/Switch';
 import { ActionButton as Button } from '@/components/ui/ActionButton';
@@ -120,6 +121,8 @@ export default function SettingsScreen() {
     const [instoreCustomerReceiptPrinterTarget, setInstoreCustomerReceiptPrinterTarget] = useState<string | null>(DEFAULT_APP_SETTINGS.instoreCustomerReceiptPrinterTarget);
     const [instoreCustomerReceiptEnabledFromTime, setInstoreCustomerReceiptEnabledFromTime] = useState(DEFAULT_APP_SETTINGS.instoreCustomerReceiptEnabledFromTime || '');
     const [instoreCustomerReceiptEnabledToTime, setInstoreCustomerReceiptEnabledToTime] = useState(DEFAULT_APP_SETTINGS.instoreCustomerReceiptEnabledToTime || '');
+    const [instoreInstantTicketEnabledFromTime, setInstoreInstantTicketEnabledFromTime] = useState(DEFAULT_APP_SETTINGS.instoreInstantTicketEnabledFromTime || '');
+    const [instoreInstantTicketEnabledToTime, setInstoreInstantTicketEnabledToTime] = useState(DEFAULT_APP_SETTINGS.instoreInstantTicketEnabledToTime || '');
     const [instoreInstantTicketEnabled, setInstoreInstantTicketEnabled] = useState(DEFAULT_APP_SETTINGS.instoreInstantTicketEnabled);
     const [instoreInstantTicketPrinterTarget, setInstoreInstantTicketPrinterTarget] = useState<string | null>(DEFAULT_APP_SETTINGS.instoreInstantTicketPrinterTarget);
     const [printerSaved, setPrinterSaved] = useState<SavedPrinter[]>(DEFAULT_APP_SETTINGS.printerSaved);
@@ -187,6 +190,8 @@ export default function SettingsScreen() {
         setInstoreCustomerReceiptPrinterTarget(currentSettings.instoreCustomerReceiptPrinterTarget);
         setInstoreCustomerReceiptEnabledFromTime(currentSettings.instoreCustomerReceiptEnabledFromTime || '');
         setInstoreCustomerReceiptEnabledToTime(currentSettings.instoreCustomerReceiptEnabledToTime || '');
+        setInstoreInstantTicketEnabledFromTime(currentSettings.instoreInstantTicketEnabledFromTime || '');
+        setInstoreInstantTicketEnabledToTime(currentSettings.instoreInstantTicketEnabledToTime || '');
         setInstoreInstantTicketEnabled(currentSettings.instoreInstantTicketEnabled);
         setInstoreInstantTicketPrinterTarget(currentSettings.instoreInstantTicketPrinterTarget);
         setPrinterSaved(currentSettings.printerSaved);
@@ -242,6 +247,8 @@ export default function SettingsScreen() {
             setInstoreCustomerReceiptPrinterTarget(instoreCustomerReceiptPrinterTarget);
             setInstoreCustomerReceiptEnabledFromTime(instoreCustomerReceiptEnabledFromTime);
             setInstoreCustomerReceiptEnabledToTime(instoreCustomerReceiptEnabledToTime);
+            setInstoreInstantTicketEnabledFromTime(instoreInstantTicketEnabledFromTime);
+            setInstoreInstantTicketEnabledToTime(instoreInstantTicketEnabledToTime);
             setInstoreInstantTicketEnabled(instoreInstantTicketEnabled);
             setInstoreInstantTicketPrinterTarget(instoreInstantTicketPrinterTarget);
             setPrinterSaved(printerSaved);
@@ -767,6 +774,12 @@ export default function SettingsScreen() {
             enabledFromTime: normalizeTimeInput(assignment.enabledFromTime),
             enabledToTime: normalizeTimeInput(assignment.enabledToTime),
         }));
+        const ticketFromTime = normalizeTimeInput(instoreInstantTicketEnabledFromTime);
+        const ticketToTime = normalizeTimeInput(instoreInstantTicketEnabledToTime);
+        if ((!!ticketFromTime !== !!ticketToTime) || [ticketFromTime, ticketToTime].some((value) => !!value && !normalizeTimeWindowValue(value))) {
+            Alert.alert('Invalid instant ticket time window', 'Set both From and To times in 24-hour HH:MM format, or leave both blank to always print.');
+            return;
+        }
         const receiptFromTime = normalizeTimeInput(instoreCustomerReceiptEnabledFromTime);
         const receiptToTime = normalizeTimeInput(instoreCustomerReceiptEnabledToTime);
         if ((!!receiptFromTime && !receiptToTime) || (!receiptFromTime && !!receiptToTime) || [receiptFromTime, receiptToTime].some((value) => !!value && !/^\d{2}:\d{2}$/.test(value))) {
@@ -845,6 +858,8 @@ export default function SettingsScreen() {
                 instoreCustomerReceiptPrinterTarget,
                 instoreCustomerReceiptEnabledFromTime: receiptFromTime,
                 instoreCustomerReceiptEnabledToTime: receiptToTime,
+                instoreInstantTicketEnabledFromTime: ticketFromTime,
+                instoreInstantTicketEnabledToTime: ticketToTime,
                 instoreInstantTicketEnabled,
                 instoreInstantTicketPrinterTarget,
                 printerSelectedTarget,
@@ -1623,6 +1638,11 @@ export default function SettingsScreen() {
                                             ))}
                                         </View>
                                         {savedPhysicalPrinters.length === 0 ? <Text style={styles.helper}>Add and enable a physical saved printer before enabling instant tickets.</Text> : null}
+                                        <View style={styles.buttonGroup}>
+                                            <FormField mode="outlined" label="From" value={instoreInstantTicketEnabledFromTime} onChangeText={setInstoreInstantTicketEnabledFromTime} placeholder="17:00" style={[styles.input, styles.flexButton]} disabled={!instoreInstantTicketEnabled || !hasInstantTicketPrinterCapability} />
+                                            <FormField mode="outlined" label="To" value={instoreInstantTicketEnabledToTime} onChangeText={setInstoreInstantTicketEnabledToTime} placeholder="20:00" style={[styles.input, styles.flexButton]} disabled={!instoreInstantTicketEnabled || !hasInstantTicketPrinterCapability} />
+                                        </View>
+                                        <Text style={styles.helper}>Leave both blank to always print. Uses 24-hour time and supports overnight windows.</Text>
 
                                         <View style={styles.separator} />
 

@@ -82,7 +82,7 @@ function fixture(orderType, scheduled) {
 }
 for (const entry of ['verify', 'webhook']) {
   for (const scenario of [
-    { name: 'ASAP delivery', type: 'delivery', scheduled: false, date: '2026-10-08', pickup: '01:10:00', delivery: '01:35:00' },
+    { name: 'ASAP delivery', type: 'delivery', scheduled: false, date: '2026-10-08', pickup: '01:10:00', delivery: '01:30:00' },
     { name: 'scheduled delivery', type: 'delivery', scheduled: true, date: '2026-10-09', pickup: '01:20:00', delivery: '01:30:00' },
     { name: 'pickup', type: 'pickup', scheduled: false },
     { name: 'scheduled pickup', type: 'pickup', scheduled: true },

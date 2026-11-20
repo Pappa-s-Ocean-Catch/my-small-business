@@ -14,12 +14,16 @@ interface ScheduledOrder {
 
 /** Restaurant pickup is also the planned food-ready time. */
 export function getDeliverySchedule(order: ScheduledOrder) {
+  const placedAt = new Date(order.created_at || new Date().toISOString());
   const pickup = order.scheduled_pickup_at
     ? new Date(order.scheduled_pickup_at)
-    : new Date(new Date(order.created_at || new Date().toISOString()).getTime() + 10 * 60000);
+    : new Date(placedAt.getTime() + 10 * 60000);
   const delivery = order.scheduled_delivery_at
     ? new Date(order.scheduled_delivery_at)
-    : new Date(pickup.getTime() + (Number(order.delivery_eta_minutes) > 0 ? Number(order.delivery_eta_minutes) : 30) * 60000);
+    // Provider ETA is informational; ASAP requests are due 30 minutes after placement.
+    : order.scheduled_pickup_at
+      ? new Date(pickup.getTime() + 30 * 60000)
+      : new Date(placedAt.getTime() + 30 * 60000);
   if (!Number.isFinite(pickup.getTime()) || !Number.isFinite(delivery.getTime()) || delivery <= pickup) {
     throw new Error('Invalid delivery schedule');
   }

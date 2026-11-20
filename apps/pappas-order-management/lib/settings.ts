@@ -160,6 +160,8 @@ export type AppSettings = MarketplaceAutoSyncSettings & MarketplaceSoundSettings
     instoreCustomerReceiptPrinterTarget: string | null;
     instoreCustomerReceiptEnabledFromTime: string | null;
     instoreCustomerReceiptEnabledToTime: string | null;
+    instoreInstantTicketEnabledFromTime: string | null;
+    instoreInstantTicketEnabledToTime: string | null;
     instoreInstantTicketEnabled: boolean;
     instoreInstantTicketPrinterTarget: string | null;
 
@@ -238,6 +240,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     instoreCustomerReceiptPrinterTarget: null,
     instoreCustomerReceiptEnabledFromTime: null,
     instoreCustomerReceiptEnabledToTime: null,
+    instoreInstantTicketEnabledFromTime: null,
+    instoreInstantTicketEnabledToTime: null,
     instoreInstantTicketEnabled: false,
     instoreInstantTicketPrinterTarget: null,
 
