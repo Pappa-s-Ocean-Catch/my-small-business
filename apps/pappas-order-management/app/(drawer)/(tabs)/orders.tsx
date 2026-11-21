@@ -19,6 +19,7 @@ import { OrderDetailModal } from '@/components/OrderDetailModal';
 import { OrderFiltersModal } from '@/components/OrderFiltersModal';
 import { PrintSimulatorModal } from '@/components/PrintSimulatorModal';
 import { getAllOrders, getOrder } from '@/lib/orders';
+import { buildCompletedOrderStats } from '@/lib/completed-order-stats';
 import type { Order } from '@my-small-business/types';
 import { DEFAULT_APP_SETTINGS } from '@/lib/settings';
 import { useAppSettingsQuery } from '@/hooks/useAppSettingsQuery';
@@ -101,29 +102,10 @@ export default function HistoryScreen() {
     loadOrders();
   }, [selectedDate, statusFilter, paymentFilter]);
 
-  const quickStats = useMemo(() => {
-    if (!orders.length) return null;
-    let totalOrders = 0;
-    let totalSales = 0;
-    let totalCard = 0;
-    let totalCash = 0;
-    let totalMarketplace = 0;
-    orders.forEach((order) => {
-      if (order.payment_status === 'paid') {
-        totalOrders++;
-        totalSales += order.total;
-        const paymentType = getPaymentStatType(order);
-        if (paymentType === 'card') {
-          totalCard += order.total;
-        } else if (paymentType === 'marketplace') {
-          totalMarketplace += order.total;
-        } else {
-          totalCash += order.total;
-        }
-      }
-    });
-    return { totalOrders, totalSales, totalCard, totalCash, totalMarketplace };
-  }, [orders]);
+  const quickStats = useMemo(
+    () => orders.length ? buildCompletedOrderStats(orders) : null,
+    [orders],
+  );
 
   const filteredOrders = useMemo(() => {
     let result = orders;
@@ -225,10 +207,10 @@ export default function HistoryScreen() {
         {isCompact && quickStats && <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.compactStats} contentContainerStyle={styles.compactStatsRow}>
           {[
             { label: 'Paid orders', value: String(quickStats.totalOrders), method: 'all' as const },
-            { label: 'Paid sales', value: `$${quickStats.totalSales.toFixed(2)}` },
-            { label: 'Card', value: `$${quickStats.totalCard.toFixed(2)}`, method: 'card' as const },
-            { label: 'Cash', value: `$${quickStats.totalCash.toFixed(2)}`, method: 'cash' as const },
-            ...(filtersExpanded ? [{ label: 'Marketplace', value: `$${quickStats.totalMarketplace.toFixed(2)}`, method: 'marketplace' as const }] : []),
+            { label: 'Net sales', value: `$${quickStats.totalNetSales.toFixed(2)}` },
+            { label: 'Card (gross)', value: `$${quickStats.totalCard.toFixed(2)}`, method: 'card' as const },
+            { label: 'Cash (gross)', value: `$${quickStats.totalCash.toFixed(2)}`, method: 'cash' as const },
+            ...(filtersExpanded ? [{ label: 'Market (gross)', value: `$${quickStats.totalMarketplace.toFixed(2)}`, method: 'marketplace' as const }] : []),
           ].map((stat) => stat.method === undefined ? <View key={stat.label} style={[styles.compactStatBox, { width: (width - 36) / 4 }]}>
             <Text numberOfLines={1} style={styles.compactStatLabel}>{stat.label}</Text>
             <Text numberOfLines={1} adjustsFontSizeToFit style={styles.compactStatValue}>{stat.value}</Text>
@@ -250,8 +232,8 @@ export default function HistoryScreen() {
               </TouchableOpacity>
 
               <View style={styles.statBox}>
-                <Text style={styles.statLabel}>Paid sales</Text>
-                <Text style={styles.statValue}>${quickStats.totalSales.toFixed(2)}</Text>
+                <Text style={styles.statLabel}>Net sales</Text>
+                <Text style={styles.statValue}>${quickStats.totalNetSales.toFixed(2)}</Text>
               </View>
 
               <TouchableOpacity
@@ -267,7 +249,7 @@ export default function HistoryScreen() {
                     size={14}
                     color={paymentMethodFilter === 'card' ? t.color.primary : t.color.muted}
                   />
-                  <Text style={[styles.statLabel, { marginBottom: 0 }]}>Card</Text>
+                  <Text style={[styles.statLabel, { marginBottom: 0 }]}>Card (gross)</Text>
                 </View>
                 <Text style={styles.statValue}>${quickStats.totalCard.toFixed(2)}</Text>
               </TouchableOpacity>
@@ -285,7 +267,7 @@ export default function HistoryScreen() {
                     size={14}
                     color={paymentMethodFilter === 'cash' ? t.color.primary : t.color.muted}
                   />
-                  <Text style={[styles.statLabel, { marginBottom: 0 }]}>Cash</Text>
+                  <Text style={[styles.statLabel, { marginBottom: 0 }]}>Cash (gross)</Text>
                 </View>
                 <Text style={styles.statValue}>${quickStats.totalCash.toFixed(2)}</Text>
               </TouchableOpacity>
@@ -303,7 +285,7 @@ export default function HistoryScreen() {
                     size={14}
                     color={paymentMethodFilter === 'marketplace' ? t.color.primary : t.color.muted}
                   />
-                  <Text style={[styles.statLabel, { marginBottom: 0 }]}>Marketplace</Text>
+                  <Text style={[styles.statLabel, { marginBottom: 0 }]}>Marketplace (gross)</Text>
                 </View>
                 <Text style={styles.statValue}>${quickStats.totalMarketplace.toFixed(2)}</Text>
               </TouchableOpacity>)}
